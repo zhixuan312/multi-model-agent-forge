@@ -1,0 +1,12 @@
+# Local skill-workflow scaffolding — never commit
+.superpowers/
+
+# macOS noise
+.DS_Store
+
+# Local design artifacts
+design/
+
+# Mockups are local design artifacts; keep only forge.html
+mockup/*
+!mockup/forge.html

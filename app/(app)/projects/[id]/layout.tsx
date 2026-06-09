@@ -43,7 +43,7 @@ export default async function ProjectLayout({
   return (
     <div data-phase={DATA_PHASE[project.phase]} className="flex min-h-full flex-col">
       <header className="mb-5 flex flex-col gap-3 border-b border-line pb-4">
-        <ProjectTopbar projectName={project.name} phase={project.phase} />
+        <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
         <StageStepper
           projectId={project.id}
           stages={stages}

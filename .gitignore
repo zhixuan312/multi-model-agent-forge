@@ -48,3 +48,6 @@ mockup/*
 
 # Cloned team repos (Spec 2 workspace root) — code on disk, never committed.
 /.forge-workspace/
+
+# Generated export files (Spec 8 export service) — on-disk hand-offs, never committed.
+/.forge-exports/

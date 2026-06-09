@@ -234,6 +234,87 @@ export class MmaClient {
     };
   }
 
+  /* ── Exploration rod methods (Spec 5) ─────────────────────────────────────
+   * Three READ routes. Each builds the route-specific strict body (verified
+   * against MMA `tools/<route>/schema.ts`) and dispatches → 202 → { batchId }.
+   * The caller (exploration/dispatch.ts) owns the `mma_batch` row + task link +
+   * PollManager registration; these methods are the thin wire layer only.
+   * Bodies are validated against the per-route MMA min-lengths BEFORE the POST,
+   * so a sub-floor prompt fails fast in Forge rather than 400-ing at MMA. */
+
+  /**
+   * `POST /investigate?cwd=<repo path>`. Strict body
+   * `{ question, subtype?, filePaths?, contextBlockIds?, tools? }`. `question`
+   * has a ≥1 floor (no practical limit).
+   */
+  async investigate(
+    cwd: string,
+    input: {
+      question: string;
+      subtype?: 'default';
+      filePaths?: string[];
+      contextBlockIds?: string[];
+      tools?: 'none' | 'readonly';
+    },
+  ): Promise<{ batchId: string }> {
+    const question = input.question.trim();
+    if (question.length < 1) {
+      throw new Error('investigate.question must be at least 1 character');
+    }
+    const body: Record<string, unknown> = { question };
+    if (input.subtype) body.subtype = input.subtype;
+    if (input.filePaths) body.filePaths = input.filePaths;
+    if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
+    if (input.tools) body.tools = input.tools;
+    return this.dispatch('investigate', { cwd, body });
+  }
+
+  /**
+   * `POST /research?cwd=<workspace root>`. Sends EXACTLY
+   * `{ researchQuestion, background, contextBlockIds?, subtype? }` — MMA blocks
+   * `agentType`/`tools` and rejects unknown keys. Both text fields have a ≥20
+   * floor.
+   */
+  async research(
+    cwd: string,
+    input: {
+      researchQuestion: string;
+      background: string;
+      contextBlockIds?: string[];
+      subtype?: 'default';
+    },
+  ): Promise<{ batchId: string }> {
+    const researchQuestion = input.researchQuestion.trim();
+    const background = input.background.trim();
+    if (researchQuestion.length < 20) {
+      throw new Error('research.researchQuestion must be at least 20 characters');
+    }
+    if (background.length < 20) {
+      throw new Error('research.background must be at least 20 characters');
+    }
+    const body: Record<string, unknown> = { researchQuestion, background };
+    if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
+    if (input.subtype) body.subtype = input.subtype;
+    return this.dispatch('research', { cwd, body });
+  }
+
+  /**
+   * `POST /journal-recall?cwd=<workspace root>`. Strict body `{ query }` with a
+   * ≥10 floor (the team journal lives at the workspace-root `.mmagent/journal/`).
+   */
+  async journalRecall(
+    cwd: string,
+    input: { query: string; contextBlockIds?: string[] },
+  ): Promise<{ batchId: string }> {
+    const query = input.query.trim();
+    if (query.length < 10) {
+      throw new Error('journalRecall.query must be at least 10 characters');
+    }
+    const body: Record<string, unknown> = { query };
+    if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
+    return this.dispatch('journal-recall', { cwd, body });
+  }
+
   /** dispatch + poll-to-terminal. Returns the terminal envelope. */
   async dispatchAndWait(route: string, args: { cwd: string; body: unknown }): Promise<unknown> {
     const { batchId } = await this.dispatch(route, args);

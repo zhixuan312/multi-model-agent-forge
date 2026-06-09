@@ -1,0 +1,71 @@
+import { getTableColumns, getTableName } from 'drizzle-orm';
+import { attachment, explorationTask } from '@/db/schema/exploration';
+import { mmaBatch } from '@/db/schema/mma';
+import * as schema from '@/db/schema';
+
+function columnNames(table: Parameters<typeof getTableColumns>[0]) {
+  const cols = getTableColumns(table);
+  return Object.fromEntries(Object.entries(cols).map(([k, v]) => [k, v.name]));
+}
+
+describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
+  it('mma_batch has the canonical columns; cwd NOT NULL for every route', () => {
+    expect(getTableName(mmaBatch)).toBe('mma_batch');
+    expect(columnNames(mmaBatch)).toEqual({
+      id: 'id',
+      projectId: 'project_id',
+      route: 'route',
+      targetRepoId: 'target_repo_id',
+      cwd: 'cwd',
+      batchId: 'batch_id',
+      status: 'status',
+      request: 'request',
+      result: 'result',
+      dispatchedBy: 'dispatched_by',
+      createdAt: 'created_at',
+      terminalAt: 'terminal_at',
+    });
+    const cols = getTableColumns(mmaBatch);
+    expect(cols.cwd.notNull).toBe(true); // every route carries a cwd
+    expect(cols.targetRepoId.notNull).toBe(false); // null for research/journal-recall
+    expect(cols.request.notNull).toBe(true);
+    expect(cols.result.notNull).toBe(false); // only after terminal
+    expect(cols.dispatchedBy.notNull).toBe(false); // actor-less resumed dispatch
+    expect(cols.route.enumValues).toEqual([
+      'investigate',
+      'research',
+      'journal_recall',
+      'audit',
+      'execute_plan',
+      'review',
+      'journal_record',
+    ]);
+    expect(cols.status.enumValues).toEqual(['dispatched', 'running', 'done', 'failed']);
+    expect(cols.status.default).toBe('dispatched');
+  });
+
+  it('exploration_task has draft|running|recorded status (NO failed value)', () => {
+    expect(getTableName(explorationTask)).toBe('exploration_task');
+    const cols = getTableColumns(explorationTask);
+    expect(cols.status.enumValues).toEqual(['draft', 'running', 'recorded']);
+    expect(cols.status.enumValues).not.toContain('failed');
+    expect(cols.status.default).toBe('draft');
+    expect(cols.kind.enumValues).toEqual(['investigate', 'research', 'journal']);
+    expect(cols.targetRepoId.notNull).toBe(false); // Zod enforces the conditional invariant
+    expect(cols.prompt.notNull).toBe(true);
+  });
+
+  it('attachment has link|image|file kinds + a jsonb payload', () => {
+    expect(getTableName(attachment)).toBe('attachment');
+    const cols = getTableColumns(attachment);
+    expect(cols.kind.enumValues).toEqual(['link', 'image', 'file']);
+    expect(cols.label.notNull).toBe(true);
+    expect(cols.payload.notNull).toBe(true);
+  });
+
+  it('the barrel re-exports the Spec-5 tables', () => {
+    expect(schema.attachment).toBe(attachment);
+    expect(schema.explorationTask).toBe(explorationTask);
+    expect(schema.mmaBatch).toBe(mmaBatch);
+  });
+});

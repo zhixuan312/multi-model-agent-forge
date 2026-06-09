@@ -122,3 +122,49 @@ export type LearningStatus = (typeof LEARNING_STATUS)[number];
 export function componentStatusRank(status: ComponentStatus): number {
   return COMPONENT_STATUS.indexOf(status);
 }
+
+/* ── Spec 5: Exploration ────────────────────────────────────────────────── */
+
+/**
+ * attachment.kind (schema.md §4). A brief INPUT (material that feeds a task, not
+ * an MMA route): a validated link, an uploaded image, or an uploaded file.
+ */
+export const ATTACHMENT_KIND = ['link', 'image', 'file'] as const;
+export type AttachmentKind = (typeof ATTACHMENT_KIND)[number];
+
+/**
+ * exploration_task.kind (schema.md §4). The MMA read rod a fan-out task runs:
+ * `investigate` (one repo), `research` (external), `journal` → mma-journal-recall.
+ */
+export const EXPLORATION_TASK_KIND = ['investigate', 'research', 'journal'] as const;
+export type ExplorationTaskKind = (typeof EXPLORATION_TASK_KIND)[number];
+
+/**
+ * exploration_task.status (schema.md §4). draft (proposed/editable) → running
+ * (dispatched) → recorded (terminal, LOCKED). There is NO `failed` value — a
+ * failed task still ends at `recorded`; per-task success/failure is derived from
+ * the joined `mma_batch.status`.
+ */
+export const EXPLORATION_TASK_STATUS = ['draft', 'running', 'recorded'] as const;
+export type ExplorationTaskStatus = (typeof EXPLORATION_TASK_STATUS)[number];
+
+/**
+ * mma_route (schema.md §7). The route an `mma_batch` was dispatched on. This
+ * spec emits only the first three; the full set is declared now so Spec 7 adds
+ * rows, not a migration. Note the underscore: `journal_recall` (the HTTP segment
+ * is `journal-recall`, the task kind is `journal`).
+ */
+export const MMA_ROUTE = [
+  'investigate',
+  'research',
+  'journal_recall',
+  'audit',
+  'execute_plan',
+  'review',
+  'journal_record',
+] as const;
+export type MmaRoute = (typeof MMA_ROUTE)[number];
+
+/** mma_batch.status (schema.md §7). dispatched → running → done|failed. */
+export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed'] as const;
+export type MmaStatus = (typeof MMA_STATUS)[number];

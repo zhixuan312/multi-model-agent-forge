@@ -12,6 +12,7 @@ import { auditPassHistory } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
 import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
+import { AnthropicClient } from '@/anthropic/client';
 
 /**
  * Spec stage (Spec 4 Part A) — the per-section dynamic Q&A authoring slice. RSC
@@ -79,18 +80,16 @@ async function isMmaReady(db: ReturnType<typeof getDb>): Promise<boolean> {
 }
 
 /** True iff the `main` tier points at a configured claude provider with an api_key_ref. */
+/**
+ * The main tier is ready when any auth resolves: an explicit provider key, the
+ * server's Claude Code subscription OAuth, or an env key. Defer to the canonical
+ * resolver so the precedence stays in one place.
+ */
 async function isMainTierReady(db: ReturnType<typeof getDb>): Promise<boolean> {
-  const [tier] = await db
-    .select({ providerId: agentTier.providerId })
-    .from(agentTier)
-    .where(eq(agentTier.tier, 'main'))
-    .limit(1);
-  if (!tier?.providerId) return process.env.ANTHROPIC_API_KEY != null && process.env.ANTHROPIC_API_KEY !== '';
-  const [prov] = await db
-    .select({ type: provider.type, apiKeyRef: provider.apiKeyRef })
-    .from(provider)
-    .where(eq(provider.id, tier.providerId))
-    .limit(1);
-  if (prov?.type === 'claude' && prov.apiKeyRef) return true;
-  return process.env.ANTHROPIC_API_KEY != null && process.env.ANTHROPIC_API_KEY !== '';
+  try {
+    await AnthropicClient.resolveMainTier({ db });
+    return true;
+  } catch {
+    return false;
+  }
 }

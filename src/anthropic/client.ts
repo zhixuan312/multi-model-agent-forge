@@ -5,6 +5,12 @@ import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { agentTier, provider } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import {
+  getClaudeOAuth,
+  CLAUDE_CODE_OAUTH_BETA,
+  CLAUDE_CODE_IDENTITY,
+  type ClaudeOAuthCredentials,
+} from '@/anthropic/claude-oauth';
 
 /**
  * `AnthropicClient` (Spec 4 / lib/anthropic/client.ts) — the ONLY Anthropic
@@ -103,10 +109,21 @@ export interface AnthropicLike {
   messages: MessagesLike;
 }
 
+/**
+ * How the `main` tier authenticates against Anthropic:
+ *  - `apiKey`: a real x-api-key (explicit provider key in Team Settings, or env).
+ *  - `oauth`: the **server's Claude Code subscription** bearer token (Keychain) —
+ *    used when no per-team key is configured, so all tiers share the one
+ *    "server Claude Code auth". OAuth mode requires the beta header + the
+ *    Claude-Code identity system block (see `fromMainTier` / `buildSystem`).
+ */
+export type MainTierAuth =
+  | { mode: 'apiKey'; apiKey: string; baseUrl: string | null }
+  | { mode: 'oauth'; oauthToken: string };
+
 /** The resolved `main`-tier config the client runs against. */
 export interface MainTierConfig {
-  apiKey: string;
-  baseUrl: string | null;
+  auth: MainTierAuth;
   model: string;
 }
 
@@ -129,10 +146,26 @@ export interface ParseOptions {
 export class AnthropicClient {
   private readonly sdk: AnthropicLike;
   private readonly model: string;
+  private readonly oauthMode: boolean;
 
-  constructor(sdk: AnthropicLike, model: string) {
+  constructor(sdk: AnthropicLike, model: string, oauthMode = false) {
     this.sdk = sdk;
     this.model = model;
+    this.oauthMode = oauthMode;
+  }
+
+  /**
+   * Build the `system` parameter. In OAuth (subscription) mode the Claude Code
+   * identity MUST be the first system block or the token is rejected; the real
+   * Forge prompt follows as a second block. In API-key mode it's a plain string.
+   */
+  private buildSystem(system: string): string | Array<{ type: 'text'; text: string }> {
+    return this.oauthMode
+      ? [
+          { type: 'text', text: CLAUDE_CODE_IDENTITY },
+          { type: 'text', text: system },
+        ]
+      : system;
   }
 
   /**
@@ -143,8 +176,10 @@ export class AnthropicClient {
   static async resolveMainTier(deps?: {
     db?: Db;
     secrets?: SecretStore;
+    oauth?: () => ClaudeOAuthCredentials | null;
   }): Promise<MainTierConfig> {
     const db = deps?.db ?? getDb();
+    const readOAuth = deps?.oauth ?? getClaudeOAuth;
 
     const [tier] = await db
       .select({ providerId: agentTier.providerId, model: agentTier.model })
@@ -152,10 +187,10 @@ export class AnthropicClient {
       .where(eq(agentTier.tier, 'main'))
       .limit(1);
 
-    let apiKey: string | null = null;
-    let baseUrl: string | null = null;
-    let model = tier?.model?.trim() || DEFAULT_MAIN_MODEL;
+    const model = tier?.model?.trim() || DEFAULT_MAIN_MODEL;
 
+    // 1. An explicit provider key (type=claude) wins — an operator who pasted a
+    //    key means to use it.
     if (tier?.providerId) {
       const [prov] = await db
         .select({ type: provider.type, baseUrl: provider.baseUrl, apiKeyRef: provider.apiKeyRef })
@@ -168,38 +203,59 @@ export class AnthropicClient {
             'The main tier must be an Anthropic-compatible provider (type=claude). Configure it in Team Settings.',
           );
         }
-        baseUrl = prov.baseUrl?.trim() || null;
         if (prov.apiKeyRef) {
           const secrets = deps?.secrets ?? (await PostgresSecretStore.create({ db }));
-          apiKey = await secrets.get(prov.apiKeyRef);
+          const apiKey = await secrets.get(prov.apiKeyRef);
+          if (apiKey) {
+            return { auth: { mode: 'apiKey', apiKey, baseUrl: prov.baseUrl?.trim() || null }, model };
+          }
         }
+        // A provider with a blank key means "use the server default" → fall
+        // through to the Claude Code subscription OAuth below.
       }
     }
 
-    // Fallback to the env key (dev / unconfigured-secret-ref path).
-    if (!apiKey) {
-      const envKey = process.env.ANTHROPIC_API_KEY?.trim();
-      if (envKey) apiKey = envKey;
+    // 2. The server's Claude Code subscription OAuth (no per-team key) — the
+    //    shared "server Claude Code auth" used across all tiers.
+    const oauth = readOAuth();
+    if (oauth?.accessToken) {
+      return { auth: { mode: 'oauth', oauthToken: oauth.accessToken }, model };
     }
 
-    if (!apiKey) {
-      throw new AnthropicConfigError(
-        'No API key configured for the main tier. Configure the main tier in Team Settings.',
-      );
+    // 3. Env API key fallback (dev / CI).
+    const envKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (envKey) {
+      return { auth: { mode: 'apiKey', apiKey: envKey, baseUrl: null }, model };
     }
 
-    return { apiKey, baseUrl, model };
+    throw new AnthropicConfigError(
+      'No Anthropic auth for the main tier. Add a provider API key in Team Settings, or sign in to Claude Code on the server (Claude Max subscription).',
+    );
   }
 
-  /** Construct against the real SDK, resolving the `main`-tier key/model from config. */
-  static async fromMainTier(deps?: { db?: Db; secrets?: SecretStore }): Promise<AnthropicClient> {
+  /** Construct against the real SDK, resolving the `main`-tier auth/model from config. */
+  static async fromMainTier(deps?: {
+    db?: Db;
+    secrets?: SecretStore;
+    oauth?: () => ClaudeOAuthCredentials | null;
+  }): Promise<AnthropicClient> {
     const cfg = await AnthropicClient.resolveMainTier(deps);
+    if (cfg.auth.mode === 'oauth') {
+      // Subscription bearer token: Authorization: Bearer + the oauth beta header.
+      // The Claude-Code identity system block is injected per-call (buildSystem).
+      const sdk = new Anthropic({
+        authToken: cfg.auth.oauthToken,
+        defaultHeaders: { 'anthropic-beta': CLAUDE_CODE_OAUTH_BETA },
+        maxRetries: ANTHROPIC_MAX_RETRIES,
+      });
+      return new AnthropicClient(sdk, cfg.model, true);
+    }
     const sdk = new Anthropic({
-      apiKey: cfg.apiKey,
-      ...(cfg.baseUrl ? { baseURL: cfg.baseUrl } : {}),
+      apiKey: cfg.auth.apiKey,
+      ...(cfg.auth.baseUrl ? { baseURL: cfg.auth.baseUrl } : {}),
       maxRetries: ANTHROPIC_MAX_RETRIES,
     });
-    return new AnthropicClient(sdk, cfg.model);
+    return new AnthropicClient(sdk, cfg.model, false);
   }
 
   /**
@@ -218,7 +274,7 @@ export class AnthropicClient {
           max_tokens: BASE_MAX_TOKENS,
           thinking: { type: 'adaptive' },
           ...(opts.effort ? { output_config: { effort: opts.effort, format: zodOutputFormat(schema) } } : { output_config: { format: zodOutputFormat(schema) } }),
-          system: ctx.system,
+          system: this.buildSystem(ctx.system),
           messages: [{ role: 'user', content: ctx.user }],
         },
         { signal: AbortSignal.timeout(ANTHROPIC_CALL_TIMEOUT_MS) },
@@ -258,7 +314,7 @@ export class AnthropicClient {
           max_tokens: DRAFT_RETRY_MAX_TOKENS,
           thinking: { type: 'adaptive' },
           output_config: { format: zodOutputFormat(schema) },
-          system: ctx.system,
+          system: this.buildSystem(ctx.system),
           messages: [{ role: 'user', content: ctx.user }],
         },
         { signal: AbortSignal.timeout(ANTHROPIC_CALL_TIMEOUT_MS) },

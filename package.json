@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx src/db/seed-admin.ts",
+    "db:seed": "tsx src/db/seed-admin.ts && tsx src/db/seed-config.ts",
+    "db:seed-config": "tsx src/db/seed-config.ts",
     "db:reap": "tsx src/auth/session-reaper.ts"
   },
   "dependencies": {

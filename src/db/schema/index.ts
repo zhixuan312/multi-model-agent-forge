@@ -4,3 +4,5 @@
  */
 export * from '@/db/schema/identity';
 export * from '@/db/schema/secrets';
+export * from '@/db/schema/config';
+export * from '@/db/schema/workspace';

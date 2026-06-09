@@ -1,11 +1,11 @@
 import { cn } from '@/lib/cn';
 import { initials } from '@/components/forge/avatar';
+import type { ProjectPhase } from '@/db/enums';
 
 /**
- * ProjectTopbar — static placeholder in Spec 1 (props contract F34). Presence
- * avatars + an inert `Export ▾` slot; no project drives it until Spec 3. In
- * Spec 1 it renders with `projectName` undefined, `presence: []`, and Export
- * disabled.
+ * ProjectTopbar (Spec 3 flow 3) — REAL. The phase kicker reflects `project.phase`;
+ * presence avatars are a static stub (live presence is Spec 5 SSE); `Export ▾`
+ * is a disabled stub (Spec 8).
  */
 export interface ProjectTopbarPresence {
   memberId: string;
@@ -13,25 +13,43 @@ export interface ProjectTopbarPresence {
   avatarTint: string;
 }
 
+const PHASE_LABEL: Record<ProjectPhase, string> = {
+  design: 'Design',
+  frozen: 'Frozen',
+  build: 'Build',
+  done: 'Done',
+};
+
 export interface ProjectTopbarProps {
   projectName?: string;
+  /** Drives the phase kicker (`● Design`, etc.). Omitted → no kicker. */
+  phase?: ProjectPhase;
   presence?: ProjectTopbarPresence[];
-  /** True in Spec 1 — the Export slot is inert until Spec 8. */
+  /** True until Spec 8 — the Export slot is inert. */
   exportDisabled?: boolean;
 }
 
 export function ProjectTopbar({
   projectName,
+  phase,
   presence = [],
   exportDisabled = true,
 }: ProjectTopbarProps) {
   return (
-    <div
-      data-testid="project-topbar"
-      className="flex items-center justify-between gap-3"
-    >
-      <div className="font-serif text-base font-semibold text-ink">
-        {projectName ?? <span className="text-ink-faint italic">No active project</span>}
+    <div data-testid="project-topbar" className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        {phase ? (
+          <span
+            data-testid="phase-kicker"
+            className="text-[9px] font-bold uppercase tracking-wider text-accent"
+          >
+            <span aria-hidden="true">● </span>
+            {PHASE_LABEL[phase]}
+          </span>
+        ) : null}
+        <div className="font-serif text-base font-semibold text-ink">
+          {projectName ?? <span className="text-ink-faint italic">No active project</span>}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

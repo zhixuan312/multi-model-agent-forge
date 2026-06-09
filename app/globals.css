@@ -89,6 +89,12 @@
   --accent: var(--ember);
   --accent-deep: var(--ember-deep);
   --accent-tint: var(--ember-tint);
+
+  /* ---- project-card stage rail (Spec 3) — active follows --accent, so it
+     swaps warm ember (Design) ↔ steel (Build) with no JS branch ---- */
+  --rail-active: var(--accent);
+  --rail-done: var(--sage);
+  --rail-pending: var(--line-strong);
 }
 
 /* ---- cool world: everything after the freeze ---- */

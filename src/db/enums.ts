@@ -31,3 +31,31 @@ export type AgentTier = (typeof AGENT_TIER)[number];
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
 export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
 export type RepoStatus = (typeof REPO_STATUS)[number];
+
+/* ── Spec 3: Projects ───────────────────────────────────────────────────── */
+
+/** project.visibility (schema.md §3). private = artifact-gated; public = all members. */
+export const PROJECT_VISIBILITY = ['private', 'public'] as const;
+export type ProjectVisibility = (typeof PROJECT_VISIBILITY)[number];
+
+/** project.phase (schema.md §3). design→frozen→build→done. Spec 3 only seeds `design`. */
+export const PROJECT_PHASE = ['design', 'frozen', 'build', 'done'] as const;
+export type ProjectPhase = (typeof PROJECT_PHASE)[number];
+
+/** project_member.role (schema.md §3). owner seeded on create; collaborator added later. */
+export const PROJECT_MEMBER_ROLE = ['owner', 'collaborator'] as const;
+export type ProjectMemberRole = (typeof PROJECT_MEMBER_ROLE)[number];
+
+/**
+ * stage.kind (schema.md §5). The fixed five-stage skeleton seeded on create.
+ * `STAGE_ORDER` is the canonical seed + render order (drives seeding + stepper).
+ */
+export const STAGE_KIND = ['exploration', 'spec', 'plan', 'execute', 'review'] as const;
+export type StageKind = (typeof STAGE_KIND)[number];
+
+/** The fixed seed + render order — same tuple as STAGE_KIND, named for intent. */
+export const STAGE_ORDER = STAGE_KIND;
+
+/** stage.status (schema.md §5). pending→active→done. */
+export const STAGE_STATUS = ['pending', 'active', 'done'] as const;
+export type StageStatus = (typeof STAGE_STATUS)[number];

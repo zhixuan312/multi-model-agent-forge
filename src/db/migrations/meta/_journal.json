@@ -15,6 +15,13 @@
       "when": 1781015889303,
       "tag": "0001_messy_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781018222777,
+      "tag": "0002_greedy_the_watchers",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,18 @@ function headerVal(init: RequestInit | undefined, name: string): string | null {
 }
 
 describe('MmaClient.dispatch', () => {
+  // Hermetic: the dev `.env` may set MMA_CLIENT (e.g. claude-code for the live
+  // server's allowlist). Clear it so the `forge` default is tested deterministically.
+  let savedClient: string | undefined;
+  beforeEach(() => {
+    savedClient = process.env.MMA_CLIENT;
+    delete process.env.MMA_CLIENT;
+  });
+  afterEach(() => {
+    if (savedClient === undefined) delete process.env.MMA_CLIENT;
+    else process.env.MMA_CLIENT = savedClient;
+  });
+
   it('POSTs /<route>?cwd=<path>, returns { batchId }, and sets the three headers', async () => {
     const { fn, calls } = stubFetch(() =>
       new Response(JSON.stringify({ batchId: 'b-1', statusUrl: '/batch/b-1' }), {

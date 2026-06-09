@@ -45,3 +45,6 @@ next-env.d.ts
 design/
 mockup/*
 !mockup/forge.html
+
+# Cloned team repos (Spec 2 workspace root) — code on disk, never committed.
+/.forge-workspace/

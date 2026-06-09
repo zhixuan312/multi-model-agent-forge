@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/cn';
+import { ModelCombobox, type ModelSuggestion } from './ModelCombobox';
 
 export type Tier = 'main' | 'complex' | 'standard';
 
@@ -34,9 +34,13 @@ const input =
 export function RosterPanel({
   initialRoster,
   providers,
+  modelSuggestions = [],
+  catalogAvailable = false,
 }: {
   initialRoster: RosterRowData[];
   providers: ProviderOption[];
+  modelSuggestions?: ModelSuggestion[];
+  catalogAvailable?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<RosterRowData[]>(initialRoster);
@@ -112,18 +116,14 @@ export function RosterPanel({
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label htmlFor={`model-${r.tier}`} className={label}>
-                    Model <span className="font-normal text-ink-faint">· type a model id</span>
-                  </label>
-                  <input
-                    id={`model-${r.tier}`}
-                    value={r.model ?? ''}
-                    onChange={(e) => update(r.tier, { model: e.target.value })}
-                    placeholder="e.g. claude-opus-4-8"
-                    className={cn(input, 'font-mono')}
-                  />
-                </div>
+                <ModelCombobox
+                  id={`model-${r.tier}`}
+                  label="Model"
+                  value={r.model ?? ''}
+                  onChange={(next) => update(r.tier, { model: next })}
+                  suggestions={modelSuggestions}
+                  catalogAvailable={catalogAvailable}
+                />
               </div>
             </div>
           );

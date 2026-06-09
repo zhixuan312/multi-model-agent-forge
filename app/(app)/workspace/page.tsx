@@ -1,11 +1,31 @@
-import { PageHeader, EmptyState } from '@/components/forge/PageHeader';
+import { PageHeader } from '@/components/forge/PageHeader';
+import { currentMember } from '@/auth/current-member';
+import { listRepos } from '@/git/repos-core';
+import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
 
-/** Workspace placeholder (Spec 1). The real workspace lands in Spec 2. */
-export default function WorkspacePage() {
+/**
+ * Workspace page (Spec 2 §Workspace). RSC loads the repo list + the viewer's
+ * admin flag, then hands them to the client filter island. Non-admins see the
+ * list read-only; admins get the add/clone + per-repo pull/remove controls.
+ */
+export default async function WorkspacePage() {
+  const me = await currentMember();
+  const isAdmin = me?.isAdmin ?? false;
+  const repos = await listRepos();
+  const initialRepos: RepoCardData[] = repos.map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind,
+    tags: r.tags,
+    defaultBranch: r.defaultBranch,
+    status: r.status,
+    headSha: r.headSha,
+  }));
+
   return (
     <>
-      <PageHeader title="Workspace" subtitle="The team's shared workspace." />
-      <EmptyState title="No workspace yet" hint="Workspace setup arrives in a later release." />
+      <PageHeader title="Workspace" subtitle="The team's shared repositories on disk." />
+      <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
     </>
   );
 }

@@ -1,6 +1,8 @@
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { member, memberIdentity, session } from '@/db/schema/identity';
 import { appSecrets } from '@/db/schema/secrets';
+import { provider, agentTier, teamSettings } from '@/db/schema/config';
+import { repo } from '@/db/schema/workspace';
 import * as schema from '@/db/schema';
 
 /** Map a Drizzle table's columns → { jsColName: db_col_name }. */
@@ -86,10 +88,95 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.createdBy.notNull).toBe(false);
   });
 
-  it('the schema barrel re-exports all four tables', () => {
+  it('provider has the canonical columns; name+type NOT NULL, base_url+api_key_ref nullable', () => {
+    expect(getTableName(provider)).toBe('provider');
+    expect(columnNames(provider)).toEqual({
+      id: 'id',
+      name: 'name',
+      type: 'type',
+      baseUrl: 'base_url',
+      apiKeyRef: 'api_key_ref',
+      createdAt: 'created_at',
+    });
+    const cols = getTableColumns(provider);
+    expect(cols.name.notNull).toBe(true);
+    expect(cols.name.isUnique).toBe(true);
+    expect(cols.type.notNull).toBe(true);
+    expect(cols.type.enumValues).toEqual(['claude', 'codex']);
+    // blank = provider default → nullable
+    expect(cols.baseUrl.notNull).toBe(false);
+    expect(cols.apiKeyRef.notNull).toBe(false);
+  });
+
+  it('agent_tier: tier is the PK enum; provider_id + model nullable (seeded empty)', () => {
+    expect(getTableName(agentTier)).toBe('agent_tier');
+    expect(columnNames(agentTier)).toEqual({
+      tier: 'tier',
+      providerId: 'provider_id',
+      model: 'model',
+      updatedAt: 'updated_at',
+    });
+    const cols = getTableColumns(agentTier);
+    expect(cols.tier.primary).toBe(true);
+    expect(cols.tier.enumValues).toEqual(['main', 'complex', 'standard']);
+    // seeded rows start NULL → both nullable
+    expect(cols.providerId.notNull).toBe(false);
+    expect(cols.model.notNull).toBe(false);
+  });
+
+  it('team_settings: singleton with nullable refs until configured', () => {
+    expect(getTableName(teamSettings)).toBe('team_settings');
+    expect(columnNames(teamSettings)).toEqual({
+      id: 'id',
+      mmaBaseUrl: 'mma_base_url',
+      mmaTokenRef: 'mma_token_ref',
+      gitTokenRef: 'git_token_ref',
+      openaiTranscriptionKeyRef: 'openai_transcription_key_ref',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    });
+    const cols = getTableColumns(teamSettings);
+    // Part-A brief: all configured columns nullable until configured.
+    expect(cols.mmaBaseUrl.notNull).toBe(false);
+    expect(cols.mmaTokenRef.notNull).toBe(false);
+    expect(cols.gitTokenRef.notNull).toBe(false);
+    expect(cols.openaiTranscriptionKeyRef.notNull).toBe(false);
+  });
+
+  it('repo has the canonical columns; kind free-form text, status enum default cloned', () => {
+    expect(getTableName(repo)).toBe('repo');
+    expect(columnNames(repo)).toEqual({
+      id: 'id',
+      name: 'name',
+      pathOnDisk: 'path_on_disk',
+      defaultBranch: 'default_branch',
+      kind: 'kind',
+      tags: 'tags',
+      headSha: 'head_sha',
+      status: 'status',
+      createdAt: 'created_at',
+    });
+    const cols = getTableColumns(repo);
+    expect(cols.name.notNull).toBe(true);
+    expect(cols.name.isUnique).toBe(true);
+    expect(cols.pathOnDisk.notNull).toBe(true);
+    expect(cols.defaultBranch.notNull).toBe(true);
+    expect(cols.kind.notNull).toBe(true);
+    // kind is free-form text — NOT an enum (no constrained value set)
+    expect(cols.kind.enumValues).toBeUndefined();
+    expect(cols.status.enumValues).toEqual(['cloned', 'pulling', 'error']);
+    expect(cols.status.default).toBe('cloned');
+    expect(cols.headSha.notNull).toBe(false);
+  });
+
+  it('the schema barrel re-exports all tables incl. config + workspace', () => {
     expect(schema.member).toBe(member);
     expect(schema.memberIdentity).toBe(memberIdentity);
     expect(schema.session).toBe(session);
     expect(schema.appSecrets).toBe(appSecrets);
+    expect(schema.provider).toBe(provider);
+    expect(schema.agentTier).toBe(agentTier);
+    expect(schema.teamSettings).toBe(teamSettings);
+    expect(schema.repo).toBe(repo);
   });
 });

@@ -32,9 +32,12 @@ describe('SpecStageClient', () => {
         intentMd="Intent"
         phase="design"
         mainTierReady={false}
+        mmaReady={false}
         defaultKinds={['context']}
         initialComponents={twoSections}
         initialSpec={null}
+        initialAuditHistory={[]}
+        initialCanFreeze={false}
       />,
     );
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
@@ -59,9 +62,12 @@ describe('SpecStageClient', () => {
         intentMd="Intent"
         phase="design"
         mainTierReady={true}
+        mmaReady={true}
         defaultKinds={['context']}
         initialComponents={twoSections}
         initialSpec={null}
+        initialAuditHistory={[]}
+        initialCanFreeze={false}
       />,
     );
 

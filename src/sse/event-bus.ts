@@ -27,6 +27,28 @@ export type ProjectEvent =
       error: { code: string; message: string };
     }
   | { type: 'synthesis.updated'; artifactId: string; version: number }
+  // ── Spec 7 build-monitor events (all project-scoped) ──────────────────────
+  | {
+      type: 'plan.authored';
+      tasks: Array<{ id: string; title: string; repo: string; reviewPolicy: string }>;
+      writeTargets: string[];
+      readOnly: string[];
+    }
+  | { type: 'plan.failed'; reason: string }
+  | { type: 'audit.pass'; repo: string; pass: number; findingsCount: number; verdict: 'revised' | 'clean' }
+  | { type: 'task.executing'; taskId: string; repo: string; branch: string; title: string }
+  | { type: 'task.verifying'; taskId: string }
+  | { type: 'task.fixing'; taskId: string; note: string }
+  | { type: 'task.fixed'; taskId: string; note: string }
+  | { type: 'task.committed'; taskId: string; commitSha: string }
+  | { type: 'build.task_failed'; taskId: string; reason: string }
+  | { type: 'review.done'; repo: string; verdict: 'approved' | 'changes_required' | 'error'; findingsCount: number }
+  | { type: 'execute.notice'; memberId: string; repo: string }
+  | {
+      type: 'cost.tick';
+      runCostUsd: number;
+      byRoute: { audit: number; executePlan: number; review: number };
+    }
   | { type: 'heartbeat'; t: number };
 
 const EVENT = 'event';

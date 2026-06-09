@@ -168,3 +168,39 @@ export type MmaRoute = (typeof MMA_ROUTE)[number];
 /** mma_batch.status (schema.md §7). dispatched → running → done|failed. */
 export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed'] as const;
 export type MmaStatus = (typeof MMA_STATUS)[number];
+
+/* ── Spec 7: Build pipeline ─────────────────────────────────────────────── */
+
+/**
+ * plan_task.status (schema.md §8 / Spec 7). The per-task execute lane state
+ * machine: queued→executing→verifying→[fixing]→committed, or skipped / failed.
+ * The 7a/7b seam is `queued` (7a fills queued rows; 7b consumes them).
+ */
+export const BUILD_TASK_STATUS = [
+  'queued',
+  'executing',
+  'verifying',
+  'fixing',
+  'committed',
+  'skipped',
+  'failed',
+] as const;
+export type BuildTaskStatus = (typeof BUILD_TASK_STATUS)[number];
+
+/**
+ * plan_task.review_policy (schema.md §0 / Spec 7) — mirrors MMA's
+ * `perTaskReviewPolicy` value set VERBATIM (verified against MMA
+ * `tools/execute-plan/tool-config.ts`: `z.enum(['full','quality_only',
+ * 'diff_only','none'])`). Authoring sets `none` only for tasks the plan marks
+ * "downstream errors expected, fixed by a later task"; default is `full`.
+ */
+export const REVIEW_POLICY = ['full', 'quality_only', 'diff_only', 'none'] as const;
+export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
+
+/**
+ * export.format (schema.md §6 / Spec 7) — `md` is the only path exercised in
+ * Spec 7 (the per-stage raw-markdown download). `pdf`/`bundle` are reserved for
+ * Spec 8's export subsystem (inert here).
+ */
+export const EXPORT_FORMAT = ['md', 'pdf', 'bundle'] as const;
+export type ExportFormat = (typeof EXPORT_FORMAT)[number];

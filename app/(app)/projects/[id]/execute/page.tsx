@@ -1,6 +1,7 @@
-import { StageStub } from '@/components/forge/StageStub';
+import { redirect } from 'next/navigation';
 
-/** Execute stage stub — locked Build stage (real content arrives in Spec 7). */
-export default function ExecuteStubPage() {
-  return <StageStub title="Execute" comingIn="Spec 7" locked />;
+/** Execute stage route (Spec 7) — redirect to the unified build monitor. */
+export default async function ExecuteStagePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  redirect(`/projects/${id}/build`);
 }

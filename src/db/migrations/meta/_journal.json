@@ -36,6 +36,13 @@
       "when": 1781022395801,
       "tag": "0004_odd_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781027447251,
+      "tag": "0005_natural_photon",
+      "breakpoints": true
     }
   ]
 }

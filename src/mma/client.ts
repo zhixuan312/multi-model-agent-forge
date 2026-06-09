@@ -315,6 +315,96 @@ export class MmaClient {
     return this.dispatch('journal-recall', { cwd, body });
   }
 
+  /* ── Build rod methods (Spec 7) ───────────────────────────────────────────
+   * Three routes the build pipeline consumes: `audit(subtype='plan')` (READ,
+   * plan-audit loop), `execute-plan` (WRITE, the high-trust path), `review`
+   * (READ, advisory verdict). Each builds the route-specific strict body
+   * (verified against MMA `tools/<route>/{tool-config,schema}.ts`) and dispatches
+   * → 202 → { batchId }. The caller (src/build/*) owns the mma_batch row + poll
+   * registration; these methods are the thin wire layer + the fast-fail floor. */
+
+  /**
+   * `POST /audit?cwd=<repo>` with `subtype:'plan'`. MMA's `.refine` REQUIRES
+   * exactly one `filePaths` entry for `subtype=plan` (the plan markdown). The
+   * worker discovers/verifies source files itself — never pre-list source.
+   */
+  async auditPlan(
+    cwd: string,
+    input: { filePaths: [string]; contextBlockIds?: string[] },
+  ): Promise<{ batchId: string }> {
+    if (!Array.isArray(input.filePaths) || input.filePaths.length !== 1) {
+      throw new Error('auditPlan requires exactly one filePaths entry (the plan markdown)');
+    }
+    const body: Record<string, unknown> = { subtype: 'plan', filePaths: input.filePaths };
+    if (input.contextBlockIds && input.contextBlockIds.length > 0) {
+      body.contextBlockIds = input.contextBlockIds;
+    }
+    return this.dispatch('audit', { cwd, body });
+  }
+
+  /**
+   * `POST /execute-plan?cwd=<repo>`. Strict body
+   * `{ filePaths:[planFile] (length 1), taskDescriptors (min 1),
+   *    perTaskReviewPolicy?: Record<string,'full'|'quality_only'|'diff_only'|'none'>,
+   *    contextBlockIds? }`. Forge passes ONE taskDescriptor per dispatch
+   * (sequential within a repo) and keys `perTaskReviewPolicy` by index-in-batch
+   * (always `"0"`). `filePaths` MUST be the on-disk plan file under the cwd.
+   */
+  async executePlan(
+    cwd: string,
+    input: {
+      filePaths: [string];
+      taskDescriptors: string[];
+      perTaskReviewPolicy?: Record<string, 'full' | 'quality_only' | 'diff_only' | 'none'>;
+      contextBlockIds?: string[];
+    },
+  ): Promise<{ batchId: string }> {
+    if (!Array.isArray(input.filePaths) || input.filePaths.length !== 1) {
+      throw new Error('executePlan requires exactly one filePaths entry (the on-disk plan file)');
+    }
+    if (!Array.isArray(input.taskDescriptors) || input.taskDescriptors.length < 1) {
+      throw new Error('executePlan requires at least one taskDescriptor');
+    }
+    const body: Record<string, unknown> = {
+      filePaths: input.filePaths,
+      taskDescriptors: input.taskDescriptors,
+    };
+    if (input.perTaskReviewPolicy) body.perTaskReviewPolicy = input.perTaskReviewPolicy;
+    if (input.contextBlockIds && input.contextBlockIds.length > 0) {
+      body.contextBlockIds = input.contextBlockIds;
+    }
+    return this.dispatch('execute-plan', { cwd, body });
+  }
+
+  /**
+   * `POST /review?cwd=<repo>`. Strict body
+   * `{ code?, focus?: ('security'|'performance'|'correctness'|'style')[],
+   *    subtype:'default', filePaths?, contextBlockIds? }`. MMA returns FINDINGS,
+   * not a verdict — Forge derives the binary verdict (≥1 critical/high →
+   * changes_required) from `structuredReport`. Pass either `filePaths` or `code`.
+   */
+  async review(
+    cwd: string,
+    input: {
+      filePaths?: string[];
+      code?: string;
+      focus?: ('security' | 'performance' | 'correctness' | 'style')[];
+      contextBlockIds?: string[];
+    },
+  ): Promise<{ batchId: string }> {
+    if ((!input.filePaths || input.filePaths.length === 0) && !input.code) {
+      throw new Error('review requires either filePaths or inline code');
+    }
+    const body: Record<string, unknown> = { subtype: 'default' };
+    if (input.filePaths && input.filePaths.length > 0) body.filePaths = input.filePaths;
+    if (input.code) body.code = input.code;
+    if (input.focus && input.focus.length > 0) body.focus = input.focus;
+    if (input.contextBlockIds && input.contextBlockIds.length > 0) {
+      body.contextBlockIds = input.contextBlockIds;
+    }
+    return this.dispatch('review', { cwd, body });
+  }
+
   /** dispatch + poll-to-terminal. Returns the terminal envelope. */
   async dispatchAndWait(route: string, args: { cwd: string; body: unknown }): Promise<unknown> {
     const { batchId } = await this.dispatch(route, args);

@@ -12,6 +12,7 @@ import { teamSettings, agentTier } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { MmaClient } from '@/mma/client';
 import { resolveMmaClientConfig } from '@/mma/client-config';
+import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
 
 export interface BuildMmaClientDeps {
   db?: Db;
@@ -33,7 +34,10 @@ export async function buildMmaClient(deps: BuildMmaClientDeps = {}): Promise<Mma
   const secrets = deps.secrets ?? (await PostgresSecretStore.create({ db }));
   const cfg = await resolveMmaClientConfig({
     settings: settings ?? null,
-    mainModel: mainRow?.model ?? null,
+    // MMA REQUIRES X-MMA-Main-Model on every tool route (400 main_model_required
+    // otherwise). The roster `main` model is the source of truth; default to the
+    // orchestrator's model when it's unset so dispatches never 400 pre-config.
+    mainModel: mainRow?.model?.trim() || DEFAULT_MAIN_MODEL,
     secrets,
   });
   return new MmaClient(cfg);

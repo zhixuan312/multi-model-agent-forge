@@ -145,7 +145,10 @@ export async function dispatchTasks(
         ({ batchId } = await client.journalRecall(cwd, { query: task.prompt }));
       }
     } catch (err) {
-      logPoll({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail: errName(err) });
+      // Surface the real cause — MmaClient error messages are safe (no token);
+      // logging only the error NAME masked every failure as a bare "Error".
+      const detail = err instanceof Error ? err.message.slice(0, 300) : errName(err);
+      logPoll({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail });
       outcomes.push({ taskId: task.id, ok: false, reason: 'dispatch_failed', message: 'MMA dispatch failed.' });
       continue;
     }

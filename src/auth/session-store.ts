@@ -46,6 +46,8 @@ export interface SessionStore {
   /** Remove every OTHER session for a member (keeps `exceptSessionId`). Used by
    *  change-password's re-issue path. */
   revokeAllForMemberExcept(memberId: string, exceptSessionId: string): Promise<void>;
+  /** Remove ALL sessions for a member (admin password-reset → force re-login). */
+  revokeAllForMember(memberId: string): Promise<void>;
 }
 
 import { randomBytes } from 'node:crypto';
@@ -99,6 +101,10 @@ export class PostgresSessionStore implements SessionStore {
     await this.db
       .delete(session)
       .where(and(eq(session.memberId, memberId), ne(session.id, exceptSessionId)));
+  }
+
+  async revokeAllForMember(memberId: string): Promise<void> {
+    await this.db.delete(session).where(eq(session.memberId, memberId));
   }
 }
 

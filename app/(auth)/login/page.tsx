@@ -21,7 +21,7 @@ export default function LoginPage() {
           <p className="mt-1 font-mono text-xs text-ink-faint">Sign in to continue</p>
         </div>
 
-        <form action={formAction} className="space-y-4 rounded-lg border border-line bg-paper p-6">
+        <form action={formAction} className="space-y-4 rounded-lg border border-line bg-surface p-6 shadow-sm">
           <div className="space-y-1">
             <label htmlFor="username" className="block text-sm font-medium">
               Username
@@ -60,7 +60,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={pending}
-            className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-paper transition-opacity disabled:opacity-60"
+            className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
           >
             {pending ? 'Signing in…' : 'Sign in'}
           </button>

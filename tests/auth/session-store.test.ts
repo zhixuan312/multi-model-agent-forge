@@ -139,6 +139,9 @@ class FakeSessionStore implements SessionStore {
   async revokeAllForMemberExcept(memberId: string, except: string): Promise<void> {
     for (const [id, r] of [...this.rows]) if (r.memberId === memberId && id !== except) this.rows.delete(id);
   }
+  async revokeAllForMember(memberId: string): Promise<void> {
+    for (const [id, r] of [...this.rows]) if (r.memberId === memberId) this.rows.delete(id);
+  }
 }
 
 describe('SessionStore interface seam (fake impl, no call-site change)', () => {

@@ -1,0 +1,6 @@
+{
+  "_comment": "Checked-in snapshot of MMA's source enum sets (packages/core/src/journal/types.ts + default-schema.ts). Drift guard: src/journal/types.ts EDGE_TYPES/STATUS_VALUES/LOG_OPS must equal these. NOT a snapshot of live-store values (the store may legitimately contain out-of-set values, which the renderer tolerates).",
+  "EDGE_TYPES": ["supersedes", "refines", "relates", "depends-on", "contradicts", "parent"],
+  "STATUS_VALUES": ["adopted", "dropped", "inconclusive", "superseded"],
+  "LOG_OPS": ["create", "refine", "supersede", "merge"]
+}

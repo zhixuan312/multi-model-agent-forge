@@ -22,6 +22,13 @@
       "when": 1781018222777,
       "tag": "0002_greedy_the_watchers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781019447430,
+      "tag": "0003_thankful_famine",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,10 @@ export default defineConfig({
     // interleave — global throwaway-row cleanup in one file's afterAll would
     // otherwise race another file's in-flight rows (FK violations).
     fileParallelism: false,
+    // Spec-4 orchestrator tests chain several live-DB round-trips per assertion
+    // (grounding fetch + draft) against a single shared Postgres connection; the
+    // 5s default is too tight for those multi-query flows.
+    testTimeout: 20_000,
   },
   resolve: {
     alias: {

@@ -59,3 +59,66 @@ export const STAGE_ORDER = STAGE_KIND;
 /** stage.status (schema.md §5). pending→active→done. */
 export const STAGE_STATUS = ['pending', 'active', 'done'] as const;
 export type StageStatus = (typeof STAGE_STATUS)[number];
+
+/* ── Spec 4: Spec stage ─────────────────────────────────────────────────── */
+
+/**
+ * component.kind (schema.md §5). The fixed set of spec components, driven by
+ * `COMPONENT_TEMPLATES`. `nfr`/`assumptions` are the two ☐-by-default components.
+ */
+export const COMPONENT_KIND = [
+  'context',
+  'problem',
+  'tech_design',
+  'test_plan',
+  'stories_tasks',
+  'nfr',
+  'assumptions',
+] as const;
+export type ComponentKind = (typeof COMPONENT_KIND)[number];
+
+/**
+ * component / component_section status (schema.md §5). A 4-state machine reused
+ * at BOTH levels. Section: gathering→satisfied→drafted→approved. Component status
+ * is the roll-up (all approved ⇒ approved; else the lowest). The ordinal order of
+ * this tuple is the `<` ordering used by the roll-up (`gathering < … < approved`).
+ */
+export const COMPONENT_STATUS = ['gathering', 'satisfied', 'drafted', 'approved'] as const;
+export type ComponentStatus = (typeof COMPONENT_STATUS)[number];
+
+/** qa_message.sender (schema.md §5). `forge` = the AI interviewer; `member` = a human. */
+export const QA_SENDER = ['forge', 'member'] as const;
+export type QaSender = (typeof QA_SENDER)[number];
+
+/**
+ * artifact.kind (schema.md §6). Spec 4 only WRITES `spec`; READS `exploration`
+ * (Spec 5 writes it). `exploration_brief`/`plan` are carried for later specs so
+ * those can write without a migration.
+ */
+export const ARTIFACT_KIND = ['exploration_brief', 'exploration', 'spec', 'plan'] as const;
+export type ArtifactKind = (typeof ARTIFACT_KIND)[number];
+
+/** audit_pass.scope (schema.md §8). Spec 4 only writes `spec` (Part B); `plan` is Spec 7. */
+export const AUDIT_SCOPE = ['spec', 'plan'] as const;
+export type AuditScope = (typeof AUDIT_SCOPE)[number];
+
+/** audit_pass.verdict (schema.md §8). `revised` = had critical/high; `clean` = none. */
+export const AUDIT_VERDICT = ['revised', 'clean'] as const;
+export type AuditVerdict = (typeof AUDIT_VERDICT)[number];
+
+/** learning_candidate.type (schema.md §9). The kind of learning proposed at freeze. */
+export const LEARNING_TYPE = ['challenge', 'insight', 'decision'] as const;
+export type LearningType = (typeof LEARNING_TYPE)[number];
+
+/** learning_candidate.origin (schema.md §9). Which stage produced the learning. */
+export const LEARNING_ORIGIN = ['exploration', 'spec'] as const;
+export type LearningOrigin = (typeof LEARNING_ORIGIN)[number];
+
+/** learning_candidate.status (schema.md §9). proposed→kept/removed→recorded. */
+export const LEARNING_STATUS = ['proposed', 'kept', 'removed', 'recorded'] as const;
+export type LearningStatus = (typeof LEARNING_STATUS)[number];
+
+/** Ordinal rank for COMPONENT_STATUS — the `<` ordering used by the component roll-up. */
+export function componentStatusRank(status: ComponentStatus): number {
+  return COMPONENT_STATUS.indexOf(status);
+}

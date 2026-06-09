@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { guardExploreWrite } from '@/exploration/guard';
 import { dispatchTasks } from '@/exploration/dispatch';
+import { getSynthesisScheduler } from '@/exploration/synthesis-scheduler';
 
 /** `POST /api/projects/[id]/explore/run` — dispatch every `draft` task (or a
  *  given subset) in parallel on the standard tier. */
@@ -20,6 +21,11 @@ export async function POST(
   const json = await req.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(json ?? {});
   const taskIds = parsed.success ? parsed.data.taskIds : undefined;
+
+  // Subscribe the synthesis scheduler to this project's bus so it
+  // debounce-synthesizes once the poll loop records the terminal tasks —
+  // otherwise the Exploration summary never auto-populates.
+  getSynthesisScheduler().watch(id);
 
   const outcomes = await dispatchTasks(id, { id: guard.memberId }, {}, taskIds);
   return NextResponse.json({ outcomes });

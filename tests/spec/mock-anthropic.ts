@@ -8,15 +8,21 @@ import type {
   GenerateQuestions,
   AssessAnswers,
   DraftSection,
+  ComposeLearnings,
 } from '@/spec/schemas';
 
-export type CallKind = 'generateQuestions' | 'assessAnswers' | 'draftSection';
+export type CallKind =
+  | 'generateQuestions'
+  | 'assessAnswers'
+  | 'draftSection'
+  | 'composeLearningCandidates';
 
 /** What the mock should return for the NEXT call of each kind (a queue per kind). */
 export interface MockScript {
   generateQuestions?: GenerateQuestions[];
   assessAnswers?: AssessAnswers[];
   draftSection?: DraftSection[];
+  composeLearningCandidates?: ComposeLearnings[];
 }
 
 const USAGE = {
@@ -37,6 +43,7 @@ function classify(params: { output_config?: { format?: unknown } }): CallKind {
   const keys = Object.keys(props);
   if (keys.includes('aiSatisfiedWithoutAnswers')) return 'generateQuestions';
   if (keys.includes('draftMd')) return 'draftSection';
+  if (keys.includes('candidates')) return 'composeLearningCandidates';
   return 'assessAnswers';
 }
 
@@ -60,6 +67,7 @@ export function mockAnthropicClient(
     generateQuestions: [...(script.generateQuestions ?? [])],
     assessAnswers: [...(script.assessAnswers ?? [])],
     draftSection: [...(script.draftSection ?? [])],
+    composeLearningCandidates: [...(script.composeLearningCandidates ?? [])],
   };
   const streamQueue = [...(opts?.streamDraft ?? [])];
 

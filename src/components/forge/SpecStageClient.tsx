@@ -18,15 +18,25 @@ import type { ComponentKind, ProjectPhase } from '@/db/enums';
  * TanStack Query; patches local state from each repaint payload.
  */
 
+/** One row in the audit-pass timeline ("pass 1: 2 findings → revised"). */
+export interface AuditPassView {
+  passNo: number;
+  findingsCount: number;
+  verdict: 'clean' | 'revised';
+}
+
 interface SpecStageClientProps {
   projectId: string;
   projectName: string;
   intentMd: string | null;
   phase: ProjectPhase;
   mainTierReady: boolean;
+  mmaReady: boolean;
   defaultKinds: ComponentKind[];
   initialComponents: ComponentView[];
   initialSpec: { version: number; bodyMd: string } | null;
+  initialAuditHistory: AuditPassView[];
+  initialCanFreeze: boolean;
 }
 
 type Screen = 'outline' | 'interview' | 'document';
@@ -125,6 +135,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
           spec={spec}
           allApproved={allApproved}
           readOnly={readOnly}
+          mmaReady={props.mmaReady}
+          initialAuditHistory={props.initialAuditHistory}
+          initialCanFreeze={props.initialCanFreeze}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
         />
@@ -407,6 +420,9 @@ function DocumentScreen({
   spec,
   allApproved,
   readOnly,
+  mmaReady,
+  initialAuditHistory,
+  initialCanFreeze,
   onAssembled,
   onError,
 }: {
@@ -415,6 +431,9 @@ function DocumentScreen({
   spec: { version: number; bodyMd: string } | null;
   allApproved: boolean;
   readOnly: boolean;
+  mmaReady: boolean;
+  initialAuditHistory: AuditPassView[];
+  initialCanFreeze: boolean;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
@@ -457,7 +476,172 @@ function DocumentScreen({
             : 'Approve every section before assembling.'}
         </p>
       )}
+
+      {spec ? (
+        <AuditPanel
+          projectId={projectId}
+          readOnly={readOnly}
+          mmaReady={mmaReady}
+          initialHistory={initialAuditHistory}
+          initialCanFreeze={initialCanFreeze}
+          onError={onError}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/* ── Audit panel (run audit → pass timeline → freeze CTA) ────────────────── */
+
+export interface AuditFinding {
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  category: string;
+  claim: string;
+}
+
+export function AuditPanel({
+  projectId,
+  readOnly,
+  mmaReady,
+  initialHistory,
+  initialCanFreeze,
+  onError,
+}: {
+  projectId: string;
+  readOnly: boolean;
+  mmaReady: boolean;
+  initialHistory: AuditPassView[];
+  initialCanFreeze: boolean;
+  onError: (m: string | null) => void;
+}) {
+  const [history, setHistory] = useState<AuditPassView[]>(initialHistory);
+  const [findings, setFindings] = useState<AuditFinding[]>([]);
+  const [canFreeze, setCanFreeze] = useState(initialCanFreeze);
+  const [contextBlockId, setContextBlockId] = useState<string | null>(null);
+  const capReached = history.length >= 4 && !canFreeze;
+
+  const audit = useMutation({
+    mutationFn: () =>
+      postJson<{
+        pass: { passNo: number; verdict: 'clean' | 'revised'; findingsCount: number; findings: AuditFinding[] };
+        contextBlockId: string | null;
+        history: AuditPassView[];
+        canFreeze: boolean;
+      }>(`/projects/${projectId}/spec/audit`, contextBlockId ? { contextBlockIds: [contextBlockId] } : {}),
+    onSuccess: (data) => {
+      onError(null);
+      setHistory(data.history);
+      setFindings(data.pass.findings);
+      setCanFreeze(data.canFreeze);
+      if (data.contextBlockId) setContextBlockId(data.contextBlockId);
+    },
+    onError: (e: Error) => onError(e.message),
+  });
+
+  const override = useMutation({
+    mutationFn: () => postJson<{ canFreeze: boolean }>(`/projects/${projectId}/spec/audit-override`, {}),
+    onSuccess: (data) => {
+      onError(null);
+      setCanFreeze(data.canFreeze);
+    },
+    onError: (e: Error) => onError(e.message),
+  });
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[var(--r-md)] border border-line bg-surface p-4" data-testid="audit-panel">
+      <div className="flex items-center gap-3">
+        <h3 className="font-medium text-ink">Audit</h3>
+        <button
+          type="button"
+          onClick={() => audit.mutate()}
+          disabled={readOnly || !mmaReady || audit.isPending}
+          className="rounded-[var(--r-md)] bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+        >
+          {audit.isPending ? 'Auditing…' : history.length > 0 ? 'Re-run audit' : 'Run audit'}
+        </button>
+        {!mmaReady ? (
+          <span className="text-xs text-amber-700">
+            <a href="/settings/connections" className="underline">
+              Configure the MMA token
+            </a>{' '}
+            to audit.
+          </span>
+        ) : null}
+      </div>
+
+      {history.length > 0 ? (
+        <ol className="flex flex-wrap items-center gap-2 text-xs" data-testid="audit-timeline">
+          {history.map((p) => (
+            <li
+              key={p.passNo}
+              className={cn(
+                'rounded-full px-2 py-0.5',
+                p.verdict === 'clean' ? 'bg-sage-tint text-sage-deep' : 'bg-surface-2 text-ink-muted',
+              )}
+            >
+              pass {p.passNo}: {p.verdict === 'clean' ? 'clean' : `${p.findingsCount} finding${p.findingsCount === 1 ? '' : 's'} → revised`}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-xs text-ink-faint">Run the audit to check the spec for critical / high findings.</p>
+      )}
+
+      {findings.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-xs" data-testid="audit-findings">
+          {findings.map((f, i) => (
+            <li key={i} className="flex gap-2">
+              <span
+                className={cn(
+                  'shrink-0 rounded px-1 font-medium uppercase',
+                  f.severity === 'critical' || f.severity === 'high'
+                    ? 'bg-rose-100 text-rose-700'
+                    : 'bg-surface-2 text-ink-muted',
+                )}
+              >
+                {f.severity}
+              </span>
+              <span className="text-ink">{f.claim}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {capReached ? (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-ink-muted">
+            The audit still reports critical/high findings. You can keep fixing, or accept and override.
+          </span>
+          <button
+            type="button"
+            onClick={() => override.mutate()}
+            disabled={readOnly || override.isPending}
+            className="rounded-[var(--r-md)] border border-amber-500 px-3 py-1 text-xs font-medium text-amber-700 disabled:opacity-50"
+          >
+            Accept findings &amp; override
+          </button>
+        </div>
+      ) : null}
+
+      <div className="mt-1 flex items-center gap-3 border-t border-line pt-3">
+        <a
+          href={canFreeze && !readOnly ? `/projects/${projectId}/freeze` : undefined}
+          aria-disabled={!canFreeze || readOnly}
+          data-testid="freeze-link"
+          className={cn(
+            'rounded-[var(--r-md)] px-4 py-1.5 text-sm font-medium',
+            canFreeze && !readOnly
+              ? 'bg-ink text-white'
+              : 'pointer-events-none cursor-not-allowed bg-surface-2 text-ink-faint',
+          )}
+        >
+          Freeze the spec
+        </a>
+        <span className="text-xs text-ink-faint">
+          {canFreeze ? 'Ready to freeze — this is irreversible.' : 'Freeze unlocks after a clean audit.'}
+        </span>
+      </div>
+    </section>
   );
 }
 

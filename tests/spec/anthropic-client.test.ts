@@ -123,7 +123,10 @@ describe('AnthropicClient.resolveMainTier', () => {
       select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ providerId: null, model: null }] }) }) }),
     };
     try {
-      await expect(AnthropicClient.resolveMainTier({ db })).rejects.toBeInstanceOf(AnthropicConfigError);
+      // oauth:() => null simulates a server with no Claude Code login.
+      await expect(
+        AnthropicClient.resolveMainTier({ db, oauth: () => null }),
+      ).rejects.toBeInstanceOf(AnthropicConfigError);
     } finally {
       if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
     }
@@ -172,10 +175,74 @@ describe('AnthropicClient.resolveMainTier', () => {
       }),
     };
     const secrets = { get: async (id: string) => (id === 'ref' ? 'sk-resolved' : null), put: async () => 'x', delete: async () => {} };
-    const cfg = await AnthropicClient.resolveMainTier({ db, secrets });
-    expect(cfg.apiKey).toBe('sk-resolved');
-    expect(cfg.baseUrl).toBe('https://x');
+    const cfg = await AnthropicClient.resolveMainTier({ db, secrets, oauth: () => null });
+    expect(cfg.auth).toEqual({ mode: 'apiKey', apiKey: 'sk-resolved', baseUrl: 'https://x' });
     expect(cfg.model).toBe('custom-model');
+  });
+});
+
+describe('AnthropicClient — server Claude Code OAuth', () => {
+  const ctx = { system: 'real-system', user: 'u', call: 'assessAnswers' };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function twoStageDb(tier: any, prov: any): any {
+    let stage = 0;
+    return {
+      select: () => ({
+        from: () => ({
+          where: () => ({ limit: async () => ((stage += 1) === 1 ? [tier] : [prov]) }),
+        }),
+      }),
+    };
+  }
+
+  it('falls back to Claude Code OAuth when the provider key is blank', async () => {
+    const prev = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    const db = twoStageDb({ providerId: 'p1', model: null }, { type: 'claude', baseUrl: null, apiKeyRef: null });
+    try {
+      const cfg = await AnthropicClient.resolveMainTier({ db, oauth: () => ({ accessToken: 'oat-1' }) });
+      expect(cfg.auth).toEqual({ mode: 'oauth', oauthToken: 'oat-1' });
+      expect(cfg.model).toBe('claude-opus-4-8');
+    } finally {
+      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
+    }
+  });
+
+  it('uses Claude Code OAuth when no provider is configured at all', async () => {
+    const prev = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db: any = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ providerId: null, model: null }] }) }) }) };
+    try {
+      const cfg = await AnthropicClient.resolveMainTier({ db, oauth: () => ({ accessToken: 'oat-2' }) });
+      expect(cfg.auth.mode).toBe('oauth');
+    } finally {
+      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
+    }
+  });
+
+  it('OAuth mode injects the Claude Code identity as the FIRST system block', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let seen: any;
+    const sdk: AnthropicLike = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
+    };
+    await new AnthropicClient(sdk, 'm', true).parse(AssessAnswersSchema, ctx);
+    expect(Array.isArray(seen)).toBe(true);
+    expect(seen[0]).toEqual({ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." });
+    expect(seen[1]).toEqual({ type: 'text', text: 'real-system' });
+  });
+
+  it('API-key mode keeps a plain-string system (no identity block)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let seen: any;
+    const sdk: AnthropicLike = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
+    };
+    await new AnthropicClient(sdk, 'm', false).parse(AssessAnswersSchema, ctx);
+    expect(seen).toBe('real-system');
   });
 });
 

@@ -12,3 +12,4 @@ export * from '@/db/schema/spec';
 export * from '@/db/schema/artifacts';
 export * from '@/db/schema/mma';
 export * from '@/db/schema/exploration';
+export * from '@/db/schema/build';

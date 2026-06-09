@@ -1,6 +1,7 @@
-import { StageStub } from '@/components/forge/StageStub';
+import { redirect } from 'next/navigation';
 
-/** Review stage stub — locked Build stage (real content arrives in Spec 7). */
-export default function ReviewStubPage() {
-  return <StageStub title="Review" comingIn="Spec 7" locked />;
+/** Review stage route (Spec 7) — redirect to the unified build monitor. */
+export default async function ReviewStagePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  redirect(`/projects/${id}/build`);
 }

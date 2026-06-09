@@ -1,11 +1,11 @@
 import { notFound, redirect } from 'next/navigation';
 import { getProject } from '@/projects/projects-core';
-import { stageRoute } from '@/projects/stage-route';
+import { projectIndexTarget } from '@/projects/index-target';
 
 /**
- * Project index (Spec 3 flow 3) — redirect to the current stage via the
- * `STAGE_ROUTE` map. For a fresh project (`current_stage='exploration'`) this is
- * `/projects/<id>/explore` (never `/exploration`, which has no route file). The
+ * Project index (Spec 3 flow 3 / Spec 7 F11) — redirect to the current stage via
+ * the `STAGE_ROUTE` map, EXCEPT a `build`/`done`-phase project goes straight to
+ * the build monitor (`/build`). For a fresh project this is `/explore`. The
  * layout already ran the visibility guard.
  */
 export default async function ProjectIndexPage({
@@ -16,6 +16,5 @@ export default async function ProjectIndexPage({
   const { id } = await params;
   const project = await getProject(id);
   if (!project) notFound();
-  const target = project.currentStage ?? 'exploration';
-  redirect(stageRoute(target, id));
+  redirect(projectIndexTarget(id, project.phase, project.currentStage ?? 'exploration'));
 }

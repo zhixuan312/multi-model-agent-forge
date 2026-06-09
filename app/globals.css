@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* Map Forge semantic tokens → Tailwind v4 utilities (bg-bg, text-ink, border-line, …).
+   `inline` lets the utilities resolve the live CSS var, so they swap with [data-phase]. */
+@theme inline {
+  --font-serif: var(--font-newsreader);
+  --font-sans: var(--font-spline-sans);
+  --font-mono: var(--font-spline-mono);
+
+  --color-bg: var(--bg);
+  --color-bg-sunk: var(--bg-sunk);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-tint: var(--accent-tint);
+  --color-sage: var(--sage);
+  --color-sage-tint: var(--sage-tint);
+  --color-amber: var(--amber);
+  --color-amber-tint: var(--amber-tint);
+  --color-rose: var(--rose);
+  --color-rose-tint: var(--rose-tint);
+
+  --radius-sm: var(--r-sm);
+  --radius: var(--r);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+
+  --shadow-sm: 0 1px 2px rgba(33, 28, 22, 0.05), 0 1px 1px rgba(33, 28, 22, 0.04);
+  --shadow: 0 4px 14px -4px rgba(33, 28, 22, 0.12), 0 2px 4px -2px rgba(33, 28, 22, 0.07);
+  --shadow-lg: 0 18px 48px -12px rgba(33, 28, 22, 0.22), 0 6px 16px -8px rgba(33, 28, 22, 0.12);
+}
+
+:root {
+  /* ---- raw warm world ---- */
+  --paper: #f7f4ee;
+  --paper-sunk: #f1ece2;
+  --warm-surface: #ffffff;
+  --warm-surface-2: #fcfaf6;
+  --warm-ink: #211c16;
+  --warm-ink-soft: #5c5347;
+  --warm-ink-faint: #938979;
+  --warm-line: #e7e0d4;
+  --warm-line-strong: #d6ccbb;
+  --ember: #c4521e;
+  --ember-deep: #9a3d14;
+  --ember-bright: #e2692e;
+  --ember-tint: #f7e8dc;
+  --ember-tint-2: #fbf1e9;
+  --sage: #4e7350;
+  --sage-deep: #3a5a3c;
+  --sage-tint: #e7efe5;
+  --amber: #a9761a;
+  --amber-tint: #f6ecd6;
+  --rose: #b23a48;
+  --rose-tint: #f6e2e2;
+
+  /* ---- raw cool world ---- */
+  --steel: #355a74;
+  --steel-deep: #21425a;
+  --steel-bright: #4d7d9c;
+  --frost: #e7eff4;
+  --frost-2: #f1f5f8;
+  --ice-line: #d2dee6;
+  --ice-ink: #1b2a35;
+  --ice-paper: #eff3f6;
+
+  --r-sm: 6px;
+  --r: 9px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --rail-w: 232px;
+
+  /* ---- semantic tokens — default = warm (Design phase) ---- */
+  --bg: var(--paper);
+  --bg-sunk: var(--paper-sunk);
+  --surface: var(--warm-surface);
+  --surface-2: var(--warm-surface-2);
+  --ink: var(--warm-ink);
+  --ink-soft: var(--warm-ink-soft);
+  --ink-faint: var(--warm-ink-faint);
+  --line: var(--warm-line);
+  --line-strong: var(--warm-line-strong);
+  --accent: var(--ember);
+  --accent-deep: var(--ember-deep);
+  --accent-tint: var(--ember-tint);
+}
+
+/* ---- cool world: everything after the freeze ---- */
+[data-phase="frozen"],
+[data-phase="build"],
+[data-phase="done"] {
+  --bg: var(--ice-paper);
+  --bg-sunk: var(--frost);
+  --surface: var(--frost-2);
+  --surface-2: var(--frost);
+  --ink: var(--ice-ink);
+  --ink-soft: var(--steel-deep);
+  --line: var(--ice-line);
+  --line-strong: var(--steel-bright);
+  --accent: var(--steel);
+  --accent-deep: var(--steel-deep);
+  --accent-tint: var(--frost);
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+::selection {
+  background: var(--accent-tint);
+}

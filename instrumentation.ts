@@ -24,4 +24,16 @@ export async function register(): Promise<void> {
     }
     console.warn(JSON.stringify({ event: 'export_startup_deferred', reason: msg }));
   }
+
+  // Sweep any project whose Exploration tasks all completed but whose synthesis
+  // never ran (e.g. a restart between dispatch and synthesis). Non-fatal.
+  try {
+    const { getSynthesisScheduler } = await import('@/exploration/synthesis-scheduler');
+    const swept = await getSynthesisScheduler().reconcileOnBoot();
+    if (swept.length) console.log(JSON.stringify({ event: 'synthesis_reconciled', projects: swept.length }));
+  } catch (e) {
+    console.warn(
+      JSON.stringify({ event: 'synthesis_reconcile_deferred', reason: e instanceof Error ? e.message : String(e) }),
+    );
+  }
 }

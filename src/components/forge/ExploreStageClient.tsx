@@ -203,42 +203,56 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     }
   }
 
+  const bodyMd = artifact?.bodyMd ?? props.initialArtifact?.bodyMd ?? null;
+  const version = artifact?.version ?? props.initialArtifact?.version ?? null;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="flex flex-col gap-6">
-        <BrainDumpComposer
-          value={brief}
-          onChange={setBrief}
-          attachments={attachments}
-          voiceEnabled={props.voiceEnabled}
-          recording={recording}
-          busy={busy}
-          error={error}
-          onAnalyze={analyze}
-          onToggleRecord={toggleRecord}
-          onAddLink={addLink}
-          onAddFile={addFile}
-          onRemoveAttachment={removeAttachment}
-        />
+    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="flex min-w-0 flex-col gap-8">
+        {/* Inputs — collapse to a compact card once a synthesis exists so the
+            document is the focus, but stay editable for adding more tasks. */}
+        <details className="group flex flex-col gap-6" open={!bodyMd}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+            <span className="text-ink-faint transition-transform group-open:rotate-90">›</span>
+            {bodyMd ? 'Brief & sources' : 'Brain-dump'}
+          </summary>
+          <div className="mt-4 flex flex-col gap-6">
+            <BrainDumpComposer
+              value={brief}
+              onChange={setBrief}
+              attachments={attachments}
+              voiceEnabled={props.voiceEnabled}
+              recording={recording}
+              busy={busy}
+              error={error}
+              onAnalyze={analyze}
+              onToggleRecord={toggleRecord}
+              onAddLink={addLink}
+              onAddFile={addFile}
+              onRemoveAttachment={removeAttachment}
+            />
+            <FanOutEditor
+              projectId={props.projectId}
+              drafts={drafts}
+              repoOptions={props.repoOptions}
+              onChanged={refreshTasks}
+              onRun={run}
+              canRun={drafts.length > 0 && !busy}
+            />
+          </div>
+        </details>
 
-        <FanOutEditor
-          projectId={props.projectId}
-          drafts={drafts}
-          repoOptions={props.repoOptions}
-          onChanged={refreshTasks}
-          onRun={run}
-          canRun={drafts.length > 0 && !busy}
-        />
-      </div>
-
-      <aside className="flex flex-col gap-6">
-        <AgentRail tasks={tasks} />
         <SummaryPane
-          bodyMd={artifact?.bodyMd ?? props.initialArtifact?.bodyMd ?? null}
-          version={artifact?.version ?? props.initialArtifact?.version ?? null}
+          bodyMd={bodyMd}
+          version={version}
+          busy={busy}
           onResynthesize={resynthesize}
           projectId={props.projectId}
         />
+      </div>
+
+      <aside className="lg:sticky lg:top-4">
+        <AgentRail tasks={tasks} />
       </aside>
     </div>
   );
@@ -436,34 +450,56 @@ function AddTaskForm(props: {
 function SummaryPane(props: {
   bodyMd: string | null;
   version: number | null;
+  busy: boolean;
   onResynthesize: () => void;
   projectId: string;
 }) {
+  if (!props.bodyMd) {
+    return (
+      <section
+        aria-label="Synthesized summary"
+        className="rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2/50 px-6 py-10 text-center"
+      >
+        <h2 className="font-serif text-lg text-ink">Exploration summary</h2>
+        <p className="mt-1 text-sm text-ink-faint">
+          No synthesis yet — run the tasks above to ground the brief, and the summary appears here.
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <section className="flex flex-col gap-2" aria-label="Synthesized summary">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">
-          Exploration summary {props.version ? `· v${props.version}` : ''}
+    <section aria-label="Synthesized summary" className="overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-sm">
+      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/60 px-6 py-3">
+        <h2 className="font-serif text-lg text-ink">
+          Exploration summary
+          {props.version ? <span className="ml-2 align-middle text-xs font-normal text-ink-faint">v{props.version}</span> : null}
         </h2>
-        {props.bodyMd ? (
-          <button type="button" onClick={props.onResynthesize} className="text-[11px] text-accent hover:underline">
-            re-synthesize
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={props.onResynthesize}
+          disabled={props.busy}
+          className="rounded-[var(--r)] border border-line px-2.5 py-1 text-xs text-ink-soft hover:bg-surface-2 disabled:opacity-50"
+        >
+          {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
+        </button>
+      </header>
+
+      <div className="px-6 py-5">
+        <Markdown className="max-w-[72ch] prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
+          {props.bodyMd}
+        </Markdown>
       </div>
-      {props.bodyMd ? (
-        <div className="rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
-          <Markdown>{props.bodyMd}</Markdown>
-          <a
-            href={`/projects/${props.projectId}/spec`}
-            className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
-          >
-            Feeds the Spec →
-          </a>
-        </div>
-      ) : (
-        <p className="text-xs text-ink-muted">No synthesis yet — run some tasks to ground the brief.</p>
-      )}
+
+      <footer className="flex items-center justify-between gap-3 border-t border-line bg-surface-2/60 px-6 py-3">
+        <span className="text-xs text-ink-faint">This brief grounds the Spec stage.</span>
+        <a
+          href={`/projects/${props.projectId}/spec`}
+          className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-deep"
+        >
+          Continue to Spec →
+        </a>
+      </footer>
     </section>
   );
 }

@@ -9,6 +9,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
+    // Auth integration tests share a single live Postgres (one `forge` schema).
+    // Run test files sequentially in one worker so DB-mutating files don't
+    // interleave — global throwaway-row cleanup in one file's afterAll would
+    // otherwise race another file's in-flight rows (FK violations).
+    fileParallelism: false,
   },
   resolve: {
     alias: {

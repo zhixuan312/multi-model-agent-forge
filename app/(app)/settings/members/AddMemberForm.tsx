@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/cn';
+import { UserPlus } from 'lucide-react';
+import { Card, CardContent, Field, Input, Button, Mono, Micro } from '@/components/ui';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 
 /** Generate a readable random password (≥ PASSWORD_MIN_LENGTH). */
@@ -63,84 +64,55 @@ export function AddMemberForm() {
     }
   }
 
-  const label = 'mb-1.5 block text-[11.5px] font-semibold text-ink-soft';
-  const input =
-    'w-full rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
-
   return (
-    <form
-      onSubmit={onSubmit}
-      aria-label="Add member"
-      className="mt-4 rounded-[var(--r-lg)] border-[1.5px] border-accent bg-surface p-5 shadow-[0_0_0_3px_var(--accent-tint)]"
-    >
-      <div className="mb-3.5 text-sm font-semibold text-ink">Add member</div>
-      <div className="grid grid-cols-3 gap-3.5">
-        <div>
-          <label htmlFor="add-displayName" className={label}>
-            Display name
-          </label>
-          <input
-            id="add-displayName"
-            name="displayName"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className={input}
-          />
-        </div>
-        <div>
-          <label htmlFor="add-username" className={label}>
-            Username
-          </label>
-          <input
-            id="add-username"
-            name="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={cn(input, 'font-mono')}
-          />
-        </div>
-        <div>
-          <label htmlFor="add-password" className={label}>
-            Password
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              id="add-password"
-              name="password"
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={cn(input, 'font-mono')}
-            />
-            <button
-              type="button"
-              onClick={() => setPassword(generatePassword())}
-              className="shrink-0 text-xs font-medium text-ink-faint hover:text-accent"
-            >
-              generate
-            </button>
+    <Card className="border-accent ring-[3px] ring-accent-tint">
+      <form onSubmit={onSubmit} aria-label="Add member">
+        <CardContent className="flex flex-col gap-4 py-5">
+          <Mono className="!text-sm font-semibold text-ink">Add member</Mono>
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="Display name">
+              {(p) => (
+                <Input {...p} name="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Username">
+              {(p) => (
+                <Input {...p} name="username" value={username} onChange={(e) => setUsername(e.target.value)} className="font-mono" />
+              )}
+            </Field>
+            <Field label="Password">
+              {(p) => (
+                <div className="flex items-center gap-2">
+                  <Input
+                    {...p}
+                    name="password"
+                    type="text"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="font-mono"
+                  />
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setPassword(generatePassword())} className="shrink-0">
+                    generate
+                  </Button>
+                </div>
+              )}
+            </Field>
           </div>
-        </div>
-      </div>
 
-      {error ? (
-        <p role="alert" className="mt-3 text-sm text-rose">
-          {error}
-        </p>
-      ) : null}
+          {error ? (
+            <Micro role="alert" className="block text-rose">
+              {error}
+            </Micro>
+          ) : null}
 
-      <div className="mt-3.5 flex items-center justify-between">
-        <span className="text-xs text-ink-faint">
-          They can change their password later on their profile.
-        </span>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {submitting ? 'Adding…' : 'Add member'}
-        </button>
-      </div>
-    </form>
+          <div className="flex items-center justify-between">
+            <Micro>They can change their password later on their profile.</Micro>
+            <Button type="submit" leftIcon={<UserPlus />} loading={submitting}>
+              {submitting ? 'Adding…' : 'Add member'}
+            </Button>
+          </div>
+        </CardContent>
+      </form>
+    </Card>
   );
 }

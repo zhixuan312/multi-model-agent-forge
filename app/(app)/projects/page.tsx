@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader, buttonVariants } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { visibleProjects } from '@/projects/projects-core';
 
@@ -17,20 +18,18 @@ export default async function ProjectsPage() {
   const projects = await visibleProjects({ id: me.id });
 
   return (
-    <>
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Projects"
-        subtitle="Idea → spec → freeze → committed code, with MMA doing the work underneath."
+        description="Idea → spec → freeze → committed code, with MMA doing the work underneath."
         actions={
-          <Link
-            href="/projects/new"
-            className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white"
-          >
-            ＋ New project
+          <Link href="/projects/new" className={buttonVariants({ variant: 'primary' })}>
+            <Plus className="size-4" />
+            New project
           </Link>
         }
       />
       <ProjectFilterBar projects={projects} />
-    </>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ const TABS: ReadonlyArray<{ key: SettingsTab; label: string; href: string }> = [
 
 export function SettingsTabs({ active }: { active: SettingsTab }) {
   return (
-    <div role="tablist" className="mb-6 flex gap-6 border-b border-line">
+    <div role="tablist" className="flex gap-1 border-b border-line">
       {TABS.map((tab) => (
         <Link
           key={tab.key}
@@ -26,10 +26,10 @@ export function SettingsTabs({ active }: { active: SettingsTab }) {
           aria-selected={active === tab.key}
           aria-current={active === tab.key ? 'page' : undefined}
           className={cn(
-            'py-2.5 text-sm',
+            'focus-ring -mb-px border-b-2 px-3 py-2.5 text-sm transition-colors',
             active === tab.key
-              ? 'border-b-2 border-accent font-semibold text-ink'
-              : 'text-ink-soft hover:text-ink',
+              ? 'border-accent font-medium text-ink'
+              : 'border-transparent text-ink-soft hover:text-ink',
           )}
         >
           {tab.label}

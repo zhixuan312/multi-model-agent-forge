@@ -2,7 +2,21 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Field,
+  Input,
+  Button,
+  Avatar,
+  Label,
+  TextSm,
+  Micro,
+} from '@/components/ui';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -104,177 +118,162 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
     router.refresh();
   }
 
-  const card = 'rounded-[var(--r-lg)] border border-line bg-surface p-5';
-  const label = 'mb-1.5 block text-[11.5px] font-semibold text-ink-soft';
-  const input =
-    'w-full rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
-  const primaryBtn =
-    'rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60';
-
   return (
-    <div className="max-w-[640px]">
+    <div className="flex max-w-[640px] flex-col gap-4">
       {/* ACCOUNT */}
-      <form onSubmit={saveAccount} className={cn(card, 'mb-4')} aria-label="Account">
-        <h2 className="mb-4 text-sm font-semibold text-ink">Account</h2>
-
-        <div className="mb-4 flex items-center gap-4">
-          <span
-            style={{ background: tint }}
-            className="grid h-16 w-16 place-items-center rounded-full text-2xl font-semibold text-white"
-          >
-            {initials(displayName || member.displayName)}
-          </span>
-          <div>
-            <span className={label}>Avatar colour</span>
-            <div role="radiogroup" aria-label="Avatar colour" className="flex gap-2">
-              {TINTS.map((t) => (
-                <button
-                  type="button"
-                  key={t}
-                  role="radio"
-                  aria-checked={t === tint}
-                  aria-label={`Avatar colour ${t}`}
-                  onClick={() => setTint(t)}
-                  style={{ background: t }}
-                  className={cn(
-                    'h-6 w-6 rounded-full',
-                    t === tint && 'ring-2 ring-offset-2 ring-offset-surface',
-                  )}
-                />
-              ))}
+      <Card>
+        <form onSubmit={saveAccount} aria-label="Account">
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5 py-5">
+            <div className="flex items-center gap-4">
+              <Avatar size="lg" initials={initials(displayName || member.displayName)} tint={tint} aria-hidden />
+              <div className="flex flex-col gap-1.5">
+                <Label as="span">Avatar colour</Label>
+                <div role="radiogroup" aria-label="Avatar colour" className="flex gap-2">
+                  {TINTS.map((t) => (
+                    <button
+                      type="button"
+                      key={t}
+                      role="radio"
+                      aria-checked={t === tint}
+                      aria-label={`Avatar colour ${t}`}
+                      onClick={() => setTint(t)}
+                      style={{ background: t }}
+                      className={cn(
+                        'focus-ring size-6 rounded-full transition-transform hover:scale-110',
+                        t === tint && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3.5">
-          <div>
-            <label htmlFor="displayName" className={label}>
-              Display name
-            </label>
-            <input
-              id="displayName"
-              name="displayName"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className={input}
-            />
-          </div>
-          <div>
-            <label htmlFor="username" className={label}>
-              Username <span className="font-normal text-ink-faint">· your login</span>
-            </label>
-            <input
-              id="username"
-              name="username"
-              value={member.username}
-              readOnly
-              aria-readonly="true"
-              className={cn(input, 'cursor-not-allowed bg-surface-2 font-mono text-ink-faint')}
-            />
-          </div>
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Display name">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="displayName"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Username" hint="your login">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="username"
+                    value={member.username}
+                    readOnly
+                    aria-readonly="true"
+                    className="cursor-not-allowed bg-surface-2 font-mono text-ink-faint"
+                  />
+                )}
+              </Field>
+            </div>
 
-        {accountError ? (
-          <p role="alert" className="mt-3 text-sm text-rose">
-            {accountError}
-          </p>
-        ) : null}
-        {accountOk ? (
-          <p role="status" className="mt-3 text-sm text-sage">
-            Profile saved.
-          </p>
-        ) : null}
+            {accountError ? (
+              <Micro role="alert" className="block text-rose">
+                {accountError}
+              </Micro>
+            ) : null}
+            {accountOk ? (
+              <Micro role="status" className="block text-[var(--sage-deep)]">
+                Profile saved.
+              </Micro>
+            ) : null}
 
-        <div className="mt-4 flex justify-end">
-          <button type="submit" disabled={savingAccount} className={primaryBtn}>
-            {savingAccount ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </form>
+            <div className="flex justify-end">
+              <Button type="submit" loading={savingAccount}>
+                {savingAccount ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </CardContent>
+        </form>
+      </Card>
 
       {/* PASSWORD */}
-      <form onSubmit={savePassword} className={cn(card, 'mb-4')} aria-label="Password">
-        <h2 className="mb-4 text-sm font-semibold text-ink">Password</h2>
-        <div className="flex flex-col gap-3.5">
-          <div>
-            <label htmlFor="currentPassword" className={label}>
-              Current password
-            </label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className={input}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3.5">
-            <div>
-              <label htmlFor="newPassword" className={label}>
-                New password
-              </label>
-              <input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className={input}
-              />
+      <Card>
+        <form onSubmit={savePassword} aria-label="Password">
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 py-5">
+            <Field label="Current password">
+              {(p) => (
+                <Input
+                  {...p}
+                  name="currentPassword"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              )}
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="New password">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="newPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Confirm new password">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                )}
+              </Field>
             </div>
-            <div>
-              <label htmlFor="confirmPassword" className={label}>
-                Confirm new password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={input}
-              />
+
+            {passwordError ? (
+              <Micro role="alert" className="block text-rose">
+                {passwordError}
+              </Micro>
+            ) : null}
+            {passwordOk ? (
+              <Micro role="status" className="block text-[var(--sage-deep)]">
+                Password updated.
+              </Micro>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button type="submit" loading={savingPassword}>
+                {savingPassword ? 'Updating…' : 'Update password'}
+              </Button>
             </div>
-          </div>
-        </div>
-
-        {passwordError ? (
-          <p role="alert" className="mt-3 text-sm text-rose">
-            {passwordError}
-          </p>
-        ) : null}
-        {passwordOk ? (
-          <p role="status" className="mt-3 text-sm text-sage">
-            Password updated.
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex justify-end">
-          <button type="submit" disabled={savingPassword} className={primaryBtn}>
-            {savingPassword ? 'Updating…' : 'Update password'}
-          </button>
-        </div>
-      </form>
+          </CardContent>
+        </form>
+      </Card>
 
       {/* SIGN OUT */}
-      <div className={cn(card, 'flex items-center justify-between')}>
-        <div>
-          <div className="text-sm font-semibold text-ink">Sign out</div>
-          <div className="text-xs text-ink-faint">End your session on this device</div>
-        </div>
-        <button
-          type="button"
-          onClick={signOut}
-          disabled={signingOut}
-          className="rounded-[var(--r)] border border-rose/40 bg-surface px-3.5 py-2 text-sm font-semibold text-rose disabled:opacity-60"
-        >
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </button>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-between py-4">
+          <div>
+            <TextSm className="font-semibold text-ink">Sign out</TextSm>
+            <Micro>End your session on this device</Micro>
+          </div>
+          <Button variant="secondary" leftIcon={<LogOut />} onClick={signOut} loading={signingOut} className="text-rose hover:text-rose">
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

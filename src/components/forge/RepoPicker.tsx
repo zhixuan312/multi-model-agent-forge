@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { cn } from '@/lib/cn';
+import { Field, Input, Select, Checkbox, Badge, Text, Mono } from '@/components/ui';
 import { filterRepos } from '@/git/repo-filter';
 
 /**
@@ -45,85 +45,72 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
     onChange([...next]);
   }
 
-  const inputCls =
-    'rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
-
   return (
-    <div data-testid="repo-picker">
-      <div className="mb-3 flex flex-wrap items-end gap-2.5">
-        <div className="min-w-[160px] flex-1">
-          <label htmlFor="repo-search" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-            Search repos
-          </label>
-          <input
-            id="repo-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="name…"
-            className={cn(inputCls, 'w-full')}
-          />
-        </div>
-        <div>
-          <label htmlFor="repo-kind" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-            Kind
-          </label>
-          <select id="repo-kind" value={kind} onChange={(e) => setKind(e.target.value)} className={inputCls}>
-            <option value="">All kinds</option>
-            {kinds.map((k) => (
-              <option key={k} value={k}>{k}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="repo-tag" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-            Tag
-          </label>
-          <select id="repo-tag" value={tag} onChange={(e) => setTag(e.target.value)} className={inputCls}>
-            <option value="">All tags</option>
-            {allTags.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
+    <div data-testid="repo-picker" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-2.5">
+        <Field label="Search repos" className="min-w-[160px] flex-1">
+          {(p) => <Input {...p} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="name…" />}
+        </Field>
+        <Field label="Kind">
+          {(p) => (
+            <Select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">All kinds</option>
+              {kinds.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Tag">
+          {(p) => (
+            <Select {...p} value={tag} onChange={(e) => setTag(e.target.value)}>
+              <option value="">All tags</option>
+              {allTags.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
       </div>
 
-      <p className="mb-2 text-xs text-ink-soft">
-        <b>{selected.length}</b> of {repos.length} selected
-      </p>
+      <Text className="!t-sm">
+        <b className="text-ink">{selected.length}</b> of {repos.length} selected
+      </Text>
 
-      <ul className="list-none divide-y divide-line rounded-[var(--r-lg)] border border-line bg-surface p-0">
+      <ul className="list-none divide-y divide-line overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface p-0">
         {shown.map((r) => {
           const available = r.status !== 'error';
           const checked = selectedSet.has(r.id);
           return (
             <li key={r.id} data-testid={`repo-row-${r.name}`} className="flex items-center gap-3 px-4 py-3">
-              <input
+              <Checkbox
                 id={`repo-cb-${r.id}`}
-                type="checkbox"
                 checked={checked}
                 disabled={!available}
                 aria-label={`Select repository ${r.name}`}
                 onChange={() => toggle(r.id, available)}
-                className="h-4 w-4 accent-[var(--accent)] disabled:opacity-40"
               />
-              <label htmlFor={`repo-cb-${r.id}`} className="flex-1 font-mono text-sm text-ink">
-                {r.name}
+              <label htmlFor={`repo-cb-${r.id}`} className="flex-1 cursor-pointer">
+                <Mono className="!text-sm text-ink">{r.name}</Mono>
               </label>
               {available ? (
-                <span className="rounded-[var(--r)] bg-surface-2 px-2 py-0.5 text-[11px] text-ink-soft">{r.kind}</span>
+                <Badge size="sm">{r.kind}</Badge>
               ) : (
-                <span
-                  data-testid={`repo-unavailable-${r.name}`}
-                  className="rounded-full border border-rose/40 bg-rose/10 px-2 py-0.5 text-[11px] text-rose"
-                >
+                <Badge data-testid={`repo-unavailable-${r.name}`} variant="rose" size="sm">
                   repo unavailable
-                </span>
+                </Badge>
               )}
             </li>
           );
         })}
         {shown.length === 0 ? (
-          <li className="px-4 py-6 text-center text-sm italic text-ink-faint">No repositories match.</li>
+          <li className="px-4 py-6 text-center">
+            <Text className="!t-sm italic text-ink-faint">No repositories match.</Text>
+          </li>
         ) : null}
       </ul>
     </div>

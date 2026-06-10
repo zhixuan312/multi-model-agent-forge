@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader } from '@/components/ui';
 import { ProfileForm } from './ProfileForm';
 
 /**
@@ -12,12 +12,12 @@ export default async function ProfilePage() {
   if (!member) redirect('/login');
 
   return (
-    <>
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Profile"
-        subtitle="Your account. Everyone on the team has equal rights — this is just you."
+        description="Your account. Everyone on the team has equal rights — this is just you."
       />
       <ProfileForm member={member} />
-    </>
+    </div>
   );
 }

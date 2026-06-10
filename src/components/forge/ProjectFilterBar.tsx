@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { Input, EmptyState, Separator } from '@/components/ui';
 import { ProjectCard } from '@/components/forge/ProjectCard';
 import type { ProjectListItem } from '@/projects/projects-core';
 import type { ProjectPhase } from '@/db/enums';
@@ -78,17 +80,20 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
   };
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center gap-2.5">
-        <input
-          type="search"
-          aria-label="Search projects"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="⌕ Search projects…"
-          className="min-w-[200px] rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-        />
-        <span aria-hidden="true" className="h-5 w-px bg-line" />
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="relative min-w-[220px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
+          <Input
+            type="search"
+            aria-label="Search projects"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects…"
+            className="pl-9"
+          />
+        </div>
+        <Separator orientation="vertical" className="h-5" />
         <div role="group" aria-label="Filter by phase" className="flex items-center gap-1.5">
           {PHASE_CHIPS.map((chip) => (
             <button
@@ -97,10 +102,10 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
               aria-pressed={phase === chip.value}
               onClick={() => setPhase(chip.value)}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-medium',
+                'focus-ring rounded-full px-3 py-1 text-xs font-medium transition-colors',
                 phase === chip.value
                   ? 'bg-ink text-bg'
-                  : 'border border-line-strong bg-surface text-ink-soft',
+                  : 'border border-line-strong bg-surface text-ink-soft hover:text-ink',
               )}
             >
               {chip.label} {counts[chip.value]}
@@ -117,7 +122,7 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
             type="button"
             aria-pressed={mine}
             onClick={() => setMine(true)}
-            className={cn('px-3 py-1.5 font-medium', mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft')}
+            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
           >
             Mine
           </button>
@@ -125,7 +130,7 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
             type="button"
             aria-pressed={!mine}
             onClick={() => setMine(false)}
-            className={cn('px-3 py-1.5 font-medium', !mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft')}
+            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', !mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
           >
             All team
           </button>
@@ -133,9 +138,7 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
       </div>
 
       {shown.length === 0 ? (
-        <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2 px-6 py-16 text-center">
-          <p className="font-serif text-base italic text-ink-faint">No projects match.</p>
-        </div>
+        <EmptyState icon={<Search />} title="No projects match" description="Try a different phase, owner, or search term." />
       ) : (
         <div
           data-testid="project-grid"

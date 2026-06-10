@@ -1,6 +1,6 @@
 import { requireAdminPage } from '@/auth/require-admin';
 import { getConnections } from '@/config/connections-core';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader, SectionTitle } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
 
@@ -15,17 +15,13 @@ export default async function ConnectionsPage() {
   const view = await getConnections();
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader title="Team settings" />
       <SettingsTabs active="connections" />
 
-      <div className="mb-1">
-        <h2 className="font-serif text-xl font-semibold text-ink">Connections</h2>
-        <p className="mt-1 max-w-[600px] text-sm text-ink-soft">
-          The MMA endpoint Forge calls every rod through, and the git service token that clones &amp;
-          pulls team repos. Secrets are stored encrypted and never shown.
-        </p>
-      </div>
+      <SectionTitle description="The MMA endpoint Forge calls every rod through, and the git service token that clones & pulls team repos. Secrets are stored encrypted and never shown.">
+        Connections
+      </SectionTitle>
 
       <ConnectionsForm
         initial={{
@@ -35,6 +31,6 @@ export default async function ConnectionsPage() {
           openaiTranscriptionKeySet: view.openaiTranscriptionKeySet,
         }}
       />
-    </>
+    </div>
   );
 }

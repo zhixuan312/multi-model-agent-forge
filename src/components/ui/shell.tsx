@@ -25,10 +25,13 @@ export function AppShell({
   children: ReactNode;
   className?: string;
 }) {
+  // `fixed inset-0` pins the whole frame to the viewport so the PAGE never
+  // scrolls — only the inner content surface does. Robust against any body /
+  // dvh / min-height quirk.
   return (
-    <div className={cn('flex h-[100dvh] overflow-hidden', className)}>
-      <div className="hidden h-[100dvh] shrink-0 overflow-y-auto lg:block">{sidebar}</div>
-      <div className="flex h-[100dvh] min-w-0 flex-1 flex-col">
+    <div className={cn('fixed inset-0 flex overflow-hidden bg-bg', className)}>
+      <div className="hidden h-full shrink-0 overflow-y-auto lg:block">{sidebar}</div>
+      <div className="flex h-full min-w-0 flex-1 flex-col">
         {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}
         {/* The single scroll surface. Header/sub-nav stick to its top. */}
         <div className="forge-scroll min-h-0 flex-1 overflow-y-auto">{children}</div>

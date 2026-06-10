@@ -1,27 +1,23 @@
 import Link from 'next/link';
 import { Globe, Lock } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Card, CardContent, Badge, Avatar, Title, Text, Mono, type BadgeProps } from '@/components/ui';
+import { Card, CardContent, Badge, Avatar, Title, Text, Mono } from '@/components/ui';
+import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { formatRelative } from '@/lib/format-relative';
 import type { ProjectListItem } from '@/projects/projects-core';
-import type { ProjectPhase, StageStatus } from '@/db/enums';
+import type { StageStatus } from '@/db/enums';
 
 /**
  * ProjectCard (Spec 3 flow 2) — serif title · phase badge · summary (or neutral
  * placeholder) · 5-segment stage rail · footer (owner avatar+name · visibility
  * chip · N repos · relative updated_at). The whole card links to the project.
  *
- * The stage rail is CSS-theme-driven (colour swaps with `data-phase`), so colour
+ * The phase pill is the shared `PhaseBadge` — the card and the project header
+ * speak the same status language (same labels, same lifecycle colours). The
+ * stage rail is CSS-theme-driven (colour swaps with `data-phase`), so colour
  * is NOT the testable channel — each segment carries an `aria-label` text
  * alternative (done/active/pending) so screen-reader users get the status.
  */
-
-const PHASE_BADGE: Record<ProjectPhase, { label: string; variant: NonNullable<BadgeProps['variant']> }> = {
-  design: { label: 'Design', variant: 'accent' },
-  frozen: { label: 'Frozen', variant: 'accent' },
-  build: { label: 'Build', variant: 'accent' },
-  done: { label: 'Done', variant: 'sage' },
-};
 
 const RAIL_CLASS: Record<StageStatus, string> = {
   done: 'bg-[var(--rail-done,var(--sage))]',
@@ -46,7 +42,6 @@ function StageRail({ stages }: { stages: { kind: string; status: StageStatus }[]
 }
 
 export function ProjectCard({ project }: { project: ProjectListItem }) {
-  const badge = PHASE_BADGE[project.phase];
   return (
     <Link href={`/projects/${project.id}`} data-testid={`project-card-${project.id}`} className="block">
       <Card interactive elevation="flat" className="h-full">
@@ -55,9 +50,7 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
             <Title as="h2" className="!text-xl leading-tight">
               {project.name}
             </Title>
-            <Badge data-testid="phase-badge" variant={badge.variant} dot className="shrink-0">
-              {badge.label}
-            </Badge>
+            <PhaseBadge phase={project.phase} size="md" className="shrink-0" />
           </div>
 
           <Text className="min-h-[2.4em] !text-sm">

@@ -5,14 +5,14 @@ describe('ProjectTopbar', () => {
   it('renders the phase kicker reflecting project.phase and a disabled Export stub', () => {
     render(<ProjectTopbar projectName="Evaluation indicator #11" phase="design" />);
     expect(screen.getByText('Evaluation indicator #11')).toBeInTheDocument();
-    expect(screen.getByTestId('phase-kicker')).toHaveTextContent('Design');
+    expect(screen.getByTestId('phase-badge')).toHaveTextContent('Design');
     const exportBtn = screen.getByRole('button', { name: /export/i });
     expect(exportBtn).toBeDisabled();
   });
 
   it('kicker reflects a Build-phase project', () => {
     render(<ProjectTopbar projectName="Payments" phase="build" />);
-    expect(screen.getByTestId('phase-kicker')).toHaveTextContent('Build');
+    expect(screen.getByTestId('phase-badge')).toHaveTextContent('Build');
   });
 
   it('renders presence avatars when supplied (static stub)', () => {

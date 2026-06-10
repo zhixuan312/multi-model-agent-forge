@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Menu as MenuIcon } from 'lucide-react';
 import { Sidebar } from '@/components/forge/Sidebar';
 import type { AuthedMember } from '@/auth/auth-provider';
 
@@ -21,9 +22,9 @@ export function MobileNav({ member }: { member: AuthedMember }) {
         aria-label="Open navigation"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="grid h-9 w-9 place-items-center rounded-[var(--r)] border border-line bg-surface text-ink"
+        className="grid h-9 w-9 place-items-center rounded-[var(--r)] border border-line bg-surface text-ink-soft transition-colors duration-150 ease-[var(--ease-out)] hover:border-line-strong hover:text-ink"
       >
-        <span aria-hidden="true">☰</span>
+        <MenuIcon className="size-[18px]" aria-hidden />
       </button>
 
       {open ? (

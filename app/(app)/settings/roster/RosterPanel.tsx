@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, Field, Select, Button, Mono, Micro } from '@/components/ui';
+import { Card, CardContent, Field, FieldGrid, Select, Button, Mono, Micro } from '@/components/ui';
 import { ModelCombobox, type ModelSuggestion } from './ModelCombobox';
 
 export type Tier = 'main' | 'complex' | 'standard';
@@ -91,7 +91,7 @@ export function RosterPanel({
                   <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>{' '}
                   <Micro>· {meta.note}</Micro>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <FieldGrid cols={2}>
                   <Field label="Provider" id={`provider-${r.tier}`}>
                     {(p) => (
                       <Select
@@ -116,7 +116,7 @@ export function RosterPanel({
                     suggestions={modelSuggestions}
                     catalogAvailable={catalogAvailable}
                   />
-                </div>
+                </FieldGrid>
               </CardContent>
             </Card>
           );

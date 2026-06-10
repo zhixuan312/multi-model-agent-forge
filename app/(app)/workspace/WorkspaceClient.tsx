@@ -14,6 +14,8 @@ import {
   Mono,
   Micro,
   EmptyState,
+  Toolbar,
+  Grid,
   Dialog,
   DialogPanel,
   DialogTitle,
@@ -215,7 +217,16 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end gap-3">
+      <Toolbar
+        align="end"
+        actions={
+          isAdmin ? (
+            <Button leftIcon={<Plus />} onClick={() => setDialogOpen(true)}>
+              Add / clone repo
+            </Button>
+          ) : null
+        }
+      >
         <Field label="Kind">
           {(p) => (
             <Select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -243,21 +254,16 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
         <Field label="Search" className="min-w-[180px] flex-1">
           {(p) => <Input {...p} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="name or tag…" />}
         </Field>
-        {isAdmin ? (
-          <Button leftIcon={<Plus />} onClick={() => setDialogOpen(true)}>
-            Add / clone repo
-          </Button>
-        ) : null}
-      </div>
+      </Toolbar>
 
       {shown.length === 0 ? (
         <EmptyState icon={<GitBranch />} title="No repositories match" description="Adjust the filters above to widen the search." />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Grid min="340px">
           {shown.map((r) => (
             <RepoCard key={r.id} repo={r} isAdmin={isAdmin} onPull={onPull} onDelete={onDelete} busy={busyId === r.id} />
           ))}
-        </div>
+        </Grid>
       )}
 
       {isAdmin ? (

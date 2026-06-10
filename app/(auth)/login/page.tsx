@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { Card, CardContent, Display, Micro, Field, Input, Button, Banner } from '@/components/ui';
+import { ForgeMark } from '@/components/forge/ForgeMark';
 import { loginAction, type LoginActionState } from './actions';
 
 const initialState: LoginActionState = {};
@@ -15,9 +16,10 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-ink">
+    <main className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-bg px-4 py-10 text-ink">
       <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <ForgeMark className="mb-3 scale-125" />
           <Display className="!text-4xl">Forge</Display>
           <Micro className="mt-1.5 block">Sign in to continue</Micro>
         </div>

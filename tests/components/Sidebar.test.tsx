@@ -5,6 +5,8 @@ import type { AuthedMember } from '@/auth/auth-provider';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/projects',
+  // Sidebar now renders AccountMenu (footer), which uses useRouter for sign-out.
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
 const admin: AuthedMember = {

@@ -38,7 +38,7 @@ export default function RootLayout({
       data-phase="design"
       className={`${serif.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
+      <body className="h-full">
         <Providers>{children}</Providers>
       </body>
     </html>

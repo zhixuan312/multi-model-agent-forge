@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
-import { Card, CardContent, Field, Input, Select, Button, Badge, Mono, Micro } from '@/components/ui';
+import { Card, CardContent, Field, FieldGrid, Input, Select, Button, Badge, Mono, Micro } from '@/components/ui';
 
 export interface ProviderViewData {
   id: string;
@@ -185,7 +185,7 @@ export function ProviderForm({
           <Mono className="!text-sm font-semibold text-ink">
             {mode === 'add' ? 'Add provider' : `Edit ${existing?.name}`}
           </Mono>
-          <div className="grid grid-cols-2 gap-4">
+          <FieldGrid cols={2}>
             <Field label="Type">
               {(p) => (
                 <Select
@@ -229,7 +229,7 @@ export function ProviderForm({
                 />
               )}
             </Field>
-          </div>
+          </FieldGrid>
 
           {error ? (
             <Micro id={errId} role="alert" className="block text-rose">

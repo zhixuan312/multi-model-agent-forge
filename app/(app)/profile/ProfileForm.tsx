@@ -10,6 +10,7 @@ import {
   CardTitle,
   CardContent,
   Field,
+  FieldGrid,
   Input,
   Button,
   Avatar,
@@ -151,7 +152,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldGrid cols={2}>
               <Field label="Display name">
                 {(p) => (
                   <Input
@@ -174,7 +175,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                   />
                 )}
               </Field>
-            </div>
+            </FieldGrid>
 
             {accountError ? (
               <Micro role="alert" className="block text-rose">
@@ -215,7 +216,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                 />
               )}
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <FieldGrid cols={2}>
               <Field label="New password">
                 {(p) => (
                   <Input
@@ -240,7 +241,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                   />
                 )}
               </Field>
-            </div>
+            </FieldGrid>
 
             {passwordError ? (
               <Micro role="alert" className="block text-rose">

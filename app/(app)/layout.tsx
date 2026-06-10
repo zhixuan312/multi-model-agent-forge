@@ -4,6 +4,8 @@ import { currentMember } from '@/auth/current-member';
 import { PhaseTheme } from '@/components/forge/PhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';
+import { AccountMenu } from '@/components/forge/AccountMenu';
+import { ForgeMark } from '@/components/forge/ForgeMark';
 import { AppShell } from '@/components/ui/shell';
 
 /**
@@ -29,7 +31,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         mobileBar={
           <div className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
             <MobileNav member={member} />
-            <span className="font-serif text-base font-semibold">Forge</span>
+            <ForgeMark withWordmark />
+            <div className="ml-auto">
+              <AccountMenu member={member} variant="bar" />
+            </div>
           </div>
         }
       >

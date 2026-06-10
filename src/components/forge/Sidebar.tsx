@@ -42,7 +42,7 @@ export function Sidebar({
     <aside
       data-testid="sidebar"
       className={cn(
-        'flex min-h-[100dvh] w-[var(--rail-w)] flex-col gap-1 border-r border-line bg-surface-2 p-4',
+        'flex min-h-full w-[var(--rail-w)] flex-col gap-1 border-r border-line bg-surface-2 p-4',
         !forceVisible && 'max-md:hidden',
       )}
     >

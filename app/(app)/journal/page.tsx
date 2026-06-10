@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { PageHeader } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
 import { JournalTabs } from '@/components/forge/journal/JournalTabs';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readAllNodes } from '@/journal/store-reader';
@@ -36,9 +36,8 @@ export default async function JournalPage({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader title="Journal" description="The team knowledge base — recall, nodes, and the write-log." />
+    <PageFrame title="Journal" description="The team knowledge base — recall, nodes, and the write-log.">
       <JournalTabs read={read} initialView={view} initialNode={node} />
-    </div>
+    </PageFrame>
   );
 }

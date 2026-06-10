@@ -2,9 +2,20 @@
 
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronRight, Sparkles, Plus, X, ArrowRight, RefreshCw } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
 import { AgentRail } from '@/components/forge/AgentRail';
 import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
+import {
+  Button,
+  Badge,
+  EmptyState,
+  Textarea,
+  Select,
+  Title,
+  TextSm,
+  Micro,
+} from '@/components/ui';
 import {
   useProjectEvents,
   explorationKeys,
@@ -213,7 +224,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             document is the focus, but stay editable for adding more tasks. */}
         <details className="group flex flex-col gap-6" open={!bodyMd}>
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-            <span className="text-ink-faint transition-transform group-open:rotate-90">›</span>
+            <ChevronRight className="size-4 text-ink-faint transition-transform group-open:rotate-90" />
             {bodyMd ? 'Brief & sources' : 'Brain-dump'}
           </summary>
           <div className="mt-4 flex flex-col gap-6">
@@ -304,15 +315,15 @@ function FanOutEditor(props: {
   return (
     <section className="flex flex-col gap-4" aria-label="Proposed fan-out">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">Proposed fan-out</h2>
-        <button
-          type="button"
+        <TextSm className="!font-semibold !text-ink">Proposed fan-out</TextSm>
+        <Button
+          size="sm"
           disabled={!props.canRun || anySubFloor}
           onClick={props.onRun}
-          className="rounded-[var(--r-md)] bg-accent px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          rightIcon={<ArrowRight />}
         >
           Run
-        </button>
+        </Button>
       </div>
 
       {GROUPS.map((g) => {
@@ -321,36 +332,33 @@ function FanOutEditor(props: {
           <div key={g.kind} className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-ink">{g.label}</span>
-              <span className="inline-flex rounded-full bg-surface-2 px-1.5 text-[11px] text-ink-muted">{items.length}</span>
+              <Badge variant="neutral" size="sm">{items.length}</Badge>
               <button
                 type="button"
                 onClick={() => setAdding(g.kind)}
-                className="text-[11px] text-accent hover:underline"
+                className="inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
               >
-                + add task
+                <Plus className="size-3" /> add task
               </button>
             </div>
             {items.map((t) => {
               const subFloor = t.prompt.trim().length < promptFloor(t.kind as never);
               return (
                 <div key={t.id} className="rounded-[var(--r-md)] border border-line bg-surface-2 p-2">
-                  <textarea
+                  <Textarea
                     aria-label={`${g.label} prompt`}
                     defaultValue={t.prompt}
                     rows={2}
                     onBlur={(e) => patch(t.id, { prompt: e.target.value })}
-                    className={cn(
-                      'w-full resize-y rounded border bg-surface p-2 text-xs text-ink outline-none',
-                      subFloor ? 'border-red-400' : 'border-line',
-                    )}
+                    className={cn('!text-xs', subFloor && 'border-[var(--rose)]')}
                   />
                   <div className="mt-1 flex items-center gap-2">
                     {g.kind === 'investigate' ? (
-                      <select
+                      <Select
                         aria-label="Target repository"
                         defaultValue={t.targetRepoId ?? ''}
                         onChange={(e) => patch(t.id, { targetRepoId: e.target.value })}
-                        className="rounded border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+                        className="!h-auto w-auto !py-1 !text-[11px]"
                       >
                         <option value="" disabled>
                           repo…
@@ -360,10 +368,10 @@ function FanOutEditor(props: {
                             {r.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     ) : null}
                     {subFloor ? (
-                      <span className="text-[11px] text-red-700">
+                      <span className="text-[11px] text-[var(--rose)]">
                         ≥ {promptFloor(t.kind as never)} chars
                       </span>
                     ) : null}
@@ -372,9 +380,9 @@ function FanOutEditor(props: {
                       type="button"
                       aria-label="Remove task"
                       onClick={() => remove(t.id)}
-                      className="text-[11px] text-ink-muted hover:text-red-700"
+                      className="text-ink-soft transition-colors hover:text-[var(--rose)]"
                     >
-                      ✕
+                      <X className="size-3.5" />
                     </button>
                   </div>
                 </div>
@@ -406,21 +414,21 @@ function AddTaskForm(props: {
   const floor = promptFloor(props.kind);
   const valid = prompt.trim().length >= floor && (props.kind !== 'investigate' || repoId);
   return (
-    <div className="rounded-[var(--r-md)] border border-dashed border-line bg-surface p-2">
-      <textarea
+    <div className="rounded-[var(--r-md)] border border-dashed border-line-strong bg-surface p-2">
+      <Textarea
         aria-label="New task prompt"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         rows={2}
-        className="w-full resize-y rounded border border-line bg-surface-2 p-2 text-xs text-ink outline-none"
+        className="!text-xs"
       />
       <div className="mt-1 flex items-center gap-2">
         {props.kind === 'investigate' ? (
-          <select
+          <Select
             aria-label="New task repository"
             value={repoId}
             onChange={(e) => setRepoId(e.target.value)}
-            className="rounded border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+            className="!h-auto w-auto !py-1 !text-[11px]"
           >
             <option value="">repo…</option>
             {props.repoOptions.map((r) => (
@@ -428,20 +436,19 @@ function AddTaskForm(props: {
                 {r.name}
               </option>
             ))}
-          </select>
+          </Select>
         ) : null}
         <span className="flex-1" />
-        <button type="button" onClick={props.onCancel} className="text-[11px] text-ink-muted">
+        <Button size="sm" variant="ghost" onClick={props.onCancel}>
           cancel
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
           disabled={!valid}
           onClick={() => props.onAdd(prompt.trim(), props.kind === 'investigate' ? repoId : null)}
-          className="rounded bg-accent px-2 py-1 text-[11px] text-white disabled:opacity-50"
         >
           add
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -456,50 +463,57 @@ function SummaryPane(props: {
 }) {
   if (!props.bodyMd) {
     return (
-      <section
-        aria-label="Synthesized summary"
-        className="rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2/50 px-6 py-10 text-center"
-      >
-        <h2 className="font-serif text-lg text-ink">Exploration summary</h2>
-        <p className="mt-1 text-sm text-ink-faint">
-          No synthesis yet — run the tasks above to ground the brief, and the summary appears here.
-        </p>
+      <section aria-label="Synthesized summary">
+        <EmptyState
+          icon={<Sparkles />}
+          title="Exploration summary"
+          description="No synthesis yet — run the tasks above to ground the brief, and the summary appears here."
+        />
       </section>
     );
   }
 
   return (
-    <section aria-label="Synthesized summary" className="overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-sm">
+    <section
+      aria-label="Synthesized summary"
+      className="overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-sm"
+    >
       <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/60 px-6 py-3">
-        <h2 className="font-serif text-lg text-ink">
-          Exploration summary
-          {props.version ? <span className="ml-2 align-middle text-xs font-normal text-ink-faint">v{props.version}</span> : null}
-        </h2>
-        <button
-          type="button"
-          onClick={props.onResynthesize}
-          disabled={props.busy}
-          className="rounded-[var(--r)] border border-line px-2.5 py-1 text-xs text-ink-soft hover:bg-surface-2 disabled:opacity-50"
-        >
-          {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
-        </button>
-      </header>
+          <Title className="!text-lg">
+            Exploration summary
+            {props.version ? (
+              <Badge variant="sage" size="sm" className="ml-2 align-middle">
+                v{props.version}
+              </Badge>
+            ) : null}
+          </Title>
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<RefreshCw />}
+            onClick={props.onResynthesize}
+            loading={props.busy}
+            disabled={props.busy}
+          >
+            {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
+          </Button>
+        </header>
 
-      <div className="px-6 py-5">
-        <Markdown className="max-w-[72ch] prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
-          {props.bodyMd}
-        </Markdown>
-      </div>
+        <div className="px-6 py-5">
+          <Markdown className="max-w-[72ch] prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
+            {props.bodyMd}
+          </Markdown>
+        </div>
 
-      <footer className="flex items-center justify-between gap-3 border-t border-line bg-surface-2/60 px-6 py-3">
-        <span className="text-xs text-ink-faint">This brief grounds the Spec stage.</span>
-        <a
-          href={`/projects/${props.projectId}/spec`}
-          className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-deep"
-        >
-          Continue to Spec →
-        </a>
-      </footer>
+        <footer className="flex items-center justify-between gap-3 border-t border-line bg-surface-2/60 px-6 py-3">
+          <Micro className="!text-ink-faint">This brief grounds the Spec stage.</Micro>
+          <a
+            href={`/projects/${props.projectId}/spec`}
+            className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep"
+          >
+            Continue to Spec <ArrowRight className="size-4" />
+          </a>
+        </footer>
     </section>
   );
 }

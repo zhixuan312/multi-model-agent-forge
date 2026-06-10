@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
 import { currentMember } from '@/auth/current-member';
 import { listRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
@@ -23,9 +23,8 @@ export default async function WorkspacePage() {
   }));
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader title="Workspace" description="The team's shared repositories on disk." />
+    <PageFrame title="Workspace" description="The team's shared repositories on disk.">
       <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
-    </div>
+    </PageFrame>
   );
 }

@@ -25,7 +25,13 @@ let _db: PostgresJsDatabase<typeof schema> | undefined;
 /** The shared postgres-js connection pool (created on first call). */
 export function getSql(): Sql {
   if (!_sql) {
-    _sql = postgres(databaseUrl());
+    // Bound the pool tightly and release idle connections — the target Postgres
+    // has a low `max_connections`, and every process (web server, each test run,
+    // each script) opens its own pool. A small `max` + short `idle_timeout`
+    // keeps the total footprint well under the server limit. `FORGE_DB_POOL_MAX`
+    // overrides for higher-capacity deployments.
+    const max = Number(process.env.FORGE_DB_POOL_MAX) || 4;
+    _sql = postgres(databaseUrl(), { max, idle_timeout: 20, max_lifetime: 60 * 30 });
   }
   return _sql;
 }

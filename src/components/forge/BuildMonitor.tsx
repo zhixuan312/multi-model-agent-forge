@@ -1,9 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  Circle,
+  RefreshCw,
+  ScanEye,
+  Wrench,
+  Check,
+  Minus,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
 import type { ProjectEvent } from '@/sse/event-bus';
 import type { BuildView, PlanTaskView } from '@/build/build-core';
 import { Markdown } from '@/components/forge/Markdown';
+import { Card, CardContent, Badge, Banner, Heading, Text, TextSm, Mono } from '@/components/ui';
+import { cn } from '@/lib/cn';
 
 /**
  * BuildMonitor (Spec 7 §UI / build.html) — the live build monitor. Three stacked
@@ -22,14 +34,14 @@ interface ReviewState {
   findingsCount: number;
 }
 
-const STATUS_META: Record<string, { label: string; icon: string; tint: string }> = {
-  queued: { label: 'queued', icon: '◦', tint: 'text-ink-faint' },
-  executing: { label: 'executing', icon: '⟳', tint: 'text-amber-600' },
-  verifying: { label: 'verifying', icon: '◎', tint: 'text-amber-600' },
-  fixing: { label: 'fixing', icon: '⟳', tint: 'text-rose-600' },
-  committed: { label: 'committed', icon: '✓', tint: 'text-emerald-700' },
-  skipped: { label: 'skipped', icon: '–', tint: 'text-ink-faint' },
-  failed: { label: 'failed', icon: '✕', tint: 'text-rose-600' },
+const STATUS_META: Record<string, { label: string; icon: ReactNode; tint: string }> = {
+  queued: { label: 'queued', icon: <Circle aria-hidden="true" className="size-3.5" />, tint: 'text-ink-faint' },
+  executing: { label: 'executing', icon: <RefreshCw aria-hidden="true" className="size-3.5" />, tint: 'text-[var(--amber)]' },
+  verifying: { label: 'verifying', icon: <ScanEye aria-hidden="true" className="size-3.5" />, tint: 'text-[var(--amber)]' },
+  fixing: { label: 'fixing', icon: <Wrench aria-hidden="true" className="size-3.5" />, tint: 'text-[var(--rose)]' },
+  committed: { label: 'committed', icon: <Check aria-hidden="true" className="size-3.5" />, tint: 'text-[var(--sage-deep)]' },
+  skipped: { label: 'skipped', icon: <Minus aria-hidden="true" className="size-3.5" />, tint: 'text-ink-faint' },
+  failed: { label: 'failed', icon: <X aria-hidden="true" className="size-3.5" />, tint: 'text-[var(--rose)]' },
 };
 
 export function BuildMonitor({ projectId, initial }: { projectId: string; initial: BuildView }) {
@@ -106,106 +118,138 @@ export function BuildMonitor({ projectId, initial }: { projectId: string; initia
   }, [projectId]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
       {/* Header — running spend chip (observability only). */}
-      <header className="flex items-center justify-between">
-        <h2 className="font-serif text-lg">Build pipeline</h2>
-        <span className="rounded-full border border-line bg-surface-2 px-3 py-1 text-xs text-ink-faint" title="Running spend — observability only, no cost cap">
+      <header className="flex items-center justify-between gap-3">
+        <Heading>Build pipeline</Heading>
+        <Badge
+          variant="neutral"
+          title="Running spend — observability only, no cost cap"
+          className="font-mono"
+        >
           ${cost.total.toFixed(4)} · audit ${cost.byRoute.audit.toFixed(3)} · exec ${cost.byRoute.executePlan.toFixed(3)} · review ${cost.byRoute.review.toFixed(3)}
-        </span>
+        </Badge>
       </header>
 
       {notice && (
-        <div role="status" aria-live="polite" className="rounded-[var(--r-md)] border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          {notice}
-        </div>
+        <Banner variant="warning" title={notice} />
       )}
 
       {/* Plan card */}
-      <section className="rounded-[var(--r-lg)] border border-line bg-surface-1 p-4">
-        <h3 className="mb-2 font-serif text-base">Plan</h3>
-        <p className="mb-3 text-xs text-ink-faint">
-          Write targets: <span className="text-ink">{initial.writeTargets.join(', ') || '—'}</span>
-          {initial.readOnly.length > 0 && (
-            <>
-              {' · '}Read-only: <span className="text-ink">{initial.readOnly.join(', ')}</span>
-            </>
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <Heading className="!text-base">Plan</Heading>
+          <TextSm className="!text-ink-soft">
+            Write targets: <span className="text-ink">{initial.writeTargets.join(', ') || '—'}</span>
+            {initial.readOnly.length > 0 && (
+              <>
+                {' · '}Read-only: <span className="text-ink">{initial.readOnly.join(', ')}</span>
+              </>
+            )}
+          </TextSm>
+          <div className="flex flex-wrap gap-2">
+            {auditPasses.map((p) => (
+              <Badge key={p.passNo} variant={p.verdict === 'clean' ? 'sage' : 'amber'}>
+                pass {p.passNo}: {p.findingsCount} finding{p.findingsCount === 1 ? '' : 's'}{' '}
+                {p.verdict === 'clean' ? '✓ clean' : '⟳ revised'}
+              </Badge>
+            ))}
+          </div>
+          {initial.planMd ? (
+            <details>
+              <summary className="cursor-pointer text-xs text-ink-faint">
+                Plan v{initial.planVersion} (markdown)
+              </summary>
+              <div className="mt-2 max-h-80 overflow-auto rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
+                <Markdown>{initial.planMd}</Markdown>
+              </div>
+            </details>
+          ) : (
+            <Text className="!text-sm italic !text-ink-faint">No plan authored yet.</Text>
           )}
-        </p>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {auditPasses.map((p) => (
-            <span
-              key={p.passNo}
-              className={`rounded-full border px-2 py-0.5 text-xs ${p.verdict === 'clean' ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}
-            >
-              pass {p.passNo}: {p.findingsCount} finding{p.findingsCount === 1 ? '' : 's'} {p.verdict === 'clean' ? '✓ clean' : '⟳ revised'}
-            </span>
-          ))}
-        </div>
-        {initial.planMd ? (
-          <details>
-            <summary className="cursor-pointer text-xs text-ink-faint">Plan v{initial.planVersion} (markdown)</summary>
-            <div className="mt-2 max-h-80 overflow-auto rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
-              <Markdown>{initial.planMd}</Markdown>
-            </div>
-          </details>
-        ) : (
-          <p className="text-sm italic text-ink-faint">No plan authored yet.</p>
-        )}
-      </section>
+        </CardContent>
+      </Card>
 
       {/* Execute card */}
-      <section className="rounded-[var(--r-lg)] border border-line bg-surface-1 p-4">
-        <h3 className="mb-3 font-serif text-base">Execute</h3>
-        <div role="status" aria-live="polite" className="flex flex-col gap-2">
-          {tasks.length === 0 && <p className="text-sm italic text-ink-faint">No tasks yet.</p>}
-          {tasks.map((t) => {
-            const meta = STATUS_META[t.status] ?? STATUS_META.queued;
-            const isCurrent = t.id === currentTaskId;
-            return (
-              <div
-                key={t.id}
-                aria-current={isCurrent ? 'step' : undefined}
-                className={`rounded-[var(--r-md)] border p-2 ${isCurrent ? 'border-amber-400 bg-amber-50/40' : 'border-line bg-surface-2'}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm">{t.title}</span>
-                  <span className={`text-xs ${meta.tint}`}>
-                    {meta.icon} {meta.label}
-                  </span>
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <Heading className="!text-base">Execute</Heading>
+          <div role="status" aria-live="polite" className="flex flex-col gap-2">
+            {tasks.length === 0 && <Text className="!text-sm italic !text-ink-faint">No tasks yet.</Text>}
+            {tasks.map((t) => {
+              const meta = STATUS_META[t.status] ?? STATUS_META.queued;
+              const isCurrent = t.id === currentTaskId;
+              return (
+                <div
+                  key={t.id}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  className={cn(
+                    'rounded-[var(--r-md)] border p-2',
+                    isCurrent ? 'border-[var(--amber)] bg-amber-tint/40' : 'border-line bg-surface-2',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-ink">{t.title}</span>
+                    <span className={cn('inline-flex items-center gap-1.5 text-xs', meta.tint)}>
+                      {meta.icon} {meta.label}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-faint">
+                    <span>{t.repoName}</span>
+                    {t.branch && <span className="rounded border border-line px-1">{t.branch}</span>}
+                    {t.commitSha && <Mono className="!text-xs">{t.commitSha.slice(0, 8)}</Mono>}
+                    {t.reviewPolicy !== 'full' && <span className="italic">policy: {t.reviewPolicy}</span>}
+                  </div>
+                  {t.fixNote && (
+                    <p className="mt-1 text-xs text-[var(--rose)]">inline fix: {t.fixNote}</p>
+                  )}
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-faint">
-                  <span>{t.repoName}</span>
-                  {t.branch && <span className="rounded border border-line px-1">{t.branch}</span>}
-                  {t.commitSha && <span className="font-mono">{t.commitSha.slice(0, 8)}</span>}
-                  {t.reviewPolicy !== 'full' && <span className="italic">policy: {t.reviewPolicy}</span>}
-                </div>
-                {t.fixNote && (
-                  <p className="mt-1 text-xs text-rose-600">inline fix: {t.fixNote}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Review card */}
-      <section className="rounded-[var(--r-lg)] border border-line bg-surface-1 p-4">
-        <h3 className="mb-3 font-serif text-base">Review</h3>
-        {reviews.length === 0 && <p className="text-sm italic text-ink-faint">No reviews yet.</p>}
-        <div className="flex flex-col gap-2">
-          {reviews.map((r) => (
-            <div key={r.repo} className="flex items-center justify-between rounded-[var(--r-md)] border border-line bg-surface-2 p-2 text-sm">
-              <span>{r.repo}</span>
-              <span
-                className={`text-xs ${r.verdict === 'approved' ? 'text-emerald-700' : r.verdict === 'error' ? 'text-ink-faint' : 'text-rose-600'}`}
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <Heading className="!text-base">Review</Heading>
+          {reviews.length === 0 && <Text className="!text-sm italic !text-ink-faint">No reviews yet.</Text>}
+          <div className="flex flex-col gap-2">
+            {reviews.map((r) => (
+              <div
+                key={r.repo}
+                className="flex items-center justify-between gap-2 rounded-[var(--r-md)] border border-line bg-surface-2 p-2 text-sm"
               >
-                {r.verdict === 'approved' ? '✓ approved' : r.verdict === 'error' ? '— review unavailable' : '✕ changes required'} · {r.findingsCount} finding{r.findingsCount === 1 ? '' : 's'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+                <span className="text-ink">{r.repo}</span>
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1.5 text-xs',
+                    r.verdict === 'approved'
+                      ? 'text-[var(--sage-deep)]'
+                      : r.verdict === 'error'
+                        ? 'text-ink-faint'
+                        : 'text-[var(--rose)]',
+                  )}
+                >
+                  {r.verdict === 'approved' ? (
+                    <>
+                      <CheckCircle2 aria-hidden="true" className="size-3.5" /> approved
+                    </>
+                  ) : r.verdict === 'error' ? (
+                    '— review unavailable'
+                  ) : (
+                    <>
+                      <X aria-hidden="true" className="size-3.5" /> changes required
+                    </>
+                  )}{' '}
+                  · {r.findingsCount} finding{r.findingsCount === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 import { StageStepper } from '@/components/forge/StageStepper';
+import { ShellHeader, ShellSubNav, ShellBody } from '@/components/ui/shell';
 import {
   getProject,
   getProjectStages,
@@ -41,17 +42,19 @@ export default async function ProjectLayout({
   const stages = await getProjectStages(id);
 
   return (
-    <div data-phase={DATA_PHASE[project.phase]} className="flex min-h-full flex-col">
-      <header className="mb-5 flex flex-col gap-3 border-b border-line pb-4">
+    <div data-phase={DATA_PHASE[project.phase]} className="contents">
+      <ShellHeader>
         <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
+      </ShellHeader>
+      <ShellSubNav className="!h-auto !py-2">
         <StageStepper
           projectId={project.id}
           stages={stages}
           currentStage={project.currentStage}
           phase={project.phase}
         />
-      </header>
-      <div className="flex-1">{children}</div>
+      </ShellSubNav>
+      <ShellBody>{children}</ShellBody>
     </div>
   );
 }

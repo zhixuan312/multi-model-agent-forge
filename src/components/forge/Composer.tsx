@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { Send } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
+import { Button, Textarea } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
 /**
@@ -84,7 +86,7 @@ export function Composer({
         <label htmlFor="qa-answer" className="sr-only">
           Your answer
         </label>
-        <textarea
+        <Textarea
           id="qa-answer"
           ref={textareaRef}
           value={value}
@@ -92,15 +94,17 @@ export function Composer({
           disabled={disabled}
           rows={3}
           placeholder="Type your answer…"
-          className="resize-y rounded-[var(--r-md)] border border-line bg-surface p-2 text-sm text-ink disabled:opacity-50"
         />
-        <button
+        <Button
           type="submit"
+          size="sm"
+          rightIcon={<Send />}
+          loading={busy}
           disabled={disabled || busy || value.trim() === ''}
-          className="self-end rounded-[var(--r-md)] bg-accent px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          className="self-end"
         >
           {busy ? 'Sending…' : 'Send answer'}
-        </button>
+        </Button>
       </form>
     </div>
   );

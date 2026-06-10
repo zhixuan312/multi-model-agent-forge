@@ -60,7 +60,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  PageHeader,
+  PageFrame,
   SectionTitle,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -101,30 +101,28 @@ export default function StyleguidePage() {
   const [on, setOn] = useState(true);
 
   return (
-    <div data-phase={phase} className="flex flex-col gap-12">
-      <PageHeader
-        eyebrow="Forge design system"
-        title="Component library"
-        description="The single source of truth for every surface. Compose screens from these primitives — never hand-rolled markup."
-        actions={
-          <div className="inline-flex rounded-[var(--r)] border border-line bg-surface p-0.5">
-            {(['design', 'build'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPhase(p)}
-                className={cn(
-                  'rounded-[calc(var(--r)-2px)] px-3 py-1 text-xs font-medium transition-colors',
-                  phase === p ? 'bg-accent text-white' : 'text-ink-soft hover:text-ink',
-                )}
-              >
-                {p === 'design' ? 'Warm' : 'Cool'}
-              </button>
-            ))}
-          </div>
-        }
-      />
-
-      <Block title="Typography">
+    <PageFrame
+      title="Component library"
+      description="The single source of truth for every surface. Compose screens from these primitives — never hand-rolled markup."
+      actions={
+        <div className="inline-flex rounded-[var(--r)] border border-line bg-surface p-0.5">
+          {(['design', 'build'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPhase(p)}
+              className={cn(
+                'rounded-[calc(var(--r)-2px)] px-3 py-1 text-xs font-medium transition-colors',
+                phase === p ? 'bg-accent text-white' : 'text-ink-soft hover:text-ink',
+              )}
+            >
+              {p === 'design' ? 'Warm' : 'Cool'}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      <div data-phase={phase} className="flex flex-col gap-12">
+        <Block title="Typography">
         <div className="flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-6">
           <Display>The quick brown fox</Display>
           <Title>Section title in Newsreader</Title>
@@ -369,7 +367,8 @@ export default function StyleguidePage() {
             <Text className="!t-sm">Section header pattern — a serif heading, supporting copy, and an aligned action.</Text>
           </CardContent>
         </Card>
-      </Block>
-    </div>
+        </Block>
+      </div>
+    </PageFrame>
   );
 }

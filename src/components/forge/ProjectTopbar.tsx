@@ -1,13 +1,18 @@
-import { cn } from '@/lib/cn';
-import { initials } from '@/components/forge/avatar';
+import { Download, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Avatar } from '@/components/ui/avatar';
+import { Title, Eyebrow } from '@/components/ui/typography';
 import { ExportMenu } from '@/components/forge/export/ExportMenu';
 import type { ProjectPhase } from '@/db/enums';
 
 /**
- * ProjectTopbar (Spec 3 flow 3) — REAL. The phase kicker reflects `project.phase`;
- * presence avatars are a static stub (live presence is Spec 5 SSE). The `Export ▾`
- * slot mounts the real `ExportMenu` (Spec 8) when a `projectId` is provided;
- * otherwise it falls back to the inert disabled stub.
+ * ProjectTopbar (Spec 3 flow 3) — REAL. Renders into the LOCKED `ShellHeader`
+ * bar (the header owns the border / background / height / padding), so this is a
+ * clean full-width single row: a phase eyebrow + serif project name on the left,
+ * presence avatars + the `Export ▾` menu on the right. The phase kicker reflects
+ * `project.phase`; presence avatars are a static stub (live presence is Spec 5
+ * SSE). The `Export ▾` slot mounts the real `ExportMenu` (Spec 8) when a
+ * `projectId` is provided; otherwise it falls back to the inert disabled stub.
  */
 export interface ProjectTopbarPresence {
   memberId: string;
@@ -41,50 +46,40 @@ export function ProjectTopbar({
   exportDisabled = false,
 }: ProjectTopbarProps) {
   return (
-    <div data-testid="project-topbar" className="flex items-center justify-between gap-3">
-      <div className="flex flex-col gap-1">
+    <div data-testid="project-topbar" className="flex w-full items-center gap-4">
+      <div className="flex min-w-0 flex-col">
         {phase ? (
-          <span
-            data-testid="phase-kicker"
-            className="text-[9px] font-bold uppercase tracking-wider text-accent"
-          >
+          <Eyebrow data-testid="phase-kicker" className="!text-accent">
             <span aria-hidden="true">● </span>
             {PHASE_LABEL[phase]}
-          </span>
+          </Eyebrow>
         ) : null}
-        <div className="font-serif text-base font-semibold text-ink">
-          {projectName ?? <span className="text-ink-faint italic">No active project</span>}
-        </div>
+        <Title className="min-w-0 truncate !text-lg !leading-tight">
+          {projectName ?? <span className="italic text-ink-faint">No active project</span>}
+        </Title>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         <div data-testid="presence" className="flex">
           {presence.map((p, i) => (
-            <span
+            <Avatar
               key={p.memberId}
+              size="sm"
+              name={p.displayName}
+              tint={p.avatarTint}
               title={p.displayName}
-              style={{ background: p.avatarTint, marginLeft: i === 0 ? 0 : -7 }}
-              className="grid h-6 w-6 place-items-center rounded-full border-2 border-surface text-[9px] font-medium text-white"
-            >
-              {initials(p.displayName)}
-            </span>
+              className="ring-2 ring-surface"
+              style={{ marginLeft: i === 0 ? 0 : -7 }}
+            />
           ))}
         </div>
 
         {projectId && !exportDisabled ? (
           <ExportMenu projectId={projectId} />
         ) : (
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className={cn(
-              'rounded-[var(--r)] border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink',
-              'cursor-not-allowed opacity-60',
-            )}
-          >
-            <span aria-hidden="true">⭳ </span>Export <span aria-hidden="true">▾</span>
-          </button>
+          <Button variant="secondary" size="sm" disabled leftIcon={<Download />} rightIcon={<ChevronDown />}>
+            Export
+          </Button>
         )}
       </div>
     </div>

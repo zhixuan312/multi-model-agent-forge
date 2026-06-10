@@ -2,10 +2,26 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Sparkles, Snowflake } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
 import { Composer, type QaMessageView } from '@/components/forge/Composer';
 import { SatisfactionGate } from '@/components/forge/SatisfactionGate';
 import { RoleChip } from '@/components/forge/RoleChip';
+import {
+  Button,
+  Card,
+  CardContent,
+  Badge,
+  Banner,
+  Field,
+  Textarea,
+  Checkbox,
+  Heading,
+  Title,
+  Text,
+  TextSm,
+  Micro,
+} from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { ComponentView, SectionView } from '@/spec/spec-core';
 import type { ComponentKind, ProjectPhase } from '@/db/enums';
@@ -74,24 +90,30 @@ export function SpecStageClient(props: SpecStageClientProps) {
   return (
     <div className="flex flex-col gap-4" data-testid="spec-stage">
       {!props.mainTierReady ? (
-        <div className="rounded-[var(--r-md)] border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800">
-          The main tier is not configured.{' '}
-          <a href="/settings/roster" className="underline">
-            Configure the main tier in Team Settings
-          </a>{' '}
-          to start the Q&A.
-        </div>
+        <Banner
+          variant="warning"
+          title="The main tier is not configured."
+          description={
+            <>
+              <a href="/settings/roster" className="font-medium underline">
+                Configure the main tier in Team Settings
+              </a>{' '}
+              to start the Q&amp;A.
+            </>
+          }
+        />
       ) : null}
 
-      <nav className="flex gap-2 text-sm">
+      <nav className="inline-flex w-fit rounded-[var(--r)] border border-line bg-surface p-0.5">
         {(['outline', 'interview', 'document'] as Screen[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setScreen(s)}
+            aria-current={screen === s ? 'page' : undefined}
             className={cn(
-              'rounded-[var(--r-md)] px-3 py-1 capitalize',
-              screen === s ? 'bg-accent text-white' : 'bg-surface-2 text-ink-muted',
+              'rounded-[calc(var(--r)-2px)] px-3 py-1 text-sm font-medium capitalize transition-colors',
+              screen === s ? 'bg-accent text-white' : 'text-ink-soft hover:text-ink',
             )}
           >
             {s}
@@ -99,7 +121,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         ))}
       </nav>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <TextSm className="!text-[var(--rose)]">{error}</TextSm> : null}
 
       {screen === 'outline' ? (
         <OutlineScreen
@@ -214,17 +236,18 @@ function OutlineScreen({
 
   return (
     <div className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-ink">Intent</span>
-        <textarea
-          value={intent}
-          onChange={(e) => setIntent(e.target.value)}
-          rows={4}
-          disabled={readOnly}
-          placeholder="What's the problem? What do you want to achieve? What's the requirement?"
-          className="rounded-[var(--r-md)] border border-line bg-surface p-2 text-sm disabled:opacity-50"
-        />
-      </label>
+      <Field label="Intent">
+        {(p) => (
+          <Textarea
+            {...p}
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            rows={4}
+            disabled={readOnly}
+            placeholder="What's the problem? What do you want to achieve? What's the requirement?"
+          />
+        )}
+      </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
         {AVAILABLE_KINDS.map((k) => {
@@ -233,11 +256,10 @@ function OutlineScreen({
           return (
             <label
               key={k.kind}
-              className="flex cursor-pointer flex-col gap-1 rounded-[var(--r-md)] border border-line bg-surface p-3"
+              className="flex cursor-pointer flex-col gap-2 rounded-[var(--r-md)] border border-line bg-surface p-3 transition-colors hover:border-line-strong"
             >
-              <span className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+              <span className="flex items-center gap-2.5">
+                <Checkbox
                   checked={checked}
                   disabled={readOnly || already}
                   onChange={(e) =>
@@ -251,24 +273,26 @@ function OutlineScreen({
                 />
                 <span className="font-medium text-ink">{k.label}</span>
               </span>
-              <span className="flex flex-wrap gap-1">
-                {k.roles.map((r) => (
-                  <RoleChip key={r} role={r} />
-                ))}
-              </span>
+              {k.roles.length > 0 ? (
+                <span className="flex flex-wrap gap-1">
+                  {k.roles.map((r) => (
+                    <RoleChip key={r} role={r} />
+                  ))}
+                </span>
+              ) : null}
             </label>
           );
         })}
       </div>
 
-      <button
-        type="button"
+      <Button
+        className="self-start"
         onClick={() => confirm.mutate()}
+        loading={confirm.isPending}
         disabled={readOnly || intent.trim() === '' || picked.size === 0 || confirm.isPending}
-        className="self-start rounded-[var(--r-md)] bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {confirm.isPending ? 'Confirming…' : 'Confirm components'}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -346,17 +370,17 @@ function InterviewScreen({
   }
 
   if (!active) {
-    return <p className="text-sm text-ink-faint">No sections yet — confirm components in the outline.</p>;
+    return <Text className="!text-sm !text-ink-faint">No sections yet — confirm components in the outline.</Text>;
   }
 
   const messages = messagesBySection[active.section.id] ?? [];
 
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-      <nav className="flex flex-col gap-2" aria-label="Sections">
+      <nav className="flex flex-col gap-3" aria-label="Sections">
         {components.map((c) => (
           <div key={c.id}>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{c.label}</p>
+            <Micro className="!font-semibold !uppercase !tracking-wide">{c.label}</Micro>
             <ul className="mt-1 flex flex-col gap-0.5">
               {c.sections.map((s) => (
                 <li key={s.id}>
@@ -367,8 +391,8 @@ function InterviewScreen({
                     data-status={s.status}
                     aria-current={s.id === activeId ? 'true' : undefined}
                     className={cn(
-                      'w-full rounded px-2 py-1 text-left text-xs',
-                      s.id === activeId ? 'bg-accent-tint text-accent-deep' : 'text-ink-muted',
+                      'w-full rounded-[var(--r-sm)] px-2 py-1 text-left text-xs transition-colors',
+                      s.id === activeId ? 'bg-accent-tint text-accent-deep' : 'text-ink-soft hover:bg-surface-2',
                     )}
                   >
                     {s.label} · {s.status}
@@ -381,7 +405,7 @@ function InterviewScreen({
       </nav>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-serif text-lg text-ink">{active.section.label}</h2>
+        <Heading className="!text-base">{active.section.label}</Heading>
 
         <Composer
           messages={messages}
@@ -392,10 +416,12 @@ function InterviewScreen({
         />
 
         {active.section.draftMd ? (
-          <div className="rounded-[var(--r-md)] border border-line bg-surface p-3">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Draft</p>
-            <Markdown>{active.section.draftMd}</Markdown>
-          </div>
+          <Card>
+            <CardContent>
+              <Micro className="mb-1 block !font-semibold !uppercase !tracking-wide">Draft</Micro>
+              <Markdown>{active.section.draftMd}</Markdown>
+            </CardContent>
+          </Card>
         ) : null}
 
         <SatisfactionGate
@@ -452,29 +478,36 @@ function DocumentScreen({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <h2 className="font-serif text-lg text-ink">{projectName} — Specification</h2>
-        <button
-          type="button"
+      <div className="flex flex-wrap items-center gap-3">
+        <Title className="!text-lg">{projectName} — Specification</Title>
+        <Button
+          size="sm"
+          leftIcon={<Sparkles />}
           onClick={() => assemble.mutate()}
+          loading={assemble.isPending}
           disabled={readOnly || !allApproved || assemble.isPending}
-          className="rounded-[var(--r-md)] bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
           {assemble.isPending ? 'Assembling…' : 'Assemble specification'}
-        </button>
-        {spec ? <span className="text-xs text-ink-faint">v{spec.version}</span> : null}
+        </Button>
+        {spec ? (
+          <Badge variant="sage" size="sm">
+            v{spec.version}
+          </Badge>
+        ) : null}
       </div>
 
       {spec ? (
-        <div className="rounded-[var(--r-md)] border border-line bg-surface p-4">
-          <Markdown>{spec.bodyMd}</Markdown>
-        </div>
+        <Card>
+          <CardContent>
+            <Markdown>{spec.bodyMd}</Markdown>
+          </CardContent>
+        </Card>
       ) : (
-        <p className="text-sm text-ink-faint">
+        <Text className="!text-sm !text-ink-faint">
           {allApproved
             ? 'Assemble the specification to see the full document.'
             : 'Approve every section before assembling.'}
-        </p>
+        </Text>
       )}
 
       {spec ? (
@@ -548,100 +581,103 @@ export function AuditPanel({
   });
 
   return (
-    <section className="flex flex-col gap-3 rounded-[var(--r-md)] border border-line bg-surface p-4" data-testid="audit-panel">
-      <div className="flex items-center gap-3">
-        <h3 className="font-medium text-ink">Audit</h3>
-        <button
-          type="button"
-          onClick={() => audit.mutate()}
-          disabled={readOnly || !mmaReady || audit.isPending}
-          className="rounded-[var(--r-md)] bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-        >
-          {audit.isPending ? 'Auditing…' : history.length > 0 ? 'Re-run audit' : 'Run audit'}
-        </button>
-        {!mmaReady ? (
-          <span className="text-xs text-amber-700">
-            <a href="/settings/connections" className="underline">
-              Configure the MMA token
-            </a>{' '}
-            to audit.
-          </span>
-        ) : null}
-      </div>
-
-      {history.length > 0 ? (
-        <ol className="flex flex-wrap items-center gap-2 text-xs" data-testid="audit-timeline">
-          {history.map((p) => (
-            <li
-              key={p.passNo}
-              className={cn(
-                'rounded-full px-2 py-0.5',
-                p.verdict === 'clean' ? 'bg-sage-tint text-sage-deep' : 'bg-surface-2 text-ink-muted',
-              )}
-            >
-              pass {p.passNo}: {p.verdict === 'clean' ? 'clean' : `${p.findingsCount} finding${p.findingsCount === 1 ? '' : 's'} → revised`}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="text-xs text-ink-faint">Run the audit to check the spec for critical / high findings.</p>
-      )}
-
-      {findings.length > 0 ? (
-        <ul className="flex flex-col gap-1 text-xs" data-testid="audit-findings">
-          {findings.map((f, i) => (
-            <li key={i} className="flex gap-2">
-              <span
-                className={cn(
-                  'shrink-0 rounded px-1 font-medium uppercase',
-                  f.severity === 'critical' || f.severity === 'high'
-                    ? 'bg-rose-100 text-rose-700'
-                    : 'bg-surface-2 text-ink-muted',
-                )}
-              >
-                {f.severity}
-              </span>
-              <span className="text-ink">{f.claim}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {capReached ? (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-ink-muted">
-            The audit still reports critical/high findings. You can keep fixing, or accept and override.
-          </span>
-          <button
-            type="button"
-            onClick={() => override.mutate()}
-            disabled={readOnly || override.isPending}
-            className="rounded-[var(--r-md)] border border-amber-500 px-3 py-1 text-xs font-medium text-amber-700 disabled:opacity-50"
+    <Card data-testid="audit-panel">
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Heading className="!text-base">Audit</Heading>
+          <Button
+            size="sm"
+            onClick={() => audit.mutate()}
+            loading={audit.isPending}
+            disabled={readOnly || !mmaReady || audit.isPending}
           >
-            Accept findings &amp; override
-          </button>
+            {audit.isPending ? 'Auditing…' : history.length > 0 ? 'Re-run audit' : 'Run audit'}
+          </Button>
+          {!mmaReady ? (
+            <TextSm className="!text-[var(--amber)]">
+              <a href="/settings/connections" className="underline">
+                Configure the MMA token
+              </a>{' '}
+              to audit.
+            </TextSm>
+          ) : null}
         </div>
-      ) : null}
 
-      <div className="mt-1 flex items-center gap-3 border-t border-line pt-3">
-        <a
-          href={canFreeze && !readOnly ? `/projects/${projectId}/freeze` : undefined}
-          aria-disabled={!canFreeze || readOnly}
-          data-testid="freeze-link"
-          className={cn(
-            'rounded-[var(--r-md)] px-4 py-1.5 text-sm font-medium',
-            canFreeze && !readOnly
-              ? 'bg-ink text-white'
-              : 'pointer-events-none cursor-not-allowed bg-surface-2 text-ink-faint',
-          )}
-        >
-          Freeze the spec
-        </a>
-        <span className="text-xs text-ink-faint">
-          {canFreeze ? 'Ready to freeze — this is irreversible.' : 'Freeze unlocks after a clean audit.'}
-        </span>
-      </div>
-    </section>
+        {history.length > 0 ? (
+          <ol className="flex flex-wrap items-center gap-2" data-testid="audit-timeline">
+            {history.map((p) => (
+              <li key={p.passNo}>
+                <Badge variant={p.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
+                  pass {p.passNo}:{' '}
+                  {p.verdict === 'clean'
+                    ? 'clean'
+                    : `${p.findingsCount} finding${p.findingsCount === 1 ? '' : 's'} → revised`}
+                </Badge>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <TextSm className="!text-ink-faint">
+            Run the audit to check the spec for critical / high findings.
+          </TextSm>
+        )}
+
+        {findings.length > 0 ? (
+          <ul className="flex flex-col gap-1.5" data-testid="audit-findings">
+            {findings.map((f, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs">
+                <Badge
+                  size="sm"
+                  variant={f.severity === 'critical' || f.severity === 'high' ? 'rose' : 'neutral'}
+                  className="shrink-0 uppercase"
+                >
+                  {f.severity}
+                </Badge>
+                <span className="text-ink">{f.claim}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {capReached ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <TextSm className="!text-ink-soft">
+              The audit still reports critical/high findings. You can keep fixing, or accept and override.
+            </TextSm>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => override.mutate()}
+              loading={override.isPending}
+              disabled={readOnly || override.isPending}
+              className="!border-[var(--amber)] !text-[var(--amber)]"
+            >
+              Accept findings &amp; override
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="mt-1 flex flex-wrap items-center gap-3 border-t border-line pt-3">
+          <a
+            href={canFreeze && !readOnly ? `/projects/${projectId}/freeze` : undefined}
+            aria-disabled={!canFreeze || readOnly}
+            data-testid="freeze-link"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-[var(--r)] px-4 py-1.5 text-sm font-medium transition-colors',
+              canFreeze && !readOnly
+                ? 'bg-ink text-white hover:bg-ink/90'
+                : 'pointer-events-none cursor-not-allowed bg-surface-2 text-ink-faint',
+            )}
+          >
+            <Snowflake aria-hidden="true" className="size-4" />
+            Freeze the spec
+          </a>
+          <TextSm className="!text-ink-faint">
+            {canFreeze ? 'Ready to freeze — this is irreversible.' : 'Freeze unlocks after a clean audit.'}
+          </TextSm>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

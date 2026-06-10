@@ -4,7 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { PhaseTheme } from '@/components/forge/PhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';
-import { AppShell, ShellBody } from '@/components/ui/shell';
+import { AppShell } from '@/components/ui/shell';
 
 /**
  * Global shell (Spec 1 §Global shell). Auth-gated: `current-member.ts` performs
@@ -33,8 +33,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </div>
         }
       >
-        <div data-testid="main-column" className="min-w-0 overflow-x-hidden">
-          <ShellBody>{children}</ShellBody>
+        {/* Pages own their frame via PageFrame (locked header + scroll body). */}
+        <div data-testid="main-column" className="contents">
+          {children}
         </div>
       </AppShell>
     </PhaseTheme>

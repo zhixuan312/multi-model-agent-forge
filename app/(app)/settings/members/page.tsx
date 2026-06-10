@@ -1,6 +1,6 @@
 import { requireAdminPage } from '@/auth/require-admin';
 import { listMembers } from '@/auth/members-core';
-import { PageFrame, SectionTitle } from '@/components/ui';
+import { PageFrame, SectionTitle, Grid } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { AddMemberForm } from './AddMemberForm';
 import { MemberRow, type MemberRowData } from './MemberRow';
@@ -30,11 +30,11 @@ export default async function MembersPage() {
           Team members
         </SectionTitle>
 
-        <div data-testid="members-list" className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Grid min="320px" gap="sm" data-testid="members-list">
           {rows.map((m) => (
             <MemberRow key={m.id} member={m} />
           ))}
-        </div>
+        </Grid>
 
         <AddMemberForm />
       </div>

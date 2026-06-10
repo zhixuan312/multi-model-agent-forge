@@ -62,6 +62,10 @@ import {
   DialogFooter,
   PageFrame,
   SectionTitle,
+  Grid,
+  Split,
+  FieldGrid,
+  Toolbar,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
@@ -368,6 +372,60 @@ export default function StyleguidePage() {
           </CardContent>
         </Card>
         </Block>
+
+      <Block title="Layout">
+        <div className="flex flex-col gap-7">
+          <div>
+            <Micro className="mb-2 block">Grid — auto-fill, reflows to fill wide screens</Micro>
+            <Grid min="150px">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-[var(--r)] border border-line bg-surface px-4 py-6 text-center t-sm text-ink-soft"
+                >
+                  Card {i + 1}
+                </div>
+              ))}
+            </Grid>
+          </div>
+
+          <div>
+            <Micro className="mb-2 block">Toolbar — filters left, primary action right</Micro>
+            <Toolbar actions={<Button size="sm" leftIcon={<Plus />}>New</Button>}>
+              <Input placeholder="Search…" className="w-56" />
+              <Badge variant="accent" size="sm" dot>Active</Badge>
+              <Badge size="sm">All</Badge>
+            </Toolbar>
+          </div>
+
+          <div>
+            <Micro className="mb-2 block">Split — fluid main ∣ fixed aside (stacks below lg)</Micro>
+            <Split
+              asideWidth="200px"
+              aside={
+                <div className="h-full rounded-[var(--r)] border border-line bg-surface-2 p-4 t-sm text-ink-soft">
+                  Aside
+                </div>
+              }
+            >
+              <div className="rounded-[var(--r)] border border-line bg-surface p-4 t-sm text-ink-soft">
+                Main content — the fluid column that fills remaining width.
+              </div>
+            </Split>
+          </div>
+
+          <div>
+            <Micro className="mb-2 block">FieldGrid — structured form fields</Micro>
+            <FieldGrid cols={2}>
+              <Field label="Display name">{(p) => <Input {...p} placeholder="Maya Adeyemi" />}</Field>
+              <Field label="Username">{(p) => <Input {...p} placeholder="maya" />}</Field>
+              <div className="sm:col-span-2">
+                <Field label="Bio">{(p) => <Textarea {...p} rows={2} placeholder="Short bio…" />}</Field>
+              </div>
+            </FieldGrid>
+          </div>
+        </div>
+      </Block>
       </div>
     </PageFrame>
   );

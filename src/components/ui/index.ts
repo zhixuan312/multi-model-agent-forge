@@ -22,6 +22,7 @@ export * from './badge';
 export * from './icon-button';
 export * from './banner';
 export * from './empty-state';
+export * from './callout';
 export * from './avatar';
 export * from './skeleton';
 export * from './spinner';
@@ -33,8 +34,13 @@ export * from './tooltip';
 export * from './tabs';
 export * from './menu';
 export * from './dialog';
+export * from './breadcrumb';
 
 // Layout
 export * from './page-header';
 export * from './section';
+export * from './grid';
+export * from './split';
+export * from './field-grid';
+export * from './toolbar';
 export * from './shell';

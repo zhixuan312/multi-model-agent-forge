@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Input, EmptyState, Separator } from '@/components/ui';
+import { Input, EmptyState, Separator, Toolbar, Grid } from '@/components/ui';
 import { ProjectCard } from '@/components/forge/ProjectCard';
 import type { ProjectListItem } from '@/projects/projects-core';
 import type { ProjectPhase } from '@/db/enums';
@@ -81,7 +81,32 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-2.5">
+      <Toolbar
+        actions={
+          <div
+            role="group"
+            aria-label="Filter by ownership"
+            className="flex overflow-hidden rounded-[var(--r)] border border-line-strong text-xs"
+          >
+            <button
+              type="button"
+              aria-pressed={mine}
+              onClick={() => setMine(true)}
+              className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
+            >
+              Mine
+            </button>
+            <button
+              type="button"
+              aria-pressed={!mine}
+              onClick={() => setMine(false)}
+              className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', !mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
+            >
+              All team
+            </button>
+          </div>
+        }
+      >
         <div className="relative min-w-[220px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
           <Input
@@ -112,43 +137,16 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
             </button>
           ))}
         </div>
-        <span className="flex-1" />
-        <div
-          role="group"
-          aria-label="Filter by ownership"
-          className="flex overflow-hidden rounded-[var(--r)] border border-line-strong text-xs"
-        >
-          <button
-            type="button"
-            aria-pressed={mine}
-            onClick={() => setMine(true)}
-            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
-          >
-            Mine
-          </button>
-          <button
-            type="button"
-            aria-pressed={!mine}
-            onClick={() => setMine(false)}
-            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', !mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
-          >
-            All team
-          </button>
-        </div>
-      </div>
+      </Toolbar>
 
       {shown.length === 0 ? (
         <EmptyState icon={<Search />} title="No projects match" description="Try a different phase, owner, or search term." />
       ) : (
-        <div
-          data-testid="project-grid"
-          className="grid gap-4"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))' }}
-        >
+        <Grid min="360px" data-testid="project-grid">
           {shown.map((p) => (
             <ProjectCard key={p.id} project={p} />
           ))}
-        </div>
+        </Grid>
       )}
     </div>
   );

@@ -126,6 +126,23 @@
   --accent-tint: var(--frost);
 }
 
+/* ── APP-SHELL ROOT LOCK ──────────────────────────────────────────────────
+   The document itself NEVER scrolls — the only scroll region is ShellBody
+   (inside the `fixed inset-0` AppShell). Locking the root here means the shell
+   cannot be shifted by page scroll, rubber-band, or a tall child, even as a
+   belt-and-suspenders against a future containing-block regression.
+
+   ⚠️  NEVER set `transform`, `filter`, `perspective`, `will-change: transform`,
+   or `contain: layout/paint/strict` on `html`, `body`, or any wrapper ABOVE
+   `AppShell`. Any of those turns the shell's `position: fixed` from
+   viewport-relative into ancestor-relative, and then page scroll WILL shift it.
+   Per-component animations (menus, skeletons) are fine — they're below the shell. */
+html,
+body {
+  height: 100%;
+  overflow: hidden; /* document never scrolls; ShellBody owns the only scrollport */
+  overscroll-behavior: none; /* no rubber-band / scroll-chaining to the page */
+}
 html {
   background: var(--bg);
   color: var(--ink);

@@ -23,7 +23,11 @@ export default async function NewProjectPage() {
   }));
 
   return (
-    <PageFrame title="New project" description="Name it, choose visibility, pick the repos it touches.">
+    <PageFrame
+      title="New project"
+      breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: 'New project' }]}
+      description="Name it, choose visibility, pick the repos it touches."
+    >
       <NewProjectForm repos={pickerRepos} />
     </PageFrame>
   );

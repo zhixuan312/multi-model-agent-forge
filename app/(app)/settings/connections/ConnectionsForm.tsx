@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardContent, Field, Input, Button, Badge, Banner, Micro } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Field, FieldGrid, Input, Button, Badge, Banner, Micro } from '@/components/ui';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -85,7 +85,7 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
             <SetIndicator set={initial.mmaTokenSet} testid="mma-token-indicator" />
           </CardHeader>
           <CardContent className="flex flex-col gap-4 py-5">
-            <div className="grid grid-cols-2 gap-4">
+            <FieldGrid cols={2}>
               <Field label="Base URL">
                 {(p) => (
                   <Input {...p} value={mmaBaseUrl} onChange={(e) => setMmaBaseUrl(e.target.value)} className="font-mono" />
@@ -106,7 +106,7 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
                   />
                 )}
               </Field>
-            </div>
+            </FieldGrid>
             <div className="flex items-center justify-end gap-2.5">
               {saved === 'mma' ? <Micro>Saved.</Micro> : null}
               <Button type="submit" loading={busy === 'mma'}>

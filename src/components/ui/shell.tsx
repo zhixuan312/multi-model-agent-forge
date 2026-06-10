@@ -1,19 +1,24 @@
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { Title, Text } from '@/components/ui/typography';
+import { Breadcrumb, type Crumb } from '@/components/ui/breadcrumb';
 
 /**
  * Forge app shell — the locked dashboard frame.
  *
  *   AppShell            full-viewport, never scrolls as a whole
  *   ├─ sidebar          fixed rail, own scroll
- *   └─ content column   flex-col; the scroll region is the ONLY thing that moves
- *        ShellHeader    sticky top-0  — permanent header
- *        ShellSubNav    sticky top    — optional second nav (some screens)
- *        …content…      scrolls
+ *   └─ content column   flex-col, overflow-hidden — does NOT scroll
+ *        ShellHeader    static row  — permanent header
+ *        ShellSubNav    static row  — optional second nav (some screens)
+ *        ShellBody      flex-1, overflow-y-auto — the ONLY scroll region
  *
- * Headers use `sticky` so they stay pinned to the top of the scroll region while
- * the body moves — the sidebar and header read as permanently locked.
+ * The header/sub-nav are STATIC flex rows OUTSIDE the scroll region, and only
+ * `ShellBody` scrolls. This is deliberate: a `position: sticky` header inside a
+ * sub-scroller recomputes its offset on the main thread, so a fast fling can
+ * out-run it for a frame before it snaps back (visible "header jitter"). With
+ * the header physically outside the scrolling element, it cannot move at all —
+ * jank-free by construction, not by compositor luck.
  */
 export function AppShell({
   sidebar,
@@ -27,27 +32,27 @@ export function AppShell({
   className?: string;
 }) {
   // `fixed inset-0` pins the whole frame to the viewport so the PAGE never
-  // scrolls — only the inner content surface does. Robust against any body /
-  // dvh / min-height quirk.
+  // scrolls. The content column is a non-scrolling flex stack; ShellBody (a
+  // flex child reached through the `display:contents` page chain) is the scroller.
   return (
-    <div className={cn('fixed inset-0 flex overflow-hidden bg-bg', className)}>
-      <div className="hidden h-full shrink-0 overflow-y-auto lg:block">{sidebar}</div>
+    <div className={cn('fixed inset-0 isolate flex overflow-hidden bg-bg', className)}>
+      <div className="hidden h-full shrink-0 overflow-y-auto overscroll-contain lg:block">{sidebar}</div>
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}
-        {/* The single scroll surface. Header/sub-nav stick to its top.
-            overflow-x-hidden so a wide child can't add a horizontal scrollbar. */}
-        <div className="forge-scroll min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
+        <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
     </div>
   );
 }
 
-/** Permanent header bar — sticks to the top of the scroll region. */
+/** Permanent header bar — a static row above the scroll region (never moves).
+ *  `relative z-20` keeps header dropdowns (account / export menus) above the
+ *  scrolling body, which is a later flex sibling. */
 export function ShellHeader({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <header
       className={cn(
-        'sticky top-0 z-20 flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface/85 px-5 backdrop-blur-md md:px-8',
+        'relative z-20 flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-5 md:px-8',
         className,
       )}
     >
@@ -56,12 +61,12 @@ export function ShellHeader({ children, className }: { children: ReactNode; clas
   );
 }
 
-/** Optional secondary nav — sits just under the header and sticks beneath it. */
+/** Optional secondary nav — a static row directly under the header. */
 export function ShellSubNav({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'sticky top-16 z-10 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-surface-2/85 px-5 backdrop-blur-md md:px-8',
+        'relative z-10 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-surface-2 px-5 md:px-8',
         className,
       )}
     >
@@ -70,7 +75,13 @@ export function ShellSubNav({ children, className }: { children: ReactNode; clas
   );
 }
 
-/** Padded content container with a sensible reading max-width. */
+/**
+ * The scroll region — the ONLY part of the frame that scrolls. Fills the height
+ * left by the header/sub-nav (`flex-1 min-h-0`) and scrolls its own overflow;
+ * `overflow-x-hidden` so a wide child can't add a horizontal scrollbar. The
+ * inner element applies the reading max-width + padding so the scrollbar sits at
+ * the content-column edge, not inside the text column.
+ */
 export function ShellBody({
   children,
   className,
@@ -82,7 +93,9 @@ export function ShellBody({
 }) {
   const max = width === 'full' ? 'max-w-none' : width === 'wide' ? 'max-w-[1320px]' : 'max-w-[1120px]';
   return (
-    <div className={cn('mx-auto w-full px-5 py-6 md:px-8 md:py-8', max, className)}>{children}</div>
+    <div className="forge-scroll min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+      <div className={cn('mx-auto w-full px-5 py-6 md:px-8 md:py-8', max, className)}>{children}</div>
+    </div>
   );
 }
 
@@ -94,10 +107,17 @@ export function ShellBody({
  *   <PageFrame title="Workspace" description="…" actions={<Button…/>}>…</PageFrame>
  *
  * For a fully custom header (e.g. the project topbar), pass `header` instead of
- * `title`; for a custom sub-nav (e.g. the stage stepper) pass `subnav`.
+ * `title`; for a custom sub-nav (e.g. the stage stepper) pass `subnav`. Pass
+ * `breadcrumb` to add the left-zone wayfinding trail above the title (e.g.
+ * `[{ label: 'Projects', href: '/projects' }, { label: 'New project' }]`).
+ *
+ * The header follows a left→right grammar: the LEFT zone carries
+ * breadcrumb + title (identity / wayfinding); the RIGHT zone carries `actions`
+ * (the page's primary action + future global activity / search slots).
  */
 export function PageFrame({
   title,
+  breadcrumb,
   description,
   actions,
   header,
@@ -106,6 +126,7 @@ export function PageFrame({
   width,
 }: {
   title?: ReactNode;
+  breadcrumb?: Crumb[];
   description?: ReactNode;
   actions?: ReactNode;
   header?: ReactNode;
@@ -118,7 +139,10 @@ export function PageFrame({
       <ShellHeader>
         {header ?? (
           <>
-            <Title className="min-w-0 truncate !text-xl !leading-tight">{title}</Title>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              {breadcrumb ? <Breadcrumb items={breadcrumb} /> : null}
+              <Title className="min-w-0 truncate !text-xl !leading-tight">{title}</Title>
+            </div>
             {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
           </>
         )}

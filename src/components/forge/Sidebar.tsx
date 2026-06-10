@@ -2,29 +2,50 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { initials } from '@/components/forge/avatar';
+import { Eyebrow } from '@/components/ui';
+import { ForgeMark } from '@/components/forge/ForgeMark';
+import { AccountMenu } from '@/components/forge/AccountMenu';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 /**
- * Sidebar — nav (Projects · Workspace · Journal · Team settings) + user card
- * (`shell.html`). Active-route highlight via `usePathname`. The Team-settings
- * link is shown only to admins (the page itself is admin-gated by
- * `require-admin.ts`; hiding the link is UX, not the security boundary).
+ * Sidebar — the locked dashboard rail: brand lockup, grouped primary nav, and
+ * the account menu footer (`shell.html`). Nav icons come from the Lucide family
+ * (one icon language across the app — no Unicode glyphs). Active route gets an
+ * ember left-rail + tint via `usePathname`. The Admin section is shown only to
+ * admins (the page itself is admin-gated by `require-admin.ts`; hiding it is UX,
+ * not the security boundary).
  */
-
 interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   adminOnly?: boolean;
 }
 
-const NAV: NavItem[] = [
-  { href: '/projects', label: 'Projects', icon: '▣' },
-  { href: '/workspace', label: 'Workspace', icon: '▤' },
-  { href: '/journal', label: 'Journal', icon: '✦' },
-  { href: '/settings', label: 'Team settings', icon: '⚙', adminOnly: true },
+interface NavSection {
+  id: string;
+  /** Section eyebrow. Omitted for the primary group — it's the obvious top-level
+   *  menu, and a "Workspace" label above a "Workspace" item just reads twice. */
+  label?: string;
+  items: NavItem[];
+}
+
+const SECTIONS: NavSection[] = [
+  {
+    id: 'main',
+    items: [
+      { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+      { href: '/journal', label: 'Journal', icon: NotebookPen },
+    ],
+  },
+  {
+    id: 'admin',
+    label: 'Admin',
+    items: [{ href: '/settings', label: 'Team settings', icon: Settings, adminOnly: true }],
+  },
 ];
 
 export function Sidebar({
@@ -36,75 +57,66 @@ export function Sidebar({
   forceVisible?: boolean;
 }) {
   const pathname = usePathname();
-  const items = NAV.filter((i) => !i.adminOnly || member.isAdmin);
 
   return (
     <aside
       data-testid="sidebar"
       className={cn(
-        'flex min-h-full w-[var(--rail-w)] flex-col gap-1 border-r border-line bg-surface-2 p-4',
+        'flex min-h-full w-[var(--rail-w)] flex-col border-r border-line bg-surface-2 px-3 py-4',
         !forceVisible && 'max-md:hidden',
       )}
     >
-      <div className="flex items-center gap-2.5 px-1.5 pb-3.5 pt-1.5">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent font-bold text-white shadow">
-          ⚒
-        </span>
-        <span className="font-serif text-lg font-semibold text-ink">Forge</span>
+      <div className="px-2 pb-4 pt-1">
+        <ForgeMark withWordmark />
       </div>
 
-      <nav aria-label="Primary" className="flex flex-col gap-1">
-        {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      <nav aria-label="Primary" className="flex flex-col gap-5">
+        {SECTIONS.map((section) => {
+          const items = section.items.filter((i) => !i.adminOnly || member.isAdmin);
+          if (items.length === 0) return null;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-2.5 rounded-[var(--r)] px-2.5 py-2 text-sm',
-                active
-                  ? 'bg-accent-tint font-semibold text-accent-deep'
-                  : 'text-ink-soft hover:bg-bg-sunk',
-              )}
-            >
-              <span aria-hidden="true">{item.icon}</span>
-              {item.label}
-            </Link>
+            <div key={section.id} className="flex flex-col gap-0.5">
+              {section.label ? (
+                <Eyebrow className="px-2.5 pb-1 !text-[0.6875rem] text-ink-faint">
+                  {section.label}
+                </Eyebrow>
+              ) : null}
+              {items.map((item) => {
+                const active =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'group relative flex items-center gap-2.5 rounded-[var(--r)] px-2.5 py-2 text-sm',
+                      'transition-colors duration-150 ease-[var(--ease-out)]',
+                      active
+                        ? 'bg-accent-tint font-semibold text-accent-deep [&_svg]:text-accent'
+                        : 'text-ink-soft hover:bg-bg-sunk hover:text-ink [&_svg]:text-ink-faint',
+                    )}
+                  >
+                    {active ? (
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent"
+                      />
+                    ) : null}
+                    <Icon className="size-[18px] shrink-0" strokeWidth={2} aria-hidden />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>
 
       <div className="flex-1" />
 
-      <Link
-        href="/profile"
-        data-testid="user-card"
-        className="flex items-center gap-2.5 rounded-[var(--r-lg)] border border-line bg-surface p-2 hover:border-line-strong"
-      >
-        <span
-          style={{ background: member.avatarTint }}
-          className="grid h-7 w-7 place-items-center rounded-full text-[11px] font-semibold text-white"
-        >
-          {initials(member.displayName)}
-        </span>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-[12.5px] font-semibold text-ink">
-              {member.displayName}
-            </span>
-            {member.isAdmin ? (
-              <span
-                data-testid="admin-chip"
-                className="rounded-full bg-accent-tint px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-accent-deep"
-              >
-                Admin
-              </span>
-            ) : null}
-          </div>
-          <div className="truncate font-mono text-[11px] text-ink-faint">@{member.username}</div>
-        </div>
-      </Link>
+      <AccountMenu member={member} variant="rail" />
     </aside>
   );
 }

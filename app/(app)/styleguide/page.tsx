@@ -216,11 +216,11 @@ export default function StyleguidePage() {
           </Field>
           <label className="flex items-center gap-2.5">
             <Checkbox checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-            <Text className="!t-sm">Administrator</Text>
+            <Text className="!text-sm">Administrator</Text>
           </label>
           <label className="flex items-center gap-2.5">
             <Switch checked={on} onChange={(e) => setOn(e.target.checked)} />
-            <Text className="!t-sm">Voice transcription</Text>
+            <Text className="!text-sm">Voice transcription</Text>
           </label>
         </div>
       </Block>
@@ -273,13 +273,13 @@ export default function StyleguidePage() {
                   <TabsTrigger value="settings">Settings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="overview">
-                  <Text className="!t-sm pt-3">The overview panel.</Text>
+                  <Text className="!text-sm pt-3">The overview panel.</Text>
                 </TabsContent>
                 <TabsContent value="activity">
-                  <Text className="!t-sm pt-3">Recent activity.</Text>
+                  <Text className="!text-sm pt-3">Recent activity.</Text>
                 </TabsContent>
                 <TabsContent value="settings">
-                  <Text className="!t-sm pt-3">Settings panel.</Text>
+                  <Text className="!text-sm pt-3">Settings panel.</Text>
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -339,7 +339,7 @@ export default function StyleguidePage() {
               <div className="flex items-center gap-3">
                 <Spinner />
                 <Separator orientation="vertical" className="h-5" />
-                <Text className="!t-sm">
+                <Text className="!text-sm">
                   Press <Kbd>⌘</Kbd> <Kbd>K</Kbd>
                 </Text>
               </div>
@@ -364,7 +364,7 @@ export default function StyleguidePage() {
         </SectionTitle>
         <Card className="mt-3">
           <CardContent className="text-ink-soft">
-            <Text className="!t-sm">Section header pattern — a serif heading, supporting copy, and an aligned action.</Text>
+            <Text className="!text-sm">Section header pattern — a serif heading, supporting copy, and an aligned action.</Text>
           </CardContent>
         </Card>
         </Block>

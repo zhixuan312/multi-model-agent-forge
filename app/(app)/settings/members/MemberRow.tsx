@@ -98,7 +98,7 @@ export function MemberRow({ member }: { member: MemberRowData }) {
           <Avatar name={member.displayName} tint={member.avatarTint} aria-hidden />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <Text className="truncate !t-sm font-semibold text-ink">{member.displayName}</Text>
+              <Text className="truncate !text-sm font-semibold text-ink">{member.displayName}</Text>
               {member.isAdmin ? (
                 <Badge data-testid="admin-badge" variant="accent" size="sm">
                   Admin
@@ -176,7 +176,7 @@ export function MemberRow({ member }: { member: MemberRowData }) {
 
         {mode === 'delete' ? (
           <div className="mt-3 border-t border-line pt-3">
-            <Text className="!t-sm">
+            <Text className="!text-sm">
               Delete <strong className="text-ink">{member.displayName}</strong>? This cannot be undone.
             </Text>
             <div className="mt-2 flex items-center gap-2">

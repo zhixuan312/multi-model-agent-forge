@@ -77,7 +77,7 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
         </Field>
       </div>
 
-      <Text className="!t-sm">
+      <Text className="!text-sm">
         <b className="text-ink">{selected.length}</b> of {repos.length} selected
       </Text>
 
@@ -109,7 +109,7 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
         })}
         {shown.length === 0 ? (
           <li className="px-4 py-6 text-center">
-            <Text className="!t-sm italic text-ink-faint">No repositories match.</Text>
+            <Text className="!text-sm italic text-ink-faint">No repositories match.</Text>
           </li>
         ) : null}
       </ul>

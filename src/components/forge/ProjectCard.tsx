@@ -60,7 +60,7 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
             </Badge>
           </div>
 
-          <Text className="min-h-[2.4em] !t-sm">
+          <Text className="min-h-[2.4em] !text-sm">
             {project.summary ?? (
               <span className="italic text-ink-faint">No summary yet — set during Spec.</span>
             )}

@@ -1,6 +1,6 @@
 import { requireAdminPage } from '@/auth/require-admin';
 import { listProviders } from '@/config/providers-core';
-import { PageHeader, SectionTitle, Mono } from '@/components/ui';
+import { PageFrame, SectionTitle, Mono } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { ProvidersPanel, type ProviderViewData } from './ProvidersPanel';
 
@@ -21,22 +21,21 @@ export default async function ProvidersPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Team settings" />
-      <SettingsTabs active="providers" />
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="providers" />}>
+      <div className="flex flex-col gap-6">
+        <SectionTitle
+          description={
+            <>
+              Configure once. <Mono>type</Mono> = <Mono>claude</Mono> (Anthropic-style) or{' '}
+              <Mono>codex</Mono> (OpenAI-style). Leave base URL / key blank to use the provider default.
+            </>
+          }
+        >
+          Providers
+        </SectionTitle>
 
-      <SectionTitle
-        description={
-          <>
-            Configure once. <Mono>type</Mono> = <Mono>claude</Mono> (Anthropic-style) or{' '}
-            <Mono>codex</Mono> (OpenAI-style). Leave base URL / key blank to use the provider default.
-          </>
-        }
-      >
-        Providers
-      </SectionTitle>
-
-      <ProvidersPanel initial={rows} />
-    </div>
+        <ProvidersPanel initial={rows} />
+      </div>
+    </PageFrame>
   );
 }

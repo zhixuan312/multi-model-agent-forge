@@ -1,6 +1,6 @@
 import { requireAdminPage } from '@/auth/require-admin';
 import { getConnections } from '@/config/connections-core';
-import { PageHeader, SectionTitle } from '@/components/ui';
+import { PageFrame, SectionTitle } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
 
@@ -15,22 +15,21 @@ export default async function ConnectionsPage() {
   const view = await getConnections();
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Team settings" />
-      <SettingsTabs active="connections" />
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="connections" />}>
+      <div className="flex flex-col gap-6">
+        <SectionTitle description="The MMA endpoint Forge calls every rod through, and the git service token that clones & pulls team repos. Secrets are stored encrypted and never shown.">
+          Connections
+        </SectionTitle>
 
-      <SectionTitle description="The MMA endpoint Forge calls every rod through, and the git service token that clones & pulls team repos. Secrets are stored encrypted and never shown.">
-        Connections
-      </SectionTitle>
-
-      <ConnectionsForm
-        initial={{
-          mmaBaseUrl: view.mmaBaseUrl,
-          mmaTokenSet: view.mmaTokenSet,
-          gitTokenSet: view.gitTokenSet,
-          openaiTranscriptionKeySet: view.openaiTranscriptionKeySet,
-        }}
-      />
-    </div>
+        <ConnectionsForm
+          initial={{
+            mmaBaseUrl: view.mmaBaseUrl,
+            mmaTokenSet: view.mmaTokenSet,
+            gitTokenSet: view.gitTokenSet,
+            openaiTranscriptionKeySet: view.openaiTranscriptionKeySet,
+          }}
+        />
+      </div>
+    </PageFrame>
   );
 }

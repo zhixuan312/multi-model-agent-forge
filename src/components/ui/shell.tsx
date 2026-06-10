@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { Title, Text } from '@/components/ui/typography';
 
 /**
  * Forge app shell — the locked dashboard frame.
@@ -33,8 +34,9 @@ export function AppShell({
       <div className="hidden h-full shrink-0 overflow-y-auto lg:block">{sidebar}</div>
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}
-        {/* The single scroll surface. Header/sub-nav stick to its top. */}
-        <div className="forge-scroll min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {/* The single scroll surface. Header/sub-nav stick to its top.
+            overflow-x-hidden so a wide child can't add a horizontal scrollbar. */}
+        <div className="forge-scroll min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
       </div>
     </div>
   );
@@ -85,26 +87,47 @@ export function ShellBody({
 }
 
 /**
- * Convenience composition for a standard screen: a locked header (title +
- * actions) + optional sub-nav + a padded scroll body. Render this as the page's
- * root inside the AppShell.
+ * The standard screen wrapper: a LOCKED header (serif title + actions) + an
+ * optional locked sub-nav + a padded scroll body. Render this as the page root
+ * inside the AppShell — every screen gets the permanent header for free.
+ *
+ *   <PageFrame title="Workspace" description="…" actions={<Button…/>}>…</PageFrame>
+ *
+ * For a fully custom header (e.g. the project topbar), pass `header` instead of
+ * `title`; for a custom sub-nav (e.g. the stage stepper) pass `subnav`.
  */
 export function PageFrame({
+  title,
+  description,
+  actions,
   header,
   subnav,
   children,
   width,
 }: {
-  header: ReactNode;
+  title?: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  header?: ReactNode;
   subnav?: ReactNode;
   children: ReactNode;
   width?: 'default' | 'wide' | 'full';
 }) {
   return (
     <>
-      <ShellHeader>{header}</ShellHeader>
+      <ShellHeader>
+        {header ?? (
+          <>
+            <Title className="min-w-0 truncate !text-xl !leading-tight">{title}</Title>
+            {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
+          </>
+        )}
+      </ShellHeader>
       {subnav ? <ShellSubNav>{subnav}</ShellSubNav> : null}
-      <ShellBody width={width}>{children}</ShellBody>
+      <ShellBody width={width}>
+        {description ? <Text className="-mt-1 mb-6 max-w-[68ch]">{description}</Text> : null}
+        {children}
+      </ShellBody>
     </>
   );
 }

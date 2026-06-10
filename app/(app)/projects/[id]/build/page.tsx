@@ -28,9 +28,5 @@ export default async function BuildPage({ params }: { params: Promise<{ id: stri
 
   const view = await loadBuildView(getDb(), id);
 
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <BuildMonitor projectId={id} initial={view} />
-    </div>
-  );
+  return <BuildMonitor projectId={id} initial={view} />;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { Card, CardContent, Display, Micro, Field, Input, Button, Banner } from '@/components/ui';
 import { loginAction, type LoginActionState } from './actions';
 
 const initialState: LoginActionState = {};
@@ -17,54 +18,46 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="font-serif text-3xl font-semibold tracking-tight">Forge</h1>
-          <p className="mt-1 font-mono text-xs text-ink-faint">Sign in to continue</p>
+          <Display className="!text-4xl">Forge</Display>
+          <Micro className="mt-1.5 block">Sign in to continue</Micro>
         </div>
 
-        <form action={formAction} className="space-y-4 rounded-lg border border-line bg-surface p-6 shadow-sm">
-          <div className="space-y-1">
-            <label htmlFor="username" className="block text-sm font-medium">
-              Username
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              autoFocus
-              required
-              className="w-full rounded-md border border-line bg-bg px-3 py-2 text-sm outline-none focus:border-line-strong focus:ring-2 focus:ring-line-strong/40"
-            />
-          </div>
+        <Card elevation="floating">
+          <CardContent className="py-6">
+            <form action={formAction} className="flex flex-col gap-4">
+              <Field label="Username">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    autoFocus
+                    required
+                  />
+                )}
+              </Field>
 
-          <div className="space-y-1">
-            <label htmlFor="password" className="block text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full rounded-md border border-line bg-bg px-3 py-2 text-sm outline-none focus:border-line-strong focus:ring-2 focus:ring-line-strong/40"
-            />
-          </div>
+              <Field label="Password">
+                {(p) => (
+                  <Input
+                    {...p}
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                )}
+              </Field>
 
-          {state.error ? (
-            <p role="alert" className="text-sm text-rose">
-              {state.error}
-            </p>
-          ) : null}
+              {state.error ? <Banner variant="danger" title={state.error} /> : null}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
-          >
-            {pending ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+              <Button type="submit" loading={pending} className="w-full">
+                {pending ? 'Signing in…' : 'Sign in'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

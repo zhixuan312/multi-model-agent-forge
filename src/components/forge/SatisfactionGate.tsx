@@ -1,5 +1,7 @@
 'use client';
 
+import { Check, Circle, ThumbsUp, FastForward } from 'lucide-react';
+import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
 /**
@@ -29,13 +31,13 @@ function Indicator({ label, on }: { label: string; on: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-        on ? 'bg-sage-tint text-sage-deep' : 'bg-surface-2 text-ink-muted',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
+        on ? 'bg-sage-tint text-[var(--sage-deep)]' : 'bg-surface-2 text-ink-soft ring-1 ring-inset ring-line',
       )}
       aria-label={`${label}: ${state}`}
       aria-live="polite"
     >
-      <span aria-hidden="true">{on ? '✓' : '○'}</span>
+      {on ? <Check aria-hidden="true" className="size-3.5" /> : <Circle aria-hidden="true" className="size-3" />}
       <span>
         {label}: {state}
       </span>
@@ -56,23 +58,26 @@ export function SatisfactionGate({
     <div className="flex flex-wrap items-center gap-2" data-testid="satisfaction-gate">
       <Indicator label="AI" on={aiSatisfied} />
       <Indicator label="Human" on={humanSatisfied} />
-      {forced ? <span className="text-xs text-ink-muted">(forced)</span> : null}
-      <button
-        type="button"
+      {forced ? <span className="text-xs text-ink-soft">(forced)</span> : null}
+      <Button
+        size="sm"
+        variant="subtle"
+        leftIcon={<ThumbsUp />}
         onClick={onNod}
         disabled={disabled || !drafted || humanSatisfied}
-        className="rounded-[var(--r-md)] bg-sage px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+        className="!bg-sage !text-white hover:!brightness-95"
       >
         Looks good
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        leftIcon={<FastForward />}
         onClick={onForceAdvance}
         disabled={disabled}
-        className="rounded-[var(--r-md)] border border-amber-500 px-3 py-1 text-xs font-medium text-amber-700 disabled:opacity-50"
       >
         Force advance
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,14 +1,18 @@
 import Link from 'next/link';
+import { Lock, Snowflake, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
 
 /**
- * StageStepper (Spec 3 flow 3) — stage-driven. Renders the five stage kinds
- * grouped Design (exploration·spec) › Freeze › Build (plan·execute·review) from
- * the project's `stage` rows + `current_stage`. Per-stage glyph from status:
- * active → ◐, done → ●, pending → ○. Build stages show 🔒 while phase∈{design,
- * frozen}.
+ * StageStepper (Spec 3 flow 3) — stage-driven. Renders into the LOCKED
+ * `ShellSubNav` bar (the sub-nav owns the border / background), so this is a
+ * clean horizontal stepper: the five stage kinds grouped Design (exploration·
+ * spec) › Freeze › Build (plan·execute·review) as segmented pill links. Current
+ * stage = accent, done = sage, locked = muted with a `Lock` glyph.
+ *
+ * Per-stage glyph from status: active → ◐, done → ● (sage), pending → ○. Build
+ * stages show a `Lock` while phase∈{design,frozen}.
  *
  * Reachable ⟺ NOT locked AND status∈{active,done} → a focusable link to
  * `stageRoute`. pending (inert) + locked stages are aria-disabled, out of the
@@ -85,10 +89,12 @@ function computeStage(
 
 function stepClasses(s: ComputedStage): string {
   return cn(
-    'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs',
-    s.isCurrent && 'bg-surface text-accent-deep font-semibold shadow-sm',
-    !s.isCurrent && s.status === 'done' && 'text-accent-deep font-medium',
-    !s.isCurrent && s.status !== 'done' && 'text-ink-faint',
+    'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+    s.isCurrent && 'bg-accent text-white shadow-sm',
+    !s.isCurrent && s.locked && 'text-ink-faint',
+    !s.isCurrent && !s.locked && s.status === 'done' && 'text-[var(--sage-deep)] hover:bg-sage-tint',
+    !s.isCurrent && !s.locked && s.status === 'active' && 'text-accent-deep hover:bg-accent-tint',
+    !s.isCurrent && !s.locked && s.status === 'pending' && 'text-ink-faint',
   );
 }
 
@@ -96,7 +102,11 @@ function StagePill({ s, condensed }: { s: ComputedStage; condensed: boolean }) {
   const showLabel = !condensed || s.isCurrent;
   const inner = (
     <>
-      <span aria-hidden="true">{s.locked ? '🔒' : glyph(s.status)}</span>
+      {s.locked ? (
+        <Lock aria-hidden="true" className="size-3" />
+      ) : (
+        <span aria-hidden="true">{glyph(s.status)}</span>
+      )}
       {showLabel ? <span>{s.label}</span> : null}
     </>
   );
@@ -137,23 +147,22 @@ export function StageStepper({
     <nav
       aria-label="Stage progress"
       data-condensed={condensed ? 'true' : undefined}
-      className="flex items-center gap-2"
+      className="flex w-full items-center gap-2"
     >
       {GROUPS.map(({ group, label, kinds }, gi) => (
         <div key={group} className="flex items-center gap-2">
           {gi > 0 ? (
-            <span aria-hidden="true" className="text-line-strong">
-              ›
-            </span>
+            <ChevronRight aria-hidden="true" className="size-3.5 text-line-strong" />
           ) : null}
-          <div className="flex flex-col gap-1">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-faint">
-              {label}
-            </span>
-            <div className="flex gap-1 rounded-full bg-accent-tint/60 p-1">
+          <div className="flex items-center gap-2">
+            <span className="t-eyebrow shrink-0 uppercase !text-ink-faint">{label}</span>
+            <div className="flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
               {group === 'freeze' ? (
-                <span data-stage="freeze" className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-ink-faint">
-                  <span aria-hidden="true">❄</span>
+                <span
+                  data-stage="freeze"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-ink-faint"
+                >
+                  <Snowflake aria-hidden="true" className="size-3" />
                   {!condensed ? <span>Freeze</span> : null}
                 </span>
               ) : (

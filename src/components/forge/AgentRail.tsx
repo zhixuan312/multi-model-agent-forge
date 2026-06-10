@@ -1,5 +1,7 @@
 'use client';
 
+import { Lock, Radar } from 'lucide-react';
+import { Badge, EmptyState, SectionTitle, type BadgeProps } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
@@ -24,11 +26,18 @@ function statusLabel(t: RailTask): { text: string; tone: 'idle' | 'run' | 'done'
   return { text: 'running', tone: 'run' };
 }
 
+const TONE_VARIANT: Record<'idle' | 'run' | 'done' | 'fail', BadgeProps['variant']> = {
+  idle: 'neutral',
+  run: 'amber',
+  done: 'sage',
+  fail: 'rose',
+};
+
 export function AgentRail({ tasks }: { tasks: RailTask[] }) {
   const active = tasks.filter((t) => t.status !== 'draft');
   return (
     <section aria-label="Agent activity" className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-ink">Agent rail</h2>
+      <SectionTitle>Agent rail</SectionTitle>
       <div
         aria-live="polite"
         aria-busy={active.some((t) => statusLabel(t).tone === 'run')}
@@ -36,7 +45,11 @@ export function AgentRail({ tasks }: { tasks: RailTask[] }) {
         data-testid="agent-rail"
       >
         {active.length === 0 ? (
-          <p className="text-xs text-ink-muted">No tasks dispatched yet.</p>
+          <EmptyState
+            icon={<Radar />}
+            title="No tasks dispatched yet."
+            description="Run the fan-out to watch each agent report here live."
+          />
         ) : (
           active.map((t) => {
             const s = statusLabel(t);
@@ -51,28 +64,20 @@ export function AgentRail({ tasks }: { tasks: RailTask[] }) {
                   locked && 'opacity-90',
                 )}
               >
-                <span
-                  className={cn(
-                    'mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                    s.tone === 'run' && 'bg-amber-100 text-amber-900',
-                    s.tone === 'done' && 'bg-emerald-100 text-emerald-900',
-                    s.tone === 'fail' && 'bg-red-100 text-red-900',
-                    s.tone === 'idle' && 'bg-surface text-ink-muted',
-                  )}
-                >
-                  {locked ? '🔒 ' : ''}
+                <Badge variant={TONE_VARIANT[s.tone]} size="sm" className="mt-0.5 shrink-0">
+                  {locked ? <Lock aria-hidden="true" className="size-3" /> : null}
                   {s.text}
-                </span>
+                </Badge>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-ink">
                     {ROUTE_LABEL[t.kind] ?? t.kind}
                   </p>
-                  <p className="truncate text-xs text-ink-muted">{t.prompt}</p>
+                  <p className="truncate text-xs text-ink-soft">{t.prompt}</p>
                   {s.tone === 'run' && t.headline ? (
-                    <p className="mt-1 truncate text-[11px] text-ink-muted">{t.headline}</p>
+                    <p className="mt-1 truncate text-[11px] text-ink-soft">{t.headline}</p>
                   ) : null}
                   {s.tone === 'fail' && t.error ? (
-                    <p className="mt-1 text-[11px] text-red-700">{t.error.message}</p>
+                    <p className="mt-1 text-[11px] text-[var(--rose)]">{t.error.message}</p>
                   ) : null}
                 </div>
               </div>

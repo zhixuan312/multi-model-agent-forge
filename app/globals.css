@@ -39,6 +39,12 @@
   --shadow-sm: 0 1px 2px rgba(33, 28, 22, 0.05), 0 1px 1px rgba(33, 28, 22, 0.04);
   --shadow: 0 4px 14px -4px rgba(33, 28, 22, 0.12), 0 2px 4px -2px rgba(33, 28, 22, 0.07);
   --shadow-lg: 0 18px 48px -12px rgba(33, 28, 22, 0.22), 0 6px 16px -8px rgba(33, 28, 22, 0.12);
+  /* overlay elevation — menus, popovers, dialogs */
+  --shadow-pop: 0 16px 40px -12px rgba(33, 28, 22, 0.3), 0 4px 12px -6px rgba(33, 28, 22, 0.2);
+
+  /* motion */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
 }
 
 :root {
@@ -159,4 +165,153 @@ body {
 .prose :where(h1, h2, h3, h4) {
   font-family: var(--font-serif), Georgia, serif;
   letter-spacing: -0.01em;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORGE DESIGN SYSTEM — foundation
+   The type scale is the source of hierarchy. Prefer the <Display>/<Heading>/
+   <Text>/<Eyebrow> components (src/components/ui/typography.tsx); these classes
+   back them and may be used directly. All values swap warm↔cool via [data-phase].
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --ring: 0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent);
+  --ring-offset: 0 0 0 2px var(--bg);
+}
+
+/* Subtle paper atmosphere — a faint warm bloom from the top-right, never flat. */
+body {
+  background-image: radial-gradient(
+    115% 90% at 100% -10%,
+    color-mix(in oklab, var(--accent) 5%, transparent) 0%,
+    transparent 45%
+  );
+  background-attachment: fixed;
+}
+
+/* Type scale ------------------------------------------------------------- */
+.t-display {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: clamp(1.85rem, 1.35rem + 1.5vw, 2.3rem);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.022em;
+  color: var(--ink);
+}
+.t-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.16;
+  letter-spacing: -0.016em;
+  color: var(--ink);
+}
+.t-heading {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.t-eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.t-lead {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.0625rem;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.t-body {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.t-body-strong {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.t-sm {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.t-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.t-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.t-micro {
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+/* Shared focus ring for all interactive primitives. */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-offset), var(--ring);
+}
+
+/* Hairline that reads on both warm and cool worlds. */
+.divider {
+  height: 1px;
+  background: var(--line);
+}
+
+/* Page-load reveal — one orchestrated stagger, reduced-motion safe. */
+@keyframes forge-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: forge-rise 0.5s var(--ease-out) both;
+}
+
+/* Skeleton shimmer — a faint sheen sweeps across loading placeholders. */
+@keyframes forge-shimmer {
+  100% {
+    background-position: -200% 0;
+  }
+}
+.forge-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--ink) 5%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 200% 0;
+  animation: forge-shimmer 1.4s var(--ease-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,9 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/cn';
-import { initials } from '@/components/forge/avatar';
+import { MoreHorizontal, ShieldCheck, KeyRound, Trash2 } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  Avatar,
+  Badge,
+  Button,
+  Input,
+  Label,
+  Menu,
+  MenuButton,
+  MenuItems,
+  MenuItem,
+  Text,
+  Micro,
+  Mono,
+} from '@/components/ui';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 
 export interface MemberRowData {
@@ -24,28 +39,10 @@ export interface MemberRowData {
  */
 export function MemberRow({ member }: { member: MemberRowData }) {
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'idle' | 'reset' | 'delete'>('idle');
   const [newPassword, setNewPassword] = useState('');
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onDocClick(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
 
   async function call(input: RequestInfo, init: RequestInit): Promise<boolean> {
     setBusy(true);
@@ -65,7 +62,6 @@ export function MemberRow({ member }: { member: MemberRowData }) {
   }
 
   async function toggleAdmin() {
-    setMenuOpen(false);
     await call(`/api/members/${member.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -96,160 +92,118 @@ export function MemberRow({ member }: { member: MemberRowData }) {
   }
 
   return (
-    <div
-      ref={wrapRef}
-      data-testid="member-row"
-      className="relative rounded-[var(--r-lg)] border border-line bg-surface p-3.5"
-    >
-      <div className="flex items-center gap-3">
-        <span
-          style={{ background: member.avatarTint }}
-          className="grid h-9 w-9 place-items-center rounded-full text-[13px] font-semibold text-white"
-        >
-          {initials(member.displayName)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-ink">{member.displayName}</span>
-            {member.isAdmin ? (
-              <span
-                data-testid="admin-badge"
-                className="rounded-full bg-accent-tint px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-accent-deep"
+    <Card data-testid="member-row" elevation="flat">
+      <CardContent className="py-3.5">
+        <div className="flex items-center gap-3">
+          <Avatar name={member.displayName} tint={member.avatarTint} aria-hidden />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <Text className="truncate !t-sm font-semibold text-ink">{member.displayName}</Text>
+              {member.isAdmin ? (
+                <Badge data-testid="admin-badge" variant="accent" size="sm">
+                  Admin
+                </Badge>
+              ) : null}
+            </div>
+            <Mono className="truncate !text-xs text-ink-faint">@{member.username}</Mono>
+            <Micro className="mt-0.5 block">Joined {new Date(member.createdAt).toLocaleDateString()}</Micro>
+          </div>
+
+          <Menu>
+            <MenuButton
+              aria-label={`Actions for ${member.displayName}`}
+              className="size-8 items-center justify-center rounded-[var(--r-sm)] text-ink-faint hover:bg-surface-2 hover:text-ink [&_svg]:size-4"
+            >
+              <MoreHorizontal aria-hidden />
+            </MenuButton>
+            <MenuItems align="end">
+              <MenuItem icon={<ShieldCheck />} onSelect={toggleAdmin}>
+                {member.isAdmin ? 'Revoke admin' : 'Make admin'}
+              </MenuItem>
+              <MenuItem
+                icon={<KeyRound />}
+                onSelect={() => {
+                  setMode('reset');
+                  setError(null);
+                }}
               >
-                Admin
-              </span>
-            ) : null}
-          </div>
-          <div className="truncate font-mono text-xs text-ink-faint">@{member.username}</div>
-          <div className="mt-0.5 text-[10px] text-ink-faint">
-            Joined {new Date(member.createdAt).toLocaleDateString()}
-          </div>
+                Reset password
+              </MenuItem>
+              <MenuItem
+                icon={<Trash2 />}
+                danger
+                onSelect={() => {
+                  setMode('delete');
+                  setError(null);
+                }}
+              >
+                Delete
+              </MenuItem>
+            </MenuItems>
+          </Menu>
         </div>
 
-        <button
-          type="button"
-          aria-label={`Actions for ${member.displayName}`}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((o) => !o)}
-          className="grid h-7 w-7 place-items-center rounded-[var(--r-sm)] text-ink-faint hover:bg-bg-sunk"
-        >
-          <span aria-hidden="true">⋯</span>
-        </button>
-      </div>
+        {mode === 'reset' ? (
+          <form onSubmit={submitReset} aria-label="Reset password" className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
+            <Label htmlFor={`reset-${member.id}`}>New password for @{member.username}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={`reset-${member.id}`}
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="font-mono"
+              />
+              <Button type="submit" size="sm" loading={busy} className="shrink-0">
+                Reset
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  setMode('idle');
+                  setNewPassword('');
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
 
-      {menuOpen ? (
-        <div
-          role="menu"
-          aria-label={`Actions for ${member.displayName}`}
-          className="absolute right-3 top-12 z-20 w-44 overflow-hidden rounded-[var(--r)] border border-line bg-surface py-1 shadow-lg"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            disabled={busy}
-            onClick={toggleAdmin}
-            className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-bg-sunk"
-          >
-            {member.isAdmin ? 'Revoke admin' : 'Make admin'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              setMode('reset');
-              setError(null);
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-bg-sunk"
-          >
-            Reset password
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              setMode('delete');
-              setError(null);
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-rose hover:bg-rose-tint"
-          >
-            Delete
-          </button>
-        </div>
-      ) : null}
-
-      {mode === 'reset' ? (
-        <form onSubmit={submitReset} aria-label="Reset password" className="mt-3 border-t border-line pt-3">
-          <label htmlFor={`reset-${member.id}`} className="mb-1.5 block text-[11.5px] font-semibold text-ink-soft">
-            New password for @{member.username}
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              id={`reset-${member.id}`}
-              type="text"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-[var(--r)] border border-line-strong bg-surface px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-accent"
-            />
-            <button
-              type="submit"
-              disabled={busy}
-              className="shrink-0 rounded-[var(--r)] bg-accent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('idle');
-                setNewPassword('');
-                setError(null);
-              }}
-              className="shrink-0 text-sm text-ink-faint"
-            >
-              Cancel
-            </button>
+        {mode === 'delete' ? (
+          <div className="mt-3 border-t border-line pt-3">
+            <Text className="!t-sm">
+              Delete <strong className="text-ink">{member.displayName}</strong>? This cannot be undone.
+            </Text>
+            <div className="mt-2 flex items-center gap-2">
+              <Button type="button" variant="danger" size="sm" loading={busy} onClick={confirmDelete}>
+                Delete member
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setMode('idle');
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-        </form>
-      ) : null}
+        ) : null}
 
-      {mode === 'delete' ? (
-        <div className="mt-3 border-t border-line pt-3">
-          <p className="text-sm text-ink-soft">
-            Delete <strong>{member.displayName}</strong>? This cannot be undone.
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={confirmDelete}
-              className={cn(
-                'rounded-[var(--r)] bg-rose px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60',
-              )}
-            >
-              Delete member
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('idle');
-                setError(null);
-              }}
-              className="text-sm text-ink-faint"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {error ? (
-        <p role="alert" className="mt-2 text-sm text-rose">
-          {error}
-        </p>
-      ) : null}
-    </div>
+        {error ? (
+          <Micro role="alert" className="mt-2 block text-rose">
+            {error}
+          </Micro>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

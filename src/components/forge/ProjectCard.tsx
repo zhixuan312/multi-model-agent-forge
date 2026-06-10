@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { Globe, Lock } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { initials } from '@/components/forge/avatar';
+import { Card, CardContent, Badge, Avatar, Title, Text, Mono, type BadgeProps } from '@/components/ui';
 import { formatRelative } from '@/lib/format-relative';
 import type { ProjectListItem } from '@/projects/projects-core';
 import type { ProjectPhase, StageStatus } from '@/db/enums';
@@ -15,11 +16,11 @@ import type { ProjectPhase, StageStatus } from '@/db/enums';
  * alternative (done/active/pending) so screen-reader users get the status.
  */
 
-const PHASE_BADGE: Record<ProjectPhase, { label: string; cls: string }> = {
-  design: { label: 'Design', cls: 'bg-accent-tint text-accent-deep' },
-  frozen: { label: 'Frozen', cls: 'bg-accent-tint text-accent-deep' },
-  build: { label: 'Build', cls: 'bg-accent-tint text-accent-deep' },
-  done: { label: 'Done', cls: 'bg-sage-tint text-sage-deep' },
+const PHASE_BADGE: Record<ProjectPhase, { label: string; variant: NonNullable<BadgeProps['variant']> }> = {
+  design: { label: 'Design', variant: 'accent' },
+  frozen: { label: 'Frozen', variant: 'accent' },
+  build: { label: 'Build', variant: 'accent' },
+  done: { label: 'Done', variant: 'sage' },
 };
 
 const RAIL_CLASS: Record<StageStatus, string> = {
@@ -47,64 +48,48 @@ function StageRail({ stages }: { stages: { kind: string; status: StageStatus }[]
 export function ProjectCard({ project }: { project: ProjectListItem }) {
   const badge = PHASE_BADGE[project.phase];
   return (
-    <Link
-      href={`/projects/${project.id}`}
-      data-testid={`project-card-${project.id}`}
-      className="flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5 transition-colors hover:border-line-strong"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="font-serif text-xl font-semibold leading-tight text-ink">{project.name}</h2>
-        <span
-          data-testid="phase-badge"
-          className={cn(
-            'whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold',
-            badge.cls,
-          )}
-        >
-          <span aria-hidden="true">● </span>
-          {badge.label}
-        </span>
-      </div>
+    <Link href={`/projects/${project.id}`} data-testid={`project-card-${project.id}`} className="block">
+      <Card interactive elevation="flat" className="h-full">
+        <CardContent className="flex flex-col gap-3 py-5">
+          <div className="flex items-start justify-between gap-3">
+            <Title as="h2" className="!text-xl leading-tight">
+              {project.name}
+            </Title>
+            <Badge data-testid="phase-badge" variant={badge.variant} dot className="shrink-0">
+              {badge.label}
+            </Badge>
+          </div>
 
-      <p className="min-h-[2.4em] text-sm leading-relaxed text-ink-soft">
-        {project.summary ?? (
-          <span className="italic text-ink-faint">No summary yet — set during Spec.</span>
-        )}
-      </p>
+          <Text className="min-h-[2.4em] !t-sm">
+            {project.summary ?? (
+              <span className="italic text-ink-faint">No summary yet — set during Spec.</span>
+            )}
+          </Text>
 
-      <StageRail stages={project.stages} />
+          <StageRail stages={project.stages} />
 
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            style={{ background: project.ownerAvatarTint }}
-            className="grid h-[22px] w-[22px] place-items-center rounded-full text-[9px] font-semibold text-white"
-          >
-            {initials(project.ownerDisplayName)}
-          </span>
-          <span className="text-ink-soft">{project.ownerDisplayName}</span>
-          <span aria-hidden="true" className="text-line-strong">·</span>
-          <span
-            data-testid="visibility-chip"
-            className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-soft"
-          >
-            <span aria-hidden="true">{project.visibility === 'private' ? '🔒' : '⊕'}</span>
-            {project.visibility}
-          </span>
-          {project.unavailableRepoCount > 0 ? (
-            <span
-              data-testid="repo-unavailable-chip"
-              className="inline-flex items-center gap-1 rounded-full border border-rose/40 bg-rose/10 px-2 py-0.5 text-[11px] text-rose"
-            >
-              repo unavailable
-            </span>
-          ) : null}
-        </div>
-        <span className="font-mono text-[11px] text-ink-faint">
-          {project.repoCount} repos · {formatRelative(project.updatedAt)}
-        </span>
-      </div>
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <Avatar size="sm" name={project.ownerDisplayName} tint={project.ownerAvatarTint} aria-hidden />
+              <span className="truncate text-ink-soft">{project.ownerDisplayName}</span>
+              <span aria-hidden="true" className="text-line-strong">
+                ·
+              </span>
+              <Badge data-testid="visibility-chip" size="sm" icon={project.visibility === 'private' ? <Lock /> : <Globe />}>
+                {project.visibility}
+              </Badge>
+              {project.unavailableRepoCount > 0 ? (
+                <Badge data-testid="repo-unavailable-chip" variant="rose" size="sm">
+                  repo unavailable
+                </Badge>
+              ) : null}
+            </div>
+            <Mono className="!text-[11px] text-ink-faint">
+              {project.repoCount} repos · {formatRelative(project.updatedAt)}
+            </Mono>
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }

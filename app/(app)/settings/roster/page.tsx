@@ -2,7 +2,7 @@ import { requireAdminPage } from '@/auth/require-admin';
 import { listRoster } from '@/config/roster-core';
 import { listProviders } from '@/config/providers-core';
 import { readModelProfiles } from '@/mma/model-profiles';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader, SectionTitle } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { RosterPanel, type RosterRowData, type ProviderOption } from './RosterPanel';
 import type { ModelSuggestion } from './ModelCombobox';
@@ -31,18 +31,21 @@ export default async function RosterPage() {
   }));
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader title="Team settings" />
       <SettingsTabs active="roster" />
 
-      <div className="mb-1">
-        <h2 className="font-serif text-xl font-semibold text-ink">Three agent tiers</h2>
-        <p className="mt-1 max-w-[600px] text-sm text-ink-soft">
-          Each tier picks a provider, then a model. <strong>Main</strong> is Forge&apos;s
-          orchestrator; <strong>complex</strong> and <strong>standard</strong> are MMA&apos;s worker
-          tiers.
-        </p>
-      </div>
+      <SectionTitle
+        description={
+          <>
+            Each tier picks a provider, then a model. <strong className="text-ink">Main</strong> is
+            Forge&apos;s orchestrator; <strong className="text-ink">complex</strong> and{' '}
+            <strong className="text-ink">standard</strong> are MMA&apos;s worker tiers.
+          </>
+        }
+      >
+        Three agent tiers
+      </SectionTitle>
 
       <RosterPanel
         initialRoster={rows}
@@ -50,6 +53,6 @@ export default async function RosterPage() {
         modelSuggestions={modelSuggestions}
         catalogAvailable={catalog.available}
       />
-    </>
+    </div>
   );
 }

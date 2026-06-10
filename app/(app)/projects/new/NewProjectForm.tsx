@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useActionState } from 'react';
-import { cn } from '@/lib/cn';
+import { Globe, Lock, ArrowRight } from 'lucide-react';
+import { Card, CardContent, Input, Button, Label, Micro } from '@/components/ui';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
 import { createProjectAction, type NewProjectState } from './actions';
 
@@ -23,9 +24,6 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
   const nameError = state.error?.field === 'name' ? state.error.message : null;
   const repoError = state.error?.field === 'repoIds' ? state.error.message : null;
 
-  const inputCls =
-    'rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
-
   return (
     <form action={formAction} className="max-w-2xl">
       {/* selected repo ids ride along as hidden fields */}
@@ -33,61 +31,62 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
         <input key={id} type="hidden" name="repoIds" value={id} />
       ))}
 
-      <div className="mb-5">
-        <label htmlFor="project-name" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-          Name
-        </label>
-        <input
-          id="project-name"
-          name="name"
-          className={cn(inputCls, 'w-full')}
-          aria-describedby={nameError ? 'name-error' : undefined}
-          aria-invalid={nameError ? true : undefined}
-        />
-      </div>
+      <Card>
+        <CardContent className="flex flex-col gap-6 py-6">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-name">Name</Label>
+            <Input
+              id="project-name"
+              name="name"
+              aria-describedby={nameError ? 'name-error' : undefined}
+              aria-invalid={nameError ? true : undefined}
+            />
+          </div>
 
-      <fieldset className="mb-5">
-        <legend className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-          Visibility
-        </legend>
-        <div role="radiogroup" aria-label="Visibility" className="flex gap-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="radio" name="visibility" value="public" defaultChecked className="accent-[var(--accent)]" />
-            <span>⊕ Public</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="visibility" value="private" className="accent-[var(--accent)]" />
-            <span>🔒 Private</span>
-          </label>
-        </div>
-        <p className="mt-1 text-xs text-ink-faint">Private hides this project&apos;s work artifacts, not code.</p>
-      </fieldset>
+          <fieldset className="flex flex-col gap-1.5">
+            <Label as="legend">Visibility</Label>
+            <div role="radiogroup" aria-label="Visibility" className="flex gap-5 t-sm">
+              <label className="inline-flex items-center gap-2">
+                <input type="radio" name="visibility" value="public" defaultChecked className="size-4 accent-[var(--accent)]" />
+                <span className="inline-flex items-center gap-1.5 text-ink">
+                  <Globe className="size-4 text-ink-soft" aria-hidden /> Public
+                </span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input type="radio" name="visibility" value="private" className="size-4 accent-[var(--accent)]" />
+                <span className="inline-flex items-center gap-1.5 text-ink">
+                  <Lock className="size-4 text-ink-soft" aria-hidden /> Private
+                </span>
+              </label>
+            </div>
+            <Micro>Private hides this project&apos;s work artifacts, not code.</Micro>
+          </fieldset>
 
-      <div className="mb-5">
-        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-          Repositories
-        </span>
-        <RepoPicker repos={repos} selected={selected} onChange={setSelected} />
-      </div>
+          <div className="flex flex-col gap-2">
+            <Label as="span">Repositories</Label>
+            <RepoPicker repos={repos} selected={selected} onChange={setSelected} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* a11y: validation errors are announced politely */}
       <div aria-live="polite">
         {nameError ? (
-          <p id="name-error" role="alert" className="mb-2 text-sm text-rose">{nameError}</p>
+          <Micro id="name-error" role="alert" className="mt-2 block text-rose">
+            {nameError}
+          </Micro>
         ) : null}
         {repoError ? (
-          <p id="repos-error" role="alert" className="mb-2 text-sm text-rose">{repoError}</p>
+          <Micro id="repos-error" role="alert" className="mt-2 block text-rose">
+            {repoError}
+          </Micro>
         ) : null}
       </div>
 
-      <div className="flex items-center justify-end gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {pending ? 'Creating…' : 'Create & start exploration →'}
-        </button>
+      <div className="mt-5 flex items-center justify-end">
+        <Button type="submit" loading={pending} rightIcon={<ArrowRight />}>
+          {pending ? 'Creating…' : 'Create & start exploration'}
+        </Button>
       </div>
     </form>
   );

@@ -6,6 +6,8 @@ import { NodesView } from '@/components/forge/journal/NodesView';
 import { NodeDetail } from '@/components/forge/journal/NodeDetail';
 import { WriteLogView } from '@/components/forge/journal/WriteLogView';
 import { RecallView } from '@/components/forge/journal/RecallView';
+import { BookOpen, Hexagon, History } from 'lucide-react';
+import { Badge, Eyebrow, EmptyState, Banner } from '@/components/ui';
 import { STATUS_VALUES } from '@/journal/types';
 import type {
   JournalReadOutcome,
@@ -24,10 +26,10 @@ import { cn } from '@/lib/cn';
  */
 
 type View = 'recall' | 'nodes' | 'log';
-const VIEWS: { id: View; label: string; glyph: string }[] = [
-  { id: 'recall', label: 'Recall', glyph: '✦' },
-  { id: 'nodes', label: 'Nodes', glyph: '⬡' },
-  { id: 'log', label: 'Write log', glyph: '↺' },
+const VIEWS: { id: View; label: string; glyph: React.ReactNode }[] = [
+  { id: 'recall', label: 'Recall', glyph: <BookOpen className="size-4" /> },
+  { id: 'nodes', label: 'Nodes', glyph: <Hexagon className="size-4" /> },
+  { id: 'log', label: 'Write log', glyph: <History className="size-4" /> },
 ];
 
 function normalizeView(v: string | null | undefined): View {
@@ -144,7 +146,9 @@ function TabBar({ view, onActivate }: { view: View; onActivate: (v: View) => voi
                 : 'border-transparent text-ink-soft hover:text-ink',
             )}
           >
-            <span aria-hidden>{v.glyph}</span>
+            <span aria-hidden className="inline-flex">
+              {v.glyph}
+            </span>
             {v.label}
           </button>
         );
@@ -167,24 +171,15 @@ function HeaderPills({ read }: { read: Extract<JournalReadOutcome, { kind: 'ok' 
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[11px] uppercase tracking-wide text-ink-faint">
-        Anvil Team · decision graph
-      </span>
-      <span
-        data-testid="pill-node-count"
-        className="rounded-[var(--r-sm)] border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-soft"
-      >
+      <Eyebrow>Anvil Team · decision graph</Eyebrow>
+      <Badge data-testid="pill-node-count" size="sm">
         {read.nodes.length} nodes
-      </span>
+      </Badge>
       {STATUS_VALUES.map((s) =>
         counts[s] ? (
-          <span
-            key={s}
-            data-testid={`pill-status-${s}`}
-            className="rounded-[var(--r-sm)] border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-soft"
-          >
+          <Badge key={s} data-testid={`pill-status-${s}`} size="sm">
             {s} {counts[s]}
-          </span>
+          </Badge>
         ) : null,
       )}
     </div>
@@ -239,28 +234,27 @@ function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id: strin
 function JournalState({ kind }: { kind: 'empty' | 'unreadable' | 'unconfigured' }) {
   if (kind === 'unconfigured') {
     return (
-      <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2 px-6 py-16 text-center">
-        <p className="font-serif text-base italic text-ink-faint">Journal not configured</p>
-        <p className="mt-1 text-xs text-ink-faint">
-          An admin must configure the workspace root in Team Settings.
-        </p>
-      </div>
+      <EmptyState
+        icon={<History />}
+        title="Journal not configured"
+        description="An admin must configure the workspace root in Team Settings."
+      />
     );
   }
   if (kind === 'unreadable') {
     return (
-      <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-amber bg-amber-tint/40 px-6 py-16 text-center">
-        <p className="font-serif text-base italic text-amber">Team journal is unreadable by Forge</p>
-        <p className="mt-1 text-xs text-ink-soft">
-          Check that Forge and MMA run as the same OS user, or that the journal dir is group-readable.
-        </p>
-      </div>
+      <Banner
+        variant="warning"
+        title="Team journal is unreadable by Forge"
+        description="Check that Forge and MMA run as the same OS user, or that the journal dir is group-readable."
+      />
     );
   }
   return (
-    <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2 px-6 py-16 text-center">
-      <p className="font-serif text-base italic text-ink-faint">No team learnings yet</p>
-      <p className="mt-1 text-xs text-ink-faint">Recorded at project freeze.</p>
-    </div>
+    <EmptyState
+      icon={<BookOpen />}
+      title="No team learnings yet"
+      description="Recorded at project freeze."
+    />
   );
 }

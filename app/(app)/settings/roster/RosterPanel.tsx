@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card, CardContent, Field, Select, Button, Mono, Micro } from '@/components/ui';
 import { ModelCombobox, type ModelSuggestion } from './ModelCombobox';
 
 export type Tier = 'main' | 'complex' | 'standard';
@@ -21,10 +22,6 @@ const TIER_META: Record<Tier, { label: string; note: string }> = {
   complex: { label: 'Complex worker', note: 'MMA worker tier' },
   standard: { label: 'Standard worker', note: 'MMA worker tier' },
 };
-
-const label = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft';
-const input =
-  'w-full rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
 
 /**
  * Roster panel (Spec 2 §Agent roster / agent-roster.html): three tier rows, each
@@ -83,70 +80,60 @@ export function RosterPanel({
 
   const errId = 'roster-error';
   return (
-    <div className="mt-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         {rows.map((r) => {
           const meta = TIER_META[r.tier];
           return (
-            <div
-              key={r.tier}
-              data-testid={`tier-${r.tier}`}
-              className="rounded-[var(--r-lg)] border border-line bg-surface p-4"
-            >
-              <div className="mb-3 text-sm font-semibold text-ink">
-                {meta.label}{' '}
-                <span className="font-normal text-xs text-ink-faint">· {meta.note}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <Card key={r.tier} data-testid={`tier-${r.tier}`} elevation="flat">
+              <CardContent className="flex flex-col gap-3 py-4">
                 <div>
-                  <label htmlFor={`provider-${r.tier}`} className={label}>
-                    Provider
-                  </label>
-                  <select
-                    id={`provider-${r.tier}`}
-                    value={r.providerId ?? ''}
-                    onChange={(e) => update(r.tier, { providerId: e.target.value || null })}
-                    className={input}
-                  >
-                    <option value="">— none</option>
-                    {providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>{' '}
+                  <Micro>· {meta.note}</Micro>
                 </div>
-                <ModelCombobox
-                  id={`model-${r.tier}`}
-                  label="Model"
-                  value={r.model ?? ''}
-                  onChange={(next) => update(r.tier, { model: next })}
-                  suggestions={modelSuggestions}
-                  catalogAvailable={catalogAvailable}
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Provider" id={`provider-${r.tier}`}>
+                    {(p) => (
+                      <Select
+                        {...p}
+                        value={r.providerId ?? ''}
+                        onChange={(e) => update(r.tier, { providerId: e.target.value || null })}
+                      >
+                        <option value="">— none</option>
+                        {providers.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.name}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                  <ModelCombobox
+                    id={`model-${r.tier}`}
+                    label="Model"
+                    value={r.model ?? ''}
+                    onChange={(next) => update(r.tier, { model: next })}
+                    suggestions={modelSuggestions}
+                    catalogAvailable={catalogAvailable}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
 
       {error ? (
-        <p id={errId} role="alert" className="mt-3 text-sm text-rose">
+        <Micro id={errId} role="alert" className="block text-rose">
           {error}
-        </p>
+        </Micro>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-end gap-3">
-        {saved ? <span className="text-sm text-ink-soft">Saved.</span> : null}
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={busy}
-          aria-describedby={error ? errId : undefined}
-          className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
+      <div className="flex items-center justify-end gap-3">
+        {saved ? <Micro>Saved.</Micro> : null}
+        <Button type="button" onClick={onSave} loading={busy} aria-describedby={error ? errId : undefined}>
           {busy ? 'Saving…' : 'Save roster'}
-        </button>
+        </Button>
       </div>
     </div>
   );

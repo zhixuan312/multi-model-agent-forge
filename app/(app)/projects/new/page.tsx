@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader } from '@/components/ui';
 import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
@@ -23,9 +23,9 @@ export default async function NewProjectPage() {
   }));
 
   return (
-    <>
-      <PageHeader title="New project" subtitle="Name it, choose visibility, pick the repos it touches." />
+    <div className="flex flex-col gap-8">
+      <PageHeader title="New project" description="Name it, choose visibility, pick the repos it touches." />
       <NewProjectForm repos={pickerRepos} />
-    </>
+    </div>
   );
 }

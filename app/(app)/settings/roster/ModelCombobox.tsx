@@ -1,16 +1,13 @@
 'use client';
 
 import { useId } from 'react';
-import { cn } from '@/lib/cn';
+import { Input, Label, Micro } from '@/components/ui';
 
 export interface ModelSuggestion {
   provider: string;
   prefix: string;
   bestFor: string | null;
 }
-
-const inputCls =
-  'w-full rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 font-mono';
 
 /**
  * Model combobox (Spec 2 §Flow C / F26): a free-text input backed by a native
@@ -20,8 +17,8 @@ const inputCls =
  * provided by the browser's datalist. Degrades to plain free-text when the
  * catalog is unavailable (`available=false` → no suggestions).
  *
- * Accessibility: a programmatic `<label>` (via `labelId`), a visible focus ring,
- * and a `list`-associated combobox role from the native datalist binding.
+ * Accessibility: a programmatic `<label>`, a visible focus ring, and a
+ * `list`-associated combobox role from the native datalist binding.
  */
 export function ModelCombobox({
   id,
@@ -42,17 +39,14 @@ export function ModelCombobox({
 }) {
   const listId = useId();
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft"
-      >
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>
         {label}{' '}
         <span className="font-normal text-ink-faint">
           · {catalogAvailable ? 'pick a profiled family or type a custom id' : 'type a model id'}
         </span>
-      </label>
-      <input
+      </Label>
+      <Input
         id={id}
         role="combobox"
         aria-expanded="false"
@@ -61,7 +55,7 @@ export function ModelCombobox({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="e.g. claude-opus-4-8"
-        className={cn(inputCls)}
+        className="font-mono"
         aria-describedby={describedById}
       />
       {suggestions.length > 0 ? (
@@ -73,11 +67,7 @@ export function ModelCombobox({
           ))}
         </datalist>
       ) : null}
-      {!catalogAvailable ? (
-        <p className="mt-1 text-[11px] text-ink-faint">
-          Model catalog unavailable — enter a model id manually.
-        </p>
-      ) : null}
+      {!catalogAvailable ? <Micro>Model catalog unavailable — enter a model id manually.</Micro> : null}
     </div>
   );
 }

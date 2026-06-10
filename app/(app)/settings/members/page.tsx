@@ -1,6 +1,6 @@
 import { requireAdminPage } from '@/auth/require-admin';
 import { listMembers } from '@/auth/members-core';
-import { PageHeader } from '@/components/forge/PageHeader';
+import { PageHeader, SectionTitle } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { AddMemberForm } from './AddMemberForm';
 import { MemberRow, type MemberRowData } from './MemberRow';
@@ -24,25 +24,21 @@ export default async function MembersPage() {
   }));
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader title="Team settings" />
       <SettingsTabs active="members" />
 
-      <div className="mb-1">
-        <h2 className="font-serif text-xl font-semibold text-ink">Team members</h2>
-        <p className="mt-1 max-w-[560px] text-sm text-ink-soft">
-          Everyone logs in with their own username — used for ownership, presence, and the action
-          log. Equal rights for all.
-        </p>
-      </div>
+      <SectionTitle description="Everyone logs in with their own username — used for ownership, presence, and the action log. Equal rights for all.">
+        Team members
+      </SectionTitle>
 
-      <div data-testid="members-list" className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div data-testid="members-list" className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {rows.map((m) => (
           <MemberRow key={m.id} member={m} />
         ))}
       </div>
 
       <AddMemberForm />
-    </>
+    </div>
   );
 }

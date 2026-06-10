@@ -2,8 +2,25 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Check, RefreshCw, AlertTriangle, GitBranch, Plus, Trash2 } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  Badge,
+  Button,
+  Field,
+  Input,
+  Select,
+  Mono,
+  Micro,
+  EmptyState,
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  DialogFooter,
+  type BadgeProps,
+} from '@/components/ui';
 import { filterRepos } from '@/git/repo-filter';
-import { cn } from '@/lib/cn';
 
 export interface RepoCardData {
   id: string;
@@ -15,24 +32,22 @@ export interface RepoCardData {
   headSha: string | null;
 }
 
-const STATUS_META: Record<RepoCardData['status'], { label: string; icon: string; cls: string }> = {
-  cloned: { label: 'Cloned', icon: '✓', cls: 'text-sage border-sage/40 bg-sage/10' },
-  pulling: { label: 'Pulling…', icon: '↻', cls: 'text-amber border-amber/40 bg-amber/10' },
-  error: { label: 'Error', icon: '!', cls: 'text-rose border-rose/40 bg-rose/10' },
+const STATUS_META: Record<
+  RepoCardData['status'],
+  { label: string; variant: NonNullable<BadgeProps['variant']>; icon: React.ReactNode }
+> = {
+  cloned: { label: 'Cloned', variant: 'sage', icon: <Check /> },
+  pulling: { label: 'Pulling…', variant: 'amber', icon: <RefreshCw /> },
+  error: { label: 'Error', variant: 'rose', icon: <AlertTriangle /> },
 };
 
-/** Status chip — text label + icon + aria-label, never colour alone (a11y F6). */
+/** Status chip — text label + icon + role/aria-label, never colour alone (a11y F6). */
 function RepoStatusChip({ status }: { status: RepoCardData['status'] }) {
   const m = STATUS_META[status];
   return (
-    <span
-      role="status"
-      aria-label={`Repository status: ${m.label}`}
-      className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium', m.cls)}
-    >
-      <span aria-hidden="true">{m.icon}</span>
+    <Badge variant={m.variant} icon={m.icon} role="status" aria-label={`Repository status: ${m.label}`}>
       {m.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -50,67 +65,51 @@ function RepoCard({
   busy: boolean;
 }) {
   return (
-    <div
-      data-testid={`repo-${repo.name}`}
-      className="rounded-[var(--r-lg)] border border-line bg-surface p-4"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-mono text-sm font-semibold text-ink">{repo.name}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-[var(--r)] border border-line-strong bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-soft">
-              {repo.kind}
-            </span>
-            {repo.tags.map((t) => (
-              <span key={t} className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent">
-                #{t}
-              </span>
-            ))}
+    <Card data-testid={`repo-${repo.name}`}>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Mono className="!text-sm font-semibold text-ink">{repo.name}</Mono>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <Badge size="sm">{repo.kind}</Badge>
+              {repo.tags.map((t) => (
+                <Badge key={t} variant="accent" size="sm">
+                  #{t}
+                </Badge>
+              ))}
+            </div>
           </div>
+          <RepoStatusChip status={repo.status} />
         </div>
-        <RepoStatusChip status={repo.status} />
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[11px] text-ink-faint">
-          {repo.defaultBranch}
-          {repo.headSha ? ` · ${repo.headSha.slice(0, 8)}` : ''}
-        </span>
-        {isAdmin ? (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onPull(repo.id)}
-              disabled={busy}
-              className="rounded-[var(--r)] border border-line-strong px-2 py-1 text-xs text-ink-soft disabled:opacity-50"
-            >
-              Pull
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(repo.id)}
-              disabled={busy}
-              className="rounded-[var(--r)] border border-rose/40 px-2 py-1 text-xs text-rose disabled:opacity-50"
-            >
-              Remove
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
+        <div className="flex items-center justify-between gap-3">
+          <Micro className="inline-flex items-center gap-1.5">
+            <GitBranch className="size-3" aria-hidden />
+            {repo.defaultBranch}
+            {repo.headSha ? ` · ${repo.headSha.slice(0, 8)}` : ''}
+          </Micro>
+          {isAdmin ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" leftIcon={<RefreshCw />} onClick={() => onPull(repo.id)} disabled={busy}>
+                Pull
+              </Button>
+              <Button size="sm" variant="ghost" leftIcon={<Trash2 />} onClick={() => onDelete(repo.id)} disabled={busy} className="text-rose hover:text-rose">
+                Remove
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-const inputCls =
-  'rounded-[var(--r)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30';
-
-function CloneRepoDialog({ onClose, onCloned }: { onClose: () => void; onCloned: () => void }) {
+function CloneRepoDialog({ open, onClose, onCloned }: { open: boolean; onClose: () => void; onCloned: () => void }) {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [kind, setKind] = useState('service');
   const [tags, setTags] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const errId = 'clone-error';
 
   async function submit() {
     setError(null);
@@ -139,36 +138,42 @@ function CloneRepoDialog({ onClose, onCloned }: { onClose: () => void; onCloned:
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Add or clone a repository">
-      <div className="w-full max-w-md rounded-[var(--r-lg)] border border-line bg-surface p-5">
-        <h2 className="font-serif text-lg font-semibold text-ink">Add / clone repo</h2>
-        <div className="mt-4 flex flex-col gap-3">
-          <div>
-            <label htmlFor="clone-name" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Name</label>
-            <input id="clone-name" value={name} onChange={(e) => setName(e.target.value)} className={cn(inputCls, 'w-full font-mono')} aria-describedby={error ? errId : undefined} />
-          </div>
-          <div>
-            <label htmlFor="clone-url" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Git URL</label>
-            <input id="clone-url" value={url} onChange={(e) => setUrl(e.target.value)} className={cn(inputCls, 'w-full')} placeholder="https://github.com/team/repo.git" />
-          </div>
-          <div>
-            <label htmlFor="clone-kind" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Kind</label>
-            <input id="clone-kind" value={kind} onChange={(e) => setKind(e.target.value)} className={cn(inputCls, 'w-full')} placeholder="service / library / infra / docs" />
-          </div>
-          <div>
-            <label htmlFor="clone-tags" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Tags <span className="font-normal text-ink-faint">· comma-separated</span></label>
-            <input id="clone-tags" value={tags} onChange={(e) => setTags(e.target.value)} className={cn(inputCls, 'w-full')} placeholder="core, backend" />
-          </div>
+    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
+      <DialogPanel>
+        <DialogTitle>Add / clone repo</DialogTitle>
+        <div className="mt-4 flex flex-col gap-4 px-6">
+          <Field label="Name">
+            {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} className="font-mono" />}
+          </Field>
+          <Field label="Git URL">
+            {(p) => (
+              <Input {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/team/repo.git" />
+            )}
+          </Field>
+          <Field label="Kind">
+            {(p) => (
+              <Input {...p} value={kind} onChange={(e) => setKind(e.target.value)} placeholder="service / library / infra / docs" />
+            )}
+          </Field>
+          <Field label="Tags" hint="comma-separated">
+            {(p) => <Input {...p} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="core, backend" />}
+          </Field>
         </div>
-        {error ? <p id={errId} role="alert" className="mt-3 text-sm text-rose">{error}</p> : null}
-        <div className="mt-4 flex items-center justify-end gap-3">
-          <button type="button" onClick={onClose} className="rounded-[var(--r)] border border-line-strong px-3 py-2 text-sm text-ink-soft">Cancel</button>
-          <button type="button" onClick={submit} disabled={busy || !name || !url} className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {error ? (
+          <p role="alert" className="mt-3 px-6 t-sm text-rose">
+            {error}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} loading={busy} disabled={busy || !name || !url}>
             {busy ? 'Cloning…' : 'Clone'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogPanel>
+    </Dialog>
   );
 }
 
@@ -209,46 +214,55 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
   }
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label htmlFor="filter-kind" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Kind</label>
-          <select id="filter-kind" value={kind} onChange={(e) => setKind(e.target.value)} className={inputCls}>
-            <option value="">All kinds</option>
-            {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="filter-tag" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Tag</label>
-          <select id="filter-tag" value={tag} onChange={(e) => setTag(e.target.value)} className={inputCls}>
-            <option value="">All tags</option>
-            {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="flex-1 min-w-[160px]">
-          <label htmlFor="filter-search" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Search</label>
-          <input id="filter-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="name or tag…" className={cn(inputCls, 'w-full')} />
-        </div>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Kind">
+          {(p) => (
+            <Select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">All kinds</option>
+              {kinds.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Tag">
+          {(p) => (
+            <Select {...p} value={tag} onChange={(e) => setTag(e.target.value)}>
+              <option value="">All tags</option>
+              {allTags.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Search" className="min-w-[180px] flex-1">
+          {(p) => <Input {...p} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="name or tag…" />}
+        </Field>
         {isAdmin ? (
-          <button type="button" onClick={() => setDialogOpen(true)} className="rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-semibold text-white">
+          <Button leftIcon={<Plus />} onClick={() => setDialogOpen(true)}>
             Add / clone repo
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {shown.length === 0 ? (
-        <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2 px-6 py-16 text-center">
-          <p className="font-serif text-base italic text-ink-faint">No repositories match.</p>
-        </div>
+        <EmptyState icon={<GitBranch />} title="No repositories match" description="Adjust the filters above to widen the search." />
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {shown.map((r) => (
             <RepoCard key={r.id} repo={r} isAdmin={isAdmin} onPull={onPull} onDelete={onDelete} busy={busyId === r.id} />
           ))}
         </div>
       )}
 
-      {dialogOpen ? <CloneRepoDialog onClose={() => setDialogOpen(false)} onCloned={() => router.refresh()} /> : null}
+      {isAdmin ? (
+        <CloneRepoDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCloned={() => router.refresh()} />
+      ) : null}
     </div>
   );
 }

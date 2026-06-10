@@ -11,12 +11,14 @@ async function main() {
   const { token } = await new PostgresSessionStore().create(admin.id);
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 600 });
+  await page.setViewport({ width: 1380, height: 920 });
   await page.setCookie({ name: SESSION_COOKIE_NAME, value: token, domain: '127.0.0.1', path: '/' });
-  await page.goto('http://127.0.0.1:3100/styleguide', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await new Promise((r) => setTimeout(r, 2000));
-  const m = await page.evaluate('JSON.stringify({innerHeight: window.innerHeight, bodyScrollHeight: document.body.scrollHeight, pageScrolls: document.body.scrollHeight > window.innerHeight + 2, innerScrollSurfaces: [...document.querySelectorAll("*")].filter(e=>{const s=getComputedStyle(e);return (s.overflowY==="auto")&&e.scrollHeight>e.clientHeight+2}).length})');
-  console.log('MEASURE', m);
+  for (const [path, name] of [['/workspace','workspace'],['/projects','projects'],['/settings/members','settings']]) {
+    await page.goto('http://127.0.0.1:3100'+path, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 1800));
+    await page.screenshot({ path: '/tmp/forge-'+name+'.png' });
+    console.log('saved', name);
+  }
   await browser.close();
 }
 main().catch((e) => { console.error('ERR', (e as Error).message); process.exit(1); });

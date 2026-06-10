@@ -20,6 +20,7 @@ import {
   Mono,
 } from '@/components/ui';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
+import { formatDate } from '@/lib/format-relative';
 
 export interface MemberRowData {
   id: string;
@@ -106,7 +107,7 @@ export function MemberRow({ member }: { member: MemberRowData }) {
               ) : null}
             </div>
             <Mono className="truncate !text-xs text-ink-faint">@{member.username}</Mono>
-            <Micro className="mt-0.5 block">Joined {new Date(member.createdAt).toLocaleDateString()}</Micro>
+            <Micro className="mt-0.5 block">Joined {formatDate(new Date(member.createdAt))}</Micro>
           </div>
 
           <Menu>

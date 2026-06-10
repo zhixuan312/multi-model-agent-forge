@@ -23,5 +23,16 @@ export function formatRelative(when: Date, now: Date = new Date()): string {
   if (hr < 24) return `${hr} h ago`;
   const day = Math.floor(hr / 24);
   if (day < 30) return `${day} d ago`;
-  return `${MONTHS[when.getMonth()]} ${when.getDate()}, ${when.getFullYear()}`;
+  return formatDate(when);
+}
+
+/**
+ * `formatDate` — a deterministic absolute date "MMM D, YYYY" (e.g. "Jun 9,
+ * 2026"). Uses UTC getters and a fixed month table so the string is identical
+ * on the server and in the browser regardless of host timezone or locale —
+ * `Date#toLocaleDateString()` is NOT hydration-safe (server en-GB → "09/06/2026"
+ * vs. client en-US → "6/9/2026") and must never be used in rendered output.
+ */
+export function formatDate(when: Date): string {
+  return `${MONTHS[when.getUTCMonth()]} ${when.getUTCDate()}, ${when.getUTCFullYear()}`;
 }

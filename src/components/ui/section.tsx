@@ -1,7 +1,6 @@
 import { type HTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { Heading } from '@/components/ui/typography';
-import { Callout } from '@/components/ui/callout';
+import { Heading, Text } from '@/components/ui/typography';
 
 /** Section — a vertical grouping within a page. */
 export function Section({ className, ...rest }: HTMLAttributes<HTMLElement>) {
@@ -12,9 +11,11 @@ export function Section({ className, ...rest }: HTMLAttributes<HTMLElement>) {
  * SectionTitle — the header for a `Section`: a serif `Heading` with an optional
  * right-aligned `action`, and an optional `description`.
  *
- * The `description` renders inside a `Callout` (a contained note), never as bare
- * text on the page canvas — explanatory copy always sits in a deliberate
- * container. The title row stays clean; the note sits full-width beneath it.
+ * The `description` is a muted lead tucked DIRECTLY under the heading (tight
+ * spacing = proximity grouping), not a boxed note. Per the content-layout
+ * research, a section intro reads cleanest as quiet copy grouped with its title;
+ * a border box around it just adds a competing "false floor". (For an actual
+ * warning/alert, use `Banner` — that earns its container.)
  */
 export interface SectionTitleProps {
   children: ReactNode;
@@ -25,12 +26,12 @@ export interface SectionTitleProps {
 
 export function SectionTitle({ children, description, action, className }: SectionTitleProps) {
   return (
-    <div className={cn('space-y-2.5', className)}>
+    <div className={cn('space-y-1.5', className)}>
       <div className="flex items-center justify-between gap-4">
         <Heading className="min-w-0 !text-lg">{children}</Heading>
         {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
-      {description ? <Callout>{description}</Callout> : null}
+      {description ? <Text className="max-w-[68ch] !text-sm">{description}</Text> : null}
     </div>
   );
 }

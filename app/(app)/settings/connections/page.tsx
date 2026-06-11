@@ -16,7 +16,7 @@ export default async function ConnectionsPage() {
 
   return (
     <PageFrame title="Team settings" subnav={<SettingsTabs active="connections" />}>
-      <div className="flex flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         <SectionTitle description="The MMA endpoint Forge calls every rod through, and the git service token that clones & pulls team repos. Secrets are stored encrypted and never shown.">
           Connections
         </SectionTitle>

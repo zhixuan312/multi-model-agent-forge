@@ -22,7 +22,6 @@ export * from './badge';
 export * from './icon-button';
 export * from './banner';
 export * from './empty-state';
-export * from './callout';
 export * from './avatar';
 export * from './skeleton';
 export * from './spinner';

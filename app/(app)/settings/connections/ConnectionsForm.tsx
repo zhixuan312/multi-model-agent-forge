@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardContent, Field, FieldGrid, Input, Button, Badge, Banner, Micro } from '@/components/ui';
+import { Field, FieldGrid, Input, Button, Badge, Banner, Heading, Micro } from '@/components/ui';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -26,10 +26,42 @@ function SetIndicator({ set, testid }: { set: boolean; testid: string }) {
 }
 
 /**
+ * GroupHeader — a connection group's title row. Grouping is carried by the serif
+ * heading + proximity + the hairline divider between groups (see ConnectionsForm
+ * doc), NOT by a card box around each section — whitespace structures, borders
+ * are spent only where they earn it (the inputs, the security warning).
+ */
+function GroupHeader({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <Heading className="!text-base">{title}</Heading>
+      {children}
+    </div>
+  );
+}
+
+function SaveRow({ saved, busy, label }: { saved: boolean; busy: boolean; label: string }) {
+  return (
+    <div className="flex items-center justify-end gap-2.5">
+      {saved ? <Micro>Saved.</Micro> : null}
+      <Button type="submit" loading={busy}>
+        {busy ? 'Saving…' : label}
+      </Button>
+    </div>
+  );
+}
+
+/**
  * Connections form (Spec 2 §Connections / connections.html): MMA (base URL +
  * bearer) and Git (service token), plus the OpenAI transcription key. Each token
  * input is write-only — blank leaves the stored secret untouched. Sections save
  * independently via PUT /api/connections.
+ *
+ * Layout: the three groups are separated by whitespace + a single hairline
+ * divider (`divide-y`), not wrapped in three stacked cards. Per the content
+ * research, proximity + space do the grouping; a per-group border would just add
+ * competing "false floors". Containers are reserved for what genuinely needs
+ * them — the inputs, and the Git security warning (a real alert).
  */
 export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
   const router = useRouter();
@@ -68,11 +100,12 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
 
   const errId = 'connections-error';
   return (
-    <div className="flex flex-col gap-4">
-      {/* MMA */}
-      <Card>
+    <div className="flex flex-col">
+      <div className="divide-y divide-line">
+        {/* MMA */}
         <form
           aria-label="MMA connection"
+          className="flex flex-col gap-4 pb-9"
           onSubmit={(e) => {
             e.preventDefault();
             const body: Record<string, unknown> = { mmaBaseUrl };
@@ -80,47 +113,38 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
             void save('mma', body);
           }}
         >
-          <CardHeader>
-            <CardTitle>MMA</CardTitle>
+          <GroupHeader title="MMA">
             <SetIndicator set={initial.mmaTokenSet} testid="mma-token-indicator" />
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 py-5">
-            <FieldGrid cols={2}>
-              <Field label="Base URL">
-                {(p) => (
-                  <Input {...p} value={mmaBaseUrl} onChange={(e) => setMmaBaseUrl(e.target.value)} className="font-mono" />
-                )}
-              </Field>
-              <Field
-                label="Bearer token"
-                hint={initial.mmaTokenSet ? 'set — blank keeps it' : 'authorizes every rod call'}
-              >
-                {(p) => (
-                  <Input
-                    {...p}
-                    type="password"
-                    value={mmaToken}
-                    onChange={(e) => setMmaToken(e.target.value)}
-                    placeholder={initial.mmaTokenSet ? '•••••••• (unchanged)' : ''}
-                    className="font-mono"
-                  />
-                )}
-              </Field>
-            </FieldGrid>
-            <div className="flex items-center justify-end gap-2.5">
-              {saved === 'mma' ? <Micro>Saved.</Micro> : null}
-              <Button type="submit" loading={busy === 'mma'}>
-                {busy === 'mma' ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          </CardContent>
+          </GroupHeader>
+          <FieldGrid cols={2}>
+            <Field label="Base URL">
+              {(p) => (
+                <Input {...p} value={mmaBaseUrl} onChange={(e) => setMmaBaseUrl(e.target.value)} className="font-mono" />
+              )}
+            </Field>
+            <Field
+              label="Bearer token"
+              hint={initial.mmaTokenSet ? 'set — blank keeps it' : 'authorizes every rod call'}
+            >
+              {(p) => (
+                <Input
+                  {...p}
+                  type="password"
+                  value={mmaToken}
+                  onChange={(e) => setMmaToken(e.target.value)}
+                  placeholder={initial.mmaTokenSet ? '•••••••• (unchanged)' : ''}
+                  className="font-mono"
+                />
+              )}
+            </Field>
+          </FieldGrid>
+          <SaveRow saved={saved === 'mma'} busy={busy === 'mma'} label="Save" />
         </form>
-      </Card>
 
-      {/* Git */}
-      <Card>
+        {/* Git */}
         <form
           aria-label="Git connection"
+          className="flex flex-col gap-4 py-9"
           onSubmit={(e) => {
             e.preventDefault();
             if (gitToken === '') {
@@ -130,45 +154,36 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
             void save('git', { gitToken });
           }}
         >
-          <CardHeader>
-            <CardTitle>Git</CardTitle>
+          <GroupHeader title="Git">
             <SetIndicator set={initial.gitTokenSet} testid="git-token-indicator" />
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 py-5">
-            <Field
-              label="Service token"
-              hint={initial.gitTokenSet ? 'set — blank keeps it' : 'clones & pulls every team repo'}
-            >
-              {(p) => (
-                <Input
-                  {...p}
-                  type="password"
-                  value={gitToken}
-                  onChange={(e) => setGitToken(e.target.value)}
-                  placeholder={initial.gitTokenSet ? '•••••••• (unchanged)' : ''}
-                  className="font-mono"
-                />
-              )}
-            </Field>
-            <Banner
-              variant="warning"
-              title="High-value secret"
-              description="It can clone & pull every team repo. Stored encrypted; never exposed to the browser or to MMA task content."
-            />
-            <div className="flex items-center justify-end gap-2.5">
-              {saved === 'git' ? <Micro>Saved.</Micro> : null}
-              <Button type="submit" loading={busy === 'git'}>
-                {busy === 'git' ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          </CardContent>
+          </GroupHeader>
+          <Field
+            label="Service token"
+            hint={initial.gitTokenSet ? 'set — blank keeps it' : 'clones & pulls every team repo'}
+          >
+            {(p) => (
+              <Input
+                {...p}
+                type="password"
+                value={gitToken}
+                onChange={(e) => setGitToken(e.target.value)}
+                placeholder={initial.gitTokenSet ? '•••••••• (unchanged)' : ''}
+                className="font-mono"
+              />
+            )}
+          </Field>
+          <Banner
+            variant="warning"
+            title="High-value secret"
+            description="It can clone & pull every team repo. Stored encrypted; never exposed to the browser or to MMA task content."
+          />
+          <SaveRow saved={saved === 'git'} busy={busy === 'git'} label="Save" />
         </form>
-      </Card>
 
-      {/* OpenAI transcription */}
-      <Card>
+        {/* OpenAI transcription */}
         <form
           aria-label="OpenAI transcription"
+          className="flex flex-col gap-4 pt-9"
           onSubmit={(e) => {
             e.preventDefault();
             if (openaiKey === '') {
@@ -178,35 +193,27 @@ export function ConnectionsForm({ initial }: { initial: ConnectionsData }) {
             void save('openai', { openaiTranscriptionKey: openaiKey });
           }}
         >
-          <CardHeader>
-            <CardTitle>OpenAI transcription</CardTitle>
+          <GroupHeader title="OpenAI transcription">
             <SetIndicator set={initial.openaiTranscriptionKeySet} testid="openai-key-indicator" />
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 py-5">
-            <Field label="API key" hint="voice → text (optional)">
-              {(p) => (
-                <Input
-                  {...p}
-                  type="password"
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder={initial.openaiTranscriptionKeySet ? '•••••••• (unchanged)' : ''}
-                  className="font-mono"
-                />
-              )}
-            </Field>
-            <div className="flex items-center justify-end gap-2.5">
-              {saved === 'openai' ? <Micro>Saved.</Micro> : null}
-              <Button type="submit" loading={busy === 'openai'}>
-                {busy === 'openai' ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          </CardContent>
+          </GroupHeader>
+          <Field label="API key" hint="voice → text (optional)">
+            {(p) => (
+              <Input
+                {...p}
+                type="password"
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder={initial.openaiTranscriptionKeySet ? '•••••••• (unchanged)' : ''}
+                className="font-mono"
+              />
+            )}
+          </Field>
+          <SaveRow saved={saved === 'openai'} busy={busy === 'openai'} label="Save" />
         </form>
-      </Card>
+      </div>
 
       {error ? (
-        <Micro id={errId} role="alert" className="block text-rose">
+        <Micro id={errId} role="alert" className="mt-4 block text-rose">
           {error}
         </Micro>
       ) : null}

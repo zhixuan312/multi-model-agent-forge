@@ -5,15 +5,12 @@ import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
   Field,
   FieldGrid,
   Input,
   Button,
   Avatar,
+  Heading,
   Label,
   TextSm,
   Micro,
@@ -120,14 +117,10 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
   }
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-4">
+    <div className="mx-auto w-full max-w-[640px] divide-y divide-line">
       {/* ACCOUNT */}
-      <Card>
-        <form onSubmit={saveAccount} aria-label="Account">
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5 py-5">
+      <form onSubmit={saveAccount} aria-label="Account" className="flex flex-col gap-5 pb-9">
+        <Heading className="!text-base">Account</Heading>
             <div className="flex items-center gap-4">
               <Avatar size="lg" initials={initials(displayName || member.displayName)} tint={tint} aria-hidden />
               <div className="flex flex-col gap-1.5">
@@ -193,17 +186,11 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                 {savingAccount ? 'Saving…' : 'Save'}
               </Button>
             </div>
-          </CardContent>
-        </form>
-      </Card>
+      </form>
 
       {/* PASSWORD */}
-      <Card>
-        <form onSubmit={savePassword} aria-label="Password">
-          <CardHeader>
-            <CardTitle>Password</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 py-5">
+      <form onSubmit={savePassword} aria-label="Password" className="flex flex-col gap-4 py-9">
+        <Heading className="!text-base">Password</Heading>
             <Field label="Current password">
               {(p) => (
                 <Input
@@ -259,22 +246,18 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                 {savingPassword ? 'Updating…' : 'Update password'}
               </Button>
             </div>
-          </CardContent>
-        </form>
-      </Card>
+      </form>
 
       {/* SIGN OUT */}
-      <Card>
-        <CardContent className="flex items-center justify-between py-4">
-          <div>
-            <TextSm className="font-semibold text-ink">Sign out</TextSm>
-            <Micro>End your session on this device</Micro>
-          </div>
-          <Button variant="secondary" leftIcon={<LogOut />} onClick={signOut} loading={signingOut} className="text-rose hover:text-rose">
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between gap-4 py-9">
+        <div>
+          <TextSm className="font-semibold text-ink">Sign out</TextSm>
+          <Micro>End your session on this device</Micro>
+        </div>
+        <Button variant="secondary" leftIcon={<LogOut />} onClick={signOut} loading={signingOut} className="text-rose hover:text-rose">
+          {signingOut ? 'Signing out…' : 'Sign out'}
+        </Button>
+      </div>
     </div>
   );
 }

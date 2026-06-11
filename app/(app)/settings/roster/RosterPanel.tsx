@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, Field, FieldGrid, Select, Button, Mono, Micro } from '@/components/ui';
+import { Field, FieldGrid, Select, Button, Mono, Micro } from '@/components/ui';
 import { ModelCombobox, type ModelSuggestion } from './ModelCombobox';
 
 export type Tier = 'main' | 'complex' | 'standard';
@@ -81,44 +81,46 @@ export function RosterPanel({
   const errId = 'roster-error';
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
+      <div className="divide-y divide-line">
         {rows.map((r) => {
           const meta = TIER_META[r.tier];
           return (
-            <Card key={r.tier} data-testid={`tier-${r.tier}`} elevation="flat">
-              <CardContent className="flex flex-col gap-3 py-4">
-                <div>
-                  <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>{' '}
-                  <Micro>· {meta.note}</Micro>
-                </div>
-                <FieldGrid cols={2}>
-                  <Field label="Provider" id={`provider-${r.tier}`}>
-                    {(p) => (
-                      <Select
-                        {...p}
-                        value={r.providerId ?? ''}
-                        onChange={(e) => update(r.tier, { providerId: e.target.value || null })}
-                      >
-                        <option value="">— none</option>
-                        {providers.map((opt) => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.name}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
-                  </Field>
-                  <ModelCombobox
-                    id={`model-${r.tier}`}
-                    label="Model"
-                    value={r.model ?? ''}
-                    onChange={(next) => update(r.tier, { model: next })}
-                    suggestions={modelSuggestions}
-                    catalogAvailable={catalogAvailable}
-                  />
-                </FieldGrid>
-              </CardContent>
-            </Card>
+            <div
+              key={r.tier}
+              data-testid={`tier-${r.tier}`}
+              className="flex flex-col gap-3 py-7 first:pt-0 last:pb-0"
+            >
+              <div>
+                <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>{' '}
+                <Micro>· {meta.note}</Micro>
+              </div>
+              <FieldGrid cols={2}>
+                <Field label="Provider" id={`provider-${r.tier}`}>
+                  {(p) => (
+                    <Select
+                      {...p}
+                      value={r.providerId ?? ''}
+                      onChange={(e) => update(r.tier, { providerId: e.target.value || null })}
+                    >
+                      <option value="">— none</option>
+                      {providers.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+                <ModelCombobox
+                  id={`model-${r.tier}`}
+                  label="Model"
+                  value={r.model ?? ''}
+                  onChange={(next) => update(r.tier, { model: next })}
+                  suggestions={modelSuggestions}
+                  catalogAvailable={catalogAvailable}
+                />
+              </FieldGrid>
+            </div>
           );
         })}
       </div>

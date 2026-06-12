@@ -375,6 +375,25 @@ body {
   animation: forge-pop-out 0.14s var(--ease-out);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Hover ring — a calm, STABLE affordance (no cursor-tracking, no motion). While
+ * a box is hovered, its whole border warms to the brand accent and gains a soft
+ * ambient glow, so it's clear which card the pointer is over. Applied to boxes
+ * (Card, MetricCard, table panels …). To use a truer red, swap `--accent` for
+ * `--rose` in the values below.
+ * ───────────────────────────────────────────────────────────────────────── */
+.forge-spotlight {
+  transition:
+    border-color 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
+}
+.forge-spotlight:hover {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--accent) 55%, transparent),
+    0 10px 30px -8px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -8,7 +8,7 @@ import { Title, Text } from '@/components/ui/typography';
  * actions and titles read as distinct zones from the body. Compose with
  * `CardHeader`/`CardTitle`/`CardDescription`/`CardContent`/`CardFooter`.
  */
-const cardVariants = cva('overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface', {
+const cardVariants = cva('forge-spotlight overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface', {
   variants: {
     elevation: { flat: '', raised: 'shadow-sm', floating: 'shadow-lg' },
     interactive: { true: 'transition-shadow duration-150 ease-[var(--ease-out)] hover:shadow' },

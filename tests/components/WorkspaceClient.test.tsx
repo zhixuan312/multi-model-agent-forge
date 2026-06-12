@@ -12,50 +12,49 @@ const REPOS: RepoCardData[] = [
   { id: 'c', name: 'core-docs', kind: 'docs', tags: ['core'], defaultBranch: 'main', status: 'error', headSha: null },
 ];
 
+/** The table row that contains a repo name. */
+const row = (name: string) => screen.getByText(name).closest('tr') as HTMLElement;
+
 describe('WorkspaceClient filter island (Flow E)', () => {
-  it('renders all repo cards initially', () => {
+  it('renders all repos in the table initially', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    expect(screen.getByTestId('repo-core-api')).toBeInTheDocument();
-    expect(screen.getByTestId('repo-web')).toBeInTheDocument();
-    expect(screen.getByTestId('repo-core-docs')).toBeInTheDocument();
+    expect(screen.getByText('core-api')).toBeInTheDocument();
+    expect(screen.getByText('web')).toBeInTheDocument();
+    expect(screen.getByText('core-docs')).toBeInTheDocument();
   });
 
   it('search="core" shows core-api + core-docs, not web', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'core' } });
-    expect(screen.getByTestId('repo-core-api')).toBeInTheDocument();
-    expect(screen.getByTestId('repo-core-docs')).toBeInTheDocument();
-    expect(screen.queryByTestId('repo-web')).toBeNull();
+    expect(screen.getByText('core-api')).toBeInTheDocument();
+    expect(screen.getByText('core-docs')).toBeInTheDocument();
+    expect(screen.queryByText('web')).toBeNull();
   });
 
-  it('kind=library + tag=core + search=api narrows to core-api only', () => {
+  it('search="api" narrows to core-api only', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'library' } });
-    fireEvent.change(screen.getByLabelText('Tag'), { target: { value: 'core' } });
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'api' } });
-    expect(screen.getByTestId('repo-core-api')).toBeInTheDocument();
-    expect(screen.queryByTestId('repo-web')).toBeNull();
-    expect(screen.queryByTestId('repo-core-docs')).toBeNull();
+    expect(screen.getByText('core-api')).toBeInTheDocument();
+    expect(screen.queryByText('web')).toBeNull();
+    expect(screen.queryByText('core-docs')).toBeNull();
   });
 
   it('status chips carry a text label + aria-label, not colour alone (a11y F6)', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    const cloned = within(screen.getByTestId('repo-core-api')).getByRole('status');
-    expect(cloned).toHaveAccessibleName(/Cloned/i);
-    const pulling = within(screen.getByTestId('repo-web')).getByRole('status');
-    expect(pulling).toHaveAccessibleName(/Pulling/i);
-    const errored = within(screen.getByTestId('repo-core-docs')).getByRole('status');
-    expect(errored).toHaveAccessibleName(/Error/i);
+    expect(within(row('core-api')).getByRole('status')).toHaveAccessibleName(/Cloned/i);
+    expect(within(row('web')).getByRole('status')).toHaveAccessibleName(/Pulling/i);
+    expect(within(row('core-docs')).getByRole('status')).toHaveAccessibleName(/Error/i);
   });
 
-  it('hides the admin clone + pull/remove controls for non-admins', () => {
+  it('hides the clone form + row actions for non-admins', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
     expect(screen.queryByText('Add / clone repo')).toBeNull();
-    expect(within(screen.getByTestId('repo-core-api')).queryByText('Pull')).toBeNull();
+    expect(within(row('core-api')).queryByText('Pull')).toBeNull();
   });
 
-  it('shows the admin add/clone control for admins', () => {
+  it('shows the admin clone form + row actions for admins', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
     expect(screen.getByText('Add / clone repo')).toBeInTheDocument();
+    expect(within(row('core-api')).getByText('Pull')).toBeInTheDocument();
   });
 });

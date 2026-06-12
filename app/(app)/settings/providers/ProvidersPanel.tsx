@@ -1,11 +1,28 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { Field, FieldGrid, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Button, Badge, Title, Mono, Micro } from '@/components/ui';
+import { type ColumnDef } from '@tanstack/react-table';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import {
+  Field,
+  FieldGrid,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Button,
+  Badge,
+  Title,
+  TextStrong,
+  Mono,
+  Micro,
+  EmptyState,
+  DataTable,
+} from '@/components/ui';
 import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
-import { cn } from '@/lib/cn';
 
 export interface ProviderViewData {
   id: string;
@@ -24,122 +41,157 @@ const PROVIDERS_NOTE = `**Configuring providers**
 
 \`type\` picks the API dialect — \`claude\` (Anthropic-style) or \`codex\` (OpenAI-style). Leave base URL or key blank to use the provider default; keys are stored encrypted and never shown.`;
 
+type TypeFilter = 'all' | 'claude' | 'codex';
+
 /**
- * Providers panel (Spec 2 §Providers / providers.html): inline-everything. The
- * "Add provider" button reveals an inline add row at the top (hidden by default);
- * each row's Edit expands an inline form directly beneath it. Both forms carry
- * Save AND Cancel. The api key field is write-only — the list shows "set / not
- * set", never the value. Rail is the note only.
+ * Providers panel (Spec 2 §Providers) — the SAME table surface as Members: a
+ * searchable/filterable `DataTable` (search by name/URL + a type filter) that
+ * scrolls to the page bottom, with inline add (a leading row) and inline edit (an
+ * expanding row), both via `ProviderForm`. The api-key field is write-only — the
+ * list shows "set / not set", never the value. Rail is the note only.
  */
 export function ProvidersPanel({ initial }: { initial: ProviderViewData[] }) {
-  const [editing, setEditing] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  const openEdit = (id: string) => {
+  const openEdit = useCallback((id: string) => {
     setAdding(false);
-    setEditing(id);
-  };
-  const openAdd = () => {
-    setEditing(null);
+    setEditingId(id);
+  }, []);
+  const openAdd = useCallback(() => {
+    setEditingId(null);
     setAdding(true);
-  };
-  const close = () => {
-    setEditing(null);
+  }, []);
+  const close = useCallback(() => {
+    setEditingId(null);
     setAdding(false);
-  };
+  }, []);
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return initial.filter((p) => {
+      if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+      if (q && !`${p.name} ${p.baseUrl ?? ''}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [initial, search, typeFilter]);
+
+  const columns = useMemo<ColumnDef<ProviderViewData>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Name',
+        cell: ({ row }) => (
+          <TextStrong className="block truncate !text-sm !text-ink" title={row.original.name}>
+            {row.original.name}
+          </TextStrong>
+        ),
+      },
+      {
+        id: 'type',
+        header: 'Type',
+        size: 120,
+        cell: ({ row }) => (
+          <Badge variant="accent" size="sm">
+            <Mono className="!text-[0.6875rem]">{row.original.type}</Mono>
+          </Badge>
+        ),
+      },
+      {
+        id: 'baseUrl',
+        header: 'Base URL',
+        cell: ({ row }) =>
+          row.original.baseUrl ? (
+            <Mono className="block truncate !text-xs text-ink-soft" title={row.original.baseUrl}>
+              {row.original.baseUrl}
+            </Mono>
+          ) : (
+            <Micro>— default</Micro>
+          ),
+      },
+      {
+        id: 'apikey',
+        header: 'API key',
+        size: 120,
+        cell: ({ row }) =>
+          row.original.apiKeySet ? (
+            <Mono data-testid="apikey-indicator" className="!text-xs text-[var(--sage-deep)]">
+              •• set
+            </Mono>
+          ) : (
+            <Micro data-testid="apikey-indicator">— not set</Micro>
+          ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        size: 84,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button size="sm" variant="ghost" leftIcon={<Pencil />} onClick={() => openEdit(row.original.id)}>
+              Edit
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [openEdit],
+  );
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-      {/* PRIMARY — providers table with inline add/edit */}
-      <div className="flex flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))] lg:col-span-2">
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line p-5">
-          <Title className="!text-lg">Configured providers</Title>
-          <Button size="sm" leftIcon={<Plus />} onClick={openAdd}>
-            Add provider
-          </Button>
+    <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-3 lg:items-stretch">
+      {/* PRIMARY — searchable providers table with inline add/edit */}
+      <div className="forge-spotlight flex min-h-0 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))] lg:col-span-2">
+        <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
+          <div className="flex items-center justify-between gap-3">
+            <Title className="!text-lg">Configured providers</Title>
+            <Button size="sm" leftIcon={<Plus />} onClick={openAdd}>
+              Add provider
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
+              <Input
+                aria-label="Search providers"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search providers…"
+                className="pl-9"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+              <SelectTrigger aria-label="Filter by type" className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="claude">Anthropic-style</SelectItem>
+                <SelectItem value="codex">OpenAI-style</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table data-testid="providers-table" className="w-full text-sm">
-            <thead className="[&_tr]:border-b [&_tr]:border-line">
-              <tr className="text-left">
-                <th className="px-4 py-3 t-eyebrow">Name</th>
-                <th className="px-4 py-3 t-eyebrow">Type</th>
-                <th className="px-4 py-3 t-eyebrow">Base URL</th>
-                <th className="px-4 py-3 t-eyebrow">API key</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {adding ? (
-                <tr>
-                  <td colSpan={5} className="border-b border-line/70 p-0">
-                    <ProviderForm mode="add" onDone={close} />
-                  </td>
-                </tr>
-              ) : null}
-              {initial.length === 0 ? (
-                !adding ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-ink-faint">
-                      No providers yet — add one.
-                    </td>
-                  </tr>
-                ) : null
-              ) : (
-                initial.map((p) => (
-                  <Fragment key={p.id}>
-                    <tr
-                      data-testid="provider-row"
-                      className={cn(
-                        'border-b border-line/70 last:border-0 transition-colors',
-                        editing === p.id ? 'bg-accent-tint/40' : 'hover:bg-surface-2',
-                      )}
-                    >
-                      <td className="px-4 py-3.5 font-semibold text-ink">{p.name}</td>
-                      <td className="px-4 py-3.5">
-                        <Badge variant="accent" size="sm">
-                          <Mono className="!text-[0.6875rem]">{p.type}</Mono>
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {p.baseUrl ? (
-                          <Mono className="!text-xs text-ink-soft">{p.baseUrl}</Mono>
-                        ) : (
-                          <Micro>— default</Micro>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {p.apiKeySet ? (
-                          <Mono data-testid="apikey-indicator" className="!text-xs text-[var(--sage-deep)]">
-                            •• set
-                          </Mono>
-                        ) : (
-                          <Micro data-testid="apikey-indicator">— not set</Micro>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <Button size="sm" variant="ghost" leftIcon={<Pencil />} onClick={() => openEdit(p.id)}>
-                          Edit
-                        </Button>
-                      </td>
-                    </tr>
-                    {editing === p.id ? (
-                      <tr>
-                        <td colSpan={5} className="border-b border-line/70 p-0">
-                          <ProviderForm key={p.id} mode="edit" existing={p} onDone={close} />
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+
+        <DataTable
+          fill
+          columns={columns}
+          data={shown}
+          data-testid="providers-table"
+          getRowId={(p) => p.id}
+          expandedId={editingId}
+          leadingRow={adding ? <ProviderForm mode="add" onDone={close} /> : null}
+          renderExpanded={(p) => <ProviderForm key={p.id} mode="edit" existing={p} onDone={close} />}
+          emptyState={
+            <EmptyState icon={<Search />} title="No providers match" description="Try a different search or type filter." />
+          }
+        />
       </div>
 
       {/* RAIL — note only */}
-      <div className="flex flex-col gap-4">
+      <div className="flex min-h-0 flex-col gap-4">
         <SettingsAccessNote body={PROVIDERS_NOTE} />
       </div>
     </div>

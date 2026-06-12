@@ -31,22 +31,22 @@ export default async function MembersPage() {
   const recent = rows.filter((m) => new Date(m.createdAt) > cutoff).length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="members" />} width="full">
-      <div className="flex flex-col gap-4">
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="members" />} width="full" fill>
+      <div className="flex h-full min-h-0 flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Team members" value={total} sublabel="Total members" icon={<Users />} iconTint="rose" />
           <MetricCard label="Admins" value={admins} sublabel="With admin capability" icon={<ShieldCheck />} iconTint="accent" />
           <MetricCard label="Recently added" value={recent} muted={recent === 0} sublabel="In the last 30 days" icon={<UserPlus />} iconTint="sage" />
           <MetricCard label="Active sessions" value={activeSessions} muted={activeSessions === 0} sublabel="Currently active" icon={<Monitor />} iconTint="steel" />
         </div>
 
-        {/* PRIMARY (2/3) ∣ RAIL (1/3) */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-          <div className="lg:col-span-2">
+        {/* PRIMARY (2/3) ∣ RAIL (1/3) — fills to the page bottom; the table scrolls */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="flex min-h-0 flex-col lg:col-span-2">
             <MemberTable members={rows} />
           </div>
-          <div className="flex flex-col gap-4">
+          <div className="flex min-h-0 flex-col gap-4">
             <SettingsAccessNote />
           </div>
         </div>

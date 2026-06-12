@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   RosterPanel,
@@ -64,7 +64,7 @@ describe('RosterPanel', () => {
     expect(screen.queryByRole('option', { name: 'minimax-text-01' })).toBeNull();
   });
 
-  it('Save roster PUTs the whole roster to /api/roster', async () => {
+  it('saving a tier card PUTs only that tier to /api/roster', async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -74,16 +74,17 @@ describe('RosterPanel', () => {
     await user.click(await screen.findByRole('option', { name: 'Claude' }));
     await user.click(screen.getByLabelText(/Model/, { selector: '#model-complex' }));
     await user.click(await screen.findByRole('option', { name: 'claude-opus-4-8' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save roster' }));
+    // each tier card has its own Save — click the complex card's
+    fireEvent.click(within(screen.getByTestId('tier-complex')).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe('/api/roster');
     expect((init as RequestInit).method).toBe('PUT');
     const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.tiers).toHaveLength(3);
-    const complex = body.tiers.find((t: { tier: string }) => t.tier === 'complex');
-    expect(complex.providerId).toBe('p1');
-    expect(complex.model).toBe('claude-opus-4-8');
+    expect(body.tiers).toHaveLength(1);
+    expect(body.tiers[0].tier).toBe('complex');
+    expect(body.tiers[0].providerId).toBe('p1');
+    expect(body.tiers[0].model).toBe('claude-opus-4-8');
   });
 });

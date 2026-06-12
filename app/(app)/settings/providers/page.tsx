@@ -28,17 +28,19 @@ export default async function ProvidersPage() {
   const keysSet = rows.filter((p) => p.apiKeySet).length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="providers" />} width="full">
-      <div className="flex flex-col gap-4">
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="providers" />} width="full" fill>
+      <div className="flex h-full min-h-0 flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Providers" value={total} muted={total === 0} sublabel="Configured" icon={<Boxes />} iconTint="accent" />
           <MetricCard label="Anthropic-style" value={claude} muted={claude === 0} sublabel="type · claude" icon={<Bot />} iconTint="sage" />
           <MetricCard label="OpenAI-style" value={codex} muted={codex === 0} sublabel="type · codex" icon={<SquareTerminal />} iconTint="steel" />
           <MetricCard label="API keys" value={keysSet} muted={keysSet === 0} sublabel="Set on a provider" icon={<KeyRound />} iconTint="rose" />
         </div>
 
-        <ProvidersPanel initial={rows} />
+        <div className="min-h-0 flex-1">
+          <ProvidersPanel initial={rows} />
+        </div>
       </div>
     </PageFrame>
   );

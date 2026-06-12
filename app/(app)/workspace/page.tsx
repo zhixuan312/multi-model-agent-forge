@@ -1,20 +1,21 @@
 import { GitBranch, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
-import { PageFrame, MetricRow, MetricCard } from '@/components/ui';
+import { PageFrame, MetricCard } from '@/components/ui';
 import { currentMember } from '@/auth/current-member';
 import { listRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
 
 /**
- * Workspace page (Spec 2 §Workspace) — the shared repo pool. STATUS: repo health
- * (total · cloned · pulling · errors, real `repo.status` counts; no fabricated
- * "stale" since there's no last-synced timestamp). CONTROLS + PRIMARY live in the
- * client filter island. Status collapses on an empty workspace — the island's
- * own EmptyState carries the page.
+ * Workspace page (Spec 2 §Workspace) — the team's shared repo pool, on the
+ * Team-Settings shell: a STATUS row (total · cloned · pulling · errors) then a
+ * 2/3 ∣ 1/3 row — the filterable repo TABLE (Primary) and the workspace note +
+ * admin clone form (Rail). Repos are a homogeneous list, so they get one table
+ * (decision 0003), matching Members/Providers.
  */
 export default async function WorkspacePage() {
   const me = await currentMember();
   const isAdmin = me?.isAdmin ?? false;
   const repos = await listRepos();
+
   const initialRepos: RepoCardData[] = repos.map((r) => ({
     id: r.id,
     name: r.name,
@@ -30,29 +31,20 @@ export default async function WorkspacePage() {
   const pulling = repos.filter((r) => r.status === 'pulling').length;
   const errored = repos.filter((r) => r.status === 'error').length;
 
-  const island = <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />;
-
   return (
-    <PageFrame title="Workspace" description="The team's shared repositories on disk.">
-      {total > 0 ? (
-        <div className="flex flex-col gap-6">
-          <MetricRow>
-            <MetricCard label="Repositories" value={total} icon={<GitBranch />} />
-            <MetricCard label="Cloned" value={cloned} muted={cloned === 0} icon={<CheckCircle2 />} />
-            <MetricCard label="Pulling" value={pulling} muted={pulling === 0} icon={<RefreshCw />} />
-            <MetricCard
-              label="Errors"
-              value={errored}
-              tone={errored > 0 ? 'attention' : 'neutral'}
-              muted={errored === 0}
-              icon={<AlertTriangle />}
-            />
-          </MetricRow>
-          {island}
+    <PageFrame title="Workspace" width="full" fill>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard label="Repositories" value={total} sublabel="On disk" icon={<GitBranch />} iconTint="accent" />
+          <MetricCard label="Cloned" value={cloned} muted={cloned === 0} sublabel="Ready to use" icon={<CheckCircle2 />} iconTint="sage" />
+          <MetricCard label="Pulling" value={pulling} muted={pulling === 0} sublabel="In progress" icon={<RefreshCw />} iconTint="amber" />
+          <MetricCard label="Errors" value={errored} muted={errored === 0} sublabel="Need attention" icon={<AlertTriangle />} iconTint="rose" />
         </div>
-      ) : (
-        island
-      )}
+
+        <div className="min-h-0 flex-1">
+          <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
+        </div>
+      </div>
     </PageFrame>
   );
 }

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Eyebrow, Mono } from '@/components/ui';
 import { Markdown } from '@/components/forge/Markdown';
 import { StatusDot } from '@/components/forge/journal/StatusBadge';
@@ -9,126 +8,16 @@ import {
   collectFindingCitationIds,
   type IndexLookupRow,
 } from '@/journal/citations';
-import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
+import type { ParsedRecall } from '@/journal/recall';
 import { cn } from '@/lib/cn';
 
 /**
- * The Recall tab (Spec 6). A composer POSTs the query to the auth-gated recall
- * route (→ `202 {batchId}`), then polls the server-side proxy until terminal and
- * parses the envelope CLIENT-SIDE (`parseRecallEnvelope`). The synthesis renders
- * as sanitized markdown with an `mma-journal-recall` chip; each finding carries
- * one deduped id chip per distinct citation node; a Sources list resolves cited
- * ids to title + status against the in-page index (no extra round-trip — F20).
- *
- * On a dispatch/poll failure the query is RETAINED in the composer for retry.
+ * The recall answer presentation (Spec 6). The synthesis renders as sanitized
+ * markdown with an `mma-journal-recall` chip; each finding carries one deduped id
+ * chip per distinct citation node; a Sources list resolves cited ids to title +
+ * status against the in-page index (no extra round-trip — F20). The composer that
+ * dispatches/polls the recall lives in `RecallTab`.
  */
-
-const POLL_INTERVAL_MS = 1500;
-const POLL_CEILING_MS = 5 * 60_000; // recall is tens of seconds; generous ceiling
-
-type PollResult =
-  | { state: 'pending'; headline: string }
-  | { state: 'terminal'; envelope: unknown };
-
-export function RecallView({
-  index,
-  onNavigate,
-}: {
-  index: IndexLookupRow[];
-  onNavigate: (id: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<ParsedRecall | null>(null);
-
-  const trimmed = query.trim();
-  const canSubmit = trimmed.length >= 10 && trimmed.length <= 4000 && status !== 'running';
-
-  async function run() {
-    setStatus('running');
-    setError(null);
-    setParsed(null);
-    try {
-      const dispatch = await fetch('/api/journal/recall', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query: trimmed }),
-      });
-      if (dispatch.status !== 202) {
-        throw new Error('Journal recall unavailable — MMA may be restarting.');
-      }
-      const { batchId } = (await dispatch.json()) as { batchId: string };
-
-      const deadline = Date.now() + POLL_CEILING_MS;
-      for (;;) {
-        if (Date.now() > deadline) throw new Error('Recall timed out — please retry.');
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-        const pollRes = await fetch(`/api/journal/recall/${batchId}`);
-        if (!pollRes.ok) throw new Error('Journal recall poll failed — please retry.');
-        const poll = (await pollRes.json()) as PollResult;
-        if (poll.state === 'terminal') {
-          const env = poll.envelope as { error?: { message?: string } } | null;
-          if (env && env.error && env.error.message) {
-            throw new Error(env.error.message);
-          }
-          setParsed(parseRecallEnvelope(poll.envelope));
-          setStatus('done');
-          return;
-        }
-      }
-    } catch (e) {
-      // Keep the query in the composer for retry (F12).
-      setError((e as Error).message);
-      setStatus('error');
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canSubmit) void run();
-        }}
-        className="flex flex-col gap-2"
-      >
-        <label className="sr-only" htmlFor="recall-query">
-          Recall query
-        </label>
-        <textarea
-          id="recall-query"
-          aria-label="Recall query"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask the team journal… e.g. how do we gate completion?"
-          rows={3}
-          className="w-full resize-y rounded-[var(--r-md)] border border-line bg-surface-2 p-3 text-sm text-ink outline-none focus:border-accent"
-        />
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="rounded-[var(--r-md)] bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {status === 'running' ? 'Recalling…' : 'Recall'}
-          </button>
-          <span className="text-xs text-ink-faint">{trimmed.length}/4000</span>
-        </div>
-      </form>
-
-      {status === 'error' && error ? (
-        <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
-          {error}
-        </p>
-      ) : null}
-
-      {status === 'done' && parsed ? (
-        <RecallAnswer parsed={parsed} index={index} onNavigate={onNavigate} />
-      ) : null}
-    </div>
-  );
-}
 
 /** The answer card: synthesis (sanitized) + recall chip + findings + Sources. */
 export function RecallAnswer({

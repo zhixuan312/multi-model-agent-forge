@@ -35,14 +35,17 @@ describe('NodeDetail', () => {
     expect(screen.getByText('nodes/0002-prefer.md')).toBeInTheDocument();
   });
 
-  it('renders outgoing edges and server-computed inbound edges with the inverse labels', () => {
+  it('groups edges by relationship (outgoing types + inbound inverse labels) and links each node', () => {
     render(<NodeDetail node={NODE} inbound={INBOUND} onNavigate={() => {}} />);
-    // outgoing
-    expect(screen.getByRole('button', { name: 'supersedes → node 0001' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'depends-on → node 0004' })).toBeInTheDocument();
-    // inbound (inverse labels)
-    expect(screen.getByRole('button', { name: 'child ← node 0004' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'superseded-by ← node 0009' })).toBeInTheDocument();
+    // relationship group labels
+    expect(screen.getByText('supersedes')).toBeInTheDocument();
+    expect(screen.getByText('depends-on')).toBeInTheDocument();
+    expect(screen.getByText('child')).toBeInTheDocument();
+    expect(screen.getByText('superseded-by')).toBeInTheDocument();
+    // each cited node id is a navigable chip (0004 appears in two groups → ≥1)
+    expect(screen.getByRole('button', { name: 'Open node 0001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open node 0009' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Open node 0004' }).length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders Context and Consequences markdown', () => {

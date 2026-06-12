@@ -29,6 +29,8 @@ import type {
   EdgeType,
 } from '@/journal/types';
 import { EDGE_TYPES } from '@/journal/types';
+import { USE_MOCK } from '@/mock/config';
+import * as journalMock from '@/mock/domains/journal';
 
 /** `<root>/.mmagent/journal`. */
 export function journalDirFor(root: string): string {
@@ -383,6 +385,7 @@ async function listNodeFiles(dir: string): Promise<string[]> {
 /** Read every node's full frontmatter (links included) — server-side, for the
  *  inbound-edge computation. Skips unparseable files. */
 export async function readNodeFrontmatters(root: string): Promise<NodeFrontmatter[]> {
+  if (USE_MOCK) return journalMock.readNodeFrontmatters();
   const dir = journalDirFor(root);
   let files: string[];
   try {
@@ -415,6 +418,7 @@ export async function readNodeFrontmatters(root: string): Promise<NodeFrontmatte
  * (no links/bodies). Graceful: missing dir → `empty`, EACCES → `unreadable`.
  */
 export async function readAllNodes(root: string): Promise<JournalReadOutcome> {
+  if (USE_MOCK) return journalMock.readAllNodes();
   const dir = journalDirFor(root);
   let files: string[];
   try {
@@ -497,6 +501,7 @@ export type ReadNodeResult =
 
 /** Lazily read a single node BODY by id. Confined; id MUST be `^\d{4}$`. */
 export async function readNode(root: string, id: string): Promise<ReadNodeResult> {
+  if (USE_MOCK) return journalMock.readNode(id);
   if (!/^\d{4}$/.test(id)) {
     return { ok: false, error: { id: null, filename: id, reason: 'invalid node id' } };
   }

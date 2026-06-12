@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardJournal } from '@/journal/guard';
 import { buildMmaClient } from '@/mma/server-client';
+import { USE_MOCK } from '@/mock/config';
+import { buildMockRecallEnvelope } from '@/mock/domains/journal/recall';
 
 /**
  * `GET /api/journal/recall/[batchId]` — server-side poll proxy for a recall
@@ -22,6 +24,13 @@ export async function GET(
   const { batchId } = await params;
   if (!batchId) {
     return NextResponse.json({ error: 'Missing batch id.' }, { status: 400 });
+  }
+
+  // Mock mode: a `mock-<base64url(query)>` id resolves to a synthesized terminal
+  // envelope built from the seed nodes (no MMA round-trip).
+  if (USE_MOCK && batchId.startsWith('mock-')) {
+    const query = Buffer.from(batchId.slice('mock-'.length), 'base64url').toString('utf8');
+    return NextResponse.json({ state: 'terminal', envelope: buildMockRecallEnvelope(query) });
   }
 
   let client;

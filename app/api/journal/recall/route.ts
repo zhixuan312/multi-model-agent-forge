@@ -5,6 +5,7 @@ import { buildMmaClient } from '@/mma/server-client';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { dispatchRecall } from '@/journal/recall';
 import { logAction } from '@/observability/action-log';
+import { USE_MOCK } from '@/mock/config';
 
 /**
  * `POST /api/journal/recall` — the ONE money-spending endpoint in Spec 6.
@@ -37,6 +38,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   if (query.length > 4000) {
     return NextResponse.json({ error: 'Query must be at most 4000 characters.' }, { status: 400 });
+  }
+
+  // Mock mode: skip MMA, encode the query in the batchId so the poll route can
+  // synthesize an answer from the seed nodes (the [batchId] route decodes it).
+  if (USE_MOCK) {
+    const batchId = `mock-${Buffer.from(query, 'utf8').toString('base64url')}`;
+    return NextResponse.json({ batchId }, { status: 202 });
   }
 
   const workspaceRoot = resolveWorkspaceRoot();

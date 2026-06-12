@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn';
  *   muted             zero state ("0 audit issues is good news, don't shout it")
  *   iconTint          decorative circle colour (accent · rose · sage · steel · neutral)
  */
-const metricVariants = cva('flex items-start gap-3.5 rounded-[var(--r-md)] border px-4 py-3.5', {
+const metricVariants = cva('forge-spotlight flex items-start gap-3.5 rounded-[var(--r-md)] border px-4 py-3.5', {
   variants: {
     tone: {
       neutral: 'border-line bg-surface',

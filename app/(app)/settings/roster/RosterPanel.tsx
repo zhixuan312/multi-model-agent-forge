@@ -33,10 +33,11 @@ const ROSTER_NOTE = `**Provider → model**
 Pick a provider first — the model list is limited to what that provider serves.`;
 
 /**
- * Roster panel (Spec 2 §Agent roster / agent-roster.html): one CARD per tier
- * (main / complex / standard), each a Provider select + a Model select that is
- * constrained to the models the chosen provider actually serves. Save PUTs the
- * whole roster to the admin API and refreshes.
+ * Roster panel (Spec 2 §Agent roster). One isolated CARD per tier (main /
+ * complex / standard), each with its OWN Save button — saving a card PUTs only
+ * that tier (`{ tiers: [<tier>] }`), exactly like Connections saves each section
+ * independently. Each card is a Provider select + a Model select constrained to
+ * the models the chosen provider serves.
  */
 export function RosterPanel({
   initialRoster,
@@ -50,12 +51,12 @@ export function RosterPanel({
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<RosterRowData[]>(initialRoster);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState<Tier | null>(null);
+  const [saved, setSaved] = useState<Tier | null>(null);
+  const [error, setError] = useState<{ tier: Tier; message: string } | null>(null);
 
   function update(tier: Tier, patch: Partial<RosterRowData>) {
-    setSaved(false);
+    setSaved((s) => (s === tier ? null : s));
     setRows((rs) => rs.map((r) => (r.tier === tier ? { ...r, ...patch } : r)));
   }
 
@@ -67,104 +68,109 @@ export function RosterPanel({
     update(tier, { providerId, model: current && models.includes(current) ? current : null });
   }
 
-  async function onSave() {
+  /** Save ONE tier — PUT only that tier so the others are untouched. */
+  async function save(tier: Tier) {
+    const row = rows.find((r) => r.tier === tier);
+    if (!row) return;
     setError(null);
-    setBusy(true);
+    setSaved(null);
+    setBusy(tier);
     try {
-      // Send each tier; an empty provider+model clears it (the core validates the
-      // both-or-neither rule).
-      const tiers = rows.map((r) => ({
-        tier: r.tier,
-        providerId: r.providerId || null,
-        model: r.model ?? '',
-      }));
       const res = await fetch('/api/roster', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tiers }),
+        body: JSON.stringify({ tiers: [{ tier: row.tier, providerId: row.providerId || null, model: row.model ?? '' }] }),
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(b?.error ?? 'Could not save the roster.');
+        setError({ tier, message: b?.error ?? 'Could not save this tier.' });
         return;
       }
-      setSaved(true);
+      setSaved(tier);
       router.refresh();
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  const errId = 'roster-error';
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-      {/* PRIMARY — one isolated card per tier (heterogeneous settings), then save */}
+      {/* PRIMARY — one isolated, independently-saved card per tier */}
       <div className="flex flex-col gap-4 lg:col-span-2">
         {rows.map((r) => {
           const meta = TIER_META[r.tier];
           const models = r.providerId ? modelsByProvider[r.providerId] ?? [] : [];
+          const errId = `roster-error-${r.tier}`;
           return (
             <Card key={r.tier} data-testid={`tier-${r.tier}`}>
-              <CardContent className="flex flex-col gap-4 py-5">
-                <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>
-                <FieldGrid cols={2}>
-                  <Field label="Provider" id={`provider-${r.tier}`}>
-                    {(p) => (
-                      <Select
-                        value={r.providerId ?? '__none'}
-                        onValueChange={(v) => onProviderChange(r.tier, v === '__none' ? null : v)}
-                      >
-                        <SelectTrigger {...p}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">— none</SelectItem>
-                          {providers.map((opt) => (
-                            <SelectItem key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </Field>
-                  <Field label="Model" id={`model-${r.tier}`}>
-                    {(p) => (
-                      <Select
-                        value={r.model ?? undefined}
-                        onValueChange={(v) => update(r.tier, { model: v })}
-                        disabled={!r.providerId}
-                      >
-                        <SelectTrigger {...p}>
-                          <SelectValue placeholder={r.providerId ? 'Select a model' : 'Choose a provider first'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {models.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </Field>
-                </FieldGrid>
-              </CardContent>
+              <form
+                aria-label={`${meta.label} tier`}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save(r.tier);
+                }}
+              >
+                <CardContent className="flex flex-col gap-4 py-5">
+                  <Mono className="!text-sm font-semibold text-ink">{meta.label}</Mono>
+                  <FieldGrid cols={2}>
+                    <Field label="Provider" id={`provider-${r.tier}`}>
+                      {(p) => (
+                        <Select
+                          value={r.providerId ?? '__none'}
+                          onValueChange={(v) => onProviderChange(r.tier, v === '__none' ? null : v)}
+                        >
+                          <SelectTrigger {...p}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— none</SelectItem>
+                            {providers.map((opt) => (
+                              <SelectItem key={opt.id} value={opt.id}>
+                                {opt.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </Field>
+                    <Field label="Model" id={`model-${r.tier}`}>
+                      {(p) => (
+                        <Select
+                          value={r.model ?? undefined}
+                          onValueChange={(v) => update(r.tier, { model: v })}
+                          disabled={!r.providerId}
+                        >
+                          <SelectTrigger {...p}>
+                            <SelectValue placeholder={r.providerId ? 'Select a model' : 'Choose a provider first'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {models.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {m}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </Field>
+                  </FieldGrid>
+
+                  <div className="flex items-center justify-end gap-2.5">
+                    {error?.tier === r.tier ? (
+                      <Micro id={errId} role="alert" className="mr-auto text-rose">
+                        {error.message}
+                      </Micro>
+                    ) : null}
+                    {saved === r.tier ? <Micro>Saved.</Micro> : null}
+                    <Button type="submit" loading={busy === r.tier} aria-describedby={error?.tier === r.tier ? errId : undefined}>
+                      {busy === r.tier ? 'Saving…' : 'Save'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </form>
             </Card>
           );
         })}
-
-        <div className="flex items-center justify-end gap-3">
-          {error ? (
-            <Micro id={errId} role="alert" className="mr-auto text-rose">
-              {error}
-            </Micro>
-          ) : null}
-          {saved ? <Micro>Saved.</Micro> : null}
-          <Button type="button" onClick={onSave} loading={busy} aria-describedby={error ? errId : undefined}>
-            {busy ? 'Saving…' : 'Save roster'}
-          </Button>
-        </div>
       </div>
 
       {/* RAIL — one combined note */}

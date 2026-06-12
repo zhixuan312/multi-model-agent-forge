@@ -15,6 +15,8 @@ import { teamSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { USE_MOCK } from '@/mock/config';
+import * as reposMock from '@/mock/domains/workspace/repos';
 
 export interface ReposDeps {
   db?: Db;
@@ -93,6 +95,7 @@ async function gitToken(db: Db, secrets: SecretStore): Promise<string | undefine
 
 /** List all repos (unfiltered — the filter runs client-side, Flow E). */
 export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
+  if (USE_MOCK) return reposMock.listRepos();
   const db = deps.db ?? getDb();
   const rows = await db.select().from(repo).orderBy(repo.createdAt);
   return rows.map(toView);
@@ -103,6 +106,7 @@ export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
  * set the resolved path/branch/sha + status='cloned' (or 'error' on failure).
  */
 export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Promise<CloneRepoResult> {
+  if (USE_MOCK) return reposMock.cloneAndRegister(input);
   const db = deps.db ?? getDb();
   const parsed = cloneRepoSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message };
@@ -163,6 +167,7 @@ export type PullResult =
 
 /** Re-pull an existing repo (Flow B pull variant). */
 export async function pullExisting(id: string, deps: ReposDeps = {}): Promise<PullResult> {
+  if (USE_MOCK) return reposMock.pullExisting(id);
   const db = deps.db ?? getDb();
   const [row] = await db.select().from(repo).where(eq(repo.id, id)).limit(1);
   if (!row) return { kind: 'not_found' };
@@ -190,6 +195,7 @@ export type DeleteRepoResult = { kind: 'deleted' } | { kind: 'not_found' };
 
 /** Remove a repo row (does not delete files on disk in this slice). */
 export async function deleteRepo(id: string, deps: ReposDeps = {}): Promise<DeleteRepoResult> {
+  if (USE_MOCK) return reposMock.deleteRepo(id);
   const db = deps.db ?? getDb();
   const rows = await db.delete(repo).where(eq(repo.id, id)).returning({ id: repo.id });
   return rows.length > 0 ? { kind: 'deleted' } : { kind: 'not_found' };

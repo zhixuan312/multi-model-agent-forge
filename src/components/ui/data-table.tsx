@@ -20,11 +20,17 @@ import { Micro } from '@/components/ui/typography';
  * pattern: a fixed `pageSize`, consistent row heights, and a pager — no internal
  * scroll and no viewport math. Pass `ColumnDef`s with `size` for fixed widths;
  * leave a column's `size` unset to let it flex.
+ *
+ * `fill` mode (opt-in): show ALL rows and scroll internally with a sticky header,
+ * filling the parent's height instead of paginating. Use inside a flex/`fill`
+ * page so the table reaches the page bottom (like the Journal tabs).
  */
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   pageSize?: number;
+  /** Show all rows and scroll internally (sticky header), filling the parent. */
+  fill?: boolean;
   emptyState?: ReactNode;
   /** Stable domain id for a row — required for inline expansion. */
   getRowId?: (row: TData) => string;
@@ -43,6 +49,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   pageSize = 10,
+  fill = false,
   emptyState,
   getRowId,
   expandedId,
@@ -52,6 +59,8 @@ export function DataTable<TData, TValue>({
   'data-testid': testId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  // In fill mode show every row (no pagination) — the body scrolls instead.
+  const effectivePageSize = fill ? 100_000 : pageSize;
   const table = useReactTable({
     data,
     columns,
@@ -60,7 +69,7 @@ export function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize } },
+    initialState: { pagination: { pageSize: effectivePageSize } },
   });
 
   const rows = table.getRowModel().rows;
@@ -71,13 +80,9 @@ export function DataTable<TData, TValue>({
   const colCount = table.getVisibleLeafColumns().length;
   const showTable = data.length > 0 || leadingRow != null;
 
-  return (
-    <div className={cn('flex flex-col', className)}>
-      {!showTable ? (
-        <div className="grid place-items-center p-10">{emptyState}</div>
-      ) : (
-        <Table className="table-fixed" data-testid={testId}>
-          <TableHeader>
+  const body = (
+    <Table className="table-fixed" data-testid={testId}>
+      <TableHeader className={fill ? 'sticky top-0 z-10 [&_th]:border-b [&_th]:border-line [&_th]:bg-surface' : undefined}>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
                 {hg.headers.map((h) => {
@@ -147,7 +152,17 @@ export function DataTable<TData, TValue>({
               );
             })}
           </TableBody>
-        </Table>
+    </Table>
+  );
+
+  return (
+    <div className={cn('flex flex-col', fill && 'min-h-0 flex-1', className)}>
+      {!showTable ? (
+        <div className="grid place-items-center p-10">{emptyState}</div>
+      ) : fill ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+      ) : (
+        body
       )}
 
       <div className="mt-auto flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">

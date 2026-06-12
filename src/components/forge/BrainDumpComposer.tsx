@@ -47,7 +47,7 @@ export function BrainDumpComposer(props: BrainDumpComposerProps) {
         placeholder="Tell Forge everything you know…"
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        rows={8}
+        rows={5}
       />
 
       <div className="flex flex-wrap items-center gap-2" data-testid="cbar">

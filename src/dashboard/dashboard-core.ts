@@ -23,6 +23,8 @@ import {
   type ProjectsDeps,
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
+import { USE_MOCK } from '@/mock/config';
+import * as dashboardMock from '@/mock/domains/projects/dashboard';
 
 export interface DashboardCollaborator {
   id: string;
@@ -64,6 +66,7 @@ export async function dashboardProjects(
   actor: ProjectActor,
   deps: ProjectsDeps = {},
 ): Promise<DashboardProject[]> {
+  if (USE_MOCK) return dashboardMock.dashboardProjects();
   const db: Db = deps.db ?? getDb();
   const base = await visibleProjects(actor, { db });
   if (base.length === 0) return [];

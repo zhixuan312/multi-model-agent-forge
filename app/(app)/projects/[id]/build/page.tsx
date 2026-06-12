@@ -4,6 +4,8 @@ import { getDb } from '@/db/client';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { loadBuildView } from '@/build/build-core';
 import { BuildMonitor } from '@/components/forge/BuildMonitor';
+import { USE_MOCK } from '@/mock/config';
+import { StagePlaceholder } from '@/components/forge/StagePlaceholder';
 
 /**
  * Build pipeline route (Spec 7 §UI). RSC first paint loads the plan + plan_task +
@@ -15,6 +17,8 @@ export default async function BuildPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+
+  if (USE_MOCK) return <StagePlaceholder stage="Build" />;
 
   try {
     await assertProjectReadable(id, { id: me.id });

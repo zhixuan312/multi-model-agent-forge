@@ -96,7 +96,7 @@ export function ProjectFilterBar({ projects }: { projects: DashboardProject[] })
   const needsCount = projects.filter(needsAction).length;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <Toolbar
         actions={
           <div
@@ -171,15 +171,17 @@ export function ProjectFilterBar({ projects }: { projects: DashboardProject[] })
         ) : null}
       </Toolbar>
 
-      {shown.length === 0 ? (
-        <EmptyState icon={<Search />} title="No projects match" description="Try a different phase, owner, or search term." />
-      ) : (
-        <Grid min="360px" data-testid="project-grid">
-          {shown.map((p) => (
-            <ProjectCard key={p.id} project={p} />
-          ))}
-        </Grid>
-      )}
+      <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+        {shown.length === 0 ? (
+          <EmptyState icon={<Search />} title="No projects match" description="Try a different phase, owner, or search term." />
+        ) : (
+          <Grid min="320px" data-testid="project-grid">
+            {shown.map((p) => (
+              <ProjectCard key={p.id} project={p} />
+            ))}
+          </Grid>
+        )}
+      </div>
     </div>
   );
 }

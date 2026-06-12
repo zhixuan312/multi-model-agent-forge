@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
+  Card,
+  CardContent,
   Field,
   FieldGrid,
   Input,
@@ -12,9 +14,11 @@ import {
   Avatar,
   Heading,
   Label,
-  TextSm,
+  TextStrong,
+  Text,
   Micro,
 } from '@/components/ui';
+import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -22,12 +26,16 @@ import type { AuthedMember } from '@/auth/auth-provider';
 /** Avatar tint palette (warm-world accents from forge.css / profile.html). */
 const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E'];
 
+const PROFILE_NOTE = `**Just you**
+
+Your **username** is your login key — it can't be changed. Your display name and avatar are yours to edit anytime.`;
+
 /**
- * Profile client form (Spec 1 §Profile / profile.html). Three cards:
- *  - Account: avatar tint + display name (username read-only — the login key, F23)
- *  - Password: current + new + confirm (new ≥ PASSWORD_MIN_LENGTH)
- *  - Sign out
- * Account/password submit to route handlers; sign-out POSTs to logout.
+ * Profile client surface (Spec 1 §Profile). The Team-Settings shell: a 2/3 stack
+ * of isolated cards — **Account** (avatar tint + display name; username read-only)
+ * and **Password** — each saving independently, then a 1/3 rail with the
+ * equal-rights note and a **Sign out** card. Account/password submit to route
+ * handlers; sign-out POSTs to logout.
  */
 export function ProfileForm({ member }: { member: AuthedMember }) {
   const router = useRouter();
@@ -117,146 +125,161 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[640px] divide-y divide-line">
-      {/* ACCOUNT */}
-      <form onSubmit={saveAccount} aria-label="Account" className="flex flex-col gap-5 pb-9">
-        <Heading className="!text-base">Account</Heading>
-            <div className="flex items-center gap-4">
-              <Avatar size="lg" initials={initials(displayName || member.displayName)} tint={tint} aria-hidden />
-              <div className="flex flex-col gap-1.5">
-                <Label as="span">Avatar colour</Label>
-                <div role="radiogroup" aria-label="Avatar colour" className="flex gap-2">
-                  {TINTS.map((t) => (
-                    <button
-                      type="button"
-                      key={t}
-                      role="radio"
-                      aria-checked={t === tint}
-                      aria-label={`Avatar colour ${t}`}
-                      onClick={() => setTint(t)}
-                      style={{ background: t }}
-                      className={cn(
-                        'focus-ring size-6 rounded-full transition-transform hover:scale-110',
-                        t === tint && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
-                      )}
-                    />
-                  ))}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+      {/* PRIMARY — Account + Password cards */}
+      <div className="flex flex-col gap-4 lg:col-span-2">
+        {/* ACCOUNT */}
+        <Card>
+          <form onSubmit={saveAccount} aria-label="Account">
+            <CardContent className="flex flex-col gap-5 py-5">
+              <Heading className="!text-base">Account</Heading>
+              <div className="flex items-center gap-4">
+                <Avatar size="lg" initials={initials(displayName || member.displayName)} tint={tint} aria-hidden />
+                <div className="flex flex-col gap-1.5">
+                  <Label as="span">Avatar colour</Label>
+                  <div role="radiogroup" aria-label="Avatar colour" className="flex gap-2">
+                    {TINTS.map((t) => (
+                      <button
+                        type="button"
+                        key={t}
+                        role="radio"
+                        aria-checked={t === tint}
+                        aria-label={`Avatar colour ${t}`}
+                        onClick={() => setTint(t)}
+                        style={{ background: t }}
+                        className={cn(
+                          'focus-ring size-6 rounded-full transition-transform hover:scale-110',
+                          t === tint && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
+                        )}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <FieldGrid cols={2}>
-              <Field label="Display name">
+              <FieldGrid cols={2}>
+                <Field label="Display name">
+                  {(p) => (
+                    <Input {...p} name="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                  )}
+                </Field>
+                <Field label="Username" hint="your login">
+                  {(p) => (
+                    <Input
+                      {...p}
+                      name="username"
+                      value={member.username}
+                      readOnly
+                      aria-readonly="true"
+                      className="cursor-not-allowed bg-surface-2 font-mono text-ink-faint"
+                    />
+                  )}
+                </Field>
+              </FieldGrid>
+
+              {accountError ? (
+                <Micro role="alert" className="block text-rose">
+                  {accountError}
+                </Micro>
+              ) : null}
+              {accountOk ? (
+                <Micro role="status" className="block text-[var(--sage-deep)]">
+                  Profile saved.
+                </Micro>
+              ) : null}
+
+              <div className="flex justify-end">
+                <Button type="submit" loading={savingAccount}>
+                  {savingAccount ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </CardContent>
+          </form>
+        </Card>
+
+        {/* PASSWORD */}
+        <Card>
+          <form onSubmit={savePassword} aria-label="Password">
+            <CardContent className="flex flex-col gap-4 py-5">
+              <Heading className="!text-base">Password</Heading>
+              <Field label="Current password">
                 {(p) => (
                   <Input
                     {...p}
-                    name="displayName"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field label="Username" hint="your login">
-                {(p) => (
-                  <Input
-                    {...p}
-                    name="username"
-                    value={member.username}
-                    readOnly
-                    aria-readonly="true"
-                    className="cursor-not-allowed bg-surface-2 font-mono text-ink-faint"
-                  />
-                )}
-              </Field>
-            </FieldGrid>
-
-            {accountError ? (
-              <Micro role="alert" className="block text-rose">
-                {accountError}
-              </Micro>
-            ) : null}
-            {accountOk ? (
-              <Micro role="status" className="block text-[var(--sage-deep)]">
-                Profile saved.
-              </Micro>
-            ) : null}
-
-            <div className="flex justify-end">
-              <Button type="submit" loading={savingAccount}>
-                {savingAccount ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-      </form>
-
-      {/* PASSWORD */}
-      <form onSubmit={savePassword} aria-label="Password" className="flex flex-col gap-4 py-9">
-        <Heading className="!text-base">Password</Heading>
-            <Field label="Current password">
-              {(p) => (
-                <Input
-                  {...p}
-                  name="currentPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                />
-              )}
-            </Field>
-            <FieldGrid cols={2}>
-              <Field label="New password">
-                {(p) => (
-                  <Input
-                    {...p}
-                    name="newPassword"
+                    name="currentPassword"
                     type="password"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
                   />
                 )}
               </Field>
-              <Field label="Confirm new password">
-                {(p) => (
-                  <Input
-                    {...p}
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                )}
-              </Field>
-            </FieldGrid>
+              <FieldGrid cols={2}>
+                <Field label="New password">
+                  {(p) => (
+                    <Input
+                      {...p}
+                      name="newPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field label="Confirm new password">
+                  {(p) => (
+                    <Input
+                      {...p}
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  )}
+                </Field>
+              </FieldGrid>
 
-            {passwordError ? (
-              <Micro role="alert" className="block text-rose">
-                {passwordError}
-              </Micro>
-            ) : null}
-            {passwordOk ? (
-              <Micro role="status" className="block text-[var(--sage-deep)]">
-                Password updated.
-              </Micro>
-            ) : null}
+              {passwordError ? (
+                <Micro role="alert" className="block text-rose">
+                  {passwordError}
+                </Micro>
+              ) : null}
+              {passwordOk ? (
+                <Micro role="status" className="block text-[var(--sage-deep)]">
+                  Password updated.
+                </Micro>
+              ) : null}
 
-            <div className="flex justify-end">
-              <Button type="submit" loading={savingPassword}>
-                {savingPassword ? 'Updating…' : 'Update password'}
-              </Button>
-            </div>
-      </form>
+              <div className="flex justify-end">
+                <Button type="submit" loading={savingPassword}>
+                  {savingPassword ? 'Updating…' : 'Update password'}
+                </Button>
+              </div>
+            </CardContent>
+          </form>
+        </Card>
+      </div>
 
-      {/* SIGN OUT */}
-      <div className="flex items-center justify-between gap-4 py-9">
-        <div>
-          <TextSm className="font-semibold text-ink">Sign out</TextSm>
-          <Micro>End your session on this device</Micro>
-        </div>
-        <Button variant="secondary" leftIcon={<LogOut />} onClick={signOut} loading={signingOut} className="text-rose hover:text-rose">
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </Button>
+      {/* RAIL — note + sign out */}
+      <div className="flex flex-col gap-4">
+        <SettingsAccessNote body={PROFILE_NOTE} />
+        <Card>
+          <CardContent className="flex flex-col gap-3 py-5">
+            <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
+            <Text className="!text-xs">End your session on this device.</Text>
+            <Button
+              variant="secondary"
+              leftIcon={<LogOut />}
+              onClick={signOut}
+              loading={signingOut}
+              className="w-full text-rose hover:text-rose"
+            >
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

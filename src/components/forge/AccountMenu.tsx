@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserRound, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
+import { UserRound, LogOut, ChevronsUpDown } from 'lucide-react';
 import {
   Avatar,
   Badge,
@@ -44,18 +44,14 @@ export function AccountMenu({
     router.refresh();
   }
 
+  // Team settings lives in the sidebar nav (under ADMIN) — the account menu stays
+  // personal: Profile + Sign out.
   const items = (
     <>
       <DropdownMenuItem onSelect={() => router.push('/profile')}>
         <UserRound />
         Profile
       </DropdownMenuItem>
-      {member.isAdmin ? (
-        <DropdownMenuItem onSelect={() => router.push('/settings')}>
-          <Settings />
-          Team settings
-        </DropdownMenuItem>
-      ) : null}
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => void signOut()} disabled={signingOut}>
         <LogOut />

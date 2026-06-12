@@ -1,15 +1,13 @@
 // @vitest-environment node
-// Real-Chromium @pdf tests (tagged behind RUN_PDF_TESTS). They render actual
-// PDFs and read them back with pdf-parse. Skipped by default to keep the unit
-// loop fast; CI sets RUN_PDF_TESTS=1.
+// Real-Chromium @pdf tests. They render actual PDFs and read them back with
+// pdf-parse, using the Chromium bundled with the project's headless toolchain
+// (~6s). They always run so the suite has no environment-gated skips.
 import { PdfRenderer, artifactRenderJob, defaultPdfPageTexts, PdfEngineError } from '@/export/pdf/render';
 import { loadExportConfig } from '@/export/config';
 import { parseArtifactSections } from '@/export/sections';
 import { buildCombinedJob } from '@/export/combined-html';
 import type { TemplateInput, CoverMeta } from '@/export/types';
 import type { CollectedArtifact } from '@/export/collect-artifacts';
-
-const RUN = process.env.RUN_PDF_TESTS === '1' || process.env.RUN_PDF_TESTS === 'true';
 
 const META: CoverMeta = {
   owner: 'Maya Adeyemi',
@@ -48,7 +46,7 @@ function specInput(): TemplateInput {
   };
 }
 
-describe.skipIf(!RUN)('@pdf real Chromium render', () => {
+describe('@pdf real Chromium render', () => {
   it('produces a valid multi-page PDF with section-per-page + footer + TOC ranges (test 9)', async () => {
     const cfg = loadExportConfig();
     const r = new PdfRenderer({ config: cfg, pdfPageTexts: defaultPdfPageTexts });

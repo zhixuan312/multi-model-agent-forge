@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { member } from '@/db/schema/identity';
+import { member, session } from '@/db/schema/identity';
 
 /**
  * Own-profile account update (Spec 1 §Profile / F10, F23). A member edits their
@@ -40,4 +40,24 @@ export async function updateOwnProfile(
 
   if (!updated) return { kind: 'not_found' };
   return { kind: 'updated', displayName: updated.displayName, avatarTint: updated.avatarTint };
+}
+
+/** Read-only profile facts for the Profile status row (member-since + own active sessions). */
+export interface ProfileMeta {
+  createdAt: Date | null;
+  activeSessions: number;
+}
+
+export async function getProfileMeta(memberId: string, deps: { db?: Db } = {}): Promise<ProfileMeta> {
+  const db = deps.db ?? getDb();
+  const [m] = await db
+    .select({ createdAt: member.createdAt })
+    .from(member)
+    .where(eq(member.id, memberId))
+    .limit(1);
+  const [s] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(session)
+    .where(and(eq(session.memberId, memberId), sql`${session.expiresAt} > now()`));
+  return { createdAt: m?.createdAt ?? null, activeSessions: Number(s?.n ?? 0) };
 }

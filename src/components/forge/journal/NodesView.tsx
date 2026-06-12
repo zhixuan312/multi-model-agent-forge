@@ -42,8 +42,8 @@ export function NodesView({
   }, [nodes, search, statusFilter, desc]);
 
   return (
-    <div className="flex w-[300px] shrink-0 flex-col gap-3 border-r border-line pr-4">
-      <div className="flex flex-col gap-2">
+    <div className="flex h-full min-h-0 w-full flex-col gap-3">
+      <div className="flex shrink-0 flex-col gap-2">
         <label className="sr-only" htmlFor="journal-search">
           Search nodes
         </label>
@@ -88,7 +88,7 @@ export function NodesView({
         ) : null}
       </div>
 
-      <ul className="flex flex-col gap-1 overflow-y-auto">
+      <ul className="-mr-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
         {filtered.map((n) => (
           <li key={n.id}>
             <button

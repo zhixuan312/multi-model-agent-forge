@@ -1,0 +1,6 @@
+[
+  { "id": "f1", "question": "When do we split a settings page into one table versus many cards?" },
+  { "id": "f2", "question": "Why don't we trust headless puppeteer screenshots for interaction?" },
+  { "id": "f3", "question": "Where do reminders and notes belong in the page layout?" },
+  { "id": "f4", "question": "How does the mock backend stay isolated from the real path?" }
+]

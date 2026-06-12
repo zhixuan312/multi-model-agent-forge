@@ -4,7 +4,7 @@
  * NEUTRAL grey chip (never throws). Status/edge chips always pair colour with a
  * text label (never colour-only — a11y F17).
  */
-import { isStatus, isEdgeType } from '@/journal/types';
+import { isStatus } from '@/journal/types';
 
 /** status → semantic token (background-tint + text class). */
 const STATUS_TOKEN: Record<string, { label: string; cls: string; dot: string }> = {
@@ -33,14 +33,6 @@ export function statusStyle(status: string): StatusStyle {
     return { ...t, known: true };
   }
   return { label: status || 'unknown', cls: NEUTRAL.cls, dot: NEUTRAL.dot, known: false };
-}
-
-/** Edge chip style — known edge types get the accent style, unknown go neutral. */
-export function edgeStyle(type: string): { cls: string; known: boolean } {
-  if (isEdgeType(type)) {
-    return { cls: 'bg-accent-tint text-accent-deep border-accent', known: true };
-  }
-  return { cls: NEUTRAL.cls, known: false };
 }
 
 /** Write-log op → colour class (create=sage, refine=ember, supersede=amber,

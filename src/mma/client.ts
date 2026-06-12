@@ -128,49 +128,70 @@ export class MmaClient {
   }
 
   /**
-   * Generic dispatch: `POST /<route>?cwd=<path>`. Returns `{ batchId }` from the
-   * 202 body. Any non-202 (or transport failure) throws a redacted error.
+   * Route-name → unified task type mapping. Converts Forge's hyphenated route
+   * names to the underscore-based TaskType enum used by `POST /task`.
+   */
+  private routeToTaskType(route: string): string {
+    const MAP: Record<string, string> = {
+      'investigate': 'investigate',
+      'research': 'research',
+      'audit': 'audit',
+      'delegate': 'delegate',
+      'execute-plan': 'execute_plan',
+      'review': 'review',
+      'debug': 'debug',
+      'journal-record': 'journal_record',
+      'journal-recall': 'journal_recall',
+    };
+    return MAP[route] ?? route;
+  }
+
+  /**
+   * Generic dispatch: `POST /task?cwd=<path>` with `{ type, ...body }`.
+   * Returns `{ batchId }` (mapped from `taskId`) from the 202 body.
    */
   async dispatch(
     route: string,
     args: { cwd: string; body: unknown },
   ): Promise<{ batchId: string }> {
-    const url = `${this.url(`/${route}`)}?cwd=${encodeURIComponent(args.cwd)}`;
+    const taskType = this.routeToTaskType(route);
+    const url = `${this.url('/task')}?cwd=${encodeURIComponent(args.cwd)}`;
+    const payload = { type: taskType, ...(args.body as Record<string, unknown> ?? {}) };
     let res: Response;
     try {
       res = await this.timedFetch(url, {
         method: 'POST',
         headers: this.authedHeaders({ 'content-type': 'application/json' }),
-        body: JSON.stringify(args.body ?? {}),
+        body: JSON.stringify(payload),
       });
     } catch {
-      // AbortError / network error — never echo the init (which holds the token).
-      throw new Error(`MMA dispatch to /${route} failed (network error or timeout)`);
+      throw new Error(`MMA dispatch to /task (${taskType}) failed (network error or timeout)`);
     }
     if (res.status !== 202) {
-      throw new Error(`MMA dispatch to /${route} failed with HTTP ${res.status}`);
+      throw new Error(`MMA dispatch to /task (${taskType}) failed with HTTP ${res.status}`);
     }
-    const json = (await res.json().catch(() => null)) as { batchId?: string } | null;
-    if (!json?.batchId) {
-      throw new Error(`MMA dispatch to /${route} returned no batchId`);
+    const json = (await res.json().catch(() => null)) as { taskId?: string; batchId?: string } | null;
+    const id = json?.taskId ?? json?.batchId;
+    if (!id) {
+      throw new Error(`MMA dispatch to /task (${taskType}) returned no taskId`);
     }
-    return { batchId: json.batchId };
+    return { batchId: id };
   }
 
   /**
-   * Poll one batch: `GET /batch/:id`. MMA returns `202 text/plain` (running
-   * headline) while pending and `200 application/json` (terminal 7-field
-   * envelope) when complete/failed. Discriminated by status + content-type.
+   * Poll one task: `GET /task/:id`. MMA returns `202 text/plain` (running
+   * headline) while pending and `200 application/json` (terminal envelope)
+   * when complete/failed. Discriminated by status + content-type.
    */
   async poll(batchId: string): Promise<BatchPollResult> {
     let res: Response;
     try {
-      res = await this.timedFetch(this.url(`/batch/${encodeURIComponent(batchId)}`), {
+      res = await this.timedFetch(this.url(`/task/${encodeURIComponent(batchId)}`), {
         method: 'GET',
         headers: this.authedHeaders(),
       });
     } catch {
-      throw new Error(`MMA poll of batch ${batchId} failed (network error or timeout)`);
+      throw new Error(`MMA poll of task ${batchId} failed (network error or timeout)`);
     }
     const ctype = res.headers.get('content-type') ?? '';
     if (res.status === 202 || ctype.includes('text/plain')) {
@@ -181,7 +202,7 @@ export class MmaClient {
       const envelope = await res.json().catch(() => null);
       return { state: 'terminal', envelope };
     }
-    throw new Error(`MMA poll of batch ${batchId} returned HTTP ${res.status}`);
+    throw new Error(`MMA poll of task ${batchId} returned HTTP ${res.status}`);
   }
 
   /** GET /health (UNAUTHENTICATED). Folds any failure to `unreachable`. */

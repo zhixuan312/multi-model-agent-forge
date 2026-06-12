@@ -5,26 +5,37 @@ import { Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Input, EmptyState, Separator, Toolbar, Grid } from '@/components/ui';
 import { ProjectCard } from '@/components/forge/ProjectCard';
-import type { ProjectListItem } from '@/projects/projects-core';
+import type { DashboardProject } from '@/dashboard/dashboard-core';
 import type { ProjectPhase } from '@/db/enums';
 
 /**
- * ProjectFilterBar (Spec 3 flow 2) — the client island over the RSC-hydrated
- * visible set. Filters in-memory (bounded ≤ ~200 projects → instant, no
+ * ProjectFilterBar (Spec 3 flow 2) — the Controls + Primary client island over
+ * the RSC-hydrated dashboard set. Filters in-memory (bounded → instant, no
  * per-keystroke server query):
- *   - search : case-insensitive trimmed substring over name + summary
- *   - phase  : All · Design (design|frozen) · Build (build) · Done (done)
- *   - mine|all : Mine = owner-or-collaborator; All team = the full visible set
+ *   - search       : substring over name + summary
+ *   - phase        : All · Design · Build · Done
+ *   - needs-action : projects blocked on a human gate or an open audit finding
+ *   - mine|all     : Mine = owner-or-collaborator; All team = the full visible set
  *
  * The pure predicate is exported as `filterProjects` so it is unit-testable.
  */
-
 export type PhaseFilter = 'all' | 'design' | 'build' | 'done';
 
 export interface ProjectFilterState {
   search: string;
   phase: PhaseFilter;
+  needsAction: boolean;
   mine: boolean;
+}
+
+/** The minimal shape `filterProjects` reads (a `DashboardProject` satisfies it). */
+export interface FilterableProject {
+  name: string;
+  summary: string | null;
+  phase: ProjectPhase;
+  isMember: boolean;
+  awaitingHuman: number;
+  openAuditIssues: number;
 }
 
 const PHASE_BUCKET: Record<ProjectPhase, Exclude<PhaseFilter, 'all'>> = {
@@ -34,15 +45,18 @@ const PHASE_BUCKET: Record<ProjectPhase, Exclude<PhaseFilter, 'all'>> = {
   done: 'done',
 };
 
+const needsAction = (p: FilterableProject) => p.awaitingHuman > 0 || p.openAuditIssues > 0;
+
 /** Pure filter — exported for unit tests. */
-export function filterProjects(
-  items: ProjectListItem[],
-  { search, phase, mine }: ProjectFilterState,
-): ProjectListItem[] {
-  const q = search.trim().toLowerCase();
+export function filterProjects<T extends FilterableProject>(
+  items: T[],
+  state: ProjectFilterState,
+): T[] {
+  const q = state.search.trim().toLowerCase();
   return items.filter((p) => {
-    if (mine && !p.isMember) return false;
-    if (phase !== 'all' && PHASE_BUCKET[p.phase] !== phase) return false;
+    if (state.mine && !p.isMember) return false;
+    if (state.phase !== 'all' && PHASE_BUCKET[p.phase] !== state.phase) return false;
+    if (state.needsAction && !needsAction(p)) return false;
     if (q !== '') {
       const hay = `${p.name} ${p.summary ?? ''}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -51,7 +65,7 @@ export function filterProjects(
   });
 }
 
-function bucketCount(items: ProjectListItem[], bucket: Exclude<PhaseFilter, 'all'>): number {
+function bucketCount(items: FilterableProject[], bucket: Exclude<PhaseFilter, 'all'>): number {
   return items.filter((p) => PHASE_BUCKET[p.phase] === bucket).length;
 }
 
@@ -62,14 +76,15 @@ const PHASE_CHIPS: { value: PhaseFilter; label: string }[] = [
   { value: 'done', label: 'Done' },
 ];
 
-export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) {
+export function ProjectFilterBar({ projects }: { projects: DashboardProject[] }) {
   const [search, setSearch] = useState('');
   const [phase, setPhase] = useState<PhaseFilter>('all');
+  const [needs, setNeeds] = useState(false);
   const [mine, setMine] = useState(false);
 
   const shown = useMemo(
-    () => filterProjects(projects, { search, phase, mine }),
-    [projects, search, phase, mine],
+    () => filterProjects(projects, { search, phase, needsAction: needs, mine }),
+    [projects, search, phase, needs, mine],
   );
 
   const counts: Record<PhaseFilter, number> = {
@@ -78,6 +93,7 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
     build: bucketCount(projects, 'build'),
     done: bucketCount(projects, 'done'),
   };
+  const needsCount = projects.filter(needsAction).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -137,6 +153,22 @@ export function ProjectFilterBar({ projects }: { projects: ProjectListItem[] }) 
             </button>
           ))}
         </div>
+        {needsCount > 0 ? (
+          <button
+            type="button"
+            aria-pressed={needs}
+            onClick={() => setNeeds((v) => !v)}
+            className={cn(
+              'focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+              needs
+                ? 'bg-[var(--amber)] text-white'
+                : 'border border-line-strong bg-surface text-ink-soft hover:text-ink',
+            )}
+          >
+            <span className={cn('size-1.5 rounded-full', needs ? 'bg-white' : 'bg-[var(--amber)]')} />
+            Needs action {needsCount}
+          </button>
+        ) : null}
       </Toolbar>
 
       {shown.length === 0 ? (

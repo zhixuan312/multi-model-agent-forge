@@ -10,6 +10,10 @@ import {
   CardContent,
   Badge,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
   Textarea,
   Heading,
   Title,
@@ -211,17 +215,17 @@ export function FreezeClient({
           <div className="flex flex-col gap-2 rounded-[var(--r-md)] border border-dashed border-line-strong p-3">
             <Micro className="!font-medium !uppercase !tracking-wide">Add your own</Micro>
             <div className="flex items-start gap-2">
-              <Select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as LearningType)}
-                aria-label="Learning type"
-                className="w-auto"
-              >
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
+              <Select value={newType} onValueChange={(v) => setNewType(v as LearningType)}>
+                <SelectTrigger aria-label="Learning type" className="w-auto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <Textarea
                 value={newBody}

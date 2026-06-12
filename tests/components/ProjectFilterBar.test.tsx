@@ -1,8 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ProjectFilterBar, filterProjects } from '@/components/forge/ProjectFilterBar';
-import type { ProjectListItem } from '@/projects/projects-core';
+import type { DashboardProject } from '@/dashboard/dashboard-core';
 
-function item(over: Partial<ProjectListItem>): ProjectListItem {
+function item(over: Partial<DashboardProject>): DashboardProject {
   return {
     id: over.id ?? 'p',
     name: over.name ?? 'Project',
@@ -24,11 +24,17 @@ function item(over: Partial<ProjectListItem>): ProjectListItem {
     ],
     repoCount: 1,
     unavailableRepoCount: 0,
+    awaitingHuman: 0,
+    openAuditIssues: 0,
+    agentsRunning: 0,
+    latestArtifact: null,
+    collaborators: [],
+    nextAction: { label: 'Continue exploration', tone: 'normal' },
     ...over,
   };
 }
 
-const projects: ProjectListItem[] = [
+const projects: DashboardProject[] = [
   item({ id: 'a', name: 'Foo Bar', phase: 'design', isMember: true }),
   item({ id: 'b', name: 'Payments', summary: 'refund flow', phase: 'build', isMember: false }),
   item({ id: 'c', name: 'Reranker', phase: 'done', isMember: false }),
@@ -37,27 +43,27 @@ const projects: ProjectListItem[] = [
 
 describe('filterProjects (pure)', () => {
   it('search is case-insensitive trimmed substring over name + summary', () => {
-    expect(filterProjects(projects, { search: '  FOO ', phase: 'all', mine: false }).map((p) => p.id)).toEqual(['a']);
+    expect(filterProjects(projects, { search: '  FOO ', phase: 'all', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['a']);
     // summary match
-    expect(filterProjects(projects, { search: 'refund', phase: 'all', mine: false }).map((p) => p.id)).toEqual(['b']);
+    expect(filterProjects(projects, { search: 'refund', phase: 'all', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['b']);
     // whitespace-only matches all
-    expect(filterProjects(projects, { search: '   ', phase: 'all', mine: false })).toHaveLength(4);
+    expect(filterProjects(projects, { search: '   ', phase: 'all', needsAction: false, mine: false })).toHaveLength(4);
   });
 
   it('null summary only matches on name', () => {
     // 'reranker' has null summary; searching its name matches, a non-name term does not
-    expect(filterProjects(projects, { search: 'rerank', phase: 'all', mine: false }).map((p) => p.id)).toEqual(['c']);
+    expect(filterProjects(projects, { search: 'rerank', phase: 'all', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['c']);
   });
 
   it('phase buckets design|frozen→design, build→build, done→done', () => {
-    expect(filterProjects(projects, { search: '', phase: 'design', mine: false }).map((p) => p.id).sort()).toEqual(['a', 'd']);
-    expect(filterProjects(projects, { search: '', phase: 'build', mine: false }).map((p) => p.id)).toEqual(['b']);
-    expect(filterProjects(projects, { search: '', phase: 'done', mine: false }).map((p) => p.id)).toEqual(['c']);
+    expect(filterProjects(projects, { search: '', phase: 'design', needsAction: false, mine: false }).map((p) => p.id).sort()).toEqual(['a', 'd']);
+    expect(filterProjects(projects, { search: '', phase: 'build', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['b']);
+    expect(filterProjects(projects, { search: '', phase: 'done', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['c']);
   });
 
   it('mine filters to owner-or-collaborator; all team shows the full set', () => {
-    expect(filterProjects(projects, { search: '', phase: 'all', mine: true }).map((p) => p.id)).toEqual(['a']);
-    expect(filterProjects(projects, { search: '', phase: 'all', mine: false })).toHaveLength(4);
+    expect(filterProjects(projects, { search: '', phase: 'all', needsAction: false, mine: true }).map((p) => p.id)).toEqual(['a']);
+    expect(filterProjects(projects, { search: '', phase: 'all', needsAction: false, mine: false })).toHaveLength(4);
   });
 });
 

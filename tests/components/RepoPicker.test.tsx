@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
 
 const repos: RepoPickerRepo[] = [
@@ -22,12 +23,15 @@ function Host({ initial = [] as string[] }) {
 }
 
 describe('RepoPicker', () => {
-  it('search + kind + tag AND-combine to the expected subset', () => {
+  it('search + kind + tag AND-combine to the expected subset', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     render(<Host />);
     // search "eval" → all eval-* + broken-repo (tag eval). kind "service" → eval-core, broken. tag "eval" both have it.
     fireEvent.change(screen.getByLabelText('Search repos'), { target: { value: 'eval' } });
-    fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'service' } });
-    fireEvent.change(screen.getByLabelText('Tag'), { target: { value: 'eval' } });
+    await user.click(screen.getByLabelText('Kind'));
+    await user.click(await screen.findByRole('option', { name: 'service' }));
+    await user.click(screen.getByLabelText('Tag'));
+    await user.click(await screen.findByRole('option', { name: 'eval' }));
     // remaining rows: eval-core (service, tag eval) + broken-repo (service, tag eval)
     expect(screen.getByTestId('repo-row-eval-core')).toBeInTheDocument();
     expect(screen.getByTestId('repo-row-broken-repo')).toBeInTheDocument();

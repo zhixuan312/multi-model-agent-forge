@@ -262,10 +262,10 @@ function OutlineScreen({
                 <Checkbox
                   checked={checked}
                   disabled={readOnly || already}
-                  onChange={(e) =>
+                  onCheckedChange={(v) =>
                     setPicked((prev) => {
                       const next = new Set(prev);
-                      if (e.target.checked) next.add(k.kind);
+                      if (v === true) next.add(k.kind);
                       else next.delete(k.kind);
                       return next;
                     })

@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {
   ProvidersPanel,
   ProviderForm,
@@ -23,10 +24,12 @@ describe('ProviderForm / ProvidersPanel', () => {
     expect(screen.getByLabelText(/API key/)).toBeInTheDocument();
   });
 
-  it('the type selector offers the two dialect labels', () => {
+  it('the type selector offers the two dialect labels', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     render(<ProviderForm mode="add" onDone={vi.fn()} />);
-    expect(screen.getByText(/claude · Anthropic-style/)).toBeInTheDocument();
-    expect(screen.getByText(/codex · OpenAI-style/)).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Type'));
+    expect(await screen.findByRole('option', { name: /claude · Anthropic-style/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /codex · OpenAI-style/ })).toBeInTheDocument();
   });
 
   it('validates an empty name client-side without calling the API', async () => {

@@ -62,16 +62,16 @@ describe('ExportMenu (test 12, F10)', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
-    await waitFor(() => screen.getByText('● frozen · audited'));
-    expect(screen.getByText('● frozen · audited')).toBeInTheDocument();
+    await waitFor(() => screen.getByText('frozen · audited'));
+    expect(screen.getByText('frozen · audited')).toBeInTheDocument();
   });
 
   it('an unfrozen spec shows ● ready, NOT frozen · audited', async () => {
     render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByTestId('export-row-spec'));
-    expect(screen.queryByText('● frozen · audited')).toBeNull();
-    expect(screen.getAllByText('● ready').length).toBeGreaterThan(0);
+    expect(screen.queryByText('frozen · audited')).toBeNull();
+    expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
   });
 
   it('clicking .md invokes the md route with the row kind', async () => {

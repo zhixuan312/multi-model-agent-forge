@@ -1,68 +1,51 @@
 'use client';
 
-import { useId, useState, type ReactElement, type ReactNode } from 'react';
-import { cloneElement } from 'react';
+import * as React from 'react';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/cn';
 
 /**
- * Tooltip — a lightweight hover/focus label. Wraps a single interactive child
- * (which must forward props + accept a ref-less DOM element); on hover or
- * keyboard focus it reveals a small popover and wires `aria-describedby`. No
- * portal — the popover is absolutely positioned relative to the wrapper.
+ * Tooltip — the canonical shadcn/Radix tooltip, themed to Forge. Radix handles
+ * the portal (no clipping), collision-aware positioning, hover/focus triggers,
+ * and open delay. Compose it the framework way:
  *
- *   <Tooltip label="Copy link"><IconButton …/></Tooltip>
+ *   <Tooltip>
+ *     <TooltipTrigger asChild><IconButton …/></TooltipTrigger>
+ *     <TooltipContent>Copy link</TooltipContent>
+ *   </Tooltip>
+ *
+ * A `TooltipProvider` wraps the app (in the root layout) so individual tooltips
+ * need no provider of their own; it is also re-exported here for local use.
  */
-export interface TooltipProps {
-  label: ReactNode;
-  side?: 'top' | 'bottom';
-  children: ReactElement<{
-    'aria-describedby'?: string;
-    onMouseEnter?: (e: React.MouseEvent) => void;
-    onMouseLeave?: (e: React.MouseEvent) => void;
-    onFocus?: (e: React.FocusEvent) => void;
-    onBlur?: (e: React.FocusEvent) => void;
-  }>;
+export const TooltipProvider = TooltipPrimitive.Provider;
+export const TooltipTrigger = TooltipPrimitive.Trigger;
+
+export function Tooltip({
+  delayDuration = 200,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return <TooltipPrimitive.Root delayDuration={delayDuration} {...props} />;
 }
 
-export function Tooltip({ label, side = 'top', children }: TooltipProps) {
-  const id = useId();
-  const [open, setOpen] = useState(false);
-
-  const child = cloneElement(children, {
-    'aria-describedby': open ? id : undefined,
-    onMouseEnter: (e: React.MouseEvent) => {
-      children.props.onMouseEnter?.(e);
-      setOpen(true);
-    },
-    onMouseLeave: (e: React.MouseEvent) => {
-      children.props.onMouseLeave?.(e);
-      setOpen(false);
-    },
-    onFocus: (e: React.FocusEvent) => {
-      children.props.onFocus?.(e);
-      setOpen(true);
-    },
-    onBlur: (e: React.FocusEvent) => {
-      children.props.onBlur?.(e);
-      setOpen(false);
-    },
-  });
-
+export function TooltipContent({
+  className,
+  sideOffset = 6,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   return (
-    <span className="relative inline-flex">
-      {child}
-      <span
-        role="tooltip"
-        id={id}
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        sideOffset={sideOffset}
         className={cn(
-          'pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-ink px-2 py-1 text-[0.6875rem] font-medium text-[var(--surface)] shadow-[var(--shadow-pop)]',
-          'transition-opacity duration-150 ease-[var(--ease-out)]',
-          open ? 'opacity-100' : 'opacity-0',
-          side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+          'forge-pop z-50 max-w-xs rounded-[var(--r-sm)] bg-ink px-2 py-1 text-[0.6875rem] font-medium text-[var(--surface)] shadow-[var(--shadow-pop)]',
+          className,
         )}
+        {...props}
       >
-        {label}
-      </span>
-    </span>
+        {children}
+        <TooltipPrimitive.Arrow className="fill-ink" />
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
   );
 }

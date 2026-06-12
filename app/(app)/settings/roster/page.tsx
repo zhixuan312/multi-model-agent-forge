@@ -1,56 +1,48 @@
+import { Layers, Boxes, Cpu, Database } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { listRoster } from '@/config/roster-core';
 import { listProviders } from '@/config/providers-core';
 import { readModelProfiles } from '@/mma/model-profiles';
-import { PageFrame, SectionTitle } from '@/components/ui';
+import { PageFrame, MetricCard } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { RosterPanel, type RosterRowData, type ProviderOption } from './RosterPanel';
-import type { ModelSuggestion } from './ModelCombobox';
+// Provider→model map: the real backend has no per-provider model endpoint yet,
+// so this read is served by the mock provider domain for now.
+import { getModelsByProvider } from '@/mock/domains/settings/providers';
 
 /**
- * Team Settings → Agent roster (Spec 2 §Agent roster / agent-roster.html).
- * Admin-gated. Three tiers (main / complex / standard), each → provider + model.
- * The model field is a combobox: profiled prefixes from MMA's co-located catalog
- * are suggestions, and a custom id is always allowed (Part B). Save updates the
- * agent_tier rows. (Save & apply to MMA lands with the config-supervisor.)
+ * Team Settings → Roster (Spec 2 §Agent roster / agent-roster.html). Admin-gated.
+ * Same surface as Members: a STATUS row of four metric boxes, then a 2/3 ∣ 1/3
+ * row — one card per tier (main / complex / standard), each a provider + a model
+ * scoped to that provider (Primary), and the guidance note (Rail).
  */
 export default async function RosterPage() {
   await requireAdminPage();
-  const [roster, providers] = await Promise.all([listRoster(), listProviders()]);
   const catalog = readModelProfiles();
-  const rows: RosterRowData[] = roster.map((r) => ({
-    tier: r.tier,
-    providerId: r.providerId,
-    model: r.model,
-  }));
+  const [roster, providers, modelsByProvider] = await Promise.all([
+    listRoster(),
+    listProviders(),
+    getModelsByProvider(),
+  ]);
+
+  const rows: RosterRowData[] = roster.map((r) => ({ tier: r.tier, providerId: r.providerId, model: r.model }));
   const options: ProviderOption[] = providers.map((p) => ({ id: p.id, name: p.name }));
-  const modelSuggestions: ModelSuggestion[] = catalog.profiles.map((p) => ({
-    provider: p.provider,
-    prefix: p.prefix,
-    bestFor: p.bestFor,
-  }));
+  const modelCount = new Set(Object.values(modelsByProvider).flat()).size;
+
+  const configured = rows.filter((r) => r.providerId && r.model).length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="roster" />}>
-      <div className="flex flex-col gap-6">
-        <SectionTitle
-          description={
-            <>
-              Each tier picks a provider, then a model. <strong className="text-ink">Main</strong> is
-              Forge&apos;s orchestrator; <strong className="text-ink">complex</strong> and{' '}
-              <strong className="text-ink">standard</strong> are MMA&apos;s worker tiers.
-            </>
-          }
-        >
-          Three agent tiers
-        </SectionTitle>
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="roster" />} width="full">
+      <div className="flex flex-col gap-4">
+        {/* STATUS — four equal metric boxes */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard label="Tiers configured" value={`${configured}/3`} muted={configured === 0} sublabel="Provider + model set" icon={<Layers />} iconTint="accent" />
+          <MetricCard label="Providers" value={options.length} muted={options.length === 0} sublabel="Available to assign" icon={<Boxes />} iconTint="steel" />
+          <MetricCard label="Models" value={modelCount} muted={modelCount === 0} sublabel="Across all providers" icon={<Cpu />} iconTint="sage" />
+          <MetricCard label="MMA catalog" value={catalog.available ? 'Live' : 'Offline'} muted={!catalog.available} sublabel="Model profiles" icon={<Database />} iconTint="rose" />
+        </div>
 
-        <RosterPanel
-          initialRoster={rows}
-          providers={options}
-          modelSuggestions={modelSuggestions}
-          catalogAvailable={catalog.available}
-        />
+        <RosterPanel initialRoster={rows} providers={options} modelsByProvider={modelsByProvider} />
       </div>
     </PageFrame>
   );

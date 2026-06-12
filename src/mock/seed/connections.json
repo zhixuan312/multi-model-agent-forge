@@ -1,0 +1,8 @@
+[
+  {
+    "mmaBaseUrl": "http://127.0.0.1:7337",
+    "mmaTokenSet": true,
+    "gitTokenSet": true,
+    "openaiTranscriptionKeySet": false
+  }
+]

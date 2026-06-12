@@ -1,5 +1,7 @@
 'use client';
 
+import { History } from 'lucide-react';
+import { EmptyState, Eyebrow, Mono } from '@/components/ui';
 import { opStyle } from '@/components/forge/journal/palette';
 import type { LogEntry } from '@/journal/types';
 import { cn } from '@/lib/cn';
@@ -20,10 +22,11 @@ export function WriteLogView({
 }) {
   if (log.length === 0) {
     return (
-      <div className="grid place-items-center rounded-[var(--r-lg)] border border-dashed border-line bg-surface-2 px-6 py-16 text-center">
-        <p className="font-serif text-base italic text-ink-faint">No team learnings yet</p>
-        <p className="mt-1 text-xs text-ink-faint">Recorded at project freeze.</p>
-      </div>
+      <EmptyState
+        icon={<History />}
+        title="No team learnings yet"
+        description="Learnings are recorded at project freeze, and the write-log lands here."
+      />
     );
   }
 
@@ -33,18 +36,18 @@ export function WriteLogView({
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
-        <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-faint">
-          <th scope="col" className="py-2 pr-3 font-semibold">
-            Date
+        <tr className="border-b border-line text-left">
+          <th scope="col" className="py-2 pr-3">
+            <Eyebrow as="span" className="text-ink-faint">Date</Eyebrow>
           </th>
-          <th scope="col" className="py-2 pr-3 font-semibold">
-            Op
+          <th scope="col" className="py-2 pr-3">
+            <Eyebrow as="span" className="text-ink-faint">Op</Eyebrow>
           </th>
-          <th scope="col" className="py-2 pr-3 font-semibold">
-            Node
+          <th scope="col" className="py-2 pr-3">
+            <Eyebrow as="span" className="text-ink-faint">Node</Eyebrow>
           </th>
-          <th scope="col" className="py-2 font-semibold">
-            Title
+          <th scope="col" className="py-2">
+            <Eyebrow as="span" className="text-ink-faint">Title</Eyebrow>
           </th>
         </tr>
       </thead>
@@ -58,7 +61,9 @@ export function WriteLogView({
               data-title={e.title}
               className="border-b border-line/60"
             >
-              <td className="py-2 pr-3 font-mono text-xs text-ink-soft">{e.date}</td>
+              <td className="py-2 pr-3">
+                <Mono className="!text-xs text-ink-soft">{e.date}</Mono>
+              </td>
               <td className="py-2 pr-3">
                 <span
                   className={cn(

@@ -1,20 +1,32 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/cn';
+import { Download } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+  Checkbox,
+  Button,
+  Label,
+  Micro,
+} from '@/components/ui';
 import { downloadPost } from '@/components/forge/export/download';
 import type { ExportKind } from '@/export/types';
 
 /**
  * `ExportPdfDialog` (Spec 8 §In-scope #3, Key flow C, F5/F13/F30). PDF options:
- * for a spec, an include-component checkbox per `{NN,title}` (value=NN,
- * label=title) fetched from `/export/sections`; for other kinds, just the
- * Mermaid-as-diagram toggle. The `Export PDF` button is disabled when zero
- * components are checked (client guard for the server 422). No preview thumbnail
- * (out of scope v1, F5).
+ * for a spec, an include-component `Checkbox` per `{NN,title}` fetched from
+ * `/export/sections`; for other kinds, just the Mermaid-as-diagram toggle. The
+ * `Export PDF` button is disabled when zero components are checked (client guard
+ * for the server 422). No preview thumbnail (out of scope v1, F5).
  *
- * a11y: native checkboxes labelled by their section title; ESC closes; focus
- * is on the dialog. (No Radix in this codebase — semantic HTML + ARIA.)
+ * Built on the canonical Radix `Dialog` + `Checkbox` (portal, focus trap, Escape,
+ * aria wiring handled by the framework).
  */
 export interface ExportPdfDialogProps {
   projectId: string;
@@ -63,8 +75,6 @@ export function ExportPdfDialog({
     };
   }, [open, isSpec, projectId, fetchSections]);
 
-  if (!open) return null;
-
   const toggle = (nn: string) => {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -98,71 +108,61 @@ export function ExportPdfDialog({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Export ${kind} as PDF`}
-      data-testid="export-pdf-dialog"
-      className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
-    >
-      <div className="w-full max-w-sm rounded-[var(--r-lg)] border border-line bg-surface p-5 shadow-xl">
-        <div className="mb-3 text-xs font-bold uppercase tracking-wider text-ink-faint">
-          PDF · {kind === 'spec' ? 'Specification' : kind}
-        </div>
-
-        {isSpec ? (
-          <>
-            <div className="mb-2 text-xs font-semibold text-ink-soft">Include components</div>
-            <div className="flex flex-col gap-1.5" data-testid="component-list">
-              {sections.map((s) => (
-                <label key={s.nn} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    value={s.nn}
-                    checked={checked.has(s.nn)}
-                    onChange={() => toggle(s.nn)}
-                    aria-label={s.title}
-                  />
-                  {s.title}
-                </label>
-              ))}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent data-testid="export-pdf-dialog" aria-label={`Export ${kind} as PDF`} className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-mono !text-xs font-bold uppercase tracking-wider text-ink-faint">
+            PDF · {kind === 'spec' ? 'Specification' : kind}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose what to include in the exported {kind} PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4">
+          {isSpec ? (
+            <div className="flex flex-col gap-2">
+              <Label as="div" className="text-ink-soft">
+                Include components
+              </Label>
+              <div className="flex flex-col gap-1.5" data-testid="component-list">
+                {sections.map((s) => {
+                  const id = `pdf-sec-${s.nn}`;
+                  return (
+                    <div key={s.nn} className="flex items-center gap-2.5">
+                      <Checkbox id={id} checked={checked.has(s.nn)} onCheckedChange={() => toggle(s.nn)} />
+                      <label htmlFor={id} className="cursor-pointer text-sm text-ink-soft">
+                        {s.title}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </>
-        ) : null}
+          ) : null}
 
-        <label className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-          <input
-            type="checkbox"
-            checked={mermaid}
-            onChange={(e) => setMermaid(e.target.checked)}
-            aria-label="Mermaid flow charts as diagrams"
-          />
-          Mermaid flow charts as diagrams
-        </label>
+          <div className="flex items-center gap-2.5">
+            <Checkbox id="pdf-mermaid" checked={mermaid} onCheckedChange={(v) => setMermaid(v === true)} />
+            <label htmlFor="pdf-mermaid" className="cursor-pointer text-sm text-ink-soft">
+              Mermaid flow charts as diagrams
+            </label>
+          </div>
 
-        {error ? <div className="mt-3 text-xs text-red-600">{error}</div> : null}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--r-md)] px-3 py-1.5 text-sm text-ink-soft">
+          {error ? (
+            <Micro role="alert" className="block text-rose">
+              {error}
+            </Micro>
+          ) : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={zeroSelected || busy}
-            aria-disabled={zeroSelected || busy}
-            className={cn(
-              'rounded-[var(--r-md)] bg-accent px-4 py-1.5 text-sm font-medium text-white',
-              (zeroSelected || busy) && 'cursor-not-allowed opacity-50',
-            )}
-          >
-            <span aria-hidden="true">⭳ </span>Export PDF
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button onClick={onExport} disabled={zeroSelected || busy} loading={busy}>
+            <Download aria-hidden />
+            Export PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

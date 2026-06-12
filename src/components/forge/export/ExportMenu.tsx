@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Download, ChevronDown, Search, FileText, ClipboardList, ScanEye, Boxes, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
 import { ExportPdfDialog } from '@/components/forge/export/ExportPdfDialog';
 import type { ExportKind } from '@/export/types';
@@ -31,7 +33,12 @@ export interface ExportMenuProps {
   onToast?: (message: string) => void;
 }
 
-const ICON: Record<ExportKind, string> = { exploration: '◷', spec: '▦', plan: '☰', review: '◉' };
+const ICON: Record<ExportKind, LucideIcon> = {
+  exploration: Search,
+  spec: FileText,
+  plan: ClipboardList,
+  review: ScanEye,
+};
 
 async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtifact[]> {
   const res = await fetch(`/api/projects/${projectId}/export/artifacts`);
@@ -80,29 +87,33 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   };
 
   function badge(a: ExportMenuArtifact) {
-    if (!a.ready) return <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-faint">pending</span>;
+    if (!a.ready) return <Badge size="sm">pending</Badge>;
     if (a.frozenAudited)
       return (
-        <span className="rounded-full bg-sage-tint px-2 py-0.5 text-[10px] font-semibold text-sage">
-          ● frozen · audited
-        </span>
+        <Badge variant="sage" size="sm" dot>
+          frozen · audited
+        </Badge>
       );
     return (
-      <span className="rounded-full bg-sage-tint px-2 py-0.5 text-[10px] font-semibold text-sage">● ready</span>
+      <Badge variant="sage" size="sm" dot>
+        ready
+      </Badge>
     );
   }
 
   return (
     <div className="relative" data-testid="export-menu-root">
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="rounded-[var(--r)] border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+        leftIcon={<Download />}
+        rightIcon={<ChevronDown />}
       >
-        <span aria-hidden="true">⭳ </span>Export <span aria-hidden="true">▾</span>
-      </button>
+        Export
+      </Button>
 
       {open ? (
         <div
@@ -111,11 +122,14 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
           data-testid="export-menu"
           className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-xl"
         >
-          <div className="border-b border-line bg-surface-2 px-4 py-3 text-sm font-bold text-ink">
-            <span aria-hidden="true" className="text-accent">⭳ </span>Export
+          <div className="flex items-center gap-2 border-b border-line bg-surface-2 px-4 py-3">
+            <Download className="size-4 text-accent" aria-hidden />
+            <TextSm className="!font-semibold !text-ink">Export</TextSm>
           </div>
           <div className="p-2">
-            {artifacts.map((a) => (
+            {artifacts.map((a) => {
+              const Icon = ICON[a.kind];
+              return (
               <div
                 key={a.kind}
                 data-testid={`export-row-${a.kind}`}
@@ -124,12 +138,12 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
               >
                 <span
                   aria-hidden="true"
-                  className="grid h-7 w-7 place-items-center rounded-[var(--r-md)] bg-accent-tint text-accent"
+                  className="grid h-7 w-7 place-items-center rounded-[var(--r-md)] bg-accent-tint text-accent [&_svg]:size-4"
                 >
-                  {ICON[a.kind]}
+                  <Icon />
                 </span>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-ink">{a.label}</div>
+                <div className="flex flex-1 flex-col items-start gap-1">
+                  <TextSm className="!font-semibold !text-ink">{a.label}</TextSm>
                   {badge(a)}
                 </div>
                 <button
@@ -151,7 +165,8 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                   PDF
                 </button>
               </div>
-            ))}
+              );
+            })}
 
             <div className="my-1.5 h-px bg-line" />
 
@@ -161,17 +176,17 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
               onClick={onBundle}
               className="flex w-full items-center gap-3 rounded-[var(--r-md)] border border-accent-tint bg-accent-tint px-3 py-3 text-left"
             >
-              <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-[var(--r-md)] bg-accent text-white">
-                ⊞
+              <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-[var(--r-md)] bg-accent text-white [&_svg]:size-4">
+                <Boxes />
               </span>
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-ink">Export everything</div>
-                <div className="text-[11.5px] text-ink-soft">.zip — all .md + one combined PDF</div>
+              <div className="flex flex-1 flex-col items-start">
+                <TextSm className="!font-semibold !text-ink">Export everything</TextSm>
+                <Micro>.zip — all .md + one combined PDF</Micro>
               </div>
               <span className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">Bundle</span>
             </button>
           </div>
-          {error ? <div className="px-4 pb-3 text-xs text-red-600">{error}</div> : null}
+          {error ? <TextSm className="block px-4 pb-3 !text-xs !text-rose">{error}</TextSm> : null}
         </div>
       ) : null}
 

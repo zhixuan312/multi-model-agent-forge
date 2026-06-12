@@ -323,6 +323,58 @@ body {
   animation: forge-shimmer 1.4s var(--ease-out) infinite;
 }
 
+/* Radix data-state animations — the canonical entry/exit for overlays, popover
+   content (dialog, dropdown, tooltip, popover). Bound to `[data-state]` so Radix
+   drives them on mount/unmount; gives the framework primitives the Forge feel. */
+@keyframes forge-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes forge-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes forge-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes forge-pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+.forge-overlay[data-state='open'] {
+  animation: forge-fade-in 0.2s var(--ease-out);
+}
+.forge-overlay[data-state='closed'] {
+  animation: forge-fade-out 0.15s var(--ease-out);
+}
+.forge-pop[data-state='open'] {
+  animation: forge-pop-in 0.18s var(--ease-out);
+}
+.forge-pop[data-state='closed'] {
+  animation: forge-pop-out 0.14s var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

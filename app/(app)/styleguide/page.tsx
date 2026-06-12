@@ -12,6 +12,9 @@ import {
   FileText,
   Sparkles,
   ChevronDown,
+  LayoutGrid,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   Display,
@@ -36,6 +39,10 @@ import {
   Input,
   Textarea,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
   Checkbox,
   Switch,
   Badge,
@@ -47,16 +54,19 @@ import {
   Separator,
   Kbd,
   Tooltip,
+  TooltipTrigger,
+  TooltipContent,
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
-  Menu,
-  MenuButton,
-  MenuItems,
-  MenuItem,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
   Dialog,
-  DialogPanel,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
@@ -66,6 +76,11 @@ import {
   Split,
   FieldGrid,
   Toolbar,
+  MetricCard,
+  MetricRow,
+  NextActionPill,
+  StageRail,
+  AvatarGroup,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
@@ -206,9 +221,14 @@ export default function StyleguidePage() {
           </Field>
           <Field label="Visibility">
             {(p) => (
-              <Select {...p} defaultValue="public">
-                <option value="public">Public</option>
-                <option value="private">Private</option>
+              <Select defaultValue="public">
+                <SelectTrigger {...p}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
               </Select>
             )}
           </Field>
@@ -219,11 +239,11 @@ export default function StyleguidePage() {
             {(p) => <Textarea {...p} rows={3} placeholder="What are we building?" />}
           </Field>
           <label className="flex items-center gap-2.5">
-            <Checkbox checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+            <Checkbox checked={checked} onCheckedChange={(v) => setChecked(v === true)} />
             <Text className="!text-sm">Administrator</Text>
           </label>
           <label className="flex items-center gap-2.5">
-            <Switch checked={on} onChange={(e) => setOn(e.target.checked)} />
+            <Switch checked={on} onCheckedChange={setOn} />
             <Text className="!text-sm">Voice transcription</Text>
           </label>
         </div>
@@ -290,35 +310,43 @@ export default function StyleguidePage() {
           </Card>
           <Card>
             <CardContent className="flex items-center gap-4">
-              <Menu>
-                <MenuButton className={buttonVariants({ variant: 'secondary', size: 'md' })}>
+              <DropdownMenu>
+                <DropdownMenuTrigger className={buttonVariants({ variant: 'secondary', size: 'md' })}>
                   Actions <ChevronDown className="size-4" />
-                </MenuButton>
-                <MenuItems align="start">
-                  <MenuItem icon={<Download />} onSelect={() => {}}>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onSelect={() => {}}>
+                    <Download />
                     Export
-                  </MenuItem>
-                  <MenuItem icon={<FileText />} onSelect={() => {}}>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => {}}>
+                    <FileText />
                     Duplicate
-                  </MenuItem>
-                  <MenuItem icon={<Trash2 />} danger onSelect={() => {}}>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={() => {}}>
+                    <Trash2 />
                     Delete
-                  </MenuItem>
-                </MenuItems>
-              </Menu>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="secondary" onClick={() => setDialogOpen(true)}>
                 Open dialog
               </Button>
-              <Tooltip label="Search (⌘K)">
-                <IconButton aria-label="Search" variant="ghost" icon={<Search />} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <IconButton aria-label="Search" variant="ghost" icon={<Search />} />
+                </TooltipTrigger>
+                <TooltipContent>Search (⌘K)</TooltipContent>
               </Tooltip>
             </CardContent>
           </Card>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogPanel>
-            <DialogTitle>Freeze this project?</DialogTitle>
-            <DialogDescription>Freezing is a point of no return — the spec locks and the build phase begins.</DialogDescription>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Freeze this project?</DialogTitle>
+              <DialogDescription>Freezing is a point of no return — the spec locks and the build phase begins.</DialogDescription>
+            </DialogHeader>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setDialogOpen(false)}>
                 Cancel
@@ -327,7 +355,7 @@ export default function StyleguidePage() {
                 Freeze
               </Button>
             </DialogFooter>
-          </DialogPanel>
+          </DialogContent>
         </Dialog>
       </Block>
 
@@ -359,6 +387,58 @@ export default function StyleguidePage() {
             description="Run the exploration tasks to ground the brief, and the summary appears here."
             action={<Button size="sm">Run tasks</Button>}
           />
+        </div>
+      </Block>
+
+      <Block title="Control tower">
+        <div className="flex flex-col gap-7">
+          <div>
+            <Micro className="mb-2 block">MetricRow / MetricCard — neutral · attention · zero</Micro>
+            <MetricRow>
+              <MetricCard label="Active" value={12} icon={<LayoutGrid />} />
+              <MetricCard label="Waiting for human" value={3} tone="attention" icon={<Clock />} />
+              <MetricCard label="Agents running" value={7} icon={<Sparkles />} />
+              <MetricCard label="Audit issues" value={0} muted icon={<ShieldCheck />} />
+            </MetricRow>
+          </div>
+
+          <div>
+            <Micro className="mb-2 block">NextActionPill — attention · normal · done</Micro>
+            <div className="flex flex-wrap items-center gap-3">
+              <NextActionPill tone="attention">Review — 2 sections need you</NextActionPill>
+              <NextActionPill tone="normal">Continue exploration</NextActionPill>
+              <NextActionPill tone="done" icon={<Check />}>
+                Done
+              </NextActionPill>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-10">
+            <div className="min-w-[240px] flex-1">
+              <Micro className="mb-2 block">StageRail — done · active · pending</Micro>
+              <StageRail
+                segments={[
+                  { status: 'done', label: 'Exploration' },
+                  { status: 'active', label: 'Spec' },
+                  { status: 'pending', label: 'Freeze' },
+                  { status: 'pending', label: 'Build' },
+                  { status: 'pending', label: 'Done' },
+                ]}
+              />
+            </div>
+            <div>
+              <Micro className="mb-2 block">AvatarGroup — overlap + overflow</Micro>
+              <AvatarGroup
+                members={[
+                  { name: 'Maya Adeyemi', tint: '#6A6F8C' },
+                  { name: 'Devon Vance', tint: '#5E7C6B' },
+                  { name: 'Sam Rivera', tint: '#9A6A8C' },
+                  { name: 'Alex Kim', tint: '#C4521E' },
+                  { name: 'Jo Tan', tint: '#355A74' },
+                ]}
+              />
+            </div>
+          </div>
         </div>
       </Block>
 

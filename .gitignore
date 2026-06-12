@@ -51,3 +51,6 @@ mockup/*
 
 # Generated export files (Spec 8 export service) — on-disk hand-offs, never committed.
 /.forge-exports/
+
+# Mock backend working DB (file-backed fake DB; seeds in src/mock/seed)
+.mock-db/

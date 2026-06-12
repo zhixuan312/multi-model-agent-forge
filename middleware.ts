@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { evaluateRequest, SESSION_COOKIE_NAME } from '@/auth/middleware-core';
+import { USE_MOCK } from '@/mock/config';
 
 /**
  * Edge-runtime middleware (Spec 1 F28): a STATELESS cookie-presence pre-check
@@ -9,6 +10,8 @@ import { evaluateRequest, SESSION_COOKIE_NAME } from '@/auth/middleware-core';
  * `current-member.ts`; admin enforcement in `require-admin.ts`.
  */
 export function middleware(req: NextRequest): NextResponse {
+  // Mock harness: no real session exists, so skip the cookie pre-check entirely.
+  if (USE_MOCK) return NextResponse.next();
   const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const decision = evaluateRequest({
     pathname: req.nextUrl.pathname,

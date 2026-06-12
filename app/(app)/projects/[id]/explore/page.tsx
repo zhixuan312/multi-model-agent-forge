@@ -13,6 +13,8 @@ import {
 } from '@/exploration/explore-core';
 import { listAttachments } from '@/exploration/attachments';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
+import { USE_MOCK } from '@/mock/config';
+import { mockExplore } from '@/mock/domains/projects/explore';
 
 /**
  * Exploration stage (Spec 5) — brain-dump → editable fan-out → live agent rail →
@@ -29,6 +31,23 @@ export default async function ExploreStagePage({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+
+  // Mock mode: render the stage from seeded exploration content (no DB).
+  if (USE_MOCK) {
+    const data = mockExplore(id);
+    return (
+      <ExploreStageClient
+        projectId={id}
+        projectName={data.projectName}
+        initialBrief={data.brief}
+        initialAttachments={data.attachments}
+        initialTasks={data.tasks}
+        initialArtifact={data.artifact}
+        repoOptions={data.repoOptions}
+        voiceEnabled={data.voiceEnabled}
+      />
+    );
+  }
 
   try {
     await assertProjectReadable(id, { id: me.id });

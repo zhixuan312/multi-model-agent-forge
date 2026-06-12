@@ -11,6 +11,9 @@ import {
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { DATA_PHASE } from '@/projects/stage-route';
+import { USE_MOCK } from '@/mock/config';
+import { findMockProject } from '@/mock/domains/projects/dashboard';
+import { STAGE_ORDER } from '@/db/enums';
 
 /**
  * Project shell (Spec 3 flow 3). Guarded: `assertProjectReadable` throws for a
@@ -29,6 +32,28 @@ export default async function ProjectLayout({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+
+  // Mock mode: the seeded projects have non-UUID ids, so the real DB read would
+  // throw. Render a minimal shell from the seed (the detail flow is a later pass).
+  if (USE_MOCK) {
+    const mock = findMockProject(id);
+    if (!mock) notFound();
+    const stages = STAGE_ORDER.map((kind) => {
+      const s = mock.stages.find((x) => x.kind === kind);
+      return { kind, status: s?.status ?? 'pending' };
+    });
+    return (
+      <div data-phase={DATA_PHASE[mock.phase]} className="contents">
+        <ShellHeader>
+          <ProjectTopbar projectId={mock.id} projectName={mock.name} phase={mock.phase} />
+        </ShellHeader>
+        <ShellSubNav className="!h-auto !py-2">
+          <StageStepper projectId={mock.id} stages={stages} currentStage={mock.currentStage} phase={mock.phase} />
+        </ShellSubNav>
+        <ShellBody width="full" fill>{children}</ShellBody>
+      </div>
+    );
+  }
 
   try {
     await assertProjectReadable(id, { id: me.id });

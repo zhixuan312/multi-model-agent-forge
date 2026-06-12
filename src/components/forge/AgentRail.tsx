@@ -1,7 +1,7 @@
 'use client';
 
 import { Lock, Radar } from 'lucide-react';
-import { Badge, EmptyState, SectionTitle, type BadgeProps } from '@/components/ui';
+import { Badge, EmptyState, type BadgeProps } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
@@ -36,12 +36,11 @@ const TONE_VARIANT: Record<'idle' | 'run' | 'done' | 'fail', BadgeProps['variant
 export function AgentRail({ tasks }: { tasks: RailTask[] }) {
   const active = tasks.filter((t) => t.status !== 'draft');
   return (
-    <section aria-label="Agent activity" className="flex flex-col gap-2">
-      <SectionTitle>Agent rail</SectionTitle>
+    <section aria-label="Agent activity" className="flex min-h-0 flex-1 flex-col">
       <div
         aria-live="polite"
         aria-busy={active.some((t) => statusLabel(t).tone === 'run')}
-        className="flex flex-col gap-2"
+        className="flex min-h-0 flex-1 flex-col gap-2"
         data-testid="agent-rail"
       >
         {active.length === 0 ? (

@@ -2,23 +2,45 @@
 
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Sparkles, Plus, X, ArrowRight, RefreshCw } from 'lucide-react';
+import {
+  Sparkles,
+  Plus,
+  X,
+  ArrowRight,
+  RefreshCw,
+  Paperclip,
+  Radar,
+  FileText,
+  Lightbulb,
+  ScanSearch,
+  Globe,
+  History,
+  FolderGit2,
+  Loader2,
+  CheckCircle2,
+  type LucideIcon,
+} from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
 import { AgentRail } from '@/components/forge/AgentRail';
 import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
 import {
   Button,
   Badge,
-  EmptyState,
   Textarea,
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-  Title,
-  TextSm,
   Micro,
+  Title,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+  Eyebrow,
+  MetricCard,
 } from '@/components/ui';
 import {
   useProjectEvents,
@@ -131,6 +153,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     try {
       await postJson(`/api/projects/${props.projectId}/explore/run`, {});
       refreshTasks();
+      // Agents finish a beat after dispatch — re-poll so running → recorded shows.
+      setTimeout(refreshTasks, 2600);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Dispatch failed.');
     } finally {
@@ -142,6 +166,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     setBusy(true);
     try {
       await postJson(`/api/projects/${props.projectId}/explore/synthesize`, {});
+      // Seed the artifact cache directly (the summary appears without SSE).
+      const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
+      if (r.ok) {
+        const a = (await r.json()) as ArtifactCacheEntry | null;
+        if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a);
+      }
     } catch {
       /* non-blocking — prior version retained */
     } finally {
@@ -220,70 +250,201 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const bodyMd = artifact?.bodyMd ?? props.initialArtifact?.bodyMd ?? null;
   const version = artifact?.version ?? props.initialArtifact?.version ?? null;
+  const dispatched = tasks.filter((t) => t.status !== 'draft').length;
+  const recorded = tasks.filter((t) => t.status === 'recorded').length;
+  const allDone = dispatched > 0 && recorded === dispatched;
 
   return (
-    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="flex min-w-0 flex-col gap-8">
-        {/* Inputs — collapse to a compact card once a synthesis exists so the
-            document is the focus, but stay editable for adding more tasks. */}
-        <details className="group flex flex-col gap-6" open={!bodyMd}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
-            <ChevronRight className="size-4 text-ink-faint transition-transform group-open:rotate-90" />
-            {bodyMd ? 'Brief & sources' : 'Brain-dump'}
-          </summary>
-          <div className="mt-4 flex flex-col gap-6">
-            <BrainDumpComposer
-              value={brief}
-              onChange={setBrief}
-              attachments={attachments}
-              voiceEnabled={props.voiceEnabled}
-              recording={recording}
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      {/* STATUS — the stage at a glance */}
+      <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard
+          label="Sources"
+          value={attachments.length}
+          muted={attachments.length === 0}
+          sublabel="Links & files"
+          icon={<Paperclip />}
+          iconTint="steel"
+        />
+        <MetricCard
+          label="Proposed"
+          value={drafts.length}
+          muted={drafts.length === 0}
+          sublabel="Fan-out tasks"
+          icon={<Sparkles />}
+          iconTint="accent"
+        />
+        <MetricCard
+          label="Dispatched"
+          value={dispatched}
+          muted={dispatched === 0}
+          sublabel="Agents working"
+          icon={<Radar />}
+          iconTint="sage"
+        />
+        <MetricCard
+          label="Synthesis"
+          value={version ? `v${version}` : '—'}
+          muted={!version}
+          sublabel="Grounded brief"
+          icon={<FileText />}
+          iconTint="amber"
+        />
+      </div>
+
+      {/* PRIMARY composer + fan-out (2/3) ∣ agent rail (1/3), fills to the bottom */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        <div className="flex min-h-0 flex-col gap-4 lg:col-span-2">
+          <Card className="shrink-0">
+            <CardHeader>
+              <CardTitle>Brain-dump</CardTitle>
+              <Micro className="!text-ink-faint">Everything you know — text · links · files</Micro>
+            </CardHeader>
+            <CardContent className="!py-5">
+              <BrainDumpComposer
+                value={brief}
+                onChange={setBrief}
+                attachments={attachments}
+                voiceEnabled={props.voiceEnabled}
+                recording={recording}
+                busy={busy}
+                error={error}
+                onAnalyze={analyze}
+                onToggleRecord={toggleRecord}
+                onAddLink={addLink}
+                onAddFile={addFile}
+                onRemoveAttachment={removeAttachment}
+              />
+            </CardContent>
+          </Card>
+
+          {bodyMd ? (
+            <SummaryPane
+              className="min-h-0 flex-1"
+              bodyMd={bodyMd}
+              version={version}
               busy={busy}
-              error={error}
-              onAnalyze={analyze}
-              onToggleRecord={toggleRecord}
-              onAddLink={addLink}
-              onAddFile={addFile}
-              onRemoveAttachment={removeAttachment}
+              onResynthesize={resynthesize}
+              projectId={props.projectId}
             />
-            <FanOutEditor
+          ) : (
+            <FanOutCard
+              className="min-h-0 flex-1"
               projectId={props.projectId}
               drafts={drafts}
+              dispatched={dispatched}
+              recorded={recorded}
+              allDone={allDone}
+              synthesizing={busy}
+              onSynthesize={resynthesize}
               repoOptions={props.repoOptions}
               onChanged={refreshTasks}
               onRun={run}
               canRun={drafts.length > 0 && !busy}
             />
-          </div>
-        </details>
+          )}
+        </div>
 
-        <SummaryPane
-          bodyMd={bodyMd}
-          version={version}
-          busy={busy}
-          onResynthesize={resynthesize}
-          projectId={props.projectId}
-        />
+        <aside className="flex min-h-0 flex-col gap-4">
+          <ExplorationNote />
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Eyebrow as="h3" className="text-ink-faint">
+                  Agent rail
+                </Eyebrow>
+                {dispatched > 0 ? (
+                  <Badge variant="neutral" size="sm">
+                    {dispatched}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+                <AgentRail tasks={tasks} />
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
       </div>
+    </div>
+  );
+}
 
-      <aside className="lg:sticky lg:top-4">
-        <AgentRail tasks={tasks} />
-      </aside>
+/** Standing guidance — the accent-tint note every page's rail carries. */
+function ExplorationNote() {
+  return (
+    <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
+      <span aria-hidden className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
+        <Lightbulb className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <Eyebrow as="h3" className="text-accent-deep">
+          How exploration works
+        </Eyebrow>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+          Dump everything you know, then <span className="font-medium text-ink">Analyze sources</span> to propose a
+          fan-out. Forge&rsquo;s agents investigate the codebase, research the web, and recall past decisions — then
+          synthesize one grounded brief for the Spec stage.
+        </p>
+      </div>
     </div>
   );
 }
 
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */
 
-const GROUPS: { kind: 'investigate' | 'research' | 'journal'; label: string }[] = [
-  { kind: 'investigate', label: 'Investigate' },
-  { kind: 'research', label: 'Research' },
-  { kind: 'journal', label: 'Journal recall' },
+interface GroupDef {
+  kind: 'investigate' | 'research' | 'journal';
+  label: string;
+  desc: string;
+  Icon: LucideIcon;
+  tint: 'accent' | 'steel' | 'amber';
+  /** Source label shown on the card top for non-repo kinds. */
+  source: string | null;
+}
+
+const GROUPS: GroupDef[] = [
+  {
+    kind: 'investigate',
+    label: 'Investigation',
+    desc: 'Read the codebase — one repo per task.',
+    Icon: ScanSearch,
+    tint: 'accent',
+    source: null,
+  },
+  {
+    kind: 'research',
+    label: 'Research',
+    desc: 'External knowledge — web search & attached papers.',
+    Icon: Globe,
+    tint: 'steel',
+    source: 'Web & papers',
+  },
+  {
+    kind: 'journal',
+    label: 'Journal recall',
+    desc: 'What the team has learned before.',
+    Icon: History,
+    tint: 'amber',
+    source: 'Team journal',
+  },
 ];
 
-function FanOutEditor(props: {
+const KIND_TINT: Record<GroupDef['tint'], string> = {
+  accent: 'bg-accent-tint text-accent',
+  steel: 'bg-[var(--frost)] text-[var(--steel)]',
+  amber: 'bg-amber-tint text-[var(--amber)]',
+};
+
+function FanOutCard(props: {
+  className?: string;
   projectId: string;
   drafts: RailTask[];
+  dispatched: number;
+  recorded: number;
+  allDone: boolean;
+  synthesizing: boolean;
+  onSynthesize: () => void;
   repoOptions: { id: string; name: string }[];
   onChanged: () => void;
   onRun: () => void;
@@ -315,214 +476,322 @@ function FanOutEditor(props: {
 
   // Run is disabled while any draft prompt is sub-floor (Short-prompt rule).
   const anySubFloor = props.drafts.some((t) => t.prompt.trim().length < promptFloor(t.kind as never));
+  const empty = props.drafts.length === 0;
+  const repoName = (id: string | null): string =>
+    props.repoOptions.find((r) => r.id === id)?.name ?? 'unassigned';
 
   return (
-    <section className="flex flex-col gap-4" aria-label="Proposed fan-out">
-      <div className="flex items-center justify-between">
-        <TextSm className="!font-semibold !text-ink">Proposed fan-out</TextSm>
-        <Button
-          size="sm"
-          disabled={!props.canRun || anySubFloor}
-          onClick={props.onRun}
-          rightIcon={<ArrowRight />}
-        >
+    <Card className={cn('flex flex-col', props.className)} aria-label="Proposed fan-out">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CardTitle>Proposed fan-out</CardTitle>
+          {!empty ? (
+            <Badge variant="neutral" size="sm">
+              {props.drafts.length}
+            </Badge>
+          ) : null}
+        </div>
+        <Button size="sm" disabled={!props.canRun || anySubFloor} onClick={props.onRun} rightIcon={<ArrowRight />}>
           Run
         </Button>
-      </div>
+      </CardHeader>
 
-      {GROUPS.map((g) => {
-        const items = props.drafts.filter((t) => t.kind === g.kind);
-        return (
-          <div key={g.kind} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-ink">{g.label}</span>
-              <Badge variant="neutral" size="sm">{items.length}</Badge>
-              <button
-                type="button"
-                onClick={() => setAdding(g.kind)}
-                className="inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
-              >
-                <Plus className="size-3" /> add task
-              </button>
+      <CardContent className="min-h-0 flex-1 space-y-7 overflow-y-auto !py-5">
+        {empty ? (
+          !props.dispatched ? (
+            <div className="grid h-full place-items-center py-12 text-center">
+              <div>
+                <span className="mx-auto grid size-10 place-items-center rounded-full bg-accent-tint text-accent">
+                  <Sparkles className="size-5" />
+                </span>
+                <p className="mx-auto mt-3 max-w-xs text-sm text-ink-soft">
+                  Run <span className="font-medium text-ink">Analyze sources</span> above and Forge proposes an
+                  investigate · research · recall fan-out here.
+                </p>
+              </div>
             </div>
-            {items.map((t) => {
-              const subFloor = t.prompt.trim().length < promptFloor(t.kind as never);
-              return (
-                <div key={t.id} className="rounded-[var(--r-md)] border border-line bg-surface-2 p-2">
-                  <Textarea
-                    aria-label={`${g.label} prompt`}
-                    defaultValue={t.prompt}
-                    rows={2}
-                    onBlur={(e) => patch(t.id, { prompt: e.target.value })}
-                    className={cn('!text-xs', subFloor && 'border-[var(--rose)]')}
-                  />
-                  <div className="mt-1 flex items-center gap-2">
-                    {g.kind === 'investigate' ? (
-                      <Select
-                        defaultValue={t.targetRepoId ?? undefined}
-                        onValueChange={(v) => patch(t.id, { targetRepoId: v })}
-                      >
-                        <SelectTrigger
-                          aria-label="Target repository"
-                          className="!h-auto w-auto !py-1 !text-[11px]"
-                        >
-                          <SelectValue placeholder="repo…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {props.repoOptions.map((r) => (
-                            <SelectItem key={r.id} value={r.id}>
-                              {r.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : null}
-                    {subFloor ? (
-                      <span className="text-[11px] text-[var(--rose)]">
-                        ≥ {promptFloor(t.kind as never)} chars
-                      </span>
-                    ) : null}
-                    <span className="flex-1" />
-                    <button
-                      type="button"
-                      aria-label="Remove task"
-                      onClick={() => remove(t.id)}
-                      className="text-ink-soft transition-colors hover:text-[var(--rose)]"
-                    >
-                      <X className="size-3.5" />
-                    </button>
+          ) : !props.allDone ? (
+            <div className="grid h-full place-items-center py-12 text-center">
+              <div>
+                <span className="mx-auto grid size-10 place-items-center rounded-full bg-amber-tint text-[var(--amber)]">
+                  <Loader2 className="size-5 animate-spin" />
+                </span>
+                <p className="mx-auto mt-3 max-w-xs text-sm text-ink-soft">
+                  Agents are working —{' '}
+                  <span className="font-medium text-ink">
+                    {props.recorded} of {props.dispatched}
+                  </span>{' '}
+                  done. Watch each report in the agent rail.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid h-full place-items-center py-12 text-center">
+              <div>
+                <span className="mx-auto grid size-10 place-items-center rounded-full bg-sage-tint text-[var(--sage)]">
+                  <CheckCircle2 className="size-5" />
+                </span>
+                <p className="mx-auto mb-4 mt-3 max-w-xs text-sm text-ink-soft">
+                  All {props.dispatched} agents finished. Synthesize their findings into one grounded brief for the
+                  Spec stage.
+                </p>
+                <Button
+                  onClick={props.onSynthesize}
+                  loading={props.synthesizing}
+                  disabled={props.synthesizing}
+                  leftIcon={<Sparkles />}
+                >
+                  {props.synthesizing ? 'Synthesizing…' : 'Synthesize brief'}
+                </Button>
+              </div>
+            </div>
+          )
+        ) : (
+          GROUPS.map((g) => {
+            const items = props.drafts.filter((t) => t.kind === g.kind);
+            const Icon = g.Icon;
+            const tint = KIND_TINT[g.tint];
+            return (
+              <div key={g.kind} className="space-y-3">
+                {/* Group header — kind icon · serif title · mma skill · count · description */}
+                <div className="flex items-start gap-3">
+                  <span className={cn('grid size-9 shrink-0 place-items-center rounded-[var(--r-md)]', tint)}>
+                    <Icon className="size-[18px]" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Title as="h3" className="!text-base !leading-none">
+                        {g.label}
+                      </Title>
+                      <Badge variant="neutral" size="sm">
+                        {items.length} {items.length === 1 ? 'task' : 'tasks'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-soft">{g.desc}</p>
                   </div>
                 </div>
-              );
-            })}
-            {adding === g.kind ? (
-              <AddTaskForm
-                kind={g.kind}
-                repoOptions={props.repoOptions}
-                onCancel={() => setAdding(null)}
-                onAdd={(prompt, repoId) => add(g.kind, prompt, repoId)}
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </section>
+
+                {/* Task cards + a dashed "Add" card completing the grid */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {items.map((t) => {
+                    const subFloor = t.prompt.trim().length < promptFloor(t.kind as never);
+                    return (
+                      <div
+                        key={t.id}
+                        className={cn(
+                          'group/task flex flex-col rounded-[var(--r-md)] border bg-surface p-3.5 shadow-sm transition-colors hover:border-line-strong',
+                          subFloor ? 'border-[var(--rose)]/60' : 'border-line',
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn('grid size-7 shrink-0 place-items-center rounded-[7px]', tint)}>
+                            <Icon className="size-3.5" />
+                          </span>
+                          {g.kind === 'investigate' ? (
+                            <span
+                              title={repoName(t.targetRepoId)}
+                              className="inline-flex min-w-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface-2 px-2 py-1 font-mono text-[11px] text-ink"
+                            >
+                              <FolderGit2 className="size-3 shrink-0 text-ink-faint" />
+                              <span className="truncate">{repoName(t.targetRepoId)}</span>
+                            </span>
+                          ) : (
+                            <span className="truncate text-xs font-semibold text-ink">{g.source}</span>
+                          )}
+                          <span className="flex-1" />
+                          <button
+                            type="button"
+                            aria-label="Remove task"
+                            onClick={() => remove(t.id)}
+                            className="-mr-1 shrink-0 rounded p-1 text-ink-faint opacity-0 transition-all hover:bg-surface-2 hover:text-[var(--rose)] focus-visible:opacity-100 group-hover/task:opacity-100"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+
+                        <Textarea
+                          aria-label={`${g.label} prompt`}
+                          defaultValue={t.prompt}
+                          rows={1}
+                          onBlur={(e) => patch(t.id, { prompt: e.target.value })}
+                          className={cn(
+                            'field-sizing-content mt-2.5 !min-h-0 !resize-none !border-0 !bg-transparent !px-0 !py-0 !text-sm !leading-relaxed !shadow-none focus-visible:!ring-0',
+                            subFloor && '!text-[var(--rose)]',
+                          )}
+                        />
+                        {subFloor ? (
+                          <span className="mt-1 text-[11px] text-[var(--rose)]">
+                            Needs ≥ {promptFloor(t.kind as never)} characters
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  {adding === g.kind ? (
+                    <div className="sm:col-span-2 xl:col-span-3">
+                      <AddTaskForm
+                        group={g}
+                        repoOptions={props.repoOptions}
+                        onCancel={() => setAdding(null)}
+                        onAdd={(prompt, repoId) => add(g.kind, prompt, repoId)}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAdding(g.kind)}
+                      className="flex min-h-[7rem] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:bg-accent-tint/30 hover:text-accent"
+                    >
+                      <Plus className="size-4" /> Add {g.label.toLowerCase()}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
+const NEW_PLACEHOLDER: Record<GroupDef['kind'], string> = {
+  investigate: 'What should the agent look for in this repository?',
+  research: 'What external question should the agent research?',
+  journal: 'What past decision or learning should it recall?',
+};
+
 function AddTaskForm(props: {
-  kind: 'investigate' | 'research' | 'journal';
+  group: GroupDef;
   repoOptions: { id: string; name: string }[];
   onCancel: () => void;
   onAdd: (prompt: string, repoId: string | null) => void;
 }) {
+  const { group } = props;
+  const Icon = group.Icon;
+  const isRepo = group.kind === 'investigate';
+  const noun = group.label.toLowerCase();
   const [prompt, setPrompt] = useState('');
   const [repoId, setRepoId] = useState('');
-  const floor = promptFloor(props.kind);
-  const valid = prompt.trim().length >= floor && (props.kind !== 'investigate' || repoId);
+  const floor = promptFloor(group.kind);
+  const tooShort = prompt.trim().length < floor;
+  const needsRepo = isRepo && !repoId;
+  const valid = !tooShort && !needsRepo;
+  const hint = tooShort ? `Needs ≥ ${floor} characters` : needsRepo ? 'Pick a repository' : 'Ready to add';
+
   return (
-    <div className="rounded-[var(--r-md)] border border-dashed border-line-strong bg-surface p-2">
-      <Textarea
-        aria-label="New task prompt"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        rows={2}
-        className="!text-xs"
-      />
-      <div className="mt-1 flex items-center gap-2">
-        {props.kind === 'investigate' ? (
-          <Select value={repoId || undefined} onValueChange={(v) => setRepoId(v)}>
+    <div className="overflow-hidden rounded-[var(--r-md)] border border-accent/45 bg-surface shadow-sm ring-1 ring-accent/10">
+      {/* Form header — kind identity + (repo selector | source) */}
+      <div className="flex items-center gap-2.5 border-b border-line bg-accent-tint/25 px-4 py-3">
+        <span className={cn('grid size-7 shrink-0 place-items-center rounded-[7px]', KIND_TINT[group.tint])}>
+          <Icon className="size-3.5" />
+        </span>
+        <span className="text-sm font-semibold text-ink">New {noun}</span>
+        <span className="flex-1" />
+        {isRepo ? (
+          <Select value={repoId || undefined} onValueChange={setRepoId}>
             <SelectTrigger
-              aria-label="New task repository"
-              className="!h-auto w-auto !py-1 !text-[11px]"
+              aria-label="Repository"
+              className="!h-8 w-auto min-w-[170px] gap-1.5 font-mono !text-[11px]"
             >
-              <SelectValue placeholder="repo…" />
+              <SelectValue placeholder="Choose repository…" />
             </SelectTrigger>
             <SelectContent>
               {props.repoOptions.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
+                <SelectItem key={r.id} value={r.id} className="font-mono text-xs">
                   {r.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        ) : null}
-        <span className="flex-1" />
-        <Button size="sm" variant="ghost" onClick={props.onCancel}>
-          cancel
-        </Button>
-        <Button
-          size="sm"
-          disabled={!valid}
-          onClick={() => props.onAdd(prompt.trim(), props.kind === 'investigate' ? repoId : null)}
-        >
-          add
-        </Button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft">
+            <Icon className="size-3.5 text-ink-faint" />
+            {group.source}
+          </span>
+        )}
+      </div>
+
+      {/* Prompt + actions */}
+      <div className="px-4 py-3.5">
+        <Textarea
+          autoFocus
+          aria-label={`New ${noun} prompt`}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={3}
+          placeholder={NEW_PLACEHOLDER[group.kind]}
+          className="!text-sm"
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <span className={cn('text-[11px]', tooShort || needsRepo ? 'text-ink-faint' : 'text-[var(--sage)]')}>
+            {hint}
+          </span>
+          <span className="flex-1" />
+          <Button size="sm" variant="ghost" onClick={props.onCancel}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!valid}
+            rightIcon={<Plus />}
+            onClick={() => props.onAdd(prompt.trim(), isRepo ? repoId : null)}
+          >
+            Add {noun}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
 function SummaryPane(props: {
-  bodyMd: string | null;
+  className?: string;
+  bodyMd: string;
   version: number | null;
   busy: boolean;
   onResynthesize: () => void;
   projectId: string;
 }) {
-  if (!props.bodyMd) {
-    return (
-      <section aria-label="Synthesized summary">
-        <EmptyState
-          icon={<Sparkles />}
-          title="Exploration summary"
-          description="No synthesis yet — run the tasks above to ground the brief, and the summary appears here."
-        />
-      </section>
-    );
-  }
-
   return (
-    <section
-      aria-label="Synthesized summary"
-      className="overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-sm"
-    >
-      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/60 px-6 py-3">
-          <Title className="!text-lg">
-            Exploration summary
-            {props.version ? (
-              <Badge variant="sage" size="sm" className="ml-2 align-middle">
-                v{props.version}
-              </Badge>
-            ) : null}
-          </Title>
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<RefreshCw />}
-            onClick={props.onResynthesize}
-            loading={props.busy}
-            disabled={props.busy}
-          >
-            {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
-          </Button>
-        </header>
-
-        <div className="px-6 py-5">
-          <Markdown className="max-w-[72ch] prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
-            {props.bodyMd}
-          </Markdown>
+    <Card className={cn('flex flex-col', props.className)} aria-label="Synthesized summary">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CardTitle>Exploration summary</CardTitle>
+          {props.version ? (
+            <Badge variant="sage" size="sm">
+              v{props.version}
+            </Badge>
+          ) : null}
         </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          leftIcon={<RefreshCw />}
+          onClick={props.onResynthesize}
+          loading={props.busy}
+          disabled={props.busy}
+        >
+          {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
+        </Button>
+      </CardHeader>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-line bg-surface-2/60 px-6 py-3">
-          <Micro className="!text-ink-faint">This brief grounds the Spec stage.</Micro>
-          <a
-            href={`/projects/${props.projectId}/spec`}
-            className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep"
-          >
-            Continue to Spec <ArrowRight className="size-4" />
-          </a>
-        </footer>
-    </section>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto !py-5">
+        <Markdown className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
+          {props.bodyMd}
+        </Markdown>
+      </CardContent>
+
+      <CardFooter>
+        <Micro className="!text-ink-faint">This brief grounds the Spec stage.</Micro>
+        <a
+          href={`/projects/${props.projectId}/spec`}
+          className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep"
+        >
+          Continue to Spec <ArrowRight className="size-4" />
+        </a>
+      </CardFooter>
+    </Card>
   );
 }

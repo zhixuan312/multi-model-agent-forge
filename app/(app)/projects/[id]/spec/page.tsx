@@ -13,6 +13,8 @@ import { canFreeze } from '@/spec/freeze';
 import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import { AnthropicClient } from '@/anthropic/client';
+import { USE_MOCK } from '@/mock/config';
+import { StagePlaceholder } from '@/components/forge/StagePlaceholder';
 
 /**
  * Spec stage (Spec 4 Part A) — the per-section dynamic Q&A authoring slice. RSC
@@ -28,6 +30,8 @@ export default async function SpecStagePage({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+
+  if (USE_MOCK) return <StagePlaceholder stage="Spec" />;
 
   try {
     await assertProjectReadable(id, { id: me.id });

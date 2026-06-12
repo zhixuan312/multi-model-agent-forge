@@ -2,25 +2,17 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
-import {
-  PageFrame,
-  buttonVariants,
-  MetricRow,
-  MetricCard,
-  Split,
-  EmptyState,
-} from '@/components/ui';
+import { PageFrame, buttonVariants, MetricCard, Card, CardContent, EmptyState } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { ProjectsRail } from '@/components/forge/ProjectsRail';
 import { dashboardProjects, dashboardMetrics } from '@/dashboard/dashboard-core';
 
 /**
- * Projects — the control tower (Spec 3 flow 2). RSC loads the enriched dashboard
- * set (`dashboardProjects`: gate/activity/artifact signals + derived next action,
- * one bounded query per signal). The five flow-health metrics reduce from it; the
- * page composes the content frame: STATUS (metrics) → CONTROLS+PRIMARY (filter +
- * work-queue) → RAIL (attention · activity · guidance). Empty product → one
- * purposeful EmptyState, never a blank frame.
+ * Projects — the control tower (Spec 3 flow 2), on the Team-Settings shell. RSC
+ * loads the enriched dashboard set (`dashboardProjects`); the five flow-health
+ * metrics reduce from it. STATUS row (5 metrics) → a 2/3 ∣ 1/3 fill row: the
+ * filterable work-queue (Primary, scrolls to the page bottom) and the
+ * attention · activity · guidance rail. Empty product → one purposeful EmptyState.
  */
 export default async function ProjectsPage() {
   const me = await currentMember();
@@ -35,41 +27,43 @@ export default async function ProjectsPage() {
     </Link>
   );
 
-  return (
-    <PageFrame
-      title="Projects"
-      description="Move work from idea → spec → frozen build, with MMA agents doing the work underneath."
-      actions={newProject}
-      width="wide"
-    >
-      {projects.length === 0 ? (
+  if (projects.length === 0) {
+    return (
+      <PageFrame title="Projects" actions={newProject} width="full">
         <EmptyState
           icon={<LayoutGrid />}
           title="No projects yet"
           description="Create your first project to start the flow — Forge takes it from idea through exploration, spec, freeze, and an autonomous build."
           action={newProject}
         />
-      ) : (
-        <div className="flex flex-col gap-6">
-          <MetricRow>
-            <MetricCard label="Active" value={metrics.active} icon={<LayoutGrid />} />
-            <MetricCard
-              label="Waiting for human"
-              value={metrics.awaitingHuman}
-              tone={metrics.awaitingHuman > 0 ? 'attention' : 'neutral'}
-              muted={metrics.awaitingHuman === 0}
-              icon={<Clock />}
-            />
-            <MetricCard label="Agents running" value={metrics.agentsRunning} muted={metrics.agentsRunning === 0} icon={<Sparkles />} />
-            <MetricCard label="Frozen / Build" value={metrics.frozenBuild} muted={metrics.frozenBuild === 0} icon={<Hammer />} />
-            <MetricCard label="Audit issues" value={metrics.auditIssues} muted={metrics.auditIssues === 0} icon={<AlertTriangle />} />
-          </MetricRow>
+      </PageFrame>
+    );
+  }
 
-          <Split aside={<ProjectsRail projects={projects} />} asideWidth="320px">
-            <ProjectFilterBar projects={projects} />
-          </Split>
+  return (
+    <PageFrame title="Projects" actions={newProject} width="full" fill>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        {/* STATUS — five flow-health metrics */}
+        <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <MetricCard label="Active" value={metrics.active} sublabel="In flight" icon={<LayoutGrid />} iconTint="accent" />
+          <MetricCard label="Waiting for human" value={metrics.awaitingHuman} muted={metrics.awaitingHuman === 0} sublabel="Need a decision" icon={<Clock />} iconTint="amber" />
+          <MetricCard label="Agents running" value={metrics.agentsRunning} muted={metrics.agentsRunning === 0} sublabel="Live agent work" icon={<Sparkles />} iconTint="sage" />
+          <MetricCard label="Frozen / Build" value={metrics.frozenBuild} muted={metrics.frozenBuild === 0} sublabel="Shipping" icon={<Hammer />} iconTint="steel" />
+          <MetricCard label="Audit issues" value={metrics.auditIssues} muted={metrics.auditIssues === 0} sublabel="Open findings" icon={<AlertTriangle />} iconTint="rose" />
         </div>
-      )}
+
+        {/* PRIMARY work-queue (2/3) ∣ RAIL (1/3), fills to the page bottom */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+          <Card className="flex min-h-0 flex-col lg:col-span-2">
+            <CardContent className="flex min-h-0 flex-1 flex-col">
+              <ProjectFilterBar projects={projects} />
+            </CardContent>
+          </Card>
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+            <ProjectsRail projects={projects} />
+          </div>
+        </div>
+      </div>
     </PageFrame>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { Title, Text, TextSm, Eyebrow, Mono, Micro } from '@/components/ui';
 import { Markdown } from '@/components/forge/Markdown';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
 import { EdgeChip } from '@/components/forge/journal/EdgeChip';
@@ -26,9 +27,9 @@ export function NodeDetail({
     return (
       <div className="flex-1 pl-4">
         <div className="rounded-[var(--r-md)] border border-dashed border-amber bg-amber-tint/40 p-4">
-          <p className="text-sm font-medium text-amber">Could not parse this node.</p>
+          <TextSm className="font-medium text-amber">Could not parse this node.</TextSm>
           {parseError ? (
-            <p className="mt-1 font-mono text-xs text-ink-soft">{parseError.filename}</p>
+            <Mono className="mt-1 block !text-xs text-ink-soft">{parseError.filename}</Mono>
           ) : null}
         </div>
       </div>
@@ -38,12 +39,14 @@ export function NodeDetail({
   return (
     <div className="flex-1 overflow-y-auto pl-4">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-ink-faint">{node.id}</span>
+        <Mono className="!text-xs text-ink-faint">{node.id}</Mono>
         <StatusBadge status={node.status} />
-        <span className="text-xs text-ink-faint">{node.date}</span>
+        <Micro className="text-ink-faint">{node.date}</Micro>
       </div>
-      <h2 className="mt-1 font-serif text-xl font-semibold text-ink">{node.title}</h2>
-      {node.crux ? <p className="mt-1 text-sm italic text-ink-soft">{node.crux}</p> : null}
+      <Title as="h2" className="mt-1 !text-xl">
+        {node.title}
+      </Title>
+      {node.crux ? <Text className="mt-1 !text-sm italic">{node.crux}</Text> : null}
 
       {node.tags.length ? (
         <div className="mt-2 flex flex-wrap gap-1">
@@ -60,7 +63,7 @@ export function NodeDetail({
 
       {(node.links.length > 0 || inbound.length > 0) ? (
         <div className="mt-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Edges</h3>
+          <Eyebrow as="h3" className="text-ink-faint">Edges</Eyebrow>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {node.links.map((l, i) => (
               <EdgeChip
@@ -85,17 +88,15 @@ export function NodeDetail({
       ) : null}
 
       <section className="mt-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Context</h3>
+        <Eyebrow as="h3" className="text-ink-faint">Context</Eyebrow>
         <Markdown className="mt-1">{node.context || '_(none)_'}</Markdown>
       </section>
       <section className="mt-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-          Consequences
-        </h3>
+        <Eyebrow as="h3" className="text-ink-faint">Consequences</Eyebrow>
         <Markdown className="mt-1">{node.consequences || '_(none)_'}</Markdown>
       </section>
 
-      <p className="mt-4 font-mono text-[11px] text-ink-faint">{node.filename}</p>
+      <Mono className="mt-4 block !text-[11px] text-ink-faint">{node.filename}</Mono>
     </div>
   );
 }

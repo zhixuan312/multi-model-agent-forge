@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserRound, Settings, LogOut, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import {
   Avatar,
   Badge,
-  Menu,
-  MenuButton,
-  MenuItems,
-  MenuItem,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   TextSm,
   Mono,
 } from '@/components/ui';
@@ -45,51 +45,47 @@ export function AccountMenu({
   }
 
   const items = (
-    <MenuItems
-      align="start"
-      // Rail trigger sits at the bottom of the viewport-tall sidebar, so the
-      // panel opens UPWARD; the mobile bar trigger opens downward (default).
-      className={cn(
-        'min-w-[13rem]',
-        variant === 'rail' && 'bottom-full top-auto mb-1.5 mt-0 w-full',
-        variant === 'bar' && '!right-0 left-auto',
-      )}
-    >
-      <MenuItem icon={<UserRound />} onSelect={() => router.push('/profile')}>
+    <>
+      <DropdownMenuItem onSelect={() => router.push('/profile')}>
+        <UserRound />
         Profile
-      </MenuItem>
+      </DropdownMenuItem>
       {member.isAdmin ? (
-        <MenuItem icon={<Settings />} onSelect={() => router.push('/settings')}>
+        <DropdownMenuItem onSelect={() => router.push('/settings')}>
+          <Settings />
           Team settings
-        </MenuItem>
+        </DropdownMenuItem>
       ) : null}
-      <div className="my-1 h-px bg-line" role="separator" />
-      <MenuItem icon={<LogOut />} onSelect={signOut} disabled={signingOut}>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => void signOut()} disabled={signingOut}>
+        <LogOut />
         {signingOut ? 'Signing out…' : 'Sign out'}
-      </MenuItem>
-    </MenuItems>
+      </DropdownMenuItem>
+    </>
   );
 
   if (variant === 'bar') {
     return (
-      <Menu>
-        <MenuButton
+      <DropdownMenu>
+        <DropdownMenuTrigger
           aria-label="Account menu"
-          className="grid size-9 place-items-center rounded-full hover:bg-surface-2"
+          className="focus-ring grid size-9 place-items-center rounded-full hover:bg-surface-2"
         >
           <Avatar name={member.displayName} tint={member.avatarTint} size="sm" aria-hidden />
-        </MenuButton>
-        {items}
-      </Menu>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[13rem]">
+          {items}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
   return (
-    <Menu className="block">
-      <MenuButton
+    <DropdownMenu>
+      <DropdownMenuTrigger
         data-testid="user-card"
         aria-label="Account menu"
-        className="w-full items-center gap-2.5 rounded-[var(--r-lg)] border border-line bg-surface p-2 text-left transition-colors duration-150 ease-[var(--ease-out)] hover:border-line-strong"
+        className="focus-ring flex w-full items-center gap-2.5 rounded-[var(--r-lg)] border border-line bg-surface p-2 text-left transition-colors duration-150 ease-[var(--ease-out)] hover:border-line-strong"
       >
         <Avatar name={member.displayName} tint={member.avatarTint} size="sm" aria-hidden />
         <div className="min-w-0 flex-1">
@@ -104,8 +100,14 @@ export function AccountMenu({
           <Mono className="block truncate !text-xs text-ink-faint">@{member.username}</Mono>
         </div>
         <ChevronsUpDown className="size-4 shrink-0 text-ink-faint" aria-hidden />
-      </MenuButton>
-      {items}
-    </Menu>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        className="w-[var(--radix-dropdown-menu-trigger-width)]"
+      >
+        {items}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

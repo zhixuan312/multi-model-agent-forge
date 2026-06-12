@@ -11,7 +11,7 @@ export type SettingsTab = 'members' | 'providers' | 'roster' | 'connections';
 const TABS: ReadonlyArray<{ key: SettingsTab; label: string; href: string }> = [
   { key: 'members', label: 'Members', href: '/settings/members' },
   { key: 'providers', label: 'Providers', href: '/settings/providers' },
-  { key: 'roster', label: 'Agent roster', href: '/settings/roster' },
+  { key: 'roster', label: 'Roster', href: '/settings/roster' },
   { key: 'connections', label: 'Connections', href: '/settings/connections' },
 ];
 

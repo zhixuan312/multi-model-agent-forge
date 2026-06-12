@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Field, Input, Select, Checkbox, Badge, Text, Mono } from '@/components/ui';
+import { Field, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Checkbox, Badge, Text, Mono } from '@/components/ui';
 import { filterRepos } from '@/git/repo-filter';
 
 /**
@@ -53,25 +53,35 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
         </Field>
         <Field label="Kind">
           {(p) => (
-            <Select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="">All kinds</option>
-              {kinds.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
+            <Select value={kind || '__all'} onValueChange={(v) => setKind(v === '__all' ? '' : v)}>
+              <SelectTrigger {...p}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All kinds</SelectItem>
+                {kinds.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
         </Field>
         <Field label="Tag">
           {(p) => (
-            <Select {...p} value={tag} onChange={(e) => setTag(e.target.value)}>
-              <option value="">All tags</option>
-              {allTags.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+            <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
+              <SelectTrigger {...p}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All tags</SelectItem>
+                {allTags.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
         </Field>
@@ -92,7 +102,7 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
                 checked={checked}
                 disabled={!available}
                 aria-label={`Select repository ${r.name}`}
-                onChange={() => toggle(r.id, available)}
+                onCheckedChange={() => toggle(r.id, available)}
               />
               <label htmlFor={`repo-cb-${r.id}`} className="flex-1 cursor-pointer">
                 <Mono className="!text-sm text-ink">{r.name}</Mono>

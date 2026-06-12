@@ -1,0 +1,5 @@
+[
+  { "tier": "main", "providerId": "11111111-1111-4111-8111-111111111111", "model": "claude-opus-4-8", "updatedAt": "2026-06-01T10:00:00.000Z" },
+  { "tier": "complex", "providerId": "11111111-1111-4111-8111-111111111111", "model": "claude-sonnet-4-6", "updatedAt": "2026-06-01T10:00:00.000Z" },
+  { "tier": "standard", "providerId": "55555555-5555-4555-8555-555555555555", "model": "llama-3.3-70b-versatile", "updatedAt": "2026-06-01T10:00:00.000Z" }
+]

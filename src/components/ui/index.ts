@@ -18,11 +18,18 @@ export * from './checkbox';
 export * from './switch';
 
 // Display & status
+export * from './table';
+export * from './data-table';
 export * from './badge';
 export * from './icon-button';
 export * from './banner';
 export * from './empty-state';
 export * from './avatar';
+export * from './avatar-group';
+export * from './metric-card';
+export * from './next-action-pill';
+export * from './stage-rail';
+export * from './rail';
 export * from './skeleton';
 export * from './spinner';
 export * from './separator';
@@ -31,7 +38,7 @@ export * from './tooltip';
 
 // Overlays & navigation
 export * from './tabs';
-export * from './menu';
+export * from './dropdown-menu';
 export * from './dialog';
 export * from './breadcrumb';
 

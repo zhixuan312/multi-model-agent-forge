@@ -1,19 +1,21 @@
+import { Users, ShieldCheck, UserPlus, Monitor } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
-import { listMembers } from '@/auth/members-core';
-import { PageFrame, SectionTitle, Grid } from '@/components/ui';
+import { listMembers, countActiveSessions } from '@/auth/members-core';
+import { PageFrame, MetricCard } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
-import { AddMemberForm } from './AddMemberForm';
-import { MemberRow, type MemberRowData } from './MemberRow';
+import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { MemberTable, type MemberRowData } from './MemberTable';
 
 /**
- * Team Settings → Members (Spec 1 §Members CRUD / members.html). Admin-gated by
- * `requireAdminPage`. Lists members (username, display name, admin badge,
- * created) with row actions + an add-member card. The list renders via RSC; the
- * mutations are admin API route handlers driven by the client pieces.
+ * Team Settings → Members (Spec 1 §Members CRUD). Admin-gated. STATUS row (4
+ * equal metric boxes), then a 2/3 ∣ 1/3 row — the member DataTable (Primary) and
+ * the add-member form + equal-rights guidance (Rail).
  */
 export default async function MembersPage() {
   await requireAdminPage();
   const members = await listMembers();
+  const activeSessions = await countActiveSessions();
+
   const rows: MemberRowData[] = members.map((m) => ({
     id: m.id,
     username: m.username,
@@ -23,20 +25,31 @@ export default async function MembersPage() {
     createdAt: m.createdAt.toISOString(),
   }));
 
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const total = rows.length;
+  const admins = rows.filter((m) => m.isAdmin).length;
+  const recent = rows.filter((m) => new Date(m.createdAt) > cutoff).length;
+
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="members" />}>
-      <div className="flex flex-col gap-6">
-        <SectionTitle description="Everyone logs in with their own username — used for ownership, presence, and the action log. Equal rights for all.">
-          Team members
-        </SectionTitle>
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="members" />} width="full">
+      <div className="flex flex-col gap-4">
+        {/* STATUS — four equal metric boxes */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard label="Team members" value={total} sublabel="Total members" icon={<Users />} iconTint="rose" />
+          <MetricCard label="Admins" value={admins} sublabel="With admin capability" icon={<ShieldCheck />} iconTint="accent" />
+          <MetricCard label="Recently added" value={recent} muted={recent === 0} sublabel="In the last 30 days" icon={<UserPlus />} iconTint="sage" />
+          <MetricCard label="Active sessions" value={activeSessions} muted={activeSessions === 0} sublabel="Currently active" icon={<Monitor />} iconTint="steel" />
+        </div>
 
-        <Grid min="320px" gap="sm" data-testid="members-list">
-          {rows.map((m) => (
-            <MemberRow key={m.id} member={m} />
-          ))}
-        </Grid>
-
-        <AddMemberForm />
+        {/* PRIMARY (2/3) ∣ RAIL (1/3) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+          <div className="lg:col-span-2">
+            <MemberTable members={rows} />
+          </div>
+          <div className="flex flex-col gap-4">
+            <SettingsAccessNote />
+          </div>
+        </div>
       </div>
     </PageFrame>
   );

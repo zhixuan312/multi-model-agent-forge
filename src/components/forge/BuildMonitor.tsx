@@ -198,10 +198,12 @@ export function BuildMonitor({ projectId, initial }: { projectId: string; initia
                     <span>{t.repoName}</span>
                     {t.branch && <span className="rounded border border-line px-1">{t.branch}</span>}
                     {t.commitSha && <Mono className="!text-xs">{t.commitSha.slice(0, 8)}</Mono>}
-                    {t.reviewPolicy !== 'full' && <span className="italic">policy: {t.reviewPolicy}</span>}
+                    {t.reviewPolicy !== 'full' && (
+                      <Mono className="!text-xs italic">policy: {t.reviewPolicy}</Mono>
+                    )}
                   </div>
                   {t.fixNote && (
-                    <p className="mt-1 text-xs text-[var(--rose)]">inline fix: {t.fixNote}</p>
+                    <TextSm className="mt-1 !text-xs !text-rose">inline fix: {t.fixNote}</TextSm>
                   )}
                 </div>
               );

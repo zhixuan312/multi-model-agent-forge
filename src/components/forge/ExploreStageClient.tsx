@@ -12,6 +12,10 @@ import {
   EmptyState,
   Textarea,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
   Title,
   TextSm,
   Micro,
@@ -355,19 +359,22 @@ function FanOutEditor(props: {
                   <div className="mt-1 flex items-center gap-2">
                     {g.kind === 'investigate' ? (
                       <Select
-                        aria-label="Target repository"
-                        defaultValue={t.targetRepoId ?? ''}
-                        onChange={(e) => patch(t.id, { targetRepoId: e.target.value })}
-                        className="!h-auto w-auto !py-1 !text-[11px]"
+                        defaultValue={t.targetRepoId ?? undefined}
+                        onValueChange={(v) => patch(t.id, { targetRepoId: v })}
                       >
-                        <option value="" disabled>
-                          repo…
-                        </option>
-                        {props.repoOptions.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
+                        <SelectTrigger
+                          aria-label="Target repository"
+                          className="!h-auto w-auto !py-1 !text-[11px]"
+                        >
+                          <SelectValue placeholder="repo…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {props.repoOptions.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     ) : null}
                     {subFloor ? (
@@ -424,18 +431,20 @@ function AddTaskForm(props: {
       />
       <div className="mt-1 flex items-center gap-2">
         {props.kind === 'investigate' ? (
-          <Select
-            aria-label="New task repository"
-            value={repoId}
-            onChange={(e) => setRepoId(e.target.value)}
-            className="!h-auto w-auto !py-1 !text-[11px]"
-          >
-            <option value="">repo…</option>
-            {props.repoOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
+          <Select value={repoId || undefined} onValueChange={(v) => setRepoId(v)}>
+            <SelectTrigger
+              aria-label="New task repository"
+              className="!h-auto w-auto !py-1 !text-[11px]"
+            >
+              <SelectValue placeholder="repo…" />
+            </SelectTrigger>
+            <SelectContent>
+              {props.repoOptions.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         ) : null}
         <span className="flex-1" />

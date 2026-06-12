@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { teamSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import { USE_MOCK } from '@/mock/config';
+import * as connectionsMock from '@/mock/domains/settings/connections';
 
 /**
  * Connections core (Spec 2 §Connections). Reads/updates the singleton
@@ -52,6 +54,7 @@ export type UpdateConnectionsInput = z.infer<typeof updateConnectionsSchema>;
 
 /** Read the singleton row (or the empty view if no row exists yet). */
 export async function getConnections(deps: ConnectionsDeps = {}): Promise<ConnectionsView> {
+  if (USE_MOCK) return connectionsMock.getConnections();
   const db = deps.db ?? getDb();
   const [row] = await db.select().from(teamSettings).limit(1);
   if (!row) {
@@ -83,6 +86,7 @@ export async function updateConnections(
   input: unknown,
   deps: ConnectionsDeps = {},
 ): Promise<UpdateConnectionsResult> {
+  if (USE_MOCK) return connectionsMock.updateConnections(input);
   const db = deps.db ?? getDb();
   const parsed = updateConnectionsSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };

@@ -86,15 +86,33 @@ export function ShellBody({
   children,
   className,
   width = 'default',
+  fill = false,
 }: {
   children: ReactNode;
   className?: string;
   width?: 'default' | 'wide' | 'full';
+  /** Full-height, non-scrolling page: the body fills the frame exactly and the
+   *  page never scrolls — content manages its own internal scroll. */
+  fill?: boolean;
 }) {
   const max = width === 'full' ? 'max-w-none' : width === 'wide' ? 'max-w-[1320px]' : 'max-w-[1120px]';
   return (
-    <div className="forge-scroll min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-      <div className={cn('mx-auto w-full px-5 py-6 md:px-8 md:py-8', max, className)}>{children}</div>
+    <div
+      className={cn(
+        'min-w-0 min-h-0 flex-1',
+        fill ? 'overflow-hidden' : 'forge-scroll overflow-y-auto overflow-x-hidden overscroll-contain',
+      )}
+    >
+      <div
+        className={cn(
+          'mx-auto w-full px-5 md:px-8',
+          fill ? 'flex h-full flex-col py-5 md:py-6' : 'py-6 md:py-8',
+          max,
+          className,
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -124,6 +142,7 @@ export function PageFrame({
   subnav,
   children,
   width,
+  fill = false,
 }: {
   title?: ReactNode;
   breadcrumb?: Crumb[];
@@ -133,6 +152,8 @@ export function PageFrame({
   subnav?: ReactNode;
   children: ReactNode;
   width?: 'default' | 'wide' | 'full';
+  /** Full-height, non-scrolling page (the body fills the frame; content scrolls internally). */
+  fill?: boolean;
 }) {
   return (
     <>
@@ -148,7 +169,7 @@ export function PageFrame({
         )}
       </ShellHeader>
       {subnav ? <ShellSubNav>{subnav}</ShellSubNav> : null}
-      <ShellBody width={width}>
+      <ShellBody width={width} fill={fill}>
         {description ? <Text className="-mt-1 mb-6 max-w-[68ch]">{description}</Text> : null}
         {children}
       </ShellBody>

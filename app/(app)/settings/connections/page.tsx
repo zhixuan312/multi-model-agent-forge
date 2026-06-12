@@ -1,25 +1,34 @@
+import { Lock, Plug, GitBranch, Mic } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { getConnections } from '@/config/connections-core';
-import { PageFrame, SectionTitle } from '@/components/ui';
+import { PageFrame, MetricCard } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
 
 /**
  * Team Settings → Connections (Spec 2 §Connections / connections.html).
- * Admin-gated. MMA (base URL + bearer token) and Git (service token), plus the
- * OpenAI transcription key — each token stored via the SecretStore, shown only
- * as "set / not set". (Test connection / Save & apply to MMA is Part B.)
+ * Admin-gated. Same surface as Members: a STATUS row of four metric boxes, then
+ * a 2/3 ∣ 1/3 row — the MMA / Git / OpenAI connection groups (Primary) and the
+ * security guidance (Rail). Each token is stored encrypted via the SecretStore
+ * and shown only as "set / not set".
  */
 export default async function ConnectionsPage() {
   await requireAdminPage();
   const view = await getConnections();
 
+  const setCount =
+    (view.mmaTokenSet ? 1 : 0) + (view.gitTokenSet ? 1 : 0) + (view.openaiTranscriptionKeySet ? 1 : 0);
+
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="connections" />}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <SectionTitle description="The MMA endpoint Forge calls every rod through, and the git service token that clones & pulls team repos. Secrets are stored encrypted and never shown.">
-          Connections
-        </SectionTitle>
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="connections" />} width="full">
+      <div className="flex flex-col gap-4">
+        {/* STATUS — four equal metric boxes */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard label="Secrets set" value={`${setCount}/3`} muted={setCount === 0} sublabel="Stored encrypted" icon={<Lock />} iconTint="accent" />
+          <MetricCard label="MMA" value={view.mmaTokenSet ? 'Ready' : 'No token'} muted={!view.mmaTokenSet} sublabel="Bearer token" icon={<Plug />} iconTint="steel" />
+          <MetricCard label="Git access" value={view.gitTokenSet ? 'Ready' : 'No token'} muted={!view.gitTokenSet} sublabel="Clone & pull" icon={<GitBranch />} iconTint="sage" />
+          <MetricCard label="Voice" value={view.openaiTranscriptionKeySet ? 'On' : 'Off'} muted={!view.openaiTranscriptionKeySet} sublabel="OpenAI transcription" icon={<Mic />} iconTint="rose" />
+        </div>
 
         <ConnectionsForm
           initial={{

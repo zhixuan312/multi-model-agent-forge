@@ -1,47 +1,41 @@
 import Link from 'next/link';
-import { Globe, Lock } from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { Card, CardContent, Badge, Avatar, Title, Text, Mono } from '@/components/ui';
+import { Globe, Lock, GitBranch } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  Badge,
+  Title,
+  Text,
+  Mono,
+  StageRail,
+  NextActionPill,
+  AvatarGroup,
+} from '@/components/ui';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { formatRelative } from '@/lib/format-relative';
-import type { ProjectListItem } from '@/projects/projects-core';
-import type { StageStatus } from '@/db/enums';
+import type { DashboardProject } from '@/dashboard/dashboard-core';
+import type { ArtifactKind } from '@/db/enums';
 
 /**
- * ProjectCard (Spec 3 flow 2) — serif title · phase badge · summary (or neutral
- * placeholder) · 5-segment stage rail · footer (owner avatar+name · visibility
- * chip · N repos · relative updated_at). The whole card links to the project.
- *
- * The phase pill is the shared `PhaseBadge` — the card and the project header
- * speak the same status language (same labels, same lifecycle colours). The
- * stage rail is CSS-theme-driven (colour swaps with `data-phase`), so colour
- * is NOT the testable channel — each segment carries an `aria-label` text
- * alternative (done/active/pending) so screen-reader users get the status.
+ * ProjectCard — the Primary-section work-queue card (Spec 3 flow 2, control
+ * tower). Leads with the derived NEXT ACTION (what to do), shows flow position
+ * via the StageRail, and keeps everything else muted. Built entirely from
+ * palette components — PhaseBadge · StageRail · NextActionPill · AvatarGroup —
+ * over real `DashboardProject` data. The whole card links to the project.
  */
-
-const RAIL_CLASS: Record<StageStatus, string> = {
-  done: 'bg-[var(--rail-done,var(--sage))]',
-  active: 'bg-[var(--rail-active,var(--accent))]',
-  pending: 'bg-[var(--rail-pending,var(--line-strong))]',
+const ARTIFACT_LABEL: Record<ArtifactKind, string> = {
+  exploration_brief: 'Brief',
+  exploration: 'Exploration',
+  spec: 'Spec',
+  plan: 'Plan',
 };
 
-function StageRail({ stages }: { stages: { kind: string; status: StageStatus }[] }) {
-  return (
-    <ul aria-label="Stage progress" className="flex list-none gap-1 p-0">
-      {stages.map((s) => (
-        <li
-          key={s.kind}
-          data-stage={s.kind}
-          data-status={s.status}
-          aria-label={`${s.kind}: ${s.status}`}
-          className={cn('h-1 flex-1 rounded', RAIL_CLASS[s.status])}
-        />
-      ))}
-    </ul>
-  );
-}
+export function ProjectCard({ project }: { project: DashboardProject }) {
+  const members = [
+    { name: project.ownerDisplayName, tint: project.ownerAvatarTint },
+    ...project.collaborators.map((c) => ({ name: c.displayName, tint: c.avatarTint })),
+  ];
 
-export function ProjectCard({ project }: { project: ProjectListItem }) {
   return (
     <Link href={`/projects/${project.id}`} data-testid={`project-card-${project.id}`} className="block">
       <Card interactive elevation="flat" className="h-full">
@@ -59,27 +53,42 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
             )}
           </Text>
 
-          <StageRail stages={project.stages} />
+          <div className="flex items-center gap-2.5">
+            <StageRail
+              className="flex-1"
+              segments={project.stages.map((s) => ({ status: s.status, label: s.kind }))}
+            />
+            {project.latestArtifact ? (
+              <Mono className="!text-[11px] shrink-0 text-ink-faint">
+                {ARTIFACT_LABEL[project.latestArtifact.kind]} v{project.latestArtifact.version}
+              </Mono>
+            ) : null}
+          </div>
 
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <div className="flex min-w-0 items-center gap-2">
-              <Avatar size="sm" name={project.ownerDisplayName} tint={project.ownerAvatarTint} aria-hidden />
-              <span className="truncate text-ink-soft">{project.ownerDisplayName}</span>
-              <span aria-hidden="true" className="text-line-strong">
-                ·
-              </span>
-              <Badge data-testid="visibility-chip" size="sm" icon={project.visibility === 'private' ? <Lock /> : <Globe />}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <NextActionPill tone={project.nextAction.tone}>{project.nextAction.label}</NextActionPill>
+            <div className="ml-auto flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-soft">
+              <AvatarGroup members={members} max={3} />
+              <span className="truncate">{project.ownerDisplayName}</span>
+              <span data-testid="visibility-chip" className="inline-flex items-center gap-1">
+                {project.visibility === 'private' ? (
+                  <Lock className="size-3" aria-hidden />
+                ) : (
+                  <Globe className="size-3" aria-hidden />
+                )}
                 {project.visibility}
-              </Badge>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <GitBranch className="size-3" aria-hidden />
+                {project.repoCount} repo{project.repoCount === 1 ? '' : 's'}
+              </span>
               {project.unavailableRepoCount > 0 ? (
                 <Badge data-testid="repo-unavailable-chip" variant="rose" size="sm">
                   repo unavailable
                 </Badge>
               ) : null}
+              <Mono className="!text-[11px] text-ink-faint">{formatRelative(project.updatedAt)}</Mono>
             </div>
-            <Mono className="!text-[11px] text-ink-faint">
-              {project.repoCount} repos · {formatRelative(project.updatedAt)}
-            </Mono>
           </div>
         </CardContent>
       </Card>

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { agentTier, provider } from '@/db/schema/config';
 import { AGENT_TIER, type AgentTier } from '@/db/enums';
+import { USE_MOCK } from '@/mock/config';
+import * as rosterMock from '@/mock/domains/settings/roster';
 
 /**
  * Agent-roster core (Spec 2 §Agent roster). The three `agent_tier` rows
@@ -28,6 +30,7 @@ export interface RosterRow {
 
 /** Read all three tier rows (ordered main, complex, standard). */
 export async function listRoster(deps: RosterDeps = {}): Promise<RosterRow[]> {
+  if (USE_MOCK) return rosterMock.listRoster();
   const db = deps.db ?? getDb();
   const rows = await db
     .select({
@@ -84,6 +87,7 @@ export async function updateRoster(
   input: unknown,
   deps: RosterDeps = {},
 ): Promise<UpdateRosterResult> {
+  if (USE_MOCK) return rosterMock.updateRoster(input);
   const db = deps.db ?? getDb();
   const parsed = updateRosterSchema.safeParse(input);
   if (!parsed.success) {

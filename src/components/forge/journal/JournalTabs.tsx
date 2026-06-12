@@ -7,7 +7,7 @@ import { NodeDetail } from '@/components/forge/journal/NodeDetail';
 import { WriteLogView } from '@/components/forge/journal/WriteLogView';
 import { RecallView } from '@/components/forge/journal/RecallView';
 import { BookOpen, Hexagon, History } from 'lucide-react';
-import { Badge, Eyebrow, EmptyState, Banner } from '@/components/ui';
+import { Badge, Eyebrow, EmptyState, Banner, TextSm } from '@/components/ui';
 import { STATUS_VALUES } from '@/journal/types';
 import type {
   JournalReadOutcome,
@@ -89,7 +89,7 @@ export function JournalTabs({
           {selectedId ? (
             <LazyNodeDetail id={selectedId} onNavigate={(id) => go('nodes', id)} />
           ) : (
-            <div className="flex-1 pl-4 text-sm text-ink-faint">Select a node to view its detail.</div>
+            <TextSm className="flex-1 pl-4 !text-ink-faint">Select a node to view its detail.</TextSm>
           )}
         </div>
       ) : null}
@@ -215,10 +215,10 @@ function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id: strin
   }, [id]);
 
   if (state.phase === 'loading') {
-    return <div className="flex-1 pl-4 text-sm text-ink-faint">Loading node {id}…</div>;
+    return <TextSm className="flex-1 pl-4 !text-ink-faint">Loading node {id}…</TextSm>;
   }
   if (state.phase === 'error') {
-    return <div className="flex-1 pl-4 text-sm text-rose">Could not load node {id}.</div>;
+    return <TextSm className="flex-1 pl-4 !text-rose">Could not load node {id}.</TextSm>;
   }
   return (
     <NodeDetail

@@ -1,8 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { ProjectCard } from '@/components/forge/ProjectCard';
-import type { ProjectListItem } from '@/projects/projects-core';
+import type { DashboardProject } from '@/dashboard/dashboard-core';
 
-function item(over: Partial<ProjectListItem> = {}): ProjectListItem {
+function item(over: Partial<DashboardProject> = {}): DashboardProject {
   return {
     id: 'p1',
     name: 'Payments refund flow',
@@ -24,6 +24,12 @@ function item(over: Partial<ProjectListItem> = {}): ProjectListItem {
     ],
     repoCount: 6,
     unavailableRepoCount: 0,
+    awaitingHuman: 0,
+    openAuditIssues: 0,
+    agentsRunning: 0,
+    latestArtifact: null,
+    collaborators: [],
+    nextAction: { label: 'Build running', tone: 'info' },
     ...over,
   };
 }

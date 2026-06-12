@@ -11,14 +11,21 @@ import {
   Field,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
   Mono,
   Micro,
   EmptyState,
   Toolbar,
   Grid,
   Dialog,
-  DialogPanel,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   type BadgeProps,
 } from '@/components/ui';
@@ -141,9 +148,12 @@ function CloneRepoDialog({ open, onClose, onCloned }: { open: boolean; onClose: 
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogPanel>
-        <DialogTitle>Add / clone repo</DialogTitle>
-        <div className="mt-4 flex flex-col gap-4 px-6">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add / clone repo</DialogTitle>
+          <DialogDescription>Point Forge at a git URL to clone it into the workspace.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4">
           <Field label="Name">
             {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} className="font-mono" />}
           </Field>
@@ -160,12 +170,12 @@ function CloneRepoDialog({ open, onClose, onCloned }: { open: boolean; onClose: 
           <Field label="Tags" hint="comma-separated">
             {(p) => <Input {...p} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="core, backend" />}
           </Field>
-        </div>
-        {error ? (
-          <p role="alert" className="mt-3 px-6 t-sm text-rose">
-            {error}
-          </p>
-        ) : null}
+          {error ? (
+            <p role="alert" className="t-sm text-rose">
+              {error}
+            </p>
+          ) : null}
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
             Cancel
@@ -174,7 +184,7 @@ function CloneRepoDialog({ open, onClose, onCloned }: { open: boolean; onClose: 
             {busy ? 'Cloning…' : 'Clone'}
           </Button>
         </DialogFooter>
-      </DialogPanel>
+      </DialogContent>
     </Dialog>
   );
 }
@@ -229,25 +239,35 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
       >
         <Field label="Kind">
           {(p) => (
-            <Select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="">All kinds</option>
-              {kinds.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
+            <Select value={kind || '__all'} onValueChange={(v) => setKind(v === '__all' ? '' : v)}>
+              <SelectTrigger {...p}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All kinds</SelectItem>
+                {kinds.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
         </Field>
         <Field label="Tag">
           {(p) => (
-            <Select {...p} value={tag} onChange={(e) => setTag(e.target.value)}>
-              <option value="">All tags</option>
-              {allTags.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+            <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
+              <SelectTrigger {...p}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All tags</SelectItem>
+                {allTags.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
         </Field>

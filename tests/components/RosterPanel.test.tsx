@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {
   RosterPanel,
   type RosterRowData,
@@ -19,6 +20,10 @@ const providers: ProviderOption[] = [
   { id: 'p1', name: 'Claude' },
   { id: 'p2', name: 'Minimax' },
 ];
+const modelsByProvider: Record<string, string[]> = {
+  p1: ['claude-opus-4-8', 'claude-sonnet-4-6'],
+  p2: ['minimax-text-01'],
+};
 
 describe('RosterPanel', () => {
   beforeEach(() => {
@@ -26,7 +31,7 @@ describe('RosterPanel', () => {
   });
 
   it('renders all three tiers with provider + model fields', () => {
-    render(<RosterPanel initialRoster={roster} providers={providers} />);
+    render(<RosterPanel initialRoster={roster} providers={providers} modelsByProvider={modelsByProvider} />);
     for (const tier of ['main', 'complex', 'standard'] as const) {
       expect(screen.getByTestId(`tier-${tier}`)).toBeInTheDocument();
       expect(screen.getByLabelText('Provider', { selector: `#provider-${tier}` })).toBeInTheDocument();
@@ -34,32 +39,41 @@ describe('RosterPanel', () => {
     }
   });
 
-  it('the provider select lists configured providers + a none option', () => {
-    render(<RosterPanel initialRoster={roster} providers={providers} />);
-    const select = screen.getByLabelText('Provider', { selector: '#provider-main' });
-    expect(select).toHaveTextContent('— none');
-    expect(select).toHaveTextContent('Claude');
-    expect(select).toHaveTextContent('Minimax');
+  it('the provider select lists configured providers + a none option', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<RosterPanel initialRoster={roster} providers={providers} modelsByProvider={modelsByProvider} />);
+    await user.click(screen.getByLabelText('Provider', { selector: '#provider-main' }));
+    expect(await screen.findByRole('option', { name: '— none' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Claude' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Minimax' })).toBeInTheDocument();
   });
 
-  it('the model field is free-text (accepts a custom id)', () => {
-    render(<RosterPanel initialRoster={roster} providers={providers} />);
-    const model = screen.getByLabelText(/Model/, { selector: '#model-complex' }) as HTMLInputElement;
-    fireEvent.change(model, { target: { value: 'MiniMax-Text-01-custom' } });
-    expect(model.value).toBe('MiniMax-Text-01-custom');
+  it('the model field is constrained to the chosen provider’s models', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<RosterPanel initialRoster={roster} providers={providers} modelsByProvider={modelsByProvider} />);
+    const model = screen.getByLabelText(/Model/, { selector: '#model-complex' });
+    // disabled until a provider is chosen
+    expect(model).toBeDisabled();
+    await user.click(screen.getByLabelText('Provider', { selector: '#provider-complex' }));
+    await user.click(await screen.findByRole('option', { name: 'Claude' }));
+    expect(model).not.toBeDisabled();
+    // the model select now offers only p1's models
+    await user.click(model);
+    expect(await screen.findByRole('option', { name: 'claude-opus-4-8' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'claude-sonnet-4-6' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'minimax-text-01' })).toBeNull();
   });
 
   it('Save roster PUTs the whole roster to /api/roster', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }));
-    render(<RosterPanel initialRoster={roster} providers={providers} />);
-    fireEvent.change(screen.getByLabelText('Provider', { selector: '#provider-complex' }), {
-      target: { value: 'p1' },
-    });
-    fireEvent.change(screen.getByLabelText(/Model/, { selector: '#model-complex' }), {
-      target: { value: 'claude-opus-4-8' },
-    });
+    render(<RosterPanel initialRoster={roster} providers={providers} modelsByProvider={modelsByProvider} />);
+    await user.click(screen.getByLabelText('Provider', { selector: '#provider-complex' }));
+    await user.click(await screen.findByRole('option', { name: 'Claude' }));
+    await user.click(screen.getByLabelText(/Model/, { selector: '#model-complex' }));
+    await user.click(await screen.findByRole('option', { name: 'claude-opus-4-8' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save roster' }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));

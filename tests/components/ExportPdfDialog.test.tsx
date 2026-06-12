@@ -15,18 +15,15 @@ const SECTIONS = [
 beforeEach(() => downloadPost.mockClear());
 
 describe('ExportPdfDialog (test 13, F13/F30)', () => {
-  it('for a spec, renders one checkbox per {NN,title} (value=NN, label=title)', async () => {
+  it('for a spec, renders one checkbox per {NN,title}, all checked by default', async () => {
     render(
       <ExportPdfDialog projectId="p1" kind="spec" open onClose={() => {}} fetchSections={async () => SECTIONS} />,
     );
     await waitFor(() => screen.getByLabelText('Context'));
-    const ctx = screen.getByLabelText('Context') as HTMLInputElement;
-    const tech = screen.getByLabelText('Technical design') as HTMLInputElement;
-    expect(ctx.value).toBe('01');
-    expect(tech.value).toBe('03');
-    // all checked by default
-    expect(ctx.checked).toBe(true);
-    expect(tech.checked).toBe(true);
+    // one checkbox per section, labelled by its title; all checked by default
+    expect(screen.getByLabelText('Context')).toBeChecked();
+    expect(screen.getByLabelText('Technical design')).toBeChecked();
+    // the NN→checkbox mapping is verified by the Export payload test below.
     // mermaid toggle present
     expect(screen.getByLabelText('Mermaid flow charts as diagrams')).toBeInTheDocument();
   });

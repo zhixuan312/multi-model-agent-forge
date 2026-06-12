@@ -4,6 +4,8 @@ import { getDb, type Db } from '@/db/client';
 import { provider } from '@/db/schema/config';
 import { PROVIDER_TYPE } from '@/db/enums';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import { USE_MOCK } from '@/mock/config';
+import * as providersMock from '@/mock/domains/settings/providers';
 
 /**
  * Providers CRUD core (Spec 2 §Providers). Dependency-injected (`Db` +
@@ -82,6 +84,7 @@ function toView(row: {
 // ---- list ----
 
 export async function listProviders(deps: ProvidersDeps = {}): Promise<ProviderView[]> {
+  if (USE_MOCK) return providersMock.listProviders();
   const db = deps.db ?? getDb();
   const rows = await db
     .select({
@@ -108,6 +111,7 @@ export async function createProvider(
   input: unknown,
   deps: ProvidersDeps = {},
 ): Promise<CreateProviderResult> {
+  if (USE_MOCK) return providersMock.createProvider(input);
   const db = deps.db ?? getDb();
   const parsed = createProviderSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
@@ -160,6 +164,7 @@ export async function updateProvider(
   input: unknown,
   deps: ProvidersDeps = {},
 ): Promise<UpdateProviderResult> {
+  if (USE_MOCK) return providersMock.updateProvider(id, input);
   const db = deps.db ?? getDb();
   const parsed = updateProviderSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
@@ -226,6 +231,7 @@ export async function deleteProvider(
   id: string,
   deps: ProvidersDeps = {},
 ): Promise<DeleteProviderResult> {
+  if (USE_MOCK) return providersMock.deleteProvider(id);
   const db = deps.db ?? getDb();
   const [current] = await db
     .select({ id: provider.id, apiKeyRef: provider.apiKeyRef })

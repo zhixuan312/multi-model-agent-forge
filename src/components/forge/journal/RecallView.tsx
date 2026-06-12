@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Eyebrow, Mono } from '@/components/ui';
 import { Markdown } from '@/components/forge/Markdown';
 import { StatusDot } from '@/components/forge/journal/StatusBadge';
 import {
@@ -196,11 +197,11 @@ export function RecallSources({
   if (rows.length === 0) return null;
   return (
     <div data-testid="recall-sources" className="mt-4 border-t border-line pt-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Sources</h3>
+      <Eyebrow as="h3" className="text-ink-faint">Sources</Eyebrow>
       <ul className="mt-1 flex flex-col gap-1">
         {rows.map((r) => (
           <li key={r.id} className="flex items-center gap-2 text-sm">
-            <span className="font-mono text-[11px] text-ink-faint">{r.id}</span>
+            <Mono className="!text-[11px] text-ink-faint">{r.id}</Mono>
             {r.status ? <StatusDot status={r.status} /> : null}
             <span className={cn(r.title === '(unknown node)' ? 'italic text-ink-faint' : 'text-ink')}>
               {r.title}

@@ -3,7 +3,7 @@ import { ShieldCheck, CalendarClock, Monitor } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { getProfileMeta } from '@/auth/profile-core';
 import { PageFrame, MetricCard } from '@/components/ui';
-import { formatDate } from '@/lib/format-relative';
+import { formatDate, formatRelative } from '@/lib/format-relative';
 import { ProfileForm } from './ProfileForm';
 
 /**
@@ -23,8 +23,8 @@ export default async function ProfilePage() {
       <div className="flex flex-col gap-4">
         {/* STATUS — profile facts */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <MetricCard label="Role" value={member.isAdmin ? 'Admin' : 'Member'} sublabel="Equal rights for all" icon={<ShieldCheck />} iconTint="accent" />
-          <MetricCard label="Member since" value={meta.createdAt ? formatDate(meta.createdAt) : '—'} muted={!meta.createdAt} sublabel="Joined the team" icon={<CalendarClock />} iconTint="sage" />
+          <MetricCard label="Role" value={member.isAdmin ? 'Admin' : 'Member'} sublabel={member.isAdmin ? 'Manages team & config' : 'Create & collaborate'} icon={<ShieldCheck />} iconTint="accent" />
+          <MetricCard label="Member since" value={meta.createdAt ? formatDate(meta.createdAt) : '—'} muted={!meta.createdAt} sublabel={meta.createdAt ? formatRelative(meta.createdAt) : 'Joined the team'} icon={<CalendarClock />} iconTint="sage" />
           <MetricCard label="Active sessions" value={meta.activeSessions} muted={meta.activeSessions === 0} sublabel="Across your devices" icon={<Monitor />} iconTint="steel" />
         </div>
 

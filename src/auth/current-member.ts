@@ -10,17 +10,6 @@ import {
   type SessionRecord,
 } from '@/auth/session-store';
 import type { AuthedMember } from '@/auth/auth-provider';
-import { USE_MOCK } from '@/mock/config';
-
-/** Seeded admin returned in mock mode so the harness runs with no DB / session.
- *  Matches the `admin` owner in the projects dashboard mock. */
-const MOCK_MEMBER: AuthedMember = {
-  id: '5bf0cfe8-ad4d-47fd-903a-74fa5d2c6fea',
-  username: 'admin',
-  displayName: 'admin',
-  avatarTint: '#c4521e',
-  isAdmin: true,
-};
 
 /**
  * Full session validation (Node runtime). The Edge middleware only does a
@@ -110,7 +99,6 @@ export async function resolveSessionFromToken(
 
 /** Read the session cookie and resolve the current member (RSC / handlers). */
 export async function currentMember(): Promise<AuthedMember | null> {
-  if (USE_MOCK) return MOCK_MEMBER;
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE_NAME)?.value;
   const resolved = await resolveSessionFromToken(token);

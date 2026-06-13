@@ -9,17 +9,42 @@ import type { StageKind } from '@/db/enums';
  * active stage comes from the route; the active *sub-phase* is live page state, so
  * the page publishes it to this tiny external store and the stepper subscribes.
  */
+// Every stage marches the same three-beat rhythm — Frame → Work → Seal — and
+// every phase is a single imperative verb, harmonised across all six stages.
 export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: string }[]>> = {
+  // DESIGN
   exploration: [
     { key: 'brief', label: 'Brief' },
     { key: 'fanout', label: 'Fan-out' },
-    { key: 'synthesis', label: 'Synthesis' },
+    { key: 'synthesize', label: 'Synthesize' },
   ],
   spec: [
     { key: 'outline', label: 'Outline' },
     // The section-by-section Q&A authoring — the soul of the app.
     { key: 'craft', label: 'Craft' },
     { key: 'document', label: 'Document' },
+  ],
+  plan: [
+    { key: 'decompose', label: 'Decompose' },
+    { key: 'detail', label: 'Detail' },
+    { key: 'validate', label: 'Validate' },
+  ],
+  // BUILD
+  execute: [
+    { key: 'dispatch', label: 'Dispatch' },
+    { key: 'run', label: 'Run' },
+    { key: 'land', label: 'Land' },
+  ],
+  review: [
+    { key: 'inspect', label: 'Inspect' },
+    { key: 'judge', label: 'Judge' },
+    { key: 'resolve', label: 'Resolve' },
+  ],
+  // LEARN
+  journal: [
+    { key: 'harvest', label: 'Harvest' },
+    { key: 'curate', label: 'Curate' },
+    { key: 'record', label: 'Record' },
   ],
 };
 

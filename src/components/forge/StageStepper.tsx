@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { Lock, Snowflake, ChevronRight } from 'lucide-react';
+import { Lock, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
@@ -8,12 +8,13 @@ import { stageRoute } from '@/projects/stage-route';
 /**
  * StageStepper (Spec 3 flow 3) — stage-driven. Renders into the LOCKED
  * `ShellSubNav` bar (the sub-nav owns the border / background), so this is a
- * clean horizontal stepper: the five stage kinds grouped Design (exploration·
- * spec) › Freeze › Build (plan·execute·review) as segmented pill links. Current
- * stage = accent, done = sage, locked = muted with a `Lock` glyph.
+ * clean horizontal stepper: the six stage kinds grouped Design (explore·spec·
+ * plan) › Build (execute·review) › Learn (journal) as segmented pill links.
+ * Current stage = accent, done = sage, locked = muted with a `Lock` glyph.
  *
  * Per-stage glyph from status: active → ◐, done → ● (sage), pending → ○. Build
- * stages show a `Lock` while phase∈{design,frozen}.
+ * and Learn stages show a `Lock` while phase is design (the DESIGN→BUILD handoff
+ * — "Lock the plan" — opens them).
  *
  * Reachable ⟺ NOT locked AND status∈{active,done} → a focusable link to
  * `stageRoute`. pending (inert) + locked stages are aria-disabled, out of the
@@ -22,20 +23,22 @@ import { stageRoute } from '@/projects/stage-route';
  */
 
 const STAGE_LABEL: Record<StageKind, string> = {
-  exploration: 'Exploration',
+  exploration: 'Explore',
   spec: 'Spec',
   plan: 'Plan',
   execute: 'Execute',
   review: 'Review',
+  journal: 'Journal',
 };
 
-const GROUPS: { group: 'design' | 'freeze' | 'build'; label: string; kinds: StageKind[] }[] = [
-  { group: 'design', label: 'Design', kinds: ['exploration', 'spec'] },
-  { group: 'freeze', label: 'Freeze', kinds: [] }, // freeze is a divider, not a stage row
-  { group: 'build', label: 'Build', kinds: ['plan', 'execute', 'review'] },
+const GROUPS: { group: 'design' | 'build' | 'learn'; label: string; kinds: StageKind[] }[] = [
+  { group: 'design', label: 'Design', kinds: ['exploration', 'spec', 'plan'] },
+  { group: 'build', label: 'Build', kinds: ['execute', 'review'] },
+  { group: 'learn', label: 'Learn', kinds: ['journal'] },
 ];
 
-const BUILD_KINDS: StageKind[] = ['plan', 'execute', 'review'];
+/** Stages gated behind the DESIGN→BUILD handoff (locked while phase is design). */
+const LOCKED_KINDS: StageKind[] = ['execute', 'review', 'journal'];
 
 function glyph(status: StageStatus): string {
   return status === 'done' ? '●' : status === 'active' ? '◐' : '○';
@@ -122,7 +125,7 @@ function computeStage(
   projectId: string,
 ): ComputedStage {
   const status = statusByKind.get(kind) ?? 'pending';
-  const locked = BUILD_KINDS.includes(kind) && (phase === 'design' || phase === 'frozen');
+  const locked = LOCKED_KINDS.includes(kind) && phase === 'design';
   const reachable = !locked && (status === 'active' || status === 'done');
   const isCurrent = currentStage === kind;
   const statusWord = locked ? 'locked' : status;
@@ -211,27 +214,17 @@ export function StageStepper({
           <div className="flex items-center gap-2">
             <span className="t-eyebrow shrink-0 uppercase !text-ink-faint">{label}</span>
             <div className="flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
-              {group === 'freeze' ? (
-                <span
-                  data-stage="freeze"
-                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-ink-faint"
-                >
-                  <Snowflake aria-hidden="true" className="size-3" />
-                  {!condensed ? <span>Freeze</span> : null}
-                </span>
-              ) : (
-                kinds.map((kind) => {
-                  const s = computeStage(kind, statusByKind, currentStage, phase, projectId);
-                  return (
-                    <Fragment key={kind}>
-                      <StagePill s={s} condensed={condensed} />
-                      {s.isCurrent && subSteps && subSteps.length > 0 ? (
-                        <SubStepper steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
-                      ) : null}
-                    </Fragment>
-                  );
-                })
-              )}
+              {kinds.map((kind) => {
+                const s = computeStage(kind, statusByKind, currentStage, phase, projectId);
+                return (
+                  <Fragment key={kind}>
+                    <StagePill s={s} condensed={condensed} />
+                    {s.isCurrent && subSteps && subSteps.length > 0 ? (
+                      <SubStepper steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
+                    ) : null}
+                  </Fragment>
+                );
+              })}
             </div>
           </div>
         </div>

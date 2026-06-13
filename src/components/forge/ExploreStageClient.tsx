@@ -20,6 +20,8 @@ import { Markdown } from '@/components/forge/Markdown';
 import { AgentRail } from '@/components/forge/AgentRail';
 import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { StageAdvance } from '@/components/forge/StageAdvance';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
   Badge,
@@ -30,6 +32,7 @@ import {
   SelectContent,
   SelectItem,
   Micro,
+  TextSm,
   Title,
   Card,
   CardHeader,
@@ -264,6 +267,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      <AutomationBar
+        mode="off"
+        note=""
+        disabled
+        idleHint="Automation unlocks once the spec is set — Design stages are hand-authored."
+        onRun={() => {}}
+        onStop={() => {}}
+      />
       {/* CENTRE action stage (2/3) ∣ Brain-dump input (1/3) */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
         {/* CENTRE — one evolving stage: idle → fan-out → run → synthesis */}
@@ -757,14 +768,9 @@ function SummaryPane(props: {
         </Markdown>
       </CardContent>
 
-      <CardFooter>
-        <Micro className="!text-ink-faint">This brief grounds the Spec stage.</Micro>
-        <a
-          href={`/projects/${props.projectId}/spec`}
-          className="inline-flex items-center gap-1.5 rounded-[var(--r)] bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep"
-        >
-          Continue to Spec <ArrowRight className="size-4" />
-        </a>
+      <CardFooter className="flex-col !items-stretch gap-2">
+        <TextSm className="!text-ink-faint">This brief grounds the Spec stage.</TextSm>
+        <StageAdvance href={`/projects/${props.projectId}/spec`} label="Continue to Spec" />
       </CardFooter>
     </Card>
   );

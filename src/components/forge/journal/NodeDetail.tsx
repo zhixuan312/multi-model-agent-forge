@@ -4,7 +4,18 @@ import { FileText } from 'lucide-react';
 import { Title, Eyebrow, Mono, Micro, TextSm } from '@/components/ui';
 import { Markdown } from '@/components/forge/Markdown';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
+import { cn } from '@/lib/cn';
 import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
+
+/** Category tint — mirrors the journal-stage / Nodes-list chips. */
+const CAT_STYLE: Record<string, string> = {
+  decision: 'bg-accent-tint text-accent',
+  design: 'bg-[var(--frost)] text-[var(--steel)]',
+  behavior: 'bg-sage-tint text-[var(--sage-deep)]',
+  process: 'bg-amber-tint text-[var(--amber)]',
+  knowledge: 'bg-rose-tint text-[var(--rose)]',
+  style: 'bg-surface-2 text-ink-soft',
+};
 
 /**
  * The Nodes detail pane (Spec 6) — an editorial "knowledge card" on a two-column
@@ -47,6 +58,11 @@ export function NodeDetail({
       <header>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <Mono className="!text-xs text-ink-faint">{node.id}</Mono>
+          {node.category ? (
+            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CAT_STYLE[node.category])}>
+              {node.category}
+            </span>
+          ) : null}
           <StatusBadge status={node.status} />
           <Micro className="text-ink-faint">{node.date}</Micro>
         </div>

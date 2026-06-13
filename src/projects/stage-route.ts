@@ -15,6 +15,7 @@ export const STAGE_ROUTE: Record<StageKind, string> = {
   plan: 'plan',
   execute: 'execute',
   review: 'review',
+  journal: 'journal',
 };
 
 /** Build the absolute stage URL for a project (`/projects/<id>/<segment>`). */

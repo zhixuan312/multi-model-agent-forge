@@ -54,6 +54,10 @@ export interface JournalNode {
   crux: string | null;
   /** The `nodes/000X-….md` filename (relative to the journal dir). */
   filename: string;
+  /** Lifecycle stage the learning came from (Exploration…Journal, or Manual). */
+  source?: string;
+  /** Learning category — decision | design | behavior | process | knowledge | style. */
+  category?: string;
 }
 
 /** One row of `index.md` (display metadata; tags split on the comma cell). */
@@ -89,6 +93,8 @@ export interface NodeSummary {
   tags: string[];
   date: string;
   filename: string;
+  source?: string;
+  category?: string;
   /** true when listed in `index.md` but the `nodes/` file is gone. */
   fileMissing?: boolean;
 }

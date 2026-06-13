@@ -17,9 +17,10 @@ const SEGMENT_TO_STAGE: Record<string, StageKind> = {
   plan: 'plan',
   execute: 'execute',
   review: 'review',
+  journal: 'journal',
 };
 
-const STAGE_ORDER: StageKind[] = ['exploration', 'spec', 'plan', 'execute', 'review'];
+const STAGE_ORDER: StageKind[] = ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'];
 
 export function MockStageStepper({ projectId, phase }: { projectId: string; phase: ProjectPhase }) {
   const seg = useSelectedLayoutSegment();

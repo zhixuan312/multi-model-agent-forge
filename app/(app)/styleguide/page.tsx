@@ -232,7 +232,7 @@ export default function StyleguidePage() {
               </Select>
             )}
           </Field>
-          <Field label="Password" error="At least 12 characters." className="sm:col-span-2">
+          <Field label="Password" error="At least 8 characters." className="sm:col-span-2">
             {(p) => <Input {...p} type="password" defaultValue="short" />}
           </Field>
           <Field label="Brief" className="sm:col-span-2">

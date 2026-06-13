@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import type { ComponentView } from '@/spec/spec-core';
@@ -11,7 +11,7 @@ function wrap(ui: React.ReactElement) {
 const twoSections: ComponentView[] = [
   {
     id: 'c1',
-    kind: 'context',
+    kind: 'context_scope',
     label: 'Context',
     primaryRoles: ['PM'],
     status: 'gathering',
@@ -33,7 +33,7 @@ describe('SpecStageClient', () => {
         phase="design"
         mainTierReady={false}
         mmaReady={false}
-        defaultKinds={['context']}
+        defaultKinds={['context_scope']}
         initialComponents={twoSections}
         initialSpec={null}
         initialAuditHistory={[]}
@@ -43,18 +43,7 @@ describe('SpecStageClient', () => {
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
   });
 
-  it('on force-advance, focus moves to the next section\'s answer input (F9)', async () => {
-    const repaint = {
-      section: { status: 'approved', aiSatisfied: false, humanSatisfied: true, forced: true, draftMd: 'body', stale: false },
-      qaMessages: [],
-      component: { status: 'gathering' },
-    };
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => repaint,
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('opens the Craft conversation for the active component (chat + composer)', () => {
     wrap(
       <SpecStageClient
         projectId="p1"
@@ -63,7 +52,7 @@ describe('SpecStageClient', () => {
         phase="design"
         mainTierReady={true}
         mmaReady={true}
-        defaultKinds={['context']}
+        defaultKinds={['context_scope']}
         initialComponents={twoSections}
         initialSpec={null}
         initialAuditHistory={[]}
@@ -71,13 +60,11 @@ describe('SpecStageClient', () => {
       />,
     );
 
-    // Force-advance the first (active) section.
-    fireEvent.click(screen.getByRole('button', { name: 'Force advance' }));
-
-    await waitFor(() => {
-      // Focus management (F9): the answer textarea is focused after advance.
-      expect(document.activeElement?.tagName).toBe('TEXTAREA');
-    });
-    vi.unstubAllGlobals();
+    // With components present and no spec, the stage lands in Craft: the
+    // messenger-style composer drives the active component.
+    expect(screen.getByRole('button', { name: /Construct section/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Send answer/ })).toBeInTheDocument();
+    // The active component's label is shown (rail + conversation header).
+    expect(screen.getAllByText('Context').length).toBeGreaterThan(0);
   });
 });

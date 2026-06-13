@@ -142,6 +142,7 @@ export class MmaClient {
       'debug': 'debug',
       'journal-record': 'journal_record',
       'journal-recall': 'journal_recall',
+      'orchestrate': 'main',
     };
     return MAP[route] ?? route;
   }

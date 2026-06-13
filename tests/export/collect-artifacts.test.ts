@@ -83,10 +83,10 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     });
     await seedArtifact(projectId, 'spec', SPEC_BODY, 2);
     // 3 approved + 1 gathering
-    await seedComponent(specStageId, 'context', 'approved', ['business', 'PM'], 0);
-    await seedComponent(specStageId, 'problem', 'approved', ['PM'], 1);
-    await seedComponent(specStageId, 'tech_design', 'gathering', ['SWE'], 2);
-    await seedComponent(specStageId, 'test_plan', 'approved', [], 3);
+    await seedComponent(specStageId, 'context_scope', 'approved', ['business', 'PM'], 0);
+    await seedComponent(specStageId, 'problem_motivation', 'approved', ['PM'], 1);
+    await seedComponent(specStageId, 'proposed_design', 'gathering', ['SWE'], 2);
+    await seedComponent(specStageId, 'test_validation', 'approved', [], 3);
     // 2 clean + 1 revised
     await seedAuditPass(projectId, 'spec', 'clean', 1);
     await seedAuditPass(projectId, 'spec', 'revised', 2);

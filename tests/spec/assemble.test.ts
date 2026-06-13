@@ -21,14 +21,14 @@ describe('buildSpecMarkdown (pure)', () => {
       { name: 'Proj', visibility: 'public', version: 1 },
       [
         {
-          kind: 'tech_design',
-          label: 'Technical design',
-          sections: [{ key: 'flow_charts', label: 'Flow (Mermaid)', draftMd: fence }],
+          kind: 'proposed_design',
+          label: 'Proposed design',
+          sections: [{ key: 'system_context', label: 'System-context diagram', draftMd: fence }],
         },
       ],
     );
-    expect(md).toContain('## Technical design');
-    expect(md).toContain('### Flow (Mermaid)');
+    expect(md).toContain('## Proposed design');
+    expect(md).toContain('### System-context diagram');
     expect(md).toContain(fence); // fence preserved verbatim
   });
 });
@@ -36,7 +36,7 @@ describe('buildSpecMarkdown (pure)', () => {
 describe('assembleSpec', () => {
   it('produces one versioned spec artifact from approved sections + an assemble action_log row', async () => {
     const { projectId, ownerId, specStageId } = await seedProject();
-    await confirmComponents(db, specStageId, ['context']);
+    await confirmComponents(db, specStageId, ['context_scope']);
     const [comp] = await db.select().from(component).where(eq(component.stageId, specStageId)).limit(1);
     const secs = await db.select().from(componentSection).where(eq(componentSection.componentId, comp.id));
     for (const s of secs) {

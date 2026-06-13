@@ -3,15 +3,20 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui';
 import { NodesView } from '@/components/forge/journal/NodesView';
+import { NodeDetail } from '@/components/forge/journal/NodeDetail';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { RailLayout, LazyNodeDetail } from '@/components/forge/journal/journal-shell';
+import { RecordLearningButton } from '@/components/forge/journal/RecordLearningButton';
+import { useRecordedLearnings } from '@/components/forge/journal/recorded-store';
 import type { NodeSummary } from '@/journal/types';
 
 /**
  * The Nodes tab. The 2/3 canvas shows the selected node's full detail —
  * defaulting to the FIRST node so it's never empty. The rail carries the journal
- * note, then the searchable/filterable node list (the user's input) below it.
- * Selection is URL-driven (`?node=`).
+ * note, a "Record a learning" action, then the searchable/filterable node list.
+ * Selection is URL-driven (`?node=`). Learnings recorded this session (via the
+ * Record dialog) are merged in from a client store — newest first, ahead of the
+ * server-read nodes — and their detail renders straight from that store.
  */
 export function NodesTab({
   nodes,
@@ -25,8 +30,22 @@ export function NodesTab({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const recorded = useRecordedLearnings();
 
-  const selectedId = initialNode ?? searchParams.get('node') ?? nodes[0]?.id ?? null;
+  const recordedSummaries: NodeSummary[] = recorded.map((n) => ({
+    id: n.id,
+    title: n.title,
+    status: n.status,
+    tags: n.tags,
+    date: n.date,
+    filename: n.filename,
+    source: n.source,
+    category: n.category,
+  }));
+  const allNodes = [...recordedSummaries, ...nodes];
+
+  const selectedId = initialNode ?? searchParams.get('node') ?? allNodes[0]?.id ?? null;
+  const selectedRecorded = recorded.find((n) => n.id === selectedId) ?? null;
 
   function select(id: string) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -41,9 +60,13 @@ export function NodesTab({
         <>
           <JournalNote />
           <Card className="flex min-h-0 flex-1 flex-col">
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              <div className="flex shrink-0 items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Nodes</span>
+                <RecordLearningButton />
+              </div>
               <NodesView
-                nodes={nodes}
+                nodes={allNodes}
                 skippedCount={skippedCount}
                 selectedId={selectedId}
                 onSelect={select}
@@ -55,7 +78,9 @@ export function NodesTab({
     >
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardContent className="min-h-0 flex-1 overflow-y-auto">
-          {selectedId ? (
+          {selectedRecorded ? (
+            <NodeDetail node={selectedRecorded} inbound={[]} onNavigate={select} />
+          ) : selectedId ? (
             <LazyNodeDetail id={selectedId} onNavigate={select} />
           ) : (
             <p className="px-1 py-10 text-center text-sm text-ink-faint">No nodes to show.</p>

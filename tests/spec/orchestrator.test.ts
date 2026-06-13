@@ -33,7 +33,7 @@ async function seedContext(intentMd?: string): Promise<{
   sectionIds: string[];
 }> {
   const { projectId, ownerId, specStageId } = await seedProject({ intentMd: intentMd ?? 'Intent.' });
-  await confirmComponents(db, specStageId, ['context']);
+  await confirmComponents(db, specStageId, ['context_scope']);
   const [comp] = await db.select().from(component).where(eq(component.stageId, specStageId)).limit(1);
   const secs = await db
     .select({ id: componentSection.id })
@@ -51,19 +51,19 @@ describe('confirmComponents', () => {
   it('creates one component + one section per template section (gathering)', async () => {
     const { stageId } = await seedContext();
     const [comp] = await db.select().from(component).where(eq(component.stageId, stageId)).limit(1);
-    expect(comp.kind).toBe('context');
+    expect(comp.kind).toBe('context_scope');
     expect(comp.status).toBe('gathering');
     const secs = await db.select().from(componentSection).where(eq(componentSection.componentId, comp.id));
-    expect(secs).toHaveLength(3); // background, current_state, why_now
+    expect(secs).toHaveLength(2); // background, scope
     expect(secs.every((s) => s.status === 'gathering')).toBe(true);
   });
 
   it('is additive on re-open — no duplicate components (F15)', async () => {
     const { projectId, stageId } = await seedContext();
-    await confirmComponents(db, stageId, ['context', 'problem']); // context already exists
+    await confirmComponents(db, stageId, ['context_scope', 'problem_motivation']); // context_scope already exists
     const comps = await db.select().from(component).where(eq(component.stageId, stageId));
     const kinds = comps.map((c) => c.kind).sort();
-    expect(kinds).toEqual(['context', 'problem']);
+    expect(kinds).toEqual(['context_scope', 'problem_motivation']);
     expect(await allComponentsApproved(db, stageId)).toBe(false); // new component unapproved
     void projectId;
   });

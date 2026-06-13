@@ -41,13 +41,14 @@ export function BrainDumpComposer(props: BrainDumpComposerProps) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   return (
-    <section className="flex flex-col gap-3" aria-label="Brain dump">
+    <section className="flex h-full min-h-0 flex-col gap-3" aria-label="Brain dump">
       <Textarea
         aria-label="Tell Forge everything you know"
         placeholder="Tell Forge everything you know…"
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         rows={5}
+        className="min-h-[8rem] flex-1 resize-none"
       />
 
       <div className="flex flex-wrap items-center gap-2" data-testid="cbar">

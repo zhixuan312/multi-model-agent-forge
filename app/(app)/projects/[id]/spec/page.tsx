@@ -14,7 +14,7 @@ import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import { AnthropicClient } from '@/anthropic/client';
 import { USE_MOCK } from '@/mock/config';
-import { StagePlaceholder } from '@/components/forge/StagePlaceholder';
+import { mockSpec } from '@/mock/domains/projects/spec';
 
 /**
  * Spec stage (Spec 4 Part A) — the per-section dynamic Q&A authoring slice. RSC
@@ -31,7 +31,25 @@ export default async function SpecStagePage({
   const me = await currentMember();
   if (!me) redirect('/login');
 
-  if (USE_MOCK) return <StagePlaceholder stage="Spec" />;
+  if (USE_MOCK) {
+    const m = mockSpec(id);
+    return (
+      <SpecStageClient
+        projectId={id}
+        projectName={m.projectName}
+        intentMd={m.intentMd}
+        phase={m.phase}
+        mainTierReady={m.mainTierReady}
+        mmaReady={m.mmaReady}
+        defaultKinds={m.defaultKinds}
+        initialComponents={m.initialComponents}
+        initialSpec={m.initialSpec}
+        initialAuditHistory={m.initialAuditHistory}
+        initialCanFreeze={m.initialCanFreeze}
+        craftContent={m.craftContent}
+      />
+    );
+  }
 
   try {
     await assertProjectReadable(id, { id: me.id });

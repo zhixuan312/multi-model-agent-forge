@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -8,21 +8,18 @@ import {
   X,
   ArrowRight,
   RefreshCw,
-  Paperclip,
-  Radar,
-  FileText,
   Lightbulb,
   ScanSearch,
   Globe,
   History,
   FolderGit2,
   Loader2,
-  CheckCircle2,
   type LucideIcon,
 } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
 import { AgentRail } from '@/components/forge/AgentRail';
 import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
+import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import {
   Button,
   Badge,
@@ -40,7 +37,6 @@ import {
   CardContent,
   CardFooter,
   Eyebrow,
-  MetricCard,
 } from '@/components/ui';
 import {
   useProjectEvents,
@@ -254,53 +250,72 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const recorded = tasks.filter((t) => t.status === 'recorded').length;
   const allDone = dispatched > 0 && recorded === dispatched;
 
+  // The centre stage is a single area that advances through the flow. The
+  // brain-dump input lives on the right and is editable at every phase; pressing
+  // Analyze re-proposes (back to `fanout`), so fresh drafts win over a prior brief.
+  const phase: 'idle' | 'fanout' | 'run' | 'synthesis' =
+    drafts.length > 0 ? 'fanout' : bodyMd ? 'synthesis' : dispatched > 0 ? 'run' : 'idle';
+
+  // Publish the sub-phase to the stepper (Brief · Fan-out · Synthesis).
+  useEffect(() => {
+    const sub = phase === 'synthesis' ? 'synthesis' : phase === 'idle' ? 'brief' : 'fanout';
+    stagePhaseStore.set(sub);
+  }, [phase]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      {/* STATUS — the stage at a glance */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard
-          label="Sources"
-          value={attachments.length}
-          muted={attachments.length === 0}
-          sublabel="Links & files"
-          icon={<Paperclip />}
-          iconTint="steel"
-        />
-        <MetricCard
-          label="Proposed"
-          value={drafts.length}
-          muted={drafts.length === 0}
-          sublabel="Fan-out tasks"
-          icon={<Sparkles />}
-          iconTint="accent"
-        />
-        <MetricCard
-          label="Dispatched"
-          value={dispatched}
-          muted={dispatched === 0}
-          sublabel="Agents working"
-          icon={<Radar />}
-          iconTint="sage"
-        />
-        <MetricCard
-          label="Synthesis"
-          value={version ? `v${version}` : '—'}
-          muted={!version}
-          sublabel="Grounded brief"
-          icon={<FileText />}
-          iconTint="amber"
-        />
-      </div>
-
-      {/* PRIMARY composer + fan-out (2/3) ∣ agent rail (1/3), fills to the bottom */}
+      {/* CENTRE action stage (2/3) ∣ Brain-dump input (1/3) */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <div className="flex min-h-0 flex-col gap-4 lg:col-span-2">
-          <Card className="shrink-0">
+        {/* CENTRE — one evolving stage: idle → fan-out → run → synthesis */}
+        <div className="flex min-h-0 flex-col lg:col-span-2">
+          {phase === 'idle' ? (
+            <IdleStage />
+          ) : phase === 'fanout' ? (
+            <FanOutCard
+              className="min-h-0 flex-1"
+              projectId={props.projectId}
+              drafts={drafts}
+              repoOptions={props.repoOptions}
+              onChanged={refreshTasks}
+              onRun={run}
+              canRun={drafts.length > 0 && !busy}
+            />
+          ) : phase === 'run' ? (
+            <RunStage
+              className="min-h-0 flex-1"
+              tasks={tasks}
+              dispatched={dispatched}
+              recorded={recorded}
+              allDone={allDone}
+              synthesizing={busy}
+              onSynthesize={resynthesize}
+            />
+          ) : (
+            <SummaryPane
+              className="min-h-0 flex-1"
+              bodyMd={bodyMd as string}
+              version={version}
+              busy={busy}
+              onResynthesize={resynthesize}
+              projectId={props.projectId}
+            />
+          )}
+        </div>
+
+        {/* RIGHT — guidance note pinned on top, then the brain-dump input
+            (editable at every phase) filling the rest of the column. */}
+        <aside className="flex min-h-0 flex-col gap-4">
+          <ExplorationNote />
+          <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <CardTitle>Brain-dump</CardTitle>
-              <Micro className="!text-ink-faint">Everything you know — text · links · files</Micro>
+              {phase === 'idle' ? (
+                <Micro className="!text-ink-faint">Text · links · files</Micro>
+              ) : (
+                <Micro className="!text-ink-faint">Edit &amp; re-analyze anytime</Micro>
+              )}
             </CardHeader>
-            <CardContent className="!py-5">
+            <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
               <BrainDumpComposer
                 value={brief}
                 onChange={setBrief}
@@ -317,56 +332,74 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               />
             </CardContent>
           </Card>
-
-          {bodyMd ? (
-            <SummaryPane
-              className="min-h-0 flex-1"
-              bodyMd={bodyMd}
-              version={version}
-              busy={busy}
-              onResynthesize={resynthesize}
-              projectId={props.projectId}
-            />
-          ) : (
-            <FanOutCard
-              className="min-h-0 flex-1"
-              projectId={props.projectId}
-              drafts={drafts}
-              dispatched={dispatched}
-              recorded={recorded}
-              allDone={allDone}
-              synthesizing={busy}
-              onSynthesize={resynthesize}
-              repoOptions={props.repoOptions}
-              onChanged={refreshTasks}
-              onRun={run}
-              canRun={drafts.length > 0 && !busy}
-            />
-          )}
-        </div>
-
-        <aside className="flex min-h-0 flex-col gap-4">
-          <ExplorationNote />
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Eyebrow as="h3" className="text-ink-faint">
-                  Agent rail
-                </Eyebrow>
-                {dispatched > 0 ? (
-                  <Badge variant="neutral" size="sm">
-                    {dispatched}
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
-                <AgentRail tasks={tasks} />
-              </div>
-            </CardContent>
-          </Card>
         </aside>
       </div>
     </div>
+  );
+}
+
+/** Centre stage before any analysis — points the user at the brain-dump input. */
+function IdleStage() {
+  return (
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <CardContent className="grid min-h-0 flex-1 place-items-center px-6 text-center">
+        <div className="max-w-sm">
+          <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
+            <Sparkles className="size-6" />
+          </span>
+          <Title as="h3" className="mt-4 !text-lg">
+            Start with your context
+          </Title>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+            Tell Forge everything you know in the brain-dump on the right, then press{' '}
+            <span className="font-medium text-ink">Analyze sources</span>. Forge proposes an investigation · research ·
+            recall fan-out right here — you run it, then synthesize one grounded brief.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Centre stage while/after the fan-out runs — the live agent rail + Synthesize. */
+function RunStage(props: {
+  className?: string;
+  tasks: RailTask[];
+  dispatched: number;
+  recorded: number;
+  allDone: boolean;
+  synthesizing: boolean;
+  onSynthesize: () => void;
+}) {
+  return (
+    <Card className={cn('flex flex-col', props.className)} aria-label="Agent run">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CardTitle>{props.allDone ? 'Agents finished' : 'Agents at work'}</CardTitle>
+          <Badge variant={props.allDone ? 'sage' : 'amber'} size="sm">
+            {props.recorded}/{props.dispatched} done
+          </Badge>
+        </div>
+        {props.allDone ? (
+          <Button
+            size="sm"
+            onClick={props.onSynthesize}
+            loading={props.synthesizing}
+            disabled={props.synthesizing}
+            leftIcon={<Sparkles />}
+          >
+            {props.synthesizing ? 'Synthesizing…' : 'Synthesize brief'}
+          </Button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft">
+            <Loader2 className="size-3.5 animate-spin" /> running…
+          </span>
+        )}
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
+        <AgentRail tasks={props.tasks} />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -440,11 +473,6 @@ function FanOutCard(props: {
   className?: string;
   projectId: string;
   drafts: RailTask[];
-  dispatched: number;
-  recorded: number;
-  allDone: boolean;
-  synthesizing: boolean;
-  onSynthesize: () => void;
   repoOptions: { id: string; name: string }[];
   onChanged: () => void;
   onRun: () => void;
@@ -476,7 +504,6 @@ function FanOutCard(props: {
 
   // Run is disabled while any draft prompt is sub-floor (Short-prompt rule).
   const anySubFloor = props.drafts.some((t) => t.prompt.trim().length < promptFloor(t.kind as never));
-  const empty = props.drafts.length === 0;
   const repoName = (id: string | null): string =>
     props.repoOptions.find((r) => r.id === id)?.name ?? 'unassigned';
 
@@ -485,11 +512,9 @@ function FanOutCard(props: {
       <CardHeader>
         <div className="flex items-center gap-2">
           <CardTitle>Proposed fan-out</CardTitle>
-          {!empty ? (
-            <Badge variant="neutral" size="sm">
-              {props.drafts.length}
-            </Badge>
-          ) : null}
+          <Badge variant="neutral" size="sm">
+            {props.drafts.length}
+          </Badge>
         </div>
         <Button size="sm" disabled={!props.canRun || anySubFloor} onClick={props.onRun} rightIcon={<ArrowRight />}>
           Run
@@ -497,57 +522,7 @@ function FanOutCard(props: {
       </CardHeader>
 
       <CardContent className="min-h-0 flex-1 space-y-7 overflow-y-auto !py-5">
-        {empty ? (
-          !props.dispatched ? (
-            <div className="grid h-full place-items-center py-12 text-center">
-              <div>
-                <span className="mx-auto grid size-10 place-items-center rounded-full bg-accent-tint text-accent">
-                  <Sparkles className="size-5" />
-                </span>
-                <p className="mx-auto mt-3 max-w-xs text-sm text-ink-soft">
-                  Run <span className="font-medium text-ink">Analyze sources</span> above and Forge proposes an
-                  investigate · research · recall fan-out here.
-                </p>
-              </div>
-            </div>
-          ) : !props.allDone ? (
-            <div className="grid h-full place-items-center py-12 text-center">
-              <div>
-                <span className="mx-auto grid size-10 place-items-center rounded-full bg-amber-tint text-[var(--amber)]">
-                  <Loader2 className="size-5 animate-spin" />
-                </span>
-                <p className="mx-auto mt-3 max-w-xs text-sm text-ink-soft">
-                  Agents are working —{' '}
-                  <span className="font-medium text-ink">
-                    {props.recorded} of {props.dispatched}
-                  </span>{' '}
-                  done. Watch each report in the agent rail.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid h-full place-items-center py-12 text-center">
-              <div>
-                <span className="mx-auto grid size-10 place-items-center rounded-full bg-sage-tint text-[var(--sage)]">
-                  <CheckCircle2 className="size-5" />
-                </span>
-                <p className="mx-auto mb-4 mt-3 max-w-xs text-sm text-ink-soft">
-                  All {props.dispatched} agents finished. Synthesize their findings into one grounded brief for the
-                  Spec stage.
-                </p>
-                <Button
-                  onClick={props.onSynthesize}
-                  loading={props.synthesizing}
-                  disabled={props.synthesizing}
-                  leftIcon={<Sparkles />}
-                >
-                  {props.synthesizing ? 'Synthesizing…' : 'Synthesize brief'}
-                </Button>
-              </div>
-            </div>
-          )
-        ) : (
-          GROUPS.map((g) => {
+        {GROUPS.map((g) => {
             const items = props.drafts.filter((t) => t.kind === g.kind);
             const Icon = g.Icon;
             const tint = KIND_TINT[g.tint];
@@ -649,8 +624,7 @@ function FanOutCard(props: {
                 </div>
               </div>
             );
-          })
-        )}
+        })}
       </CardContent>
     </Card>
   );

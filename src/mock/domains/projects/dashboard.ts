@@ -55,8 +55,8 @@ interface Spec {
 const SPECS: Spec[] = [
   // ── Just started — the only active project ───────────────────────────────
   {
-    name: 'Multi-region read replicas',
-    summary: 'Stand up read replicas across three regions with automatic failover routing.',
+    name: 'Unified Task API',
+    summary: 'Collapse MMA’s two execution engines behind one POST /task endpoint — a goal-based implementer → reviewer → annotate pipeline driven by per-type skill files.',
     phase: 'design', currentStage: 'exploration', owner: OWNERS.admin,
     updatedDays: 0.1, agentsRunning: 1, latestArtifact: { kind: 'exploration_brief', version: 1 }, repoCount: 2, visibility: 'public',
   },

@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 import { StageStepper } from '@/components/forge/StageStepper';
+import { MockStageStepper } from '@/components/forge/MockStageStepper';
 import { ShellHeader, ShellSubNav, ShellBody } from '@/components/ui/shell';
 import {
   getProject,
@@ -13,7 +14,6 @@ import {
 import { DATA_PHASE } from '@/projects/stage-route';
 import { USE_MOCK } from '@/mock/config';
 import { findMockProject } from '@/mock/domains/projects/dashboard';
-import { STAGE_ORDER } from '@/db/enums';
 
 /**
  * Project shell (Spec 3 flow 3). Guarded: `assertProjectReadable` throws for a
@@ -38,17 +38,13 @@ export default async function ProjectLayout({
   if (USE_MOCK) {
     const mock = findMockProject(id);
     if (!mock) notFound();
-    const stages = STAGE_ORDER.map((kind) => {
-      const s = mock.stages.find((x) => x.kind === kind);
-      return { kind, status: s?.status ?? 'pending' };
-    });
     return (
       <div data-phase={DATA_PHASE[mock.phase]} className="contents">
         <ShellHeader>
           <ProjectTopbar projectId={mock.id} projectName={mock.name} phase={mock.phase} />
         </ShellHeader>
         <ShellSubNav className="!h-auto !py-2">
-          <StageStepper projectId={mock.id} stages={stages} currentStage={mock.currentStage} phase={mock.phase} />
+          <MockStageStepper projectId={mock.id} phase={mock.phase} />
         </ShellSubNav>
         <ShellBody width="full" fill>{children}</ShellBody>
       </div>

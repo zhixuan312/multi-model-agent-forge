@@ -62,7 +62,7 @@ describe('captureIntent', () => {
 describe('section + qa_message persistence (DB integration)', () => {
   it('an answer persists a member qa_message, and loadSectionMessages returns them in seq order', async () => {
     const { projectId, ownerId, specStageId } = await seedProject();
-    await confirmComponents(db, specStageId, ['context']);
+    await confirmComponents(db, specStageId, ['context_scope']);
     const [comp] = await db.select().from(component).where(eq(component.stageId, specStageId)).limit(1);
     const [sec] = await db.select().from(componentSection).where(eq(componentSection.componentId, comp.id)).limit(1);
 
@@ -94,10 +94,10 @@ describe('section + qa_message persistence (DB integration)', () => {
 describe('loadOutline', () => {
   it('returns components with template labels + their ordered sections', async () => {
     const { specStageId } = await seedProject();
-    await confirmComponents(db, specStageId, ['context', 'problem']);
+    await confirmComponents(db, specStageId, ['context_scope', 'problem_motivation']);
     const outline = await loadOutline(db, specStageId);
-    expect(outline.map((c) => c.kind)).toEqual(['context', 'problem']);
-    expect(outline[0].label).toBe('Context');
-    expect(outline[0].sections.map((s) => s.key)).toEqual(['background', 'current_state', 'why_now']);
+    expect(outline.map((c) => c.kind)).toEqual(['context_scope', 'problem_motivation']);
+    expect(outline[0].label).toBe('Context & scope');
+    expect(outline[0].sections.map((s) => s.key)).toEqual(['background', 'scope']);
   });
 });

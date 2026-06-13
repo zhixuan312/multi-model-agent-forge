@@ -13,25 +13,25 @@ const REPO = 'mock-repo-mma'; // investigate tasks require a target repo
 
 const PROMPTS: Record<'investigate' | 'research' | 'journal', string[]> = {
   investigate: [
-    'Map how reads currently route to the primary, and where region-aware selection would slot in.',
-    'Identify which read paths are read-after-write and must bypass replicas.',
-    'Trace the connection-pool / data-access layer to find the single seam for replica selection.',
-    'Inventory PII-bearing tables that can’t replicate to ap-south under the residency rule.',
-    'Find existing health-check / failover hooks we can reuse for replica liveness.',
+    'Map the two current execution pipelines — the read-route criteria loop and the write-route goal engine — and where they diverge.',
+    'Trace how `/delegate`, `/audit`, and the other per-route handlers compile input (briefSlot, tool-config) before dispatch.',
+    'Find the batch system surface: batch-registry, batch-cache, and the `GET /batch/:id` endpoint to be removed.',
+    'Identify how sessions are created/resumed today and whether session IDs are exposed by Claude/Codex.',
+    'Locate the sandbox + worktree handling and how it keys off the read/write route distinction.',
   ],
   research: [
-    'Survey how Vitess, CockroachDB, and Aurora do region-aware read routing.',
-    'Compare app-layer vs DNS-based vs proxy-based read routing trade-offs.',
-    'Research replication-lag measurement and per-query lag-budget patterns.',
-    'Find prior art on cutting cross-region egress cost (stream compression, batching).',
-    'Review data-residency approaches for per-region replica scoping.',
+    'Survey two-tier implementer→reviewer agent patterns and the case for cross-tier (model-diversity) review.',
+    'Compare goal-based single-prompt execution vs sequential per-criterion loops for read tasks.',
+    'Research git-worktree isolation patterns for parallel agent file edits and cheap dependency installs.',
+    'Review deterministic (non-LLM) result annotation: parsing git diffs + structured reviewer JSON.',
+    'Find prior art on self-contained task APIs vs server-side multi-task batching.',
   ],
   journal: [
-    'Recall prior decisions on replication-lag tolerance and read-after-write handling.',
-    'Recall any past failover-routing learnings and what didn’t work.',
-    'Recall decisions about where data-access / connection-pool logic should live.',
-    'Recall prior cost analyses on cross-region traffic.',
-    'Recall residency / compliance constraints recorded for ap-south.',
+    'Recall why MMA split read vs write routes into two engines, and what that cost us.',
+    'Recall prior decisions on review-as-default and the constitutional self-review blind spot (Principle 3).',
+    'Recall any past learnings on session reuse limits across Claude vs Codex.',
+    'Recall decisions about where type-specific behavior should live (skill files vs pipeline branching).',
+    'Recall prior cost analyses on the annotate LLM-judge step.',
   ],
 };
 
@@ -99,9 +99,9 @@ export function runMockTasks(projectId: string): RailTask[] {
 }
 
 const RUNNING_HEADLINE: Record<string, string> = {
-  investigate: 'Reading the data-access layer…',
-  research: 'Comparing region-aware routing approaches…',
-  journal: 'Scanning past replication decisions…',
+  investigate: 'Tracing the per-route handlers…',
+  research: 'Comparing implementer/reviewer tier patterns…',
+  journal: 'Scanning past pipeline decisions…',
 };
 
 /* ── Synthesis artifact ───────────────────────────────────────────────────── */
@@ -126,39 +126,39 @@ export function getMockArtifact(projectId: string): ArtifactCacheEntry | null {
 
 const SYNTH_MD = `## Problem
 
-Reads from **eu-west** and **ap-south** hit the single **us-east** primary at 180–400 ms p95. We want region-local read replicas without breaking read-after-write guarantees or data-residency rules, while cutting cross-region egress cost.
+MMA runs **two** execution pipelines — a sequential criteria loop for read routes (audit, investigate, review, debug, research, journal) and a goal engine for write routes (delegate, execute_plan). Two engines violates Principle 7 ("rods are thin presets over one engine") and doubles the surface to maintain.
 
 ## What the codebase shows
 
-- All reads route through one connection pool (\`data-access/pool.ts\`) — a single clean seam to add region-aware replica selection.
-- The checkout path reads immediately after its write; these must stay pinned to the primary (read-after-write).
-- PII-bearing tables (\`users\`, \`payment_methods\`) carry a residency tag that forbids replication into ap-south.
-- Existing health-check hooks (\`infra/health.ts\`) can be reused for replica liveness.
+- Per-route handlers each compile input via \`briefSlot()\` + per-tool \`tool-config.ts\` before dispatch — input shaping is duplicated.
+- The batch system (\`batch-registry.ts\`, \`batch-cache.ts\`, \`GET /batch/:id\`) exists only for server-side multi-task fan-out the caller could do with N calls.
+- \`ClaudeSession\` / \`CodexCliSession\` store session IDs privately — no getter to surface them for reuse.
+- Sandbox + worktree behavior keys off a read/write route flag rather than the task type.
 
 ## External precedent
 
-- Vitess and CockroachDB both favour **app-layer, lag-aware** routing over DNS/proxy approaches when read-after-write matters.
-- A per-query **lag budget** (e.g. ≤ 2 s staleness) is the common control for "may this read use a replica?".
-- Egress cost drops most from replication-stream compression + batching, not from query-path changes.
+- Two-tier **implementer → reviewer** with the reviewer on the *opposite* tier maximizes model diversity (different failure modes catch more).
+- A single **goal prompt** with the criteria encoded in a skill file replaces the per-criterion loop — simpler, at the cost of prefix caching.
+- **git worktrees** give cheap parallel isolation for write tasks; deterministic annotate (git diff + structured JSON) avoids an LLM judge.
 
 ## Prior decisions (journal)
 
-- Proxy-based routing was previously rejected — operational opacity during failover.
-- The connection pool is the agreed home for data-access concerns.
-- A 2 s replication-lag tolerance was accepted for non-checkout reads.
+- Review-as-default is constitutional (Principle 3) — self-review has structural blind spots.
+- Type-specific behavior should live in **skill files**, not pipeline branching.
+- Codex sessions can't resume cross-phase; durable reuse is Claude-only.
 
 ## Recommended direction
 
-1. Add **app-layer replica selection** at the pool seam, gated by a per-query lag budget.
-2. Pin read-after-write paths (checkout) to the primary explicitly.
-3. Scope replicas per region; exclude residency-tagged tables from ap-south.
-4. Reduce egress with compressed, batched replication streams.
+1. One \`POST /task\` endpoint → a unified **implementer → reviewer → deterministic annotate** pipeline.
+2. A flat **type registry** (default tier · worktree · sandbox) + per-type \`implement.md\` / \`review.md\` skill files.
+3. Collapse \`reviewPolicy\` to \`reviewed | none\`; expose session IDs for opt-in multi-turn reuse.
+4. Remove the batch system and the read/write engine split; worktree-isolate write types.
 
 ## Open questions for Spec
 
-- The exact lag-budget threshold per read class.
-- Failover when a regional replica is unhealthy — fall back to primary or nearest replica?
-- Whether residency tagging is complete enough to drive replica scoping automatically.
+- Per-phase vs shared wall-clock budget (Phase 2 starvation).
+- Structured output format for the implementer (not just the reviewer).
+- The enrichment-hook contract for the 3 type-specific pre-dispatch functions.
 `;
 
 /** Remove one task (the card's × button). */

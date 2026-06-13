@@ -11,7 +11,7 @@ import { artifact, auditPass } from '@/db/schema/artifacts';
 import { mmaBatch } from '@/db/schema/mma';
 import { exportRecord } from '@/db/schema/build';
 import { actionLog } from '@/db/schema/audit';
-import type { ArtifactKind, ComponentStatus, AuditVerdict, ProjectPhase } from '@/db/enums';
+import type { ArtifactKind, ComponentKind, ComponentStatus, AuditVerdict, ProjectPhase } from '@/db/enums';
 
 export const TEST_PREFIX = '__forge_export_test__';
 
@@ -94,7 +94,7 @@ export async function seedArtifact(
 
 export async function seedComponent(
   specStageId: string,
-  kind: 'context' | 'problem' | 'tech_design' | 'test_plan' | 'stories_tasks' | 'nfr' | 'assumptions',
+  kind: ComponentKind,
   status: ComponentStatus,
   primaryRoles: string[],
   orderIndex: number,

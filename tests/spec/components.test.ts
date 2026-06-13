@@ -1,4 +1,4 @@
-import { COMPONENT_TEMPLATES, defaultComponentKinds, templateForKind } from '@/spec/components';
+import { COMPONENT_TEMPLATES, DOC_TEMPLATES, defaultComponentKinds, templateForKind } from '@/spec/components';
 import { COMPONENT_KIND } from '@/db/enums';
 
 describe('COMPONENT_TEMPLATES', () => {
@@ -7,35 +7,32 @@ describe('COMPONENT_TEMPLATES', () => {
     expect(kinds).toEqual([...COMPONENT_KIND].sort());
   });
 
-  it('marks exactly five components as default-checked', () => {
-    expect(defaultComponentKinds()).toEqual(['context', 'problem', 'tech_design', 'test_plan', 'stories_tasks']);
+  it('default-checked kinds are the Technical Design Doc template', () => {
+    expect(defaultComponentKinds()).toEqual([
+      'context_scope',
+      'goals_nongoals',
+      'proposed_design',
+      'interfaces_apis',
+      'data_storage',
+      'alternatives',
+      'cross_cutting',
+      'test_validation',
+      'rollout_migration',
+    ]);
   });
 
-  it('tech_design carries the depth sections (existing_behaviour, impacts, delta, scope, flow_charts)', () => {
-    const td = templateForKind('tech_design');
-    const keys = td.sections.map((s) => s.key);
-    expect(keys).toEqual(
-      expect.arrayContaining([
-        'options',
-        'selected_option',
-        'existing_behaviour',
-        'impact_upstream',
-        'impact_downstream',
-        'impact_sibling',
-        'delta',
-        'flow_charts',
-        'scope',
-      ]),
-    );
+  it('proposed_design carries overview / system_context / details', () => {
+    const keys = templateForKind('proposed_design').sections.map((s) => s.key);
+    expect(keys).toEqual(expect.arrayContaining(['overview', 'system_context', 'details']));
   });
 
-  it('test_plan carries unit / e2e_regression / integration', () => {
-    const keys = templateForKind('test_plan').sections.map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(['unit', 'e2e_regression', 'integration']));
+  it('test_validation carries strategy / acceptance', () => {
+    const keys = templateForKind('test_validation').sections.map((s) => s.key);
+    expect(keys).toEqual(expect.arrayContaining(['strategy', 'acceptance']));
   });
 
-  it('flow_charts prompt instructs a ```mermaid fence', () => {
-    const flow = templateForKind('tech_design').sections.find((s) => s.key === 'flow_charts')!;
+  it('system_context prompt instructs a ```mermaid fence', () => {
+    const flow = templateForKind('proposed_design').sections.find((s) => s.key === 'system_context')!;
     expect(flow.prompt.toLowerCase()).toContain('mermaid');
   });
 
@@ -44,6 +41,15 @@ describe('COMPONENT_TEMPLATES', () => {
       for (const s of t.sections) {
         expect(s.draftHeading.length).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('DOC_TEMPLATES', () => {
+  it('every template references only known component kinds', () => {
+    const known = new Set<string>(COMPONENT_KIND);
+    for (const t of DOC_TEMPLATES) {
+      for (const k of t.kinds) expect(known.has(k)).toBe(true);
     }
   });
 });

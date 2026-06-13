@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { Lock, Snowflake, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -50,6 +51,56 @@ export interface StageStepperProps {
   phase: ProjectPhase;
   /** Tablet: icons + active label only. */
   condensed?: boolean;
+  /** Sub-phases of the current stage, rendered inline (expanded) after its pill. */
+  subSteps?: { key: string; label: string }[];
+  /** The active sub-phase key (highlighted within `subSteps`). */
+  activeSubPhase?: string;
+  /** When provided, sub-phase chips become clickable to jump to that phase. */
+  onSubStepClick?: (key: string) => void;
+}
+
+/** Inline sub-phase stepper shown under the active stage (e.g. Outline › Craft › Document). */
+function SubStepper({
+  steps,
+  active,
+  onClick,
+}: {
+  steps: { key: string; label: string }[];
+  active?: string;
+  onClick?: (key: string) => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
+      {steps.map((st, i) => {
+        const isActive = st.key === active;
+        const cls = cn(
+          'rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+          isActive ? 'bg-accent text-white' : 'text-ink-soft',
+          onClick && !isActive && 'hover:bg-accent-tint hover:text-accent-deep',
+        );
+        return (
+          <Fragment key={st.key}>
+            {i > 0 ? <ChevronRight aria-hidden="true" className="size-3 text-line-strong" /> : null}
+            {onClick ? (
+              <button
+                type="button"
+                data-substep={st.key}
+                aria-current={isActive ? 'step' : undefined}
+                onClick={() => onClick(st.key)}
+                className={cls}
+              >
+                {st.label}
+              </button>
+            ) : (
+              <span data-substep={st.key} aria-current={isActive ? 'step' : undefined} className={cls}>
+                {st.label}
+              </span>
+            )}
+          </Fragment>
+        );
+      })}
+    </span>
+  );
 }
 
 interface ComputedStage {
@@ -140,6 +191,9 @@ export function StageStepper({
   currentStage,
   phase,
   condensed = false,
+  subSteps,
+  activeSubPhase,
+  onSubStepClick,
 }: StageStepperProps) {
   const statusByKind = new Map(stages.map((s) => [s.kind, s.status]));
 
@@ -166,13 +220,17 @@ export function StageStepper({
                   {!condensed ? <span>Freeze</span> : null}
                 </span>
               ) : (
-                kinds.map((kind) => (
-                  <StagePill
-                    key={kind}
-                    s={computeStage(kind, statusByKind, currentStage, phase, projectId)}
-                    condensed={condensed}
-                  />
-                ))
+                kinds.map((kind) => {
+                  const s = computeStage(kind, statusByKind, currentStage, phase, projectId);
+                  return (
+                    <Fragment key={kind}>
+                      <StagePill s={s} condensed={condensed} />
+                      {s.isCurrent && subSteps && subSteps.length > 0 ? (
+                        <SubStepper steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
+                      ) : null}
+                    </Fragment>
+                  );
+                })
               )}
             </div>
           </div>

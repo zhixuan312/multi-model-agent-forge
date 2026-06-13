@@ -38,8 +38,8 @@ function intEnv(value: string | undefined, fallback: number): number {
 export const SESSION_ABSOLUTE_TTL_MS = parseDurationMs(process.env.SESSION_ABSOLUTE_TTL, 30 * 86_400_000);
 /** Session sliding idle window (default 7 days). */
 export const SESSION_IDLE_TTL_MS = parseDurationMs(process.env.SESSION_IDLE_TTL, 7 * 86_400_000);
-/** Minimum password length on create / reset / change (default 12). */
-export const PASSWORD_MIN_LENGTH = intEnv(process.env.PASSWORD_MIN_LENGTH, 12);
+/** Minimum password length on create / reset / change (default 8). */
+export const PASSWORD_MIN_LENGTH = intEnv(process.env.PASSWORD_MIN_LENGTH, 8);
 /** Failed logins per key per window before throttle (default 10). */
 export const LOGIN_RATELIMIT_MAX = intEnv(process.env.LOGIN_RATELIMIT_MAX, 10);
 /** Sliding window for the rate limit (default 15 min). */

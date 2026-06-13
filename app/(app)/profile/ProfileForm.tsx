@@ -23,10 +23,12 @@ import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
 
-/** Avatar tint palette (warm-world accents from forge.css / profile.html). */
-const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E'];
+/** Avatar tint palette (warm-world accents from forge.css / profile.html). The
+ *  trailing `#9a6b4f` is the DB default tint (lowercase, as stored) so a member
+ *  who never picked a colour still shows a selected swatch. */
+const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E', '#9a6b4f'];
 
-const PROFILE_NOTE = `**Just you**
+const PROFILE_NOTE = `**Your account**
 
 Your **username** is your login key — it can't be changed. Your display name and avatar are yours to edit anytime.`;
 
@@ -110,6 +112,9 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      // Changing the password revokes every other session and re-issues this
+      // one — refresh so the "Active sessions" metric reflects the drop.
+      router.refresh();
     } finally {
       setSavingPassword(false);
     }
@@ -146,12 +151,18 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
                         aria-checked={t === tint}
                         aria-label={`Avatar colour ${t}`}
                         onClick={() => setTint(t)}
-                        style={{ background: t }}
                         className={cn(
-                          'focus-ring size-6 rounded-full transition-transform hover:scale-110',
+                          // inline-flex + p-0 so the button box hugs the 24px chip
+                          // exactly (no UA padding) → the selection ring stays circular.
+                          'focus-ring inline-flex rounded-full p-0 transition-transform hover:scale-110',
                           t === tint && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
                         )}
-                      />
+                      >
+                        {/* Each swatch is the avatar's own tint chip (same color-mix
+                            background), minus the initials — so the colour you click is
+                            exactly the avatar's background, with no character inside. */}
+                        <Avatar size="sm" initials="" tint={t} aria-hidden />
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -202,6 +213,19 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
           <form onSubmit={savePassword} aria-label="Password">
             <CardContent className="flex flex-col gap-4 py-5">
               <Heading className="!text-base">Password</Heading>
+              {/* Hidden username so password managers associate the change-password
+                  credential with this account (the visible username lives in the
+                  separate Account form above). */}
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                value={member.username}
+                readOnly
+                aria-hidden
+                tabIndex={-1}
+                className="sr-only"
+              />
               <Field label="Current password">
                 {(p) => (
                   <Input
@@ -248,7 +272,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
               ) : null}
               {passwordOk ? (
                 <Micro role="status" className="block text-[var(--sage-deep)]">
-                  Password updated.
+                  Password updated — other devices have been signed out.
                 </Micro>
               ) : null}
 

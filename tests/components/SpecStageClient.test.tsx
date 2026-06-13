@@ -44,6 +44,7 @@ describe('SpecStageClient', () => {
         initialSpec={null}
         initialAuditHistory={[]}
         initialCanFreeze={false}
+        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
       />,
     );
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
@@ -63,6 +64,7 @@ describe('SpecStageClient', () => {
         initialSpec={null}
         initialAuditHistory={[]}
         initialCanFreeze={false}
+        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
       />,
     );
 

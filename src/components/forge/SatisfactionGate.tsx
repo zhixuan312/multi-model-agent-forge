@@ -5,11 +5,11 @@ import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
 /**
- * `SatisfactionGate` (Spec 4 / components/forge — F7/F9/F21) — the dual AI/Human
+ * `SatisfactionGate` (Spec 4 / components/forge — F7/F9/F21) — the dual Forge/Human
  * indicator pair + the human nod + Force-advance control.
  *
  * ACCESSIBILITY (F21/F9): satisfaction state is NEVER conveyed by colour alone.
- * Each indicator carries a TEXT label ("AI: satisfied / pending", "Human:
+ * Each indicator carries a TEXT label ("Forge: satisfied / pending", "Human:
  * approved / pending"), an icon, and `aria-label` + `aria-live` so the change is
  * announced. Force-advance is a LABELLED button (text "Force advance"), not just
  * amber styling.
@@ -56,7 +56,7 @@ export function SatisfactionGate({
 }: SatisfactionGateProps) {
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="satisfaction-gate">
-      <Indicator label="AI" on={aiSatisfied} />
+      <Indicator label="Forge" on={aiSatisfied} />
       <Indicator label="Human" on={humanSatisfied} />
       {forced ? <span className="text-xs text-ink-soft">(forced)</span> : null}
       <Button

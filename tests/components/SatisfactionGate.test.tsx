@@ -2,12 +2,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { SatisfactionGate } from '@/components/forge/SatisfactionGate';
 
 describe('SatisfactionGate (dual indicator + force-advance)', () => {
-  it('conveys AI/Human state by text label + ARIA, never colour alone (F21/F9)', () => {
+  it('conveys Forge/Human state by text label + ARIA, never colour alone (F21/F9)', () => {
     render(<SatisfactionGate aiSatisfied={true} humanSatisfied={false} forced={false} drafted={true} />);
-    expect(screen.getByLabelText('AI: satisfied')).toBeInTheDocument();
+    expect(screen.getByLabelText('Forge: satisfied')).toBeInTheDocument();
     expect(screen.getByLabelText('Human: pending')).toBeInTheDocument();
     // The text is present (not colour-only).
-    expect(screen.getByText(/AI: satisfied/)).toBeInTheDocument();
+    expect(screen.getByText(/Forge: satisfied/)).toBeInTheDocument();
     expect(screen.getByText(/Human: pending/)).toBeInTheDocument();
   });
 

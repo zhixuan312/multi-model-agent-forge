@@ -98,7 +98,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   useEffect(() => {
     if (readOnly) return;
     if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('AI is driving — decomposing the spec…');
+      setAutoNote('Forge is driving — decomposing the spec…');
       setAuto('running');
     }
   }, [readOnly]);
@@ -172,7 +172,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
         note={autoNote}
         disabled={readOnly || locked}
         onRun={() => {
-          setAutoNote('AI is driving — reviewing the decomposition…');
+          setAutoNote('Forge is driving — reviewing the decomposition…');
           setAuto('running');
         }}
         onStop={() => {
@@ -782,7 +782,7 @@ function ValidateStage({
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the audit from the conversation. {driving ? 'The AI clears critical & high, then locks.' : 'Each round lands here with its severity summary.'}
+                  Run the audit from the conversation. {driving ? 'Forge clears critical & high, then locks.' : 'Each round lands here with its severity summary.'}
                 </p>
               </div>
             ) : (

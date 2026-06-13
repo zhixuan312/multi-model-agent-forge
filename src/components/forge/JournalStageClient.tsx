@@ -117,7 +117,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
   useEffect(() => {
     if (readOnly) return;
     if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('AI is driving — harvesting the learnings…');
+      setAutoNote('Forge is driving — harvesting the learnings…');
       setAuto('running');
     }
   }, [readOnly]);
@@ -176,7 +176,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
         idleHint="Curate the learnings yourself, or let Forge harvest and record them to close out the project."
         runningHint="Forge harvests the run’s learnings, approves the worthwhile ones, and records them. Stop anytime."
         onRun={() => {
-          setAutoNote('AI is driving — harvesting the learnings…');
+          setAutoNote('Forge is driving — harvesting the learnings…');
           setAuto('running');
         }}
         onStop={() => {

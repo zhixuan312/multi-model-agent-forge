@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
+import { listNotifications } from '@/collab/notifications-core';
 import { PhaseTheme } from '@/components/forge/PhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';
@@ -24,10 +25,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const member = await currentMember();
   if (!member) redirect('/login');
 
+  const notifications = await listNotifications(member.id);
+
   return (
     <PhaseTheme phase="design" className="text-ink">
       <AppShell
-        sidebar={<Sidebar member={member} />}
+        sidebar={<Sidebar member={member} notifications={notifications} />}
         mobileBar={
           <div className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
             <MobileNav member={member} />

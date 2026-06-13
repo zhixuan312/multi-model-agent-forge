@@ -7,7 +7,9 @@ import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { AccountMenu } from '@/components/forge/AccountMenu';
+import { NotificationBell } from '@/components/forge/collab/NotificationBell';
 import type { AuthedMember } from '@/auth/auth-provider';
+import type { NotificationItem } from '@/collab/types';
 
 /**
  * Sidebar — the locked dashboard rail: brand lockup, grouped primary nav, and
@@ -50,9 +52,12 @@ const SECTIONS: NavSection[] = [
 
 export function Sidebar({
   member,
+  notifications = [],
   forceVisible = false,
 }: {
   member: AuthedMember;
+  /** Feed for the shell notification bell (mentions + approvals). */
+  notifications?: NotificationItem[];
   /** When true, render even below md (used inside the mobile drawer). */
   forceVisible?: boolean;
 }) {
@@ -66,8 +71,11 @@ export function Sidebar({
         !forceVisible && 'max-md:hidden',
       )}
     >
-      <div className="px-2 pb-4 pt-1">
+      <div className="flex items-center gap-2 px-2 pb-4 pt-1">
         <ForgeMark withWordmark />
+        <div className="ml-auto">
+          <NotificationBell items={notifications} />
+        </div>
       </div>
 
       <nav aria-label="Primary" className="flex flex-col gap-5">

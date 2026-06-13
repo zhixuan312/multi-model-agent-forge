@@ -12,6 +12,8 @@ export interface GraphNode {
   id: string;
   status: string;
   title: string;
+  source?: string;
+  category?: string;
 }
 
 export interface GraphEdge {

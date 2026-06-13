@@ -3,6 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import type { ComponentView } from '@/spec/spec-core';
 
+// SpecStageClient uses next/navigation's useRouter (Document-phase automation
+// hand-off) — there's no app-router context in jsdom, so stub it.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
+
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);

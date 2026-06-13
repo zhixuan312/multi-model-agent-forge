@@ -90,7 +90,7 @@ export default async function JournalPage({
   if (view === 'graph') {
     const ids = new Set(read.nodes.map((n) => n.id));
     const frontmatters = await readNodeFrontmatters(root);
-    graphNodes = read.nodes.map((n) => ({ id: n.id, status: n.status, title: n.title }));
+    graphNodes = read.nodes.map((n) => ({ id: n.id, status: n.status, title: n.title, source: n.source, category: n.category }));
     graphEdges = buildGraphEdges(frontmatters, ids);
   }
 

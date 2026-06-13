@@ -47,10 +47,11 @@ export const PROJECT_MEMBER_ROLE = ['owner', 'collaborator'] as const;
 export type ProjectMemberRole = (typeof PROJECT_MEMBER_ROLE)[number];
 
 /**
- * stage.kind (schema.md §5). The fixed five-stage skeleton seeded on create.
+ * stage.kind (schema.md §5). The fixed six-stage skeleton seeded on create,
+ * grouped DESIGN (exploration·spec·plan) › BUILD (execute·review) › LEARN (journal).
  * `STAGE_ORDER` is the canonical seed + render order (drives seeding + stepper).
  */
-export const STAGE_KIND = ['exploration', 'spec', 'plan', 'execute', 'review'] as const;
+export const STAGE_KIND = ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const;
 export type StageKind = (typeof STAGE_KIND)[number];
 
 /** The fixed seed + render order — same tuple as STAGE_KIND, named for intent. */

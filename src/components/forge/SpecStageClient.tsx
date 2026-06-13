@@ -35,7 +35,10 @@ import {
 import { Markdown } from '@/components/forge/Markdown';
 import { RoleChip } from '@/components/forge/RoleChip';
 import { ForgeMark } from '@/components/forge/ForgeMark';
+import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { StageAdvance } from '@/components/forge/StageAdvance';
+import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Button,
   Card,
@@ -158,10 +161,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export function SpecStageClient(props: SpecStageClientProps) {
+  const router = useRouter();
   const readOnly = props.phase !== 'design';
   const [components, setComponents] = useState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useState(props.initialSpec);
   const [error, setError] = useState<string | null>(null);
+  const [auto, setAuto] = useState<AutoMode>('off');
+  const [autoNote, setAutoNote] = useState('');
   // Intent carried forward from the Exploration brief (no longer hand-typed here).
   const [intent] = useState(props.intentMd ?? '');
   const [picked, setPicked] = useState<Set<ComponentKind>>(
@@ -204,6 +210,26 @@ export function SpecStageClient(props: SpecStageClientProps) {
       ) : null}
       {error ? <TextSm className="shrink-0 !text-[var(--rose)]">{error}</TextSm> : null}
 
+      <AutomationBar
+        mode={auto}
+        note={autoNote}
+        disabled={readOnly || phase !== 'document'}
+        idleHint={
+          phase === 'document'
+            ? 'Spec is ready — let Forge finalize it and run Plan → Build → Journal to the end.'
+            : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
+        }
+        runningHint="Forge finalizes the spec and drives the whole flow to the end. Stop anytime."
+        onRun={() => {
+          setAutoNote('AI is driving — finalizing the spec…');
+          setAuto('running');
+        }}
+        onStop={() => {
+          setAuto('off');
+          setAutoNote('Stopped — you have the wheel.');
+        }}
+      />
+
       {/* BODY — every phase carries its own rails; no top status row. */}
       {phase === 'outline' ? (
         <OutlineStage
@@ -244,6 +270,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
           mmaReady={props.mmaReady}
           initialAuditHistory={props.initialAuditHistory}
           initialCanFreeze={props.initialCanFreeze}
+          driving={auto === 'running'}
+          onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
         />
@@ -988,6 +1016,8 @@ function DocumentScreen({
   mmaReady,
   initialAuditHistory,
   initialCanFreeze,
+  driving,
+  onAdvance,
   onAssembled,
   onError,
 }: {
@@ -999,6 +1029,8 @@ function DocumentScreen({
   mmaReady: boolean;
   initialAuditHistory: AuditPassView[];
   initialCanFreeze: boolean;
+  driving: boolean;
+  onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
@@ -1014,6 +1046,7 @@ function DocumentScreen({
   const bottomRef = useRef<HTMLDivElement>(null);
   // Auto-scroll the thread to the latest turn (messenger-style).
   useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [messages]);
+
 
   // Assemble runs as a plain fetch (not a react-query mutation): the auto-assemble
   // below fires from an effect, and an effect-triggered mutation gets its observer
@@ -1048,15 +1081,21 @@ function DocumentScreen({
     }
   }
 
-  const audit = useMutation({
-    mutationFn: () =>
-      postJson<{
+  // Audit also runs as a plain fetch (same reason as assemble) so the automation
+  // driver below can fire it from an effect without the mutation observer sticking.
+  const [auditing, setAuditing] = useState(false);
+  const auditingRef = useRef(false);
+  async function runAudit(): Promise<void> {
+    if (auditingRef.current) return;
+    auditingRef.current = true;
+    setAuditing(true);
+    try {
+      const data = await postJson<{
         pass: { passNo: number; verdict: 'clean' | 'revised'; findingsCount: number; findings: AuditFinding[] };
         contextBlockId: string | null;
         history: AuditPassView[];
         canFreeze: boolean;
-      }>(`/projects/${projectId}/spec/audit`, {}),
-    onSuccess: (data) => {
+      }>(`/projects/${projectId}/spec/audit`, {});
       onError(null);
       setCanFreeze(data.canFreeze);
       setRounds((r) => [...r, { passNo: data.pass.passNo, verdict: data.pass.verdict, findings: data.pass.findings }]);
@@ -1068,13 +1107,34 @@ function DocumentScreen({
           role: 'forge',
           text:
             data.pass.verdict === 'clean'
-              ? 'Clean pass — no critical or high findings. You can freeze the spec whenever you’re ready.'
+              ? 'Clean pass — no critical or high findings. You can continue to Plan whenever you’re ready.'
               : 'I found the issues above. Tell me to address one and I’ll revise the spec, then re-run the audit to verify.',
         },
       ]);
-    },
-    onError: (e: Error) => onError(e.message),
-  });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Audit failed.');
+    } finally {
+      auditingRef.current = false;
+      setAuditing(false);
+    }
+  }
+
+  // Automated mode (Spec Document → end): run the audit passes until clean
+  // (clearing critical/high), exactly like Plan's Validate, then hand to Plan.
+  const autoDone = useRef(false);
+  useEffect(() => {
+    if (!driving || readOnly || autoDone.current) return;
+    const t = setTimeout(() => {
+      if (canFreeze) {
+        autoDone.current = true;
+        onAdvance();
+      } else if (!auditingRef.current) {
+        void runAudit();
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driving, canFreeze, rounds.length, readOnly]);
 
   // Entering Document with everything approved → assemble automatically so the
   // full spec is shown immediately (also re-assembles a stale/empty draft).
@@ -1225,9 +1285,9 @@ function DocumentScreen({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => audit.mutate()}
-                  loading={audit.isPending}
-                  disabled={readOnly || !mmaReady || !spec || audit.isPending}
+                  onClick={() => void runAudit()}
+                  loading={auditing}
+                  disabled={readOnly || !mmaReady || !spec || auditing}
                   leftIcon={<Shield />}
                 >
                   {rounds.length > 0 ? 'Re-run audit' : 'Run audit'}
@@ -1292,23 +1352,15 @@ function DocumentScreen({
           <CardFooter className="flex-col !items-stretch gap-2">
             <TextSm className="!text-ink-faint">
               {canFreeze
-                ? 'Clean audit — freezing is irreversible.'
-                : 'Freezing is irreversible — open findings won’t block it.'}
+                ? 'Clean audit — the spec is ready for planning.'
+                : 'Open findings won’t block you — move on whenever you’re ready.'}
             </TextSm>
-            <a
-              href={!readOnly ? `/projects/${projectId}/freeze` : undefined}
-              aria-disabled={readOnly}
-              data-testid="freeze-link"
-              className={cn(
-                'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                !readOnly
-                  ? 'bg-ink text-white hover:bg-ink/90'
-                  : 'pointer-events-none cursor-not-allowed bg-surface-2 text-ink-faint',
-              )}
-            >
-              <Snowflake aria-hidden="true" className="size-4" />
-              Freeze the spec
-            </a>
+            <StageAdvance
+              href={`/projects/${projectId}/plan`}
+              label="Continue to Plan"
+              disabled={readOnly}
+              testId="spec-continue-link"
+            />
           </CardFooter>
         </Card>
       </aside>

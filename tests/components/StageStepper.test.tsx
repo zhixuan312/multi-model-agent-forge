@@ -9,6 +9,7 @@ const freshStages: { kind: StageKind; status: StageStatus }[] = [
   { kind: 'plan', status: 'pending' },
   { kind: 'execute', status: 'pending' },
   { kind: 'review', status: 'pending' },
+  { kind: 'journal', status: 'pending' },
 ];
 
 function renderFresh() {
@@ -18,19 +19,23 @@ function renderFresh() {
 }
 
 describe('StageStepper (stage-driven)', () => {
-  it('renders the three groups Design / Freeze / Build', () => {
+  it('renders the three groups Design / Build / Learn', () => {
     const { container } = renderFresh();
     const headings = Array.from(container.querySelectorAll('span.uppercase')).map((el) => el.textContent);
-    expect(headings).toEqual(['Design', 'Freeze', 'Build']);
+    expect(headings).toEqual(['Design', 'Build', 'Learn']);
   });
 
-  it('highlights current_stage and locks all three Build stages under design phase', () => {
+  it('Plan is reachable under design; Build + Learn stages lock', () => {
     const { container } = renderFresh();
     const exploration = container.querySelector('[data-stage="exploration"]')!;
     expect(exploration).toHaveAttribute('data-state', 'active');
     expect(exploration).toHaveAttribute('aria-current', 'step');
 
-    for (const kind of ['plan', 'execute', 'review']) {
+    // plan is a DESIGN stage now — pending but NOT locked.
+    const plan = container.querySelector('[data-stage="plan"]')!;
+    expect(plan).toHaveAttribute('data-state', 'pending');
+
+    for (const kind of ['execute', 'review', 'journal']) {
       const el = container.querySelector(`[data-stage="${kind}"]`)!;
       expect(el).toHaveAttribute('data-state', 'locked');
       expect(el).toHaveAttribute('aria-disabled', 'true');
@@ -44,6 +49,7 @@ describe('StageStepper (stage-driven)', () => {
       { kind: 'plan', status: 'pending' },
       { kind: 'execute', status: 'pending' },
       { kind: 'review', status: 'pending' },
+      { kind: 'journal', status: 'pending' },
     ];
     const { container } = render(
       <StageStepper projectId="p1" stages={stages} currentStage="spec" phase="design" />,
@@ -65,15 +71,16 @@ describe('StageStepper (stage-driven)', () => {
     expect(spec.tagName).toBe('SPAN');
     expect(spec).toHaveAttribute('aria-disabled', 'true');
 
-    // plan (locked) → inert span
-    const plan = container.querySelector('[data-stage="plan"]')!;
-    expect(plan.tagName).toBe('SPAN');
+    // execute (locked) → inert span
+    const execute = container.querySelector('[data-stage="execute"]')!;
+    expect(execute.tagName).toBe('SPAN');
   });
 
   it('a11y: each stage accessible name includes its status; locked stages say "locked"', () => {
     renderFresh();
-    expect(screen.getByLabelText('Exploration — active')).toBeInTheDocument();
+    expect(screen.getByLabelText('Explore — active')).toBeInTheDocument();
     expect(screen.getByLabelText('Spec — pending')).toBeInTheDocument();
-    expect(screen.getByLabelText('Plan — locked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Plan — pending')).toBeInTheDocument();
+    expect(screen.getByLabelText('Execute — locked')).toBeInTheDocument();
   });
 });

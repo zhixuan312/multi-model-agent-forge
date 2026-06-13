@@ -14,7 +14,7 @@ const log = logSeed as LogEntry[];
 export async function readAllNodes(): Promise<JournalReadOutcome> {
   await mockLatency();
   const summaries: NodeSummary[] = nodes
-    .map((n) => ({ id: n.id, title: n.title, status: n.status, tags: n.tags, date: n.date, filename: n.filename }))
+    .map((n) => ({ id: n.id, title: n.title, status: n.status, tags: n.tags, date: n.date, filename: n.filename, source: n.source, category: n.category }))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { kind: 'ok', nodes: summaries, log: [...log], skippedCount: 0 };
 }

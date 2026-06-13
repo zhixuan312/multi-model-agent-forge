@@ -26,6 +26,10 @@ describe('evaluateRequest (stateless cookie-presence pre-check, no DB)', () => {
     });
   });
 
+  it('lets /setup through without a cookie (first-run admin registration)', () => {
+    expect(evaluateRequest({ pathname: '/setup', hasSessionCookie: false })).toEqual({ action: 'next' });
+  });
+
   it('lets the login API action through unauthenticated', () => {
     expect(evaluateRequest({ pathname: '/api/auth/login', hasSessionCookie: false })).toEqual({
       action: 'next',

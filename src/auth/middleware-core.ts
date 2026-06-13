@@ -18,8 +18,12 @@ export type MiddlewareDecision =
 
 /** Routes always reachable without a session cookie. */
 function isPublicPath(pathname: string): boolean {
-  // The login page + its server-action POST target, plus Next internals/assets.
+  // The login + first-run setup pages and their server-action POST targets,
+  // plus Next internals/assets. `/setup` is reachable while logged out so the
+  // first admin can be registered before any session exists; the page itself
+  // closes the gate (redirects to /login) once a member exists.
   if (pathname === '/login' || pathname.startsWith('/login/')) return true;
+  if (pathname === '/setup' || pathname.startsWith('/setup/')) return true;
   if (pathname.startsWith('/_next/')) return true;
   if (pathname === '/favicon.ico') return true;
   return false;

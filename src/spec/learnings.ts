@@ -136,7 +136,7 @@ async function buildLearningsPrompt(
   const system = [
     "You are Forge's learnings curator. From the freeze of a spec, propose the durable",
     'learnings worth recording in the team journal: what was figured out (insight), what',
-    'was decided (decision), and what was hard about brainstorming it with AI (challenge).',
+    'was decided (decision), and what was hard about brainstorming it with Forge (challenge).',
     'Each learning is a self-contained markdown statement. Propose only what is durable',
     'and team-relevant — skip the trivial.',
   ].join('\n');

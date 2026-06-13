@@ -48,7 +48,7 @@ export function AutomationBar({
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-          {running ? 'AI is driving' : 'You have the wheel'}
+          {running ? 'Forge is driving' : 'You have the wheel'}
           {running ? <span className="inline-flex size-1.5 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden /> : null}
         </p>
         <p className="truncate text-xs text-ink-soft">

@@ -1,9 +1,11 @@
 import { COMPONENT_TEMPLATES, defaultComponentKinds } from '@/spec/components';
 import { findMockProject } from '@/mock/domains/projects/dashboard';
+import { mockProjectMembers, mockCraftCollab } from '@/mock/domains/collab';
 import type { ComponentView, SectionView } from '@/spec/spec-core';
 import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
 import type { QaMessageView } from '@/components/forge/Composer';
 import type { AuditPassView, AuditFinding } from '@/components/forge/SpecStageClient';
+import type { MemberRef, UnitCollab } from '@/collab/types';
 
 /**
  * Stateful mock for the Spec stage (Spec 4 Part A) so the Outline → Interview →
@@ -249,6 +251,8 @@ export interface MockSpecBundle {
   initialAuditHistory: AuditPassView[];
   initialCanFreeze: boolean;
   craftContent: Partial<Record<ComponentKind, CraftSeed>>;
+  projectMembers: MemberRef[];
+  craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
 }
 
 export function mockSpec(projectId: string): MockSpecBundle {
@@ -266,6 +270,8 @@ export function mockSpec(projectId: string): MockSpecBundle {
     initialAuditHistory: st.audit,
     initialCanFreeze: st.canFreeze,
     craftContent: CRAFT_CONTENT,
+    projectMembers: mockProjectMembers(),
+    craftCollab: mockCraftCollab(),
   };
 }
 

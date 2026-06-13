@@ -83,7 +83,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   useEffect(() => {
     if (readOnly) return;
     if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('AI is driving — reviewing the changeset…');
+      setAutoNote('Forge is driving — reviewing the changeset…');
       setAuto('running');
     }
   }, [readOnly]);
@@ -144,7 +144,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
         idleHint="Review the changeset yourself, or let Forge run code review and resolve it on to Journal."
         runningHint="Forge runs code review, applies critical & high, resolves, then hands off to Journal. Stop anytime."
         onRun={() => {
-          setAutoNote('AI is driving — reviewing the changeset…');
+          setAutoNote('Forge is driving — reviewing the changeset…');
           setAuto('running');
         }}
         onStop={() => {
@@ -374,7 +374,7 @@ function JudgeStage({
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the review from the conversation. {driving ? 'The AI clears critical & high, then resolves.' : 'Each pass lands here with its severity summary.'}
+                  Run the review from the conversation. {driving ? 'Forge clears critical & high, then resolves.' : 'Each pass lands here with its severity summary.'}
                 </p>
               </div>
             ) : (

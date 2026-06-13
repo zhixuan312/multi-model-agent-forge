@@ -82,7 +82,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
   useEffect(() => {
     if (readOnly) return;
     if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('AI is driving — dispatching the plan…');
+      setAutoNote('Forge is driving — dispatching the plan…');
       setAuto('running');
     }
   }, [readOnly]);
@@ -153,7 +153,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
         idleHint="Dispatch the plan yourself and watch it run, or let Forge run Execute → Review → Journal."
         runningHint="Forge dispatches the plan, runs every task, lands the commits, then hands off to review. Stop anytime."
         onRun={() => {
-          setAutoNote('AI is driving — dispatching the plan…');
+          setAutoNote('Forge is driving — dispatching the plan…');
           setAuto('running');
         }}
         onStop={() => {

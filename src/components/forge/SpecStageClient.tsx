@@ -40,6 +40,7 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
+  Avatar,
   Button,
   Card,
   CardHeader,
@@ -58,7 +59,19 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { COMPONENT_TEMPLATES, DOC_TEMPLATES, templateForKind, type DocTemplate } from '@/spec/components';
+import { ParticipantStrip, ApproverCluster } from '@/components/forge/collab/Participants';
+import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
+import { MentionComposer } from '@/components/forge/collab/MentionComposer';
+import {
+  addParticipant,
+  recordApproval,
+  parseMentions,
+  isHumanApproved,
+  hasApproved,
+  pending as pendingParticipants,
+} from '@/collab/section-approval';
 import type { ComponentView } from '@/spec/spec-core';
+import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
 import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
 
 /**
@@ -90,6 +103,12 @@ interface SpecStageClientProps {
   initialCanFreeze: boolean;
   /** Mock-only: realistic per-component questions + drafts for the Craft conversation. */
   craftContent?: Record<string, CraftSeed>;
+  /** The signed-in member — drives "you" attribution and approvals. */
+  currentMember: MemberRef;
+  /** Teammates who can be @-mentioned into a section for co-approval. */
+  projectMembers?: MemberRef[];
+  /** Mock-only: per-component seeded participants + group-chat (by kind). */
+  craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -221,7 +240,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         }
         runningHint="Forge finalizes the spec and drives the whole flow to the end. Stop anytime."
         onRun={() => {
-          setAutoNote('AI is driving — finalizing the spec…');
+          setAutoNote('Forge is driving — finalizing the spec…');
           setAuto('running');
         }}
         onStop={() => {
@@ -254,6 +273,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
           readOnly={readOnly}
           allApproved={allApproved}
           craftContent={props.craftContent}
+          currentMember={props.currentMember}
+          projectMembers={props.projectMembers ?? []}
+          craftCollab={props.craftCollab ?? {}}
           onPatch={(id, patch) =>
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
@@ -673,6 +695,9 @@ function CraftStage({
   readOnly,
   allApproved,
   craftContent,
+  currentMember,
+  projectMembers,
+  craftCollab,
   onPatch,
   onEditOutline,
   onConsolidate,
@@ -681,6 +706,9 @@ function CraftStage({
   readOnly: boolean;
   allApproved: boolean;
   craftContent?: Record<string, CraftSeed>;
+  currentMember: MemberRef;
+  projectMembers: MemberRef[];
+  craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
   onEditOutline: () => void;
   onConsolidate: () => void;
@@ -689,12 +717,59 @@ function CraftStage({
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
+  // Collaborative state per component (participants + group chat), seeded by kind.
+  const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
+    const out: Record<string, UnitCollab> = {};
+    for (const c of components) {
+      const seed = craftCollab[c.kind];
+      out[c.id] = seed
+        ? {
+            participants: seed.participants.map((p) => ({ ...p })),
+            discussion: seed.discussion.map((d) => ({ ...d })),
+          }
+        : { participants: [], discussion: [] };
+    }
+    return out;
+  });
+  const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef<HTMLDivElement>(null);
   // Auto-scroll the thread to the latest turn (messenger-style).
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, answers]);
+  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, answers, collab]);
+  // When a section gets drafted (Construct), bring the freshly-built draft into
+  // view — otherwise it lands below the fold and the click feels like a no-op.
+  const draftedNow = activeId
+    ? components.find((c) => c.id === activeId)?.status === 'drafted' ||
+      components.find((c) => c.id === activeId)?.status === 'approved'
+    : false;
+  useEffect(() => {
+    if (draftedNow) draftRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [draftedNow, activeId]);
+
+  // The dual gate: a drafted section auto-approves once ANY participant has
+  // nodded (so a teammate's approval alone is enough — §"≥1 is good to go").
+  useEffect(() => {
+    for (const c of components) {
+      if (c.status === 'drafted' && isHumanApproved(collab[c.id]?.participants ?? [])) {
+        onPatch(c.id, { status: 'approved' });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collab, components]);
 
   const active = components.find((c) => c.id === activeId) ?? null;
   const approvedCount = components.filter((c) => c.status === 'approved').length;
+
+  /** Resolve a member id for attribution (you · pool · any seeded participant). */
+  function memberById(id: string): MemberRef | undefined {
+    if (id === currentMember.id) return currentMember;
+    return (
+      projectMembers.find((m) => m.id === id) ??
+      Object.values(collab)
+        .flatMap((u) => u.participants)
+        .find((p) => p.member.id === id)?.member
+    );
+  }
 
   if (!active) {
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
@@ -714,14 +789,105 @@ function CraftStage({
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const draftMd = drafted ? (seed?.draftMd ?? buildDraft(active, given)) : null;
+  const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
+  const iApproved = hasApproved(activeCollab.participants, currentMember.id);
+  // People already in this section's chat — the only ones you can @-mention.
+  const inChatMembers = activeCollab.participants.map((p) => p.member);
+  // Live: does the current draft message address teammates (→ them, AI silent)?
+  const liveMentions = parseMentions(input, inChatMembers);
+
+  /** Patch the active component's collaborative state. */
+  function patchCollab(updater: (u: UnitCollab) => UnitCollab): void {
+    const id = active!.id;
+    setCollab((prev) => ({ ...prev, [id]: updater(prev[id] ?? { participants: [], discussion: [] }) }));
+  }
+
+  /** Mock: append a reply into a section's thread after a short beat. A mentioned
+   *  teammate responds (and approves when asked); `'forge'` acknowledges. */
+  function scheduleReply(
+    authorId: string,
+    sectionId: string,
+    body: string,
+    opts: { approve?: boolean; delay?: number } = {},
+  ): void {
+    setTimeout(() => {
+      setCollab((prev) => {
+        const u = prev[sectionId] ?? { participants: [], discussion: [] };
+        let participants = u.participants;
+        if (opts.approve) {
+          const m = participants.find((p) => p.member.id === authorId)?.member;
+          if (m) participants = recordApproval(participants, m, new Date().toISOString());
+        }
+        const msg: DiscussionMsg = {
+          id: `r-${sectionId}-${u.discussion.length}`,
+          authorId,
+          body,
+          approval: opts.approve,
+        };
+        return { ...prev, [sectionId]: { ...u, participants, discussion: [...u.discussion, msg] } };
+      });
+    }, opts.delay ?? 1100);
+  }
+
+  /** Pull a teammate in from the top "Invite" picker — the one place to add an
+   *  approver. They join the section and say a quick hello in the thread. */
+  function invite(m: MemberRef): void {
+    if (readOnly || !active) return;
+    const already = activeCollab.participants.some((p) => p.member.id === m.id);
+    patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m, currentMember.id) }));
+    if (!already) {
+      scheduleReply(m.id, active.id, `Thanks for pulling me in — reading through ${active.label.toLowerCase()} now. Will weigh in shortly.`);
+    }
+  }
 
   function submit(): void {
     if (!input.trim() || readOnly || !active) return;
-    const next = [...given, input.trim()];
+    const text = input.trim();
+    const mentions = parseMentions(text, inChatMembers);
+
+    // @-mentions a teammate in the chat → directed at them; the AI stays out and
+    // the mentioned people reply (approving when you ask them to).
+    if (mentions.length > 0) {
+      patchCollab((u) => ({
+        ...u,
+        discussion: [
+          ...u.discussion,
+          { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
+        ],
+      }));
+      setInput('');
+      const wantsApproval = /\b(approve|approval|sign[\s-]?off|lgtm)\b/i.test(text);
+      mentions.forEach((m, i) =>
+        scheduleReply(
+          m.id,
+          active.id,
+          wantsApproval ? 'Looks right to me — approving. 👍' : `On it — looking at ${active.label.toLowerCase()} now.`,
+          { approve: wantsApproval, delay: 1000 + i * 700 },
+        ),
+      );
+      return;
+    }
+
+    // No @-mention → you're talking to Forge. Once a draft exists it's a refine
+    // note Forge acks; while gathering it answers the interview and advances.
+    if (drafted) {
+      patchCollab((u) => ({
+        ...u,
+        discussion: [
+          ...u.discussion,
+          { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
+        ],
+      }));
+      setInput('');
+      scheduleReply('forge', active.id, 'Noted — I can fold that into the draft. Hit “Construct section” when you’re ready.');
+      return;
+    }
+    const next = [...given, text];
     setAnswers((a) => ({ ...a, [active.id]: next }));
     setInput('');
     onPatch(active.id, { status: next.length >= rounds.length ? 'drafted' : 'satisfied' });
   }
+
   /** End the Q&A and let Forge construct the draft from what's gathered. */
   function construct(): void {
     if (readOnly || !active) return;
@@ -729,8 +895,13 @@ function CraftStage({
     setInput('');
     onPatch(active.id, { status: 'drafted' });
   }
+
   function approve(): void {
-    if (!active) return;
+    if (!active || iApproved) return;
+    patchCollab((u) => ({
+      ...u,
+      participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
+    }));
     onPatch(active.id, { status: 'approved' });
     const nextOpen = components.find((c) => c.id !== active.id && c.status !== 'approved');
     if (nextOpen) {
@@ -738,10 +909,24 @@ function CraftStage({
       setInput('');
     }
   }
+
   /** Reopen a drafted/approved section to keep editing the conversation. */
   function backToEdit(): void {
     if (readOnly || !active) return;
     onPatch(active.id, { status: 'satisfied' });
+  }
+
+  /** Total teammates still pending across every section — drives the soft nudge. */
+  const pendingTotal = components.reduce(
+    (n, c) => n + pendingParticipants(collab[c.id]?.participants ?? []).length,
+    0,
+  );
+  function consolidate(): void {
+    if (pendingTotal > 0 && !nudge) {
+      setNudge(true);
+      return;
+    }
+    onConsolidate();
   }
 
   return (
@@ -763,6 +948,16 @@ function CraftStage({
           </span>
         </CardHeader>
 
+        {/* Co-approval strip — who's on this section and who's approved. */}
+        <div className="shrink-0 border-b border-line px-5 py-2.5">
+          <ParticipantStrip
+            participants={activeCollab.participants}
+            pool={projectMembers}
+            onAdd={invite}
+            disabled={readOnly}
+          />
+        </div>
+
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
           {rounds.map((round, ri) => {
             if (ri > answeredRounds) return null;
@@ -775,46 +970,86 @@ function CraftStage({
           })}
 
           {drafted && draftMd ? (
-            <div className="rounded-[var(--r-md)] border border-line bg-surface-2/40 p-4">
-              <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-ink-faint">Draft</Micro>
+            <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
+              <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
+                Constructed draft
+              </Micro>
               <Markdown>{draftMd}</Markdown>
             </div>
           ) : null}
+
+          <DiscussionThread
+            messages={activeCollab.discussion}
+            memberById={memberById}
+            currentMemberId={currentMember.id}
+            mentionPool={inChatMembers}
+          />
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Composer pinned to the bottom (messenger-style) while still gathering. */}
-        {!drafted ? (
-          <div className="shrink-0 border-t border-line px-5 py-4">
-            <CraftInput
-              value={input}
-              onChange={setInput}
-              onSubmit={submit}
-              onConstruct={construct}
-              disabled={readOnly}
-            />
-          </div>
-        ) : null}
-
+        {/* Approve / back — shown once a draft exists. */}
         {drafted ? (
-          <CardFooter>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
             <div className="flex items-center gap-2.5">
               <FileText className="size-5 shrink-0 text-accent" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Draft ready for review</p>
-                <p className="text-xs text-ink-faint">Approve to lock the component, or keep editing.</p>
+                <p className="text-sm font-semibold text-ink">{approved ? 'Section approved' : 'Draft ready for review'}</p>
+                <p className="text-xs text-ink-faint">
+                  {approved
+                    ? 'At least one approver has signed off — good to go.'
+                    : 'Approve to lock it, or @mention a teammate below to co-approve.'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<ChevronLeft />}>
                 Back to edit
               </Button>
-              <Button onClick={approve} disabled={readOnly || approved} leftIcon={<Check />}>
-                {approved ? 'Approved' : 'Approve component'}
+              <Button onClick={approve} disabled={readOnly || iApproved} leftIcon={<Check />}>
+                {iApproved ? 'Approved by you' : 'Approve'}
               </Button>
             </div>
-          </CardFooter>
+          </div>
         ) : null}
+
+        {/* One conversation. No @-mention → you're talking to Forge (the AI), which
+            runs the interview. @-mention teammates already in the chat to talk to
+            them instead — the AI stays out of that turn and they reply. */}
+        <div className="shrink-0 border-t border-line px-5 py-4">
+          <div className="flex gap-2.5">
+            <Avatar
+              size="sm"
+              name={currentMember.displayName}
+              tint={currentMember.avatarTint}
+              aria-hidden
+              className="mt-0.5"
+            />
+            <div className="min-w-0 flex-1">
+              <MentionComposer
+                value={input}
+                onChange={setInput}
+                onSubmit={submit}
+                pool={inChatMembers}
+                disabled={readOnly}
+                placeholder={
+                  inChatMembers.length > 0
+                    ? 'Message Forge — or @mention a teammate in the chat…'
+                    : drafted
+                      ? 'Message Forge…'
+                      : 'Type your answer…'
+                }
+                submitLabel={liveMentions.length > 0 ? 'Send' : drafted ? 'Send' : 'Send answer'}
+                secondary={
+                  liveMentions.length === 0 && !drafted ? (
+                    <Button size="sm" variant="ghost" onClick={construct} disabled={readOnly} leftIcon={<FileText />}>
+                      Construct section
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </div>
+          </div>
+        </div>
       </Card>
 
       {/* RIGHT — all selected components + progress (1/3) */}
@@ -838,6 +1073,7 @@ function CraftStage({
                 key={c.id}
                 c={c}
                 active={c.id === activeId}
+                participants={collab[c.id]?.participants ?? []}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');
@@ -852,9 +1088,15 @@ function CraftStage({
               <Plus className="size-4" /> Add component
             </button>
           </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onConsolidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
-              Consolidate into document
+          <CardFooter className="flex-col !items-stretch gap-2">
+            {nudge && pendingTotal > 0 ? (
+              <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
+                {pendingTotal} {pendingTotal === 1 ? 'invited approver hasn’t' : 'invited approvers haven’t'} responded
+                yet. One nod per section is enough — you can proceed anyway.
+              </div>
+            ) : null}
+            <Button className="w-full" onClick={consolidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
+              {nudge && pendingTotal > 0 ? 'Consolidate anyway' : 'Consolidate into document'}
             </Button>
           </CardFooter>
         </Card>
@@ -916,48 +1158,17 @@ function AnswerBlock({ text }: { text: string }) {
   );
 }
 
-function CraftInput({
-  value,
-  onChange,
-  onSubmit,
-  onConstruct,
-  disabled,
+function ComponentRow({
+  c,
+  active,
+  participants,
+  onClick,
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  onSubmit: () => void;
-  onConstruct: () => void;
-  disabled: boolean;
+  c: ComponentView;
+  active: boolean;
+  participants: Participant[];
+  onClick: () => void;
 }) {
-  return (
-    <div className="flex gap-2.5">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-        AD
-      </span>
-      <div className="min-w-0 flex-1">
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={2}
-          disabled={disabled}
-          placeholder="Type your answer…"
-          className="!min-h-0 !rounded-2xl !text-sm"
-        />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={onConstruct} disabled={disabled} leftIcon={<FileText />}>
-            Construct section
-          </Button>
-          <span className="flex-1" />
-          <Button size="sm" onClick={onSubmit} disabled={disabled || !value.trim()} rightIcon={<ArrowRight />}>
-            Send answer
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ComponentRow({ c, active, onClick }: { c: ComponentView; active: boolean; onClick: () => void }) {
   const Icon = KIND_ICON[c.kind];
   const ai = c.status !== 'gathering';
   const human = c.status === 'approved';
@@ -977,12 +1188,13 @@ function ComponentRow({ c, active, onClick }: { c: ComponentView; active: boolea
           <Icon className="size-4 shrink-0 text-ink-faint" />
         )}
         <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
+        <ApproverCluster participants={participants} />
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-6">
         <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', STATUS_PILL[c.status])}>
           {STATUS_LABEL[c.status]}
         </span>
-        <SatDot label="AI" on={ai} />
+        <SatDot label="Forge" on={ai} />
         <SatDot label="Human" on={human} />
       </div>
     </button>

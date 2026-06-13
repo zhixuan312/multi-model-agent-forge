@@ -47,6 +47,9 @@ export default async function SpecStagePage({
         initialAuditHistory={m.initialAuditHistory}
         initialCanFreeze={m.initialCanFreeze}
         craftContent={m.craftContent}
+        currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+        projectMembers={m.projectMembers}
+        craftCollab={m.craftCollab}
       />
     );
   }
@@ -91,6 +94,7 @@ export default async function SpecStagePage({
       initialSpec={latestSpec ? { version: latestSpec.version, bodyMd: latestSpec.bodyMd } : null}
       initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict }))}
       initialCanFreeze={freezeReady}
+      currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
     />
   );
 }

@@ -6,12 +6,11 @@ import { cn } from '@/lib/cn';
  * Connections land in Spec 2 (Part A). Workspace is a separate page (Part B).
  * Server component — the active tab is passed in.
  */
-export type SettingsTab = 'members' | 'providers' | 'roster' | 'connections';
+export type SettingsTab = 'members' | 'models' | 'connections';
 
 const TABS: ReadonlyArray<{ key: SettingsTab; label: string; href: string }> = [
   { key: 'members', label: 'Members', href: '/settings/members' },
-  { key: 'providers', label: 'Providers', href: '/settings/providers' },
-  { key: 'roster', label: 'Roster', href: '/settings/roster' },
+  { key: 'models', label: 'Models', href: '/settings/models' },
   { key: 'connections', label: 'Connections', href: '/settings/connections' },
 ];
 

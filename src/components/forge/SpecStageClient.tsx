@@ -219,7 +219,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           title="The main tier is not configured."
           description={
             <>
-              <a href="/settings/roster" className="font-medium underline">
+              <a href="/settings/models" className="font-medium underline">
                 Configure the main tier in Team Settings
               </a>{' '}
               to start the Q&amp;A.

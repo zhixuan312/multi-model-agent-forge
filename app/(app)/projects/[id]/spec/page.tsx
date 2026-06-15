@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { agentTier, provider } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
-import { teamSettings } from '@/db/schema/config';
+import { readDevTokenFallback } from '@/mma/client-config';
 import { ensureSpecStage, loadOutline } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
@@ -99,10 +99,10 @@ export default async function SpecStagePage({
   );
 }
 
-/** True iff a configured MMA token (non-null team_settings.mma_token_ref) exists (F27). */
-async function isMmaReady(db: ReturnType<typeof getDb>): Promise<boolean> {
-  const [settings] = await db.select({ mmaTokenRef: teamSettings.mmaTokenRef }).from(teamSettings).limit(1);
-  return Boolean(settings?.mmaTokenRef);
+/** True iff a usable MMA bearer is available — auto-resolved from the local
+ *  mmagent token (`MMAGENT_AUTH_TOKEN` env, else `~/.multi-model/auth-token`). */
+async function isMmaReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
+  return readDevTokenFallback() !== null;
 }
 
 /** True iff the `main` tier points at a configured claude provider with an api_key_ref. */

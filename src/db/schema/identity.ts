@@ -9,7 +9,7 @@ import { AUTH_PROVIDER } from '@/db/enums';
  * capability flag (gates Team Settings + repo cloning only), not RBAC.
  */
 export const member = forge.table(
-  'member',
+  'iam_member',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     // stored as-typed; uniqueness is case-insensitive — see the functional index below (F4/F14)
@@ -30,34 +30,26 @@ export const member = forge.table(
 );
 
 /**
- * `member_identity` — pluggable auth. v1: every member has exactly one `local`
- * identity (provider_account_id NULL, password_hash set). The partial unique
- * index covers future external accounts; the one-local-identity-per-member rule
- * is enforced in app code (LocalAuthProvider / Members-CRUD).
+ * `iam_identity` — auth for a member. v1: every member has exactly one `local`
+ * identity (password_hash set). The one-local-identity-per-member rule is
+ * enforced in app code (LocalAuthProvider / Members-CRUD). The external-SSO seam
+ * (provider_account_id + its partial unique index) was removed as unused; add it
+ * back if/when external auth lands.
  */
 export const memberIdentity = forge.table(
-  'member_identity',
+  'iam_identity',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     memberId: uuid('member_id')
       .notNull()
       .references(() => member.id, { onDelete: 'cascade' }),
     provider: text('provider', { enum: AUTH_PROVIDER }).notNull(), // only 'local' built now
-    providerAccountId: text('provider_account_id'), // external sub/DN; NULL for local
     passwordHash: text('password_hash'), // argon2id — local only
     passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }), // bump → drop all sessions
     metadata: jsonb('metadata'), // provider claims / profile
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    // External-account uniqueness: one external (provider, account) → one identity.
-    // PARTIAL — only enforced where provider_account_id IS NOT NULL, so the NULL-distinct
-    // behaviour of Postgres does not let two local rows collide silently (F32).
-    uniqueIndex('member_identity_provider_account_uniq')
-      .on(t.provider, t.providerAccountId)
-      .where(sql`${t.providerAccountId} IS NOT NULL`),
-    index('member_identity_member_idx').on(t.memberId),
-  ],
+  (t) => [index('member_identity_member_idx').on(t.memberId)],
 );
 
 /**
@@ -66,7 +58,7 @@ export const memberIdentity = forge.table(
  * lifetime via expires_at. Server-side store makes the cookie instantly revocable.
  */
 export const session = forge.table(
-  'session',
+  'iam_session',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     memberId: uuid('member_id')

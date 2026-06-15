@@ -13,7 +13,7 @@ function columnNames(table: Parameters<typeof getTableColumns>[0]) {
 
 describe('db/schema — table objects expose the expected columns (no live DB)', () => {
   it('member has the canonical columns + db names', () => {
-    expect(getTableName(member)).toBe('member');
+    expect(getTableName(member)).toBe('iam_member');
     expect(columnNames(member)).toEqual({
       id: 'id',
       username: 'username',
@@ -35,12 +35,11 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
   });
 
   it('member_identity has the canonical columns; provider NOT NULL, credential cols nullable', () => {
-    expect(getTableName(memberIdentity)).toBe('member_identity');
+    expect(getTableName(memberIdentity)).toBe('iam_identity');
     expect(columnNames(memberIdentity)).toEqual({
       id: 'id',
       memberId: 'member_id',
       provider: 'provider',
-      providerAccountId: 'provider_account_id',
       passwordHash: 'password_hash',
       passwordChangedAt: 'password_changed_at',
       metadata: 'metadata',
@@ -50,13 +49,12 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.memberId.notNull).toBe(true);
     expect(cols.provider.notNull).toBe(true);
     // local rows carry NULLs here — must be nullable
-    expect(cols.providerAccountId.notNull).toBe(false);
     expect(cols.passwordHash.notNull).toBe(false);
     expect(cols.passwordChangedAt.notNull).toBe(false);
   });
 
   it('session has the canonical columns; token_hash + expires_at NOT NULL', () => {
-    expect(getTableName(session)).toBe('session');
+    expect(getTableName(session)).toBe('iam_session');
     expect(columnNames(session)).toEqual({
       id: 'id',
       memberId: 'member_id',
@@ -72,7 +70,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
   });
 
   it('app_secrets has the canonical columns; value_enc NOT NULL, created_by nullable', () => {
-    expect(getTableName(appSecrets)).toBe('app_secrets');
+    expect(getTableName(appSecrets)).toBe('settings_secret');
     expect(columnNames(appSecrets)).toEqual({
       id: 'id',
       label: 'label',
@@ -125,7 +123,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
   });
 
   it('team_settings: singleton with nullable refs until configured', () => {
-    expect(getTableName(teamSettings)).toBe('team_settings');
+    expect(getTableName(teamSettings)).toBe('settings_connection');
     expect(columnNames(teamSettings)).toEqual({
       id: 'id',
       mmaBaseUrl: 'mma_base_url',

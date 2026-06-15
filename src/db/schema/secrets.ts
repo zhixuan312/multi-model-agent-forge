@@ -11,7 +11,7 @@ import { member } from '@/db/schema/identity';
  * verbatim from schema.md §1. `created_by` is a nullable FK → member (seed/system
  * writes leave it NULL); ON DELETE leaves it (no cascade) so the audit ref persists.
  */
-export const appSecrets = forge.table('app_secrets', {
+export const appSecrets = forge.table('settings_secret', {
   id: uuid('id').primaryKey().defaultRandom(), // the value used as a *_ref elsewhere
   label: text('label').notNull(), // human label, e.g. 'mma-bearer', 'git-token'
   valueEnc: text('value_enc').notNull(), // base64(nonce ‖ ciphertext); libsodium secretbox

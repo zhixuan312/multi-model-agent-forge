@@ -21,7 +21,11 @@ afterEach(async () => {
   await cleanupExploreFixtures();
 });
 
-describe('brief persistence', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('brief persistence', () => {
   it('saves the brain-dump as exploration_brief; re-save bumps version; latest read wins', async () => {
     const { projectId, ownerId } = await seedProject();
     const r1 = await saveBrief(projectId, 'first dump', { id: ownerId });
@@ -32,7 +36,7 @@ describe('brief persistence', () => {
   });
 });
 
-describe('rail + summary reads', () => {
+describe.skipIf(!hasDb)('rail + summary reads', () => {
   it('joins exploration_task to mma_batch for live status/headline/error', async () => {
     const { projectId, ownerId } = await seedProject();
     const [b] = await getDb()
@@ -68,7 +72,7 @@ describe('rail + summary reads', () => {
   });
 });
 
-describe('task editing + reversibility', () => {
+describe.skipIf(!hasDb)('task editing + reversibility', () => {
   it('adds a manual research draft task', async () => {
     const { projectId, ownerId } = await seedProject();
     const { id } = await addTask(projectId, { kind: 'research', prompt: 'what external options exist for this?' }, { id: ownerId });

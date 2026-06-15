@@ -21,7 +21,11 @@ function tmpRoot(): string {
   return mkdtempSync(join(tmpdir(), 'forge-exp-'));
 }
 
-describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
   it('writes an export row + action_log entry; file lands under <root>/<project_id>/', async () => {
     const { projectId, ownerId } = await seedProject();
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
@@ -124,7 +128,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
   });
 });
 
-describe('startup.ts — boot invariants (F6/F8/F24/F29)', () => {
+describe.skipIf(!hasDb)('startup.ts — boot invariants (F6/F8/F24/F29)', () => {
   it('passes when the export root is disjoint from every repo path', async () => {
     const root = tmpRoot();
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });

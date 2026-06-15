@@ -163,7 +163,7 @@ describe('confinement', () => {
 
   it('rejects a symlink that escapes the journal dir', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'jrnl-'));
-    const jdir = join(tmp, '.mmagent', 'journal');
+    const jdir = join(tmp, '.mma', 'journal');
     mkdirSync(join(jdir, 'nodes'), { recursive: true });
     const secret = join(tmp, 'secret.md');
     writeFileSync(secret, 'top secret');
@@ -278,7 +278,7 @@ describe('graceful empty / missing / EACCES', () => {
   it('present-but-unreadable journal dir → unreadable outcome (no throw to 500)', async () => {
     if (process.getuid && process.getuid() === 0) return; // root bypasses perms
     const tmp = mkdtempSync(join(tmpdir(), 'jrnl-eacces-'));
-    const jdir = join(tmp, '.mmagent', 'journal');
+    const jdir = join(tmp, '.mma', 'journal');
     mkdirSync(join(jdir, 'nodes'), { recursive: true });
     writeFileSync(join(jdir, 'index.md'), '| id | date | status | title | tags |\n');
     chmodSync(jdir, 0o000);

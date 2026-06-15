@@ -12,7 +12,11 @@ async function seedBrief(projectId: string, body: string): Promise<void> {
   await getDb().insert(artifact).values({ projectId, kind: 'exploration_brief', bodyMd: body, version: 1 });
 }
 
-describe('proposeFanOut', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('proposeFanOut', () => {
   afterEach(async () => {
     await cleanupExploreFixtures();
   });

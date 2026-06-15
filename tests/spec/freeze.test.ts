@@ -12,11 +12,16 @@ import {
 } from '@/spec/freeze';
 import { seedProject, cleanupSpecFixtures } from './db-fixtures';
 
+// Live-DB integration suite — gated OFF: no test DB exists; production must not be
+// mutated, so these skip. See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
 afterAll(async () => {
+  if (!hasDb) return;
   await cleanupSpecFixtures();
 });
 
-const db = getDb();
+const db = hasDb ? getDb() : (undefined as never);
 
 async function insertPass(projectId: string, passNo: number, verdict: 'clean' | 'revised'): Promise<void> {
   await db.insert(auditPass).values({
@@ -29,7 +34,7 @@ async function insertPass(projectId: string, passNo: number, verdict: 'clean' | 
   });
 }
 
-describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
+describe.skipIf(!hasDb)('canFreeze (the verdict-or-override gate, F5/F26)', () => {
   it('false when no audit has run', async () => {
     const { projectId } = await seedProject();
     expect(await canFreeze(db, projectId)).toBe(false);
@@ -58,7 +63,7 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
   });
 });
 
-describe('freezeProject', () => {
+describe.skipIf(!hasDb)('freezeProject', () => {
   it('design→frozen transactionally: phase, frozen_at, stage done, action_log', async () => {
     const { projectId, ownerId } = await seedProject();
     await insertPass(projectId, 1, 'clean');

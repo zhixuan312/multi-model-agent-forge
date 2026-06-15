@@ -69,7 +69,11 @@ const REPO_CTX = (id: string, name: string, path: string, firstTask = true): Rep
   firstTask,
 });
 
-describe('executeTask', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('executeTask', () => {
   afterEach(cleanupBuildFixtures);
 
   it('verification PASSES → committed (commit payload + 1-commit SHA match + build/test 0 + non-empty diff)', async () => {

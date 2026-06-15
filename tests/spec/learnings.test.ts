@@ -16,11 +16,16 @@ import { seedProject, cleanupSpecFixtures } from './db-fixtures';
 import { mockAnthropicClient } from './mock-anthropic';
 import { mockMma, journalEnvelope, type RecordedDispatch } from './mock-mma';
 
+// Live-DB integration suite — gated OFF: no test DB exists; production must not be
+// mutated, so these skip. See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
 afterAll(async () => {
+  if (!hasDb) return;
   await cleanupSpecFixtures();
 });
 
-const db = getDb();
+const db = hasDb ? getDb() : (undefined as never);
 const WS_ROOT = '/forge-workspace-test-root';
 
 async function seedProjectWithSpec(): Promise<{ projectId: string; ownerId: string }> {
@@ -29,7 +34,7 @@ async function seedProjectWithSpec(): Promise<{ projectId: string; ownerId: stri
   return { projectId, ownerId };
 }
 
-describe('parseRecordedNodeIds (pure)', () => {
+describe.skipIf(!hasDb)('parseRecordedNodeIds (pure)', () => {
   it('reads structuredReport.recorded[].ids[]', () => {
     expect(parseRecordedNodeIds(journalEnvelope(['0007-some-slug', '0008-next']))).toEqual([
       '0007-some-slug',
@@ -43,7 +48,7 @@ describe('parseRecordedNodeIds (pure)', () => {
   });
 });
 
-describe('proposeLearnings (mock Anthropic)', () => {
+describe.skipIf(!hasDb)('proposeLearnings (mock Anthropic)', () => {
   it('inserts proposed/origin=spec candidates from composeLearningCandidates', async () => {
     const { projectId } = await seedProjectWithSpec();
     const anthropic = mockAnthropicClient({
@@ -79,7 +84,7 @@ describe('proposeLearnings (mock Anthropic)', () => {
   });
 });
 
-describe('curation', () => {
+describe.skipIf(!hasDb)('curation', () => {
   it('keep/remove flips status; add inserts a kept member candidate', async () => {
     const { projectId, ownerId } = await seedProjectWithSpec();
     const anthropic = mockAnthropicClient({
@@ -97,7 +102,7 @@ describe('curation', () => {
   });
 });
 
-describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
+describe.skipIf(!hasDb)('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
   it('dispatches journal-record at cwd=workspace root, stamps node ids, flips to recorded', async () => {
     const { projectId, ownerId } = await seedProjectWithSpec();
     await addLearning(projectId, { bodyMd: 'Kept one with enough length to satisfy.', type: 'insight' }, ownerId);

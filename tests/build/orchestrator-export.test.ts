@@ -33,7 +33,11 @@ function committedEnvelope(sha: string) {
   };
 }
 
-describe('runExecutePipeline', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('runExecutePipeline', () => {
   afterEach(cleanupBuildFixtures);
 
   it('schedules tasks, reviews committed repos, and advances phase=done (review never blocks)', async () => {
@@ -77,7 +81,7 @@ describe('runExecutePipeline', () => {
   });
 });
 
-describe('downloadStageArtifact (F8)', () => {
+describe.skipIf(!hasDb)('downloadStageArtifact (F8)', () => {
   afterEach(cleanupBuildFixtures);
 
   it('returns the exact body_md as a md attachment + inserts one export row (synthetic file_path)', async () => {

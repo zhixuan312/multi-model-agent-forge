@@ -1,63 +1,75 @@
 // @vitest-environment node
-import { resolveMmaClientConfig, DEFAULT_MMA_BASE_URL } from '@/mma/client-config';
-import type { SecretStore } from '@/secrets/secret-store';
+import { resolveMmaClientConfig, readMmaBearer, DEFAULT_MMA_BASE_URL } from '@/mma/client-config';
 
-function fakeSecrets(map: Record<string, string>): SecretStore {
-  return {
-    async get(id) {
-      return map[id] ?? null;
-    },
-    async put() {
-      throw new Error('not used');
-    },
-    async delete() {
-      /* noop */
-    },
-  };
-}
-
-describe('resolveMmaClientConfig', () => {
-  it('uses the DB base URL + decrypted token + main-tier model', async () => {
-    const cfg = await resolveMmaClientConfig({
-      settings: { mmaBaseUrl: 'http://mma.internal:7337', mmaTokenRef: 'ref-1' },
+describe('resolveMmaClientConfig (bearer is the local mma token; never DB-stored)', () => {
+  it('uses the DB base URL + provided bearer + main-tier model', () => {
+    const cfg = resolveMmaClientConfig({
+      settings: { mmaBaseUrl: 'http://mma.internal:7337' },
       mainModel: 'claude-opus-4-8',
-      secrets: fakeSecrets({ 'ref-1': 'tok-abc' }),
+      bearer: 'tok-abc',
     });
     expect(cfg.baseUrl).toBe('http://mma.internal:7337');
     expect(cfg.token).toBe('tok-abc');
     expect(cfg.mainModel).toBe('claude-opus-4-8');
   });
 
-  it('falls back to the loopback default when no team_settings row exists', async () => {
-    const cfg = await resolveMmaClientConfig({
+  it('falls back to the loopback default when no settings row exists', () => {
+    const cfg = resolveMmaClientConfig({
       settings: null,
       mainModel: null,
-      secrets: fakeSecrets({}),
-      devTokenFallback: 'dev-token',
+      bearer: 'tok',
     });
     expect(cfg.baseUrl).toBe(DEFAULT_MMA_BASE_URL);
-    expect(cfg.token).toBe('dev-token');
     expect(cfg.mainModel).toBeNull();
   });
 
-  it('uses the dev token fallback when the ref is absent (dev mode)', async () => {
-    const cfg = await resolveMmaClientConfig({
-      settings: { mmaBaseUrl: 'http://127.0.0.1:7337', mmaTokenRef: null },
-      mainModel: null,
-      secrets: fakeSecrets({}),
-      devTokenFallback: 'env-or-file-token',
-    });
-    expect(cfg.token).toBe('env-or-file-token');
+  it('reads MMA_AUTH_TOKEN when no explicit bearer is passed', () => {
+    const prev = process.env.MMA_AUTH_TOKEN;
+    process.env.MMA_AUTH_TOKEN = 'env-token';
+    try {
+      const cfg = resolveMmaClientConfig({ settings: null, mainModel: null });
+      expect(cfg.token).toBe('env-token');
+    } finally {
+      if (prev === undefined) delete process.env.MMA_AUTH_TOKEN;
+      else process.env.MMA_AUTH_TOKEN = prev;
+    }
   });
 
-  it('throws a redacted error when a configured ref is dangling (no dev fallback)', async () => {
-    const err = await resolveMmaClientConfig({
-      settings: { mmaBaseUrl: 'http://127.0.0.1:7337', mmaTokenRef: 'ghost' },
-      mainModel: null,
-      secrets: fakeSecrets({}),
-      devTokenFallback: null,
-    }).catch((e) => e as Error);
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toMatch(/MMA bearer|token/i);
+  it('throws a redacted error when no bearer can be resolved', () => {
+    expect(() =>
+      resolveMmaClientConfig({ settings: null, mainModel: null, bearer: null }),
+    ).toThrow(/MMA bearer/i);
+  });
+});
+
+describe('readMmaBearer', () => {
+  it('prefers MMA_AUTH_TOKEN over the auth-token file (trimmed)', () => {
+    const prevTok = process.env.MMA_AUTH_TOKEN;
+    const prevHome = process.env.MMA_HOME;
+    process.env.MMA_AUTH_TOKEN = '  spaced-token  ';
+    process.env.MMA_HOME = '/nonexistent-home-for-test';
+    try {
+      expect(readMmaBearer()).toBe('spaced-token'); // trimmed, env wins
+    } finally {
+      if (prevTok === undefined) delete process.env.MMA_AUTH_TOKEN;
+      else process.env.MMA_AUTH_TOKEN = prevTok;
+      if (prevHome === undefined) delete process.env.MMA_HOME;
+      else process.env.MMA_HOME = prevHome;
+    }
+  });
+
+  it('returns null when neither env nor file provides a token', () => {
+    const prevTok = process.env.MMA_AUTH_TOKEN;
+    const prevHome = process.env.MMA_HOME;
+    delete process.env.MMA_AUTH_TOKEN;
+    process.env.MMA_HOME = '/nonexistent-home-for-test';
+    try {
+      expect(readMmaBearer()).toBeNull();
+    } finally {
+      if (prevTok === undefined) delete process.env.MMA_AUTH_TOKEN;
+      else process.env.MMA_AUTH_TOKEN = prevTok;
+      if (prevHome === undefined) delete process.env.MMA_HOME;
+      else process.env.MMA_HOME = prevHome;
+    }
   });
 });

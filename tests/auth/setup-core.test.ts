@@ -1,129 +1,71 @@
 // @vitest-environment node
-import { eq, sql } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { member, memberIdentity } from '@/db/schema/identity';
 import {
+  parseSetupForm,
   isFirstRun,
   createAdminMember,
   registerFirstAdmin,
-  parseSetupForm,
 } from '@/auth/setup-core';
-import { verifyPassword } from '@/auth/password';
-import {
-  seedTestMember,
-  cleanupTestMembers,
-  closeDb,
-  uniqueUsername,
-} from './db-fixtures';
+import { createMockDb } from '../test-utils/mock-db';
+import { createBaseMember } from '../test-utils/factories';
 
-const hasDb = !!process.env.DATABASE_URL;
-const strongPassword = 'a-strong-password-1234';
+// Backend tests run on a mocked Drizzle `Db` (the gumi convention) — no database.
+const STRONG = 'a-strong-password-1234';
 
 describe('parseSetupForm (pure form validation)', () => {
-  it('accepts a valid submission and drops confirmPassword from the result', () => {
-    const res = parseSetupForm({
-      displayName: 'Ada Lovelace',
-      username: 'ada',
-      password: strongPassword,
-      confirmPassword: strongPassword,
-    });
-    expect(res).toEqual({
-      ok: true,
-      data: { displayName: 'Ada Lovelace', username: 'ada', password: strongPassword },
-    });
-  });
-
-  it('rejects a mismatched confirmation as passwords_mismatch', () => {
-    const res = parseSetupForm({
-      displayName: 'Ada',
-      username: 'ada',
-      password: strongPassword,
-      confirmPassword: 'a-different-password-1234',
-    });
-    expect(res).toEqual({ ok: false, error: 'passwords_mismatch' });
-  });
-
-  it('rejects a too-short password as invalid (length checked before confirm match)', () => {
-    const res = parseSetupForm({
-      displayName: 'Ada',
-      username: 'ada',
-      password: 'short',
-      confirmPassword: 'short',
-    });
-    expect(res).toEqual({ ok: false, error: 'invalid' });
-  });
-
-  it('rejects a blank username or display name as invalid', () => {
+  it('accepts a valid submission and drops confirmPassword', () => {
     expect(
-      parseSetupForm({ displayName: '', username: 'ada', password: strongPassword, confirmPassword: strongPassword }),
-    ).toEqual({ ok: false, error: 'invalid' });
-    expect(
-      parseSetupForm({ displayName: 'Ada', username: '   ', password: strongPassword, confirmPassword: strongPassword }),
-    ).toEqual({ ok: false, error: 'invalid' });
+      parseSetupForm({ displayName: 'Ada', username: 'ada', password: STRONG, confirmPassword: STRONG }),
+    ).toEqual({ ok: true, data: { displayName: 'Ada', username: 'ada', password: STRONG } });
+  });
+
+  it('rejects a mismatched confirmation, a short password, and blank fields', () => {
+    expect(parseSetupForm({ displayName: 'Ada', username: 'ada', password: STRONG, confirmPassword: 'other-1234' }))
+      .toEqual({ ok: false, error: 'passwords_mismatch' });
+    expect(parseSetupForm({ displayName: 'Ada', username: 'ada', password: 'short', confirmPassword: 'short' }))
+      .toEqual({ ok: false, error: 'invalid' });
+    expect(parseSetupForm({ displayName: '', username: 'ada', password: STRONG, confirmPassword: STRONG }))
+      .toEqual({ ok: false, error: 'invalid' });
   });
 });
 
-describe.skipIf(!hasDb)('setup-core (live DB)', () => {
-  afterAll(async () => {
-    await cleanupTestMembers();
-    await closeDb();
+describe('isFirstRun', () => {
+  it('is true only when the member table is empty', async () => {
+    expect(await isFirstRun(createMockDb({ 'select:iam_member': [{ count: 0 }] }))).toBe(true);
+    expect(await isFirstRun(createMockDb({ 'select:iam_member': [{ count: 3 }] }))).toBe(false);
+  });
+});
+
+describe('createAdminMember', () => {
+  it('inserts an is_admin member + one local identity; hashes the password', async () => {
+    const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
+    const db = createMockDb({ 'insert:iam_member': [created] });
+    const m = await createAdminMember(db, { displayName: 'Admin', username: 'admin', password: STRONG });
+    expect(m.isAdmin).toBe(true);
+    expect(db._assertCalled('iam_identity', 'insert')).toBe(true);
+    const idValues = db._callsFor('iam_identity').find((c) => c.method === 'values');
+    expect(JSON.stringify(idValues?.args)).not.toContain(STRONG);
+  });
+});
+
+describe('registerFirstAdmin', () => {
+  it('rejects invalid input before any DB work', async () => {
+    const db = createMockDb();
+    expect((await registerFirstAdmin({ displayName: '', username: '', password: 'short' }, { db })).kind).toBe('invalid');
+    expect(db._calls).toHaveLength(0);
   });
 
-  describe('createAdminMember', () => {
-    it('inserts an is_admin member + exactly one local identity with a verifiable hash', async () => {
-      const username = uniqueUsername('admin');
-      const m = await createAdminMember(getDb(), {
-        displayName: 'The Admin',
-        username,
-        password: strongPassword,
-      });
-
-      expect(m.isAdmin).toBe(true);
-      expect(m.username).toBe(username);
-      expect(m.displayName).toBe('The Admin');
-      // password must never be echoed back
-      expect(JSON.stringify(m)).not.toContain(strongPassword);
-
-      const ids = await getDb()
-        .select()
-        .from(memberIdentity)
-        .where(eq(memberIdentity.memberId, m.id));
-      expect(ids).toHaveLength(1);
-      expect(ids[0].provider).toBe('local');
-      expect(await verifyPassword(strongPassword, ids[0].passwordHash!)).toBe(true);
-    });
+  it('refuses (already_setup) when a member already exists, creating nothing', async () => {
+    const db = createMockDb({ 'select:iam_member': [{ count: 1 }] });
+    const res = await registerFirstAdmin({ displayName: 'X', username: 'x', password: STRONG }, { db });
+    expect(res.kind).toBe('already_setup');
+    expect(db._assertCalled('iam_member', 'insert')).toBe(false);
   });
 
-  describe('isFirstRun', () => {
-    it('is false when at least one member exists', async () => {
-      await seedTestMember(); // guarantee the table is non-empty
-      expect(await isFirstRun()).toBe(false);
-    });
-  });
-
-  describe('registerFirstAdmin', () => {
-    it('returns invalid for bad input without touching the DB', async () => {
-      const res = await registerFirstAdmin({ displayName: '', username: '', password: 'short' });
-      expect(res.kind).toBe('invalid');
-    });
-
-    it('refuses when members already exist (already_setup) and creates nothing', async () => {
-      await seedTestMember(); // ensure the gate is closed
-      if (await isFirstRun()) return; // only meaningful when the DB is non-empty
-
-      const username = uniqueUsername('blocked');
-      const res = await registerFirstAdmin({
-        displayName: 'Should Not Exist',
-        username,
-        password: strongPassword,
-      });
-      expect(res.kind).toBe('already_setup');
-
-      const found = await getDb()
-        .select({ id: member.id })
-        .from(member)
-        .where(sql`${member.username} = ${username}`);
-      expect(found).toHaveLength(0);
-    });
+  it('creates the first admin when the team is empty', async () => {
+    const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
+    const db = createMockDb({ 'select:iam_member': [{ count: 0 }], 'insert:iam_member': [created] });
+    const res = await registerFirstAdmin({ displayName: 'Admin', username: 'admin', password: STRONG }, { db });
+    expect(res.kind).toBe('created');
+    if (res.kind === 'created') expect(res.member.isAdmin).toBe(true);
   });
 });

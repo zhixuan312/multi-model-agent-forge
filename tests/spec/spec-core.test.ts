@@ -14,13 +14,18 @@ import { confirmComponents, onMemberAnswer, enterSection } from '@/spec/orchestr
 import { seedProject, cleanupSpecFixtures } from './db-fixtures';
 import { mockAnthropicClient } from './mock-anthropic';
 
+// Live-DB integration suite — gated OFF: no test DB exists; production must not be
+// mutated, so these skip. See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
 afterAll(async () => {
+  if (!hasDb) return;
   await cleanupSpecFixtures();
 });
 
-const db = getDb();
+const db = hasDb ? getDb() : (undefined as never);
 
-describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
+describe.skipIf(!hasDb)('ensureSpecStage — lazy stage lifecycle (F10)', () => {
   it('returns the active spec stage; a second call does not duplicate it', async () => {
     const { projectId } = await seedProject();
     const first = await ensureSpecStage(db, projectId);
@@ -45,7 +50,7 @@ describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
   });
 });
 
-describe('captureIntent', () => {
+describe.skipIf(!hasDb)('captureIntent', () => {
   it('writes intent_md + derives summary (pure)', async () => {
     const { projectId, ownerId } = await seedProject();
     await captureIntent(db, projectId, '  We   need a faster checkout flow.  ', ownerId);
@@ -59,7 +64,7 @@ describe('captureIntent', () => {
   });
 });
 
-describe('section + qa_message persistence (DB integration)', () => {
+describe.skipIf(!hasDb)('section + qa_message persistence (DB integration)', () => {
   it('an answer persists a member qa_message, and loadSectionMessages returns them in seq order', async () => {
     const { projectId, ownerId, specStageId } = await seedProject();
     await confirmComponents(db, specStageId, ['context_scope']);
@@ -91,7 +96,7 @@ describe('section + qa_message persistence (DB integration)', () => {
   });
 });
 
-describe('loadOutline', () => {
+describe.skipIf(!hasDb)('loadOutline', () => {
   it('returns components with template labels + their ordered sections', async () => {
     const { specStageId } = await seedProject();
     await confirmComponents(db, specStageId, ['context_scope', 'problem_motivation']);

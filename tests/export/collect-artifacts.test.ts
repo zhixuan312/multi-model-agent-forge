@@ -25,7 +25,11 @@ afterAll(async () => {
   await cleanupExportFixtures();
 });
 
-describe('collect-artifacts — ready/pending (Key flow A)', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('collect-artifacts — ready/pending (Key flow A)', () => {
   it('spec present, review absent ⇒ spec ready, review pending', async () => {
     const { projectId, ownerId } = await seedProject();
     await seedArtifact(projectId, 'spec', SPEC_BODY);
@@ -46,7 +50,7 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
   });
 });
 
-describe('collect-artifacts — frozen·audited flag (F4)', () => {
+describe.skipIf(!hasDb)('collect-artifacts — frozen·audited flag (F4)', () => {
   it('frozen phase + ≥1 clean spec audit ⇒ frozenAudited true', async () => {
     const { projectId, ownerId } = await seedProject({ phase: 'frozen' });
     await seedArtifact(projectId, 'spec', SPEC_BODY);
@@ -64,7 +68,7 @@ describe('collect-artifacts — frozen·audited flag (F4)', () => {
   });
 });
 
-describe('collect-artifacts — visibility (F-visibility)', () => {
+describe.skipIf(!hasDb)('collect-artifacts — visibility (F-visibility)', () => {
   it('non-collaborator on a private project ⇒ ProjectAccessError', async () => {
     const { projectId } = await seedProject({ visibility: 'private' });
     const stranger = await seedMember('stranger');
@@ -75,7 +79,7 @@ describe('collect-artifacts — visibility (F-visibility)', () => {
   });
 });
 
-describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
+describe.skipIf(!hasDb)('collect-artifacts — cover meta + section headers (F1/F3)', () => {
   it('derives all five meta fields + the NN→{status,roles} map', async () => {
     const { projectId, ownerId, specStageId } = await seedProject({
       phase: 'frozen',
@@ -122,7 +126,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
   });
 });
 
-describe('collect-artifacts — pending throws + ready collection order', () => {
+describe.skipIf(!hasDb)('collect-artifacts — pending throws + ready collection order', () => {
   it('collectArtifact on a pending kind throws ArtifactNotReadyError', async () => {
     const { projectId, ownerId } = await seedProject();
     await expect(collectArtifact(projectId, 'plan', { id: ownerId })).rejects.toBeInstanceOf(
@@ -139,7 +143,7 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
   });
 });
 
-describe('md-export + review adapter (F19/F25)', () => {
+describe.skipIf(!hasDb)('md-export + review adapter (F19/F25)', () => {
   it('md-export is byte-faithful for a stored body', () => {
     const md = buildMdExport('spec', SPEC_BODY);
     expect(md.fileName).toBe('specification.md');

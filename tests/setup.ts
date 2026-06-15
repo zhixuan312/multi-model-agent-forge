@@ -1,6 +1,14 @@
 import 'dotenv/config'
 import '@testing-library/jest-dom/vitest'
 
+// PRODUCTION-SAFETY INVARIANT: tests must NEVER reach a real database. The app's
+// DATABASE_URL points at the live (production) Postgres, and there is no separate
+// test database. We delete it here — AFTER dotenv loads — so the test process
+// cannot connect: every `skipIf(!process.env.DATABASE_URL)` integration block
+// skips, and any stray `getDb()` throws ("DATABASE_URL is not set") instead of
+// silently mutating production. Domain logic is covered by DB-free unit tests.
+delete process.env.DATABASE_URL
+
 // jsdom shims for Radix UI primitives (shadcn). Radix measures elements and uses
 // pointer-capture APIs that jsdom does not implement; provide no-op stand-ins so
 // Checkbox/Switch/Dialog/DropdownMenu/Tooltip mount cleanly under test. Guarded by

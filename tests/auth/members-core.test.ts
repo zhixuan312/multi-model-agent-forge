@@ -1,262 +1,139 @@
 // @vitest-environment node
-import { and, eq, inArray } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { member, memberIdentity, session } from '@/db/schema/identity';
+import { vi } from 'vitest';
 import {
   createMember,
   setMemberAdmin,
   resetMemberPassword,
   deleteMember,
   listMembers,
+  createMemberSchema,
+  toggleAdminSchema,
+  resetPasswordSchema,
 } from '@/auth/members-core';
-import { PostgresSessionStore } from '@/auth/session-store';
-import { verifyPassword } from '@/auth/password';
-import { PASSWORD_MIN_LENGTH } from '@/auth/config';
-import {
-  seedTestMember,
-  cleanupTestMembers,
-  closeDb,
-  uniqueUsername,
-} from './db-fixtures';
+import type { SessionStore } from '@/auth/session-store';
+import { createMockDb, seq } from '../test-utils/mock-db';
+import { createBaseMember } from '../test-utils/factories';
 
-const hasDb = !!process.env.DATABASE_URL;
-const strongPassword = 'a-strong-password-1234';
+// Backend tests run on a mocked Drizzle `Db` (the gumi convention) — no database
+// is touched. The shared password policy is covered in password.test.ts.
+const STRONG = 'a-strong-password';
+const stubStore = () => ({ revokeAllForMember: vi.fn(async () => {}) }) as unknown as SessionStore;
 
-describe.skipIf(!hasDb)('members-core (live DB)', () => {
-  const db = getDb();
-  const store = new PostgresSessionStore();
-
-  afterAll(async () => {
-    await cleanupTestMembers();
-    await closeDb();
+describe('input schemas', () => {
+  it('createMemberSchema trims + requires displayName/username + a policy password', () => {
+    const r = createMemberSchema.safeParse({ displayName: '  Ada  ', username: '  ada  ', password: STRONG });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toMatchObject({ displayName: 'Ada', username: 'ada' });
+    expect(createMemberSchema.safeParse({ displayName: '', username: 'x', password: STRONG }).success).toBe(false);
+    expect(createMemberSchema.safeParse({ displayName: 'X', username: 'x', password: 'short' }).success).toBe(false);
   });
 
-  describe('createMember', () => {
-    it('creates a member + exactly one local identity with a hashed password', async () => {
-      const username = uniqueUsername('create');
-      const res = await createMember({ displayName: 'Create One', username, password: strongPassword });
-      expect(res.kind).toBe('created');
-      if (res.kind !== 'created') return;
+  it('toggleAdminSchema requires a boolean; resetPasswordSchema requires a policy password', () => {
+    expect(toggleAdminSchema.safeParse({ isAdmin: 'yes' }).success).toBe(false);
+    expect(resetPasswordSchema.safeParse({ newPassword: 'short' }).success).toBe(false);
+    expect(resetPasswordSchema.safeParse({ newPassword: STRONG }).success).toBe(true);
+  });
+});
 
-      expect(res.member.username).toBe(username);
-      expect(res.member.displayName).toBe('Create One');
-      expect(res.member.isAdmin).toBe(false);
-      expect(res.member.avatarTint).toMatch(/^#[0-9a-f]{6}$/i);
-      // password is NOT echoed
-      expect(JSON.stringify(res.member)).not.toContain(strongPassword);
+describe('createMember', () => {
+  it('inserts member + one local identity; hashes the password (never stores plaintext)', async () => {
+    const created = createBaseMember({ id: 'm1', username: 'ada' });
+    const db = createMockDb({ 'select:iam_member': [], 'insert:iam_member': [created] });
+    const res = await createMember({ displayName: 'Ada', username: 'ada', password: STRONG }, { db });
 
-      const identities = await db
-        .select()
-        .from(memberIdentity)
-        .where(eq(memberIdentity.memberId, res.member.id));
-      expect(identities).toHaveLength(1);
-      expect(identities[0].provider).toBe('local');
-      expect(identities[0].passwordHash).toBeTruthy();
-      expect(await verifyPassword(strongPassword, identities[0].passwordHash!)).toBe(true);
-    });
-
-    it('creates an admin when isAdmin:true is supplied', async () => {
-      const username = uniqueUsername('admincreate');
-      const res = await createMember({ displayName: 'Admin Create', username, password: strongPassword, isAdmin: true });
-      expect(res.kind).toBe('created');
-      if (res.kind !== 'created') return;
-      expect(res.member.isAdmin).toBe(true);
-    });
-
-    it('defaults to a non-admin member when isAdmin is omitted', async () => {
-      const username = uniqueUsername('defaultrole');
-      const res = await createMember({ displayName: 'Default Role', username, password: strongPassword });
-      expect(res.kind).toBe('created');
-      if (res.kind !== 'created') return;
-      expect(res.member.isAdmin).toBe(false);
-    });
-
-    it('rejects a duplicate username (409 → duplicate_username)', async () => {
-      const username = uniqueUsername('dup');
-      await createMember({ displayName: 'First', username, password: strongPassword });
-      const again = await createMember({ displayName: 'Second', username, password: strongPassword });
-      expect(again.kind).toBe('duplicate_username');
-    });
-
-    it('rejects a case-variant duplicate (lower(username) functional unique index)', async () => {
-      const base = uniqueUsername('Case');
-      await createMember({ displayName: 'Lower', username: base.toLowerCase(), password: strongPassword });
-      const variant = await createMember({
-        displayName: 'Upper',
-        username: base.toUpperCase(),
-        password: strongPassword,
-      });
-      expect(variant.kind).toBe('duplicate_username');
-    });
-
-    it('rejects a weak/empty password (400 → invalid)', async () => {
-      const tooShort = 'x'.repeat(PASSWORD_MIN_LENGTH - 1);
-      const weak = await createMember({
-        displayName: 'Weak',
-        username: uniqueUsername('weak'),
-        password: tooShort,
-      });
-      expect(weak.kind).toBe('invalid');
-
-      const empty = await createMember({
-        displayName: 'Empty',
-        username: uniqueUsername('empty'),
-        password: '',
-      });
-      expect(empty.kind).toBe('invalid');
-    });
-
-    it('rejects a missing field (400 → invalid)', async () => {
-      const res = await createMember({ username: uniqueUsername('nofield'), password: strongPassword });
-      expect(res.kind).toBe('invalid');
-    });
+    expect(res.kind).toBe('created');
+    if (res.kind !== 'created') return;
+    expect(res.member.id).toBe('m1');
+    expect(db._assertCalled('iam_member', 'insert')).toBe(true);
+    expect(db._assertCalled('iam_identity', 'insert')).toBe(true);
+    const idValues = db._callsFor('iam_identity').find((c) => c.method === 'values');
+    expect(JSON.stringify(idValues?.args)).not.toContain(STRONG); // argon2 hash, not plaintext
   });
 
-  describe('setMemberAdmin (toggle)', () => {
-    it('promotes a non-admin then demotes back (while another admin exists)', async () => {
-      // an admin must exist so the demote does not trip the last-admin guard
-      await seedTestMember({ label: 'keepadmin', isAdmin: true });
-      const target = await seedTestMember({ label: 'toggle', isAdmin: false });
-
-      const up = await setMemberAdmin(target.id, { isAdmin: true });
-      expect(up).toEqual({ kind: 'updated', id: target.id, isAdmin: true });
-      let [row] = await db.select({ isAdmin: member.isAdmin }).from(member).where(eq(member.id, target.id));
-      expect(row.isAdmin).toBe(true);
-
-      const down = await setMemberAdmin(target.id, { isAdmin: false });
-      expect(down.kind).toBe('updated');
-      [row] = await db.select({ isAdmin: member.isAdmin }).from(member).where(eq(member.id, target.id));
-      expect(row.isAdmin).toBe(false);
-    });
-
-    it('rejects demoting the last admin (409 → last_admin)', async () => {
-      // The last-admin invariant counts ALL admins (incl. the real bootstrap
-      // admin). To exercise the "only one admin left" branch on a live shared
-      // DB, temporarily demote every pre-existing admin, then restore them.
-      await withSoleAdmin(async (onlyAdmin) => {
-        const res = await setMemberAdmin(onlyAdmin.id, { isAdmin: false });
-        expect(res.kind).toBe('last_admin');
-      });
-    });
-
-    it('returns not_found for an unknown member', async () => {
-      const res = await setMemberAdmin('00000000-0000-0000-0000-000000000000', { isAdmin: true });
-      expect(res.kind).toBe('not_found');
-    });
-
-    it('rejects an invalid body', async () => {
-      const m = await seedTestMember({ label: 'badbody' });
-      const res = await setMemberAdmin(m.id, { isAdmin: 'yes' });
-      expect(res.kind).toBe('invalid');
-    });
+  it('rejects invalid input with no DB writes', async () => {
+    const db = createMockDb();
+    expect((await createMember({ displayName: '', username: '', password: 'short' }, { db })).kind).toBe('invalid');
+    expect(db._calls).toHaveLength(0);
   });
 
-  describe('resetMemberPassword', () => {
-    it('sets a new hash, bumps password_changed_at, and drops the target sessions', async () => {
-      const target = await seedTestMember({ label: 'reset', password: 'old-password-1234' });
-      // give the target a live session
-      const created = await store.create(target.id);
-      expect(await store.get(created.token)).not.toBeNull();
-
-      const before = await db
-        .select({ pw: memberIdentity.passwordHash, changed: memberIdentity.passwordChangedAt })
-        .from(memberIdentity)
-        .where(and(eq(memberIdentity.memberId, target.id), eq(memberIdentity.provider, 'local')));
-
-      const res = await resetMemberPassword(target.id, { newPassword: 'brand-new-password-9876' });
-      expect(res.kind).toBe('reset');
-
-      const after = await db
-        .select({ pw: memberIdentity.passwordHash, changed: memberIdentity.passwordChangedAt })
-        .from(memberIdentity)
-        .where(and(eq(memberIdentity.memberId, target.id), eq(memberIdentity.provider, 'local')));
-
-      expect(after[0].pw).not.toBe(before[0].pw);
-      expect(await verifyPassword('brand-new-password-9876', after[0].pw!)).toBe(true);
-      expect(after[0].changed).not.toBeNull();
-
-      // target sessions are gone
-      const remaining = await db.select().from(session).where(eq(session.memberId, target.id));
-      expect(remaining).toHaveLength(0);
-    });
-
-    it('rejects a weak new password (400 → invalid)', async () => {
-      const target = await seedTestMember({ label: 'resetweak' });
-      const res = await resetMemberPassword(target.id, { newPassword: 'short' });
-      expect(res.kind).toBe('invalid');
-    });
-
-    it('returns not_found for an unknown member', async () => {
-      const res = await resetMemberPassword('00000000-0000-0000-0000-000000000000', {
-        newPassword: strongPassword,
-      });
-      expect(res.kind).toBe('not_found');
-    });
+  it('returns duplicate_username on the case-insensitive pre-check', async () => {
+    const db = createMockDb({ 'select:iam_member': [{ id: 'existing' }] });
+    expect((await createMember({ displayName: 'A', username: 'ADA', password: STRONG }, { db })).kind).toBe('duplicate_username');
+    expect(db._assertCalled('iam_member', 'insert')).toBe(false);
   });
 
-  describe('deleteMember', () => {
-    it('hard-deletes a member and cascades identity + sessions', async () => {
-      const target = await seedTestMember({ label: 'del' });
-      const created = await store.create(target.id);
-
-      const res = await deleteMember(target.id);
-      expect(res.kind).toBe('deleted');
-
-      const m = await db.select().from(member).where(eq(member.id, target.id));
-      expect(m).toHaveLength(0);
-      const ids = await db.select().from(memberIdentity).where(eq(memberIdentity.memberId, target.id));
-      expect(ids).toHaveLength(0);
-      const ss = await db.select().from(session).where(eq(session.id, created.record.id));
-      expect(ss).toHaveLength(0);
+  it('maps a 23505 unique-violation race to duplicate_username', async () => {
+    const db = createMockDb({
+      'select:iam_member': [],
+      'insert:iam_member': Object.assign(new Error('dup'), { code: '23505' }),
     });
+    expect((await createMember({ displayName: 'A', username: 'ada', password: STRONG }, { db })).kind).toBe('duplicate_username');
+  });
+});
 
-    it('rejects deleting the last admin (409 → last_admin)', async () => {
-      await withSoleAdmin(async (onlyAdmin) => {
-        const res = await deleteMember(onlyAdmin.id);
-        expect(res.kind).toBe('last_admin');
-      });
-    });
-
-    it('returns not_found for an unknown member', async () => {
-      const res = await deleteMember('00000000-0000-0000-0000-000000000000');
-      expect(res.kind).toBe('not_found');
-    });
+describe('setMemberAdmin (last-admin invariant)', () => {
+  it('not_found when the member is missing', async () => {
+    const db = createMockDb({ 'select:iam_member': [] });
+    expect((await setMemberAdmin('x', { isAdmin: true }, { db })).kind).toBe('not_found');
   });
 
-  describe('listMembers', () => {
-    it('returns rows including a just-created throwaway member', async () => {
-      const m = await seedTestMember({ label: 'listed' });
-      const rows = await listMembers();
-      const found = rows.find((r) => r.id === m.id);
-      expect(found).toBeDefined();
-      expect(found?.username).toBe(m.username);
-    });
+  it('refuses to demote the only admin (last_admin)', async () => {
+    const db = createMockDb({ 'select:iam_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
+    expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('last_admin');
+    expect(db._assertCalled('iam_member', 'update')).toBe(false);
   });
-  // ---- helpers ----
 
-  /**
-   * Run `body` in a world where exactly ONE admin exists (a fresh throwaway).
-   * The last-admin invariant counts every admin in the table, including the
-   * real bootstrap admin, so to reach the "only one admin" branch we capture +
-   * demote all pre-existing admins for the duration, then restore them. Safe on
-   * a live shared DB — the original admin set is restored in `finally`.
-   */
-  async function withSoleAdmin(body: (onlyAdmin: { id: string }) => Promise<void>): Promise<void> {
-    const priorAdmins = await db
-      .select({ id: member.id })
-      .from(member)
-      .where(eq(member.isAdmin, true));
-    const priorIds = priorAdmins.map((a) => a.id);
-    try {
-      if (priorIds.length > 0) {
-        await db.update(member).set({ isAdmin: false }).where(inArray(member.id, priorIds));
-      }
-      const onlyAdmin = await seedTestMember({ label: 'soleadmin', isAdmin: true });
-      await body({ id: onlyAdmin.id });
-    } finally {
-      if (priorIds.length > 0) {
-        await db.update(member).set({ isAdmin: true }).where(inArray(member.id, priorIds));
-      }
-    }
-  }
+  it('demotes when other admins remain', async () => {
+    const db = createMockDb({ 'select:iam_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 2 }]) });
+    expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('updated');
+    expect(db._assertCalled('iam_member', 'update')).toBe(true);
+  });
+
+  it('promotes without a guard check', async () => {
+    const db = createMockDb({ 'select:iam_member': [{ id: 'm1', isAdmin: false }] });
+    expect((await setMemberAdmin('m1', { isAdmin: true }, { db })).kind).toBe('updated');
+  });
+});
+
+describe('resetMemberPassword', () => {
+  it('not_found when the member has no local identity', async () => {
+    const db = createMockDb({ 'select:iam_identity': [] });
+    expect((await resetMemberPassword('m1', { newPassword: STRONG }, { db, store: stubStore() })).kind).toBe('not_found');
+  });
+
+  it('updates the hash and revokes the target sessions', async () => {
+    const db = createMockDb({ 'select:iam_identity': [{ id: 'i1' }] });
+    const store = stubStore();
+    const res = await resetMemberPassword('m1', { newPassword: STRONG }, { db, store });
+    expect(res.kind).toBe('reset');
+    expect(db._assertCalled('iam_identity', 'update')).toBe(true);
+    expect(store.revokeAllForMember).toHaveBeenCalledWith('m1');
+  });
+});
+
+describe('deleteMember (last-admin invariant)', () => {
+  it('not_found when missing', async () => {
+    const db = createMockDb({ 'select:iam_member': [] });
+    expect((await deleteMember('x', { db })).kind).toBe('not_found');
+  });
+
+  it('refuses to delete the only admin', async () => {
+    const db = createMockDb({ 'select:iam_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
+    expect((await deleteMember('m1', { db })).kind).toBe('last_admin');
+    expect(db._assertCalled('iam_member', 'delete')).toBe(false);
+  });
+
+  it('deletes a non-admin', async () => {
+    const db = createMockDb({ 'select:iam_member': [{ id: 'm1', isAdmin: false }] });
+    expect((await deleteMember('m1', { db })).kind).toBe('deleted');
+    expect(db._assertCalled('iam_member', 'delete')).toBe(true);
+  });
+});
+
+describe('listMembers', () => {
+  it('returns the member rows', async () => {
+    const rows = [createBaseMember({ id: 'm1' }), createBaseMember({ id: 'm2', username: 'bob' })];
+    const db = createMockDb({ 'select:iam_member': rows });
+    expect(await listMembers({ db })).toHaveLength(2);
+  });
 });

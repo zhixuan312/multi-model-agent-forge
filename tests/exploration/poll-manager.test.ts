@@ -80,7 +80,11 @@ async function seedBatch(opts: {
   return { batchId: b.id, mmaBatchId: b.batchId!, taskId: t.id };
 }
 
-describe('PollManager', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('PollManager', () => {
   afterEach(async () => {
     await cleanupExploreFixtures();
   });

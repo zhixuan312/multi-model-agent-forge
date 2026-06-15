@@ -16,7 +16,11 @@ function draft(tasks: PlanDraft['tasks']): PlanDraft {
   return { tasks };
 }
 
-describe('authorPlan', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('authorPlan', () => {
   afterEach(cleanupBuildFixtures);
 
   it('decomposes one repo per task, writes a plan file per write-target repo, persists rows + artifact', async () => {

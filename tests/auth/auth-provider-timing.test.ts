@@ -50,4 +50,14 @@ describe('LocalAuthProvider timing-equality (unit, no DB)', () => {
     expect(spy).toHaveBeenCalledWith('the-real-password', realHash);
     spy.mockRestore();
   });
+
+  it('returns null for a known user when the password does not verify', async () => {
+    const realHash = await passwordMod.hashPassword('the-real-password');
+    const provider = new LocalAuthProvider(
+      fakeDb([
+        { id: 'm1', username: 'alice', displayName: 'Alice', avatarTint: '#9a6b4f', isAdmin: false, passwordHash: realHash },
+      ]),
+    );
+    expect(await provider.authenticate('alice', 'WRONG-password')).toBeNull();
+  });
 });

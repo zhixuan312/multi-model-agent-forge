@@ -43,7 +43,11 @@ beforeEach(() => {
 
 const SPEC_BODY = '## 01. Context\nctx\n\n## 03. Technical design\ntech';
 
-describe('route helpers — kind validation (F27)', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('route helpers — kind validation (F27)', () => {
   it('accepts the four kinds, rejects exploration_brief + junk', () => {
     expect(parseExportKind('spec')).toBe('spec');
     expect(parseExportKind('exploration')).toBe('exploration');
@@ -54,7 +58,7 @@ describe('route helpers — kind validation (F27)', () => {
   });
 });
 
-describe('route helpers — error → status mapping (F27, test 15)', () => {
+describe.skipIf(!hasDb)('route helpers — error → status mapping (F27, test 15)', () => {
   const cases: [unknown, number, string][] = [
     [new ProjectAccessError(), 403, 'forbidden'],
     [new ArtifactNotReadyError('plan'), 409, 'artifact_not_ready'],
@@ -76,7 +80,7 @@ describe('route helpers — error → status mapping (F27, test 15)', () => {
   });
 });
 
-describe('route modules — runtime config (F12, test 15)', () => {
+describe.skipIf(!hasDb)('route modules — runtime config (F12, test 15)', () => {
   const mods = ['artifacts', 'sections', 'md', 'pdf', 'bundle'];
   it.each(mods)('%s route exports dynamic=force-dynamic + nodejs runtime', async (name) => {
     const mod = await import(`../../app/api/projects/[id]/export/${name}/route.ts`);
@@ -85,7 +89,7 @@ describe('route modules — runtime config (F12, test 15)', () => {
   });
 });
 
-describe('GET /export/artifacts (Key flow A)', () => {
+describe.skipIf(!hasDb)('GET /export/artifacts (Key flow A)', () => {
   it('401 without a session', async () => {
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: 'p' }),
@@ -118,7 +122,7 @@ describe('GET /export/artifacts (Key flow A)', () => {
   });
 });
 
-describe('GET /export/sections (F30)', () => {
+describe.skipIf(!hasDb)('GET /export/sections (F30)', () => {
   it('returns [{NN,title}] for a spec', async () => {
     const { projectId, ownerId } = await seedProject();
     await seedArtifact(projectId, 'spec', SPEC_BODY);
@@ -151,7 +155,7 @@ describe('GET /export/sections (F30)', () => {
   });
 });
 
-describe('GET /export/md (Key flow B)', () => {
+describe.skipIf(!hasDb)('GET /export/md (Key flow B)', () => {
   it('streams text/markdown with a Content-Disposition attachment', async () => {
     const { projectId, ownerId } = await seedProject();
     await seedArtifact(projectId, 'spec', SPEC_BODY);

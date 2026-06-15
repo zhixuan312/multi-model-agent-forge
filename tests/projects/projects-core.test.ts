@@ -27,7 +27,11 @@ afterAll(async () => {
   await cleanupProjectsFixtures();
 });
 
-describe('createProject — seeding + validation', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('createProject — seeding + validation', () => {
   it('seeds exactly 5 stage rows in STAGE_ORDER, exploration active, rest pending', async () => {
     const owner = await seedMember('owner');
     const r1 = await seedRepo();
@@ -144,7 +148,7 @@ describe('createProject — seeding + validation', () => {
   });
 });
 
-describe('visibility — visibleProjects + assertProjectReadable', () => {
+describe.skipIf(!hasDb)('visibility — visibleProjects + assertProjectReadable', () => {
   it('a public project is visible to a non-member and assertProjectReadable passes', async () => {
     const owner = await seedMember('owner');
     const stranger = await seedMember('stranger');
@@ -226,7 +230,7 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
   });
 });
 
-describe('mutation authorization', () => {
+describe.skipIf(!hasDb)('mutation authorization', () => {
   it('changeVisibility by a non-owner is rejected and writes no log row', async () => {
     const owner = await seedMember('owner');
     const other = await seedMember('collab');
@@ -294,7 +298,7 @@ describe('mutation authorization', () => {
   });
 });
 
-describe('getProjectRepos — dangling + errored repo resolution', () => {
+describe.skipIf(!hasDb)('getProjectRepos — dangling + errored repo resolution', () => {
   it('marks an errored repo unavailable; a resolvable repo available', async () => {
     const owner = await seedMember('owner');
     const good = await seedRepo({ status: 'cloned' });

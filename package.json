@@ -14,7 +14,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed-config.ts",
     "db:seed-config": "tsx src/db/seed-config.ts",
-    "db:reap": "tsx src/auth/session-reaper.ts"
+    "db:reap": "tsx src/auth/session-reaper.ts",
+    "loop-worker": "tsx src/loops/worker-main.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
@@ -35,6 +36,7 @@
     "archiver": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "croner": "^10.0.1",
     "drizzle-orm": "^0.45.2",
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^1.17.0",

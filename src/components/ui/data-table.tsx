@@ -158,7 +158,7 @@ export function DataTable<TData, TValue>({
   return (
     <div className={cn('flex flex-col', fill && 'min-h-0 flex-1', className)}>
       {!showTable ? (
-        <div className="grid place-items-center p-10">{emptyState}</div>
+        <div className={cn('grid place-items-center p-10', fill && 'min-h-0 flex-1')}>{emptyState}</div>
       ) : fill ? (
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
       ) : (

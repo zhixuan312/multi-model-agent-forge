@@ -27,6 +27,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
     });
     const cols = getTableColumns(mmaBatch);
     expect(cols.cwd.notNull).toBe(true); // every route carries a cwd
+    expect(cols.projectId.notNull).toBe(false); // nullable: loop dispatches are team-level (not project-scoped)
     expect(cols.targetRepoId.notNull).toBe(false); // null for research/journal-recall
     expect(cols.request.notNull).toBe(true);
     expect(cols.result.notNull).toBe(false); // only after terminal
@@ -39,6 +40,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       'execute_plan',
       'review',
       'journal_record',
+      'delegate',
     ]);
     expect(cols.status.enumValues).toEqual(['dispatched', 'running', 'done', 'failed']);
     expect(cols.status.default).toBe('dispatched');

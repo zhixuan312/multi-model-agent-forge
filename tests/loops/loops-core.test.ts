@@ -1,0 +1,98 @@
+// @vitest-environment node
+import {
+  createLoop,
+  updateLoop,
+  listLoops,
+  getLoop,
+  deleteLoop,
+  setLoopEnabled,
+} from '@/loops/loops-core';
+import { createMockDb, seq } from '../test-utils/mock-db';
+
+// Backend tests run on a mocked Drizzle Db (gumi convention) — no database.
+const RID = '11111111-1111-4111-8111-111111111111';
+const VALID = { name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'no dormant code' }, cron: '0 3 * * *', repoIds: [RID] };
+const loopRow = (o: Record<string, unknown> = {}) => ({
+  id: 'loop-1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'g' },
+  workerTier: 'complex', cron: '0 3 * * *', repoIds: [RID], enabled: true,
+  createdBy: null, createdAt: new Date(), updatedAt: new Date(), ...o,
+});
+
+describe('createLoop', () => {
+  it('creates a valid loop (config + cron + name unique)', async () => {
+    const db = createMockDb({ 'select:loop': [], 'insert:loop': [loopRow()] });
+    const res = await createLoop(VALID, { db, actorId: 'admin-1' });
+    expect(res.kind).toBe('created');
+    expect(db._assertCalled('loop', 'insert')).toBe(true);
+  });
+
+  it('rejects invalid shape (empty name / no repos) without writing', async () => {
+    const db = createMockDb();
+    expect((await createLoop({ ...VALID, name: '' }, { db })).kind).toBe('invalid');
+    expect((await createLoop({ ...VALID, repoIds: [] }, { db })).kind).toBe('invalid');
+    expect(db._assertCalled('loop', 'insert')).toBe(false);
+  });
+
+  it('rejects an invalid per-kind config', async () => {
+    const db = createMockDb({ 'select:loop': [] });
+    expect((await createLoop({ ...VALID, config: { goalMd: '' } }, { db })).kind).toBe('invalid_config');
+  });
+
+  it('rejects an invalid cron', async () => {
+    const db = createMockDb({ 'select:loop': [] });
+    expect((await createLoop({ ...VALID, cron: 'not a cron' }, { db })).kind).toBe('invalid_cron');
+  });
+
+  it('creates a one-time job (no cron) and a targeted loop (targetBranch)', async () => {
+    const db = createMockDb({ 'select:loop': [], 'insert:loop': [loopRow({ cron: null })] });
+    expect((await createLoop({ ...VALID, cron: null }, { db })).kind).toBe('created'); // one-time
+    const db2 = createMockDb({ 'select:loop': [], 'insert:loop': [loopRow({ targetBranch: 'develop' })] });
+    expect((await createLoop({ ...VALID, targetBranch: 'develop' }, { db: db2 })).kind).toBe('created');
+  });
+
+  it('rejects a duplicate name (case-insensitive)', async () => {
+    const db = createMockDb({ 'select:loop': [{ id: 'other' }] });
+    expect((await createLoop(VALID, { db })).kind).toBe('duplicate_name');
+    expect(db._assertCalled('loop', 'insert')).toBe(false);
+  });
+});
+
+describe('updateLoop', () => {
+  it('not_found when the loop is missing', async () => {
+    const db = createMockDb({ 'select:loop': [] });
+    expect((await updateLoop('x', { cron: '0 4 * * *' }, { db })).kind).toBe('not_found');
+  });
+
+  it('updates an existing loop', async () => {
+    const db = createMockDb({ 'select:loop': [loopRow()], 'update:loop': [loopRow({ cron: '0 4 * * *' })] });
+    const res = await updateLoop('loop-1', { cron: '0 4 * * *' }, { db });
+    expect(res.kind).toBe('updated');
+    expect(db._assertCalled('loop', 'update')).toBe(true);
+  });
+
+  it('rejects an invalid cron on update', async () => {
+    const db = createMockDb({ 'select:loop': [loopRow()] });
+    expect((await updateLoop('loop-1', { cron: 'bad' }, { db })).kind).toBe('invalid_cron');
+    expect(db._assertCalled('loop', 'update')).toBe(false);
+  });
+
+  it('rejects a duplicate name on rename (excluding self)', async () => {
+    const db = createMockDb({ 'select:loop': seq([loopRow()], [{ id: 'other' }]) });
+    expect((await updateLoop('loop-1', { name: 'Taken' }, { db })).kind).toBe('duplicate_name');
+  });
+});
+
+describe('reads + toggles', () => {
+  it('listLoops returns rows; getLoop returns a row or null', async () => {
+    expect(await listLoops({ db: createMockDb({ 'select:loop': [loopRow(), loopRow({ id: 'l2' })] }) })).toHaveLength(2);
+    expect(await getLoop('loop-1', { db: createMockDb({ 'select:loop': [loopRow()] }) })).not.toBeNull();
+    expect(await getLoop('x', { db: createMockDb({ 'select:loop': [] }) })).toBeNull();
+  });
+
+  it('deleteLoop / setLoopEnabled report deleted|updated vs not_found', async () => {
+    expect((await deleteLoop('loop-1', { db: createMockDb({ 'delete:loop': [{ id: 'loop-1' }] }) })).kind).toBe('deleted');
+    expect((await deleteLoop('x', { db: createMockDb({ 'delete:loop': [] }) })).kind).toBe('not_found');
+    expect((await setLoopEnabled('loop-1', false, { db: createMockDb({ 'update:loop': [{ id: 'loop-1' }] }) })).kind).toBe('updated');
+    expect((await setLoopEnabled('x', false, { db: createMockDb({ 'update:loop': [] }) })).kind).toBe('not_found');
+  });
+});

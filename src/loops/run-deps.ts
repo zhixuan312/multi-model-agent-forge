@@ -1,12 +1,11 @@
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { teamSettings } from '@/db/schema/config';
 import { mmaBatch } from '@/db/schema/mma';
 import { PostgresSecretStore } from '@/secrets/secret-store';
-import { nodeGitRunner } from '@/build/branch';
+import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
 import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
@@ -39,6 +38,27 @@ function git(cwd: string, argv: string[]): Promise<{ code: number; stdout: strin
 async function githubRemote(repo: LoopRepoTarget): Promise<{ owner: string; repo: string } | null> {
   const r = await git(repo.pathOnDisk, ['remote', 'get-url', 'origin']);
   return r.code === 0 ? parseGithubRemote(r.stdout) : null;
+}
+
+/**
+ * Serialize git ops that mutate a repo's shared `.git` (worktree add/remove) so
+ * concurrent loop runs on the SAME repo don't race the config lock
+ * ("could not lock config file .git/config: File exists"). Keyed by the repo's
+ * common git dir, so a worktree path and its origin repo share one queue.
+ */
+const repoGitLocks = new Map<string, Promise<unknown>>();
+async function gitCommonDir(path: string): Promise<string> {
+  const r = await git(path, ['rev-parse', '--git-common-dir']);
+  if (r.code !== 0) return path;
+  const dir = r.stdout.trim();
+  return dir.startsWith('/') ? dir : join(path, dir);
+}
+async function withRepoGitLock<T>(path: string, fn: () => Promise<T>): Promise<T> {
+  const key = await gitCommonDir(path);
+  const prev = repoGitLocks.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn); // run after the prior op settles (success or failure)
+  repoGitLocks.set(key, run.then(() => {}, () => {}));
+  return run;
 }
 
 interface ReportFinding {
@@ -134,33 +154,57 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       return { output: r0?.report?.implementer ?? '', sessionId: r0?.sessions?.implementer?.sessionId ?? null };
     },
     recall: async (repo, query) => {
+      // Only recall against the repo's OWN journal. With no local `.mma/journal`,
+      // the recall worker walks UP the tree and recalls an UNRELATED repo's journal
+      // (e.g. the mma monorepo's) — irrelevant context + a slow search over a large
+      // graph. Skip instead: a repo with no prior loop learnings simply gets none.
+      // Recall is pure read-only retrieval, so never run it through the reviewer.
+      if (!existsSync(join(repo.pathOnDisk, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
-        const env = await mma.dispatchAndWait('journal-recall', { cwd: repo.pathOnDisk, body: { query: query.slice(0, 4000) } });
+        const env = await mma.dispatchAndWait('journal-recall', {
+          cwd: repo.pathOnDisk,
+          body: { query: query.slice(0, 4000), reviewPolicy: 'none' },
+        });
         const e = (env ?? {}) as { headline?: string };
         return e.headline ?? '';
       } catch {
         return ''; // missing/empty journal → empty context
       }
     },
-    createWorktree: async (repo, branch, baseBranch) => {
-      // Fork from the FRESH remote base if the branch is pushed (it may have moved
-      // since clone); fall back to the local branch when it isn't on the remote.
-      await git(repo.pathOnDisk, ['fetch', 'origin', baseBranch]);
-      const remoteRef = `origin/${baseBranch}`;
-      const hasRemote = (await git(repo.pathOnDisk, ['rev-parse', '--verify', '--quiet', remoteRef])).code === 0;
-      const baseRef = hasRemote ? remoteRef : baseBranch;
-      const path = mkdtempSync(join(tmpdir(), 'forge-loop-'));
-      const r = await git(repo.pathOnDisk, ['worktree', 'add', '-b', branch, path, baseRef]);
-      if (r.code !== 0) throw new Error(`git worktree add failed: ${r.stderr}`);
-      return { path };
-    },
+    createWorktree: async (repo, branch, baseBranch) =>
+      // Serialized per repo: concurrent runs on the same clone otherwise collide on
+      // the .git config lock during `worktree add`.
+      withRepoGitLock(repo.pathOnDisk, async () => {
+        await git(repo.pathOnDisk, ['worktree', 'prune']); // clear prunable leftovers (e.g. from a crashed run)
+        // Fork from the FRESH remote base if the branch is pushed (it may have moved
+        // since clone); fall back to the local branch when it isn't on the remote.
+        await git(repo.pathOnDisk, ['fetch', 'origin', baseBranch]);
+        const remoteRef = `origin/${baseBranch}`;
+        const hasRemote = (await git(repo.pathOnDisk, ['rev-parse', '--verify', '--quiet', remoteRef])).code === 0;
+        const baseRef = hasRemote ? remoteRef : baseBranch;
+        // Stable worktree location beside the repo (NOT the OS temp dir, which can be
+        // reaped mid-run, taking the worktree cwd with it). Removed by removeWorktree.
+        const worktreeRoot = join(dirname(repo.pathOnDisk), '.forge-loop-worktrees');
+        mkdirSync(worktreeRoot, { recursive: true });
+        const path = mkdtempSync(join(worktreeRoot, 'wt-'));
+        // Cleanup-aware retry: concurrent same-repo adds race the shared .git/config
+        // lock, and a partial add leaves the branch behind (a blind retry would then
+        // fail "branch already exists"). addWorktreeWithRetry tears down partial state
+        // between attempts so N concurrent loop runs each get their own worktree.
+        const r = await addWorktreeWithRetry(nodeGitRunner, repo.pathOnDisk, branch, path, baseRef);
+        if (r.code !== 0) throw new Error(`git worktree add failed: ${r.stderr}`);
+        return { path };
+      }),
     dispatch: async ({ repo, cwd, prompt, workerTier, priorJournalContext }) => {
       const mma = await buildMmaClient({ db });
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`
         : prompt;
-      const body = { tasks: [{ prompt: fullPrompt, agentType: workerTier, reviewPolicy: 'none' }] };
+      // Loops always run the worker through MMA's reviewer (slower but more accurate);
+      // the diff is reworked before it lands in the PR. reviewPolicy is TOP-LEVEL on the
+      // delegate input (not per-task) — placing it in the task is silently ignored.
+      const body = { tasks: [{ prompt: fullPrompt, agentType: workerTier }], reviewPolicy: 'reviewed' };
       const env = await mma.dispatchAndWait('delegate', { cwd, body });
       const [batch] = await db
         .insert(mmaBatch)
@@ -249,8 +293,11 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       }
     },
     removeWorktree: async (cwd) => {
-      // `cwd` is the worktree path; remove it from whichever repo owns it.
-      await nodeGitRunner(cwd, ['worktree', 'remove', '--force', cwd]).catch(() => ({ code: 1, stdout: '', stderr: '' }));
+      // `cwd` is the worktree path; remove it from whichever repo owns it. Serialized
+      // per repo (shares the createWorktree queue) so it can't race another run's add.
+      await withRepoGitLock(cwd, () =>
+        nodeGitRunner(cwd, ['worktree', 'remove', '--force', cwd]).catch(() => ({ code: 1, stdout: '', stderr: '' })),
+      );
     },
   };
 }

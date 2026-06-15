@@ -272,3 +272,53 @@ describe('MmaClient.dispatchAndWait', () => {
     expect(polls).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('MmaClient.configureProvider', () => {
+  it('POSTs /configure-provider with the body + bearer and returns the parsed result', async () => {
+    const { fn, calls } = stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            verified: true,
+            reason: 'ok',
+            applied: false,
+            tier: 'standard',
+            provider: 'claude',
+            model: { id: 'claude-opus-4-8', family: 'claude', tier: 'reasoning', recognized: true },
+            probe: { reachable: true, modelListed: true, detail: 'listed' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    const res = await client.configureProvider({
+      tier: 'standard',
+      provider: 'claude',
+      model: 'claude-opus-4-8',
+      auth: { mode: 'oauth' },
+      dryRun: true,
+    });
+
+    expect(calls[0]!.url).toBe('http://127.0.0.1:7337/configure-provider');
+    expect((calls[0]!.init as RequestInit).method).toBe('POST');
+    expect(headerVal(calls[0]!.init, 'authorization')).toBe('Bearer secret-bearer-xyz');
+    const body = JSON.parse((calls[0]!.init as RequestInit).body as string);
+    expect(body).toMatchObject({ tier: 'standard', provider: 'claude', dryRun: true });
+    expect(res.verified).toBe(true);
+    expect(res.model.recognized).toBe(true);
+  });
+
+  it('throws on a non-200 response', async () => {
+    const { fn } = stubFetch(
+      () =>
+        new Response(JSON.stringify({ error: { code: 'invalid_request' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    await expect(
+      client.configureProvider({ tier: 'standard', provider: 'claude', model: 'x', auth: { mode: 'oauth' } }),
+    ).rejects.toThrow(/configure-provider/i);
+  });
+});

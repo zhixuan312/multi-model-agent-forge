@@ -19,6 +19,8 @@
  */
 
 /** Config the client is constructed from (resolved server-side per request). */
+import type { ConfigureProviderRequest, ConfigureProviderResponse } from '@/mma/configure-provider';
+
 export interface MmaClientConfig {
   /** team_settings.mma_base_url; app-layer fallback http://127.0.0.1:7337. */
   baseUrl: string;
@@ -254,6 +256,32 @@ export class MmaClient {
       uptimeMs: typeof json?.uptimeMs === 'number' ? json.uptimeMs : null,
       activeBatches: typeof json?.counters?.activeBatches === 'number' ? json.counters.activeBatches : null,
     };
+  }
+
+  /**
+   * POST /configure-provider — validate (dryRun:true) or validate+apply
+   * (dryRun:false) a tier's provider/model/auth against the live MMA runtime.
+   * mmagent owns the validation ladder + the in-memory hot-swap; Forge only
+   * relays. Returns the result envelope verbatim; throws on a transport/HTTP error.
+   */
+  async configureProvider(input: ConfigureProviderRequest): Promise<ConfigureProviderResponse> {
+    let res: Response;
+    try {
+      res = await this.timedFetch(this.url('/configure-provider'), {
+        method: 'POST',
+        headers: this.authedHeaders({ 'content-type': 'application/json' }),
+        body: JSON.stringify(input),
+      });
+    } catch {
+      throw new Error('MMA /configure-provider failed (network error or timeout)');
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+      throw new Error(
+        `MMA /configure-provider failed with HTTP ${res.status}${body?.error?.code ? ` (${body.error.code})` : ''}`,
+      );
+    }
+    return (await res.json()) as ConfigureProviderResponse;
   }
 
   /* ── Exploration rod methods (Spec 5) ─────────────────────────────────────

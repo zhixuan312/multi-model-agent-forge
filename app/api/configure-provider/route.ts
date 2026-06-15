@@ -5,8 +5,8 @@ import { buildMmaClient } from '@/mma/server-client';
 import type { ConfigureProviderRequest } from '@/mma/configure-provider';
 
 /**
- * Admin proxy for mmagent's `POST /configure-provider` (Spec: combined Models
- * page). Forge does NOT re-validate — mmagent owns the validate ladder + the
+ * Admin proxy for mma's `POST /configure-provider` (Spec: combined Models
+ * page). Forge does NOT re-validate — mma owns the validate ladder + the
  * runtime in-memory hot-swap. This route only: admin-gates, shape-checks the
  * body, and relays to the live daemon with the team bearer (kept server-side).
  *
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     client = await buildMmaClient();
   } catch {
-    return NextResponse.json({ error: 'mma_unavailable', message: 'Could not reach mmagent.' }, { status: 502 });
+    return NextResponse.json({ error: 'mma_unavailable', message: 'Could not reach mma.' }, { status: 502 });
   }
 
   try {

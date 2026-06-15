@@ -38,13 +38,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const ok = health.status !== 'unreachable' && status.authValid;
       const detail =
         health.status === 'unreachable'
-          ? 'Cannot reach mmagent.'
+          ? 'Cannot reach mma.'
           : !status.authValid
-            ? 'mmagent rejected the bearer token.'
-            : 'Connected to mmagent.';
+            ? 'mma rejected the bearer token.'
+            : 'Connected to mma.';
       return NextResponse.json({ ok, detail });
     } catch {
-      return NextResponse.json({ ok: false, detail: 'Cannot reach mmagent.' });
+      return NextResponse.json({ ok: false, detail: 'Cannot reach mma.' });
     }
   }
 

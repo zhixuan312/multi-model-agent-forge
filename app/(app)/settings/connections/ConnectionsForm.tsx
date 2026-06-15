@@ -21,7 +21,6 @@ const CONNECTIONS_NOTE = `### Secrets
 
 export interface ConnectionsData {
   mmaBaseUrl: string | null;
-  mmaTokenSet: boolean;
   gitTokenSet: boolean;
   openaiTranscriptionKeySet: boolean;
 }
@@ -136,7 +135,7 @@ export function ConnectionsForm({
   mmaBearer,
 }: {
   initial: ConnectionsData;
-  /** The auto-resolved local mmagent token (read-only display); null if none. */
+  /** The auto-resolved local mma token (read-only display); null if none. */
   mmaBearer: string | null;
 }) {
   const router = useRouter();
@@ -246,7 +245,7 @@ export function ConnectionsForm({
               />
             )}
           </Field>
-          <Field label="Bearer token" hint="auto — managed by your local mmagent; read-only here">
+          <Field label="Bearer token" hint="auto — managed by your local mma; read-only here">
             {(p) => (
               <Input
                 {...p}

@@ -4,14 +4,15 @@ import { getConnections, updateConnections } from '@/config/connections-core';
 
 /**
  * Admin Connections API (Spec 2 §Connections).
- * `GET`  → 200 { mmaBaseUrl, mmaTokenSet, gitTokenSet, openaiTranscriptionKeySet }
+ * `GET`  → 200 { mmaBaseUrl, gitTokenSet, openaiTranscriptionKeySet }
  *          (NEVER the token/key values — only "set / not set" booleans)
- * `PUT  { mmaBaseUrl?, mmaToken?, gitToken?, openaiTranscriptionKey? }`
+ * `PUT  { mmaBaseUrl?, gitToken?, openaiTranscriptionKey? }`
  *   → 200 the refreshed view  · 400 invalid
  *   → 403 non-admin / 401 unauthenticated
  *
- * Each section saves independently; tokens are stored via the SecretStore and
- * their values never returned. Part-A: no config write / MMA restart.
+ * The MMA bearer is owned by the local mma (read-only in the UI), never set
+ * here. Each section saves independently; git + speech-to-text tokens are stored
+ * via the SecretStore and their values never returned.
  */
 export async function GET(): Promise<NextResponse> {
   const gate = await resolveAdminActor();

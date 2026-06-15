@@ -4,8 +4,6 @@ import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity, session } from '@/db/schema/identity';
 import { hashPassword, passwordSchema } from '@/auth/password';
 import { sessionStore, type SessionStore } from '@/auth/session-store';
-import { USE_MOCK } from '@/mock/config';
-import * as membersMock from '@/mock/domains/settings/members';
 
 /**
  * Members CRUD core (Spec 1 §Members CRUD API). Dependency-injected and pure of
@@ -32,6 +30,14 @@ export const createMemberSchema = z.object({
   password: passwordSchema,
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+
+// createMember additionally accepts an optional role (an admin may create either
+// a member or an admin); omitted → a non-admin member. Kept separate from
+// `createMemberSchema`, which setup-core reuses for the first-admin path and must
+// stay role-free.
+const createMemberInputSchema = createMemberSchema.extend({
+  isAdmin: z.boolean().optional(),
+});
 
 export interface CreatedMember {
   id: string;
@@ -61,11 +67,11 @@ export async function createMember(
   input: unknown,
   deps: MembersDeps = {},
 ): Promise<CreateMemberResult> {
-  if (USE_MOCK) return membersMock.createMember(input);
   const db = deps.db ?? getDb();
-  const parsed = createMemberSchema.safeParse(input);
+  const parsed = createMemberInputSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
   const { displayName, username, password } = parsed.data;
+  const isAdmin = parsed.data.isAdmin ?? false;
 
   // Case-insensitive pre-check (the functional unique index is the real guard).
   const [existing] = await db
@@ -81,7 +87,7 @@ export async function createMember(
     const created = await db.transaction(async (tx) => {
       const [m] = await tx
         .insert(member)
-        .values({ username, displayName, isAdmin: false })
+        .values({ username, displayName, isAdmin })
         .returning({
           id: member.id,
           username: member.username,
@@ -125,7 +131,6 @@ export async function setMemberAdmin(
   input: unknown,
   deps: MembersDeps = {},
 ): Promise<SetAdminResult> {
-  if (USE_MOCK) return membersMock.setMemberAdmin(memberId, input);
   const db = deps.db ?? getDb();
   const parsed = toggleAdminSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
@@ -168,7 +173,6 @@ export async function resetMemberPassword(
   input: unknown,
   deps: MembersDeps = {},
 ): Promise<ResetPasswordResult> {
-  if (USE_MOCK) return membersMock.resetMemberPassword(memberId, input);
   const db = deps.db ?? getDb();
   const store = deps.store ?? sessionStore;
   const parsed = resetPasswordSchema.safeParse(input);
@@ -209,7 +213,6 @@ export async function deleteMember(
   memberId: string,
   deps: MembersDeps = {},
 ): Promise<DeleteMemberResult> {
-  if (USE_MOCK) return membersMock.deleteMember(memberId);
   const db = deps.db ?? getDb();
 
   const [target] = await db
@@ -241,7 +244,6 @@ export interface MemberListRow {
 
 /** List members for the admin Members surface (newest-derived ordering: by name). */
 export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow[]> {
-  if (USE_MOCK) return membersMock.listMembers();
   const db = deps.db ?? getDb();
   return db
     .select({
@@ -258,7 +260,6 @@ export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow
 
 /** Count sessions not past their absolute expiry — the "currently active" metric. */
 export async function countActiveSessions(deps: MembersDeps = {}): Promise<number> {
-  if (USE_MOCK) return membersMock.countActiveSessions();
   const db = deps.db ?? getDb();
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })

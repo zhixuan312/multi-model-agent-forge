@@ -61,17 +61,38 @@ function PasswordField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — no-op */
+    }
+  }
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
         <Label htmlFor={id}>{label}</Label>
-        <button
-          type="button"
-          onClick={() => onChange(generatePassword())}
-          className="focus-ring rounded-sm text-xs font-semibold text-accent hover:underline"
-        >
-          Generate
-        </button>
+        <div className="flex items-center gap-3">
+          {value ? (
+            <button
+              type="button"
+              onClick={copy}
+              className="focus-ring rounded-sm text-xs font-semibold text-accent hover:underline"
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onChange(generatePassword())}
+            className="focus-ring rounded-sm text-xs font-semibold text-accent hover:underline"
+          >
+            Generate
+          </button>
+        </div>
       </div>
       <Input
         id={id}
@@ -98,6 +119,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
   const [role, setRole] = useState<RoleFilter>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const adminCount = useMemo(() => members.filter((m) => m.isAdmin).length, [members]);
 
   const openEdit = useCallback((id: string) => {
     setAdding(false);
@@ -154,7 +176,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
       },
       {
         id: 'capability',
-        header: 'Capability',
+        header: 'Role',
         size: 120,
         cell: ({ row }) => (
           <Badge
@@ -231,7 +253,9 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
         getRowId={(m) => m.id}
         expandedId={editingId}
         leadingRow={adding ? <MemberForm mode="add" onDone={close} /> : null}
-        renderExpanded={(m) => <MemberForm key={m.id} mode="edit" existing={m} onDone={close} />}
+        renderExpanded={(m) => (
+          <MemberForm key={m.id} mode="edit" existing={m} isLastAdmin={m.isAdmin && adminCount === 1} onDone={close} />
+        )}
         emptyState={
           <EmptyState icon={<Search />} title="No members match" description="Try a different search or role filter." />
         }
@@ -248,10 +272,13 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
 export function MemberForm({
   mode,
   existing,
+  isLastAdmin = false,
   onDone,
 }: {
   mode: 'add' | 'edit';
   existing?: MemberRowData;
+  /** True when editing the team's only admin — deletion + demotion are locked. */
+  isLastAdmin?: boolean;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -261,6 +288,7 @@ export function MemberForm({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -280,7 +308,7 @@ export function MemberForm({
         const res = await fetch('/api/members', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ displayName: displayName.trim(), username: username.trim(), password }),
+          body: JSON.stringify({ displayName: displayName.trim(), username: username.trim(), password, isAdmin }),
         });
         if (!res.ok) {
           const b = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -366,13 +394,26 @@ export function MemberForm({
                 <Input {...p} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. j.wong" className="font-mono" />
               )}
             </Field>
+            <Field label="Role">
+              {(p) => (
+                <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => setIsAdmin(v === 'admin')}>
+                  <SelectTrigger {...p}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
             <PasswordField id="add-password" label="Password" value={password} onChange={setPassword} />
           </>
         ) : (
           <>
             <Field label="Role">
               {(p) => (
-                <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => setIsAdmin(v === 'admin')}>
+                <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => setIsAdmin(v === 'admin')} disabled={isLastAdmin}>
                   <SelectTrigger {...p}>
                     <SelectValue />
                   </SelectTrigger>
@@ -388,6 +429,12 @@ export function MemberForm({
         )}
       </FieldGrid>
 
+      {mode === 'edit' && isLastAdmin ? (
+        <Micro className="block text-ink-soft">
+          This is the team’s only admin — promote another member before changing their role or removing them.
+        </Micro>
+      ) : null}
+
       {error ? (
         <Micro role="alert" className="block text-rose">
           {error}
@@ -397,9 +444,34 @@ export function MemberForm({
       <div className="flex items-center justify-between gap-2">
         <div>
           {mode === 'edit' ? (
-            <Button type="button" variant="ghost" leftIcon={<Trash2 />} onClick={onDelete} disabled={busy} className="text-rose hover:text-rose">
-              Delete
-            </Button>
+            confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <Micro className="text-rose">Delete permanently?</Micro>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={onDelete}
+                  loading={busy}
+                  className="text-rose hover:text-rose"
+                >
+                  Confirm delete
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={busy}>
+                  Keep
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                leftIcon={<Trash2 />}
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy || isLastAdmin}
+                className="text-rose hover:text-rose"
+              >
+                Delete
+              </Button>
+            )
           ) : null}
         </div>
         <div className="flex items-center gap-2.5">

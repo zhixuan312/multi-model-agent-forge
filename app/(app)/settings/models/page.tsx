@@ -27,8 +27,8 @@ const MODELS_NOTE = `### Agent tiers
  * Team Settings → Models (the merged Providers + Roster surface). Admin-gated.
  * Same shell as the other tabs: a STATUS row of four metric boxes, then a
  * 2/3 ∣ 1/3 row — the tier panel (Primary) and the access note (Rail). Each tier
- * is configured + validated/applied against the live mmagent via
- * `POST /configure-provider`; current state is read from mmagent's config.json.
+ * is configured + validated/applied against the live mma via
+ * `POST /configure-provider`; current state is read from mma's config.json.
  */
 export default async function ModelsPage() {
   await requireAdminPage();

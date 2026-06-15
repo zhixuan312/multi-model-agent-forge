@@ -1,7 +1,7 @@
 import { Lock, Plug, GitBranch, Mic } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { getConnections } from '@/config/connections-core';
-import { readDevTokenFallback } from '@/mma/client-config';
+import { readMmaBearer } from '@/mma/client-config';
 import { PageFrame, MetricCard } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
@@ -16,8 +16,8 @@ import { ConnectionsForm } from './ConnectionsForm';
 export default async function ConnectionsPage() {
   await requireAdminPage();
   const view = await getConnections();
-  // The MMA bearer is auto-managed by the local mmagent (read-only here).
-  const mmaBearer = readDevTokenFallback();
+  // The MMA bearer is auto-managed by the local mma (read-only here).
+  const mmaBearer = readMmaBearer();
 
   const setCount =
     (mmaBearer ? 1 : 0) + (view.gitTokenSet ? 1 : 0) + (view.openaiTranscriptionKeySet ? 1 : 0);
@@ -37,7 +37,6 @@ export default async function ConnectionsPage() {
           mmaBearer={mmaBearer}
           initial={{
             mmaBaseUrl: view.mmaBaseUrl,
-            mmaTokenSet: view.mmaTokenSet,
             gitTokenSet: view.gitTokenSet,
             openaiTranscriptionKeySet: view.openaiTranscriptionKeySet,
           }}

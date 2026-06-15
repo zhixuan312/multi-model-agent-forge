@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { agentTier, provider } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
-import { readDevTokenFallback } from '@/mma/client-config';
+import { readMmaBearer } from '@/mma/client-config';
 import { ensureSpecStage, loadOutline } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
@@ -100,9 +100,9 @@ export default async function SpecStagePage({
 }
 
 /** True iff a usable MMA bearer is available — auto-resolved from the local
- *  mmagent token (`MMAGENT_AUTH_TOKEN` env, else `~/.multi-model/auth-token`). */
+ *  mma token (`MMA_AUTH_TOKEN` env, else `~/.mma/auth-token`). */
 async function isMmaReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
-  return readDevTokenFallback() !== null;
+  return readMmaBearer() !== null;
 }
 
 /** True iff the `main` tier points at a configured claude provider with an api_key_ref. */

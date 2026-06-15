@@ -34,7 +34,7 @@ import * as recallContentMock from '@/mock/domains/journal/recall-content';
  * `/journal` — the team decision-graph viewer (Spec 6), on the Team-Settings
  * shell. The tabs live in the header sub-nav; the STATUS row re-skins per tab,
  * and the body is the active view in a 2/3 ∣ 1/3 surface. READ-ONLY (F10). Data
- * is read from MMA's `.mmagent/journal/` at the workspace root, or seeded in mock
+ * is read from MMA's `.mma/journal/` at the workspace root, or seeded in mock
  * mode. Graceful: absent root → config-needed; empty → empty; unreadable →
  * diagnostic. Never 500.
  */

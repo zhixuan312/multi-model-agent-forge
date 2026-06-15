@@ -79,7 +79,6 @@ export function LoopsClient({
             <div className="min-w-0">
               <TextStrong className="block truncate !text-sm !text-ink" title={l.name}>{l.name}</TextStrong>
               <div className="mt-0.5 flex items-center gap-1.5">
-                <Badge size="sm" variant="sage">{l.kind}</Badge>
                 <Badge size="sm" variant={l.workerTier === 'complex' ? 'steel' : 'accent'}>{l.workerTier}</Badge>
               </div>
             </div>

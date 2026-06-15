@@ -16,71 +16,64 @@ const empty: ConnectionsData = {
   openaiTranscriptionKeySet: false,
 };
 
+const openCard = (name: 'MMA' | 'Git' | 'Speech to text') =>
+  fireEvent.click(screen.getByRole('button', { name: `Edit ${name}` }));
+
 describe('ConnectionsForm', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('renders MMA (base URL + bearer), Git (token) and OpenAI sections with labels', () => {
-    render(<ConnectionsForm initial={empty} />);
-    expect(screen.getByLabelText('Base URL')).toBeInTheDocument();
-    expect(screen.getByLabelText(/Bearer token/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Service token/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/API key/)).toBeInTheDocument();
+  it('reads on load: shows indicators + Edit buttons, no form fields yet', () => {
+    render(<ConnectionsForm initial={empty} mmaBearer={null} />);
+    expect(screen.getByTestId('git-token-indicator')).toBeInTheDocument();
+    expect(screen.getByTestId('openai-key-indicator')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit MMA' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Git' })).toBeInTheDocument();
   });
 
-  it('prefills the MMA base URL with the loopback default when unset', () => {
-    render(<ConnectionsForm initial={empty} />);
+  it('opening MMA reveals the form, base URL prefilled with the loopback default', () => {
+    render(<ConnectionsForm initial={empty} mmaBearer={null} />);
+    openCard('MMA');
     const url = screen.getByLabelText('Base URL') as HTMLInputElement;
     expect(url.value).toBe('http://127.0.0.1:7337');
   });
 
-  it('token inputs are write-only (password, never prefilled with a value)', () => {
-    const set: ConnectionsData = {
-      mmaBaseUrl: 'http://127.0.0.1:7337',
-      mmaTokenSet: true,
-      gitTokenSet: true,
-      openaiTranscriptionKeySet: false,
-    };
-    render(<ConnectionsForm initial={set} />);
+  it('shows the MMA bearer read-only, sourced from the local mmagent token', () => {
+    render(<ConnectionsForm initial={empty} mmaBearer="local-token-xyz" />);
+    openCard('MMA');
     const bearer = screen.getByLabelText(/Bearer token/) as HTMLInputElement;
+    expect(bearer).toHaveAttribute('readonly');
+    expect(bearer.value).toBe('local-token-xyz');
+  });
+
+  it('git token input is write-only (password, never prefilled)', () => {
+    render(<ConnectionsForm initial={{ ...empty, gitTokenSet: true }} mmaBearer={null} />);
+    openCard('Git');
     const git = screen.getByLabelText(/Service token/) as HTMLInputElement;
-    expect(bearer).toHaveAttribute('type', 'password');
     expect(git).toHaveAttribute('type', 'password');
-    expect(bearer.value).toBe('');
     expect(git.value).toBe('');
   });
 
-  it('shows a "set / not set" indicator for each secret (not the value)', () => {
-    const mixed: ConnectionsData = {
-      mmaBaseUrl: 'http://127.0.0.1:7337',
-      mmaTokenSet: true,
-      gitTokenSet: false,
-      openaiTranscriptionKeySet: false,
-    };
-    render(<ConnectionsForm initial={mixed} />);
-    expect(screen.getByTestId('mma-token-indicator')).toHaveTextContent('set');
-    expect(screen.getByTestId('git-token-indicator')).toHaveTextContent('not set');
-  });
-
-  it('the MMA section saves base URL alone (no token) without sending mmaToken', async () => {
+  it('the MMA section saves base URL alone (never sends a token)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-    render(<ConnectionsForm initial={{ ...empty, mmaTokenSet: true }} />);
-    // Submit the MMA form with no new token typed.
-    const mmaForm = screen.getByRole('form', { name: 'MMA connection' });
-    fireEvent.submit(mmaForm);
+    render(<ConnectionsForm initial={empty} mmaBearer="tok" />);
+    openCard('MMA');
+    fireEvent.submit(screen.getByRole('form', { name: 'MMA connection' }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
     expect(body.mmaBaseUrl).toBe('http://127.0.0.1:7337');
-    expect('mmaToken' in body).toBe(false); // blank token not sent
+    expect('mmaToken' in body).toBe(false);
   });
 
-  it('the Git section validates an empty token client-side', async () => {
+  it('the Git section validates an empty token client-side on save', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    render(<ConnectionsForm initial={empty} />);
+    render(<ConnectionsForm initial={empty} mmaBearer={null} />);
+    openCard('Git');
     fireEvent.submit(screen.getByRole('form', { name: 'Git connection' }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/git service token/i);

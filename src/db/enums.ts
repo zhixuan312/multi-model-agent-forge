@@ -171,6 +171,7 @@ export const MMA_ROUTE = [
   'execute_plan',
   'review',
   'journal_record',
+  'delegate', // ad-hoc implementation dispatch — used by Loops' maintenance work step
 ] as const;
 export type MmaRoute = (typeof MMA_ROUTE)[number];
 
@@ -213,3 +214,26 @@ export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
  */
 export const EXPORT_FORMAT = ['md', 'pdf', 'bundle'] as const;
 export type ExportFormat = (typeof EXPORT_FORMAT)[number];
+
+/* ── Loops (admin-only, cron-scheduled goal-driven jobs) ────────────────────── */
+
+/**
+ * loop.kind — the activity type. Kind #1 = `maintenance` (pursue a free-text
+ * quality goal). New kinds are added here + in the LOOP_KINDS registry; the
+ * per-kind config lives in `loop.config` (jsonb), so a new kind is a code change,
+ * not a migration.
+ */
+export const LOOP_KIND = ['maintenance'] as const;
+export type LoopKind = (typeof LOOP_KIND)[number];
+
+/** loop.worker_tier — which MMA worker the loop dispatches (maps to agentType). `main` is the orchestrator, never a worker. */
+export const LOOP_WORKER_TIER = ['standard', 'complex'] as const;
+export type LoopWorkerTier = (typeof LOOP_WORKER_TIER)[number];
+
+/** loop_run.trigger — how a fire was activated. */
+export const LOOP_TRIGGER = ['schedule', 'manual'] as const;
+export type LoopTrigger = (typeof LOOP_TRIGGER)[number];
+
+/** loop_run.status — per-repo outcome of a fire. A failed run never opens a PR. */
+export const LOOP_RUN_STATUS = ['running', 'changed', 'no_changes', 'failed'] as const;
+export type LoopRunStatus = (typeof LOOP_RUN_STATUS)[number];

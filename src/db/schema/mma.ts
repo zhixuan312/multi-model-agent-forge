@@ -21,9 +21,7 @@ export const mmaBatch = forge.table(
   'mma_batch',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }), // nullable: loop dispatches are team-level (not project-scoped); SDLC dispatches still set it
     route: text('route', { enum: MMA_ROUTE }).notNull(),
     targetRepoId: uuid('target_repo_id').references(() => repo.id), // the ONE repo; null for research/journal-recall
     cwd: text('cwd').notNull(), // the dispatched ?cwd= — REQUIRED for EVERY route

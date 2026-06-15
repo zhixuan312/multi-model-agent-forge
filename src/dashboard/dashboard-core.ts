@@ -125,7 +125,7 @@ export async function dashboardProjects(
     .from(mmaBatch)
     .where(and(inArray(mmaBatch.projectId, ids), eq(mmaBatch.status, 'running')))
     .groupBy(mmaBatch.projectId);
-  for (const r of mmaRun) add(r.projectId, Number(r.n));
+  for (const r of mmaRun) if (r.projectId) add(r.projectId, Number(r.n)); // loop batches are project-less
   const taskRun = await db
     .select({ projectId: explorationTask.projectId, n: sql<number>`count(*)::int` })
     .from(explorationTask)

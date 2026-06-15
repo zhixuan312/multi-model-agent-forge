@@ -332,6 +332,7 @@ export class PollManager {
     let n = 0;
     for (const r of rows) {
       if (!r.batchId) continue; // never got a batchId — nothing to poll
+      if (!r.projectId) continue; // loop dispatches are project-less; not polled by the project SSE manager
       this.register({
         batchId: r.id,
         mmaBatchId: r.batchId,

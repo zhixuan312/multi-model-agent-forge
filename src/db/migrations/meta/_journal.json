@@ -57,6 +57,27 @@
       "when": 1781040000000,
       "tag": "0007_drop_dead_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781510000000,
+      "tag": "0008_loops",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0009_loop_run_structured",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0010_loop_target_branch_adhoc",
+      "breakpoints": true
     }
   ]
 }

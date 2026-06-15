@@ -1,25 +1,12 @@
 // @vitest-environment node
 import { and, eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
 import { component, componentSection } from '@/db/schema/spec';
 import { artifact } from '@/db/schema/artifacts';
 import { actionLog } from '@/db/schema/audit';
 import { assembleSpec, getLatestSpec, buildSpecMarkdown } from '@/spec/assemble';
-import { confirmComponents } from '@/spec/orchestrator';
-import { seedProject, cleanupSpecFixtures } from './db-fixtures';
+import { createMockDb, seq } from '../test-utils/mock-db';
 
-// Live-DB integration suite — gated OFF: no test DB exists; production must not be
-// mutated, so these skip. See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-afterAll(async () => {
-  if (!hasDb) return;
-  await cleanupSpecFixtures();
-});
-
-const db = hasDb ? getDb() : (undefined as never);
-
-describe.skipIf(!hasDb)('buildSpecMarkdown (pure)', () => {
+describe('buildSpecMarkdown (pure)', () => {
   it('emits ## label / ### draftHeading and preserves a ```mermaid fence verbatim', () => {
     const fence = '```mermaid\ngraph TD; A-->B;\n```';
     const md = buildSpecMarkdown(
@@ -34,49 +21,59 @@ describe.skipIf(!hasDb)('buildSpecMarkdown (pure)', () => {
     );
     expect(md).toContain('## Proposed design');
     expect(md).toContain('### System-context diagram');
-    expect(md).toContain(fence); // fence preserved verbatim
+    expect(md).toContain(fence);
   });
 });
 
-describe.skipIf(!hasDb)('assembleSpec', () => {
+describe('assembleSpec', () => {
   it('produces one versioned spec artifact from approved sections + an assemble action_log row', async () => {
-    const { projectId, ownerId, specStageId } = await seedProject();
-    await confirmComponents(db, specStageId, ['context_scope']);
-    const [comp] = await db.select().from(component).where(eq(component.stageId, specStageId)).limit(1);
-    const secs = await db.select().from(componentSection).where(eq(componentSection.componentId, comp.id));
-    for (const s of secs) {
-      await db
-        .update(componentSection)
-        .set({ status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: `body-${s.key}` })
-        .where(eq(componentSection.id, s.id));
-    }
+    const projectId = 'proj-1';
+    const specStageId = 'stage-1';
+    const componentId = 'comp-1';
+    const sectionId = 'sec-1';
+    const ownerId = 'owner-1';
 
-    const res = await assembleSpec(db, projectId, specStageId, ownerId);
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Proj', visibility: 'public' }],
+      'select:component': [{ id: componentId, kind: 'context_scope' }],
+      'select:component_section': [
+        { id: sectionId, componentId, key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body-background' },
+      ],
+      'select:artifact': [{ m: 0 }],
+      'insert:artifact': [{ id: 'art-1', version: 1 }],
+      'insert:action_log': [{ id: 'log-1', projectId, action: 'assemble', memberId: null }],
+    });
+
+    const res = await assembleSpec(mockDb, projectId, specStageId, ownerId);
     expect(res.version).toBe(1);
     expect(res.bodyMd).toContain('## Context');
     expect(res.bodyMd).toContain('### Background');
     expect(res.bodyMd).toContain('body-background');
-
-    const arts = await db
-      .select()
-      .from(artifact)
-      .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'spec')));
-    expect(arts).toHaveLength(1);
-    expect(arts[0].createdBy).toBeNull(); // agent-generated
-
-    const logs = await db
-      .select()
-      .from(actionLog)
-      .where(and(eq(actionLog.projectId, projectId), eq(actionLog.action, 'assemble')));
-    expect(logs).toHaveLength(1);
+    expect(mockDb._assertCalled('artifact', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('action_log', 'insert')).toBe(true);
   });
 
   it('re-assemble bumps version (prevMax+1)', async () => {
-    const { projectId, ownerId, specStageId } = await seedProject();
-    await assembleSpec(db, projectId, specStageId, ownerId);
-    const second = await assembleSpec(db, projectId, specStageId, ownerId);
+    const projectId = 'proj-2';
+    const specStageId = 'stage-2';
+    const ownerId = 'owner-2';
+
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Proj', visibility: 'public' }],
+      'select:component': [{ id: 'comp-1', kind: 'context_scope' }],
+      'select:component_section': [
+        { id: 'sec-1', componentId: 'comp-1', key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body' },
+      ],
+      'select:artifact': seq([{ m: 0 }], [{ m: 1 }], [{ id: 'art-2', projectId, kind: 'spec', version: 2, bodyMd: 'v2' }]),
+      'insert:artifact': seq([{ id: 'art-1', version: 1 }], [{ id: 'art-2', version: 2 }]),
+      'insert:action_log': [{ id: 'log-1', projectId, action: 'assemble' }, { id: 'log-2', projectId, action: 'assemble' }],
+    });
+
+    const first = await assembleSpec(mockDb, projectId, specStageId, ownerId);
+    const second = await assembleSpec(mockDb, projectId, specStageId, ownerId);
+    expect(first.version).toBe(1);
     expect(second.version).toBe(2);
-    const latest = await getLatestSpec(db, projectId);
+    const latest = await getLatestSpec(mockDb, projectId);
     expect(latest?.version).toBe(2);
   });
 });

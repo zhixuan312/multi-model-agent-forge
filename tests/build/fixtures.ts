@@ -1,96 +1,11 @@
 // @vitest-environment node
-// Shared live-DB fixtures + in-memory fakes for Spec-7 (Build pipeline) tests.
-// Throwaway rows use distinct prefixes so cleanup is exhaustive. NO real MMA, git,
-// or LLM is ever contacted — every effectful dep is a fake.
-import { sql, inArray } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { member } from '@/db/schema/identity';
-import { project, stage, projectMember, projectRepo } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
-import { artifact } from '@/db/schema/artifacts';
-import { actionLog } from '@/db/schema/audit';
+// In-memory fakes for Spec-7 (Build pipeline) tests. NO real database, MMA, git,
+// or LLM is ever contacted — every effectful dependency is a fake. DB state is
+// provided per-test via `createMockDb` (tests/test-utils/mock-db).
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
 import type { GitRunner, GitRunResult } from '@/build/branch';
 import type { CommandRunner, CommandOutcome } from '@/build/command-runner';
 import type { PlanFs } from '@/build/plan-fs';
-
-export const TEST_PROJECT_PREFIX = '__forge_build_test__';
-export const TEST_MEMBER_PREFIX = '__forge_build_member__';
-export const TEST_REPO_PREFIX = '__forge_build_repo__';
-
-function rnd(): string {
-  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-export function uniqueName(prefix: string, label = ''): string {
-  return `${prefix}${label}_${rnd()}`;
-}
-
-export async function seedMember(label = 'm'): Promise<{ id: string }> {
-  const db = getDb();
-  const username = uniqueName(TEST_MEMBER_PREFIX, label);
-  const [m] = await db.insert(member).values({ username, displayName: username }).returning({ id: member.id });
-  return { id: m.id };
-}
-
-export async function seedRepo(label = 'r', pathOnDisk = '/work/repo', kind = 'node'): Promise<{ id: string; name: string; pathOnDisk: string }> {
-  const db = getDb();
-  const name = uniqueName(TEST_REPO_PREFIX, label);
-  const [r] = await db
-    .insert(repo)
-    .values({ name, pathOnDisk, defaultBranch: 'main', kind })
-    .returning({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk });
-  return { id: r.id, name: r.name, pathOnDisk: r.pathOnDisk };
-}
-
-export async function seedProject(opts?: { repoIds?: string[] }): Promise<{ projectId: string; ownerId: string }> {
-  const db = getDb();
-  const owner = await seedMember('owner');
-  const name = uniqueName(TEST_PROJECT_PREFIX, 'p');
-  const [proj] = await db
-    .insert(project)
-    .values({ name, visibility: 'public', phase: 'build', currentStage: 'plan', ownerId: owner.id })
-    .returning({ id: project.id });
-  await db.insert(stage).values(
-    (['exploration', 'spec', 'plan', 'execute', 'review'] as const).map((kind) => ({
-      projectId: proj.id,
-      kind,
-      status: 'pending' as const,
-    })),
-  );
-  await db.insert(projectMember).values({ projectId: proj.id, memberId: owner.id, role: 'owner' });
-  if (opts?.repoIds?.length) {
-    await db.insert(projectRepo).values(opts.repoIds.map((repoId) => ({ projectId: proj.id, repoId })));
-  }
-  return { projectId: proj.id, ownerId: owner.id };
-}
-
-export async function seedSpec(projectId: string, body = 'Add a caching layer to the API.'): Promise<void> {
-  await getDb().insert(artifact).values({ projectId, kind: 'spec', bodyMd: body, version: 1 });
-}
-
-export async function cleanupBuildFixtures(): Promise<void> {
-  const db = getDb();
-  const projects = await db
-    .select({ id: project.id })
-    .from(project)
-    .where(sql`${project.name} LIKE ${TEST_PROJECT_PREFIX + '%'}`);
-  const projectIds = projects.map((p) => p.id);
-  if (projectIds.length > 0) await db.delete(actionLog).where(inArray(actionLog.projectId, projectIds));
-
-  const members = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(sql`${member.username} LIKE ${TEST_MEMBER_PREFIX + '%'}`);
-  const memberIds = members.map((m) => m.id);
-  if (memberIds.length > 0) await db.delete(actionLog).where(inArray(actionLog.memberId, memberIds));
-
-  // project cascade clears stage/plan_task/mma_batch/artifact/export/project_member/project_repo.
-  await db.delete(project).where(sql`${project.name} LIKE ${TEST_PROJECT_PREFIX + '%'}`);
-  await db.delete(repo).where(sql`${repo.name} LIKE ${TEST_REPO_PREFIX + '%'}`);
-  await db.delete(member).where(sql`${member.username} LIKE ${TEST_MEMBER_PREFIX + '%'}`);
-}
-
-/* ── In-memory fakes ──────────────────────────────────────────────────────── */
 
 /** A bus that records every published event for assertions. */
 export class RecordingBus extends ProjectEventBus {

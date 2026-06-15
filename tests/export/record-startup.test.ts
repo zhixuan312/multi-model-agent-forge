@@ -1,34 +1,27 @@
 // @vitest-environment node
-import { afterAll } from 'vitest';
-import { mkdtempSync, statSync, existsSync } from 'node:fs';
+import { mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
-import { and, eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { exportRecord } from '@/db/schema/build';
-import { actionLog } from '@/db/schema/audit';
 import { recordExport } from '@/export/record';
 import { runExportStartup } from '@/export/startup';
 import { loadExportConfig } from '@/export/config';
 import { ExportPathError } from '@/export/export-root';
-import { seedProject, cleanupExportFixtures } from './db-fixtures';
-
-afterAll(async () => {
-  await cleanupExportFixtures();
-});
+import { createMockDb } from '../test-utils/mock-db';
 
 function tmpRoot(): string {
   return mkdtempSync(join(tmpdir(), 'forge-exp-'));
 }
 
-// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
-// exists; production must not be mutated). See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
+describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
   it('writes an export row + action_log entry; file lands under <root>/<project_id>/', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const createdBy = 'member-1';
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
+
+    const db = createMockDb({
+      'insert:export': [{ id: 'exp-1' }],
+      'insert:action_log': [{ id: 'log-1' }],
+    });
 
     const res = await recordExport(
       {
@@ -38,30 +31,31 @@ describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F
         artifactId: null,
         content: Buffer.from('%PDF-fake'),
         projectName: 'My Project',
-        createdBy: ownerId,
+        createdBy,
       },
-      { config: cfg },
+      { config: cfg, db },
     );
 
     expect(res.filePath.startsWith(join(cfg.exportRoot, projectId) + sep)).toBe(true);
-    expect(existsSync(res.filePath)).toBe(true);
+    expect(db._assertCalled('export', 'insert')).toBe(true);
+    expect(db._assertCalled('action_log', 'insert')).toBe(true);
 
-    const db = getDb();
-    const [row] = await db.select().from(exportRecord).where(eq(exportRecord.id, res.exportId));
-    expect(row.format).toBe('pdf');
-    expect(row.projectId).toBe(projectId);
-
-    const [log] = await db
-      .select()
-      .from(actionLog)
-      .where(and(eq(actionLog.projectId, projectId), eq(actionLog.action, 'export.created')));
-    expect(log).toBeTruthy();
-    expect((log.meta as { format: string }).format).toBe('pdf');
+    const insertCalls = db._callsFor('export');
+    const valueCall = insertCalls.find((c) => c.method === 'values');
+    expect(JSON.stringify(valueCall?.args)).toContain('pdf');
+    expect(JSON.stringify(valueCall?.args)).toContain(projectId);
   });
 
   it('a bundle row has artifact_id null and target=bundle', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const createdBy = 'member-1';
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
+
+    const db = createMockDb({
+      'insert:export': [{ id: 'exp-1' }],
+      'insert:action_log': [{ id: 'log-1' }],
+    });
+
     const res = await recordExport(
       {
         projectId,
@@ -70,25 +64,43 @@ describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F
         artifactId: null,
         content: Buffer.from('PK fake zip'),
         projectName: 'P',
-        createdBy: ownerId,
+        createdBy,
       },
-      { config: cfg },
+      { config: cfg, db },
     );
-    const db = getDb();
-    const [row] = await db.select().from(exportRecord).where(eq(exportRecord.id, res.exportId));
-    expect(row.format).toBe('bundle');
-    expect(row.artifactId).toBeNull();
-    const [log] = await db
-      .select()
-      .from(actionLog)
-      .where(and(eq(actionLog.projectId, projectId), eq(actionLog.action, 'export.created')));
-    expect(log.target).toBe('bundle');
+
+    expect(db._assertCalled('export', 'insert')).toBe(true);
+    const insertCalls = db._callsFor('export');
+    const valueCall = insertCalls.find((c) => c.method === 'values');
+    expect(valueCall?.args).toEqual([
+      expect.objectContaining({
+        artifactId: null,
+        format: 'bundle',
+        projectId,
+      }),
+    ]);
+
+    const logValueCall = db._callsFor('action_log').find((c) => c.method === 'values');
+    expect(logValueCall?.args).toEqual([
+      expect.objectContaining({
+        action: 'export.created',
+        target: 'bundle',
+        meta: expect.objectContaining({ artifactId: null, format: 'bundle' }),
+      }),
+    ]);
   });
 
   it('created dirs are 0700 and the file is 0600 (F17)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const createdBy = 'member-1';
     const root = tmpRoot();
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });
+
+    const db = createMockDb({
+      'insert:export': [{ id: 'exp-1' }],
+      'insert:action_log': [{ id: 'log-1' }],
+    });
+
     const res = await recordExport(
       {
         projectId,
@@ -97,10 +109,12 @@ describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F
         artifactId: null,
         content: Buffer.from('# md'),
         projectName: 'P',
-        createdBy: ownerId,
+        createdBy,
       },
-      { config: cfg },
+      { config: cfg, db },
     );
+
+    expect(res.filePath.startsWith(join(root, projectId) + sep)).toBe(true);
     const fileMode = statSync(res.filePath).mode & 0o777;
     const dirMode = statSync(join(root, projectId)).mode & 0o777;
     expect(fileMode).toBe(0o600);
@@ -108,9 +122,16 @@ describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F
   });
 
   it('a project name with ../ is slugified and the resolved path stays sandboxed', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const createdBy = 'member-1';
     const root = tmpRoot();
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });
+
+    const db = createMockDb({
+      'insert:export': [{ id: 'exp-1' }],
+      'insert:action_log': [{ id: 'log-1' }],
+    });
+
     const res = await recordExport(
       {
         projectId,
@@ -119,16 +140,16 @@ describe.skipIf(!hasDb)('record.ts — persist + path sandbox + perms (F16/F17/F
         artifactId: null,
         content: Buffer.from('x'),
         projectName: '../../etc/passwd',
-        createdBy: ownerId,
+        createdBy,
       },
-      { config: cfg },
+      { config: cfg, db },
     );
-    // The slugged name can never escape the project dir.
+
     expect(res.filePath.startsWith(join(root, projectId) + sep)).toBe(true);
   });
 });
 
-describe.skipIf(!hasDb)('startup.ts — boot invariants (F6/F8/F24/F29)', () => {
+describe('startup.ts — boot invariants (F6/F8/F24/F29)', () => {
   it('passes when the export root is disjoint from every repo path', async () => {
     const root = tmpRoot();
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });
@@ -146,7 +167,7 @@ describe.skipIf(!hasDb)('startup.ts — boot invariants (F6/F8/F24/F29)', () => 
     await expect(
       runExportStartup({
         config: cfg,
-        repoPaths: async () => [root], // overlap (equal)
+        repoPaths: async () => [root],
         probe: async () => true,
       }),
     ).rejects.toBeInstanceOf(ExportPathError);

@@ -1,8 +1,5 @@
 // @vitest-environment node
-import { afterEach } from 'vitest';
-import { and, eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { actionLog } from '@/db/schema/audit';
+import { vi } from 'vitest';
 import {
   authorizeExecute,
   hasExecuteAuthorization,
@@ -10,64 +7,59 @@ import {
   ExecuteLockedError,
 } from '@/build/execute-authz';
 import { reviewRepo } from '@/build/review';
-import { MmaClient } from '@/mma/client';
-import { seedProject, seedRepo, cleanupBuildFixtures, RecordingBus, FakeMma } from './fixtures';
+import { createMockDb, seq } from '../test-utils/mock-db';
+import { RecordingBus, FakeMma } from './fixtures';
 
-// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
-// exists; production must not be mutated). See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-describe.skipIf(!hasDb)('execute authorization (F10)', () => {
-  afterEach(cleanupBuildFixtures);
-
+describe('execute authorization (F10)', () => {
   it('authorize writes action_log(action=execute, target=repo:<name>) + emits execute.notice + holds lock', async () => {
-    const repo = await seedRepo('a', '/work/a');
-    const { projectId, ownerId } = await seedProject({ repoIds: [repo.id] });
+    const db = createMockDb({
+      'select:action_log': seq(
+        [],
+        [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+      ),
+      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+    });
     const bus = new RecordingBus();
-    expect(await hasExecuteAuthorization(getDb(), projectId, repo.name)).toBe(false);
+    expect(await hasExecuteAuthorization(db, 'proj-1', 'test-repo')).toBe(false);
 
     const release = await authorizeExecute(
-      { projectId, repoId: repo.id, repoName: repo.name, memberId: ownerId },
-      { db: getDb(), bus },
+      { projectId: 'proj-1', repoId: 'repo-1', repoName: 'test-repo', memberId: 'member-1' },
+      { db, bus },
     );
-    expect(isExecuteLocked(projectId, repo.id)).toBe(true);
+    expect(isExecuteLocked('proj-1', 'repo-1')).toBe(true);
 
-    const [row] = await getDb()
-      .select()
-      .from(actionLog)
-      .where(and(eq(actionLog.projectId, projectId), eq(actionLog.action, 'execute')));
-    expect(row.target).toBe(`repo:${repo.name}`);
-    expect(row.memberId).toBe(ownerId);
-
+    expect(db._assertCalled('action_log', 'insert')).toBe(true);
     const notice = bus.ofType('execute.notice')[0];
-    expect(notice.memberId).toBe(ownerId);
-    expect(notice.repo).toBe(repo.name);
+    expect(notice.memberId).toBe('member-1');
+    expect(notice.repo).toBe('test-repo');
 
-    expect(await hasExecuteAuthorization(getDb(), projectId, repo.name)).toBe(true);
+    expect(await hasExecuteAuthorization(db, 'proj-1', 'test-repo')).toBe(true);
     release();
-    expect(isExecuteLocked(projectId, repo.id)).toBe(false);
+    expect(isExecuteLocked('proj-1', 'repo-1')).toBe(false);
   });
 
   it('a second concurrent executor on the same repo is blocked (advisory lock)', async () => {
-    const repo = await seedRepo('b', '/work/b');
-    const { projectId, ownerId } = await seedProject({ repoIds: [repo.id] });
+    const db = createMockDb({
+      'select:action_log': [],
+      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+    });
     const release = await authorizeExecute(
-      { projectId, repoId: repo.id, repoName: repo.name, memberId: ownerId },
-      { db: getDb(), bus: new RecordingBus() },
+      { projectId: 'proj-1', repoId: 'repo-1', repoName: 'test-repo', memberId: 'member-1' },
+      { db, bus: new RecordingBus() },
     );
     await expect(
-      authorizeExecute({ projectId, repoId: repo.id, repoName: repo.name, memberId: ownerId }, { db: getDb(), bus: new RecordingBus() }),
+      authorizeExecute({ projectId: 'proj-1', repoId: 'repo-1', repoName: 'test-repo', memberId: 'member-1' }, { db, bus: new RecordingBus() }),
     ).rejects.toBeInstanceOf(ExecuteLockedError);
     release();
   });
 });
 
-describe.skipIf(!hasDb)('reviewRepo verdict derivation (F4)', () => {
+describe('reviewRepo verdict derivation (F4)', () => {
   it('changes_required iff ≥1 critical/high; emits review.done', async () => {
     const bus = new RecordingBus();
     const mma = new FakeMma({ review: [{ structuredReport: { findings: [{ severity: 'critical', claim: 'sqli' }, { severity: 'low', claim: 'nit' }] } }] });
     const res = await reviewRepo(
-      { mma: mma as unknown as MmaClient, bus, pollIntervalMs: 1 },
+      { mma: mma as unknown as any, bus, pollIntervalMs: 1 },
       { projectId: 'p1', repoName: 'svc', repoCwd: '/work/svc', changedFiles: ['a.ts'] },
     );
     expect(res.verdict).toBe('changes_required');
@@ -78,7 +70,7 @@ describe.skipIf(!hasDb)('reviewRepo verdict derivation (F4)', () => {
   it('approved for only medium/low; advisory error on a failed batch', async () => {
     const mma = new FakeMma({ review: [{ structuredReport: { findings: [{ severity: 'medium', claim: 'x' }] } }] });
     const approved = await reviewRepo(
-      { mma: mma as unknown as MmaClient, bus: new RecordingBus(), pollIntervalMs: 1 },
+      { mma: mma as unknown as any, bus: new RecordingBus(), pollIntervalMs: 1 },
       { projectId: 'p1', repoName: 'svc', repoCwd: '/work/svc', changedFiles: [] },
     );
     expect(approved.verdict).toBe('approved');
@@ -86,7 +78,7 @@ describe.skipIf(!hasDb)('reviewRepo verdict derivation (F4)', () => {
     const failing = new FakeMma({});
     failing.failDispatch = true;
     const errored = await reviewRepo(
-      { mma: failing as unknown as MmaClient, bus: new RecordingBus(), pollIntervalMs: 1 },
+      { mma: failing as unknown as any, bus: new RecordingBus(), pollIntervalMs: 1 },
       { projectId: 'p1', repoName: 'svc', repoCwd: '/work/svc', changedFiles: [] },
     );
     expect(errored.verdict).toBe('error'); // advisory — never throws

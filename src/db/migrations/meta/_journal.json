@@ -43,6 +43,13 @@
       "when": 1781027447251,
       "tag": "0005_natural_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781030000000,
+      "tag": "0006_prefix_iam_settings",
+      "breakpoints": true
     }
   ]
 }

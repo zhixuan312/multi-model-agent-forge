@@ -1,4 +1,5 @@
-import { uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { PROVIDER_TYPE, AGENT_TIER } from '@/db/enums';
 
@@ -45,12 +46,17 @@ export const agentTier = forge.table('agent_tier', {
  * configured (the row is upserted by the single id read first / created on first
  * save). The config-supervisor that consumes these (Part B) is out of scope here.
  */
-export const teamSettings = forge.table('team_settings', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  mmaBaseUrl: text('mma_base_url'), // Connections · MMA base URL
-  mmaTokenRef: text('mma_token_ref'), // app_secrets.id, NOT the token
-  gitTokenRef: text('git_token_ref'), // app_secrets.id
-  openaiTranscriptionKeyRef: text('openai_transcription_key_ref'), // app_secrets.id; voice→text (Spec 5)
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const teamSettings = forge.table(
+  'settings_connection',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mmaBaseUrl: text('mma_base_url'), // Connections · MMA base URL
+    mmaTokenRef: text('mma_token_ref'), // settings_secret.id, NOT the token
+    gitTokenRef: text('git_token_ref'), // settings_secret.id
+    openaiTranscriptionKeyRef: text('openai_transcription_key_ref'), // settings_secret.id; voice→text
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Singleton: a unique index on a constant lets at most ONE row exist.
+  () => [uniqueIndex('settings_connection_singleton').on(sql`(true)`)],
+);

@@ -6,6 +6,15 @@ import { SettingsTabs } from '@/components/forge/SettingsTabs';
 import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { MemberTable, type MemberRowData } from './MemberTable';
 
+const MEMBERS_NOTE = `### Roles & access
+
+- **Everyone** — create projects, answer Q&A, run stages, collaborate
+- **Admins** — also manage models, connections, members & repo cloning
+
+### Safeguard
+
+- **Last admin** — can't be removed or demoted; the team always keeps one`;
+
 /**
  * Team Settings → Members (Spec 1 §Members CRUD). Admin-gated. STATUS row (4
  * equal metric boxes), then a 2/3 ∣ 1/3 row — the member DataTable (Primary) and
@@ -47,7 +56,7 @@ export default async function MembersPage() {
             <MemberTable members={rows} />
           </div>
           <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote />
+            <SettingsAccessNote body={MEMBERS_NOTE} />
           </div>
         </div>
       </div>

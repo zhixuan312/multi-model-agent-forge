@@ -55,6 +55,22 @@ describe.skipIf(!hasDb)('members-core (live DB)', () => {
       expect(await verifyPassword(strongPassword, identities[0].passwordHash!)).toBe(true);
     });
 
+    it('creates an admin when isAdmin:true is supplied', async () => {
+      const username = uniqueUsername('admincreate');
+      const res = await createMember({ displayName: 'Admin Create', username, password: strongPassword, isAdmin: true });
+      expect(res.kind).toBe('created');
+      if (res.kind !== 'created') return;
+      expect(res.member.isAdmin).toBe(true);
+    });
+
+    it('defaults to a non-admin member when isAdmin is omitted', async () => {
+      const username = uniqueUsername('defaultrole');
+      const res = await createMember({ displayName: 'Default Role', username, password: strongPassword });
+      expect(res.kind).toBe('created');
+      if (res.kind !== 'created') return;
+      expect(res.member.isAdmin).toBe(false);
+    });
+
     it('rejects a duplicate username (409 → duplicate_username)', async () => {
       const username = uniqueUsername('dup');
       await createMember({ displayName: 'First', username, password: strongPassword });

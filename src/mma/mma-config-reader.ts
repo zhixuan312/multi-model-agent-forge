@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * Reads the CURRENT per-tier config from mmagent's `config.json` for the Models
- * page to display. mmagent owns + auto-persists this file when a tier is
+ * Reads the CURRENT per-tier config from mma's `config.json` for the Models
+ * page to display. mma owns + auto-persists this file when a tier is
  * configured via `/configure-provider`, so it is the source of truth — Forge
  * never writes it. Auth is shown as `api-key` when the agent carries an
  * `apiKeyEnv`, else `oauth` (the subscription/default path).
@@ -41,10 +41,10 @@ export function parseMmaTiers(json: unknown): MmaTiers {
 }
 
 /** Resolve the config path: `MMA_CONFIG_PATH` if it exists, else the default. */
-export function mmaConfigPath(): string {
+function mmaConfigPath(): string {
   const env = process.env.MMA_CONFIG_PATH?.trim();
   if (env && existsSync(env)) return env;
-  return join(homedir(), '.multi-model', 'config.json');
+  return join(homedir(), '.mma', 'config.json');
 }
 
 /** Read + parse the current tiers; any miss degrades to all-null (never throws). */

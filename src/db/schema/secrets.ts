@@ -13,7 +13,7 @@ import { member } from '@/db/schema/identity';
  */
 export const appSecrets = forge.table('settings_secret', {
   id: uuid('id').primaryKey().defaultRandom(), // the value used as a *_ref elsewhere
-  label: text('label').notNull(), // human label, e.g. 'mma-bearer', 'git-token'
+  label: text('label').notNull(), // human label, e.g. 'git-token', 'openai-transcription'
   valueEnc: text('value_enc').notNull(), // base64(nonce ‖ ciphertext); libsodium secretbox
   createdBy: uuid('created_by').references(() => member.id), // who set it (audit); NULL allowed
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

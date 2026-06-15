@@ -1,6 +1,6 @@
 /**
  * Server-side reader for MMA's journal store under the workspace root
- * (`<root>/.mmagent/journal/{index.md, nodes/*.md, log.md}`).
+ * (`<root>/.mma/journal/{index.md, nodes/*.md, log.md}`).
  *
  * EVERY filesystem access is path-sandboxed to the journal dir (realpath +
  * prefix assert; rejects `..` and symlink escapes) and only the three known
@@ -32,9 +32,9 @@ import { EDGE_TYPES } from '@/journal/types';
 import { USE_MOCK } from '@/mock/config';
 import * as journalMock from '@/mock/domains/journal';
 
-/** `<root>/.mmagent/journal`. */
+/** `<root>/.mma/journal`. */
 export function journalDirFor(root: string): string {
-  return join(root, '.mmagent', 'journal');
+  return join(root, '.mma', 'journal');
 }
 
 /**

@@ -50,6 +50,13 @@
       "when": 1781030000000,
       "tag": "0006_prefix_iam_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781040000000,
+      "tag": "0007_drop_dead_columns",
+      "breakpoints": true
     }
   ]
 }

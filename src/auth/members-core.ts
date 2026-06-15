@@ -29,7 +29,6 @@ export const createMemberSchema = z.object({
   username: z.string().trim().min(1),
   password: passwordSchema,
 });
-export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
 // createMember additionally accepts an optional role (an admin may create either
 // a member or an admin); omitted → a non-admin member. Kept separate from

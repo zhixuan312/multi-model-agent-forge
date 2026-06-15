@@ -16,7 +16,6 @@ export const updateProfileSchema = z.object({
   displayName: z.string().trim().min(1),
   avatarTint: z.string().regex(HEX_TINT),
 });
-export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 export type UpdateProfileResult =
   | { kind: 'updated'; displayName: string; avatarTint: string }

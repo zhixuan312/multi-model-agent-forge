@@ -4,11 +4,12 @@ import { forge } from '@/db/schema/_schema';
 import { PROVIDER_TYPE, AGENT_TIER } from '@/db/enums';
 
 /**
- * Team-config tables (schema.md §1). Spec 2 Part A: DB + UI + secret storage
- * only — the config-supervisor / MmaClient (Part B) is NOT in this slice.
+ * Team-config tables. The Models tab writes per-tier provider config through the
+ * engine's `POST /configure-provider` (the engine owns `~/.mma/config.json`);
+ * Forge persists only the rows below + reads config.json back for display.
  *
- * Secrets are stored as `*_ref` columns holding an `app_secrets.id` — never the
- * raw token/key. Resolution + decryption is server-side only (SecretStore).
+ * Secrets are stored as `*_ref` columns holding a `settings_secret.id` — never
+ * the raw token/key. Resolution + decryption is server-side only (SecretStore).
  */
 
 /**
@@ -40,20 +41,19 @@ export const agentTier = forge.table('agent_tier', {
 });
 
 /**
- * `team_settings` — singleton (one row). Holds the Connections config: the MMA
- * base URL + bearer token ref, the git token ref, and the OpenAI transcription
- * key ref. Per the Part-A brief, all configured columns are NULLABLE until
- * configured (the row is upserted by the single id read first / created on first
- * save). The config-supervisor that consumes these (Part B) is out of scope here.
+ * `settings_connection` — singleton (one row). Holds the Connections config: the
+ * MMA base URL, the git token ref, and the speech-to-text (OpenAI) key ref. The
+ * MMA bearer is NOT stored here — it is owned by the local mma (read from its
+ * auth-token file). All configured columns are NULLABLE until configured (the row
+ * is upserted: read-first by id / created on first save).
  */
 export const teamSettings = forge.table(
   'settings_connection',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     mmaBaseUrl: text('mma_base_url'), // Connections · MMA base URL
-    mmaTokenRef: text('mma_token_ref'), // settings_secret.id, NOT the token
     gitTokenRef: text('git_token_ref'), // settings_secret.id
-    openaiTranscriptionKeyRef: text('openai_transcription_key_ref'), // settings_secret.id; voice→text
+    openaiTranscriptionKeyRef: text('openai_transcription_key_ref'), // settings_secret.id; speech→text
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -23,9 +23,14 @@ export interface AuthProvider {
 }
 
 export class LocalAuthProvider implements AuthProvider {
-  private readonly db: Db;
-  constructor(db: Db = getDb()) {
-    this.db = db;
+  private _db?: Db;
+  // Lazy connection (resolved on first query) so the module-load `localAuthProvider`
+  // singleton below doesn't require DATABASE_URL just to be imported.
+  constructor(db?: Db) {
+    this._db = db;
+  }
+  private get db(): Db {
+    return (this._db ??= getDb());
   }
 
   async authenticate(username: string, password: string): Promise<AuthedMember | null> {

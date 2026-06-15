@@ -1,25 +1,19 @@
 /**
  * Live smoke for Spec 6 — Journal (READ-ONLY). Two parts:
- *   1. Direct `fs` read of `.mmagent/journal/` at the workspace root via the
+ *   1. Direct `fs` read of `.mma/journal/` at the workspace root via the
  *      Spec-6 store-reader (index + log + frontmatter reconciliation), printing
  *      a small summary. This is free and deterministic.
  *   2. ONE real `journal-recall` rod dispatch against the workspace root IF a
  *      journal exists there — else print "no journal — skipped" and exit 0.
  *
- * Never starts the MMA server; aborts if MMA is unreachable. Reads the bearer/
- * base-url from the live `team_settings` row via the same path the app uses.
+ * Never starts the MMA server; aborts if MMA is unreachable. Resolves the base
+ * URL + local mma bearer via `buildMmaClient` — the same path the app uses.
  * Run: `npx tsx scripts/smoke-spec6.ts`.
  */
 import 'dotenv/config';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { teamSettings, agentTier } from '@/db/schema/config';
-import { MmaClient } from '@/mma/client';
-import { resolveMmaClientConfig } from '@/mma/client-config';
-import { PostgresSecretStore } from '@/secrets/secret-store';
-import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
+import { buildMmaClient } from '@/mma/server-client';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readAllNodes, readLog } from '@/journal/store-reader';
 import { parseRecallEnvelope } from '@/journal/recall';
@@ -27,7 +21,7 @@ import { interpretTerminal } from '@/sse/envelope';
 
 async function main(): Promise<void> {
   const workspaceRoot = resolveWorkspaceRoot();
-  const journalDir = join(workspaceRoot, '.mmagent', 'journal');
+  const journalDir = join(workspaceRoot, '.mma', 'journal');
   console.log(`[smoke] workspace root: ${workspaceRoot}`);
   console.log(`[smoke] journal dir:    ${journalDir}`);
 
@@ -48,23 +42,7 @@ async function main(): Promise<void> {
   }
 
   // ── Part 2: one real journal-recall dispatch ──
-  const db = getDb();
-  const [settings] = await db
-    .select({ mmaBaseUrl: teamSettings.mmaBaseUrl, mmaTokenRef: teamSettings.mmaTokenRef })
-    .from(teamSettings)
-    .limit(1);
-  const [mainRow] = await db
-    .select({ model: agentTier.model })
-    .from(agentTier)
-    .where(eq(agentTier.tier, 'main'))
-    .limit(1);
-  const secrets = await PostgresSecretStore.create({ db });
-  const cfg = await resolveMmaClientConfig({
-    settings: settings ?? null,
-    mainModel: mainRow?.model ?? DEFAULT_MAIN_MODEL,
-    secrets,
-  });
-  const client = new MmaClient(cfg);
+  const client = await buildMmaClient();
 
   const health = await client.health();
   console.log(`[smoke] MMA health: ${health.status}`);

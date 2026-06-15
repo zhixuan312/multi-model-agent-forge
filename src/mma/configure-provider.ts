@@ -1,5 +1,5 @@
 /**
- * Types for mmagent's `POST /configure-provider` endpoint. mmagent OWNS the
+ * Types for mma's `POST /configure-provider` endpoint. mma OWNS the
  * validate ladder + the runtime in-memory hot-swap; Forge only calls it
  * (Validate = dryRun:true, Apply = dryRun:false). Shapes mirror the live v5.3.x
  * contract verified against the running daemon.

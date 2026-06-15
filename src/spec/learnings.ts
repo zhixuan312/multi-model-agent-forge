@@ -21,7 +21,7 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
  * (`composeLearningCandidates`) over the frozen spec + Q&A session to stage
  * `learning_candidate` rows. The user keeps/edits/removes them; on Save,
  * `commitLearnings` dispatches `journal-record` at `cwd`=WORKSPACE ROOT (the team
- * journal lives at `.mmagent/journal/`, never per-project) and stamps each kept
+ * journal lives at `.mma/journal/`, never per-project) and stamps each kept
  * candidate `recorded` with its node id.
  *
  * SCHEMA SOURCE OF TRUTH (F28). The journal-record request body

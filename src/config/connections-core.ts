@@ -6,13 +6,15 @@ import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 
 /**
  * Connections core (Spec 2 §Connections). Reads/updates the singleton
- * `team_settings` row: MMA (base URL + bearer token) and Git (service token),
- * plus the OpenAI transcription key. Read-or-create-by-id: the first save
- * creates the single row; later saves UPDATE it. Each section updates
- * independently (an MMA-only edit leaves the git ref untouched).
+ * `settings_connection` row: the MMA base URL, the Git service token, and the
+ * speech-to-text (OpenAI) key. Read-or-create-by-id: the first save creates the
+ * single row; later saves UPDATE it. Each section updates independently (a
+ * git-only edit leaves the speech-to-text ref untouched).
  *
- * Secrets (MMA bearer, git token, transcription key) are NEVER stored raw — each
- * is `SecretStore.put`'d and only the returned `app_secrets.id` lands in the
+ * The MMA bearer is NOT stored here — it is owned by the local mma and read
+ * from its auth-token file (see `readMmaBearer`); the Connections page shows it
+ * read-only. Git + speech-to-text secrets are NEVER stored raw — each is
+ * `SecretStore.put`'d and only the returned `settings_secret.id` lands in the
  * matching `*_ref`. Secret values are NEVER returned to callers — the view
  * exposes "set / not set" booleans only.
  */
@@ -29,7 +31,6 @@ async function resolveSecrets(deps: ConnectionsDeps): Promise<SecretStore> {
 /** The Connections view — base URL is shown; tokens are booleans, never values. */
 export interface ConnectionsView {
   mmaBaseUrl: string | null;
-  mmaTokenSet: boolean;
   gitTokenSet: boolean;
   openaiTranscriptionKeySet: boolean;
 }
@@ -44,11 +45,9 @@ const optionalText = z
 // rotates that secret; an absent token leaves the existing ref untouched.
 export const updateConnectionsSchema = z.object({
   mmaBaseUrl: optionalText,
-  mmaToken: optionalText,
   gitToken: optionalText,
   openaiTranscriptionKey: optionalText,
 });
-export type UpdateConnectionsInput = z.infer<typeof updateConnectionsSchema>;
 
 /** Read the singleton row (or the empty view if no row exists yet). */
 export async function getConnections(deps: ConnectionsDeps = {}): Promise<ConnectionsView> {
@@ -57,14 +56,12 @@ export async function getConnections(deps: ConnectionsDeps = {}): Promise<Connec
   if (!row) {
     return {
       mmaBaseUrl: null,
-      mmaTokenSet: false,
       gitTokenSet: false,
       openaiTranscriptionKeySet: false,
     };
   }
   return {
     mmaBaseUrl: row.mmaBaseUrl,
-    mmaTokenSet: row.mmaTokenRef !== null,
     gitTokenSet: row.gitTokenRef !== null,
     openaiTranscriptionKeySet: row.openaiTranscriptionKeyRef !== null,
   };
@@ -86,14 +83,13 @@ export async function updateConnections(
   const db = deps.db ?? getDb();
   const parsed = updateConnectionsSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
-  const { mmaBaseUrl, mmaToken, gitToken, openaiTranscriptionKey } = parsed.data;
+  const { mmaBaseUrl, gitToken, openaiTranscriptionKey } = parsed.data;
 
   const [existing] = await db.select().from(teamSettings).limit(1);
 
   // Resolve any provided secrets to refs (replacing the prior secret rows).
   let secrets: SecretStore | null = null;
-  const needSecrets =
-    mmaToken !== undefined || gitToken !== undefined || openaiTranscriptionKey !== undefined;
+  const needSecrets = gitToken !== undefined || openaiTranscriptionKey !== undefined;
   if (needSecrets) secrets = await resolveSecrets(deps);
 
   async function rotate(
@@ -107,7 +103,6 @@ export async function updateConnections(
     return ref;
   }
 
-  const mmaTokenRef = await rotate(mmaToken, 'mma-bearer', existing?.mmaTokenRef);
   const gitTokenRef = await rotate(gitToken, 'git-token', existing?.gitTokenRef);
   const openaiRef = await rotate(
     openaiTranscriptionKey,
@@ -118,14 +113,12 @@ export async function updateConnections(
   if (existing) {
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (mmaBaseUrl !== undefined) patch.mmaBaseUrl = mmaBaseUrl;
-    if (mmaTokenRef !== undefined) patch.mmaTokenRef = mmaTokenRef;
     if (gitTokenRef !== undefined) patch.gitTokenRef = gitTokenRef;
     if (openaiRef !== undefined) patch.openaiTranscriptionKeyRef = openaiRef;
     await db.update(teamSettings).set(patch).where(eq(teamSettings.id, existing.id));
   } else {
     await db.insert(teamSettings).values({
       mmaBaseUrl: mmaBaseUrl ?? null,
-      mmaTokenRef: mmaTokenRef ?? null,
       gitTokenRef: gitTokenRef ?? null,
       openaiTranscriptionKeyRef: openaiRef ?? null,
     });

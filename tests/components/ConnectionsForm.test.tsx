@@ -11,7 +11,6 @@ vi.mock('next/navigation', () => ({
 
 const empty: ConnectionsData = {
   mmaBaseUrl: null,
-  mmaTokenSet: false,
   gitTokenSet: false,
   openaiTranscriptionKeySet: false,
 };
@@ -40,7 +39,7 @@ describe('ConnectionsForm', () => {
     expect(url.value).toBe('http://127.0.0.1:7337');
   });
 
-  it('shows the MMA bearer read-only, sourced from the local mmagent token', () => {
+  it('shows the MMA bearer read-only, sourced from the local mma token', () => {
     render(<ConnectionsForm initial={empty} mmaBearer="local-token-xyz" />);
     openCard('MMA');
     const bearer = screen.getByLabelText(/Bearer token/) as HTMLInputElement;

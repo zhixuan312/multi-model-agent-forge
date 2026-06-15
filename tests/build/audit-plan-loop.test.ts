@@ -11,7 +11,11 @@ function auditEnv(findings: Array<{ severity: string; claim: string }>) {
   return { headline: 'audit complete', structuredReport: { findings, findingsOutcome: findings.length ? 'found' : 'clean' } };
 }
 
-describe('runPlanAuditPass', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('runPlanAuditPass', () => {
   afterEach(cleanupBuildFixtures);
 
   it('dispatches audit(subtype=plan) with exactly one filePaths entry', async () => {

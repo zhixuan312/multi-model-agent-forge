@@ -26,7 +26,11 @@ afterEach(async () => {
   await cleanupExploreFixtures();
 });
 
-describe('attachments', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('attachments', () => {
   it('stores a link as {url} (json) with no disk write', async () => {
     const { projectId, ownerId } = await seedProject();
     const v = await addLink(projectId, { label: 'Docs', url: 'https://example.com/x' }, { id: ownerId }, { workspaceRoot });

@@ -42,7 +42,6 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
       provider: 'provider',
       passwordHash: 'password_hash',
       passwordChangedAt: 'password_changed_at',
-      metadata: 'metadata',
       createdAt: 'created_at',
     });
     const cols = getTableColumns(memberIdentity);
@@ -122,21 +121,19 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.model.notNull).toBe(false);
   });
 
-  it('team_settings: singleton with nullable refs until configured', () => {
+  it('settings_connection: singleton with nullable refs until configured (no bearer column)', () => {
     expect(getTableName(teamSettings)).toBe('settings_connection');
     expect(columnNames(teamSettings)).toEqual({
       id: 'id',
       mmaBaseUrl: 'mma_base_url',
-      mmaTokenRef: 'mma_token_ref',
       gitTokenRef: 'git_token_ref',
       openaiTranscriptionKeyRef: 'openai_transcription_key_ref',
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     });
     const cols = getTableColumns(teamSettings);
-    // Part-A brief: all configured columns nullable until configured.
+    // All configured columns nullable until configured.
     expect(cols.mmaBaseUrl.notNull).toBe(false);
-    expect(cols.mmaTokenRef.notNull).toBe(false);
     expect(cols.gitTokenRef.notNull).toBe(false);
     expect(cols.openaiTranscriptionKeyRef.notNull).toBe(false);
   });

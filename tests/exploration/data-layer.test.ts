@@ -14,7 +14,11 @@ afterEach(async () => {
   await cleanupExploreFixtures();
 });
 
-describe('Spec-5 data layer (live DB)', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('Spec-5 data layer (live DB)', () => {
   it('mma_batch round-trips one-repo-per-task; research/journal-recall store null repo but NON-NULL cwd', async () => {
     const repo = await seedRepo('a', '/work/a');
     const { projectId, ownerId } = await seedProject({ repoIds: [repo.id] });

@@ -52,7 +52,11 @@ const synthOutput = {
   roughDirection: 'Move toward Z.',
 };
 
-describe('synthesize', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('synthesize', () => {
   afterEach(async () => {
     await cleanupExploreFixtures();
   });

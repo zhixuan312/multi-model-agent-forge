@@ -34,8 +34,8 @@ function headerVal(init: RequestInit | undefined, name: string): string | null {
 
 describe('buildMmaClient', () => {
   it('defaults X-MMA-Main-Model when the roster main model is unset (no 400)', async () => {
-    const prev = process.env.MMAGENT_AUTH_TOKEN;
-    process.env.MMAGENT_AUTH_TOKEN = 'test-bearer'; // dev token fallback
+    const prev = process.env.MMA_AUTH_TOKEN;
+    process.env.MMA_AUTH_TOKEN = 'test-bearer'; // dev token fallback
     const calls: { url: string; init?: RequestInit }[] = [];
     const realFetch = globalThis.fetch;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -47,15 +47,14 @@ describe('buildMmaClient', () => {
     }) as unknown as typeof fetch;
 
     try {
-      const secrets = { get: async () => null, put: async () => 'x', delete: async () => {} };
-      const client = await buildMmaClient({ db: dbNoSettingsNullMainModel(), secrets });
+      const client = await buildMmaClient({ db: dbNoSettingsNullMainModel() });
       const res = await client.investigate('/tmp/repo', { question: 'hi there' });
       expect(res.batchId).toBe('b-1');
       expect(headerVal(calls[0]!.init, 'X-MMA-Main-Model')).toBe(DEFAULT_MAIN_MODEL);
     } finally {
       globalThis.fetch = realFetch;
-      if (prev === undefined) delete process.env.MMAGENT_AUTH_TOKEN;
-      else process.env.MMAGENT_AUTH_TOKEN = prev;
+      if (prev === undefined) delete process.env.MMA_AUTH_TOKEN;
+      else process.env.MMA_AUTH_TOKEN = prev;
     }
   });
 });

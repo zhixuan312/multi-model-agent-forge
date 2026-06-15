@@ -7,7 +7,6 @@ import {
   decryptSecret,
   encryptSecret,
   loadMasterKey,
-  PostgresSecretStore,
   sodiumReady,
   type SecretStore,
 } from '@/secrets/secret-store';
@@ -133,7 +132,7 @@ describe('SecretStore interface seam (fake row store, real crypto)', () => {
   });
 
   it('put → get round-trips the plaintext; id serves as a *_ref', async () => {
-    const id = await store.put('mma-bearer', 'super-secret-value');
+    const id = await store.put('openai-transcription', 'super-secret-value');
     expect(typeof id).toBe('string');
     expect(id.length).toBeGreaterThan(0);
     expect(await store.get(id)).toBe('super-secret-value');
@@ -154,13 +153,6 @@ describe('SecretStore interface seam (fake row store, real crypto)', () => {
   });
 });
 
-// Live-Postgres round-trip — only when a real DATABASE_URL is configured.
-describe.skipIf(!process.env.DATABASE_URL)('PostgresSecretStore (live DB)', () => {
-  it('put → get round-trips and delete removes the row', async () => {
-    const store = await PostgresSecretStore.create({ base64Key: await makeTestKeyBase64() });
-    const id = await store.put('mma-bearer', 'live-secret');
-    expect(await store.get(id)).toBe('live-secret');
-    await store.delete(id);
-    expect(await store.get(id)).toBeNull();
-  });
-});
+// The PostgresSecretStore round-trip (encrypted put/get/delete against a real
+// settings_secret table) runs in production only — tests never touch a database
+// (see tests/setup.ts). The crypto + interface seam above cover the logic DB-free.

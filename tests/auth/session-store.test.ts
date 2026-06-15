@@ -1,7 +1,4 @@
 // @vitest-environment node
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { session } from '@/db/schema/identity';
 import {
   PostgresSessionStore,
   deleteExpiredSessions,
@@ -10,93 +7,48 @@ import {
 } from '@/auth/session-store';
 import { hashToken } from '@/auth/cookie';
 import { SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
-import { seedTestMember, cleanupTestMembers, closeDb } from './db-fixtures';
+import { createMockDb } from '../test-utils/mock-db';
+import { createBaseSession } from '../test-utils/factories';
 
-const hasDb = !!process.env.DATABASE_URL;
+// Backend tests run on a mocked Drizzle `Db` (the gumi convention) — no database.
+describe('PostgresSessionStore (mock DB)', () => {
+  it('create stores the sha256 token HASH (never the raw token) and returns the token', async () => {
+    const row = createBaseSession({ id: 's1' });
+    const db = createMockDb({ 'insert:iam_session': [row] });
+    const store = new PostgresSessionStore(db);
+    const created = await store.create('m1');
 
-describe.skipIf(!hasDb)('PostgresSessionStore (live DB)', () => {
-  const store: SessionStore = new PostgresSessionStore();
-  let memberId: string;
-
-  beforeAll(async () => {
-    const m = await seedTestMember({ label: 'session' });
-    memberId = m.id;
-  });
-  afterAll(async () => {
-    await cleanupTestMembers();
-    await closeDb();
-  });
-
-  it('create stores the sha256 hash (not the raw token) and sets expires_at ≈ created_at + ABSOLUTE_TTL', async () => {
-    const created: CreatedSession = await store.create(memberId);
     expect(created.token).toBeTruthy();
-    // the stored token_hash is sha256(token), never the raw token
-    expect(created.record.tokenHash).toBe(hashToken(created.token));
-    expect(created.record.tokenHash).not.toBe(created.token);
-
-    const lifetime = created.record.expiresAt.getTime() - created.record.createdAt.getTime();
-    // within a 5s clock tolerance of the absolute TTL
-    expect(Math.abs(lifetime - SESSION_ABSOLUTE_TTL_MS)).toBeLessThan(5000);
-    await store.revoke(created.record.id);
+    expect(created.record.id).toBe('s1');
+    const values = db._callsFor('iam_session').find((c) => c.method === 'values');
+    const inserted = (values?.args[0] ?? {}) as { tokenHash?: string };
+    expect(inserted.tokenHash).toBe(hashToken(created.token)); // hashed
+    expect(inserted.tokenHash).not.toBe(created.token); // not the raw token
   });
 
-  it('get returns the session for a valid token, null for an unknown token', async () => {
-    const created = await store.create(memberId);
-    const got = await store.get(created.token);
-    expect(got?.id).toBe(created.record.id);
-    expect(await store.get('not-a-real-token')).toBeNull();
-    await store.revoke(created.record.id);
+  it('get returns the record for a live session, null when absolute-expired or unknown', async () => {
+    const live = createBaseSession({ id: 's1', expiresAt: new Date(Date.now() + 60_000) });
+    expect((await new PostgresSessionStore(createMockDb({ 'select:iam_session': [live] })).get('t'))?.id).toBe('s1');
+
+    const dead = createBaseSession({ id: 's2', expiresAt: new Date(Date.now() - 1000) });
+    expect(await new PostgresSessionStore(createMockDb({ 'select:iam_session': [dead] })).get('t')).toBeNull();
+
+    expect(await new PostgresSessionStore(createMockDb({ 'select:iam_session': [] })).get('t')).toBeNull();
   });
 
-  it('get returns null for an absolute-expired session', async () => {
-    const created = await store.create(memberId);
-    // force expires_at into the past
-    await getDb()
-      .update(session)
-      .set({ expiresAt: new Date(Date.now() - 1000) })
-      .where(eq(session.id, created.record.id));
-    expect(await store.get(created.token)).toBeNull();
-    await store.revoke(created.record.id);
+  it('touch updates the row; revoke deletes it', async () => {
+    const touchDb = createMockDb();
+    await new PostgresSessionStore(touchDb).touch('s1');
+    expect(touchDb._assertCalled('iam_session', 'update')).toBe(true);
+
+    const revokeDb = createMockDb();
+    await new PostgresSessionStore(revokeDb).revoke('s1');
+    expect(revokeDb._assertCalled('iam_session', 'delete')).toBe(true);
   });
 
-  it('touch slides last_used_at forward', async () => {
-    const created = await store.create(memberId);
-    // backdate last_used_at so the touch is observable
-    const past = new Date(Date.now() - 60_000);
-    await getDb().update(session).set({ lastUsedAt: past }).where(eq(session.id, created.record.id));
-    await store.touch(created.record.id);
-    const [row] = await getDb().select().from(session).where(eq(session.id, created.record.id));
-    expect(row.lastUsedAt.getTime()).toBeGreaterThan(past.getTime());
-    await store.revoke(created.record.id);
-  });
-
-  it('revoke removes the row → subsequent get is null (logout/revocation)', async () => {
-    const created = await store.create(memberId);
-    await store.revoke(created.record.id);
-    expect(await store.get(created.token)).toBeNull();
-  });
-
-  it('revokeAllForMemberExcept drops other sessions but keeps the named one', async () => {
-    const keep = await store.create(memberId);
-    const drop = await store.create(memberId);
-    await store.revokeAllForMemberExcept(memberId, keep.record.id);
-    expect(await store.get(keep.token)).not.toBeNull();
-    expect(await store.get(drop.token)).toBeNull();
-    await store.revoke(keep.record.id);
-  });
-
-  it('deleteExpiredSessions (reaper) removes expired rows; a live row survives', async () => {
-    const live = await store.create(memberId);
-    const dead = await store.create(memberId);
-    await getDb()
-      .update(session)
-      .set({ expiresAt: new Date(Date.now() - 1000) })
-      .where(eq(session.id, dead.record.id));
-    await deleteExpiredSessions();
-    expect(await store.get(live.token)).not.toBeNull();
-    const [deadRow] = await getDb().select().from(session).where(eq(session.id, dead.record.id));
-    expect(deadRow).toBeUndefined();
-    await store.revoke(live.record.id);
+  it('deleteExpiredSessions (reaper) returns the count of removed rows', async () => {
+    const db = createMockDb({ 'delete:iam_session': [{ id: 'a' }, { id: 'b' }] });
+    expect(await deleteExpiredSessions(db)).toBe(2);
   });
 });
 

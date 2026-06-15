@@ -37,7 +37,11 @@ async function seedRecorded(projectId: string, ownerId: string, terminalAt: Date
   });
 }
 
-describe('SynthesisScheduler', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('SynthesisScheduler', () => {
   afterEach(async () => {
     vi.useRealTimers();
     await cleanupExploreFixtures();

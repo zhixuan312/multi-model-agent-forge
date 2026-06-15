@@ -1,105 +1,103 @@
 // @vitest-environment node
-import { getDb } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
-import { getConnections, updateConnections } from '@/config/connections-core';
-import { cleanupConfig, makeFakeSecretStore } from './config-fixtures';
+import { getConnections, updateConnections, updateConnectionsSchema } from '@/config/connections-core';
+import { createMockDb, createMockSecretStore, seq } from '../test-utils/mock-db';
+import { createBaseConnection } from '../test-utils/factories';
 
-const hasDb = !!process.env.DATABASE_URL;
+// Backend tests run entirely on a mocked Drizzle `Db` + `SecretStore` (the gumi
+// convention) — no database is ever touched. The MMA bearer is intentionally NOT
+// a Connections field: it is owned by the local mma engine and read from its
+// auth-token file, never written through this route.
 
-describe.skipIf(!hasDb)('connections-core (live DB)', () => {
-  const db = getDb();
-
-  beforeEach(async () => {
-    await db.delete(teamSettings);
+describe('updateConnectionsSchema (input contract)', () => {
+  it('accepts a full payload and trims values', () => {
+    const r = updateConnectionsSchema.safeParse({
+      mmaBaseUrl: '  http://127.0.0.1:7337  ',
+      gitToken: ' ghs_x ',
+      openaiTranscriptionKey: ' sk_x ',
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data).toEqual({ mmaBaseUrl: 'http://127.0.0.1:7337', gitToken: 'ghs_x', openaiTranscriptionKey: 'sk_x' });
   });
 
-  afterAll(async () => {
-    await cleanupConfig();
+  it('treats blank/whitespace fields as "unchanged" (undefined), so sections save independently', () => {
+    const r = updateConnectionsSchema.safeParse({ mmaBaseUrl: 'http://x', gitToken: '   ', openaiTranscriptionKey: '' });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.gitToken).toBeUndefined();
+    expect(r.data.openaiTranscriptionKey).toBeUndefined();
   });
 
-  it('empty view when no row exists yet', async () => {
-    const view = await getConnections({ db });
-    expect(view).toEqual({
+  it('an empty object is valid; a non-string field is rejected; mmaToken is stripped', () => {
+    expect(updateConnectionsSchema.safeParse({}).success).toBe(true);
+    expect(updateConnectionsSchema.safeParse({ gitToken: 123 }).success).toBe(false);
+    const r = updateConnectionsSchema.safeParse({ mmaToken: 'x' });
+    expect(r.success && 'mmaToken' in r.data).toBe(false);
+  });
+});
+
+describe('getConnections', () => {
+  it('returns the empty view when no row exists yet', async () => {
+    const db = createMockDb();
+    expect(await getConnections({ db })).toEqual({
       mmaBaseUrl: null,
-      mmaTokenSet: false,
       gitTokenSet: false,
       openaiTranscriptionKeySet: false,
     });
   });
 
-  it('first save creates the singleton row; tokens become refs, not plaintext', async () => {
-    const secrets = makeFakeSecretStore();
-    const res = await updateConnections(
-      {
-        mmaBaseUrl: 'http://127.0.0.1:7337',
-        mmaToken: 'mma_BEARER_SECRET',
-        gitToken: 'ghs_GIT_SECRET',
-      },
-      { db, secrets },
-    );
+  it('maps stored refs to "set" booleans (never the values)', async () => {
+    const db = createMockDb({
+      settings_connection: [createBaseConnection({ gitTokenRef: 'r1', openaiTranscriptionKeyRef: null })],
+    });
+    expect(await getConnections({ db })).toEqual({
+      mmaBaseUrl: 'http://127.0.0.1:7337',
+      gitTokenSet: true,
+      openaiTranscriptionKeySet: false,
+    });
+  });
+});
+
+describe('updateConnections', () => {
+  it('rejects invalid input without writing', async () => {
+    const db = createMockDb();
+    const res = await updateConnections({ gitToken: 123 }, { db, secrets: createMockSecretStore() });
+    expect(res.kind).toBe('invalid');
+    expect(db._calls).toHaveLength(0);
+  });
+
+  it('first save INSERTs the singleton; tokens become refs, plaintext never reaches the row', async () => {
+    const db = createMockDb({
+      'select:settings_connection': seq([], [createBaseConnection({ gitTokenRef: 'secret-ref-1' })]),
+    });
+    const secrets = createMockSecretStore();
+    const res = await updateConnections({ gitToken: 'ghs_SECRET' }, { db, secrets });
+
     expect(res.kind).toBe('saved');
     if (res.kind !== 'saved') return;
-    expect(res.connections.mmaBaseUrl).toBe('http://127.0.0.1:7337');
-    expect(res.connections.mmaTokenSet).toBe(true);
     expect(res.connections.gitTokenSet).toBe(true);
+    expect(secrets.puts).toContainEqual(expect.objectContaining({ label: 'git-token', plaintext: 'ghs_SECRET' }));
+    expect(db._assertCalled('settings_connection', 'insert')).toBe(true);
 
-    // Both tokens went through the store.
-    expect(secrets.puts.map((p) => p.plaintext)).toEqual(
-      expect.arrayContaining(['mma_BEARER_SECRET', 'ghs_GIT_SECRET']),
-    );
-
-    // The DB row holds refs, never the plaintext tokens.
-    const [row] = await db.select().from(teamSettings).limit(1);
-    expect(row.mmaTokenRef).not.toContain('mma_BEARER_SECRET');
-    expect(row.gitTokenRef).not.toContain('ghs_GIT_SECRET');
-    expect(JSON.stringify(row)).not.toContain('mma_BEARER_SECRET');
-    expect(JSON.stringify(row)).not.toContain('ghs_GIT_SECRET');
-    // Refs match what the store handed back.
-    const refs = secrets.puts.map((p) => p.ref);
-    expect(refs).toContain(row.mmaTokenRef);
-    expect(refs).toContain(row.gitTokenRef);
+    const values = db._callsFor('settings_connection').find((c) => c.method === 'values');
+    expect(JSON.stringify(values?.args)).not.toContain('ghs_SECRET'); // ref, not plaintext
+    expect(JSON.stringify(values?.args)).toContain('secret-ref-1');
   });
 
-  it('second save updates the SAME singleton row (no second row)', async () => {
-    await updateConnections(
-      { mmaBaseUrl: 'http://127.0.0.1:7337', mmaToken: 'a', gitToken: 'b' },
-      { db, secrets: makeFakeSecretStore() },
-    );
-    await updateConnections({ mmaBaseUrl: 'http://localhost:9000' }, { db, secrets: makeFakeSecretStore() });
+  it('a git-only edit UPDATEs the existing row, rotates the git secret, and leaves speech-to-text untouched', async () => {
+    const existing = createBaseConnection({ gitTokenRef: 'old-git', openaiTranscriptionKeyRef: 'keep-openai' });
+    const db = createMockDb({
+      'select:settings_connection': seq([existing], [{ ...existing, gitTokenRef: 'secret-ref-1' }]),
+    });
+    const secrets = createMockSecretStore();
+    await updateConnections({ gitToken: 'new-git' }, { db, secrets });
 
-    const rows = await db.select().from(teamSettings);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].mmaBaseUrl).toBe('http://localhost:9000');
-  });
+    expect(secrets.puts.some((p) => p.label === 'git-token')).toBe(true);
+    expect(secrets.deleted).toContain('old-git'); // superseded secret dropped
+    expect(db._assertCalled('settings_connection', 'update')).toBe(true);
 
-  it('MMA-only edit leaves the git ref untouched (sections update independently)', async () => {
-    const s1 = makeFakeSecretStore();
-    await updateConnections(
-      { mmaBaseUrl: 'http://127.0.0.1:7337', mmaToken: 'mma-1', gitToken: 'git-1' },
-      { db, secrets: s1 },
-    );
-    const [before] = await db.select().from(teamSettings).limit(1);
-
-    // Edit ONLY the MMA token; git token absent → its ref must not change.
-    const s2 = makeFakeSecretStore();
-    await updateConnections({ mmaToken: 'mma-2' }, { db, secrets: s2 });
-    const [after] = await db.select().from(teamSettings).limit(1);
-
-    expect(after.gitTokenRef).toBe(before.gitTokenRef); // unchanged
-    expect(after.mmaTokenRef).not.toBe(before.mmaTokenRef); // rotated
-    expect(s2.deleted).toContain(before.mmaTokenRef); // old MMA secret dropped
-  });
-
-  it('stores the OpenAI transcription key as a ref', async () => {
-    const secrets = makeFakeSecretStore();
-    const res = await updateConnections(
-      { openaiTranscriptionKey: 'sk-openai-xyz' },
-      { db, secrets },
-    );
-    expect(res.kind).toBe('saved');
-    if (res.kind !== 'saved') return;
-    expect(res.connections.openaiTranscriptionKeySet).toBe(true);
-    const [row] = await db.select().from(teamSettings).limit(1);
-    expect(row.openaiTranscriptionKeyRef).not.toContain('sk-openai-xyz');
+    const set = db._callsFor('settings_connection').find((c) => c.method === 'set');
+    expect(JSON.stringify(set?.args)).toContain('secret-ref-1'); // git ref rotated
+    expect(JSON.stringify(set?.args)).not.toContain('openaiTranscriptionKeyRef'); // openai not in the patch
   });
 });

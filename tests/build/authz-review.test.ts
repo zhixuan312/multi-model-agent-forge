@@ -13,7 +13,11 @@ import { reviewRepo } from '@/build/review';
 import { MmaClient } from '@/mma/client';
 import { seedProject, seedRepo, cleanupBuildFixtures, RecordingBus, FakeMma } from './fixtures';
 
-describe('execute authorization (F10)', () => {
+// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
+// exists; production must not be mutated). See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
+describe.skipIf(!hasDb)('execute authorization (F10)', () => {
   afterEach(cleanupBuildFixtures);
 
   it('authorize writes action_log(action=execute, target=repo:<name>) + emits execute.notice + holds lock', async () => {
@@ -58,7 +62,7 @@ describe('execute authorization (F10)', () => {
   });
 });
 
-describe('reviewRepo verdict derivation (F4)', () => {
+describe.skipIf(!hasDb)('reviewRepo verdict derivation (F4)', () => {
   it('changes_required iff ≥1 critical/high; emits review.done', async () => {
     const bus = new RecordingBus();
     const mma = new FakeMma({ review: [{ structuredReport: { findings: [{ severity: 'critical', claim: 'sqli' }, { severity: 'low', claim: 'nit' }] } }] });

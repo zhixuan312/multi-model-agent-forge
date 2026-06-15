@@ -1,5 +1,5 @@
 // @vitest-environment node
-// A MOCK MmaClient for Spec-4 Part-B tests — NEVER dispatches to a real mmagent.
+// A MOCK MmaClient for Spec-4 Part-B tests — NEVER dispatches to a real mma.
 // It records each dispatchAndWait call (route + cwd + body) and returns scripted
 // terminal envelopes per route. Built on the real MmaClient with a fetch stub so
 // the dispatch→poll path is exercised, but the wire is fully canned.

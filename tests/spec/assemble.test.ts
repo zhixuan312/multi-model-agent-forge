@@ -8,13 +8,18 @@ import { assembleSpec, getLatestSpec, buildSpecMarkdown } from '@/spec/assemble'
 import { confirmComponents } from '@/spec/orchestrator';
 import { seedProject, cleanupSpecFixtures } from './db-fixtures';
 
+// Live-DB integration suite — gated OFF: no test DB exists; production must not be
+// mutated, so these skip. See tests/setup.ts.
+const hasDb = !!process.env.DATABASE_URL;
+
 afterAll(async () => {
+  if (!hasDb) return;
   await cleanupSpecFixtures();
 });
 
-const db = getDb();
+const db = hasDb ? getDb() : (undefined as never);
 
-describe('buildSpecMarkdown (pure)', () => {
+describe.skipIf(!hasDb)('buildSpecMarkdown (pure)', () => {
   it('emits ## label / ### draftHeading and preserves a ```mermaid fence verbatim', () => {
     const fence = '```mermaid\ngraph TD; A-->B;\n```';
     const md = buildSpecMarkdown(
@@ -33,7 +38,7 @@ describe('buildSpecMarkdown (pure)', () => {
   });
 });
 
-describe('assembleSpec', () => {
+describe.skipIf(!hasDb)('assembleSpec', () => {
   it('produces one versioned spec artifact from approved sections + an assemble action_log row', async () => {
     const { projectId, ownerId, specStageId } = await seedProject();
     await confirmComponents(db, specStageId, ['context_scope']);

@@ -11,7 +11,7 @@ export type LoopsView = 'loops' | 'history';
 
 const TABS: ReadonlyArray<{ key: LoopsView; label: string; href: string; glyph: React.ReactNode }> = [
   { key: 'loops', label: 'Loops', href: '/loops', glyph: <Repeat className="size-4" /> },
-  { key: 'history', label: 'Run history', href: '/loops/activity', glyph: <History className="size-4" /> },
+  { key: 'history', label: 'Activities', href: '/loops/activity', glyph: <History className="size-4" /> },
 ];
 
 export function LoopsTabsNav({ active }: { active: LoopsView }) {

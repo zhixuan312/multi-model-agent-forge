@@ -28,9 +28,10 @@ import type { AuthedMember } from '@/auth/auth-provider';
  *  who never picked a colour still shows a selected swatch. */
 const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E', '#9a6b4f'];
 
-const PROFILE_NOTE = `**Your account**
+const PROFILE_NOTE = `### Your account
 
-Your **username** is your login key — it can't be changed. Your display name and avatar are yours to edit anytime.`;
+- **Username** — your login key; it can't be changed
+- **Display name & avatar** — yours to edit anytime`;
 
 /**
  * Profile client surface (Spec 1 §Profile). The Team-Settings shell: a 2/3 stack

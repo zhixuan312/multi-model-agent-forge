@@ -1,4 +1,4 @@
-import { uuid, text, boolean, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { uuid, text, boolean, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { AUTH_PROVIDER } from '@/db/enums';
@@ -33,7 +33,7 @@ export const member = forge.table(
  * `iam_identity` — auth for a member. v1: every member has exactly one `local`
  * identity (password_hash set). The one-local-identity-per-member rule is
  * enforced in app code (LocalAuthProvider / Members-CRUD). The external-SSO seam
- * (provider_account_id + its partial unique index) was removed as unused; add it
+ * (provider_account_id + a metadata claims blob) was removed as unused; add it
  * back if/when external auth lands.
  */
 export const memberIdentity = forge.table(
@@ -46,7 +46,6 @@ export const memberIdentity = forge.table(
     provider: text('provider', { enum: AUTH_PROVIDER }).notNull(), // only 'local' built now
     passwordHash: text('password_hash'), // argon2id — local only
     passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }), // bump → drop all sessions
-    metadata: jsonb('metadata'), // provider claims / profile
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('member_identity_member_idx').on(t.memberId)],

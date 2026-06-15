@@ -1,9 +1,9 @@
 /**
- * Spec 4 Part B live smoke (READ-ONLY against the user's running mmagent).
+ * Spec 4 Part B live smoke (READ-ONLY against the user's running mma).
  *
  *   npx tsx scripts/smoke-spec4.ts
  *
- * Exercises the real `mmagent` at http://127.0.0.1:7337 through MmaClient + the
+ * Exercises the real `mma` at http://127.0.0.1:7337 through MmaClient + the
  * Spec-4b audit-envelope parser:
  *   1. GET /health (unauthenticated liveness).
  *   2. ONE real `audit(subtype='spec')` dispatch (tiny inline spec document) →
@@ -11,7 +11,7 @@
  *
  * It does NOT call any write route (NO journal-record — that stays mocked in
  * tests) and does NOT apply config / restart MMA. The bearer is read from
- * `mmagent print-token` (or MMAGENT_AUTH_TOKEN). Prints PASS/FAIL per step; exits
+ * `mma print-token` (or MMA_AUTH_TOKEN). Prints PASS/FAIL per step; exits
  * non-zero on any hard failure.
  */
 import { execFileSync } from 'node:child_process';
@@ -21,11 +21,11 @@ import { parseAuditEnvelope } from '../src/spec/audit-loop';
 const BASE_URL = process.env.MMA_BASE_URL ?? 'http://127.0.0.1:7337';
 
 function resolveToken(): string {
-  if (process.env.MMAGENT_AUTH_TOKEN?.trim()) return process.env.MMAGENT_AUTH_TOKEN.trim();
+  if (process.env.MMA_AUTH_TOKEN?.trim()) return process.env.MMA_AUTH_TOKEN.trim();
   try {
-    return execFileSync('mmagent', ['print-token'], { encoding: 'utf8' }).trim();
+    return execFileSync('mma', ['print-token'], { encoding: 'utf8' }).trim();
   } catch {
-    throw new Error('Could not resolve an MMA token (mmagent print-token failed and MMAGENT_AUTH_TOKEN is unset).');
+    throw new Error('Could not resolve an MMA token (mma print-token failed and MMA_AUTH_TOKEN is unset).');
   }
 }
 

@@ -55,3 +55,6 @@ mockup/*
 
 # Mock backend working DB (file-backed fake DB; seeds in src/mock/seed)
 .mock-db/
+
+# mma delegate worktrees (engine scratch, never commit) — repo-root only
+/.mma/

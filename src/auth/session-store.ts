@@ -57,9 +57,15 @@ function defaultToken(): string {
 }
 
 export class PostgresSessionStore implements SessionStore {
-  private readonly db: Db;
-  constructor(db: Db = getDb()) {
-    this.db = db;
+  private _db?: Db;
+  // Resolve the connection LAZILY (on first query), not at construction — so the
+  // process-shared `sessionStore` below can be created at module load without
+  // requiring DATABASE_URL (e.g. when an unrelated module imports this one).
+  constructor(db?: Db) {
+    this._db = db;
+  }
+  private get db(): Db {
+    return (this._db ??= getDb());
   }
 
   async create(memberId: string, opts?: { token?: string }): Promise<CreatedSession> {

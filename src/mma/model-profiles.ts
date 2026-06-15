@@ -88,8 +88,8 @@ export function defaultCandidatePaths(): string[] {
       join(root, '@zhixuan92', 'multi-model-agent', 'node_modules', '@zhixuan92', 'multi-model-agent-core', CORE_REL),
     );
   }
-  // Last resort: a `.multi-model` co-located copy under HOME (rare).
-  candidates.push(join(homedir(), '.multi-model', 'model-profiles.json'));
+  // Last resort: a `.mma` co-located copy under HOME (rare).
+  candidates.push(join(homedir(), '.mma', 'model-profiles.json'));
   return candidates;
 }
 

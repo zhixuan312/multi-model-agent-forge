@@ -1,17 +1,17 @@
 /**
- * Spec 2 Part B live smoke (READ-ONLY against the user's running mmagent).
+ * Spec 2 Part B live smoke (READ-ONLY against the user's running mma).
  *
  *   npx tsx scripts/smoke-spec2.ts
  *
- * Exercises the real `mmagent` at http://127.0.0.1:7337 through MmaClient:
+ * Exercises the real `mma` at http://127.0.0.1:7337 through MmaClient:
  *   1. GET /health (unauthenticated liveness).
  *   2. GET /status (Bearer) — confirms the dev token is valid (deep token badge).
  *   3. Read the co-located model-profiles catalog.
  *   4. ONE real `audit` dispatch (tiny inline document) → poll to terminal.
  *
  * It does NOT call any write route and does NOT apply config / restart MMA.
- * The bearer is read from `mmagent print-token` (or MMAGENT_AUTH_TOKEN /
- * ~/.multi-model/auth-token). Prints PASS/FAIL per step; exits non-zero on any
+ * The bearer is read from `mma print-token` (or MMA_AUTH_TOKEN /
+ * ~/.mma/auth-token). Prints PASS/FAIL per step; exits non-zero on any
  * hard failure.
  */
 import { execFileSync } from 'node:child_process';
@@ -21,11 +21,11 @@ import { readModelProfiles } from '../src/mma/model-profiles';
 const BASE_URL = process.env.MMA_BASE_URL ?? 'http://127.0.0.1:7337';
 
 function resolveToken(): string {
-  if (process.env.MMAGENT_AUTH_TOKEN?.trim()) return process.env.MMAGENT_AUTH_TOKEN.trim();
+  if (process.env.MMA_AUTH_TOKEN?.trim()) return process.env.MMA_AUTH_TOKEN.trim();
   try {
-    return execFileSync('mmagent', ['print-token'], { encoding: 'utf8' }).trim();
+    return execFileSync('mma', ['print-token'], { encoding: 'utf8' }).trim();
   } catch {
-    throw new Error('Could not resolve an MMA token (mmagent print-token failed and MMAGENT_AUTH_TOKEN is unset).');
+    throw new Error('Could not resolve an MMA token (mma print-token failed and MMA_AUTH_TOKEN is unset).');
   }
 }
 
@@ -39,7 +39,7 @@ function report(name: string, ok: boolean, detail: string) {
 
 async function main(): Promise<void> {
   const token = resolveToken();
-  // NOTE: the live mmagent (5.0.3) rejects an unknown X-MMA-Client on TOOL routes
+  // NOTE: the live mma (5.0.3) rejects an unknown X-MMA-Client on TOOL routes
   // with `400 client_required` — its allowlist is claude-code|cursor|codex-cli|
   // gemini-cli and `forge` resolves to `other`. health/status are NOT tool routes
   // and accept `forge`. To exercise the real dispatch→poll path today we send an

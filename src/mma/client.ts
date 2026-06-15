@@ -1,7 +1,7 @@
 /**
  * MmaClient core (Spec 2 §7.3 / `lib/mma/client.ts`).
  *
- * Server-side HTTP client for the co-located `mmagent` daemon. This slice ships
+ * Server-side HTTP client for the co-located `mma` daemon. This slice ships
  * the generic spine only — `dispatch` / `poll` / `health` / `status` /
  * `dispatchAndWait`. Route-typed rod methods (audit / investigate / …) land with
  * their consuming specs.
@@ -22,9 +22,9 @@
 import type { ConfigureProviderRequest, ConfigureProviderResponse } from '@/mma/configure-provider';
 
 export interface MmaClientConfig {
-  /** team_settings.mma_base_url; app-layer fallback http://127.0.0.1:7337. */
+  /** settings_connection.mma_base_url; app-layer fallback http://127.0.0.1:7337. */
   baseUrl: string;
-  /** Resolved bearer (decrypted from mma_token_ref / dev token file). */
+  /** The local mma bearer (MMA_AUTH_TOKEN env or its auth-token file). */
   token: string;
   /** agent_tier(main).model → X-MMA-Main-Model; null when the main tier is unset. */
   mainModel: string | null;
@@ -261,7 +261,7 @@ export class MmaClient {
   /**
    * POST /configure-provider — validate (dryRun:true) or validate+apply
    * (dryRun:false) a tier's provider/model/auth against the live MMA runtime.
-   * mmagent owns the validation ladder + the in-memory hot-swap; Forge only
+   * mma owns the validation ladder + the in-memory hot-swap; Forge only
    * relays. Returns the result envelope verbatim; throws on a transport/HTTP error.
    */
   async configureProvider(input: ConfigureProviderRequest): Promise<ConfigureProviderResponse> {
@@ -350,7 +350,7 @@ export class MmaClient {
 
   /**
    * `POST /journal-recall?cwd=<workspace root>`. Strict body `{ query }` with a
-   * ≥10 floor (the team journal lives at the workspace-root `.mmagent/journal/`).
+   * ≥10 floor (the team journal lives at the workspace-root `.mma/journal/`).
    */
   async journalRecall(
     cwd: string,

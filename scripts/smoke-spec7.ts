@@ -2,10 +2,10 @@
  * Spec 7 live smoke — the READ-ONLY half ONLY.
  *
  * Creates a TEMP git repo + a tiny plan file under `<repo>/.forge/`, then
- * dispatches ONE real `audit(subtype='plan')` against the co-located mmagent and
+ * dispatches ONE real `audit(subtype='plan')` against the co-located mma and
  * polls to a terminal envelope. NEVER runs execute-plan or review (destructive).
  *
- * Run: `tsx scripts/smoke-spec7.ts` (requires a reachable mmagent + a configured
+ * Run: `tsx scripts/smoke-spec7.ts` (requires a reachable mma + a configured
  * team_settings token, same as the other smokes). Prints the terminal headline +
  * findings count, or "skipped" with a reason.
  */
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
 
   const health = await client.health();
   if (health.status === 'unreachable') {
-    console.log('SKIPPED: mmagent /health unreachable (is `mmagent serve` running?)');
+    console.log('SKIPPED: mma /health unreachable (is `mma serve` running?)');
     return;
   }
 

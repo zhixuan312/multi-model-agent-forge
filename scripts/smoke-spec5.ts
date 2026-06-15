@@ -10,34 +10,15 @@
 import 'dotenv/config';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { getDb } from '@/db/client';
-import { teamSettings, agentTier } from '@/db/schema/config';
-import { eq } from 'drizzle-orm';
-import { MmaClient } from '@/mma/client';
-import { resolveMmaClientConfig } from '@/mma/client-config';
-import { PostgresSecretStore } from '@/secrets/secret-store';
-import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
+import { buildMmaClient } from '@/mma/server-client';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { interpretTerminal } from '@/sse/envelope';
 
 async function main(): Promise<void> {
-  // Build the client like buildMmaClient, but inject a default main model when the
-  // main tier is unconfigured (the tool routes require X-MMA-Main-Model; read-only
-  // smoke just needs a valid id present).
-  const db = getDb();
-  const [settings] = await db
-    .select({ mmaBaseUrl: teamSettings.mmaBaseUrl, mmaTokenRef: teamSettings.mmaTokenRef })
-    .from(teamSettings)
-    .limit(1);
-  const [mainRow] = await db.select({ model: agentTier.model }).from(agentTier).where(eq(agentTier.tier, 'main')).limit(1);
-  const secrets = await PostgresSecretStore.create({ db });
-  const cfg = await resolveMmaClientConfig({
-    settings: settings ?? null,
-    mainModel: mainRow?.model ?? DEFAULT_MAIN_MODEL,
-    secrets,
-  });
-  const client = new MmaClient(cfg);
-  console.log(`[smoke] X-MMA-Main-Model=${cfg.mainModel}`);
+  // Build the client exactly like the app does — buildMmaClient resolves the base
+  // URL + local mma bearer and defaults X-MMA-Main-Model when the main tier is
+  // unconfigured (read-only smoke just needs a valid id present).
+  const client = await buildMmaClient();
 
   const health = await client.health();
   console.log(`[smoke] MMA health: ${health.status}`);
@@ -64,7 +45,7 @@ async function main(): Promise<void> {
 
   // journal-recall against the workspace root, only if a journal exists.
   const workspaceRoot = resolveWorkspaceRoot();
-  const journalDir = join(workspaceRoot, '.mmagent', 'journal');
+  const journalDir = join(workspaceRoot, '.mma', 'journal');
   if (!existsSync(workspaceRoot)) {
     console.log(`[smoke] workspace root ${workspaceRoot} missing — skipping journal-recall.`);
     return;

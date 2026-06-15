@@ -44,12 +44,14 @@ export function mockMma(opts: {
     const method = init?.method ?? 'GET';
 
     if (method === 'POST') {
-      // Dispatch: /<route>?cwd=...
+      // Dispatch: POST /task?cwd=... with { type, ...body }
       const u = new URL(url);
-      const route = u.pathname.replace(/^\//, '');
-      const cwd = u.searchParams.get('cwd') ?? '';
       const body = init?.body ? JSON.parse(init.body as string) : undefined;
-      opts.calls?.push({ route, cwd, body });
+      const type = typeof body?.type === 'string' ? body.type : '';
+      const route = type === 'journal_record' ? 'journal-record' : type;
+      const cwd = u.searchParams.get('cwd') ?? '';
+      const { type: _type, ...payload } = body ?? {};
+      opts.calls?.push({ route, cwd, body: payload });
 
       const envelope = (queues[route] ?? []).shift();
       const hang = opts.hang?.has(route) ?? false;
@@ -61,8 +63,8 @@ export function mockMma(opts: {
       });
     }
 
-    // Poll: GET /batch/:id
-    const m = url.match(/\/batch\/([^/?]+)/);
+    // Poll: GET /task/:id
+    const m = url.match(/\/task\/([^/?]+)/);
     const batchId = m ? decodeURIComponent(m[1]) : '';
     const entry = pending.get(batchId);
     if (!entry || entry.hang) {

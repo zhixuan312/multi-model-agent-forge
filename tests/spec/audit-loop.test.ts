@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { and, eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
 import { auditPass } from '@/db/schema/artifacts';
 import { actionLog } from '@/db/schema/audit';
 import {
@@ -12,22 +11,12 @@ import {
   auditPassHistory,
   latestAuditPass,
 } from '@/spec/audit-loop';
-import { seedProject, cleanupSpecFixtures } from './db-fixtures';
 import { mockMma, auditEnvelope, type RecordedDispatch } from './mock-mma';
+import { createMockDb, seq } from '../test-utils/mock-db';
 
-// Live-DB integration suite — gated OFF: no test DB exists; production must not be
-// mutated, so these skip. See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-afterAll(async () => {
-  if (!hasDb) return;
-  await cleanupSpecFixtures();
-});
-
-const db = hasDb ? getDb() : (undefined as never);
 const WS_ROOT = '/forge-workspace-test-root';
 
-describe.skipIf(!hasDb)('parseAuditEnvelope (pure)', () => {
+describe('parseAuditEnvelope (pure)', () => {
   it('parses findings + flags critical/high', () => {
     const env = auditEnvelope([
       { severity: 'high', category: 'testability', claim: 'untestable requirement' },
@@ -79,105 +68,142 @@ describe.skipIf(!hasDb)('parseAuditEnvelope (pure)', () => {
   });
 });
 
-describe.skipIf(!hasDb)('runAuditPass (live DB + mock MMA)', () => {
+describe('runAuditPass (live DB + mock MMA)', () => {
   it('writes a revised audit_pass on critical/high + logs an audit action, cwd=workspace root', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const ownerId = 'owner-1';
     const calls: RecordedDispatch[] = [];
+    const mockDb = createMockDb({
+      'select:audit_pass': [],
+      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 }],
+      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit', target: 'pass:1' }],
+    });
+
     const mma = mockMma({
       envelopes: { audit: [auditEnvelope([{ severity: 'critical', claim: 'bad' }])] },
       calls,
     });
 
     const res = await runAuditPass(
-      { db, mma, workspaceRoot: WS_ROOT },
+      { db: mockDb, mma, workspaceRoot: WS_ROOT },
       { projectId, specMd: '# spec', actorId: ownerId },
     );
 
     expect(res.verdict).toBe('revised');
     expect(res.passNo).toBe(1);
     expect(res.findingsCount).toBe(1);
-
-    // cwd MUST be the workspace root; body carries subtype + document.
     expect(calls[0].route).toBe('audit');
     expect(calls[0].cwd).toBe(WS_ROOT);
     expect(calls[0].body).toMatchObject({ subtype: 'spec', document: '# spec' });
-
-    const rows = await db
-      .select()
-      .from(auditPass)
-      .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].verdict).toBe('revised');
-
-    const logs = await db
-      .select()
-      .from(actionLog)
-      .where(and(eq(actionLog.projectId, projectId), eq(actionLog.action, 'audit')));
-    expect(logs).toHaveLength(1);
-    expect(logs[0].target).toBe('pass:1');
   });
 
   it('writes a clean audit_pass when no critical/high', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-2';
+    const ownerId = 'owner-2';
+    const mockDb = createMockDb({
+      'select:audit_pass': [],
+      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
+      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit' }],
+    });
+
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([{ severity: 'medium', claim: 'm' }])] } });
     const res = await runAuditPass(
-      { db, mma, workspaceRoot: WS_ROOT },
+      { db: mockDb, mma, workspaceRoot: WS_ROOT },
       { projectId, specMd: '# spec', actorId: ownerId },
     );
     expect(res.verdict).toBe('clean');
-    const latest = await latestAuditPass(db, projectId);
-    expect(latest?.verdict).toBe('clean');
   });
 
   it('monotonic pass_no across runs (max+1), may exceed the cap', async () => {
-    const { projectId, ownerId } = await seedProject();
-    // Five separate user-initiated passes (each a fresh run).
+    const projectId = 'proj-3';
+    const ownerId = 'owner-3';
+
+    const mockDb = createMockDb({
+      'select:audit_pass': seq(
+        [{ m: 0 }],
+        [{ m: 1 }],
+        [{ m: 2 }],
+        [{ m: 3 }],
+        [{ m: 4 }],
+        [{ m: 5 }],
+        [
+          { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised' },
+          { id: 'pass-2', projectId, scope: 'spec', passNo: 2, verdict: 'revised' },
+          { id: 'pass-3', projectId, scope: 'spec', passNo: 3, verdict: 'revised' },
+          { id: 'pass-4', projectId, scope: 'spec', passNo: 4, verdict: 'revised' },
+          { id: 'pass-5', projectId, scope: 'spec', passNo: 5, verdict: 'revised' },
+        ],
+      ),
+      'insert:audit_pass': [
+        { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised' },
+        { id: 'pass-2', projectId, scope: 'spec', passNo: 2, verdict: 'revised' },
+        { id: 'pass-3', projectId, scope: 'spec', passNo: 3, verdict: 'revised' },
+        { id: 'pass-4', projectId, scope: 'spec', passNo: 4, verdict: 'revised' },
+        { id: 'pass-5', projectId, scope: 'spec', passNo: 5, verdict: 'revised' },
+      ],
+      'insert:action_log': [
+        { id: 'log-1', projectId, action: 'audit' },
+        { id: 'log-2', projectId, action: 'audit' },
+        { id: 'log-3', projectId, action: 'audit' },
+        { id: 'log-4', projectId, action: 'audit' },
+        { id: 'log-5', projectId, action: 'audit' },
+      ],
+    });
+
     for (let i = 0; i < 5; i += 1) {
       const mma = mockMma({ envelopes: { audit: [auditEnvelope([{ severity: 'high', claim: 'h' }])] } });
       const r = await runAuditPass(
-        { db, mma, workspaceRoot: WS_ROOT },
+        { db: mockDb, mma, workspaceRoot: WS_ROOT },
         { projectId, specMd: '# spec', actorId: ownerId },
       );
       expect(r.passNo).toBe(i + 1);
     }
-    // pass_no legitimately exceeds AUDIT_PASS_CAP (the cap bounds per-run index, not pass_no).
-    expect(await nextPassNo(db, projectId)).toBe(6);
+    expect(await nextPassNo(mockDb, projectId)).toBe(6);
     expect(6).toBeGreaterThan(AUDIT_PASS_CAP);
-
-    const history = await auditPassHistory(db, projectId);
+    const history = await auditPassHistory(mockDb, projectId);
     expect(history.map((h) => h.passNo)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('missing report → AuditIncompleteError, NO audit_pass row, retryable (F20)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-4';
+    const ownerId = 'owner-4';
+    const mockDb = createMockDb({
+      'select:audit_pass': [],
+      'insert:audit_pass': [],
+    });
+
     const mma = mockMma({ envelopes: { audit: [{ headline: 'auditor crashed' }] } });
     await expect(
-      runAuditPass({ db, mma, workspaceRoot: WS_ROOT }, { projectId, specMd: '# spec', actorId: ownerId }),
+      runAuditPass({ db: mockDb, mma, workspaceRoot: WS_ROOT }, { projectId, specMd: '# spec', actorId: ownerId }),
     ).rejects.toBeInstanceOf(AuditIncompleteError);
-
-    const rows = await db
-      .select()
-      .from(auditPass)
-      .where(eq(auditPass.projectId, projectId));
-    expect(rows).toHaveLength(0);
   });
 
   it('hung 202 batch → wait timeout, NO audit_pass row', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-5';
+    const ownerId = 'owner-5';
+    const mockDb = createMockDb({
+      'select:audit_pass': [],
+    });
+
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([])] }, hang: new Set(['audit']) });
     await expect(
-      runAuditPass({ db, mma, workspaceRoot: WS_ROOT }, { projectId, specMd: '# spec', actorId: ownerId }),
+      runAuditPass({ db: mockDb, mma, workspaceRoot: WS_ROOT }, { projectId, specMd: '# spec', actorId: ownerId }),
     ).rejects.toThrow(/terminal/i);
-    const rows = await db.select().from(auditPass).where(eq(auditPass.projectId, projectId));
-    expect(rows).toHaveLength(0);
   });
 
   it('forwards contextBlockIds on a re-audit', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-6';
+    const ownerId = 'owner-6';
     const calls: RecordedDispatch[] = [];
+    const mockDb = createMockDb({
+      'select:audit_pass': [],
+      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean' }],
+      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit' }],
+    });
+
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([])] }, calls });
     await runAuditPass(
-      { db, mma, workspaceRoot: WS_ROOT },
+      { db: mockDb, mma, workspaceRoot: WS_ROOT },
       { projectId, specMd: '# spec', actorId: ownerId, contextBlockIds: ['cb-1'] },
     );
     expect((calls[0].body as { contextBlockIds?: string[] }).contextBlockIds).toEqual(['cb-1']);

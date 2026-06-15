@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { vi, afterAll, beforeEach } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { AuthedMember } from '@/auth/auth-provider';
 import { parseExportKind, mapExportError } from '@/export/route-helpers';
@@ -13,17 +13,19 @@ import {
 } from '@/export/pdf/render';
 import { NoComponentsSelectedError, NothingToExportError } from '@/export/service';
 import { ProjectAccessError } from '@/projects/projects-core';
-import {
-  seedProject,
-  seedArtifact,
-  seedMember,
-  cleanupExportFixtures,
-} from './db-fixtures';
+import { createMockDb, seq } from '../test-utils/mock-db';
 
 let mockCaller: AuthedMember | null = null;
+let mockDb = createMockDb();
+
 vi.mock('@/auth/current-member', () => ({
   currentMember: async () => mockCaller,
   currentSession: async () => null,
+}));
+
+vi.mock('@/db/client', () => ({
+  getDb: () => mockDb,
+  getSql: () => ({}),
 }));
 
 const artifactsRoute = await import('../../app/api/projects/[id]/export/artifacts/route');
@@ -34,20 +36,14 @@ function asMember(id: string): AuthedMember {
   return { id, username: 'u', displayName: 'U', avatarTint: '#000', isAdmin: false };
 }
 
-afterAll(async () => {
-  await cleanupExportFixtures();
-});
 beforeEach(() => {
   mockCaller = null;
+  mockDb = createMockDb();
 });
 
 const SPEC_BODY = '## 01. Context\nctx\n\n## 03. Technical design\ntech';
 
-// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
-// exists; production must not be mutated). See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-describe.skipIf(!hasDb)('route helpers — kind validation (F27)', () => {
+describe('route helpers — kind validation (F27)', () => {
   it('accepts the four kinds, rejects exploration_brief + junk', () => {
     expect(parseExportKind('spec')).toBe('spec');
     expect(parseExportKind('exploration')).toBe('exploration');
@@ -58,7 +54,7 @@ describe.skipIf(!hasDb)('route helpers — kind validation (F27)', () => {
   });
 });
 
-describe.skipIf(!hasDb)('route helpers — error → status mapping (F27, test 15)', () => {
+describe('route helpers — error → status mapping (F27, test 15)', () => {
   const cases: [unknown, number, string][] = [
     [new ProjectAccessError(), 403, 'forbidden'],
     [new ArtifactNotReadyError('plan'), 409, 'artifact_not_ready'],
@@ -80,7 +76,7 @@ describe.skipIf(!hasDb)('route helpers — error → status mapping (F27, test 1
   });
 });
 
-describe.skipIf(!hasDb)('route modules — runtime config (F12, test 15)', () => {
+describe('route modules — runtime config (F12, test 15)', () => {
   const mods = ['artifacts', 'sections', 'md', 'pdf', 'bundle'];
   it.each(mods)('%s route exports dynamic=force-dynamic + nodejs runtime', async (name) => {
     const mod = await import(`../../app/api/projects/[id]/export/${name}/route.ts`);
@@ -89,8 +85,9 @@ describe.skipIf(!hasDb)('route modules — runtime config (F12, test 15)', () =>
   });
 });
 
-describe.skipIf(!hasDb)('GET /export/artifacts (Key flow A)', () => {
+describe('GET /export/artifacts (Key flow A)', () => {
   it('401 without a session', async () => {
+    mockDb = createMockDb();
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: 'p' }),
     });
@@ -98,9 +95,18 @@ describe.skipIf(!hasDb)('GET /export/artifacts (Key flow A)', () => {
   });
 
   it('returns the menu model with ready/pending', async () => {
-    const { projectId, ownerId } = await seedProject();
-    await seedArtifact(projectId, 'spec', SPEC_BODY);
+    const projectId = 'proj-1';
+    const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    mockDb = createMockDb({
+      'select:project': seq(
+        [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'design' }],
+      ),
+      'select:audit_pass': [],
+      'select:artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:mma_batch': [],
+    });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -112,9 +118,14 @@ describe.skipIf(!hasDb)('GET /export/artifacts (Key flow A)', () => {
   });
 
   it('403 for a non-collaborator on a private project', async () => {
-    const { projectId } = await seedProject({ visibility: 'private' });
-    const stranger = await seedMember('stranger');
-    mockCaller = asMember(stranger.id);
+    const projectId = 'proj-1';
+    const ownerId = 'owner-1';
+    const strangerId = 'stranger-1';
+    mockCaller = asMember(strangerId);
+    mockDb = createMockDb({
+      'select:project': [{ ownerId, visibility: 'private' }],
+      'select:project_member': [],
+    });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -122,11 +133,15 @@ describe.skipIf(!hasDb)('GET /export/artifacts (Key flow A)', () => {
   });
 });
 
-describe.skipIf(!hasDb)('GET /export/sections (F30)', () => {
+describe('GET /export/sections (F30)', () => {
   it('returns [{NN,title}] for a spec', async () => {
-    const { projectId, ownerId } = await seedProject();
-    await seedArtifact(projectId, 'spec', SPEC_BODY);
+    const projectId = 'proj-1';
+    const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    mockDb = createMockDb({
+      'select:project': [{ ownerId, visibility: 'public' }],
+      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
+    });
     const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -139,8 +154,12 @@ describe.skipIf(!hasDb)('GET /export/sections (F30)', () => {
   });
 
   it('returns [] for a non-spec kind (no parse)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    mockDb = createMockDb({
+      'select:project': [{ ownerId, visibility: 'public' }],
+    });
     const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=plan'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -148,6 +167,7 @@ describe.skipIf(!hasDb)('GET /export/sections (F30)', () => {
   });
 
   it('400 for an unknown kind', async () => {
+    mockDb = createMockDb();
     const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=exploration_brief'), {
       params: Promise.resolve({ id: 'p' }),
     });
@@ -155,11 +175,26 @@ describe.skipIf(!hasDb)('GET /export/sections (F30)', () => {
   });
 });
 
-describe.skipIf(!hasDb)('GET /export/md (Key flow B)', () => {
+describe('GET /export/md (Key flow B)', () => {
   it('streams text/markdown with a Content-Disposition attachment', async () => {
-    const { projectId, ownerId } = await seedProject();
-    await seedArtifact(projectId, 'spec', SPEC_BODY);
+    const projectId = 'proj-1';
+    const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    mockDb = createMockDb({
+      'select:project_member': [{ memberId: ownerId }],
+      'select:project': seq(
+        [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'design' }],
+      ),
+      'select:iam_member': [{ displayName: 'Owner' }],
+      'select:stage': [{ id: 'stage-1' }],
+      'select:component': [],
+      'select:audit_pass': [],
+      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
+      'select:mma_batch': [],
+      'insert:export': [{ id: 'exp-1' }],
+      'insert:action_log': [{ id: 'log-1' }],
+    });
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -170,8 +205,14 @@ describe.skipIf(!hasDb)('GET /export/md (Key flow B)', () => {
   });
 
   it('409 artifact_not_ready for a pending artifact', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const projectId = 'proj-1';
+    const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    mockDb = createMockDb({
+      'select:project': [{ ownerId, visibility: 'public' }],
+      'select:artifact': [],
+      'select:mma_batch': [],
+    });
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=plan'), {
       params: Promise.resolve({ id: projectId }),
     });
@@ -180,6 +221,7 @@ describe.skipIf(!hasDb)('GET /export/md (Key flow B)', () => {
   });
 
   it('400 unknown_artifact_kind', async () => {
+    mockDb = createMockDb();
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=exploration_brief'), {
       params: Promise.resolve({ id: 'p' }),
     });

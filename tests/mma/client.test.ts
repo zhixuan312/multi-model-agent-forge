@@ -39,7 +39,7 @@ describe('MmaClient.dispatch', () => {
     else process.env.MMA_CLIENT = savedClient;
   });
 
-  it('POSTs /<route>?cwd=<path>, returns { batchId }, and sets the three headers', async () => {
+  it('POSTs /task?cwd=<path> with unified API { type, ... }, returns { batchId }, and sets the three headers', async () => {
     const { fn, calls } = stubFetch(() =>
       new Response(JSON.stringify({ batchId: 'b-1', statusUrl: '/batch/b-1' }), {
         status: 202,
@@ -51,13 +51,13 @@ describe('MmaClient.dispatch', () => {
 
     expect(res.batchId).toBe('b-1');
     const c = calls[0]!;
-    expect(c.url).toBe('http://127.0.0.1:7337/audit?cwd=%2Fwork%2Frepo');
+    expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork%2Frepo');
     expect(c.init?.method).toBe('POST');
     expect(headerVal(c.init, 'Authorization')).toBe('Bearer secret-bearer-xyz');
     expect(headerVal(c.init, 'X-MMA-Client')).toBe('forge');
     expect(headerVal(c.init, 'X-MMA-Main-Model')).toBe('claude-opus-4-8');
     expect(headerVal(c.init, 'content-type')).toMatch(/application\/json/);
-    expect(c.init?.body).toBe(JSON.stringify({ document: 'hi' }));
+    expect(c.init?.body).toBe(JSON.stringify({ type: 'audit', document: 'hi' }));
   });
 
   it('honors a client override (interop with the current allowlist-enforcing server)', async () => {

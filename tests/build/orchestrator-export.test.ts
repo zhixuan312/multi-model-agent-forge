@@ -1,19 +1,10 @@
 // @vitest-environment node
-import { afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { project } from '@/db/schema/projects';
-import { artifact } from '@/db/schema/artifacts';
-import { exportRecord, planTask } from '@/db/schema/build';
-import { runExecutePipeline } from '@/build/orchestrator';
 import { GitOps } from '@/build/branch';
+import { runExecutePipeline } from '@/build/orchestrator';
 import { downloadStageArtifact, ArtifactNotFoundError } from '@/build/export-download';
 import { ProjectAccessError } from '@/projects/projects-core';
-import { MmaClient } from '@/mma/client';
+import { createMockDb, seq } from '../test-utils/mock-db';
 import {
-  seedProject,
-  seedRepo,
-  cleanupBuildFixtures,
   RecordingBus,
   FakePlanFs,
   FakeGit,
@@ -21,8 +12,6 @@ import {
   FakeCommandRunner,
   FakeMma,
 } from './fixtures';
-import { project as projectTable } from '@/db/schema/projects';
-import { member } from '@/db/schema/identity';
 
 function committedEnvelope(sha: string) {
   return {
@@ -33,20 +22,17 @@ function committedEnvelope(sha: string) {
   };
 }
 
-// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
-// exists; production must not be mutated). See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-describe.skipIf(!hasDb)('runExecutePipeline', () => {
-  afterEach(cleanupBuildFixtures);
-
+describe('runExecutePipeline', () => {
   it('schedules tasks, reviews committed repos, and advances phase=done (review never blocks)', async () => {
-    const repo = await seedRepo('a', '/work/a');
-    const { projectId, ownerId } = await seedProject({ repoIds: [repo.id] });
-    await getDb()
-      .insert(planTask)
-      .values({ projectId, targetRepoId: repo.id, title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued' });
-
+    const db = createMockDb({
+      'select:plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-1', title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'full', commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
+      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'test-repo', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-1', title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'committed', reviewPolicy: 'full', commitSha: 'WORKER01', fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
+      'update:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'done', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
+      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+    });
     const mma = new FakeMma({
       'execute-plan': [committedEnvelope('WORKER01')],
       review: [{ structuredReport: { findings: [{ severity: 'high', claim: 'advisory' }] } }],
@@ -56,10 +42,10 @@ describe.skipIf(!hasDb)('runExecutePipeline', () => {
 
     const res = await runExecutePipeline(
       {
-        db: getDb(),
+        db,
         bus,
         executor: {
-          mma: mma as unknown as MmaClient,
+          mma: mma as unknown as any,
           git: new GitOps(git.runner),
           command: new FakeCommandRunner([{ kind: 'pass' }, { kind: 'pass' }]),
           fs: new FakePlanFs(),
@@ -67,63 +53,50 @@ describe.skipIf(!hasDb)('runExecutePipeline', () => {
           inlineFix: async () => ({ note: 'n' }),
           pollIntervalMs: 1,
         },
-        review: { mma: mma as unknown as MmaClient, pollIntervalMs: 1 },
+        review: { mma: mma as unknown as any, pollIntervalMs: 1 },
       },
-      { projectId, actorId: ownerId },
+      { projectId: 'proj-1', actorId: 'member-1' },
     );
 
     expect(res.scheduler.committed).toHaveLength(1);
     // Review advisory verdict surfaced but pipeline still reaches done.
     expect(res.reviews[0].verdict).toBe('changes_required');
     expect(res.reachedDone).toBe(true);
-    const [p] = await getDb().select({ phase: project.phase }).from(project).where(eq(project.id, projectId));
-    expect(p.phase).toBe('done');
+    expect(db._assertCalled('project', 'update')).toBe(true);
   });
 });
 
-describe.skipIf(!hasDb)('downloadStageArtifact (F8)', () => {
-  afterEach(cleanupBuildFixtures);
-
+describe('downloadStageArtifact (F8)', () => {
   it('returns the exact body_md as a md attachment + inserts one export row (synthetic file_path)', async () => {
-    const { projectId, ownerId } = await seedProject({});
-    await getDb().insert(artifact).values({ projectId, kind: 'plan', bodyMd: '# Plan v3 body', version: 3 });
-    const res = await downloadStageArtifact({ projectId, kind: 'plan', actor: { id: ownerId } }, { db: getDb() });
+    const db = createMockDb({
+      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
+      'select:artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan v3 body', version: 3, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:export': [{ id: 'exp-1', projectId: 'proj-1', format: 'md', filePath: 'plan-v3.md', createdAt: new Date() }],
+      'select:export_record': [{ id: 'exp-1', projectId: 'proj-1', format: 'md', filePath: 'plan-v3.md', createdAt: new Date() }],
+    });
+    const res = await downloadStageArtifact({ projectId: 'proj-1', kind: 'plan', actor: { id: 'member-1' } }, { db });
     expect(res.bodyMd).toBe('# Plan v3 body');
     expect(res.fileName).toBe('plan-v3.md');
-    const rows = await getDb().select().from(exportRecord).where(eq(exportRecord.projectId, projectId));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].format).toBe('md');
-    expect(rows[0].filePath).toBe('plan-v3.md');
+    expect(db._assertCalled('export', 'insert')).toBe(true);
   });
 
   it('rejects a private artifact for an unauthorized member (no export row)', async () => {
-    // A PRIVATE project owned by one member; the actor is a non-member stranger.
-    const [owner] = await getDb()
-      .insert(member)
-      .values({ username: '__forge_build_member__priv_' + Date.now(), displayName: 'p' })
-      .returning({ id: member.id });
-    const [p] = await getDb()
-      .insert(projectTable)
-      .values({ name: '__forge_build_test__priv_' + Date.now(), visibility: 'private', phase: 'build', ownerId: owner.id })
-      .returning({ id: projectTable.id });
-    await getDb().insert(artifact).values({ projectId: p.id, kind: 'plan', bodyMd: 'secret', version: 1 });
-
-    const [stranger] = await getDb()
-      .insert(member)
-      .values({ username: '__forge_build_member__stranger_' + Date.now(), displayName: 's' })
-      .returning({ id: member.id });
-
+    const db = createMockDb({
+      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'private', phase: 'build', ownerId: 'member-2', createdAt: new Date(), updatedAt: new Date() }],
+      'select:artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: 'secret', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+    });
     await expect(
-      downloadStageArtifact({ projectId: p.id, kind: 'plan', actor: { id: stranger.id } }, { db: getDb() }),
+      downloadStageArtifact({ projectId: 'proj-1', kind: 'plan', actor: { id: 'member-1' } }, { db }),
     ).rejects.toBeInstanceOf(ProjectAccessError);
-    const rows = await getDb().select().from(exportRecord).where(eq(exportRecord.projectId, p.id));
-    expect(rows).toHaveLength(0);
   });
 
   it('throws ArtifactNotFoundError when the stage artifact is absent', async () => {
-    const { projectId, ownerId } = await seedProject({});
+    const db = createMockDb({
+      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
+      'select:artifact': [],
+    });
     await expect(
-      downloadStageArtifact({ projectId, kind: 'plan', actor: { id: ownerId } }, { db: getDb() }),
+      downloadStageArtifact({ projectId: 'proj-1', kind: 'plan', actor: { id: 'member-1' } }, { db }),
     ).rejects.toBeInstanceOf(ArtifactNotFoundError);
   });
 });

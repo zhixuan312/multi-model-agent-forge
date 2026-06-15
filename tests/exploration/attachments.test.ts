@@ -1,11 +1,8 @@
 // @vitest-environment node
-import { afterEach, beforeEach } from 'vitest';
-import { mkdtemp, readdir, stat } from 'node:fs/promises';
+import { beforeEach } from 'vitest';
+import { mkdir, mkdtemp, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/db/client';
-import { attachment } from '@/db/schema/exploration';
 import {
   addLink,
   addUpload,
@@ -15,116 +12,116 @@ import {
   attachmentsRoot,
   MAX_ATTACHMENT_BYTES,
 } from '@/exploration/attachments';
-import { seedProject, cleanupExploreFixtures } from './db-fixtures';
+import { createMockDb } from '../test-utils/mock-db';
 
 let workspaceRoot: string;
 
 beforeEach(async () => {
   workspaceRoot = await mkdtemp(join(tmpdir(), 'forge-attach-'));
 });
-afterEach(async () => {
-  await cleanupExploreFixtures();
-});
 
-// Live-DB integration suite — gated OFF: tests never touch a database (no test DB
-// exists; production must not be mutated). See tests/setup.ts.
-const hasDb = !!process.env.DATABASE_URL;
-
-describe.skipIf(!hasDb)('attachments', () => {
+describe('attachments', () => {
   it('stores a link as {url} (json) with no disk write', async () => {
-    const { projectId, ownerId } = await seedProject();
-    const v = await addLink(projectId, { label: 'Docs', url: 'https://example.com/x' }, { id: ownerId }, { workspaceRoot });
+    const db = createMockDb({
+      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'link', label: 'Docs', payload: { url: 'https://example.com/x' }, createdAt: new Date() }],
+    });
+    const v = await addLink('proj-1', { label: 'Docs', url: 'https://example.com/x' }, { id: 'member-1' }, { db, workspaceRoot });
     expect(v).toMatchObject({ kind: 'link', label: 'Docs' });
     expect((v.payload as { url: string }).url).toBe('https://example.com/x');
   });
 
   it('rejects a non-http link (415/400 before insert)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({});
     await expect(
-      addLink(projectId, { label: 'x', url: 'ftp://nope' }, { id: ownerId }, { workspaceRoot }),
+      addLink('proj-1', { label: 'x', url: 'ftp://nope' }, { id: 'member-1' }, { db, workspaceRoot }),
     ).rejects.toThrow(AttachmentRejectError);
-    const rows = await getDb().select().from(attachment).where(eq(attachment.projectId, projectId));
-    expect(rows).toHaveLength(0);
+    expect(db._assertCalled('attachment', 'insert')).toBe(false);
   });
 
   it('rejects a disallowed MIME (415) before any disk write', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({});
     await expect(
       addUpload(
-        projectId,
+        'proj-1',
         { kind: 'image', label: 'x', bytes: new Uint8Array([1, 2, 3]), mime: 'image/svg+xml' },
-        { id: ownerId },
-        { workspaceRoot },
+        { id: 'member-1' },
+        { db, workspaceRoot },
       ),
     ).rejects.toMatchObject({ status: 415 });
   });
 
   it('rejects an oversized upload (413)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({});
     await expect(
       addUpload(
-        projectId,
+        'proj-1',
         { kind: 'file', label: 'big', bytes: new Uint8Array(MAX_ATTACHMENT_BYTES + 1), mime: 'application/pdf' },
-        { id: ownerId },
-        { workspaceRoot },
+        { id: 'member-1' },
+        { db, workspaceRoot },
       ),
     ).rejects.toMatchObject({ status: 413 });
   });
 
   it('stores a valid image with a SERVER-generated path under the project dir', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({
+      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'image', label: 'shot', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'img.png') }, createdAt: new Date() }],
+    });
     const v = await addUpload(
-      projectId,
+      'proj-1',
       { kind: 'image', label: 'shot', bytes: new Uint8Array([1, 2, 3]), mime: 'image/png' },
-      { id: ownerId },
-      { workspaceRoot },
+      { id: 'member-1' },
+        { db, workspaceRoot },
     );
     const path = (v.payload as { path: string }).path;
-    expect(path).toContain(join(attachmentsRoot(workspaceRoot), projectId));
+    expect(path).toContain(join(attachmentsRoot(workspaceRoot), 'proj-1'));
     expect(path.endsWith('.png')).toBe(true);
-    await expect(stat(path)).resolves.toBeDefined(); // file exists on disk
+    await expect(readdir(join(attachmentsRoot(workspaceRoot), 'proj-1'))).resolves.toHaveLength(1);
   });
 
   it('ignores any client-supplied path — path is always server-generated', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({
+      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
+    });
     const v = await addUpload(
-      projectId,
+      'proj-1',
       // @ts-expect-error — a malicious extra field is not part of the input contract
       { kind: 'file', label: 'x', bytes: new Uint8Array([1]), mime: 'text/plain', path: '../../escape' },
-      { id: ownerId },
-      { workspaceRoot },
+      { id: 'member-1' },
+        { db, workspaceRoot },
     );
     const path = (v.payload as { path: string }).path;
     expect(path).not.toContain('escape');
-    expect(path).toContain(projectId);
+    expect(path).toContain('proj-1');
   });
 
   it('removing an attachment unlinks the on-disk byte then deletes the row (F13)', async () => {
-    const { projectId, ownerId } = await seedProject();
-    const v = await addUpload(
-      projectId,
-      { kind: 'file', label: 'x', bytes: new Uint8Array([1, 2]), mime: 'text/plain' },
-      { id: ownerId },
-      { workspaceRoot },
-    );
-    const path = (v.payload as { path: string }).path;
-    await removeAttachment(projectId, v.id, { id: ownerId }, { workspaceRoot });
+    const path = join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt');
+    await mkdir(join(attachmentsRoot(workspaceRoot), 'proj-1'), { recursive: true });
+    await writeFile(path, new Uint8Array([1, 2]));
+    const db = createMockDb({
+      'select:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path }, createdAt: new Date() }],
+      'delete:attachment': [],
+    });
+    await removeAttachment('proj-1', 'att-1', { id: 'member-1' }, { db, workspaceRoot });
     await expect(stat(path)).rejects.toThrow(); // byte gone
-    const rows = await getDb().select().from(attachment).where(eq(attachment.id, v.id));
-    expect(rows).toHaveLength(0); // row gone
+    expect(db._assertCalled('attachment', 'delete')).toBe(true);
   });
 
   it('purging a project removes its whole attachment directory (F13)', async () => {
-    const { projectId, ownerId } = await seedProject();
+    const db = createMockDb({
+      'select:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(workspaceRoot, 'file.txt') }, createdAt: new Date() }],
+      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
+      'delete:attachment': [],
+    });
     await addUpload(
-      projectId,
+      'proj-1',
       { kind: 'file', label: 'x', bytes: new Uint8Array([1]), mime: 'text/plain' },
-      { id: ownerId },
-      { workspaceRoot },
+      { id: 'member-1' },
+      { db, workspaceRoot },
     );
-    const dir = join(attachmentsRoot(workspaceRoot), projectId);
+    const dir = join(attachmentsRoot(workspaceRoot), 'proj-1');
     await expect(readdir(dir)).resolves.toHaveLength(1);
-    await purgeProjectAttachments(projectId, { workspaceRoot });
+    await purgeProjectAttachments('proj-1', { workspaceRoot });
     await expect(readdir(dir)).rejects.toThrow(); // dir gone
   });
 });

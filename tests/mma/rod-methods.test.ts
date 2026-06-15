@@ -33,19 +33,19 @@ function header(init: RequestInit | undefined, name: string): string | null {
 }
 
 describe('MmaClient rod methods', () => {
-  it('investigate POSTs /investigate?cwd=<repo> with strict body + three headers', async () => {
+  it('investigate POSTs /task?cwd=<repo> with unified API { type, ...body } + three headers', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn, client: 'claude-code' });
     const res = await client.investigate('/work/api', { question: 'how does auth work?' });
 
     expect(res.batchId).toBe('b-1');
     const c = calls[0]!;
-    expect(c.url).toBe('http://127.0.0.1:7337/investigate?cwd=%2Fwork%2Fapi');
+    expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork%2Fapi');
     expect(c.init?.method).toBe('POST');
     expect(header(c.init, 'Authorization')).toBe('Bearer secret-bearer-xyz');
     expect(header(c.init, 'X-MMA-Client')).toBe('claude-code');
     expect(header(c.init, 'X-MMA-Main-Model')).toBe('claude-opus-4-8');
-    expect(bodyOf(c.init)).toEqual({ question: 'how does auth work?' });
+    expect(bodyOf(c.init)).toEqual({ type: 'investigate', question: 'how does auth work?' });
   });
 
   it('investigate forwards optional keys when present', async () => {
@@ -58,6 +58,7 @@ describe('MmaClient rod methods', () => {
       contextBlockIds: ['cb-1'],
     });
     expect(bodyOf(calls[0]!.init)).toEqual({
+      type: 'investigate',
       question: 'x',
       subtype: 'default',
       tools: 'readonly',
@@ -65,7 +66,7 @@ describe('MmaClient rod methods', () => {
     });
   });
 
-  it('research POSTs EXACTLY {researchQuestion, background, ...} — never agentType/tools', async () => {
+  it('research POSTs /task?cwd=<repo> with unified API including type', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
     await client.research('/work', {
@@ -73,9 +74,10 @@ describe('MmaClient rod methods', () => {
       background: 'we are building a thing and need prior art here.',
     });
     const c = calls[0]!;
-    expect(c.url).toBe('http://127.0.0.1:7337/research?cwd=%2Fwork');
+    expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork');
     const body = bodyOf(c.init);
-    expect(Object.keys(body).sort()).toEqual(['background', 'researchQuestion']);
+    expect(Object.keys(body).sort()).toEqual(['background', 'researchQuestion', 'type']);
+    expect(body.type).toBe('research');
     expect(body).not.toHaveProperty('agentType');
     expect(body).not.toHaveProperty('tools');
   });
@@ -89,13 +91,13 @@ describe('MmaClient rod methods', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('journalRecall POSTs {query} (≥10) to /journal-recall?cwd=<workspace root>', async () => {
+  it('journalRecall POSTs /task?cwd=<workspace root> with unified API { type, query }', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
     await client.journalRecall('/work', { query: 'what did we learn about caching?' });
     const c = calls[0]!;
-    expect(c.url).toBe('http://127.0.0.1:7337/journal-recall?cwd=%2Fwork');
-    expect(bodyOf(c.init)).toEqual({ query: 'what did we learn about caching?' });
+    expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork');
+    expect(bodyOf(c.init)).toEqual({ type: 'journal_recall', query: 'what did we learn about caching?' });
   });
 
   it('journalRecall rejects a sub-10-char query before dispatch', async () => {

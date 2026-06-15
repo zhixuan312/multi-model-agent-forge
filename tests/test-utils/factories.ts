@@ -23,22 +23,6 @@ export function createBaseMember(over: Partial<{
   };
 }
 
-/** `iam_identity` row (local auth). */
-export function createBaseIdentity(over: Partial<{
-  id: string; memberId: string; provider: string; passwordHash: string | null;
-  passwordChangedAt: Date | null; createdAt: Date;
-}> = {}) {
-  return {
-    id: 'identity-1',
-    memberId: 'member-1',
-    provider: 'local',
-    passwordHash: '$argon2id$dummy',
-    passwordChangedAt: null,
-    createdAt: FIXED,
-    ...over,
-  };
-}
-
 /** `iam_session` row. */
 export function createBaseSession(over: Partial<{
   id: string; memberId: string; tokenHash: string; lastUsedAt: Date;
@@ -71,32 +55,3 @@ export function createBaseConnection(over: Partial<{
   };
 }
 
-/** `provider` row. */
-export function createBaseProvider(over: Partial<{
-  id: string; name: string; type: 'claude' | 'codex'; baseUrl: string | null;
-  apiKeyRef: string | null; createdAt: Date;
-}> = {}) {
-  return {
-    id: 'provider-1',
-    name: 'Claude',
-    type: 'claude' as const,
-    baseUrl: null,
-    apiKeyRef: null,
-    createdAt: FIXED,
-    ...over,
-  };
-}
-
-/** `agent_tier` row. */
-export function createBaseTier(over: Partial<{
-  tier: 'main' | 'complex' | 'standard'; providerId: string | null;
-  model: string | null; updatedAt: Date;
-}> = {}) {
-  return {
-    tier: 'main' as const,
-    providerId: null,
-    model: null,
-    updatedAt: FIXED,
-    ...over,
-  };
-}

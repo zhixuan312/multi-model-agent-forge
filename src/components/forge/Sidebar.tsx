@@ -39,15 +39,18 @@ const SECTIONS: NavSection[] = [
     id: 'main',
     items: [
       { href: '/projects', label: 'Projects', icon: FolderKanban },
-      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+      // Loops sits directly below Projects. Still admin-only (the /loops pages are
+      // admin-gated by require-admin.ts) — so it's hidden for non-admins, just no
+      // longer grouped under the "Admin" eyebrow.
+      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen },
+      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
     ],
   },
   {
     id: 'admin',
     label: 'Admin',
     items: [
-      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
       { href: '/settings', label: 'Team settings', icon: Settings, adminOnly: true },
     ],
   },

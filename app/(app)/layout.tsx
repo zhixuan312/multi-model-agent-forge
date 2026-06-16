@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';
 import { AccountMenu } from '@/components/forge/AccountMenu';
 import { ForgeMark } from '@/components/forge/ForgeMark';
+import { NotificationBell } from '@/components/forge/collab/NotificationBell';
 import { AppShell } from '@/components/ui/shell';
 
 /**
@@ -30,12 +31,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <PhaseTheme phase="design" className="text-ink">
       <AppShell
-        sidebar={<Sidebar member={member} notifications={notifications} />}
+        sidebar={<Sidebar member={member} />}
+        topRight={
+          <>
+            <NotificationBell items={notifications} />
+            <AccountMenu member={member} variant="bar" />
+          </>
+        }
         mobileBar={
           <div className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
             <MobileNav member={member} />
             <ForgeMark withWordmark />
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell items={notifications} />
               <AccountMenu member={member} variant="bar" />
             </div>
           </div>

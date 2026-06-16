@@ -8,7 +8,7 @@
  *
  * Never starts the MMA server; aborts if MMA is unreachable. Resolves the base
  * URL + local mma bearer via `buildMmaClient` — the same path the app uses.
- * Run: `npx tsx scripts/smoke-spec6.ts`.
+ * Run: `pnpm exec tsx scripts/smoke-spec6.ts`.
  */
 import 'dotenv/config';
 import { existsSync } from 'node:fs';

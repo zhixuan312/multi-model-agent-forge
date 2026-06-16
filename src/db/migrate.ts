@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 
 /**
- * Programmatic migrator — `npm run db:migrate`.
+ * Programmatic migrator — `pnpm db:migrate`.
  *
  * Applies the additive SQL migrations under `src/db/migrations/` to the database
  * named by `DATABASE_URL`. Uses a dedicated single-connection client (`max: 1`)

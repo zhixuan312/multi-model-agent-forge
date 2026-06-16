@@ -8,7 +8,7 @@
  * and still verifies the md + zip path (which is Chromium-independent except the
  * combined PDF — there a stub buffer stands in).
  *
- *   npx tsx scripts/smoke-spec8.ts
+ *   pnpm exec tsx scripts/smoke-spec8.ts
  */
 import { mkdtempSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

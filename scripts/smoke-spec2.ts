@@ -1,7 +1,7 @@
 /**
  * Spec 2 Part B live smoke (READ-ONLY against the user's running mma).
  *
- *   npx tsx scripts/smoke-spec2.ts
+ *   pnpm exec tsx scripts/smoke-spec2.ts
  *
  * Exercises the real `mma` at http://127.0.0.1:7337 through MmaClient:
  *   1. GET /health (unauthenticated liveness).

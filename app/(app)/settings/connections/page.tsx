@@ -9,9 +9,9 @@ import { ConnectionsForm } from './ConnectionsForm';
 /**
  * Team Settings → Connections (Spec 2 §Connections / connections.html).
  * Admin-gated. Same surface as Members: a STATUS row of four metric boxes, then
- * a 2/3 ∣ 1/3 row — the MMA / Git / OpenAI connection groups (Primary) and the
- * security guidance (Rail). Each token is stored encrypted via the SecretStore
- * and shown only as "set / not set".
+ * the ConnectionsForm — which carries its own 2/3 ∣ 1/3 layout (the MMA / Git /
+ * OpenAI connection cards + a single security-guidance rail). Each token is
+ * stored encrypted via the SecretStore and shown only as "set / not set".
  */
 export default async function ConnectionsPage() {
   await requireAdminPage();
@@ -33,6 +33,7 @@ export default async function ConnectionsPage() {
           <MetricCard label="Voice" value={view.openaiTranscriptionKeySet ? 'On' : 'Off'} muted={!view.openaiTranscriptionKeySet} sublabel="Speech to text" icon={<Mic />} iconTint="rose" />
         </div>
 
+        {/* ConnectionsForm carries its own 2/3 ∣ 1/3 layout (cards + guidance rail). */}
         <ConnectionsForm
           mmaBearer={mmaBearer}
           initial={{

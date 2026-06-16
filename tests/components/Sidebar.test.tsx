@@ -19,23 +19,27 @@ const admin: AuthedMember = {
 const nonAdmin: AuthedMember = { ...admin, id: 'm1', username: 'devon', displayName: 'Devon Vance', isAdmin: false };
 
 describe('Sidebar', () => {
-  it('renders the four nav items + user card for an admin', () => {
+  it('renders the full primary nav for an admin', () => {
     render(<Sidebar member={admin} />);
     expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Loops')).toBeInTheDocument();
     expect(screen.getByText('Journal')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Team settings')).toBeInTheDocument();
-    // user card
-    expect(screen.getByTestId('user-card')).toHaveTextContent('Maya Adeyemi');
-    expect(screen.getByText('@maya')).toBeInTheDocument();
-    expect(screen.getByTestId('admin-chip')).toBeInTheDocument();
+    // The account menu + notification bell live in the global top-right cluster
+    // now, not the rail — so the sidebar carries no user-card / admin-chip.
+    expect(screen.queryByTestId('user-card')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('admin-chip')).not.toBeInTheDocument();
   });
 
-  it('hides Team settings for a non-admin and shows no admin chip', () => {
+  it('hides admin-only items (Loops, Team settings) for a non-admin', () => {
     render(<Sidebar member={nonAdmin} />);
+    expect(screen.queryByText('Loops')).not.toBeInTheDocument();
     expect(screen.queryByText('Team settings')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('admin-chip')).not.toBeInTheDocument();
+    // Non-admin still sees the everyone-items.
     expect(screen.getByText('Projects')).toBeInTheDocument();
+    expect(screen.getByText('Journal')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
   });
 
   it('marks the active route with aria-current', () => {

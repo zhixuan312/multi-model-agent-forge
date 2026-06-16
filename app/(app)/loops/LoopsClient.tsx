@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Search, Repeat, Play, Pencil } from 'lucide-react';
-import { Button, Badge, Input, Title, TextStrong, Mono, Micro, EmptyState, DataTable, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
+import { Button, Badge, Input, Title, TextStrong, Mono, Micro, EmptyState, DataTable, Card, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
 import type { LoopRow } from '@/db/schema/loop';
 import { describeCron } from '@/loops/cron';
 import { LoopForm, type RepoOption } from './LoopForm';
@@ -167,7 +167,7 @@ export function LoopsClient({
   );
 
   return (
-    <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <div className="flex items-center justify-between gap-3">
           <Title className="!text-lg">Loops</Title>
@@ -200,6 +200,6 @@ export function LoopsClient({
         renderExpanded={(l) => <LoopForm key={l.id} mode="edit" loop={l} repoOptions={repoOptions} onDone={close} />}
         emptyState={<EmptyState icon={<Repeat />} title="No loops yet" description="Create a loop to run a goal against your repos on a schedule." />}
       />
-    </div>
+    </Card>
   );
 }

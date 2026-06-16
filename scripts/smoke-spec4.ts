@@ -1,7 +1,7 @@
 /**
  * Spec 4 Part B live smoke (READ-ONLY against the user's running mma).
  *
- *   npx tsx scripts/smoke-spec4.ts
+ *   pnpm exec tsx scripts/smoke-spec4.ts
  *
  * Exercises the real `mma` at http://127.0.0.1:7337 through MmaClient + the
  * Spec-4b audit-envelope parser:

@@ -3,8 +3,8 @@
  * Mints a real admin session, then exercises routing, auth-gating, the
  * admin Members API, and session revocation over HTTP.
  *
- *   1. terminal A:  PORT=3100 npx next start -p 3100
- *   2. terminal B:  BASE=http://127.0.0.1:3100 npx tsx scripts/smoke-spec1.ts
+ *   1. terminal A:  PORT=3100 pnpm exec next start -p 3100
+ *   2. terminal B:  BASE=http://127.0.0.1:3100 pnpm exec tsx scripts/smoke-spec1.ts
  */
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
@@ -40,7 +40,7 @@ async function main() {
   const store = new PostgresSessionStore();
 
   const admin = (await db.select().from(member).where(eq(member.username, 'admin')).limit(1))[0];
-  if (!admin) throw new Error('admin member not found — run npm run db:seed');
+  if (!admin) throw new Error('admin member not found — run pnpm db:seed');
   const { token } = await store.create(admin.id);
   const cookie = `${SESSION_COOKIE_NAME}=${token}`;
   const auth = { headers: { cookie } };

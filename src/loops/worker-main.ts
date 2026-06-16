@@ -3,7 +3,7 @@ import { startLoopWorker } from '@/loops/scheduler';
 
 /**
  * The Loops worker entrypoint (spec §5). Run alongside the Forge service:
- *   `npm run loop-worker`
+ *   `pnpm loop-worker`
  * It ticks once a minute, firing due/enabled loops on their cron. Requires the
  * same DATABASE_URL + a reachable MMA + a Connections Git token, like the app.
  */

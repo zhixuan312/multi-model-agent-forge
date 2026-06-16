@@ -2,7 +2,7 @@
  * Live smoke for Spec 5 (read-only). Dispatches ONE real `investigate` against a
  * real cwd (this Forge repo) → polls to a terminal envelope, and a `journal-recall`
  * against the workspace root if a journal exists (else skips gracefully). Does NOT
- * live-call OpenAI. Run: `npx tsx scripts/smoke-spec5.ts`.
+ * live-call OpenAI. Run: `pnpm exec tsx scripts/smoke-spec5.ts`.
  *
  * Reads the MMA bearer/base-url from the live `team_settings` row via
  * `buildMmaClient` (the same path the app uses).

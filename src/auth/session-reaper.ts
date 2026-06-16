@@ -6,7 +6,7 @@ import { deleteExpiredSessions } from '@/auth/session-store';
  * Expired-session reaper (Spec 1 NFR F19) — `DELETE FROM session WHERE
  * expires_at < now()`. Validation rejects stale sessions regardless; the reaper
  * keeps the table bounded. Run on a schedule (cron/systemd timer) and on demand
- * via `npm run db:reap`. No in-app scheduler is built in Spec 1.
+ * via `pnpm db:reap`. No in-app scheduler is built in Spec 1.
  */
 export async function reapExpiredSessions(): Promise<number> {
   return deleteExpiredSessions();

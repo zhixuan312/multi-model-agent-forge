@@ -1,0 +1,47 @@
+# Dependencies
+node_modules
+npm-debug.log
+pnpm-debug.log
+.pnpm-debug.log*
+
+# Next.js build output (rebuilt inside the image)
+.next
+out
+build
+
+# Environment files — never ship secrets into the image
+.env*
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+
+# Docs / design scaffolding (local-only)
+README.md
+docs
+design
+mockup
+
+# Forge local-only runtime artifacts (recreated in the container)
+.mock-db
+.forge-workspace
+.forge-exports
+.superpowers
+.vercel

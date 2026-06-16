@@ -893,6 +893,15 @@ function CraftStage({
     if (readOnly || !active) return;
     if (input.trim()) setAnswers((a) => ({ ...a, [active.id]: [...given, input.trim()] }));
     setInput('');
+    // A freshly constructed draft supersedes any prior sign-offs — they approved
+    // an EARLIER version. Reset approvals so the author reviews the new draft and
+    // approvers re-sign it. Without this, a stale approval (e.g. the seeded "Bo
+    // already approved" on proposed_design) trips the auto-approve gate the instant
+    // the section is drafted, skipping review and showing "approved" immediately.
+    patchCollab((u) => ({
+      ...u,
+      participants: u.participants.map((p) => (p.approvedAt ? { ...p, approvedAt: null } : p)),
+    }));
     onPatch(active.id, { status: 'drafted' });
   }
 

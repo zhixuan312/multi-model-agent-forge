@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import type { ComponentView } from '@/spec/spec-core';
 
@@ -11,7 +12,11 @@ vi.mock('next/navigation', () => ({
 
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={qc}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
+  );
 }
 
 const twoSections: ComponentView[] = [
@@ -74,5 +79,54 @@ describe('SpecStageClient', () => {
     expect(screen.getByRole('button', { name: /Send answer/ })).toBeInTheDocument();
     // The active component's label is shown (rail + conversation header).
     expect(screen.getAllByText('Context').length).toBeGreaterThan(0);
+  });
+
+  it('constructing a section does NOT auto-approve off a stale (pre-draft) sign-off', async () => {
+    // The proposed_design section is seeded with a teammate who approved an
+    // EARLIER version. Constructing a fresh draft must land on review — not jump
+    // straight to "approved" via the ≥1-approver gate (the reported bug).
+    const designSection: ComponentView[] = [
+      {
+        id: 'c1',
+        kind: 'proposed_design',
+        label: 'Proposed design',
+        primaryRoles: ['Tech Lead'],
+        status: 'gathering',
+        orderIndex: 0,
+        sections: [
+          { id: 's1', key: 'overview', label: 'Overview', status: 'gathering', aiSatisfied: false, humanSatisfied: false, forced: false, draftMd: null, stale: false, orderIndex: 0 },
+        ],
+      },
+    ];
+    wrap(
+      <SpecStageClient
+        projectId="p1"
+        projectName="Proj"
+        intentMd="Intent"
+        phase="design"
+        mainTierReady={true}
+        mmaReady={true}
+        defaultKinds={['proposed_design']}
+        initialComponents={designSection}
+        initialSpec={null}
+        initialAuditHistory={[]}
+        initialCanFreeze={false}
+        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
+        craftCollab={{
+          proposed_design: {
+            participants: [
+              { member: { id: 'bo', displayName: 'Bo Chen', avatarTint: '#355a74' }, addedBy: null, approvedAt: '2026-06-13T09:40:00.000Z' },
+            ],
+            discussion: [],
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Construct section/ }));
+
+    // Lands on review, NOT auto-approved off Bo's stale sign-off.
+    expect(await screen.findByText(/Draft ready for review/)).toBeInTheDocument();
+    expect(screen.queryByText(/Section approved/)).not.toBeInTheDocument();
   });
 });

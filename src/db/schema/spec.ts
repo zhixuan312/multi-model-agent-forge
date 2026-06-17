@@ -20,13 +20,13 @@ import {
  */
 
 /**
- * `component` (schema.md §5) — a top-level section of the spec, a group of
+ * `project_component` (schema.md §5) — a top-level section of the spec, a group of
  * sub-sections. One row per selected `COMPONENT_TEMPLATES` kind. `primary_roles`
  * is the advisory discipline-hint array (rendered as `RoleChip`s). `status` is
  * the derived roll-up.
  */
 export const component = forge.table(
-  'component',
+  'project_component',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     stageId: uuid('stage_id')
@@ -43,14 +43,14 @@ export const component = forge.table(
 );
 
 /**
- * `component_section` (schema.md §5) — the SUB-component, the unit the user
+ * `project_component_section` (schema.md §5) — the SUB-component, the unit the user
  * verifies. Carries the **dual gate** flags: `ai_satisfied` (model-set) +
  * `human_satisfied` (human-set) → `approved` only when BOTH (or `forced`).
  * `draft_md` is the drafted body; `stale` marks a draft whose grounding changed
  * (an `intent_md` edit) and which re-drafts lazily on next entry.
  */
 export const componentSection = forge.table(
-  'component_section',
+  'project_component_section',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     componentId: uuid('component_id')
@@ -72,14 +72,14 @@ export const componentSection = forge.table(
 );
 
 /**
- * `qa_message` (schema.md §5) — the per-SECTION chat transcript. `seq` orders
+ * `project_qa_message` (schema.md §5) — the per-SECTION chat transcript. `seq` orders
  * within the section; `sender` is `forge` (the questions/assessment) or `member`
  * (an answer). `meta` carries the forge-turn structure (round, questions[],
  * missing[], assessment{aiSatisfied,missingInfo[]}). `author_id` is set for
  * member turns.
  */
 export const qaMessage = forge.table(
-  'qa_message',
+  'project_qa_message',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     sectionId: uuid('section_id')

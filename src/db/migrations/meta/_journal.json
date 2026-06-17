@@ -85,6 +85,34 @@
       "when": 1781800000000,
       "tag": "0011_drop_repo_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0012_drop_provider_agent_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0013_drop_identity_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0014_regroup_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0015_rename_loop_def",
+      "breakpoints": true
     }
   ]
 }

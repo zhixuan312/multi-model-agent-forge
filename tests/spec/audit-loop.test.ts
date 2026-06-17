@@ -69,14 +69,14 @@ describe('parseAuditEnvelope (pure)', () => {
 });
 
 describe('runAuditPass (live DB + mock MMA)', () => {
-  it('writes a revised audit_pass on critical/high + logs an audit action, cwd=workspace root', async () => {
+  it('writes a revised project_audit_pass on critical/high + logs an audit action, cwd=workspace root', async () => {
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const calls: RecordedDispatch[] = [];
     const mockDb = createMockDb({
-      'select:audit_pass': [],
-      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit', target: 'pass:1' }],
+      'select:project_audit_pass': [],
+      'insert:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'audit', target: 'pass:1' }],
     });
 
     const mma = mockMma({
@@ -97,13 +97,13 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     expect(calls[0].body).toMatchObject({ subtype: 'spec', document: '# spec' });
   });
 
-  it('writes a clean audit_pass when no critical/high', async () => {
+  it('writes a clean project_audit_pass when no critical/high', async () => {
     const projectId = 'proj-2';
     const ownerId = 'owner-2';
     const mockDb = createMockDb({
-      'select:audit_pass': [],
-      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit' }],
+      'select:project_audit_pass': [],
+      'insert:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'audit' }],
     });
 
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([{ severity: 'medium', claim: 'm' }])] } });
@@ -119,7 +119,7 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     const ownerId = 'owner-3';
 
     const mockDb = createMockDb({
-      'select:audit_pass': seq(
+      'select:project_audit_pass': seq(
         [{ m: 0 }],
         [{ m: 1 }],
         [{ m: 2 }],
@@ -134,14 +134,14 @@ describe('runAuditPass (live DB + mock MMA)', () => {
           { id: 'pass-5', projectId, scope: 'spec', passNo: 5, verdict: 'revised' },
         ],
       ),
-      'insert:audit_pass': [
+      'insert:project_audit_pass': [
         { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised' },
         { id: 'pass-2', projectId, scope: 'spec', passNo: 2, verdict: 'revised' },
         { id: 'pass-3', projectId, scope: 'spec', passNo: 3, verdict: 'revised' },
         { id: 'pass-4', projectId, scope: 'spec', passNo: 4, verdict: 'revised' },
         { id: 'pass-5', projectId, scope: 'spec', passNo: 5, verdict: 'revised' },
       ],
-      'insert:action_log': [
+      'insert:ops_action_log': [
         { id: 'log-1', projectId, action: 'audit' },
         { id: 'log-2', projectId, action: 'audit' },
         { id: 'log-3', projectId, action: 'audit' },
@@ -164,12 +164,12 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     expect(history.map((h) => h.passNo)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('missing report → AuditIncompleteError, NO audit_pass row, retryable (F20)', async () => {
+  it('missing report → AuditIncompleteError, NO project_audit_pass row, retryable (F20)', async () => {
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
     const mockDb = createMockDb({
-      'select:audit_pass': [],
-      'insert:audit_pass': [],
+      'select:project_audit_pass': [],
+      'insert:project_audit_pass': [],
     });
 
     const mma = mockMma({ envelopes: { audit: [{ headline: 'auditor crashed' }] } });
@@ -178,11 +178,11 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     ).rejects.toBeInstanceOf(AuditIncompleteError);
   });
 
-  it('hung 202 batch → wait timeout, NO audit_pass row', async () => {
+  it('hung 202 batch → wait timeout, NO project_audit_pass row', async () => {
     const projectId = 'proj-5';
     const ownerId = 'owner-5';
     const mockDb = createMockDb({
-      'select:audit_pass': [],
+      'select:project_audit_pass': [],
     });
 
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([])] }, hang: new Set(['audit']) });
@@ -196,9 +196,9 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     const ownerId = 'owner-6';
     const calls: RecordedDispatch[] = [];
     const mockDb = createMockDb({
-      'select:audit_pass': [],
-      'insert:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean' }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'audit' }],
+      'select:project_audit_pass': [],
+      'insert:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean' }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'audit' }],
     });
 
     const mma = mockMma({ envelopes: { audit: [auditEnvelope([])] }, calls });

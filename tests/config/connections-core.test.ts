@@ -48,7 +48,7 @@ describe('getConnections', () => {
 
   it('maps stored refs to "set" booleans (never the values)', async () => {
     const db = createMockDb({
-      settings_connection: [createBaseConnection({ gitTokenRef: 'r1', openaiTranscriptionKeyRef: null })],
+      team_connection: [createBaseConnection({ gitTokenRef: 'r1', openaiTranscriptionKeyRef: null })],
     });
     expect(await getConnections({ db })).toEqual({
       mmaBaseUrl: 'http://127.0.0.1:7337',
@@ -68,7 +68,7 @@ describe('updateConnections', () => {
 
   it('first save INSERTs the singleton; tokens become refs, plaintext never reaches the row', async () => {
     const db = createMockDb({
-      'select:settings_connection': seq([], [createBaseConnection({ gitTokenRef: 'secret-ref-1' })]),
+      'select:team_connection': seq([], [createBaseConnection({ gitTokenRef: 'secret-ref-1' })]),
     });
     const secrets = createMockSecretStore();
     const res = await updateConnections({ gitToken: 'ghs_SECRET' }, { db, secrets });
@@ -77,9 +77,9 @@ describe('updateConnections', () => {
     if (res.kind !== 'saved') return;
     expect(res.connections.gitTokenSet).toBe(true);
     expect(secrets.puts).toContainEqual(expect.objectContaining({ label: 'git-token', plaintext: 'ghs_SECRET' }));
-    expect(db._assertCalled('settings_connection', 'insert')).toBe(true);
+    expect(db._assertCalled('team_connection', 'insert')).toBe(true);
 
-    const values = db._callsFor('settings_connection').find((c) => c.method === 'values');
+    const values = db._callsFor('team_connection').find((c) => c.method === 'values');
     expect(JSON.stringify(values?.args)).not.toContain('ghs_SECRET'); // ref, not plaintext
     expect(JSON.stringify(values?.args)).toContain('secret-ref-1');
   });
@@ -87,16 +87,16 @@ describe('updateConnections', () => {
   it('a git-only edit UPDATEs the existing row, rotates the git secret, and leaves speech-to-text untouched', async () => {
     const existing = createBaseConnection({ gitTokenRef: 'old-git', openaiTranscriptionKeyRef: 'keep-openai' });
     const db = createMockDb({
-      'select:settings_connection': seq([existing], [{ ...existing, gitTokenRef: 'secret-ref-1' }]),
+      'select:team_connection': seq([existing], [{ ...existing, gitTokenRef: 'secret-ref-1' }]),
     });
     const secrets = createMockSecretStore();
     await updateConnections({ gitToken: 'new-git' }, { db, secrets });
 
     expect(secrets.puts.some((p) => p.label === 'git-token')).toBe(true);
     expect(secrets.deleted).toContain('old-git'); // superseded secret dropped
-    expect(db._assertCalled('settings_connection', 'update')).toBe(true);
+    expect(db._assertCalled('team_connection', 'update')).toBe(true);
 
-    const set = db._callsFor('settings_connection').find((c) => c.method === 'set');
+    const set = db._callsFor('team_connection').find((c) => c.method === 'set');
     expect(JSON.stringify(set?.args)).toContain('secret-ref-1'); // git ref rotated
     expect(JSON.stringify(set?.args)).not.toContain('openaiTranscriptionKeyRef'); // openai not in the patch
   });

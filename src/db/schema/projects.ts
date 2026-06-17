@@ -79,12 +79,12 @@ export const projectMember = forge.table(
 );
 
 /**
- * `stage` (schema.md §5) — the five-stage skeleton (one row per kind). Seeded on
+ * `project_stage` (schema.md §5) — the five-stage skeleton (one row per kind). Seeded on
  * create with `exploration=active`, the rest `pending`. UNIQUE (project_id, kind)
  * makes the seed idempotent (a retry can't double-seed). PK `gen_random_uuid()`.
  */
 export const stage = forge.table(
-  'stage',
+  'project_stage',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')

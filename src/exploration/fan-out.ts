@@ -103,7 +103,7 @@ export async function proposeFanOut(
   deps: FanOutDeps = {},
 ): Promise<FanOutResult> {
   const db = deps.db ?? getDb();
-  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier({ db }));
+  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
 
   // Latest exploration_brief + attachments + repo subset.
   const [brief] = await db

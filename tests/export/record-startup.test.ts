@@ -13,14 +13,14 @@ function tmpRoot(): string {
 }
 
 describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
-  it('writes an export row + action_log entry; file lands under <root>/<project_id>/', async () => {
+  it('writes an export row + ops_action_log entry; file lands under <root>/<project_id>/', async () => {
     const projectId = 'proj-1';
     const createdBy = 'member-1';
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
 
     const db = createMockDb({
-      'insert:export': [{ id: 'exp-1' }],
-      'insert:action_log': [{ id: 'log-1' }],
+      'insert:project_export': [{ id: 'exp-1' }],
+      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(
@@ -37,10 +37,10 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     );
 
     expect(res.filePath.startsWith(join(cfg.exportRoot, projectId) + sep)).toBe(true);
-    expect(db._assertCalled('export', 'insert')).toBe(true);
-    expect(db._assertCalled('action_log', 'insert')).toBe(true);
+    expect(db._assertCalled('project_export', 'insert')).toBe(true);
+    expect(db._assertCalled('ops_action_log', 'insert')).toBe(true);
 
-    const insertCalls = db._callsFor('export');
+    const insertCalls = db._callsFor('project_export');
     const valueCall = insertCalls.find((c) => c.method === 'values');
     expect(JSON.stringify(valueCall?.args)).toContain('pdf');
     expect(JSON.stringify(valueCall?.args)).toContain(projectId);
@@ -52,8 +52,8 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
 
     const db = createMockDb({
-      'insert:export': [{ id: 'exp-1' }],
-      'insert:action_log': [{ id: 'log-1' }],
+      'insert:project_export': [{ id: 'exp-1' }],
+      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(
@@ -69,8 +69,8 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
       { config: cfg, db },
     );
 
-    expect(db._assertCalled('export', 'insert')).toBe(true);
-    const insertCalls = db._callsFor('export');
+    expect(db._assertCalled('project_export', 'insert')).toBe(true);
+    const insertCalls = db._callsFor('project_export');
     const valueCall = insertCalls.find((c) => c.method === 'values');
     expect(valueCall?.args).toEqual([
       expect.objectContaining({
@@ -80,7 +80,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
       }),
     ]);
 
-    const logValueCall = db._callsFor('action_log').find((c) => c.method === 'values');
+    const logValueCall = db._callsFor('ops_action_log').find((c) => c.method === 'values');
     expect(logValueCall?.args).toEqual([
       expect.objectContaining({
         action: 'export.created',
@@ -97,8 +97,8 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });
 
     const db = createMockDb({
-      'insert:export': [{ id: 'exp-1' }],
-      'insert:action_log': [{ id: 'log-1' }],
+      'insert:project_export': [{ id: 'exp-1' }],
+      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(
@@ -128,8 +128,8 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: root });
 
     const db = createMockDb({
-      'insert:export': [{ id: 'exp-1' }],
-      'insert:action_log': [{ id: 'log-1' }],
+      'insert:project_export': [{ id: 'exp-1' }],
+      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(

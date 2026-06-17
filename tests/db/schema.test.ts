@@ -1,7 +1,7 @@
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { member, memberIdentity, session } from '@/db/schema/identity';
 import { appSecrets } from '@/db/schema/secrets';
-import { provider, agentTier, teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { repo } from '@/db/schema/workspace';
 import * as schema from '@/db/schema';
 
@@ -13,7 +13,7 @@ function columnNames(table: Parameters<typeof getTableColumns>[0]) {
 
 describe('db/schema — table objects expose the expected columns (no live DB)', () => {
   it('member has the canonical columns + db names', () => {
-    expect(getTableName(member)).toBe('iam_member');
+    expect(getTableName(member)).toBe('team_member');
     expect(columnNames(member)).toEqual({
       id: 'id',
       username: 'username',
@@ -34,26 +34,24 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.displayName.notNull).toBe(true);
   });
 
-  it('member_identity has the canonical columns; provider NOT NULL, credential cols nullable', () => {
-    expect(getTableName(memberIdentity)).toBe('iam_identity');
+  it('member_identity has the canonical columns; credential cols nullable', () => {
+    expect(getTableName(memberIdentity)).toBe('team_identity');
     expect(columnNames(memberIdentity)).toEqual({
       id: 'id',
       memberId: 'member_id',
-      provider: 'provider',
       passwordHash: 'password_hash',
       passwordChangedAt: 'password_changed_at',
       createdAt: 'created_at',
     });
     const cols = getTableColumns(memberIdentity);
     expect(cols.memberId.notNull).toBe(true);
-    expect(cols.provider.notNull).toBe(true);
     // local rows carry NULLs here — must be nullable
     expect(cols.passwordHash.notNull).toBe(false);
     expect(cols.passwordChangedAt.notNull).toBe(false);
   });
 
   it('session has the canonical columns; token_hash + expires_at NOT NULL', () => {
-    expect(getTableName(session)).toBe('iam_session');
+    expect(getTableName(session)).toBe('team_session');
     expect(columnNames(session)).toEqual({
       id: 'id',
       memberId: 'member_id',
@@ -69,7 +67,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
   });
 
   it('app_secrets has the canonical columns; value_enc NOT NULL, created_by nullable', () => {
-    expect(getTableName(appSecrets)).toBe('settings_secret');
+    expect(getTableName(appSecrets)).toBe('team_secret');
     expect(columnNames(appSecrets)).toEqual({
       id: 'id',
       label: 'label',
@@ -85,45 +83,9 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.createdBy.notNull).toBe(false);
   });
 
-  it('provider has the canonical columns; name+type NOT NULL, base_url+api_key_ref nullable', () => {
-    expect(getTableName(provider)).toBe('provider');
-    expect(columnNames(provider)).toEqual({
-      id: 'id',
-      name: 'name',
-      type: 'type',
-      baseUrl: 'base_url',
-      apiKeyRef: 'api_key_ref',
-      createdAt: 'created_at',
-    });
-    const cols = getTableColumns(provider);
-    expect(cols.name.notNull).toBe(true);
-    expect(cols.name.isUnique).toBe(true);
-    expect(cols.type.notNull).toBe(true);
-    expect(cols.type.enumValues).toEqual(['claude', 'codex']);
-    // blank = provider default → nullable
-    expect(cols.baseUrl.notNull).toBe(false);
-    expect(cols.apiKeyRef.notNull).toBe(false);
-  });
-
-  it('agent_tier: tier is the PK enum; provider_id + model nullable (seeded empty)', () => {
-    expect(getTableName(agentTier)).toBe('agent_tier');
-    expect(columnNames(agentTier)).toEqual({
-      tier: 'tier',
-      providerId: 'provider_id',
-      model: 'model',
-      updatedAt: 'updated_at',
-    });
-    const cols = getTableColumns(agentTier);
-    expect(cols.tier.primary).toBe(true);
-    expect(cols.tier.enumValues).toEqual(['main', 'complex', 'standard']);
-    // seeded rows start NULL → both nullable
-    expect(cols.providerId.notNull).toBe(false);
-    expect(cols.model.notNull).toBe(false);
-  });
-
-  it('settings_connection: singleton with nullable refs until configured (no bearer column)', () => {
-    expect(getTableName(teamSettings)).toBe('settings_connection');
-    expect(columnNames(teamSettings)).toEqual({
+  it('team_connection: singleton with nullable refs until configured (no bearer column)', () => {
+    expect(getTableName(connectionSettings)).toBe('team_connection');
+    expect(columnNames(connectionSettings)).toEqual({
       id: 'id',
       mmaBaseUrl: 'mma_base_url',
       gitTokenRef: 'git_token_ref',
@@ -131,7 +93,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     });
-    const cols = getTableColumns(teamSettings);
+    const cols = getTableColumns(connectionSettings);
     // All configured columns nullable until configured.
     expect(cols.mmaBaseUrl.notNull).toBe(false);
     expect(cols.gitTokenRef.notNull).toBe(false);
@@ -139,7 +101,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
   });
 
   it('repo has the canonical columns; repos are classified by tags only, status enum default cloned', () => {
-    expect(getTableName(repo)).toBe('repo');
+    expect(getTableName(repo)).toBe('workspace_repo');
     expect(columnNames(repo)).toEqual({
       id: 'id',
       name: 'name',
@@ -165,9 +127,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(schema.memberIdentity).toBe(memberIdentity);
     expect(schema.session).toBe(session);
     expect(schema.appSecrets).toBe(appSecrets);
-    expect(schema.provider).toBe(provider);
-    expect(schema.agentTier).toBe(agentTier);
-    expect(schema.teamSettings).toBe(teamSettings);
+    expect(schema.connectionSettings).toBe(connectionSettings);
     expect(schema.repo).toBe(repo);
   });
 });

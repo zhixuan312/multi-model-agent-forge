@@ -6,7 +6,7 @@ import { repo } from '@/db/schema/workspace';
 import { MMA_ROUTE, MMA_STATUS } from '@/db/enums';
 
 /**
- * `mma_batch` (schema.md §7 / Spec 5) — one row per MMA call. The scalar
+ * `ops_mma_batch` (schema.md §7 / Spec 5) — one row per MMA call. The scalar
  * `target_repo_id` FK structurally bounds each batch to ≤1 repo (the one-repo
  * invariant's structural half; the conditional half — which routes carry a repo
  * — lives in the Zod input layer). `cwd` is `notNull` for EVERY route (research
@@ -18,7 +18,7 @@ import { MMA_ROUTE, MMA_STATUS } from '@/db/enums';
  * actor; a system-resumed (rehydrated) dispatch is actor-less.
  */
 export const mmaBatch = forge.table(
-  'mma_batch',
+  'ops_mma_batch',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }), // nullable: loop dispatches are team-level (not project-scoped); SDLC dispatches still set it

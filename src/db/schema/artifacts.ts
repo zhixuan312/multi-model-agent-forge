@@ -19,13 +19,13 @@ import {
  */
 
 /**
- * `artifact` (schema.md §6) — a versioned stage output. Spec 4 INSERTs
+ * `project_artifact` (schema.md §6) — a versioned stage output. Spec 4 INSERTs
  * `kind='spec'` (bumping `version` on re-assemble) and READs `kind='exploration'`
  * (Spec 5 writes it). `created_by` NULL = agent-generated. Component drafts live
  * on `component_section.draft_md`, NOT here.
  */
 export const artifact = forge.table(
-  'artifact',
+  'project_artifact',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')
@@ -41,14 +41,14 @@ export const artifact = forge.table(
 );
 
 /**
- * `audit_pass` (schema.md §8) — one row per audit pass (Spec 4 Part B). `pass_no`
+ * `project_audit_pass` (schema.md §8) — one row per audit pass (Spec 4 Part B). `pass_no`
  * is the MONOTONIC persisted counter (`max(pass_no)+1` per pass; MAY exceed
  * `AUDIT_PASS_CAP` across user re-runs). `mma_batch_id` is nullable with NO FK —
- * the `mma_batch` table lands with Spec 5; Spec 4 persists only the audit outcome
+ * the `ops_mma_batch` table lands with Spec 5; Spec 4 persists only the audit outcome
  * (Data-model open-question default (a)).
  */
 export const auditPass = forge.table(
-  'audit_pass',
+  'project_audit_pass',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')
@@ -65,12 +65,12 @@ export const auditPass = forge.table(
 );
 
 /**
- * `learning_candidate` (schema.md §9) — the at-freeze curation set (staging only,
+ * `project_learning_candidate` (schema.md §9) — the at-freeze curation set (staging only,
  * NOT the journal). proposed→kept/removed→recorded. `recorded_node_id` is the MMA
  * journal node id (verbatim, e.g. `0007-some-slug`) after a journal-record write.
  */
 export const learningCandidate = forge.table(
-  'learning_candidate',
+  'project_learning_candidate',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 
 /**
@@ -22,6 +22,8 @@ import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 export interface ConnectionsDeps {
   db?: Db;
   secrets?: SecretStore;
+  /** The admin saving this change — recorded on new secret rows (audit → settings_secret.created_by). */
+  actorId?: string | null;
 }
 
 async function resolveSecrets(deps: ConnectionsDeps): Promise<SecretStore> {
@@ -52,7 +54,7 @@ export const updateConnectionsSchema = z.object({
 /** Read the singleton row (or the empty view if no row exists yet). */
 export async function getConnections(deps: ConnectionsDeps = {}): Promise<ConnectionsView> {
   const db = deps.db ?? getDb();
-  const [row] = await db.select().from(teamSettings).limit(1);
+  const [row] = await db.select().from(connectionSettings).limit(1);
   if (!row) {
     return {
       mmaBaseUrl: null,
@@ -85,7 +87,7 @@ export async function updateConnections(
   if (!parsed.success) return { kind: 'invalid' };
   const { mmaBaseUrl, gitToken, openaiTranscriptionKey } = parsed.data;
 
-  const [existing] = await db.select().from(teamSettings).limit(1);
+  const [existing] = await db.select().from(connectionSettings).limit(1);
 
   // Resolve any provided secrets to refs (replacing the prior secret rows).
   let secrets: SecretStore | null = null;
@@ -98,7 +100,7 @@ export async function updateConnections(
     priorRef: string | null | undefined,
   ): Promise<string | null | undefined> {
     if (plaintext === undefined) return undefined; // unchanged
-    const ref = await secrets!.put(label, plaintext);
+    const ref = await secrets!.put(label, plaintext, deps.actorId ?? null);
     if (priorRef) await secrets!.delete(priorRef); // drop the superseded secret
     return ref;
   }
@@ -115,9 +117,9 @@ export async function updateConnections(
     if (mmaBaseUrl !== undefined) patch.mmaBaseUrl = mmaBaseUrl;
     if (gitTokenRef !== undefined) patch.gitTokenRef = gitTokenRef;
     if (openaiRef !== undefined) patch.openaiTranscriptionKeyRef = openaiRef;
-    await db.update(teamSettings).set(patch).where(eq(teamSettings.id, existing.id));
+    await db.update(connectionSettings).set(patch).where(eq(connectionSettings.id, existing.id));
   } else {
-    await db.insert(teamSettings).values({
+    await db.insert(connectionSettings).values({
       mmaBaseUrl: mmaBaseUrl ?? null,
       gitTokenRef: gitTokenRef ?? null,
       openaiTranscriptionKeyRef: openaiRef ?? null,

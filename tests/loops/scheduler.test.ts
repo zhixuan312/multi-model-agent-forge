@@ -30,7 +30,7 @@ describe('tickScheduler', () => {
     const loopA = { id: 'A', cron: '0 3 * * *', enabled: true };
     const loopB = { id: 'B', cron: '0 3 * * *', enabled: true };
     const db = createMockDb({
-      'select:loop': [loopA, loopB],
+      'select:loop_def': [loopA, loopB],
       // A: no prior run (due) ; B: a run already in flight (skip)
       'select:loop_run': seq([], [{ status: 'running', startedAt: at('2026-06-15T03:00:00+08:00') }]),
     });
@@ -44,7 +44,7 @@ describe('tickScheduler', () => {
 
   it('never fires a one-time (null-cron) job', async () => {
     const oneTime = { id: 'X', cron: null, enabled: true };
-    const db = createMockDb({ 'select:loop': [oneTime], 'select:loop_run': [] });
+    const db = createMockDb({ 'select:loop_def': [oneTime], 'select:loop_run': [] });
     const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
     const res = await tickScheduler({ db, now: () => at('2026-06-15T03:00:30+08:00'), starter: starter as never });
     expect(res.fired).toEqual([]);

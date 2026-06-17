@@ -26,7 +26,7 @@ export interface MmaClientConfig {
   baseUrl: string;
   /** The local mma bearer (MMA_AUTH_TOKEN env or its auth-token file). */
   token: string;
-  /** agent_tier(main).model → X-MMA-Main-Model; null when the main tier is unset. */
+  /** config.json `main` model → X-MMA-Main-Model; null when the main tier is unset. */
   mainModel: string | null;
 }
 

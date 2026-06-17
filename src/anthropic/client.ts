@@ -1,10 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
-import { agentTier, provider } from '@/db/schema/config';
-import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import { readMmaTiers, type MmaTiers } from '@/mma/mma-config-reader';
 import {
   getClaudeOAuth,
   CLAUDE_CODE_OAUTH_BETA,
@@ -18,10 +15,10 @@ import {
  * structured-output calls via `messages.parse` + `zodOutputFormat` (Zod 4),
  * `claude-opus-4-8`, and adaptive thinking.
  *
- * The model + key come from the `main` agent tier (`agent_tier` row `tier='main'`
- * → `provider` → `api_key_ref`/`base_url`, resolved through the SecretStore);
- * fallback `ANTHROPIC_API_KEY` env. The key/token is NEVER logged. A clear typed
- * error is thrown when no key is configured.
+ * The model comes from the `main` tier in the engine's `config.json` (the source
+ * of truth set via the Models tab); auth is the server's Claude Code subscription
+ * OAuth, with an `ANTHROPIC_API_KEY` env fallback. The key/token is NEVER logged.
+ * A clear typed error is thrown when no auth is configured.
  *
  * The class is pure/DI-testable: an SDK-like `messages` impl can be injected so
  * tests never call a real LLM.
@@ -169,75 +166,43 @@ export class AnthropicClient {
   }
 
   /**
-   * Resolve the `main` agent tier → provider → key/base_url/model from the DB
-   * (via the SecretStore), falling back to `ANTHROPIC_API_KEY`. Throws
-   * `AnthropicConfigError` when no key can be resolved (F30/F27 entry guard).
+   * Resolve the `main`-tier model + auth. The MODEL comes from the engine's
+   * `config.json` (`agents.main.model`, set via the Models tab), defaulting to
+   * `DEFAULT_MAIN_MODEL` when unconfigured. AUTH is the server's Claude Code
+   * subscription OAuth, with an `ANTHROPIC_API_KEY` env fallback. Throws
+   * `AnthropicConfigError` when no auth can be resolved (F30/F27 entry guard).
    */
   static async resolveMainTier(deps?: {
-    db?: Db;
-    secrets?: SecretStore;
     oauth?: () => ClaudeOAuthCredentials | null;
+    /** Injectable tier reader (tests); defaults to the engine's config.json. */
+    tiers?: () => MmaTiers;
   }): Promise<MainTierConfig> {
-    const db = deps?.db ?? getDb();
     const readOAuth = deps?.oauth ?? getClaudeOAuth;
+    const readTiers = deps?.tiers ?? readMmaTiers;
 
-    const [tier] = await db
-      .select({ providerId: agentTier.providerId, model: agentTier.model })
-      .from(agentTier)
-      .where(eq(agentTier.tier, 'main'))
-      .limit(1);
+    const model = readTiers().main?.model?.trim() || DEFAULT_MAIN_MODEL;
 
-    const model = tier?.model?.trim() || DEFAULT_MAIN_MODEL;
-
-    // 1. An explicit provider key (type=claude) wins — an operator who pasted a
-    //    key means to use it.
-    if (tier?.providerId) {
-      const [prov] = await db
-        .select({ type: provider.type, baseUrl: provider.baseUrl, apiKeyRef: provider.apiKeyRef })
-        .from(provider)
-        .where(eq(provider.id, tier.providerId))
-        .limit(1);
-      if (prov) {
-        if (prov.type !== 'claude') {
-          throw new AnthropicConfigError(
-            'The main tier must be an Anthropic-compatible provider (type=claude). Configure it in Team Settings.',
-          );
-        }
-        if (prov.apiKeyRef) {
-          const secrets = deps?.secrets ?? (await PostgresSecretStore.create({ db }));
-          const apiKey = await secrets.get(prov.apiKeyRef);
-          if (apiKey) {
-            return { auth: { mode: 'apiKey', apiKey, baseUrl: prov.baseUrl?.trim() || null }, model };
-          }
-        }
-        // A provider with a blank key means "use the server default" → fall
-        // through to the Claude Code subscription OAuth below.
-      }
-    }
-
-    // 2. The server's Claude Code subscription OAuth (no per-team key) — the
-    //    shared "server Claude Code auth" used across all tiers.
+    // 1. The server's Claude Code subscription OAuth — the shared main-tier auth.
     const oauth = readOAuth();
     if (oauth?.accessToken) {
       return { auth: { mode: 'oauth', oauthToken: oauth.accessToken }, model };
     }
 
-    // 3. Env API key fallback (dev / CI).
+    // 2. Env API key fallback (dev / CI).
     const envKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (envKey) {
       return { auth: { mode: 'apiKey', apiKey: envKey, baseUrl: null }, model };
     }
 
     throw new AnthropicConfigError(
-      'No Anthropic auth for the main tier. Add a provider API key in Team Settings, or sign in to Claude Code on the server (Claude Max subscription).',
+      'No Anthropic auth for the main tier. Sign in to Claude Code on the server (Claude Max subscription), or set ANTHROPIC_API_KEY.',
     );
   }
 
   /** Construct against the real SDK, resolving the `main`-tier auth/model from config. */
   static async fromMainTier(deps?: {
-    db?: Db;
-    secrets?: SecretStore;
     oauth?: () => ClaudeOAuthCredentials | null;
+    tiers?: () => MmaTiers;
   }): Promise<AnthropicClient> {
     const cfg = await AnthropicClient.resolveMainTier(deps);
     if (cfg.auth.mode === 'oauth') {

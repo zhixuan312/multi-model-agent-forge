@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { agentTier, provider } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { readMmaBearer } from '@/mma/client-config';
 import { ensureSpecStage, loadOutline } from '@/spec/spec-core';
@@ -105,15 +104,14 @@ async function isMmaReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
   return readMmaBearer() !== null;
 }
 
-/** True iff the `main` tier points at a configured claude provider with an api_key_ref. */
 /**
- * The main tier is ready when any auth resolves: an explicit provider key, the
- * server's Claude Code subscription OAuth, or an env key. Defer to the canonical
- * resolver so the precedence stays in one place.
+ * The main tier is ready when any auth resolves: the server's Claude Code
+ * subscription OAuth, or an env key. Defer to the canonical resolver so the
+ * precedence stays in one place.
  */
-async function isMainTierReady(db: ReturnType<typeof getDb>): Promise<boolean> {
+async function isMainTierReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
   try {
-    await AnthropicClient.resolveMainTier({ db });
+    await AnthropicClient.resolveMainTier();
     return true;
   } catch {
     return false;

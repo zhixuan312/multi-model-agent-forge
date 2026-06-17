@@ -20,7 +20,7 @@ describe('SynthesisScheduler', () => {
 
   it('debounces: a burst of terminal events coalesces into ONE synthesis after the quiet window (F6)', async () => {
     const mockDb = createMockDb({
-      'select:exploration_task': seq(
+      'select:project_exploration_task': seq(
         [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
         [
           {
@@ -35,7 +35,7 @@ describe('SynthesisScheduler', () => {
           },
         ],
       ),
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         {
           id: 'batch-1',
           projectId,
@@ -48,8 +48,8 @@ describe('SynthesisScheduler', () => {
           terminalAt: new Date(),
         },
       ],
-      'insert:artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
-      'select:artifact': seq(
+      'insert:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
+      'select:project_artifact': seq(
         [],
         [
           {
@@ -91,7 +91,7 @@ describe('SynthesisScheduler', () => {
 
   it('fires synthesis automatically when the debounce window elapses', async () => {
     const mockDb = createMockDb({
-      'select:exploration_task': seq(
+      'select:project_exploration_task': seq(
         [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
         [
           {
@@ -106,7 +106,7 @@ describe('SynthesisScheduler', () => {
           },
         ],
       ),
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         {
           id: 'batch-1',
           projectId,
@@ -119,8 +119,8 @@ describe('SynthesisScheduler', () => {
           terminalAt: new Date(),
         },
       ],
-      'insert:artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
-      'select:artifact': [
+      'insert:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
+      'select:project_artifact': [
         {
           id: 'art-1',
           projectId,
@@ -152,11 +152,11 @@ describe('SynthesisScheduler', () => {
 
   it('boot reconciliation sweep synthesizes a project owed a final pass (F24)', async () => {
     const mockDb = createMockDb({
-      'select:exploration_task': seq(
+      'select:project_exploration_task': seq(
         [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
         [{ taskId: 'task-1', projectId, kind: 'research', prompt: 'p', route: 'research', batchStatus: 'done', result: { headline: 'ok' }, repoName: null }],
       ),
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         {
           id: 'batch-1',
           projectId,
@@ -169,8 +169,8 @@ describe('SynthesisScheduler', () => {
           terminalAt: new Date(),
         },
       ],
-      'select:artifact': seq([], [{ v: 0 }]),
-      'insert:artifact': [{ id: 'art-1' }],
+      'select:project_artifact': seq([], [{ v: 0 }]),
+      'insert:project_artifact': [{ id: 'art-1' }],
     });
 
     const sched = new SynthesisScheduler({
@@ -187,7 +187,7 @@ describe('SynthesisScheduler', () => {
   it('leaves a project whose latest artifact already post-dates its tasks untouched (F24)', async () => {
     const past = new Date(Date.now() - 60_000);
     const mockDb = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         {
           id: 'task-1',
           projectId,
@@ -198,7 +198,7 @@ describe('SynthesisScheduler', () => {
           createdBy: ownerId,
         },
       ],
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         {
           id: 'batch-1',
           projectId,
@@ -211,7 +211,7 @@ describe('SynthesisScheduler', () => {
           terminalAt: past,
         },
       ],
-      'select:artifact': seq(
+      'select:project_artifact': seq(
         [
           {
             id: 'art-1',

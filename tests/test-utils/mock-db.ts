@@ -42,9 +42,9 @@ export function createMockSecretStore(): SecretStore & {
  *
  * Hand it canned result sets keyed by the table the query targets — by db table
  * name (`getTableName`), optionally prefixed with the operation:
- *   createMockDb({ 'iam_member': [{ id: 'm1' }] })            // any op on the table
- *   createMockDb({ 'select:iam_member': [...], 'insert:iam_member': [...] })
- *   createMockDb({ 'select:iam_member': seq([row], [{ n: 1 }]) })  // sequential reads
+ *   createMockDb({ 'team_member': [{ id: 'm1' }] })            // any op on the table
+ *   createMockDb({ 'select:team_member': [...], 'insert:team_member': [...] })
+ *   createMockDb({ 'select:team_member': seq([row], [{ n: 1 }]) })  // sequential reads
  *
  * Every chain node is awaitable AND chainable (`.from/.where/.limit/.leftJoin/
  * .groupBy/.orderBy/.values/.set/.returning/.onConflictDoNothing/…`), so it
@@ -52,8 +52,8 @@ export function createMockSecretStore(): SecretStore & {
  * with the same mock (so the txn sees the same canned data + records its calls).
  *
  * Every method invocation is recorded for white-box assertions:
- *   db._assertCalled('iam_member', 'insert')
- *   db._callsFor('settings_connection')
+ *   db._assertCalled('team_member', 'insert')
+ *   db._callsFor('team_connection')
  */
 export interface MockQueryCall {
   op: 'select' | 'insert' | 'update' | 'delete';

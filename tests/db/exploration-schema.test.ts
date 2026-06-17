@@ -9,8 +9,8 @@ function columnNames(table: Parameters<typeof getTableColumns>[0]) {
 }
 
 describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
-  it('mma_batch has the canonical columns; cwd NOT NULL for every route', () => {
-    expect(getTableName(mmaBatch)).toBe('mma_batch');
+  it('ops_mma_batch has the canonical columns; cwd NOT NULL for every route', () => {
+    expect(getTableName(mmaBatch)).toBe('ops_mma_batch');
     expect(columnNames(mmaBatch)).toEqual({
       id: 'id',
       projectId: 'project_id',
@@ -46,8 +46,8 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
     expect(cols.status.default).toBe('dispatched');
   });
 
-  it('exploration_task has draft|running|recorded status (NO failed value)', () => {
-    expect(getTableName(explorationTask)).toBe('exploration_task');
+  it('project_exploration_task has draft|running|recorded status (NO failed value)', () => {
+    expect(getTableName(explorationTask)).toBe('project_exploration_task');
     const cols = getTableColumns(explorationTask);
     expect(cols.status.enumValues).toEqual(['draft', 'running', 'recorded']);
     expect(cols.status.enumValues).not.toContain('failed');
@@ -58,7 +58,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
   });
 
   it('attachment has link|image|file kinds + a jsonb payload', () => {
-    expect(getTableName(attachment)).toBe('attachment');
+    expect(getTableName(attachment)).toBe('project_attachment');
     const cols = getTableColumns(attachment);
     expect(cols.kind.enumValues).toEqual(['link', 'image', 'file']);
     expect(cols.label.notNull).toBe(true);

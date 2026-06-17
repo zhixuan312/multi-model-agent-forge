@@ -114,112 +114,60 @@ describe('AnthropicClient.parse', () => {
 });
 
 describe('AnthropicClient.resolveMainTier', () => {
-  it('throws AnthropicConfigError when no key is configured', async () => {
+  // A config.json tier reader: main carries `model` (or none); auth is OAuth/env.
+  const tiersWith = (mainModel: string | null) => () => ({
+    main: mainModel ? { dialect: 'claude', model: mainModel, baseUrl: null, authMode: 'oauth' as const } : null,
+    complex: null,
+    standard: null,
+  });
+
+  it('throws AnthropicConfigError when no auth is configured', async () => {
     const prev = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
-    // db returns a main tier with no provider → no key, no env fallback.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db: any = {
-      select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ providerId: null, model: null }] }) }) }),
-    };
     try {
-      // oauth:() => null simulates a server with no Claude Code login.
+      // oauth:() => null simulates a server with no Claude Code login + no env key.
       await expect(
-        AnthropicClient.resolveMainTier({ db, oauth: () => null }),
+        AnthropicClient.resolveMainTier({ tiers: tiersWith(null), oauth: () => null }),
       ).rejects.toBeInstanceOf(AnthropicConfigError);
     } finally {
       if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
     }
   });
 
-  it('rejects a non-claude provider for the main tier (F30)', async () => {
-    const prev = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    let stage = 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db: any = {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => {
-              stage += 1;
-              if (stage === 1) return [{ providerId: 'p1', model: 'claude-opus-4-8' }];
-              return [{ type: 'codex', baseUrl: null, apiKeyRef: 'ref' }];
-            },
-          }),
-        }),
-      }),
-    };
-    const secrets = { get: async () => 'sk-test', put: async () => 'x', delete: async () => {} };
-    try {
-      await expect(AnthropicClient.resolveMainTier({ db, secrets })).rejects.toBeInstanceOf(AnthropicConfigError);
-    } finally {
-      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
-    }
+  it('takes the main model from config.json; OAuth is the auth', async () => {
+    const cfg = await AnthropicClient.resolveMainTier({
+      tiers: tiersWith('custom-model'),
+      oauth: () => ({ accessToken: 'oat-1' }),
+    });
+    expect(cfg.model).toBe('custom-model');
+    expect(cfg.auth).toEqual({ mode: 'oauth', oauthToken: 'oat-1' });
   });
 
-  it('resolves the key from the provider via the SecretStore + falls back to env', async () => {
-    let stage = 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db: any = {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => {
-              stage += 1;
-              if (stage === 1) return [{ providerId: 'p1', model: 'custom-model' }];
-              return [{ type: 'claude', baseUrl: 'https://x', apiKeyRef: 'ref' }];
-            },
-          }),
-        }),
-      }),
-    };
-    const secrets = { get: async (id: string) => (id === 'ref' ? 'sk-resolved' : null), put: async () => 'x', delete: async () => {} };
-    const cfg = await AnthropicClient.resolveMainTier({ db, secrets, oauth: () => null });
-    expect(cfg.auth).toEqual({ mode: 'apiKey', apiKey: 'sk-resolved', baseUrl: 'https://x' });
-    expect(cfg.model).toBe('custom-model');
+  it('defaults the model when config.json has no main tier', async () => {
+    const cfg = await AnthropicClient.resolveMainTier({
+      tiers: tiersWith(null),
+      oauth: () => ({ accessToken: 'oat-2' }),
+    });
+    expect(cfg.model).toBe('claude-opus-4-8');
+    expect(cfg.auth.mode).toBe('oauth');
+  });
+
+  it('falls back to the ANTHROPIC_API_KEY env when there is no OAuth', async () => {
+    const prev = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-env';
+    try {
+      const cfg = await AnthropicClient.resolveMainTier({ tiers: tiersWith('m'), oauth: () => null });
+      expect(cfg.auth).toEqual({ mode: 'apiKey', apiKey: 'sk-env', baseUrl: null });
+      expect(cfg.model).toBe('m');
+    } finally {
+      if (prev === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = prev;
+    }
   });
 });
 
 describe('AnthropicClient — server Claude Code OAuth', () => {
   const ctx = { system: 'real-system', user: 'u', call: 'assessAnswers' };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function twoStageDb(tier: any, prov: any): any {
-    let stage = 0;
-    return {
-      select: () => ({
-        from: () => ({
-          where: () => ({ limit: async () => ((stage += 1) === 1 ? [tier] : [prov]) }),
-        }),
-      }),
-    };
-  }
-
-  it('falls back to Claude Code OAuth when the provider key is blank', async () => {
-    const prev = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    const db = twoStageDb({ providerId: 'p1', model: null }, { type: 'claude', baseUrl: null, apiKeyRef: null });
-    try {
-      const cfg = await AnthropicClient.resolveMainTier({ db, oauth: () => ({ accessToken: 'oat-1' }) });
-      expect(cfg.auth).toEqual({ mode: 'oauth', oauthToken: 'oat-1' });
-      expect(cfg.model).toBe('claude-opus-4-8');
-    } finally {
-      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
-    }
-  });
-
-  it('uses Claude Code OAuth when no provider is configured at all', async () => {
-    const prev = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db: any = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ providerId: null, model: null }] }) }) }) };
-    try {
-      const cfg = await AnthropicClient.resolveMainTier({ db, oauth: () => ({ accessToken: 'oat-2' }) });
-      expect(cfg.auth.mode).toBe('oauth');
-    } finally {
-      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
-    }
-  });
 
   it('OAuth mode injects the Claude Code identity as the FIRST system block', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

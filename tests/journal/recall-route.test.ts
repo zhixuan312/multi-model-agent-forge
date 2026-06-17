@@ -71,7 +71,7 @@ describe('POST /api/journal/recall', () => {
     expect(journalRecall.mock.calls[0]![1]).toEqual({ query: 'how do we gate completion?' });
   });
 
-  it('logs a team-level action_log row (project_id null) on dispatch', async () => {
+  it('logs a team-level ops_action_log row (project_id null) on dispatch', async () => {
     mockCaller = asMember();
     await POST(recallReq({ query: 'how do we gate completion?' }) as never);
     expect(logAction).toHaveBeenCalledTimes(1);

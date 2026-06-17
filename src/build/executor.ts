@@ -25,7 +25,6 @@ export interface RepoContext {
   id: string;
   name: string;
   pathOnDisk: string;
-  kind: string;
   defaultBranch: string;
   /** First task targeting this repo this run? (drives checkout -b vs assert.) */
   firstTask: boolean;

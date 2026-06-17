@@ -29,7 +29,6 @@ import { filterRepos } from '@/git/repo-filter';
 export interface RepoCardData {
   id: string;
   name: string;
-  kind: string;
   tags: string[];
   defaultBranch: string;
   status: 'cloned' | 'pulling' | 'error';
@@ -59,22 +58,20 @@ function RepoStatusChip({ status }: { status: RepoCardData['status'] }) {
  * Workspace client island (Spec 2 §Flow E) — the filterable repo TABLE that
  * fills the Primary column; the note rail lives on the page. Mirrors the Team
  * Members table: "New repo" reveals an inline clone form at the top of the table;
- * each admin row carries Pull + a two-step Remove. Filter is kind · tag · search
+ * each admin row carries Pull + a two-step Remove. Filter is tag · search
  * (AND, case-insensitive) over the RSC-loaded list. Non-admins get the table
  * read-only (no actions column, no clone form).
  */
 export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoCardData[]; isAdmin: boolean }) {
   const router = useRouter();
-  const [kind, setKind] = useState('');
   const [tag, setTag] = useState('');
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  const kinds = useMemo(() => [...new Set(initialRepos.map((r) => r.kind))].sort(), [initialRepos]);
   const allTags = useMemo(() => [...new Set(initialRepos.flatMap((r) => r.tags))].sort(), [initialRepos]);
-  const shown = useMemo(() => filterRepos(initialRepos, { kind, tag, search }), [initialRepos, kind, tag, search]);
+  const shown = useMemo(() => filterRepos(initialRepos, { tag, search }), [initialRepos, tag, search]);
 
   const closeAdd = useCallback(() => setAdding(false), []);
 
@@ -117,14 +114,15 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
               <Mono className="block truncate !text-sm font-semibold text-ink" title={r.name}>
                 {r.name}
               </Mono>
-              <div className="mt-1 flex flex-wrap items-center gap-1">
-                <Badge size="sm">{r.kind}</Badge>
-                {r.tags.map((t) => (
-                  <Badge key={t} variant="accent" size="sm">
-                    #{t}
-                  </Badge>
-                ))}
-              </div>
+              {r.tags.length ? (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {r.tags.map((t) => (
+                    <Badge key={t} variant="accent" size="sm">
+                      #{t}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
             </div>
           );
         },
@@ -212,23 +210,6 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
           ) : null}
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Kind">
-            {(p) => (
-              <Select value={kind || '__all'} onValueChange={(v) => setKind(v === '__all' ? '' : v)}>
-                <SelectTrigger {...p} className="min-w-[130px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All kinds</SelectItem>
-                  {kinds.map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {k}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </Field>
           <Field label="Tag">
             {(p) => (
               <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
@@ -290,7 +271,6 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
 function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => void }) {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
-  const [kind, setKind] = useState('service');
   const [tags, setTags] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -304,7 +284,7 @@ function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => v
       const res = await fetch('/api/repos', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, url, kind, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }),
+        body: JSON.stringify({ name, url, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }),
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -325,9 +305,6 @@ function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => v
         </Field>
         <Field label="Git URL">
           {(p) => <Input {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/team/repo.git" />}
-        </Field>
-        <Field label="Kind">
-          {(p) => <Input {...p} value={kind} onChange={(e) => setKind(e.target.value)} placeholder="service / library / infra / docs" />}
         </Field>
         <Field label="Tags" hint="comma-separated">
           {(p) => <Input {...p} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="core, backend" />}

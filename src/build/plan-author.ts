@@ -72,7 +72,7 @@ interface RepoInfo {
   id: string;
   name: string;
   pathOnDisk: string;
-  kind: string;
+  tags: string[];
   defaultBranch: string;
 }
 
@@ -83,7 +83,7 @@ async function loadProjectRepos(db: Db, projectId: string): Promise<RepoInfo[]> 
       id: repo.id,
       name: repo.name,
       pathOnDisk: repo.pathOnDisk,
-      kind: repo.kind,
+      tags: repo.tags,
       defaultBranch: repo.defaultBranch,
     })
     .from(projectRepo)
@@ -132,7 +132,7 @@ export async function authorPlan(
       rawDraft = deps.draftOverride;
     } else {
       const repoList = repos
-        .map((r) => `- id=${r.id} name=${r.name} kind=${r.kind}`)
+        .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
         .join('\n');
       rawDraft = await deps.anthropic.parse(PlanDraftSchema, {
         call: 'authorPlan',

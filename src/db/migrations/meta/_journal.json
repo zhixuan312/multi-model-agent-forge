@@ -78,6 +78,13 @@
       "when": 1781700000000,
       "tag": "0010_loop_target_branch_adhoc",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781800000000,
+      "tag": "0011_drop_repo_kind",
+      "breakpoints": true
     }
   ]
 }

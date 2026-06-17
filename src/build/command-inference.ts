@@ -18,7 +18,7 @@
  */
 
 export interface ManifestSnapshot {
-  kind: string; // repo.kind
+  kind: string; // detected language/ecosystem (node | bun | python), sniffed from manifest files
   /** Parsed package.json (node/bun), or null. */
   packageJson?: { scripts?: Record<string, string> } | null;
   /** Lockfile presence flags. */

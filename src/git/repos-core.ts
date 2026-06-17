@@ -28,7 +28,6 @@ export interface RepoView {
   name: string;
   pathOnDisk: string;
   defaultBranch: string;
-  kind: string;
   tags: string[];
   headSha: string | null;
   status: 'cloned' | 'pulling' | 'error';
@@ -41,7 +40,6 @@ function toView(row: typeof repo.$inferSelect): RepoView {
     name: row.name,
     pathOnDisk: row.pathOnDisk,
     defaultBranch: row.defaultBranch,
-    kind: row.kind,
     tags: row.tags,
     headSha: row.headSha,
     status: row.status,
@@ -64,7 +62,6 @@ export const cloneRepoSchema = z.object({
       message: 'Name must be a simple directory name (no slashes or "..").',
     }),
   url: z.string().trim().min(1),
-  kind: z.string().trim().min(1).default('service'),
   tags: tagsSchema,
 });
 export type CloneRepoInput = z.infer<typeof cloneRepoSchema>;
@@ -106,7 +103,7 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   const db = deps.db ?? getDb();
   const parsed = cloneRepoSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message };
-  const { name, url, kind, tags } = parsed.data;
+  const { name, url, tags } = parsed.data;
 
   // Duplicate-name guard (the UNIQUE column is the real race guard).
   const [existing] = await db.select({ id: repo.id }).from(repo).where(eq(repo.name, name)).limit(1);
@@ -123,7 +120,7 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   try {
     const [row] = await db
       .insert(repo)
-      .values({ name, pathOnDisk: name, defaultBranch: 'unknown', kind, tags, status: 'pulling' })
+      .values({ name, pathOnDisk: name, defaultBranch: 'unknown', tags, status: 'pulling' })
       .returning({ id: repo.id });
     rowId = row.id;
   } catch (e) {

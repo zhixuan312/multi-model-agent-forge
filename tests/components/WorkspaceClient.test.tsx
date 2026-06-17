@@ -7,9 +7,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 const REPOS: RepoCardData[] = [
-  { id: 'a', name: 'core-api', kind: 'library', tags: ['core', 'backend'], defaultBranch: 'main', status: 'cloned', headSha: 'abcdef1234' },
-  { id: 'b', name: 'web', kind: 'service', tags: ['frontend'], defaultBranch: 'main', status: 'pulling', headSha: null },
-  { id: 'c', name: 'core-docs', kind: 'docs', tags: ['core'], defaultBranch: 'main', status: 'error', headSha: null },
+  { id: 'a', name: 'core-api', tags: ['core', 'backend'], defaultBranch: 'main', status: 'cloned', headSha: 'abcdef1234' },
+  { id: 'b', name: 'web', tags: ['frontend'], defaultBranch: 'main', status: 'pulling', headSha: null },
+  { id: 'c', name: 'core-docs', tags: ['core'], defaultBranch: 'main', status: 'error', headSha: null },
 ];
 
 /** The table row that contains a repo name. */

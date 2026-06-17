@@ -72,7 +72,6 @@ const REPO_CTX = (id: string, name: string, path: string, firstTask = true): Rep
   id,
   name,
   pathOnDisk: path,
-  kind: 'node',
   defaultBranch: 'main',
   firstTask,
 });

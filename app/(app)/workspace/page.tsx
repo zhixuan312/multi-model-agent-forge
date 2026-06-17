@@ -1,15 +1,29 @@
 import { GitBranch, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageFrame, MetricCard } from '@/components/ui';
+import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { currentMember } from '@/auth/current-member';
 import { listRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
 
+const WORKSPACE_NOTE = `### Shared repositories
+
+- **The team's git repos** — cloned on disk, the roots projects build against
+- **Admins** — clone, pull and remove them
+- **Everyone else** — sees the pool read-only
+
+### Status
+
+- **Cloned** — ready to use
+- **Pulling** — git is fetching the latest
+- **Error** — the last clone or pull failed`;
+
 /**
  * Workspace page (Spec 2 §Workspace) — the team's shared repo pool, on the
  * Team-Settings shell: a STATUS row (total · cloned · pulling · errors) then a
- * 2/3 ∣ 1/3 row — the filterable repo TABLE (Primary) and the workspace note +
- * admin clone form (Rail). Repos are a homogeneous list, so they get one table
- * (decision 0003), matching Members/Providers.
+ * 2/3 ∣ 1/3 row — the filterable repo TABLE (Primary) and the workspace note
+ * (Rail). Repos are a homogeneous list, so they get one table (decision 0003),
+ * matching Members. Data is live: rows come from `forge.repo` and clone/pull run
+ * real git via the WorkspaceService.
  */
 export default async function WorkspacePage() {
   const me = await currentMember();
@@ -34,6 +48,7 @@ export default async function WorkspacePage() {
   return (
     <PageFrame title="Workspace" width="full" fill>
       <div className="flex h-full min-h-0 flex-col gap-4">
+        {/* STATUS — four equal metric boxes */}
         <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Repositories" value={total} sublabel="On disk" icon={<GitBranch />} iconTint="accent" />
           <MetricCard label="Cloned" value={cloned} muted={cloned === 0} sublabel="Ready to use" icon={<CheckCircle2 />} iconTint="sage" />
@@ -41,8 +56,14 @@ export default async function WorkspacePage() {
           <MetricCard label="Errors" value={errored} muted={errored === 0} sublabel="Need attention" icon={<AlertTriangle />} iconTint="rose" />
         </div>
 
-        <div className="min-h-0 flex-1">
-          <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
+        {/* PRIMARY (2/3) ∣ RAIL (1/3) — fills to the page bottom; the table scrolls */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="flex min-h-0 flex-col lg:col-span-2">
+            <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
+          </div>
+          <div className="flex min-h-0 flex-col gap-4">
+            <SettingsAccessNote body={WORKSPACE_NOTE} icon={<GitBranch />} />
+          </div>
         </div>
       </div>
     </PageFrame>

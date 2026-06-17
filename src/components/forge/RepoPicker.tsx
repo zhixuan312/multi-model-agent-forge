@@ -6,8 +6,8 @@ import { filterRepos } from '@/git/repo-filter';
 
 /**
  * RepoPicker (Spec 3 flow 1) — the new-project repo-subset picker. Hydrates the
- * bounded workspace repo set once and client-filters in-memory (search · kind ·
- * tag, AND-combined; semantics in `filterRepos`). A repo with status='error' (or
+ * bounded workspace repo set once and client-filters in-memory (search · tag,
+ * AND-combined; semantics in `filterRepos`). A repo with status='error' (or
  * a missing row) renders a non-selectable "repo unavailable" chip. Selection is
  * a controlled set of repo ids surfaced to the parent form via `onChange`.
  */
@@ -15,7 +15,6 @@ import { filterRepos } from '@/git/repo-filter';
 export interface RepoPickerRepo {
   id: string;
   name: string;
-  kind: string;
   tags: string[];
   status: 'cloned' | 'pulling' | 'error';
 }
@@ -27,13 +26,11 @@ export interface RepoPickerProps {
 }
 
 export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
-  const [kind, setKind] = useState('');
   const [tag, setTag] = useState('');
   const [search, setSearch] = useState('');
 
-  const kinds = useMemo(() => [...new Set(repos.map((r) => r.kind))].sort(), [repos]);
   const allTags = useMemo(() => [...new Set(repos.flatMap((r) => r.tags))].sort(), [repos]);
-  const shown = useMemo(() => filterRepos(repos, { kind, tag, search }), [repos, kind, tag, search]);
+  const shown = useMemo(() => filterRepos(repos, { tag, search }), [repos, tag, search]);
 
   const selectedSet = new Set(selected);
 
@@ -50,23 +47,6 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
       <div className="flex flex-wrap items-end gap-2.5">
         <Field label="Search repos" className="min-w-[160px] flex-1">
           {(p) => <Input {...p} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="name…" />}
-        </Field>
-        <Field label="Kind">
-          {(p) => (
-            <Select value={kind || '__all'} onValueChange={(v) => setKind(v === '__all' ? '' : v)}>
-              <SelectTrigger {...p}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All kinds</SelectItem>
-                {kinds.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {k}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
         </Field>
         <Field label="Tag">
           {(p) => (
@@ -108,7 +88,15 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
                 <Mono className="!text-sm text-ink">{r.name}</Mono>
               </label>
               {available ? (
-                <Badge size="sm">{r.kind}</Badge>
+                r.tags.length ? (
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {r.tags.map((t) => (
+                      <Badge key={t} variant="accent" size="sm">
+                        #{t}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null
               ) : (
                 <Badge data-testid={`repo-unavailable-${r.name}`} variant="rose" size="sm">
                   repo unavailable

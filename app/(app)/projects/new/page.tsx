@@ -17,7 +17,6 @@ export default async function NewProjectPage() {
   const pickerRepos: RepoPickerRepo[] = repos.map((r) => ({
     id: r.id,
     name: r.name,
-    kind: r.kind,
     tags: r.tags,
     status: r.status,
   }));

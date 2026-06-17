@@ -33,7 +33,6 @@ export default async function WorkspacePage() {
   const initialRepos: RepoCardData[] = repos.map((r) => ({
     id: r.id,
     name: r.name,
-    kind: r.kind,
     tags: r.tags,
     defaultBranch: r.defaultBranch,
     status: r.status,

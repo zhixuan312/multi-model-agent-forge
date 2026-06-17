@@ -138,14 +138,13 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.openaiTranscriptionKeyRef.notNull).toBe(false);
   });
 
-  it('repo has the canonical columns; kind free-form text, status enum default cloned', () => {
+  it('repo has the canonical columns; repos are classified by tags only, status enum default cloned', () => {
     expect(getTableName(repo)).toBe('repo');
     expect(columnNames(repo)).toEqual({
       id: 'id',
       name: 'name',
       pathOnDisk: 'path_on_disk',
       defaultBranch: 'default_branch',
-      kind: 'kind',
       tags: 'tags',
       headSha: 'head_sha',
       status: 'status',
@@ -156,9 +155,6 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.name.isUnique).toBe(true);
     expect(cols.pathOnDisk.notNull).toBe(true);
     expect(cols.defaultBranch.notNull).toBe(true);
-    expect(cols.kind.notNull).toBe(true);
-    // kind is free-form text — NOT an enum (no constrained value set)
-    expect(cols.kind.enumValues).toBeUndefined();
     expect(cols.status.enumValues).toEqual(['cloned', 'pulling', 'error']);
     expect(cols.status.default).toBe('cloned');
     expect(cols.headSha.notNull).toBe(false);

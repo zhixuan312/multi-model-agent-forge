@@ -12,7 +12,7 @@ vi.mock('../../app/(app)/projects/new/actions', () => ({
 }));
 
 const repos: RepoPickerRepo[] = [
-  { id: '1', name: 'eval-core', kind: 'service', tags: ['eval'], status: 'cloned' },
+  { id: '1', name: 'eval-core', tags: ['eval'], status: 'cloned' },
 ];
 
 describe('NewProjectForm a11y', () => {

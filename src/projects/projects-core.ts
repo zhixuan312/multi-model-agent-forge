@@ -358,7 +358,6 @@ export async function getProjectStages(
 export interface ProjectRepoView {
   repoId: string;
   name: string | null;
-  kind: string | null;
   tags: string[] | null;
   status: 'cloned' | 'pulling' | 'error' | null;
   /** False ⟺ dangling join OR status='error'. */
@@ -374,7 +373,6 @@ export async function getProjectRepos(
     .select({
       repoId: projectRepo.repoId,
       name: repo.name,
-      kind: repo.kind,
       tags: repo.tags,
       status: repo.status,
     })
@@ -385,7 +383,6 @@ export async function getProjectRepos(
   return rows.map((r) => ({
     repoId: r.repoId,
     name: r.name,
-    kind: r.kind,
     tags: r.tags,
     status: r.status,
     available: r.status !== null && r.status !== 'error',

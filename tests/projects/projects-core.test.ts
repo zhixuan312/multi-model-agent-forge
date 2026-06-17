@@ -185,8 +185,8 @@ describe('getProjectRepos — dangling + errored repo resolution', () => {
     const projectId = 'proj-10';
     const mockDb = createMockDb({
       'select:project_repo': [
-        { projectId, repoId: 'good-repo', name: 'Good', kind: 'app', tags: [], status: 'cloned' },
-        { projectId, repoId: 'bad-repo', name: 'Bad', kind: 'app', tags: [], status: 'error' },
+        { projectId, repoId: 'good-repo', name: 'Good', tags: [], status: 'cloned' },
+        { projectId, repoId: 'bad-repo', name: 'Bad', tags: [], status: 'error' },
       ],
     });
 

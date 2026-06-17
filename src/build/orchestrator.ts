@@ -50,7 +50,6 @@ export async function loadRepoMeta(db: Db, projectId: string): Promise<Map<strin
       id: repo.id,
       name: repo.name,
       pathOnDisk: repo.pathOnDisk,
-      kind: repo.kind,
       defaultBranch: repo.defaultBranch,
     })
     .from(projectRepo)

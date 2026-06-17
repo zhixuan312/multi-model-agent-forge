@@ -5,25 +5,18 @@ import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
 
 /**
  * Regression: MMA rejects every tool route with 400 `main_model_required` when
- * `X-MMA-Main-Model` is absent. The roster `main` model is null pre-config, so
+ * `X-MMA-Main-Model` is absent. The configured `main` model is null pre-config, so
  * `buildMmaClient` MUST default the header — otherwise the whole Exploration /
  * audit / build-pipeline dispatch surface 400s.
  */
 
-// db with NO team_settings row and a `main` tier whose model is null.
+// db with NO team_connection row; the main model comes from config.json,
+// injected as an unconfigured tier set (`noTiers`) below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dbNoSettingsNullMainModel(): any {
-  return {
-    select: () => ({
-      from: () => ({
-        // team_settings: .from().limit() → none
-        limit: async () => [],
-        // agent_tier main: .from().where().limit() → model null
-        where: () => ({ limit: async () => [{ model: null }] }),
-      }),
-    }),
-  };
+function dbNoSettings(): any {
+  return { select: () => ({ from: () => ({ limit: async () => [] }) }) };
 }
+const noTiers = () => ({ main: null, complex: null, standard: null });
 
 function headerVal(init: RequestInit | undefined, name: string): string | null {
   const h = init?.headers as Record<string, string> | undefined;
@@ -47,7 +40,7 @@ describe('buildMmaClient', () => {
     }) as unknown as typeof fetch;
 
     try {
-      const client = await buildMmaClient({ db: dbNoSettingsNullMainModel() });
+      const client = await buildMmaClient({ db: dbNoSettings(), tiers: noTiers });
       const res = await client.investigate('/tmp/repo', { question: 'hi there' });
       expect(res.batchId).toBe('b-1');
       expect(headerVal(calls[0]!.init, 'X-MMA-Main-Model')).toBe(DEFAULT_MAIN_MODEL);

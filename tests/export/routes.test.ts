@@ -103,9 +103,9 @@ describe('GET /export/artifacts (Key flow A)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:audit_pass': [],
-      'select:artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
-      'select:mma_batch': [],
+      'select:project_audit_pass': [],
+      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:ops_mma_batch': [],
     });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: projectId }),
@@ -140,7 +140,7 @@ describe('GET /export/sections (F30)', () => {
     mockCaller = asMember(ownerId);
     mockDb = createMockDb({
       'select:project': [{ ownerId, visibility: 'public' }],
-      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
     });
     const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),
@@ -186,14 +186,14 @@ describe('GET /export/md (Key flow B)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:iam_member': [{ displayName: 'Owner' }],
-      'select:stage': [{ id: 'stage-1' }],
-      'select:component': [],
-      'select:audit_pass': [],
-      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
-      'select:mma_batch': [],
-      'insert:export': [{ id: 'exp-1' }],
-      'insert:action_log': [{ id: 'log-1' }],
+      'select:team_member': [{ displayName: 'Owner' }],
+      'select:project_stage': [{ id: 'stage-1' }],
+      'select:project_component': [],
+      'select:project_audit_pass': [],
+      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
+      'select:ops_mma_batch': [],
+      'insert:project_export': [{ id: 'exp-1' }],
+      'insert:ops_action_log': [{ id: 'log-1' }],
     });
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),
@@ -210,8 +210,8 @@ describe('GET /export/md (Key flow B)', () => {
     mockCaller = asMember(ownerId);
     mockDb = createMockDb({
       'select:project': [{ ownerId, visibility: 'public' }],
-      'select:artifact': [],
-      'select:mma_batch': [],
+      'select:project_artifact': [],
+      'select:ops_mma_batch': [],
     });
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=plan'), {
       params: Promise.resolve({ id: projectId }),

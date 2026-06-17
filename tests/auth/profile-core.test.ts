@@ -28,22 +28,22 @@ describe('updateOwnProfile', () => {
   });
 
   it('not_found when the member row is missing', async () => {
-    const db = createMockDb({ 'update:iam_member': [] });
+    const db = createMockDb({ 'update:team_member': [] });
     expect((await updateOwnProfile('m1', { displayName: 'Ada', avatarTint: '#9a6b4f' }, { db })).kind).toBe('not_found');
   });
 
   it('updates the member and echoes the persisted values', async () => {
-    const db = createMockDb({ 'update:iam_member': [{ displayName: 'Ada', avatarTint: '#123456' }] });
+    const db = createMockDb({ 'update:team_member': [{ displayName: 'Ada', avatarTint: '#123456' }] });
     const res = await updateOwnProfile('m1', { displayName: 'Ada', avatarTint: '#123456' }, { db });
     expect(res).toEqual({ kind: 'updated', displayName: 'Ada', avatarTint: '#123456' });
-    expect(db._assertCalled('iam_member', 'update')).toBe(true);
+    expect(db._assertCalled('team_member', 'update')).toBe(true);
   });
 });
 
 describe('getProfileMeta', () => {
   it('returns created-at + the active-session count', async () => {
     const createdAt = new Date('2026-01-01T00:00:00.000Z');
-    const db = createMockDb({ iam_member: [{ createdAt }], iam_session: [{ n: 3 }] });
+    const db = createMockDb({ team_member: [{ createdAt }], team_session: [{ n: 3 }] });
     expect(await getProfileMeta('m1', { db })).toEqual({ createdAt, activeSessions: 3 });
   });
 

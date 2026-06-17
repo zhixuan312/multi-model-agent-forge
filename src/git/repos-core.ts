@@ -4,14 +4,14 @@
  *
  * Dependency-injected (`Db` + `SecretStore` + `WorkspaceService`) so the route
  * handlers are thin and the core is testable against the live DB with a mocked
- * git runner. The git token is resolved from `team_settings.git_token_ref` and
- * passed to the service, never returned to callers, never logged.
+ * git runner. The git token is resolved from `settings_connection.git_token_ref`
+ * and passed to the service, never returned to callers, never logged.
  */
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
@@ -52,14 +52,28 @@ const tagsSchema = z
   .optional()
   .transform((t) => t ?? []);
 
+/**
+ * Normalize a repo name to a filesystem-safe snake_case slug: lowercase, every
+ * run of non-alphanumeric chars (spaces, punctuation, slashes) → a single `_`,
+ * trimmed of leading/trailing `_`. The name doubles as the on-disk clone
+ * directory (`path_on_disk`), so it must be a clean physical name — e.g.
+ * "Self Service Demo" → "self_service_demo". Also neutralizes path-escapes
+ * (`/`, `\`, `..` all collapse to `_`).
+ */
+export function toRepoSlug(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 export const cloneRepoSchema = z.object({
   name: z
     .string()
     .trim()
     .min(1)
-    // Reject path-escaping names up front (the service sandbox is the real guard).
-    .refine((n) => !n.includes('/') && !n.includes('\\') && n !== '.' && n !== '..', {
-      message: 'Name must be a simple directory name (no slashes or "..").',
+    // The name is the on-disk clone directory, so normalize it to a snake_case
+    // slug (no spaces / punctuation). A name with no alphanumerics → empty → invalid.
+    .transform(toRepoSlug)
+    .refine((n) => n.length > 0, {
+      message: 'Name must contain at least one letter or number.',
     }),
   url: z.string().trim().min(1),
   tags: tagsSchema,
@@ -80,9 +94,9 @@ async function resolveWorkspace(deps: ReposDeps): Promise<WorkspaceService> {
   return deps.workspace ?? new WorkspaceService({ workspaceRoot: resolveWorkspaceRoot() });
 }
 
-/** Resolve the git token from team_settings.git_token_ref (null when unset). */
+/** Resolve the git token from settings_connection.git_token_ref (null when unset). */
 async function gitToken(db: Db, secrets: SecretStore): Promise<string | undefined> {
-  const [row] = await db.select().from(teamSettings).limit(1);
+  const [row] = await db.select().from(connectionSettings).limit(1);
   if (!row?.gitTokenRef) return undefined;
   const tok = await secrets.get(row.gitTokenRef);
   return tok ?? undefined;

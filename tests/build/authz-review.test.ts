@@ -11,13 +11,13 @@ import { createMockDb, seq } from '../test-utils/mock-db';
 import { RecordingBus, FakeMma } from './fixtures';
 
 describe('execute authorization (F10)', () => {
-  it('authorize writes action_log(action=execute, target=repo:<name>) + emits execute.notice + holds lock', async () => {
+  it('authorize writes ops_action_log(action=execute, target=repo:<name>) + emits execute.notice + holds lock', async () => {
     const db = createMockDb({
-      'select:action_log': seq(
+      'select:ops_action_log': seq(
         [],
         [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
       ),
-      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
     });
     const bus = new RecordingBus();
     expect(await hasExecuteAuthorization(db, 'proj-1', 'test-repo')).toBe(false);
@@ -28,7 +28,7 @@ describe('execute authorization (F10)', () => {
     );
     expect(isExecuteLocked('proj-1', 'repo-1')).toBe(true);
 
-    expect(db._assertCalled('action_log', 'insert')).toBe(true);
+    expect(db._assertCalled('ops_action_log', 'insert')).toBe(true);
     const notice = bus.ofType('execute.notice')[0];
     expect(notice.memberId).toBe('member-1');
     expect(notice.repo).toBe('test-repo');
@@ -40,8 +40,8 @@ describe('execute authorization (F10)', () => {
 
   it('a second concurrent executor on the same repo is blocked (advisory lock)', async () => {
     const db = createMockDb({
-      'select:action_log': [],
-      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+      'select:ops_action_log': [],
+      'insert:ops_action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
     });
     const release = await authorizeExecute(
       { projectId: 'proj-1', repoId: 'repo-1', repoName: 'test-repo', memberId: 'member-1' },

@@ -300,8 +300,8 @@ function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => v
   return (
     <form onSubmit={onSubmit} aria-label="Clone repo" className="flex flex-col gap-4 bg-surface-2/50 p-4">
       <FieldGrid cols={2}>
-        <Field label="Name">
-          {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} className="font-mono" placeholder="repo-name" autoFocus />}
+        <Field label="Name" hint="lowercased to a snake_case dir — spaces become _">
+          {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} className="font-mono" placeholder="payments_api" autoFocus />}
         </Field>
         <Field label="Git URL">
           {(p) => <Input {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/team/repo.git" />}

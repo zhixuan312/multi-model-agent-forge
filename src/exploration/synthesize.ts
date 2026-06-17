@@ -86,7 +86,7 @@ export async function synthesize(
 
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
-  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier({ db }));
+  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
   let synthesis: Synthesis;
   try {
     synthesis = await anthropic.parse(SynthesisSchema, {

@@ -35,9 +35,9 @@ describe('proposeLearnings (mock Anthropic)', () => {
   it('inserts proposed/origin=spec candidates from composeLearningCandidates', async () => {
     const projectId = 'proj-1';
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
-      'select:learning_candidate': [],
-      'insert:learning_candidate': [
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_learning_candidate': [],
+      'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'The dual gate was the riskiest part.', type: 'challenge' },
         { id: 'cand-2', projectId, status: 'proposed', origin: 'spec', bodyMd: 'We chose workspace-root cwd for audits.', type: 'decision' },
       ],
@@ -60,9 +60,9 @@ describe('proposeLearnings (mock Anthropic)', () => {
   it('is idempotent — a re-load does not duplicate candidates', async () => {
     const projectId = 'proj-2';
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
-      'select:learning_candidate': seq([], [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }]),
-      'insert:learning_candidate': [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_learning_candidate': seq([], [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }]),
+      'insert:project_learning_candidate': [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }],
     });
     const anthropic = mockAnthropicClient({
       composeLearningCandidates: [{ candidates: [{ bodyMd: 'One.', type: 'insight' }] }],
@@ -78,19 +78,19 @@ describe('curation', () => {
     const projectId = 'proj-3';
     const ownerId = 'owner-3';
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
-      'select:learning_candidate': seq(
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_learning_candidate': seq(
         [],
         [
           { id: 'cand-1', projectId, status: 'kept', origin: 'spec', bodyMd: 'A.', type: 'insight' },
           { id: 'cand-2', projectId, status: 'kept', origin: 'member', bodyMd: 'My own learning.', type: 'decision' },
         ],
       ),
-      'insert:learning_candidate': [
+      'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'A.', type: 'insight' },
         { id: 'cand-2', projectId, status: 'kept', origin: 'member', bodyMd: 'My own learning.', type: 'decision' },
       ],
-      'update:learning_candidate': [{ id: 'cand-1', projectId, status: 'kept' }],
+      'update:project_learning_candidate': [{ id: 'cand-1', projectId, status: 'kept' }],
     });
     const anthropic = mockAnthropicClient({
       composeLearningCandidates: [{ candidates: [{ bodyMd: 'A.', type: 'insight' }] }],
@@ -110,7 +110,7 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
     const ownerId = 'owner-4';
     const calls: RecordedDispatch[] = [];
     const mockDb = createMockDb({
-      'select:learning_candidate': seq(
+      'select:project_learning_candidate': seq(
         [
           { id: 'cand-1', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept one with enough length to satisfy.', type: 'insight' },
           { id: 'cand-2', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept two with enough length to satisfy.', type: 'decision' },
@@ -120,15 +120,15 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
           { id: 'cand-2', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept two with enough length to satisfy.', type: 'decision', recordedNodeId: '0008-next-slug' },
         ],
       ),
-      'insert:learning_candidate': [
+      'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept one with enough length to satisfy.', type: 'insight' },
         { id: 'cand-2', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept two with enough length to satisfy.', type: 'decision' },
       ],
-      'update:learning_candidate': [
+      'update:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'recorded', recordedNodeId: '0007-some-slug' },
         { id: 'cand-2', projectId, status: 'recorded', recordedNodeId: '0008-next-slug' },
       ],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'record_learnings' }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'record_learnings' }],
     });
 
     const mma = mockMma({
@@ -148,18 +148,18 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
     const ownerId = 'owner-5';
     const calls: RecordedDispatch[] = [];
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
-      'select:learning_candidate': seq(
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_learning_candidate': seq(
         [],
         [{ id: 'cand-3', projectId, status: 'kept', origin: 'member', bodyMd: 'The only kept.', type: 'decision' }],
       ),
-      'insert:learning_candidate': [
+      'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'Proposed (left untouched).', type: 'insight' },
         { id: 'cand-2', projectId, status: 'proposed', origin: 'spec', bodyMd: 'Removed one.', type: 'challenge' },
         { id: 'cand-3', projectId, status: 'kept', origin: 'member', bodyMd: 'The only kept.', type: 'decision' },
       ],
-      'update:learning_candidate': [{ id: 'cand-2', status: 'removed' }, { id: 'cand-3', status: 'recorded', recordedNodeId: '0009-only' }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'record_learnings' }],
+      'update:project_learning_candidate': [{ id: 'cand-2', status: 'removed' }, { id: 'cand-3', status: 'recorded', recordedNodeId: '0009-only' }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'record_learnings' }],
     });
 
     const anthropic = mockAnthropicClient({
@@ -186,10 +186,10 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
     const projectId = 'proj-6';
     const ownerId = 'owner-6';
     const mockDb = createMockDb({
-      'select:learning_candidate': [
+      'select:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept but the write fails.', type: 'insight' },
       ],
-      'insert:learning_candidate': [
+      'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept but the write fails.', type: 'insight' },
       ],
     });

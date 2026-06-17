@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import {
   latestBrief,
@@ -73,8 +73,8 @@ export default async function ExploreStagePage({
   ]);
 
   const [settings] = await db
-    .select({ openaiRef: teamSettings.openaiTranscriptionKeyRef })
-    .from(teamSettings)
+    .select({ openaiRef: connectionSettings.openaiTranscriptionKeyRef })
+    .from(connectionSettings)
     .limit(1);
   const voiceEnabled = Boolean(settings?.openaiRef);
 

@@ -7,7 +7,7 @@
 const FIXED = new Date('2026-01-01T00:00:00.000Z');
 const WARM_EMBER = '#9a6b4f';
 
-/** `iam_member` row. */
+/** `team_member` row. */
 export function createBaseMember(over: Partial<{
   id: string; username: string; displayName: string; avatarTint: string;
   isAdmin: boolean; createdAt: Date;
@@ -23,7 +23,7 @@ export function createBaseMember(over: Partial<{
   };
 }
 
-/** `iam_session` row. */
+/** `team_session` row. */
 export function createBaseSession(over: Partial<{
   id: string; memberId: string; tokenHash: string; lastUsedAt: Date;
   expiresAt: Date; createdAt: Date;
@@ -39,7 +39,7 @@ export function createBaseSession(over: Partial<{
   };
 }
 
-/** `settings_connection` singleton row. */
+/** `team_connection` singleton row. */
 export function createBaseConnection(over: Partial<{
   id: string; mmaBaseUrl: string | null; gitTokenRef: string | null;
   openaiTranscriptionKeyRef: string | null; createdAt: Date; updatedAt: Date;

@@ -2,9 +2,10 @@ import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { mmaBatch } from '@/db/schema/mma';
 import { PostgresSecretStore } from '@/secrets/secret-store';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
@@ -19,7 +20,7 @@ import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
  */
 
 async function readGitToken(db: Db): Promise<string | null> {
-  const [row] = await db.select({ ref: teamSettings.gitTokenRef }).from(teamSettings).limit(1);
+  const [row] = await db.select({ ref: connectionSettings.gitTokenRef }).from(connectionSettings).limit(1);
   if (!row?.ref) return null;
   const secrets = await PostgresSecretStore.create({ db });
   return secrets.get(row.ref);
@@ -153,17 +154,17 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       }).results?.[0];
       return { output: r0?.report?.implementer ?? '', sessionId: r0?.sessions?.implementer?.sessionId ?? null };
     },
-    recall: async (repo, query) => {
-      // Only recall against the repo's OWN journal. With no local `.mma/journal`,
-      // the recall worker walks UP the tree and recalls an UNRELATED repo's journal
-      // (e.g. the mma monorepo's) — irrelevant context + a slow search over a large
-      // graph. Skip instead: a repo with no prior loop learnings simply gets none.
+    recall: async (_repo, query) => {
+      // Recall against the TEAM journal at the workspace root (`<root>/.mma/journal`),
+      // the single team-level store every recall/record shares — not a per-repo
+      // journal. With no team journal yet, a run simply gets no prior context.
       // Recall is pure read-only retrieval, so never run it through the reviewer.
-      if (!existsSync(join(repo.pathOnDisk, '.mma', 'journal'))) return '';
+      const workspaceRoot = resolveWorkspaceRoot();
+      if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
         const env = await mma.dispatchAndWait('journal-recall', {
-          cwd: repo.pathOnDisk,
+          cwd: workspaceRoot,
           body: { query: query.slice(0, 4000), reviewPolicy: 'none' },
         });
         const e = (env ?? {}) as { headline?: string };
@@ -283,11 +284,12 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const json = (await res.json()) as { html_url: string };
       return { prUrl: json.html_url };
     },
-    record: async (repo, entries) => {
+    record: async (_repo, entries) => {
       try {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
-        await mma.dispatchAndWait('journal-record', { cwd: repo.pathOnDisk, body: { learnings: text } });
+        // Record to the TEAM journal at the workspace root, not the repo's tree.
+        await mma.dispatchAndWait('journal-record', { cwd: resolveWorkspaceRoot(), body: { learnings: text } });
       } catch {
         /* journal record is best-effort; a failure must not fail the run */
       }

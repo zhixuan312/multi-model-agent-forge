@@ -16,12 +16,12 @@ describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
     const projectId = 'proj-1';
     const stageId = 'stage-1';
     const mockDb = createMockDb({
-      'select:stage': seq(
+      'select:project_stage': seq(
         [],
         [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
       ),
-      'insert:stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
-      'update:stage': [],
+      'insert:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
+      'update:project_stage': [],
     });
 
     const first = await ensureSpecStage(mockDb, projectId);
@@ -34,8 +34,8 @@ describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
     const projectId = 'proj-2';
     const stageId = 'stage-2';
     const mockDb = createMockDb({
-      'select:stage': [{ id: stageId, projectId, kind: 'spec', status: 'pending', startedAt: null }],
-      'update:stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
+      'select:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'pending', startedAt: null }],
+      'update:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
     });
 
     const res = await ensureSpecStage(mockDb, projectId);
@@ -57,18 +57,18 @@ describe('captureIntent', () => {
   });
 });
 
-describe('section + qa_message persistence (DB integration)', () => {
-  it('an answer persists a member qa_message, and loadSectionMessages returns them in seq order', async () => {
+describe('section + project_qa_message persistence (DB integration)', () => {
+  it('an answer persists a member project_qa_message, and loadSectionMessages returns them in seq order', async () => {
     const projectId = 'proj-4';
     const sectionId = 'sec-1';
     const ownerId = 'owner-4';
     const mockDb = createMockDb({
-      'select:qa_message': [
+      'select:project_qa_message': [
         { id: 'msg-1', sectionId, sender: 'forge', bodyMd: 'What is the goal?', seq: 1 },
         { id: 'msg-2', sectionId, sender: 'member', bodyMd: 'Speed up checkout.', seq: 2, authorId: ownerId },
         { id: 'msg-3', sectionId, sender: 'forge', bodyMd: 'And the constraint?', seq: 3 },
       ],
-      'select:component_section': [{ id: sectionId, status: 'gathering', aiSatisfied: false }],
+      'select:project_component_section': [{ id: sectionId, status: 'gathering', aiSatisfied: false }],
     });
 
     const msgs = await loadSectionMessages(mockDb, sectionId);
@@ -84,11 +84,11 @@ describe('loadOutline', () => {
     const comp1Id = 'comp-1';
     const comp2Id = 'comp-2';
     const mockDb = createMockDb({
-      'select:component': [
+      'select:project_component': [
         { id: comp1Id, stageId: specStageId, kind: 'context_scope', status: 'gathering' },
         { id: comp2Id, stageId: specStageId, kind: 'problem_motivation', status: 'gathering' },
       ],
-      'select:component_section': seq(
+      'select:project_component_section': seq(
         [
           { id: 'sec-1', componentId: comp1Id, key: 'background', label: 'Background', status: 'gathering' },
           { id: 'sec-2', componentId: comp1Id, key: 'scope', label: 'Scope', status: 'gathering' },

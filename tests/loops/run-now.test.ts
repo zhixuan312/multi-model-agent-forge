@@ -8,14 +8,14 @@ const loopRow = { id: 'loop-1', name: 'Hygiene', kind: 'maintenance', config: { 
 
 describe('startLoopRun', () => {
   it('not_found when the loop is missing', async () => {
-    const db = createMockDb({ 'select:loop': [] });
+    const db = createMockDb({ 'select:loop_def': [] });
     expect((await startLoopRun('x', 'manual', { db })).kind).toBe('not_found');
   });
 
   it('loads the loop + its repos and fires the runner with a runId', async () => {
     const db = createMockDb({
-      'select:loop': [loopRow],
-      'select:repo': [
+      'select:loop_def': [loopRow],
+      'select:workspace_repo': [
         { id: 'r1', name: 'forge', pathOnDisk: '/w/forge' },
         { id: 'r2', name: 'engine', pathOnDisk: '/w/engine' },
       ],

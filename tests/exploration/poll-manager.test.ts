@@ -56,8 +56,8 @@ describe('PollManager', () => {
     const taskId = 'task-1';
 
     const mockDb = createMockDb({
-      'select:mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
-      'update:mma_batch': [{ id: mmaBatchId, projectId, status: 'running', createdAt: new Date() }],
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'running', createdAt: new Date() }],
     });
 
     const bus = new ProjectEventBus();
@@ -82,12 +82,12 @@ describe('PollManager', () => {
     const taskId = 'task-2';
 
     const mockDb = createMockDb({
-      'select:mma_batch': seq(
+      'select:ops_mma_batch': seq(
         [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
         [{ id: mmaBatchId, projectId, status: 'done', result: doneEnvelope, terminalAt: new Date(), createdAt: new Date() }],
       ),
-      'update:mma_batch': [{ id: mmaBatchId, projectId, status: 'done', result: doneEnvelope, terminalAt: new Date() }],
-      'update:exploration_task': [{ id: taskId, status: 'recorded' }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'done', result: doneEnvelope, terminalAt: new Date() }],
+      'update:project_exploration_task': [{ id: taskId, status: 'recorded' }],
     });
 
     const bus = new ProjectEventBus();
@@ -110,9 +110,9 @@ describe('PollManager', () => {
     const taskId = 'task-3';
 
     const mockDb = createMockDb({
-      'select:mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
-      'update:mma_batch': [{ id: mmaBatchId, projectId, status: 'failed', result: failedEnvelope, terminalAt: new Date() }],
-      'update:exploration_task': [{ id: taskId, status: 'recorded' }],
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'failed', result: failedEnvelope, terminalAt: new Date() }],
+      'update:project_exploration_task': [{ id: taskId, status: 'recorded' }],
     });
 
     const bus = new ProjectEventBus();
@@ -136,7 +136,7 @@ describe('PollManager', () => {
     const restore = setPollLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
-      'select:mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
     });
 
     const failingClient = scriptedClient(() => {
@@ -164,9 +164,9 @@ describe('PollManager', () => {
     const restore = setPollLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
-      'select:mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: past }],
-      'update:mma_batch': [{ id: mmaBatchId, projectId, status: 'failed', result: { error: { code: 'forge_poll_timeout' } }, terminalAt: new Date() }],
-      'update:exploration_task': [{ id: taskId, status: 'recorded' }],
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: past }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'failed', result: { error: { code: 'forge_poll_timeout' } }, terminalAt: new Date() }],
+      'update:project_exploration_task': [{ id: taskId, status: 'recorded' }],
     });
 
     const bus = new ProjectEventBus();
@@ -193,19 +193,19 @@ describe('PollManager', () => {
     const past = new Date(Date.now() - (POLL_HARD_TIMEOUT_MS + 60_000));
 
     const mockDb = createMockDb({
-      'select:mma_batch': seq(
+      'select:ops_mma_batch': seq(
         [
           { id: freshBatchId, batchId: 'mma-fresh', projectId, route: 'research', status: 'running', createdAt: new Date() },
           { id: staleBatchId, batchId: 'mma-stale', projectId, route: 'research', status: 'dispatched', createdAt: past },
         ],
         [{ id: staleBatchId, batchId: 'mma-stale', projectId, route: 'research', status: 'dispatched', createdAt: past }],
       ),
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         { id: 'task-fresh', mmaBatchId: freshBatchId },
         { id: 'task-stale', mmaBatchId: staleBatchId },
       ],
-      'update:mma_batch': [{ id: staleBatchId, projectId, status: 'failed' }],
-      'update:exploration_task': [{ id: 'task-x', status: 'recorded' }],
+      'update:ops_mma_batch': [{ id: staleBatchId, projectId, status: 'failed' }],
+      'update:project_exploration_task': [{ id: 'task-x', status: 'recorded' }],
     });
 
     const pm = new PollManager({ client: scriptedClient(() => pendingRes('still going')), bus: new ProjectEventBus(), db: mockDb });
@@ -228,9 +228,9 @@ describe('PollManager', () => {
     const restore = setPollLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
-      'select:mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
-      'update:mma_batch': [{ id: mmaBatchId, projectId, status: 'done', result: doneEnvelope, terminalAt: new Date() }],
-      'update:exploration_task': [{ id: taskId, status: 'recorded' }],
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'done', result: doneEnvelope, terminalAt: new Date() }],
+      'update:project_exploration_task': [{ id: taskId, status: 'recorded' }],
     });
 
     const pm = new PollManager({ client: scriptedClient(() => terminalRes(doneEnvelope)), bus: new ProjectEventBus(), db: mockDb });

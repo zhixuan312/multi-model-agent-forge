@@ -4,13 +4,13 @@ import { forge } from '@/db/schema/_schema';
 import { REPO_STATUS } from '@/db/enums';
 
 /**
- * `repo` — a team repository on disk (schema.md §2). The Workspace UI + the
+ * `workspace_repo` — a team repository on disk (schema.md §2). The Workspace UI + the
  * clone/pull git service are Part B. Repos are classified by `tags` only — a
  * free-form, GIN-indexed text[] that doubles as the filter axis. `status`
  * tracks the clone/pull lifecycle (cloned | pulling | error).
  */
 export const repo = forge.table(
-  'repo',
+  'workspace_repo',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull().unique(),

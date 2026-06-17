@@ -27,8 +27,6 @@ import { formatDate } from '@/lib/format-relative';
 import type { JournalReadOutcome } from '@/journal/types';
 import type { IndexLookupRow } from '@/journal/citations';
 import type { PinnedQA, FaqItem } from '@/journal/recall-content';
-import { USE_MOCK } from '@/mock/config';
-import * as recallContentMock from '@/mock/domains/journal/recall-content';
 
 /**
  * `/journal` — the team decision-graph viewer (Spec 6), on the Team-Settings
@@ -64,7 +62,7 @@ export default async function JournalPage({
   const root = resolveWorkspaceRoot();
 
   let read: JournalReadOutcome;
-  if (!USE_MOCK && !existsSync(root)) {
+  if (!existsSync(root)) {
     read = { kind: 'unconfigured' };
   } else {
     read = await readAllNodes(root);
@@ -80,9 +78,10 @@ export default async function JournalPage({
     return frame(<JournalState kind={read.kind} />);
   }
 
-  // Recall standing content (mock-only until a real backend exists).
-  const pinned: PinnedQA[] = USE_MOCK ? await recallContentMock.getPinned() : [];
-  const faqs: FaqItem[] = USE_MOCK ? await recallContentMock.getFaqs() : [];
+  // Recall standing content (pinned Q&A + FAQs) — no persisted backend yet, so
+  // empty for now; the live recall query is the working surface.
+  const pinned: PinnedQA[] = [];
+  const faqs: FaqItem[] = [];
 
   // Graph data (only when the Graph tab is active — one extra read).
   let graphNodes: GraphNode[] = [];

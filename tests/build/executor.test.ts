@@ -80,10 +80,10 @@ describe('executeTask', () => {
   it('verification PASSES → committed (commit payload + 1-commit SHA match + build/test 0 + non-empty diff)', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01', meta: { buildCmd: 'npm run build' } }],
-      'insert:action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01', meta: { buildCmd: 'npm run build' } }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
@@ -96,7 +96,7 @@ describe('executeTask', () => {
       actorId: 'member-1',
     });
     expect(out).toEqual({ status: 'committed', commitSha: 'WORKER01' });
-    expect(db._assertCalled('plan_task', 'update')).toBe(true);
+    expect(db._assertCalled('project_plan_task', 'update')).toBe(true);
     expect(bus.ofType('task.committed')).toHaveLength(1);
     // execute-plan dispatch shape.
     expect(mma.dispatches[0].body).toMatchObject({
@@ -109,9 +109,9 @@ describe('executeTask', () => {
   it('no_op commit payload → failure (the falsely-not-implemented trap)', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'failed' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
     const env = { structuredReport: { commitSha: null, commitSkipReason: 'no_diff', filesChanged: [], unresolved: [] } };
     const mma = new FakeMma({ 'execute-plan': [env] });
@@ -130,9 +130,9 @@ describe('executeTask', () => {
   it('self-commit detected (SHA mismatch / >1 commit) → failure', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'failed' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     // Two commits in head_before..HEAD → suspect self-commit.
@@ -149,9 +149,9 @@ describe('executeTask', () => {
   it('build/test failure → inline fix → re-verify pass → committed (fix SHA in meta, commit_sha still worker)', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01', fixNote: 'fixed the import', meta: { fixCommitSha: 'FIXSHA99' } }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01', fixNote: 'fixed the import', meta: { fixCommitSha: 'FIXSHA99' } }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true, inlineFixSha: 'FIXSHA99' }));
@@ -173,9 +173,9 @@ describe('executeTask', () => {
   it('inline-fix cap: still failing after MAX attempts → failed + halt', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'failed' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
@@ -194,9 +194,9 @@ describe('executeTask', () => {
   it('F16: review_policy=none defers build+test (verifies on commit/diff alone)', async () => {
     const task = createTask('proj-1', 'repo-1', { reviewPolicy: 'none' });
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
@@ -218,9 +218,9 @@ describe('executeTask', () => {
   it('F2: absent build+test commands → vacuous pass → committed', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
@@ -238,9 +238,9 @@ describe('executeTask', () => {
   it('missing toolchain (env_error) → failed with environment reason, not code failure', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'failed' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
@@ -259,9 +259,9 @@ describe('executeTask', () => {
   it('halt-on-decision: enumerated halt errorCode → status halt', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'halt' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'halt' }],
     });
     const env = { results: [{ error: { code: 'validator_no_changes' } }], structuredReport: { commitSha: null, filesChanged: [], unresolved: [] } };
     const mma = new FakeMma({ 'execute-plan': [env] });
@@ -278,8 +278,8 @@ describe('executeTask', () => {
   it('branch-prep failure (detached HEAD) → failed, execute-plan never dispatched', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'update:plan_task': [{ ...task, status: 'failed' }],
+      'select:project_plan_task': [task],
+      'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope()] });
     const git = new FakeGit(makeGitScript({ attached: false }));
@@ -296,9 +296,9 @@ describe('executeTask', () => {
   it('writes .forge/ to .git/info/exclude on first task (git hygiene F10)', async () => {
     const task = createTask('proj-1', 'repo-1');
     const db = createMockDb({
-      'select:plan_task': [task],
-      'insert:mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
+      'select:project_plan_task': [task],
+      'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
+      'update:project_plan_task': [{ ...task, status: 'committed', commitSha: 'WORKER01' }],
     });
     const mma = new FakeMma({ 'execute-plan': [committedEnvelope({ commitSha: 'WORKER01' })] });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));

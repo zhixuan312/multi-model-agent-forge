@@ -23,7 +23,7 @@ beforeEach(async () => {
 describe('attachments', () => {
   it('stores a link as {url} (json) with no disk write', async () => {
     const db = createMockDb({
-      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'link', label: 'Docs', payload: { url: 'https://example.com/x' }, createdAt: new Date() }],
+      'insert:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'link', label: 'Docs', payload: { url: 'https://example.com/x' }, createdAt: new Date() }],
     });
     const v = await addLink('proj-1', { label: 'Docs', url: 'https://example.com/x' }, { id: 'member-1' }, { db, workspaceRoot });
     expect(v).toMatchObject({ kind: 'link', label: 'Docs' });
@@ -35,7 +35,7 @@ describe('attachments', () => {
     await expect(
       addLink('proj-1', { label: 'x', url: 'ftp://nope' }, { id: 'member-1' }, { db, workspaceRoot }),
     ).rejects.toThrow(AttachmentRejectError);
-    expect(db._assertCalled('attachment', 'insert')).toBe(false);
+    expect(db._assertCalled('project_attachment', 'insert')).toBe(false);
   });
 
   it('rejects a disallowed MIME (415) before any disk write', async () => {
@@ -64,7 +64,7 @@ describe('attachments', () => {
 
   it('stores a valid image with a SERVER-generated path under the project dir', async () => {
     const db = createMockDb({
-      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'image', label: 'shot', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'img.png') }, createdAt: new Date() }],
+      'insert:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'image', label: 'shot', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'img.png') }, createdAt: new Date() }],
     });
     const v = await addUpload(
       'proj-1',
@@ -80,7 +80,7 @@ describe('attachments', () => {
 
   it('ignores any client-supplied path — path is always server-generated', async () => {
     const db = createMockDb({
-      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
+      'insert:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
     });
     const v = await addUpload(
       'proj-1',
@@ -99,19 +99,19 @@ describe('attachments', () => {
     await mkdir(join(attachmentsRoot(workspaceRoot), 'proj-1'), { recursive: true });
     await writeFile(path, new Uint8Array([1, 2]));
     const db = createMockDb({
-      'select:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path }, createdAt: new Date() }],
-      'delete:attachment': [],
+      'select:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path }, createdAt: new Date() }],
+      'delete:project_attachment': [],
     });
     await removeAttachment('proj-1', 'att-1', { id: 'member-1' }, { db, workspaceRoot });
     await expect(stat(path)).rejects.toThrow(); // byte gone
-    expect(db._assertCalled('attachment', 'delete')).toBe(true);
+    expect(db._assertCalled('project_attachment', 'delete')).toBe(true);
   });
 
   it('purging a project removes its whole attachment directory (F13)', async () => {
     const db = createMockDb({
-      'select:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(workspaceRoot, 'file.txt') }, createdAt: new Date() }],
-      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
-      'delete:attachment': [],
+      'select:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(workspaceRoot, 'file.txt') }, createdAt: new Date() }],
+      'insert:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'file', label: 'x', payload: { path: join(attachmentsRoot(workspaceRoot), 'proj-1', 'file.txt') }, createdAt: new Date() }],
+      'delete:project_attachment': [],
     });
     await addUpload(
       'proj-1',

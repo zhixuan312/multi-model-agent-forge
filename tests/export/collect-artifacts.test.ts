@@ -21,9 +21,9 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:audit_pass': [],
-      'select:artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
-      'select:mma_batch': [],
+      'select:project_audit_pass': [],
+      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:ops_mma_batch': [],
     });
     const menu = await collectMenu(projectId, { id: ownerId }, { db });
     const byKind = Object.fromEntries(menu.map((m) => [m.kind, m]));
@@ -42,9 +42,9 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:audit_pass': [],
-      'select:artifact': [],
-      'select:mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
+      'select:project_audit_pass': [],
+      'select:project_artifact': [],
+      'select:ops_mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
     });
     const menu = await collectMenu(projectId, { id: ownerId }, { db });
     expect(menu.find((m) => m.kind === 'review')!.ready).toBe(true);
@@ -60,9 +60,9 @@ describe('collect-artifacts — frozen·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'frozen' }],
         [{ ownerId, visibility: 'public', phase: 'frozen' }],
       ),
-      'select:audit_pass': [{ id: 'audit-1' }],
-      'select:artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
-      'select:mma_batch': [],
+      'select:project_audit_pass': [{ id: 'audit-1' }],
+      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.frozenAudited).toBe(true);
@@ -76,9 +76,9 @@ describe('collect-artifacts — frozen·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:audit_pass': [{ id: 'audit-1' }],
-      'select:artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
-      'select:mma_batch': [],
+      'select:project_audit_pass': [{ id: 'audit-1' }],
+      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.frozenAudited).toBe(false);
@@ -115,17 +115,17 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
         [{ ownerId, visibility: 'public', phase: 'frozen' }],
         [{ ownerId, visibility: 'public', phase: 'frozen' }],
       ),
-      'select:iam_member': [{ displayName: 'Maya Adeyemi' }],
-      'select:stage': [{ id: specStageId }],
-      'select:component': [
+      'select:team_member': [{ displayName: 'Maya Adeyemi' }],
+      'select:project_stage': [{ id: specStageId }],
+      'select:project_component': [
         { status: 'approved', roles: ['business', 'PM'], orderIndex: 0 },
         { status: 'approved', roles: ['PM'], orderIndex: 1 },
         { status: 'gathering', roles: ['SWE'], orderIndex: 2 },
         { status: 'approved', roles: [], orderIndex: 3 },
       ],
-      'select:audit_pass': [{ id: 'audit-1' }, { id: 'audit-2' }],
-      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 2 }],
-      'select:mma_batch': [],
+      'select:project_audit_pass': [{ id: 'audit-1' }, { id: 'audit-2' }],
+      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 2 }],
+      'select:ops_mma_batch': [],
     });
     const collected = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
     expect(collected.meta.owner).toBe('Maya Adeyemi');
@@ -156,12 +156,12 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:iam_member': [{ displayName: 'Owner' }],
-      'select:stage': [{ id: specStageId }],
-      'select:component': [],
-      'select:audit_pass': [],
-      'select:artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
-      'select:mma_batch': [],
+      'select:team_member': [{ displayName: 'Owner' }],
+      'select:project_stage': [{ id: specStageId }],
+      'select:project_component': [],
+      'select:project_audit_pass': [],
+      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
+      'select:ops_mma_batch': [],
     });
     const c = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
     expect(c.meta.version).toBe('v1');
@@ -174,8 +174,8 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
     const ownerId = 'member-1';
     const db = createMockDb({
       'select:project': [{ ownerId, visibility: 'public', phase: 'design' }],
-      'select:artifact': [],
-      'select:mma_batch': [],
+      'select:project_artifact': [],
+      'select:ops_mma_batch': [],
     });
     await expect(collectArtifact(projectId, 'plan', { id: ownerId }, { db })).rejects.toBeInstanceOf(
       ArtifactNotReadyError,
@@ -196,16 +196,16 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:iam_member': [{ displayName: 'Owner' }],
-      'select:stage': [{ id: specStageId }],
-      'select:component': [],
-      'select:audit_pass': [],
-      'select:artifact': seq(
+      'select:team_member': [{ displayName: 'Owner' }],
+      'select:project_stage': [{ id: specStageId }],
+      'select:project_component': [],
+      'select:project_audit_pass': [],
+      'select:project_artifact': seq(
         [{ id: 'exp-1', bodyMd: '## Exploration\ny', version: 1 }],
         [],
         [{ id: 'plan-1', bodyMd: '## Plan\nx', version: 1 }],
       ),
-      'select:mma_batch': [],
+      'select:ops_mma_batch': [],
     });
     const ready = await collectReadyArtifacts(projectId, { id: ownerId }, { db });
     expect(ready.map((a) => a.kind)).toEqual(['exploration', 'plan']);
@@ -251,11 +251,11 @@ describe('md-export + review adapter (F19/F25)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:iam_member': [{ displayName: 'Owner' }],
-      'select:stage': [{ id: specStageId }],
-      'select:component': [],
-      'select:audit_pass': [],
-      'select:mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
+      'select:team_member': [{ displayName: 'Owner' }],
+      'select:project_stage': [{ id: specStageId }],
+      'select:project_component': [],
+      'select:project_audit_pass': [],
+      'select:ops_mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
     });
     const c = await collectArtifact(projectId, 'review', { id: ownerId }, { db });
     expect(c.bodyMd).toContain('# Review report');

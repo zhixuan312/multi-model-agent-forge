@@ -1,8 +1,8 @@
 /**
  * Types for the Recall tab's standing content — the user's pinned Q&A and the
  * team's frequently-asked questions. These are persisted artifacts (not the live
- * LLM recall): in mock mode they come from seeds; a real backend can fill them
- * later. Pure types — no runtime — so any layer can import them.
+ * LLM recall); there is no backend for them yet, so the page ships empty arrays.
+ * Pure types — no runtime — so any layer can import them.
  */
 
 export interface PinnedQA {

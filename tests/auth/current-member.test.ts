@@ -36,20 +36,20 @@ describe('resolveSessionFromToken', () => {
 
   it('rejects when the member is gone', async () => {
     const sess = createBaseSession({ lastUsedAt: new Date(NOW - 1000) });
-    const db = createMockDb({ 'select:iam_member': [] });
+    const db = createMockDb({ 'select:team_member': [] });
     expect(await resolveSessionFromToken('t', { store: store(sess), db, now: () => NOW })).toBeNull();
   });
 
   it('rejects when the password was rotated after the session was created', async () => {
     const sess = createBaseSession({ createdAt: new Date(NOW - 10_000), lastUsedAt: new Date(NOW - 1000) });
-    const db = createMockDb({ 'select:iam_member': [memberRow({ passwordChangedAt: new Date(NOW - 5000) })] });
+    const db = createMockDb({ 'select:team_member': [memberRow({ passwordChangedAt: new Date(NOW - 5000) })] });
     expect(await resolveSessionFromToken('t', { store: store(sess), db, now: () => NOW })).toBeNull();
   });
 
   it('resolves a valid session and slides the idle window', async () => {
     const sess = createBaseSession({ id: 's1', createdAt: new Date(NOW - 10_000), lastUsedAt: new Date(NOW - 1000) });
     const st = store(sess);
-    const db = createMockDb({ 'select:iam_member': [memberRow({ passwordChangedAt: null })] });
+    const db = createMockDb({ 'select:team_member': [memberRow({ passwordChangedAt: null })] });
     const res = await resolveSessionFromToken('t', { store: st, db, now: () => NOW });
     expect(res?.member.id).toBe('m1');
     expect(st.touch).toHaveBeenCalledWith('s1');

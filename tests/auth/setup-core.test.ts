@@ -30,19 +30,19 @@ describe('parseSetupForm (pure form validation)', () => {
 
 describe('isFirstRun', () => {
   it('is true only when the member table is empty', async () => {
-    expect(await isFirstRun(createMockDb({ 'select:iam_member': [{ count: 0 }] }))).toBe(true);
-    expect(await isFirstRun(createMockDb({ 'select:iam_member': [{ count: 3 }] }))).toBe(false);
+    expect(await isFirstRun(createMockDb({ 'select:team_member': [{ count: 0 }] }))).toBe(true);
+    expect(await isFirstRun(createMockDb({ 'select:team_member': [{ count: 3 }] }))).toBe(false);
   });
 });
 
 describe('createAdminMember', () => {
   it('inserts an is_admin member + one local identity; hashes the password', async () => {
     const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
-    const db = createMockDb({ 'insert:iam_member': [created] });
+    const db = createMockDb({ 'insert:team_member': [created] });
     const m = await createAdminMember(db, { displayName: 'Admin', username: 'admin', password: STRONG });
     expect(m.isAdmin).toBe(true);
-    expect(db._assertCalled('iam_identity', 'insert')).toBe(true);
-    const idValues = db._callsFor('iam_identity').find((c) => c.method === 'values');
+    expect(db._assertCalled('team_identity', 'insert')).toBe(true);
+    const idValues = db._callsFor('team_identity').find((c) => c.method === 'values');
     expect(JSON.stringify(idValues?.args)).not.toContain(STRONG);
   });
 });
@@ -55,15 +55,15 @@ describe('registerFirstAdmin', () => {
   });
 
   it('refuses (already_setup) when a member already exists, creating nothing', async () => {
-    const db = createMockDb({ 'select:iam_member': [{ count: 1 }] });
+    const db = createMockDb({ 'select:team_member': [{ count: 1 }] });
     const res = await registerFirstAdmin({ displayName: 'X', username: 'x', password: STRONG }, { db });
     expect(res.kind).toBe('already_setup');
-    expect(db._assertCalled('iam_member', 'insert')).toBe(false);
+    expect(db._assertCalled('team_member', 'insert')).toBe(false);
   });
 
   it('creates the first admin when the team is empty', async () => {
     const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
-    const db = createMockDb({ 'select:iam_member': [{ count: 0 }], 'insert:iam_member': [created] });
+    const db = createMockDb({ 'select:team_member': [{ count: 0 }], 'insert:team_member': [created] });
     const res = await registerFirstAdmin({ displayName: 'Admin', username: 'admin', password: STRONG }, { db });
     expect(res.kind).toBe('created');
     if (res.kind === 'created') expect(res.member.isAdmin).toBe(true);

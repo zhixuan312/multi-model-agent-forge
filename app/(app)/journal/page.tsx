@@ -23,10 +23,14 @@ import { LogTab } from '@/components/forge/journal/LogTab';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readAllNodes, readNodeFrontmatters } from '@/journal/store-reader';
 import { buildGraphEdges, type GraphNode, type GraphEdge } from '@/journal/graph';
+import { currentMember } from '@/auth/current-member';
+import { listPins } from '@/journal/pins-core';
+import { topFaqs } from '@/journal/faqs-core';
+import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
 import { formatDate } from '@/lib/format-relative';
 import type { JournalReadOutcome } from '@/journal/types';
 import type { IndexLookupRow } from '@/journal/citations';
-import type { PinnedQA, FaqItem } from '@/journal/recall-content';
+import type { PinnedView, FaqView } from '@/journal/recall-content';
 
 /**
  * `/journal` — the team decision-graph viewer (Spec 6), on the Team-Settings
@@ -78,10 +82,32 @@ export default async function JournalPage({
     return frame(<JournalState kind={read.kind} />);
   }
 
-  // Recall standing content (pinned Q&A + FAQs) — no persisted backend yet, so
-  // empty for now; the live recall query is the working surface.
-  const pinned: PinnedQA[] = [];
-  const faqs: FaqItem[] = [];
+  // Recall standing content (the caller's pinned Q&A + the team's auto-derived
+  // FAQs) — loaded only for the Recall tab. Staleness is server-derived from the
+  // current journal log length vs. each pin's cached marker. A loader failure
+  // here bubbles to the page-level error boundary (the journal still rendered
+  // its nodes above, so this is the existing not-500 path). Pins are per-member;
+  // an anonymous render (shouldn't happen under the authed shell) shows none.
+  let pinned: PinnedView[] = [];
+  let faqs: FaqView[] = [];
+  if (view === 'recall') {
+    const me = await currentMember();
+    const logCount = await currentJournalLogCount(root);
+    const [rawPins, topQ] = await Promise.all([
+      me ? listPins(me.id) : Promise.resolve([]),
+      topFaqs(),
+    ]);
+    pinned = rawPins.map((p) => ({
+      id: p.id,
+      question: p.question,
+      answerMd: p.answerMd,
+      findings: p.findings,
+      citationIds: p.citationIds,
+      journalLogCount: p.journalLogCount,
+      stale: isPinStale(p.journalLogCount, logCount),
+    }));
+    faqs = topQ;
+  }
 
   // Graph data (only when the Graph tab is active — one extra read).
   let graphNodes: GraphNode[] = [];
@@ -127,7 +153,7 @@ type Ok = Extract<JournalReadOutcome, { kind: 'ok' }>;
 function statusFor(
   view: JournalView,
   read: Ok,
-  extra: { pinned: PinnedQA[]; faqs: FaqItem[]; graphNodes: GraphNode[]; graphEdgeCount: number },
+  extra: { pinned: PinnedView[]; faqs: FaqView[]; graphNodes: GraphNode[]; graphEdgeCount: number },
 ): Metric[] {
   const total = read.nodes.length;
   const adopted = read.nodes.filter((n) => n.status === 'adopted').length;

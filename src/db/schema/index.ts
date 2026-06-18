@@ -14,3 +14,4 @@ export * from '@/db/schema/mma';
 export * from '@/db/schema/exploration';
 export * from '@/db/schema/build';
 export * from '@/db/schema/loop';
+export * from '@/db/schema/journal';

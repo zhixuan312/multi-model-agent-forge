@@ -5,7 +5,7 @@ import { cn } from '@/lib/cn';
 /**
  * The Journal tab bar — lives in the PageFrame header sub-nav (like SettingsTabs),
  * Link-based so each view is a real navigation. Server component; the active tab
- * is passed in. Order: Recall · Nodes · Graph · Write log.
+ * is passed in. Order: Recall · Nodes · Graph · Log.
  */
 export type JournalView = 'recall' | 'nodes' | 'graph' | 'log';
 
@@ -13,7 +13,7 @@ const TABS: ReadonlyArray<{ key: JournalView; label: string; glyph: React.ReactN
   { key: 'recall', label: 'Recall', glyph: <BookOpen className="size-4" /> },
   { key: 'nodes', label: 'Nodes', glyph: <Hexagon className="size-4" /> },
   { key: 'graph', label: 'Graph', glyph: <Share2 className="size-4" /> },
-  { key: 'log', label: 'Write log', glyph: <History className="size-4" /> },
+  { key: 'log', label: 'Log', glyph: <History className="size-4" /> },
 ];
 
 export function JournalTabsNav({ active }: { active: JournalView }) {

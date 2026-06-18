@@ -113,6 +113,20 @@
       "when": 1782200000000,
       "tag": "0015_rename_loop_def",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782300000000,
+      "tag": "0016_journal_pin",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0017_journal_pin_findings",
+      "breakpoints": true
     }
   ]
 }

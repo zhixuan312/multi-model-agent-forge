@@ -3,6 +3,7 @@ import { member, memberIdentity, session } from '@/db/schema/identity';
 import { appSecrets } from '@/db/schema/secrets';
 import { connectionSettings } from '@/db/schema/config';
 import { repo } from '@/db/schema/workspace';
+import { journalPin } from '@/db/schema/journal';
 import * as schema from '@/db/schema';
 
 /** Map a Drizzle table's columns → { jsColName: db_col_name }. */
@@ -122,12 +123,34 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.headSha.notNull).toBe(false);
   });
 
-  it('the schema barrel re-exports all tables incl. config + workspace', () => {
+  it('journal_pin: per-member pin cache with a log-count freshness marker', () => {
+    expect(getTableName(journalPin)).toBe('journal_pin');
+    expect(columnNames(journalPin)).toEqual({
+      id: 'id',
+      memberId: 'member_id',
+      question: 'question',
+      answerMd: 'answer_md',
+      findings: 'findings',
+      citationIds: 'citation_ids',
+      journalLogCount: 'journal_log_count',
+      answeredAt: 'answered_at',
+      createdAt: 'created_at',
+    });
+    const cols = getTableColumns(journalPin);
+    expect(cols.memberId.notNull).toBe(true);
+    expect(cols.question.notNull).toBe(true);
+    expect(cols.answerMd.notNull).toBe(true);
+    expect(cols.findings.notNull).toBe(true);
+    expect(cols.journalLogCount.notNull).toBe(true);
+  });
+
+  it('the schema barrel re-exports all tables incl. config + workspace + journal', () => {
     expect(schema.member).toBe(member);
     expect(schema.memberIdentity).toBe(memberIdentity);
     expect(schema.session).toBe(session);
     expect(schema.appSecrets).toBe(appSecrets);
     expect(schema.connectionSettings).toBe(connectionSettings);
     expect(schema.repo).toBe(repo);
+    expect(schema.journalPin).toBe(journalPin);
   });
 });

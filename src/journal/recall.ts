@@ -1,40 +1,39 @@
 /**
  * Recall envelope parsing + dispatch (Spec 6).
  *
- * SPEC-vs-REALITY (resolved against the LIVE rod, 2026-06-09): the spec assumed
- * `journal-recall` reuses the investigate report contract (`structuredReport.summary`
- * = synthesis, `results[]` = findings with `Citation[]`). The REAL envelope is
- * different: `structuredReport.summary` is just a count (e.g. `"18 finding(s)"`),
- * `results[]` is per-task batch metadata (cost/stages — NOT findings), and the
- * actual findings live in `structuredReport.findings[]`, each shaped
- * `{ severity, category, claim, evidence, suggestion }` where `evidence` is a
- * FREE-TEXT string embedding `nodes/000X-….md` paths + backtick id tokens.
+ * ENVELOPE SHAPE (verified against the live MMA refiner pipeline, 2026-06-18):
+ * `journal_recall` is a two-phase task — an implementer drafts the answer, then a
+ * REFINER (the reviewer) verifies citations against the journal, drops bad ones,
+ * adds missed nodes, and re-emits the FINAL answer in the implementer's own
+ * format. MMA puts that refined answer (raw worker text, a ```json fenced block)
+ * into `structuredReport.summary`. The block matches MMA's `journalRecallAnswerSchema`:
  *
- * So the synthesis answer is COMPOSED from the findings (category · claim ·
- * evidence) and node ids are scanned out of the evidence text. The recall ROUTE
- * only dispatches (→ `202 {batchId}`); the browser polls and parses CLIENT-SIDE.
+ *   { "results": [ { "learning", "context", "relevance", "nodeId", "nodePath",
+ *                    "category", "status" } ],
+ *     "summary": "<synthesis answering the query>" }
+ *
+ * So we extract that JSON from `structuredReport.summary`, take `summary` as the
+ * synthesis and each `results[]` entry as a finding citing exactly one `nodeId`.
+ * The recall ROUTE only dispatches (→ `202 {batchId}`); the browser polls and
+ * parses CLIENT-SIDE.
  */
 import type { MmaClient } from '@/mma/client';
-import {
-  collectFindingCitationIds,
-  extractNodeIdsFromText,
-  type RecallFinding,
-} from '@/journal/citations';
+import { extractNodeIdFromCitationFile } from '@/journal/citations';
+import type { PinnedFinding } from '@/journal/recall-content';
 
-/** One finding with its parsed metadata (for richer rendering). */
-export interface ParsedFinding extends RecallFinding {
-  severity: string;
-  category: string;
-  claim: string;
-  suggestion: string;
-}
+/**
+ * One recalled learning (`results[]` entry) — cites exactly one node. Identical
+ * to the shape persisted on a pin, so the live answer and a pinned answer share
+ * one renderer and one fidelity.
+ */
+export type ParsedFinding = PinnedFinding;
 
 export interface ParsedRecall {
-  /** The synthesis answer — the worker's summary, or a composed fallback. */
+  /** The synthesis answer (the refined `summary`), or a composed/miss fallback. */
   summary: string;
-  /** Findings (`structuredReport.findings[]`). */
+  /** Recalled learnings (`results[]`). */
   findings: ParsedFinding[];
-  /** All distinct cited node ids across findings (first-seen order). */
+  /** Distinct cited node ids across findings (first-seen order). */
   citationIds: string[];
 }
 
@@ -42,64 +41,109 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
+/**
+ * Pull the answer JSON object out of the worker's raw text. Prefers a fenced
+ * ```json … ``` block; falls back to the outermost `{ … }` span. Returns null
+ * when nothing parses.
+ */
+function extractAnswerObject(raw: string): Record<string, unknown> | null {
+  if (!raw) return null;
+  const candidates: string[] = [];
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) candidates.push(fence[1]);
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first !== -1 && last > first) candidates.push(raw.slice(first, last + 1));
+  for (const c of candidates) {
+    try {
+      const obj = JSON.parse(c.trim());
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return null;
+}
+
+/** Normalize a worker `nodeId` (bare id or `nodes/000X-….md` path) to a 4-digit id. */
+function normalizeNodeId(raw: string): string {
+  return extractNodeIdFromCitationFile(raw) ?? raw.trim();
+}
+
 function asFinding(v: unknown): ParsedFinding | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
-  const claim = str(o.claim) || str(o.title);
-  const evidence = str(o.evidence);
-  if (!claim && !evidence) return null;
+  const learning = str(o.learning);
+  const nodeId = normalizeNodeId(str(o.nodeId));
+  if (!learning && !nodeId) return null;
   return {
-    title: claim,
-    evidence,
-    severity: str(o.severity),
+    learning,
+    context: str(o.context),
+    relevance: str(o.relevance),
+    nodeId,
     category: str(o.category),
-    claim,
-    suggestion: str(o.suggestion),
+    status: str(o.status),
   };
 }
 
-/** True when the worker's summary is just a finding-count placeholder. */
-function isCountSummary(s: string): boolean {
-  return /^\s*\d+\s+finding\(s\)\s*$/i.test(s.trim());
+/** Parse one worker's raw answer text (a ```json {results, summary}``` block). */
+function parseAnswerText(raw: string): ParsedRecall {
+  const answer = extractAnswerObject(raw);
+  const rawResults = answer && Array.isArray(answer.results) ? answer.results : [];
+  const findings = rawResults.map(asFinding).filter((f): f is ParsedFinding => f !== null);
+
+  const citationIds: string[] = [];
+  const seen = new Set<string>();
+  for (const f of findings) {
+    if (f.nodeId && !seen.has(f.nodeId)) {
+      seen.add(f.nodeId);
+      citationIds.push(f.nodeId);
+    }
+  }
+  return { summary: answer ? str(answer.summary) : '', findings, citationIds };
 }
 
-/** Parse a recall terminal envelope into synthesis + findings + cited ids. */
+/** The implementer's raw output, preserved alongside the refiner's structuredReport. */
+function implementerRaw(env: Record<string, unknown>): string {
+  const results = Array.isArray(env.results) ? env.results : [];
+  const first = (results[0] ?? {}) as Record<string, unknown>;
+  const report = (first.report ?? {}) as Record<string, unknown>;
+  return str(report.implementer);
+}
+
+/**
+ * Parse a recall terminal envelope into synthesis + findings + cited ids.
+ *
+ * The envelope carries TWO answers: the REFINER's (in `structuredReport.summary`,
+ * which MMA prefers) and the IMPLEMENTER's draft (preserved at
+ * `results[0].report.implementer`). We prefer the refiner when it actually
+ * produced learnings — that's the second-pass verification working. But a refiner
+ * that FAILS (auth error → 0 tokens; or resolves the journal to the wrong path →
+ * "all citations hallucinated") returns an empty answer, and must NOT be allowed
+ * to destroy the real answer the implementer produced. So when the refiner yields
+ * no findings, we fall back to the implementer's draft.
+ */
 export function parseRecallEnvelope(envelope: unknown): ParsedRecall {
   const env = (envelope ?? {}) as Record<string, unknown>;
   const sr = (env.structuredReport ?? {}) as Record<string, unknown>;
-  const rawFindings = Array.isArray(sr.findings) ? sr.findings : [];
-  const findings = rawFindings.map(asFinding).filter((f): f is ParsedFinding => f !== null);
 
-  const allIds: string[] = [];
-  const seen = new Set<string>();
-  for (const f of findings) {
-    for (const id of collectFindingCitationIds(f)) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        allIds.push(id);
-      }
-    }
-  }
+  const refiner = parseAnswerText(str(sr.summary));
+  const implementer = parseAnswerText(implementerRaw(env));
 
-  // Synthesis: prefer the worker's summary when it's real prose; otherwise (a
-  // bare count, or empty) compose one from the findings, or fall back to a
-  // recall-miss message when there are none.
-  const summaryRaw = str(sr.summary);
-  let summary: string;
-  if (summaryRaw && !isCountSummary(summaryRaw)) {
-    summary = summaryRaw;
-  } else if (findings.length > 0) {
-    summary = findings.map((f) => `- ${f.claim}`).join('\n');
-  } else {
-    // No findings and no real summary (empty or a bare count) → recall-miss.
-    summary = 'No relevant prior learnings.';
-  }
+  const base =
+    refiner.findings.length > 0
+      ? refiner
+      : implementer.findings.length > 0
+        ? implementer
+        : { summary: implementer.summary || refiner.summary, findings: [], citationIds: [] };
 
-  return { summary, findings, citationIds: allIds };
+  const summary =
+    base.summary ||
+    (base.findings.length > 0 ? base.findings.map((f) => `- ${f.learning}`).join('\n') : '') ||
+    'No relevant prior learnings.';
+
+  return { summary, findings: base.findings, citationIds: base.citationIds };
 }
-
-/** Per-finding cited ids (re-exported for the view's inline chip rendering). */
-export { collectFindingCitationIds };
 
 /**
  * Dispatch a recall query on the team journal at the workspace root. Thin wrapper

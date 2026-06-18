@@ -3,11 +3,7 @@
 import { Eyebrow, Mono } from '@/components/ui';
 import { Markdown } from '@/components/forge/Markdown';
 import { StatusDot } from '@/components/forge/journal/StatusBadge';
-import {
-  resolveCitations,
-  collectFindingCitationIds,
-  type IndexLookupRow,
-} from '@/journal/citations';
+import { resolveCitations, type IndexLookupRow } from '@/journal/citations';
 import type { ParsedRecall } from '@/journal/recall';
 import { cn } from '@/lib/cn';
 
@@ -39,29 +35,24 @@ export function RecallAnswer({
       <Markdown>{parsed.summary || '_(no answer)_'}</Markdown>
 
       {parsed.findings.length > 0 ? (
-        <ul className="mt-3 flex flex-col gap-2">
-          {parsed.findings.map((f, i) => {
-            const ids = collectFindingCitationIds(f);
-            return (
-              <li key={i} data-testid={`recall-finding-${i}`} className="text-sm text-ink">
-                <span>{f.title}</span>
-                {ids.length ? (
-                  <span className="ml-2 inline-flex flex-wrap gap-1">
-                    {ids.map((id) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => onNavigate(id)}
-                        className="rounded-[var(--r-sm)] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink-soft hover:underline"
-                      >
-                        {id}
-                      </button>
-                    ))}
-                  </span>
+        <ul className="mt-3 flex flex-col gap-2.5">
+          {parsed.findings.map((f, i) => (
+            <li key={i} data-testid={`recall-finding-${i}`} className="text-sm text-ink">
+              <div className="flex items-start gap-2">
+                <span className="min-w-0 flex-1">{f.learning}</span>
+                {f.nodeId ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(f.nodeId)}
+                    className="shrink-0 rounded-[var(--r-sm)] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink-soft hover:underline"
+                  >
+                    {f.nodeId}
+                  </button>
                 ) : null}
-              </li>
-            );
-          })}
+              </div>
+              {f.context ? <p className="mt-0.5 text-xs leading-relaxed text-ink-faint">{f.context}</p> : null}
+            </li>
+          ))}
         </ul>
       ) : null}
 

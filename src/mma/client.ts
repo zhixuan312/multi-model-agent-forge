@@ -360,6 +360,11 @@ export class MmaClient {
     if (query.length < 10) {
       throw new Error('journalRecall.query must be at least 10 characters');
     }
+    // Review stays ON: MMA's journal_recall reviewer is a REFINER — it verifies
+    // the draft's citations against the journal, drops hallucinated/irrelevant
+    // nodes, adds missed ones, and re-emits the FINAL answer in the same
+    // `{results, summary}` shape. That refined answer lands in
+    // structuredReport.summary, which is what `parseRecallEnvelope` reads.
     const body: Record<string, unknown> = { query };
     if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
     return this.dispatch('journal-recall', { cwd, body });

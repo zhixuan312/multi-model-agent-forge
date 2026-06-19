@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { guardExploreWrite } from '@/exploration/guard';
 import { saveBrief, briefSchema } from '@/exploration/explore-core';
+import { getDb } from '@/db/client';
+import { project } from '@/db/schema/projects';
 
 /** `POST /api/projects/[id]/explore/brief` — save the brain-dump as an
  *  `artifact(kind='exploration_brief')` (re-save bumps version). */
@@ -20,5 +23,7 @@ export async function POST(
   if (!parsed.success) return NextResponse.json({ error: 'Invalid brief.' }, { status: 400 });
 
   const { version } = await saveBrief(id, parsed.data.text, { id: guard.memberId });
+  // Also save the brain-dump as the project intent (used by the spec stage)
+  await getDb().update(project).set({ intentMd: parsed.data.text, updatedAt: new Date() }).where(eq(project.id, id));
   return NextResponse.json({ version });
 }

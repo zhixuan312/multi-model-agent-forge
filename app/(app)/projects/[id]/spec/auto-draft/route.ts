@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { and, eq } from 'drizzle-orm';
-import { guardSpecWrite } from '@/spec/handler-guard';
-import { AnthropicClient } from '@/anthropic/client';
+import { guardSpecWrite, buildAnthropic, anthropicErrorResponse } from '@/spec/handler-guard';
 import { autoDraftAll } from '@/spec/auto-draft';
 import { loadOutline } from '@/spec/spec-core';
 import { getDb } from '@/db/client';
@@ -17,17 +16,20 @@ export async function POST(
   const guard = await guardSpecWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
-  const anthropic = await AnthropicClient.fromMainTier();
-  const result = await autoDraftAll({ anthropic, projectId: id });
+  try {
+    const anthropic = await buildAnthropic();
+    const result = await autoDraftAll({ anthropic, projectId: id });
 
-  const db = getDb();
-  const [specStage] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
-    .limit(1);
+    const db = getDb();
+    const [specStage] = await db
+      .select({ id: stage.id })
+      .from(stage)
+      .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
+      .limit(1);
+    const components = specStage ? await loadOutline(db, specStage.id) : [];
 
-  const components = specStage ? await loadOutline(db, specStage.id) : [];
-
-  return NextResponse.json({ ...result, components });
+    return NextResponse.json({ ...result, components });
+  } catch (e) {
+    return anthropicErrorResponse(e);
+  }
 }

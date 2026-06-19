@@ -184,6 +184,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
   );
   const [autoDrafting, setAutoDrafting] = useState(false);
+  const [sectionQuestions, setSectionQuestions] = useState<Record<string, string[]>>({});
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
@@ -254,8 +255,15 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setAutoDrafting(true);
             fetch(`/api/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
               .then((r) => r.json())
-              .then((data: { components?: ComponentView[] }) => {
+              .then((data: { components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
                 if (data.components) setComponents(data.components);
+                if (data.sections) {
+                  const qMap: Record<string, string[]> = {};
+                  for (const s of data.sections) {
+                    qMap[`${s.componentKind}:${s.sectionKey}`] = s.questions;
+                  }
+                  setSectionQuestions(qMap);
+                }
               })
               .catch(() => {})
               .finally(() => setAutoDrafting(false));
@@ -264,9 +272,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
         />
       ) : phase === 'craft' ? (
         <CraftStage
+          projectId={props.projectId}
           components={components}
           readOnly={readOnly}
           autoDrafting={autoDrafting}
+          sectionQuestions={sectionQuestions}
           allApproved={allApproved}
           craftContent={props.craftContent}
           currentMember={props.currentMember}
@@ -663,10 +673,12 @@ function buildDraft(c: ComponentView, answers: string[]): string {
 }
 
 function CraftStage({
+  projectId,
   components,
   readOnly,
   allApproved,
   autoDrafting,
+  sectionQuestions,
   craftContent,
   currentMember,
   projectMembers,
@@ -675,10 +687,12 @@ function CraftStage({
   onEditOutline,
   onConsolidate,
 }: {
+  projectId: string;
   components: ComponentView[];
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
+  sectionQuestions?: Record<string, string[]>;
   craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
@@ -750,19 +764,23 @@ function CraftStage({
   }
 
   const seed = craftContent?.[active.kind];
-  const rounds = seed
-    ? seed.questions.map((qs, i) => ({
-        questions: qs,
-        source: i === 0 ? 'mma-investigate · codebase scan' : 'mma-investigate · follow-up',
-        missing: i > 0 ? ['edge cases', 'constraints'] : [],
-      }))
-    : roundsFor(active);
+  const rounds = autoDrafting
+    ? [] // suppress template-driven Q&A while auto-drafting
+    : seed
+      ? seed.questions.map((qs, i) => ({
+          questions: qs,
+          source: i === 0 ? 'mma-investigate · codebase scan' : 'mma-investigate · follow-up',
+          missing: i > 0 ? ['edge cases', 'constraints'] : [],
+        }))
+      : roundsFor(active);
   const given = answers[active.id] ?? [];
   const answeredRounds = given.length;
   const drafted = active.status === 'drafted' || active.status === 'approved';
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
-  const draftMd = drafted ? (seed?.draftMd ?? buildDraft(active, given)) : null;
+  const draftMd = drafted
+    ? (active.sections.find((s) => s.draftMd)?.draftMd ?? seed?.draftMd ?? buildDraft(active, given))
+    : null;
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   // People already in this section's chat — the only ones you can @-mention.
@@ -942,14 +960,77 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {/* Auto-drafted content: show draft directly without Q&A */}
-          {drafted && draftMd ? (
-            <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
-              <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
-                Draft
-              </Micro>
-              <Markdown>{draftMd}</Markdown>
-            </div>
+          {drafted && draftMd && rounds.length === 0 ? (
+            /* Auto-drafted: show as Forge conversation — draft first, then questions */
+            <>
+              <div className="flex gap-2.5">
+                <ForgeMark className="mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-ink">Forge</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
+                      auto-drafted from exploration
+                    </span>
+                  </div>
+                  <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                    <Markdown>{draftMd}</Markdown>
+                  </div>
+                </div>
+              </div>
+              {(() => {
+                const firstSection = active.sections[0];
+                const qKey = firstSection ? `${active.kind}:${firstSection.key}` : '';
+                const questions = sectionQuestions?.[qKey] ?? [];
+                return (
+                  <div className="flex gap-2.5">
+                    <ForgeMark className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1">
+                        <span className="text-xs font-semibold text-ink">Forge</span>
+                      </div>
+                      <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                        {questions.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-sm leading-relaxed text-ink">
+                              I drafted this section from the exploration findings. A few things I'd like to clarify:
+                            </p>
+                            {questions.map((q, i) => (
+                              <p key={i} className="text-sm leading-relaxed text-ink">
+                                <span className="mr-1.5 font-semibold text-accent">Q{i + 1}</span>
+                                {q}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm leading-relaxed text-ink">
+                            I drafted this section from the exploration findings and it looks complete. You can approve it as-is, or tell me what to change.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          ) : drafted && draftMd ? (
+            /* Q&A-drafted: show the Q&A rounds then the draft */
+            <>
+              {rounds.map((round, ri) => {
+                if (ri > answeredRounds) return null;
+                return (
+                  <div key={ri} className="space-y-3">
+                    <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
+                    {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
+                  </div>
+                );
+              })}
+              <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
+                <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
+                  Draft
+                </Micro>
+                <Markdown>{draftMd}</Markdown>
+              </div>
+            </>
           ) : autoDrafting ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />

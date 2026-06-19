@@ -47,7 +47,27 @@ export const DraftSectionSchema = z.object({
 });
 export type DraftSection = z.infer<typeof DraftSectionSchema>;
 
-/** 4. composeLearningCandidates — at freeze, propose learnings from the session. */
+/** 4. fullSpecDraft — draft ALL sections in one pass + attach questions per section. */
+export const FullSpecSectionSchema = z.object({
+  componentKind: z.string().describe('The component kind (e.g. context, problem, technical_design).'),
+  sectionKey: z.string().describe('The section key within the component (e.g. background, goals, current_state).'),
+  draftMd: z.string().describe('The drafted markdown content for this section. Do not include a heading — it is added automatically.'),
+  questions: z.array(z.string()).describe('Follow-up questions for the user to clarify or refine this section. Empty array if the section is complete as-is.'),
+});
+export const FullSpecDraftSchema = z.object({
+  sections: z.array(FullSpecSectionSchema),
+});
+export type FullSpecDraft = z.infer<typeof FullSpecDraftSchema>;
+export type FullSpecSection = z.infer<typeof FullSpecSectionSchema>;
+
+/** 5. sectionRefinement — refine one section after user answers. */
+export const SectionRefinementSchema = z.object({
+  draftMd: z.string().describe('The revised draft for this section incorporating the user feedback.'),
+  questions: z.array(z.string()).describe('Further questions, or empty if the section is now complete.'),
+});
+export type SectionRefinement = z.infer<typeof SectionRefinementSchema>;
+
+/** 6. composeLearningCandidates — at freeze, propose learnings from the session. */
 export const LearningCandidateSchema = z.object({
   bodyMd: z.string(),
   type: z.enum(['challenge', 'insight', 'decision']),

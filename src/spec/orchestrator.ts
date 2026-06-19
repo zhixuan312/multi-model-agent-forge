@@ -482,16 +482,12 @@ export async function confirmComponents(
   stageId: string,
   kinds: ComponentKind[],
 ): Promise<void> {
-  const existing = await db
-    .select({ kind: component.kind })
-    .from(component)
-    .where(eq(component.stageId, stageId));
-  const existingKinds = new Set(existing.map((e) => e.kind));
+  // Delete all existing components (cascade deletes sections + qa_messages) and re-create.
+  await db.delete(component).where(eq(component.stageId, stageId));
 
-  const ordered = COMPONENT_TEMPLATES.filter((t) => kinds.includes(t.kind) && !existingKinds.has(t.kind));
+  const ordered = COMPONENT_TEMPLATES.filter((t) => kinds.includes(t.kind));
   for (let i = 0; i < ordered.length; i += 1) {
     const tpl = ordered[i];
-    // order_index continues from the canonical template order for stability.
     const orderIndex = COMPONENT_TEMPLATES.findIndex((t) => t.kind === tpl.kind);
     await db.transaction(async (tx) => {
       const [comp] = await tx

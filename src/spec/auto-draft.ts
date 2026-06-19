@@ -30,26 +30,25 @@ export interface AutoDraftDeps {
 /* ── Full-spec draft (one call) ──────────────────────────────────────────── */
 
 function buildFullDraftSystem(): string {
-  return [
-    'You are Forge\'s spec drafter. You receive a project intent, an exploration brief,',
-    'and a spec outline (components + sections). Draft EVERY section and attach follow-up',
-    'questions where the exploration brief leaves gaps.',
-    '',
-    'For each section:',
-    '- Write clear, professional markdown grounded in the exploration findings.',
-    '- Do NOT add headings — they are added automatically.',
-    '- Attach 0-N questions: ask only when the exploration brief is genuinely insufficient.',
-    '  If the brief already covers the section fully, return an empty questions array.',
-    '- Be specific: name files, functions, libraries, and patterns from the exploration.',
-    '',
-    'Return ALL sections in the spec outline, in order.',
-  ].join('\n');
+  return `You are Forge's spec drafter. You receive a project intent, an exploration brief, and a spec outline (components + sections). Draft EVERY section and attach follow-up questions where the exploration brief leaves gaps.
+
+For each section:
+- Do NOT add headings — they are added automatically.
+- Attach 0-N questions: ask only when the exploration brief is genuinely insufficient. If the brief already covers the section fully, return an empty questions array.
+- Ground your draft in the exploration findings, but ADAPT THE LANGUAGE TO THE AUDIENCE.
+
+Audience rules — each section lists its primary roles:
+- **BO (Business Owner) / PM (Product Manager)**: Write in plain business language. NO code references, file paths, line numbers, SQL syntax, or engineering jargon. Describe WHAT the system does and WHY, not HOW it's implemented. A non-technical stakeholder must be able to read and approve it.
+- **SWE (Software Engineer)**: Technical detail is expected. Name files, functions, libraries, patterns, and architecture decisions. Reference the exploration findings directly.
+- **Mixed roles (e.g. PM + SWE)**: Lead with the business context in plain language, then add a technical details subsection for engineers.
+
+Return ALL sections in the spec outline, in order.`;
 }
 
 function buildFullDraftUser(
   intentMd: string | null,
   explorationMd: string | null,
-  outline: { componentKind: string; componentLabel: string; sectionKey: string; sectionLabel: string; prompt: string }[],
+  outline: { componentKind: string; componentLabel: string; sectionKey: string; sectionLabel: string; prompt: string; roles: string[] }[],
 ): string {
   const parts: string[] = [];
   parts.push(`# Project intent\n${intentMd ?? '(no intent captured)'}`);
@@ -59,6 +58,7 @@ function buildFullDraftUser(
     parts.push(`\n## ${s.componentLabel} > ${s.sectionLabel}`);
     parts.push(`componentKind: ${s.componentKind}`);
     parts.push(`sectionKey: ${s.sectionKey}`);
+    parts.push(`Audience: ${s.roles.join(', ') || 'SWE'}`);
     parts.push(`Prompt: ${s.prompt}`);
   }
   return parts.join('\n');
@@ -126,6 +126,7 @@ export async function autoDraftAll(
       sectionKey: s.key,
       sectionLabel: s.label,
       prompt: secTpl?.prompt ?? s.label,
+      roles: tpl.primaryRoles,
       sectionId: s.id,
       componentId: s.componentId,
     };

@@ -3,8 +3,6 @@ import { onHumanSatisfied } from '@/spec/orchestrator';
 import { buildSectionRepaint } from '@/spec/spec-core';
 import { guardSpecWrite, buildAnthropic } from '@/spec/handler-guard';
 import { getDb } from '@/db/client';
-import { USE_MOCK } from '@/mock/config';
-import { nodMock } from '@/mock/domains/projects/spec';
 
 type Ctx = { params: Promise<{ id: string; sectionId: string }> };
 
@@ -16,8 +14,6 @@ type Ctx = { params: Promise<{ id: string; sectionId: string }> };
  */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, sectionId } = await ctx.params;
-
-  if (USE_MOCK) return NextResponse.json(nodMock(id, sectionId));
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;

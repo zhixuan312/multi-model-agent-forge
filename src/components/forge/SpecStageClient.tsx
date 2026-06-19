@@ -183,8 +183,35 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [phase, setPhase] = useState<SpecPhase>(
     components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
   );
-  const [autoDrafting, setAutoDrafting] = useState(false);
+  const needsAutoDraft = components.length > 0 && components.some(
+    (c) => c.sections.some((s) => s.status === 'gathering' && !s.draftMd),
+  );
+  const [autoDrafting, setAutoDrafting] = useState(
+    () => phase === 'craft' && needsAutoDraft,
+  );
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, string[]>>({});
+  const autoDraftFired = useRef(false);
+
+  // Auto-trigger drafting when landing on craft with undrafted sections.
+  useEffect(() => {
+    if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
+    autoDraftFired.current = true;
+    setAutoDrafting(true);
+    fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
+      .then((r) => r.json())
+      .then((data: { components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+        if (data.components) setComponents(data.components);
+        if (data.sections) {
+          const qMap: Record<string, string[]> = {};
+          for (const s of data.sections) qMap[`${s.componentKind}:${s.sectionKey}`] = s.questions;
+          setSectionQuestions(qMap);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAutoDrafting(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, needsAutoDraft]);
+
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
@@ -253,7 +280,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setPicked(new Set(next.map((c) => c.kind)));
             setPhase('craft');
             setAutoDrafting(true);
-            fetch(`/api/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
+            fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
               .then((r) => r.json())
               .then((data: { components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
                 if (data.components) setComponents(data.components);
@@ -392,7 +419,7 @@ function OutlineStage({
   });
 
   function toggle(kind: ComponentKind): void {
-    if (readOnly || existingKinds.has(kind)) return;
+    if (readOnly) return;
     const next = new Set(picked);
     if (next.has(kind)) next.delete(kind);
     else next.add(kind);
@@ -480,19 +507,18 @@ function OutlineStage({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {shownKinds.map((c) => {
               const Icon = KIND_ICON[c.kind];
-              const locked = existingKinds.has(c.kind);
-              const selected = picked.has(c.kind) || locked;
+              const selected = picked.has(c.kind);
               return (
                 <button
                   key={c.kind}
                   type="button"
-                  disabled={readOnly || locked}
+                  disabled={readOnly}
                   aria-pressed={selected}
                   onClick={() => toggle(c.kind)}
                   className={cn(
                     'flex flex-col gap-2.5 rounded-[var(--r-md)] border p-3.5 text-left transition-colors',
                     selected ? 'border-accent bg-accent-tint/25 shadow-sm' : 'border-line bg-surface hover:border-line-strong',
-                    (readOnly || locked) && 'cursor-default',
+                    readOnly && 'cursor-default',
                   )}
                 >
                   <div className="flex items-center gap-2.5">
@@ -763,23 +789,11 @@ function CraftStage({
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
   }
 
-  const seed = craftContent?.[active.kind];
-  const rounds = autoDrafting
-    ? [] // suppress template-driven Q&A while auto-drafting
-    : seed
-      ? seed.questions.map((qs, i) => ({
-          questions: qs,
-          source: i === 0 ? 'mma-investigate · codebase scan' : 'mma-investigate · follow-up',
-          missing: i > 0 ? ['edge cases', 'constraints'] : [],
-        }))
-      : roundsFor(active);
-  const given = answers[active.id] ?? [];
-  const answeredRounds = given.length;
   const drafted = active.status === 'drafted' || active.status === 'approved';
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const draftMd = drafted
-    ? (active.sections.find((s) => s.draftMd)?.draftMd ?? seed?.draftMd ?? buildDraft(active, given))
+    ? (active.sections.find((s) => s.draftMd)?.draftMd ?? null)
     : null;
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
@@ -874,16 +888,15 @@ function CraftStage({
       scheduleReply('forge', active.id, 'Noted — I can fold that into the draft. Hit “Construct section” when you’re ready.');
       return;
     }
-    const next = [...given, text];
-    setAnswers((a) => ({ ...a, [active.id]: next }));
     setInput('');
-    onPatch(active.id, { status: next.length >= rounds.length ? 'drafted' : 'satisfied' });
+    // User feedback on the draft — will be handled by the refine route in future
+    onPatch(active.id, { status: 'drafted' });
   }
 
   /** End the Q&A and let Forge construct the draft from what's gathered. */
   function construct(): void {
     if (readOnly || !active) return;
-    if (input.trim()) setAnswers((a) => ({ ...a, [active.id]: [...given, input.trim()] }));
+    if (input.trim()) setInput('');
     setInput('');
     // A freshly constructed draft supersedes any prior sign-offs — they approved
     // an EARLIER version. Reset approvals so the author reviews the new draft and
@@ -960,8 +973,8 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {drafted && draftMd && rounds.length === 0 ? (
-            /* Auto-drafted: show as Forge conversation — draft first, then questions */
+          {drafted && draftMd ? (
+            /* Drafted section: show draft as Forge message + questions (if any) */
             <>
               <div className="flex gap-2.5">
                 <ForgeMark className="mt-0.5 shrink-0" />
@@ -969,7 +982,7 @@ function CraftStage({
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-ink">Forge</span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
-                      auto-drafted from exploration
+                      drafted from exploration
                     </span>
                   </div>
                   <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
@@ -992,7 +1005,7 @@ function CraftStage({
                         {questions.length > 0 ? (
                           <div className="space-y-2">
                             <p className="text-sm leading-relaxed text-ink">
-                              I drafted this section from the exploration findings. A few things I'd like to clarify:
+                              A few things I'd like to clarify about this section:
                             </p>
                             {questions.map((q, i) => (
                               <p key={i} className="text-sm leading-relaxed text-ink">
@@ -1003,7 +1016,7 @@ function CraftStage({
                           </div>
                         ) : (
                           <p className="text-sm leading-relaxed text-ink">
-                            I drafted this section from the exploration findings and it looks complete. You can approve it as-is, or tell me what to change.
+                            This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
                           </p>
                         )}
                       </div>
@@ -1012,44 +1025,13 @@ function CraftStage({
                 );
               })()}
             </>
-          ) : drafted && draftMd ? (
-            /* Q&A-drafted: show the Q&A rounds then the draft */
-            <>
-              {rounds.map((round, ri) => {
-                if (ri > answeredRounds) return null;
-                return (
-                  <div key={ri} className="space-y-3">
-                    <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
-                    {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
-                  </div>
-                );
-              })}
-              <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
-                <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
-                  Draft
-                </Micro>
-                <Markdown>{draftMd}</Markdown>
-              </div>
-            </>
           ) : autoDrafting ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
               <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
             </div>
-          ) : (
-            <>
-              {rounds.map((round, ri) => {
-                if (ri > answeredRounds) return null;
-                return (
-                  <div key={ri} className="space-y-3">
-                    <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
-                    {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
-                  </div>
-                );
-              })}
-            </>
-          )}
+          ) : null}
 
           <DiscussionThread
             messages={activeCollab.discussion}

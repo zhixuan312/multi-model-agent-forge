@@ -1,12 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardExploreWrite } from '@/exploration/guard';
 import { synthesize } from '@/exploration/synthesize';
-import { USE_MOCK } from '@/mock/config';
-import { synthesizeMock } from '@/mock/domains/projects/explore-tasks';
 
-/** `POST /api/projects/[id]/explore/synthesize` — main-agent synthesis →
- *  `artifact(kind='exploration')`. Normally invoked by the SynthesisScheduler;
- *  this route is the member-facing "re-synthesize" affordance. */
 export const runtime = 'nodejs';
 
 export async function POST(
@@ -14,11 +9,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-
-  if (USE_MOCK) {
-    const a = synthesizeMock(id);
-    return NextResponse.json({ artifactId: a.id, version: a.version });
-  }
 
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;

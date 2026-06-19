@@ -1,8 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { getProject } from '@/projects/projects-core';
 import { projectIndexTarget } from '@/projects/index-target';
-import { USE_MOCK } from '@/mock/config';
-import { findMockProject } from '@/mock/domains/projects/dashboard';
 
 /**
  * Project index (Spec 3 flow 3 / Spec 7 F11) — redirect to the current stage via
@@ -17,12 +15,6 @@ export default async function ProjectIndexPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  if (USE_MOCK) {
-    const mock = findMockProject(id);
-    if (!mock) notFound();
-    redirect(projectIndexTarget(id, mock.phase, mock.currentStage ?? 'exploration'));
-  }
 
   const project = await getProject(id);
   if (!project) notFound();

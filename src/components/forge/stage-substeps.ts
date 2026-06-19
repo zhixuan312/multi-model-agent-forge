@@ -14,8 +14,8 @@ import type { StageKind } from '@/db/enums';
 export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: string }[]>> = {
   // DESIGN
   exploration: [
-    { key: 'brief', label: 'Brief' },
-    { key: 'fanout', label: 'Fan-out' },
+    { key: 'scope', label: 'Scope' },
+    { key: 'discover', label: 'Discover' },
     { key: 'synthesize', label: 'Synthesize' },
   ],
   spec: [

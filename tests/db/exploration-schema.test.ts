@@ -24,6 +24,15 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       dispatchedBy: 'dispatched_by',
       createdAt: 'created_at',
       terminalAt: 'terminal_at',
+      costUsd: 'cost_usd',
+      savedVsMainUsd: 'saved_vs_main_usd',
+      inputTokens: 'input_tokens',
+      outputTokens: 'output_tokens',
+      durationMs: 'duration_ms',
+      implementerModel: 'implementer_model',
+      reviewerModel: 'reviewer_model',
+      implementerTier: 'implementer_tier',
+      loopRunId: 'loop_run_id',
     });
     const cols = getTableColumns(mmaBatch);
     expect(cols.cwd.notNull).toBe(true); // every route carries a cwd
@@ -41,6 +50,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       'review',
       'journal_record',
       'delegate',
+      'orchestrate',
     ]);
     expect(cols.status.enumValues).toEqual(['dispatched', 'running', 'done', 'failed']);
     expect(cols.status.default).toBe('dispatched');

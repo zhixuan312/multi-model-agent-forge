@@ -127,6 +127,20 @@
       "when": 1782400000000,
       "tag": "0017_journal_pin_findings",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782500000000,
+      "tag": "0018_usage_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0019_batch_loop_run_fk",
+      "breakpoints": true
     }
   ]
 }

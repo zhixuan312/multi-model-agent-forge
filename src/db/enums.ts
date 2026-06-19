@@ -149,7 +149,8 @@ export const MMA_ROUTE = [
   'execute_plan',
   'review',
   'journal_record',
-  'delegate', // ad-hoc implementation dispatch — used by Loops' maintenance work step
+  'delegate',
+  'orchestrate', // orchestrator brain — used by Loops' plan + journal stages
 ] as const;
 export type MmaRoute = (typeof MMA_ROUTE)[number];
 

@@ -12,6 +12,7 @@ import {
   type TerminalState,
 } from '@/sse/envelope';
 import { logPoll } from '@/observability/poll-log';
+import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 /**
  * Server-owned MMA poll loop (Spec 5 §SSE). The browser NEVER polls MMA; this
@@ -221,16 +222,29 @@ export class PollManager {
     }
   }
 
-  /** 200 terminal → persist result/status/terminal_at, flip task, emit, deregister. */
+  /** 200 terminal → persist result/status/terminal_at + usage columns, flip task, emit, deregister. */
   private async markTerminal(
     entry: RegisteredBatch,
     envelope: unknown,
     state: TerminalState,
   ): Promise<void> {
+    const usage = extractUsageFields(envelope);
     await this.db.transaction(async (tx) => {
       await tx
         .update(mmaBatch)
-        .set({ status: state.status, result: envelope as object, terminalAt: new Date() })
+        .set({
+          status: state.status,
+          result: envelope as object,
+          terminalAt: new Date(),
+          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+        })
         .where(eq(mmaBatch.id, entry.batchId));
       if (entry.taskId) {
         await tx

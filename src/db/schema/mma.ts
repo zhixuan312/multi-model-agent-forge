@@ -1,4 +1,4 @@
-import { uuid, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { uuid, text, jsonb, timestamp, index, integer, numeric } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { project } from '@/db/schema/projects';
@@ -32,10 +32,20 @@ export const mmaBatch = forge.table(
     dispatchedBy: uuid('dispatched_by').references(() => member.id), // nullable: actor-less resumed dispatch
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     terminalAt: timestamp('terminal_at', { withTimezone: true }),
+    costUsd: numeric('cost_usd'),
+    savedVsMainUsd: numeric('saved_vs_main_usd'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    durationMs: integer('duration_ms'),
+    implementerModel: text('implementer_model'),
+    reviewerModel: text('reviewer_model'),
+    implementerTier: text('implementer_tier'), // standard | complex | main
+    loopRunId: uuid('loop_run_id'), // FK to loop_run.id (no Drizzle ref to avoid circular import with loop.ts)
   },
   (t) => [
     index('mma_batch_project_created_idx').on(t.projectId, t.createdAt),
     index('mma_batch_batch_id_idx').on(t.batchId),
+    index('mma_batch_loop_run_idx').on(t.loopRunId),
   ],
 );
 

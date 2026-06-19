@@ -13,6 +13,20 @@ vi.mock('@/journal/recall', () => ({ dispatchRecall: async () => ({ batchId: 'b-
 const logAction = vi.fn(async () => {});
 vi.mock('@/observability/action-log', () => ({ logAction }));
 
+function noopChain(): unknown {
+  return new Proxy(() => {}, {
+    get(_t, prop) {
+      if (prop === 'then') return undefined;
+      if (prop === 'catch') return () => Promise.resolve();
+      return noopChain;
+    },
+    apply() { return noopChain(); },
+  });
+}
+vi.mock('@/db/client', () => ({
+  getDb: () => ({ insert: noopChain, select: noopChain, update: noopChain }),
+}));
+
 const { POST: recallPOST } = await import('../../app/api/journal/recall/route');
 
 function req(query: string): Request {

@@ -10,8 +10,6 @@ import {
 } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
 import { buildMmaClient } from '@/mma/server-client';
-import { USE_MOCK } from '@/mock/config';
-import { auditMock } from '@/mock/domains/projects/spec';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -31,8 +29,6 @@ const bodySchema = z.object({
  */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
-
-  if (USE_MOCK) return NextResponse.json(auditMock(id));
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;

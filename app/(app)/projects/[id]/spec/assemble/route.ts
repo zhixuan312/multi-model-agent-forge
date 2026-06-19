@@ -4,8 +4,6 @@ import { assembleSpec } from '@/spec/assemble';
 import { ensureSpecStage } from '@/spec/spec-core';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { getDb } from '@/db/client';
-import { USE_MOCK } from '@/mock/config';
-import { assembleMock } from '@/mock/domains/projects/spec';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -15,11 +13,6 @@ type Ctx = { params: Promise<{ id: string }> };
  */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
-
-  if (USE_MOCK) {
-    const a = assembleMock(id);
-    return NextResponse.json({ artifact: { id: `mock-spec-${id}`, version: a.version, body_md: a.body_md } });
-  }
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;

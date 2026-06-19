@@ -32,7 +32,7 @@ describe('confirmComponents', () => {
   it('creates one component + one section per template section (gathering)', async () => {
     const mockDb = createOrchestratorDb({
       'select:project_component': [],
-      'insert:project_component': [{ id: componentId, stageId: specStageId, kind: 'context_scope', status: 'gathering' }],
+      'insert:project_component': [{ id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' }],
       'insert:project_component_section': [
         { id: sectionId1, componentId, key: 'background', label: 'Background', status: 'gathering', aiSatisfied: false },
         { id: sectionId2, componentId, key: 'scope', label: 'Scope', status: 'gathering', aiSatisfied: false },
@@ -42,7 +42,7 @@ describe('confirmComponents', () => {
         { id: sectionId2, componentId, key: 'scope', label: 'Scope', status: 'gathering', aiSatisfied: false },
       ],
     });
-    await confirmComponents(mockDb, specStageId, ['context_scope']);
+    await confirmComponents(mockDb, specStageId, ['context']);
     expect(mockDb._assertCalled('project_component', 'insert')).toBe(true);
   });
 
@@ -50,16 +50,16 @@ describe('confirmComponents', () => {
     const comp2Id = 'comp-2';
     const mockDb = createOrchestratorDb({
       'select:project_component': seq(
-        [{ id: componentId, stageId: specStageId, kind: 'context_scope', status: 'gathering' }],
+        [{ id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' }],
         [
-          { id: componentId, stageId: specStageId, kind: 'context_scope', status: 'gathering' },
-          { id: comp2Id, stageId: specStageId, kind: 'problem_motivation', status: 'gathering' },
+          { id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' },
+          { id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' },
         ],
       ),
-      'insert:project_component': [{ id: comp2Id, stageId: specStageId, kind: 'problem_motivation', status: 'gathering' }],
+      'insert:project_component': [{ id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' }],
       'select:project_component_section': [],
     });
-    await confirmComponents(mockDb, specStageId, ['context_scope', 'problem_motivation']);
+    await confirmComponents(mockDb, specStageId, ['context', 'problem']);
     expect(mockDb._assertCalled('project_component', 'insert')).toBe(true);
   });
 });
@@ -73,7 +73,7 @@ describe('enterSection — zero-question fast path', () => {
         [],
         [],
       ),
-      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context_scope' }],
+      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context' }],
       'select:project_qa_message': seq([], [], []),
       'select:project': [{ id: projectId, intentMd: 'Intent.' }],
       'select:project_artifact': [],
@@ -98,7 +98,7 @@ describe('enterSection — zero-question fast path', () => {
         [{ id: sectionId1, componentId, key: 'background', label: 'Background', status: 'gathering', aiSatisfied: false, draftMd: null, stale: false }],
         [],
       ),
-      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context_scope' }],
+      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context' }],
       'select:project_qa_message': seq([], []),
       'select:project': [{ id: projectId, intentMd: 'Intent.' }],
       'select:project_artifact': [],
@@ -134,7 +134,7 @@ describe('THE DUAL GATE INVARIANT', () => {
         [{ id: sectionId1, componentId, key: 'background', status: 'drafted', draftMd: 'body', aiSatisfied: false, humanSatisfied: false }],
         [{ status: 'drafted' }],
       ),
-      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context_scope' }],
+      'select:project_component': [{ id: componentId, stageId: specStageId, kind: 'context' }],
       'update:project_component_section': [{ id: sectionId1, status: 'drafted', humanSatisfied: true }],
     });
     const anthropic = mockAnthropicClient({});
@@ -153,10 +153,10 @@ describe('THE DUAL GATE INVARIANT', () => {
         [{ status: 'approved' }],
       ),
       'select:project_component': seq(
-        [{ id: componentId, stageId: specStageId, kind: 'context_scope' }],
+        [{ id: componentId, stageId: specStageId, kind: 'context' }],
         [{ projectId }],
         [{ projectId }],
-        [{ id: componentId, stageId: specStageId, kind: 'context_scope' }],
+        [{ id: componentId, stageId: specStageId, kind: 'context' }],
       ),
       'select:project_qa_message': seq([], [], []),
       'select:project': [{ id: projectId, intentMd: 'Intent.' }],

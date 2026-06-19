@@ -7,33 +7,27 @@ describe('COMPONENT_TEMPLATES', () => {
     expect(kinds).toEqual([...COMPONENT_KIND].sort());
   });
 
-  it('default-checked kinds are the Technical Design Doc template', () => {
+  it('default-checked kinds match the Full Specification template', () => {
     expect(defaultComponentKinds()).toEqual([
-      'context_scope',
-      'goals_nongoals',
-      'proposed_design',
-      'interfaces_apis',
-      'data_storage',
+      'context',
+      'problem',
+      'goals_requirements',
       'alternatives',
-      'cross_cutting',
-      'test_validation',
-      'rollout_migration',
+      'technical_design',
+      'testing_plan',
+      'risks',
+      'stories_tasks',
     ]);
   });
 
-  it('proposed_design carries overview / system_context / details', () => {
-    const keys = templateForKind('proposed_design').sections.map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(['overview', 'system_context', 'details']));
+  it('technical_design carries current_state / proposed / impact', () => {
+    const keys = templateForKind('technical_design').sections.map((s) => s.key);
+    expect(keys).toEqual(['current_state', 'proposed', 'impact']);
   });
 
-  it('test_validation carries strategy / acceptance', () => {
-    const keys = templateForKind('test_validation').sections.map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(['strategy', 'acceptance']));
-  });
-
-  it('system_context prompt instructs a ```mermaid fence', () => {
-    const flow = templateForKind('proposed_design').sections.find((s) => s.key === 'system_context')!;
-    expect(flow.prompt.toLowerCase()).toContain('mermaid');
+  it('testing_plan carries strategy', () => {
+    const keys = templateForKind('testing_plan').sections.map((s) => s.key);
+    expect(keys).toEqual(['strategy']);
   });
 
   it('every section has a non-empty draftHeading', () => {

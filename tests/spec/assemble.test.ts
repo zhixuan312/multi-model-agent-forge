@@ -13,7 +13,7 @@ describe('buildSpecMarkdown (pure)', () => {
       { name: 'Proj', visibility: 'public', version: 1 },
       [
         {
-          kind: 'proposed_design',
+          kind: 'technical_design',
           label: 'Proposed design',
           sections: [{ key: 'system_context', label: 'System-context diagram', draftMd: fence }],
         },
@@ -35,7 +35,7 @@ describe('assembleSpec', () => {
 
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
-      'select:project_component': [{ id: componentId, kind: 'context_scope' }],
+      'select:project_component': [{ id: componentId, kind: 'context' }],
       'select:project_component_section': [
         { id: sectionId, componentId, key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body-background' },
       ],
@@ -60,7 +60,7 @@ describe('assembleSpec', () => {
 
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
-      'select:project_component': [{ id: 'comp-1', kind: 'context_scope' }],
+      'select:project_component': [{ id: 'comp-1', kind: 'context' }],
       'select:project_component_section': [
         { id: 'sec-1', componentId: 'comp-1', key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body' },
       ],

@@ -85,21 +85,20 @@ describe('loadOutline', () => {
     const comp2Id = 'comp-2';
     const mockDb = createMockDb({
       'select:project_component': [
-        { id: comp1Id, stageId: specStageId, kind: 'context_scope', status: 'gathering' },
-        { id: comp2Id, stageId: specStageId, kind: 'problem_motivation', status: 'gathering' },
+        { id: comp1Id, stageId: specStageId, kind: 'context', status: 'gathering' },
+        { id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' },
       ],
       'select:project_component_section': seq(
         [
           { id: 'sec-1', componentId: comp1Id, key: 'background', label: 'Background', status: 'gathering' },
-          { id: 'sec-2', componentId: comp1Id, key: 'scope', label: 'Scope', status: 'gathering' },
         ],
         [{ id: 'sec-3', componentId: comp2Id, key: 'problem', label: 'Problem', status: 'gathering' }],
       ),
     });
 
     const outline = await loadOutline(mockDb, specStageId);
-    expect(outline.map((c) => c.kind)).toEqual(['context_scope', 'problem_motivation']);
-    expect(outline[0].label).toBe('Context & scope');
-    expect(outline[0].sections.map((s) => s.key)).toEqual(['background', 'scope']);
+    expect(outline.map((c) => c.kind)).toEqual(['context', 'problem']);
+    expect(outline[0].label).toBe('Context');
+    expect(outline[0].sections.map((s) => s.key)).toEqual(['background']);
   });
 });

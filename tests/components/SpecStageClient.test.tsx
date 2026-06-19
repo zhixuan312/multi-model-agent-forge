@@ -22,7 +22,7 @@ function wrap(ui: React.ReactElement) {
 const twoSections: ComponentView[] = [
   {
     id: 'c1',
-    kind: 'context_scope',
+    kind: 'context',
     label: 'Context',
     primaryRoles: ['PM'],
     status: 'gathering',
@@ -44,7 +44,7 @@ describe('SpecStageClient', () => {
         phase="design"
         mainTierReady={false}
         mmaReady={false}
-        defaultKinds={['context_scope']}
+        defaultKinds={['context']}
         initialComponents={twoSections}
         initialSpec={null}
         initialAuditHistory={[]}
@@ -64,7 +64,7 @@ describe('SpecStageClient', () => {
         phase="design"
         mainTierReady={true}
         mmaReady={true}
-        defaultKinds={['context_scope']}
+        defaultKinds={['context']}
         initialComponents={twoSections}
         initialSpec={null}
         initialAuditHistory={[]}
@@ -88,7 +88,7 @@ describe('SpecStageClient', () => {
     const designSection: ComponentView[] = [
       {
         id: 'c1',
-        kind: 'proposed_design',
+        kind: 'technical_design',
         label: 'Proposed design',
         primaryRoles: ['Tech Lead'],
         status: 'gathering',
@@ -106,14 +106,14 @@ describe('SpecStageClient', () => {
         phase="design"
         mainTierReady={true}
         mmaReady={true}
-        defaultKinds={['proposed_design']}
+        defaultKinds={['technical_design']}
         initialComponents={designSection}
         initialSpec={null}
         initialAuditHistory={[]}
         initialCanFreeze={false}
         currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
         craftCollab={{
-          proposed_design: {
+          technical_design: {
             participants: [
               { member: { id: 'bo', displayName: 'Bo Chen', avatarTint: '#355a74' }, addedBy: null, approvedAt: '2026-06-13T09:40:00.000Z' },
             ],

@@ -64,14 +64,14 @@ describe('runLoopForRepo', () => {
     expect(d.mainSession).toHaveBeenCalledTimes(2);
     const mainCalls = (d.mainSession as unknown as { mock: { calls: { sessionId?: string }[][] } }).mock.calls;
     expect(mainCalls[1][0].sessionId).toBe('sess-1'); // journal resumed the plan session
-    expect(d.recall).toHaveBeenCalledWith(repo, 'q1'); // ran the planned recall query
+    expect(d.recall).toHaveBeenCalledWith(repo, 'q1', expect.any(String)); // ran the planned recall query
     expect(d.runVerify).toHaveBeenCalledWith(repo, '/wt/forge', 'npm test'); // ran the planned command
     expect(d.branchHasChanges).toHaveBeenCalledWith('/wt/forge', 'main'); // compared loop branch vs base
     expect(d.createWorktree).toHaveBeenCalledWith(repo, expect.any(String), 'main'); // forked from base
     expect(d.openPr).toHaveBeenCalledWith(expect.objectContaining({ base: 'main' }));
     // Journal is the brain's curated entry, not "delegate: done".
     expect(p.journalEntries).toEqual([{ tag: 'learned', text: 'real insight' }]);
-    expect(d.record).toHaveBeenCalledWith(repo, [{ tag: 'learned', text: 'real insight' }]);
+    expect(d.record).toHaveBeenCalledWith(repo, [{ tag: 'learned', text: 'real insight' }], expect.any(String));
     expect(d.commitAndPush).toHaveBeenCalled();
     expect(d.openPr).toHaveBeenCalled();
     expect(d.removeWorktree).toHaveBeenCalledWith('/wt/forge');
@@ -82,7 +82,7 @@ describe('runLoopForRepo', () => {
     await runLoopForRepo(loop, repo, ctx, d);
     const p = setPatch(d);
     expect(p.status).toBe('changed'); // run still completes
-    expect(d.recall).toHaveBeenCalledWith(repo, (loop.config as { goalMd: string }).goalMd); // fallback recall = the goal
+    expect(d.recall).toHaveBeenCalledWith(repo, (loop.config as { goalMd: string }).goalMd, expect.any(String)); // fallback recall = the goal
     expect(d.runVerify).toHaveBeenCalledWith(repo, '/wt/forge', null); // fallback verify = auto-detect
     expect(p.journalEntries).toEqual([{ tag: 'learned', text: 'removed dead module' }]); // fallback journal = worker summary
   });

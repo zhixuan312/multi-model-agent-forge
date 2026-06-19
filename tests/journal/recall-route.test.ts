@@ -23,6 +23,20 @@ vi.mock('@/observability/action-log', () => ({
 
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/workspace' }));
 
+function noopChain(): unknown {
+  return new Proxy(() => {}, {
+    get(_t, prop) {
+      if (prop === 'then') return undefined;
+      if (prop === 'catch') return () => Promise.resolve();
+      return noopChain;
+    },
+    apply() { return noopChain(); },
+  });
+}
+vi.mock('@/db/client', () => ({
+  getDb: () => ({ insert: noopChain, select: noopChain, update: noopChain }),
+}));
+
 const { POST } = await import('../../app/api/journal/recall/route');
 
 function asMember(): AuthedMember {

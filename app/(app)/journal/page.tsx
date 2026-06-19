@@ -53,7 +53,7 @@ type Metric = {
 };
 
 function normalizeView(v: string | undefined): JournalView {
-  return v === 'recall' || v === 'graph' || v === 'log' ? v : 'nodes';
+  return v === 'nodes' || v === 'graph' || v === 'log' ? v : 'recall';
 }
 
 export default async function JournalPage({

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, type LucideIcon } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -48,6 +48,7 @@ const SECTIONS: NavSection[] = [
     id: 'admin',
     label: 'Admin',
     items: [
+      { href: '/usage', label: 'Usage', icon: BarChart3, adminOnly: true },
       { href: '/settings', label: 'Team settings', icon: Settings, adminOnly: true },
     ],
   },

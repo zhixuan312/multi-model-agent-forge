@@ -4,20 +4,15 @@ import { currentMember } from '@/auth/current-member';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { guardExploreWrite } from '@/exploration/guard';
 import { addTask, readRailTasks, TaskLockedError } from '@/exploration/explore-core';
-import { USE_MOCK } from '@/mock/config';
-import { getMockTasks, addMockTask } from '@/mock/domains/projects/explore-tasks';
 
 /** `GET` — the rail task list (joined to mma_batch); `POST` — add a draft task. */
 export const runtime = 'nodejs';
-
-let mockSeq = 0;
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  if (USE_MOCK) return NextResponse.json(getMockTasks(id));
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
@@ -40,15 +35,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-
-  if (USE_MOCK) {
-    const json = await req.json().catch(() => null);
-    const parsed = z
-      .object({ kind: z.string(), prompt: z.string(), targetRepoId: z.string().nullable().optional() })
-      .safeParse(json);
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid task.' }, { status: 400 });
-    return NextResponse.json(addMockTask(id, parsed.data, ++mockSeq));
-  }
 
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;

@@ -124,6 +124,14 @@ export interface MainTierConfig {
   model: string;
 }
 
+export interface CallUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  durationMs: number;
+}
+
 export interface ParseContext {
   system: string;
   user: string;
@@ -257,6 +265,45 @@ export class AnthropicClient {
 
       this.emit(ctx, start, true, res);
       return res.parsed_output as T;
+    } catch (err) {
+      if (err instanceof AnthropicParseError) throw err;
+      this.emit(ctx, start, false, null, errName(err));
+      throw err;
+    }
+  }
+
+  /** Like `parse` but also returns token usage for the caller to record. */
+  async parseWithUsage<T>(schema: z.ZodType<T>, ctx: ParseContext, opts: ParseOptions = {}): Promise<{ data: T; usage: CallUsage }> {
+    const start = Date.now();
+    try {
+      const res = await this.sdk.messages.parse(
+        {
+          model: this.model,
+          max_tokens: BASE_MAX_TOKENS,
+          thinking: { type: 'adaptive' },
+          ...(opts.effort ? { output_config: { effort: opts.effort, format: zodOutputFormat(schema) } } : { output_config: { format: zodOutputFormat(schema) } }),
+          system: this.buildSystem(ctx.system),
+          messages: [{ role: 'user', content: ctx.user }],
+        },
+        { signal: AbortSignal.timeout(ANTHROPIC_CALL_TIMEOUT_MS) },
+      );
+      if (res.parsed_output == null) {
+        this.emit(ctx, start, false, res, res.stop_reason ?? 'no_parsed_output');
+        throw new AnthropicParseError(res.stop_reason ?? null);
+      }
+      this.emit(ctx, start, true, res);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const u = (res as any).usage ?? {};
+      return {
+        data: res.parsed_output as T,
+        usage: {
+          inputTokens: numOrNull(u.input_tokens) ?? 0,
+          outputTokens: numOrNull(u.output_tokens) ?? 0,
+          cacheReadInputTokens: numOrNull(u.cache_read_input_tokens) ?? 0,
+          cacheCreationInputTokens: numOrNull(u.cache_creation_input_tokens) ?? 0,
+          durationMs: Date.now() - start,
+        },
+      };
     } catch (err) {
       if (err instanceof AnthropicParseError) throw err;
       this.emit(ctx, start, false, null, errName(err));

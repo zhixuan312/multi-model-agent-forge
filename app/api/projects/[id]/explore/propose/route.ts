@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { guardExploreWrite } from '@/exploration/guard';
 import { proposeFanOut } from '@/exploration/fan-out';
 import { AnthropicConfigError } from '@/anthropic/client';
-import { USE_MOCK } from '@/mock/config';
-import { proposeMockTasks } from '@/mock/domains/projects/explore-tasks';
 
 /** `POST /api/projects/[id]/explore/propose` — the main-agent fan-out proposal.
  *  Zod-validated, deterministic per-failure drop/repair, atomic insert of the
@@ -15,12 +13,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-
-  // Mock: seed a 5·5·5 fan-out so "Analyze sources" populates the proposal.
-  if (USE_MOCK) {
-    const tasks = proposeMockTasks(id);
-    return NextResponse.json({ tasks, empty: tasks.length === 0 });
-  }
 
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;

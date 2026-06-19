@@ -19,6 +19,7 @@ import {
 import { Markdown } from '@/components/forge/Markdown';
 import { AgentRail } from '@/components/forge/AgentRail';
 import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
+import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -39,7 +40,6 @@ import {
   CardTitle,
   CardContent,
   CardFooter,
-  Eyebrow,
 } from '@/components/ui';
 import {
   useProjectEvents,
@@ -118,6 +118,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [viewOverride, setViewOverride] = useState<'scope' | 'discover' | 'synthesize' | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const recStartRef = useRef<number>(0);
@@ -225,6 +227,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
       rec.ondataavailable = (e) => chunksRef.current.push(e.data);
       rec.onstop = async () => {
         setRecording(false);
+        setTranscribing(true);
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const form = new FormData();
@@ -234,9 +237,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
           if (!res.ok) throw new Error('Transcription failed.');
           const { text } = (await res.json()) as { text: string };
-          setBrief((prev) => (prev ? `${prev} ${text}` : text)); // APPEND, never replace
+          setBrief((prev) => (prev ? `${prev}\n${text}` : text));
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Transcription failed.');
+        } finally {
+          setTranscribing(false);
         }
       };
       recorderRef.current = rec;
@@ -253,17 +258,38 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const recorded = tasks.filter((t) => t.status === 'recorded').length;
   const allDone = dispatched > 0 && recorded === dispatched;
 
-  // The centre stage is a single area that advances through the flow. The
-  // brain-dump input lives on the right and is editable at every phase; pressing
-  // Analyze re-proposes (back to `fanout`), so fresh drafts win over a prior brief.
-  const phase: 'idle' | 'fanout' | 'run' | 'synthesis' =
+  // The centre stage is a single area that advances through the flow.
+  const dataPhase: 'idle' | 'fanout' | 'run' | 'synthesis' =
     drafts.length > 0 ? 'fanout' : bodyMd ? 'synthesis' : dispatched > 0 ? 'run' : 'idle';
 
-  // Publish the sub-phase to the stepper (Brief · Fan-out · Synthesis).
+  // Allow the user to navigate back to a previous sub-phase via the stepper.
+  // Brief = editable proposal (add/edit tasks). Fan-out = agent execution rail.
+  const phase: 'idle' | 'fanout' | 'run' | 'synthesis' = (() => {
+    if (!viewOverride) return dataPhase;
+    if (viewOverride === 'scope') return 'fanout';
+    if (viewOverride === 'discover') return dispatched > 0 ? 'run' : 'fanout';
+    if (viewOverride === 'synthesize' && bodyMd) return 'synthesis';
+    return dataPhase;
+  })();
+
+  // Clear override when data phase advances past it.
+  useEffect(() => { setViewOverride(null); }, [dataPhase]);
+
+  // Publish the sub-phase to the stepper + register the navigation handler.
   useEffect(() => {
-    const sub = phase === 'synthesis' ? 'synthesis' : phase === 'idle' ? 'brief' : 'fanout';
-    stagePhaseStore.set(sub);
-  }, [phase]);
+    if (viewOverride) {
+      stagePhaseStore.set(viewOverride);
+    } else {
+      const sub = phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'scope' : phase === 'fanout' ? 'scope' : 'discover';
+      stagePhaseStore.set(sub);
+    }
+  }, [phase, viewOverride]);
+
+  useEffect(() => {
+    return stagePhaseStore.onNavigate((key) => {
+      setViewOverride(key as 'scope' | 'discover' | 'synthesize');
+    });
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -286,6 +312,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               className="min-h-0 flex-1"
               projectId={props.projectId}
               drafts={drafts}
+              allTasks={tasks}
               repoOptions={props.repoOptions}
               onChanged={refreshTasks}
               onRun={run}
@@ -321,7 +348,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <CardHeader>
               <CardTitle>Brain-dump</CardTitle>
               {phase === 'idle' ? (
-                <Micro className="!text-ink-faint">Text · links · files</Micro>
+                <Micro className="!text-ink-faint">Text · voice · files</Micro>
               ) : (
                 <Micro className="!text-ink-faint">Edit &amp; re-analyze anytime</Micro>
               )}
@@ -333,11 +360,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 attachments={attachments}
                 voiceEnabled={props.voiceEnabled}
                 recording={recording}
+                transcribing={transcribing}
                 busy={busy}
                 error={error}
                 onAnalyze={analyze}
                 onToggleRecord={toggleRecord}
-                onAddLink={addLink}
                 onAddFile={addFile}
                 onRemoveAttachment={removeAttachment}
               />
@@ -401,11 +428,7 @@ function RunStage(props: {
           >
             {props.synthesizing ? 'Synthesizing…' : 'Synthesize brief'}
           </Button>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft">
-            <Loader2 className="size-3.5 animate-spin" /> running…
-          </span>
-        )}
+        ) : null}
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
         <AgentRail tasks={props.tasks} />
@@ -415,24 +438,22 @@ function RunStage(props: {
 }
 
 /** Standing guidance — the accent-tint note every page's rail carries. */
+const EXPLORE_NOTE = `### How exploration works
+
+- **Brain-dump** — tell Forge everything you know in the text area
+- **Analyze sources** — Forge proposes a fan-out of investigation, research, and journal recall tasks
+- **Run** — agents investigate the codebase, research the web, and recall past decisions
+- **Synthesize** — one grounded brief for the Spec stage
+
+### Attaching files
+
+- **Images** — PNG, JPEG, WebP, GIF (screenshots, diagrams, mockups)
+- **Documents** — PDF, plain text, Markdown
+- **Data** — CSV, JSON
+- Paste links directly in the text area`;
+
 function ExplorationNote() {
-  return (
-    <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
-      <span aria-hidden className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
-        <Lightbulb className="size-5" />
-      </span>
-      <div className="min-w-0">
-        <Eyebrow as="h3" className="text-accent-deep">
-          How exploration works
-        </Eyebrow>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-          Dump everything you know, then <span className="font-medium text-ink">Analyze sources</span> to propose a
-          fan-out. Forge&rsquo;s agents investigate the codebase, research the web, and recall past decisions — then
-          synthesize one grounded brief for the Spec stage.
-        </p>
-      </div>
-    </div>
-  );
+  return <SettingsAccessNote body={EXPLORE_NOTE} icon={<Lightbulb />} />;
 }
 
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */
@@ -484,6 +505,7 @@ function FanOutCard(props: {
   className?: string;
   projectId: string;
   drafts: RailTask[];
+  allTasks: RailTask[];
   repoOptions: { id: string; name: string }[];
   onChanged: () => void;
   onRun: () => void;
@@ -517,24 +539,30 @@ function FanOutCard(props: {
   const anySubFloor = props.drafts.some((t) => t.prompt.trim().length < promptFloor(t.kind as never));
   const repoName = (id: string | null): string =>
     props.repoOptions.find((r) => r.id === id)?.name ?? 'unassigned';
+  const recorded = props.allTasks.filter((t) => t.status !== 'draft');
+  const totalCount = props.drafts.length + recorded.length;
 
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Proposed fan-out">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <CardTitle>Proposed fan-out</CardTitle>
+          <CardTitle>{recorded.length > 0 && props.drafts.length === 0 ? 'Exploration tasks' : 'Proposed fan-out'}</CardTitle>
           <Badge variant="neutral" size="sm">
-            {props.drafts.length}
+            {totalCount}
           </Badge>
         </div>
-        <Button size="sm" disabled={!props.canRun || anySubFloor} onClick={props.onRun} rightIcon={<ArrowRight />}>
-          Run
-        </Button>
+        {props.drafts.length > 0 ? (
+          <Button size="sm" disabled={!props.canRun || anySubFloor} onClick={props.onRun} rightIcon={<ArrowRight />}>
+            Run
+          </Button>
+        ) : null}
       </CardHeader>
 
       <CardContent className="min-h-0 flex-1 space-y-7 overflow-y-auto !py-5">
         {GROUPS.map((g) => {
-            const items = props.drafts.filter((t) => t.kind === g.kind);
+            const draftItems = props.drafts.filter((t) => t.kind === g.kind);
+            const recordedItems = recorded.filter((t) => t.kind === g.kind);
+            const items = [...recordedItems, ...draftItems];
             const Icon = g.Icon;
             const tint = KIND_TINT[g.tint];
             return (
@@ -560,13 +588,16 @@ function FanOutCard(props: {
                 {/* Task cards + a dashed "Add" card completing the grid */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {items.map((t) => {
-                    const subFloor = t.prompt.trim().length < promptFloor(t.kind as never);
+                    const isDraft = t.status === 'draft';
+                    const subFloor = isDraft && t.prompt.trim().length < promptFloor(t.kind as never);
                     return (
                       <div
                         key={t.id}
                         className={cn(
-                          'group/task flex flex-col rounded-[var(--r-md)] border bg-surface p-3.5 shadow-sm transition-colors hover:border-line-strong',
+                          'group/task flex flex-col rounded-[var(--r-md)] border bg-surface p-3.5 shadow-sm transition-colors',
                           subFloor ? 'border-[var(--rose)]/60' : 'border-line',
+                          isDraft && 'hover:border-line-strong',
+                          !isDraft && 'opacity-75',
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -585,31 +616,41 @@ function FanOutCard(props: {
                             <span className="truncate text-xs font-semibold text-ink">{g.source}</span>
                           )}
                           <span className="flex-1" />
-                          <button
-                            type="button"
-                            aria-label="Remove task"
-                            onClick={() => remove(t.id)}
-                            className="-mr-1 shrink-0 rounded p-1 text-ink-faint opacity-0 transition-all hover:bg-surface-2 hover:text-[var(--rose)] focus-visible:opacity-100 group-hover/task:opacity-100"
-                          >
-                            <X className="size-3.5" />
-                          </button>
+                          {!isDraft ? (
+                            <Badge variant="sage" size="sm">done</Badge>
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label="Remove task"
+                              onClick={() => remove(t.id)}
+                              className="-mr-1 shrink-0 rounded p-1 text-ink-faint opacity-0 transition-all hover:bg-surface-2 hover:text-[var(--rose)] focus-visible:opacity-100 group-hover/task:opacity-100"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
                         </div>
 
-                        <Textarea
-                          aria-label={`${g.label} prompt`}
-                          defaultValue={t.prompt}
-                          rows={1}
-                          onBlur={(e) => patch(t.id, { prompt: e.target.value })}
-                          className={cn(
-                            'field-sizing-content mt-2.5 !min-h-0 !resize-none !border-0 !bg-transparent !px-0 !py-0 !text-sm !leading-relaxed !shadow-none focus-visible:!ring-0',
-                            subFloor && '!text-[var(--rose)]',
-                          )}
-                        />
-                        {subFloor ? (
-                          <span className="mt-1 text-[11px] text-[var(--rose)]">
-                            Needs ≥ {promptFloor(t.kind as never)} characters
-                          </span>
-                        ) : null}
+                        {isDraft ? (
+                          <>
+                            <Textarea
+                              aria-label={`${g.label} prompt`}
+                              defaultValue={t.prompt}
+                              rows={1}
+                              onBlur={(e) => patch(t.id, { prompt: e.target.value })}
+                              className={cn(
+                                'field-sizing-content mt-2.5 !min-h-0 !resize-none !border-0 !bg-transparent !px-0 !py-0 !text-sm !leading-relaxed !shadow-none focus-visible:!ring-0',
+                                subFloor && '!text-[var(--rose)]',
+                              )}
+                            />
+                            {subFloor ? (
+                              <span className="mt-1 text-[11px] text-[var(--rose)]">
+                                Needs ≥ {promptFloor(t.kind as never)} characters
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="mt-2.5 text-sm leading-relaxed text-ink-soft">{t.prompt}</p>
+                        )}
                       </div>
                     );
                   })}
@@ -770,7 +811,7 @@ function SummaryPane(props: {
 
       <CardFooter className="flex-col !items-stretch gap-2">
         <TextSm className="!text-ink-faint">This brief grounds the Spec stage.</TextSm>
-        <StageAdvance href={`/projects/${props.projectId}/spec`} label="Continue to Spec" />
+        <StageAdvance href={`/projects/${props.projectId}/spec`} label="Continue to Spec" projectId={props.projectId} from="exploration" />
       </CardFooter>
     </Card>
   );

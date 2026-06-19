@@ -72,7 +72,7 @@ export function AgentRail({ tasks }: { tasks: RailTask[] }) {
                     {ROUTE_LABEL[t.kind] ?? t.kind}
                   </p>
                   <p className="truncate text-xs text-ink-soft">{t.prompt}</p>
-                  {s.tone === 'run' && t.headline ? (
+                  {s.tone === 'run' && t.headline && !/^running\.{0,3}$/i.test(t.headline.trim()) ? (
                     <p className="mt-1 truncate text-[11px] text-ink-soft">{t.headline}</p>
                   ) : null}
                   {s.tone === 'fail' && t.error ? (

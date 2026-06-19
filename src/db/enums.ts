@@ -46,21 +46,14 @@ export type StageStatus = (typeof STAGE_STATUS)[number];
  * `COMPONENT_TEMPLATES`. `nfr`/`assumptions` are the two ☐-by-default components.
  */
 export const COMPONENT_KIND = [
-  'context_scope',
-  'problem_motivation',
-  'goals_nongoals',
-  'requirements',
-  'proposed_design',
-  'interfaces_apis',
-  'data_storage',
+  'context',
+  'problem',
+  'goals_requirements',
   'alternatives',
-  'decision_status',
-  'cross_cutting',
-  'risks_consequences',
-  'test_validation',
-  'rollout_migration',
-  'work_breakdown',
-  'success_metrics',
+  'technical_design',
+  'testing_plan',
+  'risks',
+  'stories_tasks',
 ] as const;
 export type ComponentKind = (typeof COMPONENT_KIND)[number];
 

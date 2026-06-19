@@ -10,7 +10,6 @@ import {
   ArrowRight,
   ChevronLeft,
   Lightbulb,
-  Save,
   Pencil,
   Plus,
   Search,
@@ -18,18 +17,13 @@ import {
   BookOpen,
   Target,
   Flag,
-  ClipboardList,
   Blocks,
-  Plug,
-  Database,
   GitBranch,
-  Gavel,
-  Shield,
   AlertTriangle,
   FlaskConical,
-  Rocket,
   ListTodo,
-  TrendingUp,
+  Database,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
@@ -120,21 +114,14 @@ interface CraftSeed {
 type SpecPhase = 'outline' | 'craft' | 'document';
 
 const KIND_ICON: Record<ComponentKind, LucideIcon> = {
-  context_scope: BookOpen,
-  problem_motivation: Target,
-  goals_nongoals: Flag,
-  requirements: ClipboardList,
-  proposed_design: Blocks,
-  interfaces_apis: Plug,
-  data_storage: Database,
+  context: BookOpen,
+  problem: Target,
+  goals_requirements: Flag,
   alternatives: GitBranch,
-  decision_status: Gavel,
-  cross_cutting: Shield,
-  risks_consequences: AlertTriangle,
-  test_validation: FlaskConical,
-  rollout_migration: Rocket,
-  work_breakdown: ListTodo,
-  success_metrics: TrendingUp,
+  technical_design: Blocks,
+  testing_plan: FlaskConical,
+  risks: AlertTriangle,
+  stories_tasks: ListTodo,
 };
 
 /** True when the picked set exactly equals a template's component set. */
@@ -143,7 +130,7 @@ function sameKinds(picked: Set<ComponentKind>, kinds: ComponentKind[]): boolean 
 }
 
 /** Resolve the active template id for the current selection ('custom' if none). */
-function matchTemplate(picked: Set<ComponentKind>, templates: DocTemplate[]): string {
+function matchTemplate(picked: Set<ComponentKind>, templates: readonly DocTemplate[]): string {
   return templates.find((t) => sameKinds(picked, t.kinds))?.id ?? 'custom';
 }
 
@@ -192,7 +179,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [picked, setPicked] = useState<Set<ComponentKind>>(
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );
-  const [savedTemplates, setSavedTemplates] = useState<DocTemplate[]>([]);
   const [phase, setPhase] = useState<SpecPhase>(
     components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
   );
@@ -256,8 +242,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           intent={intent}
           picked={picked}
           onPick={setPicked}
-          templates={[...DOC_TEMPLATES, ...savedTemplates]}
-          onSaveTemplate={(t) => setSavedTemplates((s) => [...s, t])}
+          templates={DOC_TEMPLATES}
           existing={components}
           readOnly={readOnly}
           onConfirmed={(next) => {
@@ -354,7 +339,6 @@ function OutlineStage({
   picked,
   onPick,
   templates,
-  onSaveTemplate,
   existing,
   readOnly,
   onConfirmed,
@@ -364,8 +348,7 @@ function OutlineStage({
   intent: string;
   picked: Set<ComponentKind>;
   onPick: (s: Set<ComponentKind>) => void;
-  templates: DocTemplate[];
-  onSaveTemplate: (t: DocTemplate) => void;
+  templates: readonly DocTemplate[];
   existing: ComponentView[];
   readOnly: boolean;
   onConfirmed: (next: ComponentView[]) => void;
@@ -373,17 +356,6 @@ function OutlineStage({
 }) {
   const existingKinds = useMemo(() => new Set(existing.map((c) => c.kind)), [existing]);
   const active = matchTemplate(picked, templates);
-
-  function saveAsTemplate(): void {
-    const name = window.prompt('Save this selection as a template — name:');
-    if (!name?.trim()) return;
-    onSaveTemplate({
-      id: `saved-${name.trim().toLowerCase().replace(/\s+/g, '-')}`,
-      label: name.trim(),
-      description: 'Saved template',
-      kinds: [...picked],
-    });
-  }
 
   const confirm = useMutation({
     mutationFn: () =>
@@ -585,18 +557,7 @@ function OutlineStage({
                   {picked.size} comp
                 </Badge>
               </div>
-              {active === 'custom' ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="mt-2 w-full"
-                  leftIcon={<Save />}
-                  disabled={readOnly || picked.size === 0}
-                  onClick={saveAsTemplate}
-                >
-                  Save as template
-                </Button>
-              ) : (
+              {active === 'custom' ? null : (
                 <p className="mt-1 pl-6 text-xs text-ink-faint">Toggle components to make your own.</p>
               )}
             </div>
@@ -896,7 +857,7 @@ function CraftStage({
     // A freshly constructed draft supersedes any prior sign-offs — they approved
     // an EARLIER version. Reset approvals so the author reviews the new draft and
     // approvers re-sign it. Without this, a stale approval (e.g. the seeded "Bo
-    // already approved" on proposed_design) trips the auto-approve gate the instant
+    // already approved" on technical_design) trips the auto-approve gate the instant
     // the section is drafted, skipping review and showing "approved" immediately.
     patchCollab((u) => ({
       ...u,

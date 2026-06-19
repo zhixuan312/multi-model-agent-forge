@@ -43,7 +43,7 @@ export interface CraftSeed {
   draftMd: string;
 }
 
-export const CRAFT_CONTENT: Partial<Record<ComponentKind, CraftSeed>> = {
+export const CRAFT_CONTENT: Partial<Record<string, CraftSeed>> = {
   context_scope: {
     questions: [
       [

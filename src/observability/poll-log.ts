@@ -17,7 +17,8 @@ export type PollLogEvent =
   | 'openai.call_error'
   | 'propose.failure'
   | 'synthesize.failure'
-  | 'attachment.write_error';
+  | 'attachment.write_error'
+  | 'auto_draft.failure';
 
 export interface PollLogRecord {
   ts: string;

@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   FlaskConical,
   ListTodo,
+  Loader2,
   Database,
   Shield,
   type LucideIcon,
@@ -182,6 +183,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [phase, setPhase] = useState<SpecPhase>(
     components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
   );
+  const [autoDrafting, setAutoDrafting] = useState(false);
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
@@ -249,6 +251,14 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setComponents(next);
             setPicked(new Set(next.map((c) => c.kind)));
             setPhase('craft');
+            setAutoDrafting(true);
+            fetch(`/api/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
+              .then((r) => r.json())
+              .then((data: { components?: ComponentView[] }) => {
+                if (data.components) setComponents(data.components);
+              })
+              .catch(() => {})
+              .finally(() => setAutoDrafting(false));
           }}
           onError={setError}
         />
@@ -256,6 +266,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         <CraftStage
           components={components}
           readOnly={readOnly}
+          autoDrafting={autoDrafting}
           allApproved={allApproved}
           craftContent={props.craftContent}
           currentMember={props.currentMember}
@@ -655,6 +666,7 @@ function CraftStage({
   components,
   readOnly,
   allApproved,
+  autoDrafting,
   craftContent,
   currentMember,
   projectMembers,
@@ -666,6 +678,7 @@ function CraftStage({
   components: ComponentView[];
   readOnly: boolean;
   allApproved: boolean;
+  autoDrafting?: boolean;
   craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
@@ -929,24 +942,33 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {rounds.map((round, ri) => {
-            if (ri > answeredRounds) return null;
-            return (
-              <div key={ri} className="space-y-3">
-                <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
-                {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
-              </div>
-            );
-          })}
-
+          {/* Auto-drafted content: show draft directly without Q&A */}
           {drafted && draftMd ? (
             <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
               <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
-                Constructed draft
+                Draft
               </Micro>
               <Markdown>{draftMd}</Markdown>
             </div>
-          ) : null}
+          ) : autoDrafting ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
+              <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
+            </div>
+          ) : (
+            <>
+              {rounds.map((round, ri) => {
+                if (ri > answeredRounds) return null;
+                return (
+                  <div key={ri} className="space-y-3">
+                    <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
+                    {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
+                  </div>
+                );
+              })}
+            </>
+          )}
 
           <DiscussionThread
             messages={activeCollab.discussion}

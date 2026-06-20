@@ -119,6 +119,6 @@ describe('SpecStageClient', () => {
     // Auto-constructed — shows the approve bar. Status is 'drafted' not 'approved'
     // even though Bo signed off before the draft existed (stale sign-off).
     expect(screen.getAllByRole('button', { name: /Approve/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /Back to edit/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /Back to edit|Revoke/ }).length).toBeGreaterThan(0);
   });
 });

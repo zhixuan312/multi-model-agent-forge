@@ -167,6 +167,27 @@ export async function buildSectionRepaint(db: Db, sectionId: string): Promise<Se
 }
 
 /** Load a single section's qa_message transcript (UI-shaped), in seq order. */
+/** Load all qa_messages for every section in a stage, keyed by sectionId. */
+export async function loadAllMessages(
+  db: Db,
+  stageId: string,
+): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>> {
+  const rows = await db
+    .select({ id: qaMessage.id, sectionId: qaMessage.sectionId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, seq: qaMessage.seq })
+    .from(qaMessage)
+    .innerJoin(componentSection, eq(qaMessage.sectionId, componentSection.id))
+    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .where(eq(component.stageId, stageId))
+    .orderBy(qaMessage.seq);
+  const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> = {};
+  for (const r of rows) {
+    const list = result[r.sectionId] ?? [];
+    list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd });
+    result[r.sectionId] = list;
+  }
+  return result;
+}
+
 export async function loadSectionMessages(
   db: Db,
   sectionId: string,

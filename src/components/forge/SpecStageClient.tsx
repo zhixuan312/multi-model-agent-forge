@@ -191,7 +191,19 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [autoDrafting, setAutoDrafting] = useState(
     () => phase === 'craft' && needsAutoDraft,
   );
-  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>({});
+  // Derive initial questions from loaded messages (on page load)
+  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>(() => {
+    const q: Record<string, string[]> = {};
+    for (const c of components) {
+      const firstSectionId = c.sections[0]?.id;
+      const msgs = firstSectionId ? (props.initialMessages?.[firstSectionId] ?? []) : [];
+      const forgeMsg = msgs.find((m) => m.sender === 'forge');
+      if (forgeMsg?.bodyMd.includes('❓')) {
+        q[c.id] = ['has-questions'];
+      }
+    }
+    return q;
+  });
   const autoDraftFired = useRef(false);
 
   // Auto-trigger drafting when landing on craft with undrafted sections.

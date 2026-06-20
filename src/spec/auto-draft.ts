@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
@@ -189,8 +189,13 @@ export async function autoDraftAll(
     await recomputeComponentStatus(db, compId);
   }
 
-  // Insert ONE Forge message per component (on the first section)
-  for (const [, { questions, firstSectionId }] of questionsByComponent) {
+  // Clear old qa_messages and insert ONE fresh Forge message per component
+  for (const [compId, { questions, firstSectionId }] of questionsByComponent) {
+    // Delete all old messages for this component's sections
+    const sectionIds = outline.filter((o) => o.componentId === compId).map((o) => o.sectionId);
+    if (sectionIds.length > 0) {
+      await db.delete(qaMessage).where(inArray(qaMessage.sectionId, sectionIds));
+    }
     const forgeBody = questions.length > 0
       ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
       : '✅ This looks complete. You can approve it, or tell me what to change.';

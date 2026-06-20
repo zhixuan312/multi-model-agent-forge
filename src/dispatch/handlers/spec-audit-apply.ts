@@ -4,17 +4,11 @@ import { component, componentSection } from '@/db/schema/spec';
 import { mmaBatch } from '@/db/schema/mma';
 import { stage } from '@/db/schema/projects';
 import { assembleSpec } from '@/spec/assemble';
-import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
-function extractResponseText(envelope: unknown): string {
-  const env = envelope as { structuredReport?: { summary?: string } };
-  const summary = env?.structuredReport?.summary ?? '';
-  if (summary) return summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-  throw new Error('No parseable response in MMA envelope');
-}
 
 async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractResponseText(envelope);
+  const raw = extractJsonFromEnvelope(envelope);
   const parsed = JSON.parse(raw) as { draftMd: string };
   if (typeof parsed.draftMd !== 'string') throw new Error('Response missing draftMd');
 

@@ -24,6 +24,43 @@ export function getHandler(key: string): OnTerminalHandler | undefined {
   return registry.get(key);
 }
 
+/**
+ * Extract JSON text from an MMA envelope's structuredReport.summary.
+ * Handles: markdown code fences, trailing commentary after JSON, nested objects/arrays.
+ */
+export function extractJsonFromEnvelope(envelope: unknown): string {
+  const env = envelope as { structuredReport?: { summary?: string } };
+  let raw = env?.structuredReport?.summary ?? '';
+  if (!raw) throw new Error('No parseable response in MMA envelope');
+
+  // Strip markdown code fences
+  raw = raw.replace(/^```json\n?/, '').replace(/^```\n?/, '');
+
+  // Find the end of the JSON structure (first balanced close of { or [)
+  const startChar = raw.trim()[0];
+  if (startChar === '{' || startChar === '[') {
+    const close = startChar === '{' ? '}' : ']';
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    const trimmed = raw.trim();
+    for (let i = 0; i < trimmed.length; i++) {
+      const c = trimmed[i];
+      if (escape) { escape = false; continue; }
+      if (c === '\\' && inString) { escape = true; continue; }
+      if (c === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === startChar) depth++;
+      if (c === close) depth--;
+      if (depth === 0) return trimmed.slice(0, i + 1);
+    }
+  }
+
+  // Fallback: strip trailing fence and whitespace
+  raw = raw.replace(/\n?```\s*$/, '').trim();
+  return raw;
+}
+
 let initialized = false;
 
 export function ensureHandlersRegistered(): void {

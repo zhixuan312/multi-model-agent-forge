@@ -25,7 +25,6 @@ export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: str
     { key: 'document', label: 'Document' },
   ],
   plan: [
-    { key: 'decompose', label: 'Decompose' },
     { key: 'detail', label: 'Detail' },
     { key: 'validate', label: 'Validate' },
   ],

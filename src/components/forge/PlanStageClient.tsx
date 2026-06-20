@@ -27,17 +27,18 @@ import {
   CardFooter,
   Badge,
   Banner,
-  Textarea,
   TextSm,
   Micro,
   Eyebrow,
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
+import { ForgeComposer } from '@/components/forge/ForgeComposer';
+import { StageExportButtons } from '@/components/forge/export/StageExportButtons';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/mock/domains/projects/plan-types';
 
-type PlanPhase = 'decompose' | 'detail' | 'validate';
+type PlanPhase = 'detail' | 'validate';
 type TaskStatus = 'proposed' | 'detailed' | 'approved';
 
 type Msg =
@@ -54,6 +55,9 @@ export interface PlanStageClientProps {
   phases: PlanPhaseSeed[];
   planMd: string;
   auditRounds: PlanAuditFinding[][];
+  voiceEnabled?: boolean;
+  pendingAuthor?: string | null;
+  pendingAudit?: string | null;
 }
 
 const SEVERITY_ORDER: PlanAuditFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
@@ -67,7 +71,7 @@ const SEVERITY_STYLE: Record<PlanAuditFinding['severity'], string> = {
 let _id = 0;
 const nid = () => `pm${_id++}`;
 
-/** The task's number (id `t8` → 8) — matches the "Task N" used in dependsOn. */
+/** The task's number (id `t8` → 8) -- matches the "Task N" used in dependsOn. */
 const taskNum = (id: string) => Number(id.replace(/\D/g, '')) || 0;
 
 export function PlanStageClient(props: PlanStageClientProps) {
@@ -75,21 +79,32 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const readOnly = props.phase !== 'design';
   const allTasks = useMemo(() => props.phases.flatMap((p) => p.tasks), [props.phases]);
 
-  const [phase, setPhase] = useState<PlanPhase>('decompose');
+  const [phase, setPhase] = useState<PlanPhase>(allTasks.length > 0 ? 'detail' : 'detail');
   const [status, setStatus] = useState<Record<string, TaskStatus>>(
-    () => Object.fromEntries(allTasks.map((t) => [t.id, 'proposed' as TaskStatus])),
+    () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
   );
   const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[]>([]);
   const [locked, setLocked] = useState(false);
 
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
+  const [authoring, setAuthoring] = useState(!!props.pendingAuthor);
+
+  // Auto-trigger plan authoring if no plan exists yet
+  const authorFired = useRef(false);
+  useEffect(() => {
+    if (authorFired.current || readOnly || allTasks.length > 0 || props.pendingAuthor) return;
+    authorFired.current = true;
+    setAuthoring(true);
+    fetch(`/projects/${props.projectId}/build/author-plan`, { method: 'POST' })
+      .catch(() => setAuthoring(false));
+  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'decompose' || key === 'detail' || key === 'validate') setPhase(key as PlanPhase);
+        if (key === 'detail' || key === 'validate') setPhase(key as PlanPhase);
       }),
     [],
   );
@@ -98,7 +113,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   useEffect(() => {
     if (readOnly) return;
     if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('Forge is driving — decomposing the spec…');
+      setAutoNote('Forge is driving -- decomposing the spec...');
       setAuto('running');
     }
   }, [readOnly]);
@@ -107,41 +122,80 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
   const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
+  const [auditing, setAuditing] = useState(!!props.pendingAudit);
+  const auditingRef = useRef(false);
+
   function runAudit() {
-    const passNo = rounds.length + 1;
-    const findings = props.auditRounds[passNo - 1] ?? [];
-    const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
-    setRounds((r) => [...r, { passNo, verdict: hasCritHigh ? 'revised' : 'clean', findings }]);
+    if (auditingRef.current) return;
+    // If we have pre-seeded mock rounds, use them
+    if (props.auditRounds.length > rounds.length) {
+      const passNo = rounds.length + 1;
+      const findings = props.auditRounds[passNo - 1] ?? [];
+      const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
+      setRounds((r) => [...r, { passNo, verdict: hasCritHigh ? 'revised' : 'clean', findings }]);
+      return;
+    }
+    // Real dispatch
+    auditingRef.current = true;
+    setAuditing(true);
+    fetch(`/projects/${props.projectId}/build/run-audit`, { method: 'POST' })
+      .catch(() => { auditingRef.current = false; setAuditing(false); });
   }
+
+  // SSE listener for plan dispatch events
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && data.handler === 'plan-author') {
+          setAuthoring(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.done' && data.handler === 'plan-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'plan-author') {
+          setAuthoring(false);
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'plan-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+        }
+      } catch { /* ignore */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  }, [props.projectId]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
   // hands the wheel back mid-flight and Run resumes from exactly here.
   useEffect(() => {
-    // NB: don't bail on `locked` — once locked, the final step is to navigate
+    // NB: don't bail on `locked` -- once locked, the final step is to navigate
     // into Execute, which still needs to run.
     if (auto !== 'running' || readOnly) return;
     const t = setTimeout(() => {
-      if (phase === 'decompose') {
-        setAutoNote('Self-evaluated the skeleton — ' + props.phases.length + ' phases look sound. Detailing tasks…');
-        setPhase('detail');
-      } else if (phase === 'detail') {
+      if (phase === 'detail') {
         const next = allTasks.find((tk) => status[tk.id] !== 'approved');
         if (next) {
           setAutoNote('Drafted & approved: ' + next.title);
           setStatus((s) => ({ ...s, [next.id]: 'approved' }));
         } else {
-          setAutoNote('All tasks drafted — validating the plan…');
+          setAutoNote('All tasks drafted -- validating the plan...');
           setPhase('validate');
         }
       } else if (phase === 'validate') {
         if (!auditClean && rounds.length < props.auditRounds.length) {
-          setAutoNote('Ran audit pass ' + (rounds.length + 1) + ' — applied critical/high fixes.');
+          setAutoNote('Ran audit pass ' + (rounds.length + 1) + ' -- applied critical/high fixes.');
           runAudit();
         } else if (!locked) {
-          setAutoNote('Critical & high cleared — locking the plan, on to Build.');
+          setAutoNote('Critical & high cleared -- locking the plan, on to Build.');
           setLocked(true);
         } else {
-          // Plan is locked — carry the automated run into the Execute stage.
+          // Plan is locked -- carry the automated run into the Execute stage.
           router.push(`/projects/${props.projectId}/execute?auto=1`);
         }
       }
@@ -172,41 +226,38 @@ export function PlanStageClient(props: PlanStageClientProps) {
         note={autoNote}
         disabled={readOnly || locked}
         onRun={() => {
-          setAutoNote('Forge is driving — reviewing the decomposition…');
+          setAutoNote('Forge is driving -- reviewing the decomposition...');
           setAuto('running');
         }}
         onStop={() => {
           setAuto('off');
-          setAutoNote('Stopped — you have the wheel.');
+          setAutoNote('Stopped -- you have the wheel.');
         }}
       />
 
-      {phase === 'decompose' ? (
-        <DecomposeStage
-          phases={props.phases}
-          intentMd={props.intentMd}
-          readOnly={readOnly}
-          driving={auto === 'running'}
-          onApprove={() => setPhase('detail')}
-        />
-      ) : phase === 'detail' ? (
+      {phase === 'detail' ? (
         <DetailStage
           phases={props.phases}
           status={status}
           readOnly={readOnly}
           driving={auto === 'running'}
+          authoring={authoring}
+          voiceEnabled={props.voiceEnabled}
           approvedCount={approvedCount}
           allApproved={allApproved}
-          onToggleApprove={(id) => setStatus((s) => ({ ...s, [id]: s[id] === 'approved' ? 'detailed' : 'approved' }))}
+          onToggleApprove={(id) => { const next = status[id] === 'approved' ? 'proposed' : 'approved'; setStatus((s) => ({ ...s, [id]: next as TaskStatus })); fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, { method: next === 'approved' ? 'POST' : 'DELETE' }).catch(() => {}); }}
           onValidate={() => setPhase('validate')}
         />
       ) : (
         <ValidateStage
+          projectId={props.projectId}
           projectName={props.projectName}
           planMd={props.planMd}
           readOnly={readOnly}
           mmaReady={props.mmaReady}
           driving={auto === 'running'}
+          voiceEnabled={props.voiceEnabled}
+          auditing={auditing}
           rounds={rounds}
           locked={locked}
           auditClean={auditClean}
@@ -288,6 +339,7 @@ function Composer({
   secondaries,
   placeholder,
   disabled,
+  voiceEnabled,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -295,191 +347,60 @@ function Composer({
   secondaries?: ComposerAction[];
   placeholder: string;
   disabled: boolean;
+  voiceEnabled?: boolean;
 }) {
   return (
-    <div className="shrink-0 border-t border-line px-5 py-4">
-      <div className="flex gap-2.5">
-        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-          AD
-        </span>
-        <div className="min-w-0 flex-1">
-          <Textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={2}
-            disabled={disabled}
-            placeholder={placeholder}
-            className="!min-h-0 !rounded-2xl !text-sm"
-          />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {(secondaries ?? []).map((s, i) => (
+    <ForgeComposer
+      value={value}
+      onChange={onChange}
+      onSubmit={onSend}
+      disabled={disabled}
+      placeholder={placeholder}
+      voiceEnabled={voiceEnabled ?? false}
+      secondaryAction={
+        secondaries && secondaries.length > 0 ? (
+          <div className="flex items-center gap-2">
+            {secondaries.map((s, i) => (
               <Button key={i} size="sm" variant="ghost" onClick={s.onClick} disabled={disabled || s.disabled} leftIcon={s.icon}>
                 {s.label}
               </Button>
             ))}
-            <span className="flex-1" />
-            <Button size="sm" onClick={onSend} disabled={disabled || !value.trim()} rightIcon={<ArrowRight />}>
-              Send
-            </Button>
+          </div>
+        ) : undefined
+      }
+    />
+  );
+}
+function TaskRow({ task, index }: { task: PlanTaskSeed; index: number }) {
+  const num = task.num || index + 1;
+  return (
+    <li className="px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[6px] bg-accent-tint font-mono text-[10px] font-semibold text-accent">
+          {num}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium leading-snug text-ink">{task.title}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-ink-faint">
+            <span className="inline-flex items-center gap-1">
+              <GitBranch className="size-2.5" /> {task.targetRepo}
+            </span>
+            {task.dependsOn.length > 0 ? <span>· deps {task.dependsOn.join(', ')}</span> : null}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Decompose — dialogue that scaffolds the plan skeleton ──────────────────── */
-function DecomposeStage({
-  phases,
-  intentMd,
-  readOnly,
-  driving,
-  onApprove,
-}: {
-  phases: PlanPhaseSeed[];
-  intentMd: string;
-  readOnly: boolean;
-  driving: boolean;
-  onApprove: () => void;
-}) {
-  const taskCount = phases.reduce((n, p) => n + p.tasks.length, 0);
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
-    {
-      id: nid(),
-      role: 'forge',
-      text: `I decomposed the spec into ${phases.length} phases and ${taskCount} bite-sized, test-first tasks (shown on the right). Tell me to split, merge, reorder, or add a phase — or approve the skeleton and we'll detail each task.`,
-    },
-  ]);
-  const [input, setInput] = useState('');
-  // The skeleton only refreshes when you re-draft — chatting alone leaves it as-is.
-  const [redrafting, setRedrafting] = useState(false);
-  const redraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (redraftTimer.current) clearTimeout(redraftTimer.current); }, []);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [msgs]);
-
-  function send() {
-    const text = input.trim();
-    if (!text) return;
-    setInput('');
-    setMsgs((m) => [
-      ...m,
-      { id: nid(), role: 'user', text },
-      { id: nid(), role: 'forge', text: 'Noted — I’ll fold that in. Hit “Re-draft skeleton” to refresh the plan on the right, or approve it as-is.' },
-    ]);
-  }
-  function redraft() {
-    if (redrafting) return;
-    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: 'Re-drafting the skeleton from our discussion…' }]);
-    setRedrafting(true);
-    redraftTimer.current = setTimeout(() => {
-      setRedrafting(false);
-      setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Refreshed — ${phases.length} phases, ${taskCount} tasks, resequenced for dependencies.` }]);
-    }, 900);
-  }
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — the decomposition conversation (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <ListTree className="size-4 shrink-0 text-accent" />
-            <CardTitle>Decompose the plan</CardTitle>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            <Sparkles className="size-3" /> from the spec
-          </span>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
-          <div ref={bottomRef} />
-        </CardContent>
-        <Composer
-          value={input}
-          onChange={setInput}
-          onSend={send}
-          secondaries={[{ label: 'Re-draft skeleton', icon: <Sparkles />, onClick: redraft, disabled: readOnly }]}
-          placeholder="Discuss the decomposition — “split task 3”, “add a migration phase”…"
-          disabled={readOnly || driving}
-        />
-      </Card>
-
-      {/* RIGHT — the live skeleton + approve (1/3) */}
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Plan skeleton</CardTitle>
-            <span className="text-sm font-medium text-ink-faint">
-              {phases.length}p · {taskCount}t
-            </span>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            {redrafting ? (
-              <div className="grid h-full place-items-center">
-                <div className="flex flex-col items-center gap-2 text-ink-faint">
-                  <Loader2 className="size-5 animate-spin text-accent" />
-                  <span className="text-xs">Re-drafting the skeleton…</span>
-                </div>
-              </div>
-            ) : (
-              <>
-            <div className="flex items-start gap-2 rounded-[var(--r-md)] border border-accent-tint bg-accent-tint/30 px-3 py-2.5">
-              <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
-              <p className="text-[11px] leading-relaxed text-ink-soft">{intentMd}</p>
-            </div>
-            {phases.map((p, i) => (
-              <div key={p.id} className="rounded-[var(--r-md)] border border-line bg-surface">
-                <p className="flex items-center gap-1.5 border-b border-line px-3 py-2 text-[13px] font-semibold text-ink">
-                  <span className="grid size-4 place-items-center rounded-full bg-accent-tint text-[10px] font-semibold text-accent">{i + 1}</span>
-                  {p.title}
-                </p>
-                <ul className="divide-y divide-line/70">
-                  {p.tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} />
-                  ))}
-                </ul>
-              </div>
-            ))}
-              </>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onApprove} disabled={readOnly} rightIcon={<ArrowRight />}>
-              Approve &amp; detail tasks
-            </Button>
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-function TaskRow({ task }: { task: PlanTaskSeed }) {
-  return (
-    <li className="px-3 py-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">
-          {taskNum(task.id)}
-        </span>
-        <span className="text-[13px] font-medium text-ink">{task.title}</span>
-      </div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 pl-[26px] text-[10px] text-ink-faint">
-        <span className="inline-flex items-center gap-1">
-          <GitBranch className="size-2.5" /> {task.targetRepo}
-        </span>
-        {task.dependsOn.length > 0 ? <span>· deps {task.dependsOn.join(', ')}</span> : null}
       </div>
     </li>
   );
 }
 
-/* ── Detail — per-task dialogue (like Craft) ────────────────────────────────── */
+/* ── Detail -- per-task dialogue (like Craft) ────────────────────────────────── */
 function DetailStage({
   phases,
   status,
   readOnly,
   driving,
+  authoring,
+  voiceEnabled,
   approvedCount,
   allApproved,
   onToggleApprove,
@@ -489,6 +410,8 @@ function DetailStage({
   status: Record<string, TaskStatus>;
   readOnly: boolean;
   driving: boolean;
+  authoring?: boolean;
+  voiceEnabled?: boolean;
   approvedCount: number;
   allApproved: boolean;
   onToggleApprove: (id: string) => void;
@@ -514,7 +437,7 @@ function DetailStage({
         {
           id: nid(),
           role: 'forge',
-          text: `Here’s Task ${active.num} — “${active.title}” — in full below: the failing test, the implementation, the run commands, and the commit.${dep} Want a different approach, a different sequencing, or extra edge-case tests?`,
+          text: `Here's Task ${active.num} -- ${active.title} -- in full below: the failing test, the implementation, the run commands, and the commit.${dep} Want a different approach, a different sequencing, or extra edge-case tests?`,
         },
       ],
     }));
@@ -543,30 +466,62 @@ function DetailStage({
       [active.id]: [
         ...(th[active.id] ?? []),
         { id: nid(), role: 'user', text },
-        { id: nid(), role: 'forge', text: 'Good call — I’ll fold that into the task below. Approve when it reads right.' },
+        { id: nid(), role: 'forge', text: 'Good call -- I will fold that into the task below. Approve when it reads right.' },
       ],
     }));
   }
 
+  if (authoring && allTasks.length === 0) {
+    return (
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        <Card className="flex min-h-0 flex-col lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Plan tasks</CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Authoring plan from frozen spec...</p>
+              <p className="text-xs text-ink-soft">Forge writes the implementation plan from the frozen spec. This takes a moment.</p>
+            </div>
+          </CardContent>
+        </Card>
+        <aside className="flex min-h-0 flex-col">
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader><CardTitle>Task list</CardTitle></CardHeader>
+            <CardContent className="min-h-0 flex-1">
+              <div className="grid h-full place-items-center">
+                <div className="flex flex-col items-center gap-2 text-ink-faint">
+                  <Loader2 className="size-5 animate-spin text-accent" />
+                  <span className="text-xs">Authoring plan...</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+    );
+  }
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — the per-task conversation + TDD draft (2/3) */}
+      {/* CENTRE -- the per-task conversation + TDD draft (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="neutral" size="sm">
-              Task {taskNum(active.id)}
+              Task {active?.num || 0}
             </Badge>
-            <CardTitle>{active.title}</CardTitle>
+            <CardTitle>{active?.title ?? ''}</CardTitle>
           </div>
           {phaseOf ? <Micro className="!text-ink-faint">{phaseOf.title}</Micro> : null}
         </CardHeader>
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
           {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
-          {/* The FULL task — exactly as the plan writes it (Files, TDD steps, code, commit). */}
+          {/* The FULL task -- exactly as the plan writes it (Files, TDD steps, code, commit). */}
           <div className="rounded-[var(--r-md)] border border-line bg-surface px-4 py-3.5">
             <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-line pb-2">
-              <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">Task {taskNum(active.id)} · full plan</Micro>
+              <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">Task {active.num || 0} · full plan</Micro>
               <span className="inline-flex items-center gap-1 text-[11px] text-ink-faint">
                 <GitBranch className="size-2.5" /> {active.targetRepo}
               </span>
@@ -596,13 +551,14 @@ function DetailStage({
             onChange={setInput}
             onSend={send}
             secondaries={[{ label: 'Approve task', icon: <Check />, onClick: () => onToggleApprove(active.id), disabled: readOnly }]}
-            placeholder="Discuss the approach — “use a fixture diff”, “tighten the review”…"
+            placeholder="Discuss the approach..."
             disabled={readOnly || driving}
+            voiceEnabled={voiceEnabled}
           />
         )}
       </Card>
 
-      {/* RIGHT — every task grouped by phase + move-on (1/3) */}
+      {/* RIGHT -- every task grouped by phase + move-on (1/3) */}
       <aside className="flex min-h-0 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -633,7 +589,7 @@ function DetailStage({
                     ) : (
                       <span className="size-4 shrink-0 rounded-full border border-line-strong" />
                     )}
-                    <span className="shrink-0 font-mono text-[11px] text-ink-faint">{taskNum(t.id)}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-faint">{t.num || 0}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.title}</span>
                   </button>
                 ))}
@@ -651,24 +607,30 @@ function DetailStage({
   );
 }
 
-/* ── Validate — the Spec audit chat, applied to the plan ────────────────────── */
+/* ── Validate -- the Spec audit chat, applied to the plan ────────────────────── */
 function ValidateStage({
+  projectId,
   projectName,
   planMd,
   readOnly,
   mmaReady,
   driving,
+  voiceEnabled,
+  auditing,
   rounds,
   locked,
   auditClean,
   onRunAudit,
   onLock,
 }: {
+  projectId: string;
   projectName: string;
   planMd: string;
   readOnly: boolean;
   mmaReady: boolean;
   driving: boolean;
+  voiceEnabled?: boolean;
+  auditing?: boolean;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
   locked: boolean;
   auditClean: boolean;
@@ -677,10 +639,19 @@ function ValidateStage({
 }) {
   const md = planMd;
   const [version, setVersion] = useState(1);
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
-    { id: nid(), role: 'forge', text: "Here's the assembled plan below. Run an audit to check sequencing, coverage and TDD gaps; re-construct it after we discuss changes; then lock it." },
-    { id: nid(), role: 'draft', md, version: 1 },
-  ]);
+  const [docView, setDocView] = useState<'conversation' | 'document'>(planMd ? 'document' : 'conversation');
+  const [msgs, setMsgs] = useState<Msg[]>(() => {
+    const initial: Msg[] = [
+      { id: nid(), role: 'forge', text: "The plan is ready. Run an audit to check sequencing, coverage and TDD gaps; discuss changes; then lock it." },
+    ];
+    for (let i = 0; i < rounds.length; i++) {
+      const r = rounds[i];
+      if (r.findings.length > 0) {
+        initial.push({ id: nid(), role: 'audit', passNo: r.passNo, verdict: r.verdict, findings: r.findings });
+      }
+    }
+    return initial;
+  });
   const [input, setInput] = useState('');
   const seen = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -698,7 +669,7 @@ function ValidateStage({
         {
           id: nid(),
           role: 'forge',
-          text: r.verdict === 'clean' ? 'Clean pass — no critical or high. You can lock the plan.' : 'Pick the findings to apply, or tell me by number — I’ll revise the plan and you re-run.',
+          text: r.verdict === 'clean' ? 'Clean pass -- no critical or high. You can lock the plan.' : 'Pick the findings to apply, or tell me by number -- I will revise the plan and you re-run.',
         } as Msg,
       ]),
     ]);
@@ -707,13 +678,13 @@ function ValidateStage({
   function apply(passNo: number, indices: number[], total: number) {
     if (readOnly || indices.length === 0) return;
     const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
-    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Applied ${label} from pass ${passNo} — revised the plan. Re-run the audit to verify.` }]);
+    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Applied ${label} from pass ${passNo} -- revised the plan. Re-run the audit to verify.` }]);
   }
   function send() {
     const text = input.trim();
     if (!text) return;
     setInput('');
-    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Noted — hit “Re-construct plan” to regenerate it with that, or re-run the audit.' }]);
+    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Noted -- hit Re-construct plan to regenerate it with that, or re-run the audit.' }]);
   }
   function reconstruct() {
     if (readOnly) return;
@@ -721,18 +692,18 @@ function ValidateStage({
     setVersion(v);
     setMsgs((m) => [
       ...m,
-      { id: nid(), role: 'forge', text: `Re-constructed the plan from our discussion — v${v}.` },
+      { id: nid(), role: 'forge', text: `Re-constructed the plan from our discussion -- v${v}.` },
       { id: nid(), role: 'draft', md, version: v },
     ]);
   }
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — finalize the plan in dialogue (2/3) */}
+      {/* CENTRE -- finalize the plan in dialogue (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} — validate the plan</CardTitle>
+            <CardTitle>{projectName} -- validate the plan</CardTitle>
             {locked ? (
               <Badge variant="sage" size="sm">
                 <Lock className="mr-1 size-3" /> locked
@@ -743,61 +714,115 @@ function ValidateStage({
             TDD · engineer-facing
           </span>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {msgs.map((m) =>
-            m.role === 'user' ? (
-              <ChatUser key={m.id} text={m.text} />
-            ) : m.role === 'audit' ? (
-              <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
-            ) : m.role === 'draft' ? (
-              <PlanDraftBubble key={m.id} md={m.md} version={m.version} />
-            ) : (
-              <ChatForge key={m.id}>{m.text}</ChatForge>
-            ),
+        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+          {docView === 'document' && md ? (
+            <div className="flex gap-2.5">
+              <ForgeMark className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-ink">Forge</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">plan . v{version}</span>
+                </div>
+                <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                  <Markdown>{md}</Markdown>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {msgs.filter((m) => m.role !== 'draft').map((m) =>
+                m.role === 'user' ? (
+                  <ChatUser key={m.id} text={m.text} />
+                ) : m.role === 'audit' ? (
+                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
+                ) : (
+                  <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>
+                ),
+              )}
+            </div>
           )}
           <div ref={bottomRef} />
         </CardContent>
-        <Composer
-          value={input}
-          onChange={setInput}
-          onSend={send}
-          secondaries={[
-            { label: rounds.length > 0 ? 'Re-run audit' : 'Run audit', icon: <Shield />, onClick: onRunAudit, disabled: readOnly || !mmaReady || locked || auditClean },
-            { label: version > 1 ? 'Re-construct plan' : 'Construct plan', icon: <Sparkles />, onClick: reconstruct, disabled: readOnly || locked },
-          ]}
-          placeholder="Discuss the plan — “address the sequencing finding”…"
-          disabled={readOnly || driving}
-        />
+        {docView === 'document' ? (
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <ListTree className="size-5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">Plan v{version}</p>
+                <p className="text-xs text-ink-faint">Review the plan, or go back to refine.</p>
+              </div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={() => setDocView('conversation')}>
+              Back to conversation
+            </Button>
+          </div>
+        ) : (
+          <Composer
+            value={input}
+            onChange={setInput}
+            onSend={send}
+            secondaries={[
+              { label: version > 1 ? 'Re-construct plan' : 'Construct plan', icon: <Sparkles />, onClick: () => { reconstruct(); setDocView('document'); }, disabled: readOnly || locked },
+            ]}
+            placeholder="Discuss the plan..."
+            disabled={readOnly || driving}
+            voiceEnabled={voiceEnabled}
+          />
+        )}
       </Card>
 
-      {/* RIGHT — audit rounds + Lock the plan (1/3) */}
+      {/* RIGHT -- audit rounds + Lock the plan (1/3) */}
       <aside className="flex min-h-0 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>Audit rounds</CardTitle>
-            {rounds.length > 0 ? <span className="text-sm font-medium text-ink-faint">{rounds.length}</span> : null}
+            <div className="flex items-center gap-2">
+              <CardTitle>Audit rounds</CardTitle>
+              {rounds.length > 0 ? <span className="text-sm font-medium text-ink-faint">{rounds.length}</span> : null}
+            </div>
+            <Button
+              size="sm"
+              onClick={onRunAudit}
+              loading={!!auditing}
+              disabled={readOnly || !mmaReady || locked || !!auditing}
+              leftIcon={<Shield />}
+            >
+              {auditing ? 'Auditing...' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
+            </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {rounds.length === 0 ? (
+            {auditing ? (
+              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">Pass {rounds.length + 1}</span>
+                  <Badge variant="neutral" size="sm">running</Badge>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-xs text-ink-soft">Auditing plan...</span>
+                </div>
+              </div>
+            ) : rounds.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the audit from the conversation. {driving ? 'Forge clears critical & high, then locks.' : 'Each round lands here with its severity summary.'}
+                  Run an audit to check sequencing, coverage and TDD gaps.
                 </p>
               </div>
-            ) : (
-              rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} />)
-            )}
+            ) : null}
+            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
+            {planMd ? (
+              <StageExportButtons projectId={projectId} kind="plan" />
+            ) : null}
             <TextSm className="!text-ink-faint">
               {auditClean
-                ? 'Clean audit — locking opens Build and runs the plan task-by-task.'
-                : 'Locking opens Build and starts Execution. Open findings won’t block it.'}
+                ? 'Clean audit -- locking opens Build and runs the plan task-by-task.'
+                : 'Locking opens Build and starts Execution. Open findings will not block it.'}
             </TextSm>
             <StageAdvance
               onClick={onLock}
-              label={locked ? 'Opening Build…' : 'Lock the plan & start Build'}
+              label={locked ? 'Opening Build...' : 'Lock the plan & start Build'}
               disabled={readOnly || locked}
               gate
               testId="plan-lock-button"
@@ -855,24 +880,28 @@ function AuditChatMsg({
         <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
           {findings.length > 0 ? (
             <>
-              <ul className="divide-y divide-line/70">
-                {findings.map((f, i) => {
-                  const on = sel.has(i);
+              <div className="grid grid-cols-2 gap-px bg-line/70">
+                {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
+                  const origIdx = findings.indexOf(f);
+                  const on = sel.has(origIdx);
                   return (
-                    <li key={i}>
-                      <button type="button" onClick={() => !readOnly && toggle(i)} disabled={readOnly} className={cn('flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition-colors', on ? 'bg-accent-tint/40' : 'hover:bg-surface-2/50')}>
-                        <span className={cn('mt-px grid size-5 shrink-0 place-items-center rounded-[6px] border text-[11px] font-semibold transition-colors', on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
-                          {on ? <Check className="size-3.5" /> : i + 1}
+                    <button key={i} type="button" onClick={() => !readOnly && toggle(origIdx)} disabled={readOnly} className={cn('flex flex-col gap-1.5 p-3 text-left transition-colors', on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50')}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn('grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors', on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
+                          {on ? <Check className="size-3" /> : origIdx + 1}
                         </span>
                         <SeverityTag s={f.severity} />
-                        <span className="text-sm leading-relaxed text-ink">{f.claim}</span>
-                      </button>
-                    </li>
+                      </div>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
+                      <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
+                      {f.evidence ? <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p> : null}
+                      {f.suggestion ? <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p> : null}
+                    </button>
                   );
                 })}
-              </ul>
+              </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                <span className="text-[11px] text-ink-faint">Pick the ones to apply, or tell Forge by number.</span>
+                <span className="text-[11px] text-ink-faint">Select findings to apply, or apply all at once.</span>
                 <span className="flex-1" />
                 <Button size="sm" variant="secondary" onClick={() => onApply([...sel])} disabled={readOnly || sel.size === 0} leftIcon={<Check />}>
                   Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
@@ -882,25 +911,24 @@ function AuditChatMsg({
                 </Button>
               </div>
             </>
-          ) : (
-            <p className="px-4 py-3 text-sm leading-relaxed text-ink">No critical or high findings — the plan is ready to lock.</p>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
-function AuditRoundCard({ round }: { round: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] } }) {
+function AuditRoundCard({ round, applied }: { round: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }; applied?: boolean }) {
   const counts: Record<PlanAuditFinding['severity'], number> = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const f of round.findings) counts[f.severity] += 1;
   return (
-    <div className="rounded-[var(--r-md)] border border-line bg-surface p-3">
+    <div className={cn('rounded-[var(--r-md)] border p-3', applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface')}>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-ink">Pass {round.passNo}</span>
         <Badge variant={round.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
           {round.verdict}
         </Badge>
+        {applied ? <Badge variant="sage" size="sm">applied</Badge> : null}
         <span className="ml-auto text-[11px] text-ink-faint">
           {round.findings.length} finding{round.findings.length === 1 ? '' : 's'}
         </span>
@@ -914,9 +942,7 @@ function AuditRoundCard({ round }: { round: { passNo: number; verdict: 'clean' |
             </span>
           ))}
         </div>
-      ) : (
-        <p className="mt-1.5 text-xs text-ink-faint">No critical or high findings.</p>
-      )}
+      ) : null}
     </div>
   );
 }

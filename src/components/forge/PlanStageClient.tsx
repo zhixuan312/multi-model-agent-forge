@@ -33,7 +33,6 @@ import {
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { ForgeComposer } from '@/components/forge/ForgeComposer';
-import { StageExportButtons } from '@/components/forge/export/StageExportButtons';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/mock/domains/projects/plan-types';
@@ -862,9 +861,6 @@ function ValidateStage({
             {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} onReplay={() => replay(r.passNo)} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {planMd ? (
-              <StageExportButtons projectId={projectId} kind="plan" />
-            ) : null}
             <TextSm className="!text-ink-faint">
               {auditClean
                 ? 'Clean audit -- locking opens Build and runs the plan task-by-task.'

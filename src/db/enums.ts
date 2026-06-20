@@ -172,7 +172,7 @@ export type BuildTaskStatus = (typeof BUILD_TASK_STATUS)[number];
  * 'diff_only','none'])`). Authoring sets `none` only for tasks the plan marks
  * "downstream errors expected, fixed by a later task"; default is `full`.
  */
-export const REVIEW_POLICY = ['full', 'quality_only', 'diff_only', 'none'] as const;
+export const REVIEW_POLICY = ['reviewed', 'none'] as const;
 export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
 
 /**

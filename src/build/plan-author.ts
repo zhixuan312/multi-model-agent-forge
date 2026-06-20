@@ -103,7 +103,7 @@ Each task object has:
 
 - targetRepoId: the ONE repo (from the provided set)
 - dependsOn: array of sibling task titles (exact match) that must complete first. Empty if none.
-- reviewPolicy: "full" normally. "none" ONLY when intentionally incomplete (downstream task fixes errors).
+- reviewPolicy: "reviewed" normally. "none" ONLY when intentionally incomplete (downstream task fixes errors).
 
 HARD RULES:
 - Each task targets EXACTLY ONE repo. Cross-repo work = separate tasks wired with dependsOn.

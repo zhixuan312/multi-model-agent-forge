@@ -55,9 +55,11 @@ export interface PlanStageClientProps {
   phases: PlanPhaseSeed[];
   planMd: string;
   auditRounds: PlanAuditFinding[][];
+  auditApplied?: boolean[];
   voiceEnabled?: boolean;
   pendingAuthor?: string | null;
   pendingAudit?: string | null;
+  pendingApply?: string | null;
 }
 
 const SEVERITY_ORDER: PlanAuditFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
@@ -79,12 +81,24 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const readOnly = props.phase !== 'design';
   const allTasks = useMemo(() => props.phases.flatMap((p) => p.tasks), [props.phases]);
 
-  const [phase, setPhase] = useState<PlanPhase>(allTasks.length > 0 ? 'detail' : 'detail');
+  const [phase, setPhase] = useState<PlanPhase>(() => {
+    if (props.auditRounds.length > 0) return 'validate';
+    const allApprovedInit = allTasks.length > 0 && allTasks.every((t) => t.dbStatus === 'committed' || t.dbStatus === 'approved');
+    if (allApprovedInit) return 'validate';
+    return 'detail';
+  });
   const [status, setStatus] = useState<Record<string, TaskStatus>>(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
   );
-  const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[]>([]);
+  const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[]>(
+    () => props.auditRounds.map((findings, i) => {
+      const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
+      return { passNo: i + 1, verdict: hasCritHigh ? 'revised' as const : 'clean' as const, findings };
+    }),
+  );
   const [locked, setLocked] = useState(false);
+  const [applying, setApplying] = useState(!!props.pendingApply);
+  const [applied, setApplied] = useState(() => (props.auditApplied ?? []).some(Boolean));
 
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -127,15 +141,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   function runAudit() {
     if (auditingRef.current) return;
-    // If we have pre-seeded mock rounds, use them
-    if (props.auditRounds.length > rounds.length) {
-      const passNo = rounds.length + 1;
-      const findings = props.auditRounds[passNo - 1] ?? [];
-      const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
-      setRounds((r) => [...r, { passNo, verdict: hasCritHigh ? 'revised' : 'clean', findings }]);
-      return;
-    }
-    // Real dispatch
     auditingRef.current = true;
     setAuditing(true);
     fetch(`/projects/${props.projectId}/build/run-audit`, { method: 'POST' })
@@ -165,6 +170,13 @@ export function PlanStageClient(props: PlanStageClientProps) {
           auditingRef.current = false;
           setAuditing(false);
         }
+        if (data.type === 'dispatch.done' && data.handler === 'plan-audit-apply') {
+          setApplying(false);
+          setApplied(true);
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'plan-audit-apply') {
+          setApplying(false);
+        }
       } catch { /* ignore */ }
     };
     es.onmessage = onMessage;
@@ -188,7 +200,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           setPhase('validate');
         }
       } else if (phase === 'validate') {
-        if (!auditClean && rounds.length < props.auditRounds.length) {
+        if (!auditClean && !auditingRef.current) {
           setAutoNote('Ran audit pass ' + (rounds.length + 1) + ' -- applied critical/high fixes.');
           runAudit();
         } else if (!locked) {
@@ -258,6 +270,10 @@ export function PlanStageClient(props: PlanStageClientProps) {
           driving={auto === 'running'}
           voiceEnabled={props.voiceEnabled}
           auditing={auditing}
+          applying={applying}
+          applied={applied}
+          setApplying={setApplying}
+          setApplied={setApplied}
           rounds={rounds}
           locked={locked}
           auditClean={auditClean}
@@ -617,6 +633,10 @@ function ValidateStage({
   driving,
   voiceEnabled,
   auditing,
+  applying,
+  applied,
+  setApplying,
+  setApplied,
   rounds,
   locked,
   auditClean,
@@ -631,6 +651,10 @@ function ValidateStage({
   driving: boolean;
   voiceEnabled?: boolean;
   auditing?: boolean;
+  applying: boolean;
+  applied: boolean;
+  setApplying: (v: boolean) => void;
+  setApplied: (v: boolean) => void;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
   locked: boolean;
   auditClean: boolean;
@@ -675,16 +699,36 @@ function ValidateStage({
     ]);
   }, [rounds]);
 
+
   function apply(passNo: number, indices: number[], total: number) {
-    if (readOnly || indices.length === 0) return;
+    if (readOnly || indices.length === 0 || applying) return;
+    const round = rounds.find((r) => r.passNo === passNo);
+    if (!round) return;
+    const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
     const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
-    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Applied ${label} from pass ${passNo} -- revised the plan. Re-run the audit to verify.` }]);
+    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Revising the plan to address ${label} from pass ${passNo}...` }]);
+    setApplying(true);
+    fetch(`/projects/${projectId}/plan/audit-apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ findings: selectedFindings }),
+    }).catch(() => setApplying(false));
+  }
+  function replay(passNo: number) {
+    const round = rounds.find((r) => r.passNo === passNo);
+    if (!round) return;
+    setDocView('conversation');
+    setMsgs((m) => [
+      ...m,
+      { id: nid(), role: 'forge', text: `Here are the pass ${passNo} findings again -- select the ones to apply.` },
+      { id: nid(), role: 'audit', passNo: round.passNo, verdict: round.verdict, findings: round.findings },
+    ]);
   }
   function send() {
     const text = input.trim();
     if (!text) return;
     setInput('');
-    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Noted -- hit Re-construct plan to regenerate it with that, or re-run the audit.' }]);
+    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Noted -- hit Construct plan to regenerate it, or re-run the audit.' }]);
   }
   function reconstruct() {
     if (readOnly) return;
@@ -693,7 +737,6 @@ function ValidateStage({
     setMsgs((m) => [
       ...m,
       { id: nid(), role: 'forge', text: `Re-constructed the plan from our discussion -- v${v}.` },
-      { id: nid(), role: 'draft', md, version: v },
     ]);
   }
 
@@ -734,7 +777,7 @@ function ValidateStage({
                 m.role === 'user' ? (
                   <ChatUser key={m.id} text={m.text} />
                 ) : m.role === 'audit' ? (
-                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
+                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} applying={applying} applied={applied} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
                 ) : (
                   <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>
                 ),
@@ -769,6 +812,13 @@ function ValidateStage({
             voiceEnabled={voiceEnabled}
           />
         )}
+        {!mmaReady ? (
+          <div className="shrink-0 border-t border-line px-5 py-2">
+            <TextSm className="!text-[var(--amber)]">
+              <a href="/settings/connections" className="underline">Configure the MMA token</a> to run the audit.
+            </TextSm>
+          </div>
+        ) : null}
       </Card>
 
       {/* RIGHT -- audit rounds + Lock the plan (1/3) */}
@@ -783,7 +833,7 @@ function ValidateStage({
               size="sm"
               onClick={onRunAudit}
               loading={!!auditing}
-              disabled={readOnly || !mmaReady || locked || !!auditing}
+              disabled={readOnly || !mmaReady || locked || !!auditing || applying}
               leftIcon={<Shield />}
             >
               {auditing ? 'Auditing...' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
@@ -809,7 +859,7 @@ function ValidateStage({
                 </p>
               </div>
             ) : null}
-            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} />)}
+            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} onReplay={() => replay(r.passNo)} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             {planMd ? (
@@ -848,12 +898,16 @@ function AuditChatMsg({
   verdict,
   findings,
   readOnly,
+  applying,
+  applied,
   onApply,
 }: {
   passNo: number;
   verdict: 'clean' | 'revised';
   findings: PlanAuditFinding[];
   readOnly: boolean;
+  applying?: boolean;
+  applied?: boolean;
   onApply: (indices: number[]) => void;
 }) {
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -876,6 +930,7 @@ function AuditChatMsg({
           <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
             {verdict === 'clean' ? 'clean' : `${findings.length} finding${findings.length === 1 ? '' : 's'} → revised`}
           </Badge>
+          {applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying...</Badge> : null}
         </div>
         <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
           {findings.length > 0 ? (
@@ -884,11 +939,12 @@ function AuditChatMsg({
                 {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
                   const origIdx = findings.indexOf(f);
                   const on = sel.has(origIdx);
+                  const disabled = readOnly || !!applying || !!applied;
                   return (
-                    <button key={i} type="button" onClick={() => !readOnly && toggle(origIdx)} disabled={readOnly} className={cn('flex flex-col gap-1.5 p-3 text-left transition-colors', on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50')}>
+                    <button key={i} type="button" onClick={() => !disabled && toggle(origIdx)} disabled={disabled} className={cn('flex flex-col gap-1.5 p-3 text-left transition-colors', applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50', disabled && !applied && 'opacity-60')}>
                       <div className="flex items-center gap-1.5">
-                        <span className={cn('grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors', on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
-                          {on ? <Check className="size-3" /> : origIdx + 1}
+                        <span className={cn('grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors', applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white' : on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
+                          {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
                         </span>
                         <SeverityTag s={f.severity} />
                       </div>
@@ -901,14 +957,28 @@ function AuditChatMsg({
                 })}
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                <span className="text-[11px] text-ink-faint">Select findings to apply, or apply all at once.</span>
-                <span className="flex-1" />
-                <Button size="sm" variant="secondary" onClick={() => onApply([...sel])} disabled={readOnly || sel.size === 0} leftIcon={<Check />}>
-                  Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                </Button>
-                <Button size="sm" onClick={() => onApply(findings.map((_, i) => i))} disabled={readOnly} leftIcon={<Sparkles />}>
-                  Apply all {findings.length}
-                </Button>
+                {applied ? (
+                  <div className="flex items-center gap-2">
+                    <Check className="size-3.5 text-[var(--sage-deep)]" />
+                    <span className="text-xs font-medium text-[var(--sage-deep)]">All findings applied -- press "Construct plan" to re-assemble.</span>
+                  </div>
+                ) : applying ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">Revising plan...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-[11px] text-ink-faint">Select findings to apply, or apply all at once.</span>
+                    <span className="flex-1" />
+                    <Button size="sm" variant="secondary" onClick={() => onApply([...sel])} disabled={readOnly || sel.size === 0} leftIcon={<Check />}>
+                      Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
+                    </Button>
+                    <Button size="sm" onClick={() => onApply(findings.map((_, i) => i))} disabled={readOnly} leftIcon={<Sparkles />}>
+                      Apply all {findings.length}
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           ) : null}
@@ -918,11 +988,18 @@ function AuditChatMsg({
   );
 }
 
-function AuditRoundCard({ round, applied }: { round: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }; applied?: boolean }) {
+function AuditRoundCard({ round, applied, onReplay }: { round: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }; applied?: boolean; onReplay?: () => void }) {
   const counts: Record<PlanAuditFinding['severity'], number> = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const f of round.findings) counts[f.severity] += 1;
   return (
-    <div className={cn('rounded-[var(--r-md)] border p-3', applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface')}>
+    <button
+      type="button"
+      onClick={onReplay}
+      className={cn(
+        'group w-full rounded-[var(--r-md)] border p-3 text-left transition-colors',
+        applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface hover:border-accent hover:bg-surface-2/40',
+      )}
+    >
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-ink">Pass {round.passNo}</span>
         <Badge variant={round.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
@@ -943,6 +1020,9 @@ function AuditRoundCard({ round, applied }: { round: { passNo: number; verdict: 
           ))}
         </div>
       ) : null}
-    </div>
+      <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-ink-faint group-hover:text-accent">
+        <ArrowRight className="size-3" /> Re-post to chat
+      </span>
+    </button>
   );
 }

@@ -14,7 +14,7 @@ export const PlanTaskDraftSchema = z.object({
   detail: z.string().optional().default('').describe('A short body describing the CODE CHANGES only — never git add/commit/push.'),
   targetRepoId: z.string().min(1).describe('The ONE repo this task targets (a repo id from the provided project repo set).'),
   dependsOn: z.array(z.string()).describe('Zero or more sibling task titles this task depends on (by exact title).'),
-  reviewPolicy: z.enum(['full', 'quality_only', 'diff_only', 'none']).describe("perTaskReviewPolicy. 'full' unless the task is intentionally-incomplete (downstream errors expected, fixed later) → 'none'."),
+  reviewPolicy: z.enum(['reviewed', 'none']).describe("perTaskReviewPolicy. 'reviewed' unless the task is intentionally-incomplete (downstream errors expected, fixed later) → 'none'."),
 });
 
 export const PlanDraftSchema = z.object({

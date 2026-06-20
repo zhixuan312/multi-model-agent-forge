@@ -25,7 +25,7 @@ function createTask(projectId: string, repoId: string, overrides: Partial<{ titl
     orderIndex: 0,
     isWrite: true,
     status: (overrides.status ?? 'queued') as 'queued' | 'committed' | 'executing' | 'verifying' | 'fixing' | 'skipped' | 'failed',
-    reviewPolicy: (overrides.reviewPolicy ?? 'full') as 'full' | 'quality_only' | 'diff_only' | 'none',
+    reviewPolicy: (overrides.reviewPolicy ?? 'reviewed') as 'reviewed' | 'none',
     commitSha: null,
     fixNote: null,
     meta: null,
@@ -102,7 +102,7 @@ describe('executeTask', () => {
     expect(mma.dispatches[0].body).toMatchObject({
       filePaths: [expect.stringContaining('.forge')],
       taskDescriptors: ['Task 1: Do it'],
-      perTaskReviewPolicy: { '0': 'full' },
+      perTaskReviewPolicy: { '0': 'reviewed' },
     });
   });
 

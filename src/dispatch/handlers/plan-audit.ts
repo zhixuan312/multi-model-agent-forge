@@ -11,7 +11,7 @@ async function handlePlanAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pro
     throw new Error(`Plan audit returned no structured report: ${parsed.headline}`);
   }
 
-  const passNo = await nextPassNo(db, ctx.projectId);
+  const passNo = await nextPassNo(db, ctx.projectId, 'plan');
   const verdict: AuditVerdict = parsed.hasCriticalOrHigh ? 'revised' : 'clean';
 
   await db.insert(auditPass).values({

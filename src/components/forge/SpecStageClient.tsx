@@ -191,7 +191,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [autoDrafting, setAutoDrafting] = useState(
     () => phase === 'craft' && needsAutoDraft,
   );
-  const [sectionQuestions, setSectionQuestions] = useState<Record<string, string[]>>({});
+  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>({});
   const autoDraftFired = useRef(false);
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
@@ -206,11 +206,19 @@ export function SpecStageClient(props: SpecStageClientProps) {
       })
       .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
         if (data.error) { setError(data.error); return; }
-        if (data.components) setComponents(data.components);
-        if (data.sections) {
-          const qMap: Record<string, string[]> = {};
-          for (const s of data.sections) qMap[`${s.componentKind}:${s.sectionKey}`] = s.questions;
-          setSectionQuestions(qMap);
+        if (data.components) {
+          setComponents(data.components);
+          // Aggregate questions per component
+          if (data.sections) {
+            const byComp: Record<string, string[]> = {};
+            for (const s of data.sections) {
+              const comp = data.components.find((c) => c.kind === s.componentKind);
+              if (comp) {
+                byComp[comp.id] = [...(byComp[comp.id] ?? []), ...s.questions];
+              }
+            }
+            setComponentQuestions(byComp);
+          }
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
@@ -293,13 +301,16 @@ export function SpecStageClient(props: SpecStageClientProps) {
               })
               .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
                 if (data.error) { setError(data.error); return; }
-                if (data.components) setComponents(data.components);
-                if (data.sections) {
-                  const qMap: Record<string, string[]> = {};
-                  for (const s of data.sections) {
-                    qMap[`${s.componentKind}:${s.sectionKey}`] = s.questions;
+                if (data.components) {
+                  setComponents(data.components);
+                  if (data.sections) {
+                    const byComp: Record<string, string[]> = {};
+                    for (const s of data.sections) {
+                      const comp = data.components.find((c) => c.kind === s.componentKind);
+                      if (comp) byComp[comp.id] = [...(byComp[comp.id] ?? []), ...s.questions];
+                    }
+                    setComponentQuestions(byComp);
                   }
-                  setSectionQuestions(qMap);
                 }
               })
               .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
@@ -313,7 +324,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           readOnly={readOnly}
           autoDrafting={autoDrafting}
-          sectionQuestions={sectionQuestions}
+          componentQuestions={componentQuestions}
           allApproved={allApproved}
           craftContent={props.craftContent}
           currentMember={props.currentMember}
@@ -678,13 +689,12 @@ function TemplateRow({
 
 interface DisplayState { label: string; cls: string }
 
-function componentDisplayState(c: ComponentView): DisplayState {
+function componentDisplayState(c: ComponentView, hasQuestions?: boolean): DisplayState {
   if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
-    const allSatisfied = c.sections.every((s) => s.aiSatisfied);
-    return allSatisfied
-      ? { label: 'Ready', cls: 'bg-accent-tint text-accent' }
-      : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
+    return hasQuestions
+      ? { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' }
+      : { label: 'Ready', cls: 'bg-accent-tint text-accent' };
   }
   return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
 }
@@ -715,7 +725,7 @@ function CraftStage({
   readOnly,
   allApproved,
   autoDrafting,
-  sectionQuestions,
+  componentQuestions,
   craftContent,
   currentMember,
   projectMembers,
@@ -730,7 +740,7 @@ function CraftStage({
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
-  sectionQuestions?: Record<string, string[]>;
+  componentQuestions?: Record<string, string[]>;
   craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
@@ -1140,9 +1150,7 @@ function CraftStage({
               /* Dialogue: show Forge message with questions or "looks complete" + construct button */
               <>
                 {(() => {
-                  const firstSection = active.sections[0];
-                  const qKey = firstSection ? `${active.kind}:${firstSection.key}` : '';
-                  const questions = sectionQuestions?.[qKey] ?? [];
+                  const questions = componentQuestions?.[active.id] ?? [];
                   return (
                     <div className="flex gap-2.5">
                       <ForgeMark className="mt-0.5 shrink-0" />
@@ -1277,7 +1285,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
-                displayState={componentDisplayState(c)}
+                displayState={componentDisplayState(c, (componentQuestions?.[c.id]?.length ?? 0) > 0)}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');

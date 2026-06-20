@@ -152,7 +152,9 @@ export async function autoDraftAll(
     return { ok: false, sections: [], error: message };
   }
 
-  // Apply drafts to DB sections
+  // Apply drafts to DB sections — collect questions per component
+  const questionsByComponent = new Map<string, { questions: string[]; firstSectionId: string }>();
+
   for (const drafted of draft.sections) {
     const match = outline.find(
       (o) => o.componentKind === drafted.componentKind && o.sectionKey === drafted.sectionKey,
@@ -172,16 +174,26 @@ export async function autoDraftAll(
       .where(eq(componentSection.id, match.sectionId));
     await recomputeComponentStatus(db, match.componentId);
 
-    // Persist the initial Forge message (questions or "looks complete")
-    const forgeBody = drafted.questions.length > 0
-      ? drafted.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')
-      : '✅ This section looks complete. You can approve it, or tell me what to change.';
+    // Accumulate questions per component
+    const existing = questionsByComponent.get(match.componentId);
+    if (existing) {
+      existing.questions.push(...drafted.questions);
+    } else {
+      questionsByComponent.set(match.componentId, { questions: [...drafted.questions], firstSectionId: match.sectionId });
+    }
+  }
+
+  // Insert ONE Forge message per component (on the first section)
+  for (const [, { questions, firstSectionId }] of questionsByComponent) {
+    const forgeBody = questions.length > 0
+      ? `❓ I've drafted this but have a few questions:\n${questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')}`
+      : '✅ This looks complete. You can approve it, or tell me what to change.';
     await db.insert(qaMessage).values({
-      sectionId: match.sectionId,
+      sectionId: firstSectionId,
       seq: 0,
       sender: 'forge',
       bodyMd: forgeBody,
-      meta: { autoDraft: true, questions: drafted.questions },
+      meta: { autoDraft: true, questions },
     });
   }
 

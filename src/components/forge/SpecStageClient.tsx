@@ -200,8 +200,12 @@ export function SpecStageClient(props: SpecStageClientProps) {
     autoDraftFired.current = true;
     setAutoDrafting(true);
     fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-      .then((r) => r.json())
-      .then((data: { components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+      .then((r) => {
+        if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`);
+        return r.json();
+      })
+      .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+        if (data.error) { setError(data.error); return; }
         if (data.components) setComponents(data.components);
         if (data.sections) {
           const qMap: Record<string, string[]> = {};
@@ -209,7 +213,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           setSectionQuestions(qMap);
         }
       })
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
       .finally(() => setAutoDrafting(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, needsAutoDraft]);
@@ -283,8 +287,12 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setPhase('craft');
             setAutoDrafting(true);
             fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-              .then((r) => r.json())
-              .then((data: { components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+              .then((r) => {
+                if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`);
+                return r.json();
+              })
+              .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+                if (data.error) { setError(data.error); return; }
                 if (data.components) setComponents(data.components);
                 if (data.sections) {
                   const qMap: Record<string, string[]> = {};
@@ -294,7 +302,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
                   setSectionQuestions(qMap);
                 }
               })
-              .catch(() => {})
+              .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
               .finally(() => setAutoDrafting(false));
           }}
           onError={setError}
@@ -351,7 +359,7 @@ function SpecNote() {
           How the spec works
         </Eyebrow>
         <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-          Pick the skeleton here, then Forge interviews you <span className="font-medium text-ink">section by section</span>{' '}
+          Pick the skeleton here, then Forge drafts each component{' '}
           — in any order — and consolidates your answers into one specification document.
         </p>
       </div>
@@ -670,21 +678,13 @@ function TemplateRow({
 
 interface DisplayState { label: string; cls: string }
 
-function componentDisplayState(
-  c: ComponentView,
-  autoDrafting?: boolean,
-  sectionQuestions?: Record<string, string[]>,
-): DisplayState {
+function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
-    const aiSatisfied = c.sections.every((s) => s.aiSatisfied);
-    if (aiSatisfied) return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
-    const hasQuestions = c.sections.some((s) => {
-      const qKey = `${c.kind}:${s.key}`;
-      return (sectionQuestions?.[qKey]?.length ?? 0) > 0;
-    });
-    if (hasQuestions) return { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
-    return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
+    const allSatisfied = c.sections.every((s) => s.aiSatisfied);
+    return allSatisfied
+      ? { label: 'Ready', cls: 'bg-accent-tint text-accent' }
+      : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
   }
   return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
 }
@@ -777,12 +777,16 @@ function CraftStage({
         authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
         body: m.bodyMd,
       }));
+      // If component is already approved, seed the current user as approver
+      const approvedParticipants: Participant[] = c.status === 'approved'
+        ? [{ member: currentMember, addedBy: null, approvedAt: new Date().toISOString() }]
+        : [];
       out[c.id] = seed
         ? {
             participants: seed.participants.map((p) => ({ ...p })),
             discussion: [...seed.discussion.map((d) => ({ ...d })), ...dbDiscussion],
           }
-        : { participants: [], discussion: dbDiscussion };
+        : { participants: approvedParticipants, discussion: dbDiscussion };
     }
     return out;
   });
@@ -968,7 +972,7 @@ function CraftStage({
             // Add Forge response to history — make AI state clear
             const aiOk = data.refinement.questions.length === 0;
             const forgeReply = aiOk
-              ? '✅ Updated the draft with your feedback. I\'m satisfied with this section — press "Construct section" to review, then approve.'
+              ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
               : data.refinement.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n');
             setSectionHistory((prev) => ({
               ...prev,
@@ -1113,7 +1117,7 @@ function CraftStage({
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
-              <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
+              <p className="text-xs text-ink-soft">Each component is drafted using the exploration findings. This takes a moment.</p>
             </div>
           ) : drafted ? (
             constructedDrafts[active.id] ? (
@@ -1124,7 +1128,7 @@ function CraftStage({
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-ink">Forge</span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
-                      constructed section
+                      draft
                     </span>
                   </div>
                   <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
@@ -1150,7 +1154,7 @@ function CraftStage({
                           {questions.length > 0 ? (
                             <div className="space-y-2">
                               <p className="text-sm leading-relaxed text-ink">
-                                <span className="mr-1.5">❓</span>I've drafted this section but have a few questions:
+                                <span className="mr-1.5">❓</span>I've drafted this but have a few questions:
                               </p>
                               {questions.map((q, i) => (
                                 <p key={i} className="text-sm leading-relaxed text-ink">
@@ -1161,7 +1165,7 @@ function CraftStage({
                             </div>
                           ) : (
                             <p className="text-sm leading-relaxed text-ink">
-                              <span className="mr-1.5">✅</span>This section looks complete. You can approve it, or tell me what to change.
+                              <span className="mr-1.5">✅</span>This looks complete. You can approve it, or tell me what to change.
                             </p>
                           )}
                         </div>
@@ -1206,7 +1210,7 @@ function CraftStage({
             <div className="flex items-center gap-2.5">
               <FileText className="size-5 shrink-0 text-accent" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{approved ? 'Section approved' : 'Draft ready for review'}</p>
+                <p className="text-sm font-semibold text-ink">{approved ? 'Approved' : 'Draft ready for review'}</p>
                 <p className="text-xs text-ink-faint">
                   {approved
                     ? 'At least one approver has signed off — good to go.'
@@ -1240,7 +1244,7 @@ function CraftStage({
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
               {drafted ? (
                 <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
-                  Construct section
+                  Show draft
                 </Button>
               ) : null}
               <Button size="sm" onClick={submit} disabled={readOnly || !input.trim()} rightIcon={<ArrowRight />}>
@@ -1273,7 +1277,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
-                displayState={componentDisplayState(c, autoDrafting, sectionQuestions)}
+                displayState={componentDisplayState(c)}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');

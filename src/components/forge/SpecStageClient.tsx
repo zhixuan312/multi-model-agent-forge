@@ -191,19 +191,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [autoDrafting, setAutoDrafting] = useState(
     () => phase === 'craft' && needsAutoDraft,
   );
-  // Derive initial questions from loaded messages (on page load)
-  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>(() => {
-    const q: Record<string, string[]> = {};
-    for (const c of components) {
-      const firstSectionId = c.sections[0]?.id;
-      const msgs = firstSectionId ? (props.initialMessages?.[firstSectionId] ?? []) : [];
-      const forgeMsg = msgs.find((m) => m.sender === 'forge');
-      if (forgeMsg?.bodyMd.includes('❓')) {
-        q[c.id] = ['has-questions'];
-      }
-    }
-    return q;
-  });
+  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>({});
   const autoDraftFired = useRef(false);
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
@@ -1158,42 +1146,7 @@ function CraftStage({
                   </div>
                 </div>
               </div>
-            ) : (
-              /* Dialogue: show Forge message with questions or "looks complete" + construct button */
-              <>
-                {(() => {
-                  const questions = componentQuestions?.[active.id] ?? [];
-                  return (
-                    <div className="flex gap-2.5">
-                      <ForgeMark className="mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1">
-                          <span className="text-xs font-semibold text-ink">Forge</span>
-                        </div>
-                        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                          {questions.length > 0 ? (
-                            <div className="space-y-3">
-                              <p className="text-sm leading-relaxed text-ink">
-                                <span className="mr-1.5">❓</span>I've drafted this but would like to clarify:
-                              </p>
-                              {questions.map((q, i) => (
-                                <p key={i} className="text-sm leading-relaxed text-ink pl-1 border-l-2 border-accent/30 ml-1">
-                                  {q}
-                                </p>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm leading-relaxed text-ink">
-                              <span className="mr-1.5">✅</span>This looks complete. You can approve it, or tell me what to change.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            )
+            ) : null
           ) : null}
 
           {!constructedDrafts[active.id] ? (
@@ -1296,7 +1249,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
-                displayState={componentDisplayState(c, (componentQuestions?.[c.id]?.length ?? 0) > 0)}
+                displayState={componentDisplayState(c, (collab[c.id]?.discussion ?? []).some((m) => m.authorId === 'forge' && m.body.includes('❓')))}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');

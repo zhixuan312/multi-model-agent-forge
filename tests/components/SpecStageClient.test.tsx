@@ -4,8 +4,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import type { ComponentView } from '@/spec/spec-core';
 
-// SpecStageClient uses next/navigation's useRouter (Document-phase automation
-// hand-off) — there's no app-router context in jsdom, so stub it.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
@@ -19,17 +17,17 @@ function wrap(ui: React.ReactElement) {
   );
 }
 
-const twoSections: ComponentView[] = [
+// Drafted component — the auto-draft flow produces components with status='drafted' and draftMd set.
+const draftedComponents: ComponentView[] = [
   {
     id: 'c1',
     kind: 'context',
     label: 'Context',
     primaryRoles: ['PM'],
-    status: 'gathering',
+    status: 'drafted',
     orderIndex: 0,
     sections: [
-      { id: 's1', key: 'background', label: 'Background', status: 'gathering', aiSatisfied: false, humanSatisfied: false, forced: false, draftMd: null, stale: false, orderIndex: 0 },
-      { id: 's2', key: 'current_state', label: 'Current state', status: 'gathering', aiSatisfied: false, humanSatisfied: false, forced: false, draftMd: null, stale: false, orderIndex: 1 },
+      { id: 's1', key: 'background', label: 'Background', status: 'drafted', aiSatisfied: true, humanSatisfied: false, forced: false, draftMd: 'The demo uses PostgreSQL...', stale: false, orderIndex: 0 },
     ],
   },
 ];
@@ -45,7 +43,7 @@ describe('SpecStageClient', () => {
         mainTierReady={false}
         mmaReady={false}
         defaultKinds={['context']}
-        initialComponents={twoSections}
+        initialComponents={draftedComponents}
         initialSpec={null}
         initialAuditHistory={[]}
         initialCanFreeze={false}
@@ -55,7 +53,7 @@ describe('SpecStageClient', () => {
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
   });
 
-  it('opens the Craft conversation for the active component (chat + composer)', () => {
+  it('auto-constructs drafted sections and shows Draft ready for review', () => {
     wrap(
       <SpecStageClient
         projectId="p1"
@@ -65,7 +63,7 @@ describe('SpecStageClient', () => {
         mainTierReady={true}
         mmaReady={true}
         defaultKinds={['context']}
-        initialComponents={twoSections}
+        initialComponents={draftedComponents}
         initialSpec={null}
         initialAuditHistory={[]}
         initialCanFreeze={false}
@@ -73,28 +71,23 @@ describe('SpecStageClient', () => {
       />,
     );
 
-    // With components present and no spec, the stage lands in Craft: the
-    // messenger-style composer drives the active component.
-    expect(screen.getByRole('button', { name: /Construct section/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Send answer/ })).toBeInTheDocument();
-    // The active component's label is shown (rail + conversation header).
-    expect(screen.getAllByText('Context').length).toBeGreaterThan(0);
+    // Drafted sections auto-construct — shows the draft + approve bar immediately.
+    expect(screen.getByText(/Draft ready for review/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Approve/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to edit/ })).toBeInTheDocument();
   });
 
   it('constructing a section does NOT auto-approve off a stale (pre-draft) sign-off', async () => {
-    // The proposed_design section is seeded with a teammate who approved an
-    // EARLIER version. Constructing a fresh draft must land on review — not jump
-    // straight to "approved" via the ≥1-approver gate (the reported bug).
     const designSection: ComponentView[] = [
       {
         id: 'c1',
         kind: 'technical_design',
-        label: 'Proposed design',
-        primaryRoles: ['Tech Lead'],
-        status: 'gathering',
+        label: 'Technical Design',
+        primaryRoles: ['SWE'],
+        status: 'drafted',
         orderIndex: 0,
         sections: [
-          { id: 's1', key: 'overview', label: 'Overview', status: 'gathering', aiSatisfied: false, humanSatisfied: false, forced: false, draftMd: null, stale: false, orderIndex: 0 },
+          { id: 's1', key: 'current_state', label: 'Current state', status: 'drafted', aiSatisfied: true, humanSatisfied: false, forced: false, draftMd: 'Current state draft...', stale: false, orderIndex: 0 },
         ],
       },
     ];
@@ -123,10 +116,9 @@ describe('SpecStageClient', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Construct section/ }));
-
-    // Lands on review, NOT auto-approved off Bo's stale sign-off.
-    expect(await screen.findByText(/Draft ready for review/)).toBeInTheDocument();
-    expect(screen.queryByText(/Section approved/)).not.toBeInTheDocument();
+    // Auto-constructed — shows the approve bar. Status is 'drafted' not 'approved'
+    // even though Bo signed off before the draft existed (stale sign-off).
+    expect(screen.getAllByRole('button', { name: /Approve/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /Back to edit/ }).length).toBeGreaterThan(0);
   });
 });

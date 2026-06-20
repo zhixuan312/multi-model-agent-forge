@@ -731,6 +731,25 @@ function CraftStage({
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
+  // Per-component view: 'dialogue' (Forge message + input) or 'constructed' (showing draft)
+  // All drafted components start as constructed (auto-pressed).
+  const [constructed, setConstructed] = useState<Set<string>>(
+    () => new Set(components.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id)),
+  );
+  const [refining, setRefining] = useState(false);
+  // Per-section conversation history for the refine route.
+  const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
+
+  // Auto-construct newly drafted components (e.g. after auto-draft completes).
+  useEffect(() => {
+    const draftedIds = components.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id);
+    setConstructed((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of draftedIds) { if (!next.has(id)) { next.add(id); changed = true; } }
+      return changed ? next : prev;
+    });
+  }, [components]);
   // Collaborative state per component (participants + group chat), seeded by kind.
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
@@ -874,9 +893,10 @@ function CraftStage({
       return;
     }
 
-    // No @-mention → you're talking to Forge. Once a draft exists it's a refine
-    // note Forge acks; while gathering it answers the interview and advances.
+    // No @-mention → you're talking to Forge. Send to the refine route.
     if (drafted) {
+      const sectionId = active.sections[0]?.id;
+      if (!sectionId) return;
       patchCollab((u) => ({
         ...u,
         discussion: [
@@ -885,7 +905,54 @@ function CraftStage({
         ],
       }));
       setInput('');
-      scheduleReply('forge', active.id, 'Noted — I can fold that into the draft. Hit “Construct section” when you’re ready.');
+      setRefining(true);
+      const history = sectionHistory[active.id] ?? [];
+      const newHistory = [...history, { role: 'user' as const, text }];
+      setSectionHistory((prev) => ({ ...prev, [active.id]: newHistory }));
+
+      fetch(`/projects/${projectId}/spec/sections/${sectionId}/refine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userAnswer: text, history }),
+      })
+        .then((r) => r.json())
+        .then((data: { refinement?: { draftMd: string; questions: string[] } }) => {
+          if (data.refinement) {
+            // Update the section draft
+            onPatch(active.id, {
+              sections: active.sections.map((s) =>
+                s.id === sectionId ? { ...s, draftMd: data.refinement!.draftMd } : s,
+              ),
+            });
+            // Add Forge response to history
+            const forgeReply = data.refinement.questions.length > 0
+              ? data.refinement.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')
+              : 'Updated the draft with your feedback. You can review it by pressing "Construct section".';
+            setSectionHistory((prev) => ({
+              ...prev,
+              [active.id]: [...(prev[active.id] ?? []), { role: 'forge', text: forgeReply }],
+            }));
+            patchCollab((u) => ({
+              ...u,
+              discussion: [
+                ...u.discussion,
+                { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: forgeReply },
+              ],
+            }));
+            // Remove from constructed so user sees the dialogue with new response
+            setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+          }
+        })
+        .catch(() => {
+          patchCollab((u) => ({
+            ...u,
+            discussion: [
+              ...u.discussion,
+              { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
+            ],
+          }));
+        })
+        .finally(() => setRefining(false));
       return;
     }
     setInput('');
@@ -925,9 +992,15 @@ function CraftStage({
   }
 
   /** Reopen a drafted/approved section to keep editing the conversation. */
+  function constructSection(): void {
+    if (!active) return;
+    setConstructed((prev) => new Set(prev).add(active.id));
+  }
+
   function backToEdit(): void {
     if (readOnly || !active) return;
-    onPatch(active.id, { status: 'satisfied' });
+    setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
   /** Total teammates still pending across every section — drives the soft nudge. */
@@ -973,16 +1046,22 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {drafted && draftMd ? (
-            /* Drafted section: show draft as Forge message + questions (if any) */
-            <>
+          {autoDrafting ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
+              <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
+            </div>
+          ) : drafted && draftMd ? (
+            constructed.has(active.id) ? (
+              /* Constructed: show the drafted content */
               <div className="flex gap-2.5">
                 <ForgeMark className="mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-ink">Forge</span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
-                      drafted from exploration
+                      constructed section
                     </span>
                   </div>
                   <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
@@ -990,47 +1069,45 @@ function CraftStage({
                   </div>
                 </div>
               </div>
-              {(() => {
-                const firstSection = active.sections[0];
-                const qKey = firstSection ? `${active.kind}:${firstSection.key}` : '';
-                const questions = sectionQuestions?.[qKey] ?? [];
-                return (
-                  <div className="flex gap-2.5">
-                    <ForgeMark className="mt-0.5 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1">
-                        <span className="text-xs font-semibold text-ink">Forge</span>
-                      </div>
-                      <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                        {questions.length > 0 ? (
-                          <div className="space-y-2">
-                            <p className="text-sm leading-relaxed text-ink">
-                              A few things I'd like to clarify about this section:
-                            </p>
-                            {questions.map((q, i) => (
-                              <p key={i} className="text-sm leading-relaxed text-ink">
-                                <span className="mr-1.5 font-semibold text-accent">Q{i + 1}</span>
-                                {q}
+            ) : (
+              /* Dialogue: show Forge message with questions or "looks complete" + construct button */
+              <>
+                {(() => {
+                  const firstSection = active.sections[0];
+                  const qKey = firstSection ? `${active.kind}:${firstSection.key}` : '';
+                  const questions = sectionQuestions?.[qKey] ?? [];
+                  return (
+                    <div className="flex gap-2.5">
+                      <ForgeMark className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1">
+                          <span className="text-xs font-semibold text-ink">Forge</span>
+                        </div>
+                        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                          {questions.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-sm leading-relaxed text-ink">
+                                I've drafted this section. A few things I'd like to clarify:
                               </p>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm leading-relaxed text-ink">
-                            This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
-                          </p>
-                        )}
+                              {questions.map((q, i) => (
+                                <p key={i} className="text-sm leading-relaxed text-ink">
+                                  <span className="mr-1.5 font-semibold text-accent">Q{i + 1}</span>
+                                  {q}
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm leading-relaxed text-ink">
+                              This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })()}
-            </>
-          ) : autoDrafting ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-              <Loader2 className="size-6 animate-spin text-accent" />
-              <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
-              <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
-            </div>
+                  );
+                })()}
+              </>
+            )
           ) : null}
 
           <DiscussionThread
@@ -1039,11 +1116,25 @@ function CraftStage({
             currentMemberId={currentMember.id}
             mentionPool={inChatMembers}
           />
+          {refining ? (
+            <div className="flex gap-2.5">
+              <ForgeMark className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1">
+                  <span className="text-xs font-semibold text-ink">Forge</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-sm text-ink-soft">Thinking…</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Approve / back — shown once a draft exists. */}
-        {drafted ? (
+        {/* Approve / back — shown when constructed */}
+        {drafted && !autoDrafting && constructed.has(active.id) ? (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
             <div className="flex items-center gap-2.5">
               <FileText className="size-5 shrink-0 text-accent" />
@@ -1052,7 +1143,7 @@ function CraftStage({
                 <p className="text-xs text-ink-faint">
                   {approved
                     ? 'At least one approver has signed off — good to go.'
-                    : 'Approve to lock it, or @mention a teammate below to co-approve.'}
+                    : 'Approve to lock it, or tell me what to change.'}
                 </p>
               </div>
             </div>
@@ -1095,8 +1186,8 @@ function CraftStage({
                 }
                 submitLabel={liveMentions.length > 0 ? 'Send' : drafted ? 'Send' : 'Send answer'}
                 secondary={
-                  liveMentions.length === 0 && !drafted ? (
-                    <Button size="sm" variant="ghost" onClick={construct} disabled={readOnly} leftIcon={<FileText />}>
+                  drafted && !constructed.has(active.id) ? (
+                    <Button size="sm" variant="ghost" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
                       Construct section
                     </Button>
                   ) : undefined
@@ -1146,7 +1237,7 @@ function CraftStage({
           <CardFooter className="flex-col !items-stretch gap-2">
             {nudge && pendingTotal > 0 ? (
               <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-                {pendingTotal} {pendingTotal === 1 ? 'invited approver hasn’t' : 'invited approvers haven’t'} responded
+                {pendingTotal} {pendingTotal === 1 ? "invited approver hasn't" : "invited approvers haven't"} responded
                 yet. One nod per section is enough — you can proceed anyway.
               </div>
             ) : null}
@@ -1374,8 +1465,8 @@ function DocumentScreen({
           role: 'forge',
           text:
             data.pass.verdict === 'clean'
-              ? 'Clean pass — no critical or high findings. You can continue to Plan whenever you’re ready.'
-              : 'I found the issues above. Tell me to address one and I’ll revise the spec, then re-run the audit to verify.',
+              ? "Clean pass — no critical or high findings. You can continue to Plan whenever you're ready."
+              : "I found the issues above. Tell me to address one and I'll revise the spec, then re-run the audit to verify.",
         },
       ]);
     } catch (e) {
@@ -1439,7 +1530,7 @@ function DocumentScreen({
       {
         id: nid(),
         role: 'forge',
-        text: 'Done — I’ve revised the spec to address that. Press “Construct spec” to regenerate the document, or run the audit again to verify.',
+        text: "Done — I've revised the spec to address that. Press \"Construct spec\" to regenerate the document, or run the audit again to verify.",
       },
     ]);
   }
@@ -1457,7 +1548,7 @@ function DocumentScreen({
       {
         id: nid(),
         role: 'forge',
-        text: `Applied ${label} from pass ${passNo} — I’ve revised the affected sections and am re-assembling the spec.`,
+        text: `Applied ${label} from pass ${passNo} — I've revised the affected sections and am re-assembling the spec.`,
       },
     ]);
     void runAssemble();
@@ -1472,7 +1563,7 @@ function DocumentScreen({
       {
         id: nid(),
         role: 'forge',
-        text: `Here are the pass ${passNo} findings again — select the ones to apply, hit “Apply all”, or tell me by number.`,
+        text: `Here are the pass ${passNo} findings again — select the ones to apply, hit "Apply all", or tell me by number.`,
       },
       { id: nid(), role: 'audit', passNo: round.passNo, verdict: round.verdict, findings: round.findings },
     ]);
@@ -1620,7 +1711,7 @@ function DocumentScreen({
             <TextSm className="!text-ink-faint">
               {canFreeze
                 ? 'Clean audit — the spec is ready for planning.'
-                : 'Open findings won’t block you — move on whenever you’re ready.'}
+                : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
             <StageAdvance
               href={`/projects/${projectId}/plan`}
@@ -1790,7 +1881,7 @@ function AuditMsg({
               </ul>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
                 <span className="text-[11px] text-ink-faint">
-                  Pick the ones to apply, or tell Forge by number — e.g. “apply #1, #2 and #5”.
+                  Pick the ones to apply, or tell Forge by number — e.g. "apply #1, #2 and #5".
                 </span>
                 <span className="flex-1" />
                 <Button

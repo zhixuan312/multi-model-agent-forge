@@ -114,8 +114,7 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['PM', 'SWE'],
     default: true,
     sections: [
-      { key: 'user_stories', label: 'User stories', prompt: 'What are the user stories? Format: for each story use "**As a** [role], **I want** [action], **so that** [benefit]" followed by acceptance criteria as a checkbox list (- [ ] criterion).', draftHeading: 'User stories' },
-      { key: 'tech_tasks', label: 'Technical tasks', prompt: 'What technical tasks implement the design? Format: numbered list grouped by component/area. Each task has: name, brief description, estimated effort (S/M/L), and dependencies (if any).', draftHeading: 'Technical tasks' },
+      { key: 'user_stories', label: 'User stories', prompt: 'What are the user stories? Format: for each story use a subheading (#### US-N: title), then "**As a** [role], **I want** [action], **so that** [benefit]". Below each story list acceptance criteria (- [ ] AC-N.M: criterion). Below the AC, list the technical tasks for THIS story (- Task N.M: description [effort: S/M/L]). Each story is self-contained: story → AC → tasks. A story has 1+ AC and 0+ tasks.', draftHeading: 'User stories' },
     ],
   },
 ] as const;

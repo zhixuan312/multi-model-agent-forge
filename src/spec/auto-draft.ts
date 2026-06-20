@@ -98,6 +98,7 @@ export async function autoDraftAll(
     .where(eq(component.stageId, specStage.id))
     .orderBy(component.orderIndex);
 
+  // Only draft sections from non-approved components
   const sections = await db
     .select({
       id: componentSection.id,
@@ -109,7 +110,7 @@ export async function autoDraftAll(
     })
     .from(componentSection)
     .innerJoin(component, eq(componentSection.componentId, component.id))
-    .where(eq(component.stageId, specStage.id))
+    .where(and(eq(component.stageId, specStage.id), sql`${component.status} != 'approved'`))
     .orderBy(component.orderIndex, componentSection.orderIndex);
 
   if (sections.length === 0) return { ok: false, sections: [], error: 'No sections.' };

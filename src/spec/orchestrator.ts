@@ -482,10 +482,27 @@ export async function confirmComponents(
   stageId: string,
   kinds: ComponentKind[],
 ): Promise<void> {
-  // Delete all existing components (cascade deletes sections + qa_messages) and re-create.
-  await db.delete(component).where(eq(component.stageId, stageId));
+  // Preserve approved components — only delete unapproved ones.
+  const existing = await db
+    .select({ id: component.id, kind: component.kind, status: component.status })
+    .from(component)
+    .where(eq(component.stageId, stageId));
 
-  const ordered = COMPONENT_TEMPLATES.filter((t) => kinds.includes(t.kind));
+  const approvedKinds = new Set(existing.filter((e) => e.status === 'approved').map((e) => e.kind));
+  const toDelete = existing.filter((e) => e.status !== 'approved').map((e) => e.id);
+
+  // Delete unapproved components (cascade deletes their sections + qa_messages)
+  if (toDelete.length > 0) {
+    await db.delete(component).where(inArray(component.id, toDelete));
+  }
+  // Delete approved components that are no longer in the selected kinds
+  const approvedToRemove = existing.filter((e) => e.status === 'approved' && !kinds.includes(e.kind as ComponentKind)).map((e) => e.id);
+  if (approvedToRemove.length > 0) {
+    await db.delete(component).where(inArray(component.id, approvedToRemove));
+  }
+
+  // Create fresh components only for kinds that aren't already approved
+  const ordered = COMPONENT_TEMPLATES.filter((t) => kinds.includes(t.kind) && !approvedKinds.has(t.kind));
   for (let i = 0; i < ordered.length; i += 1) {
     const tpl = ordered[i];
     const orderIndex = COMPONENT_TEMPLATES.findIndex((t) => t.kind === tpl.kind);

@@ -6,7 +6,6 @@ import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import type { ComponentSectionRow, QaMessageRow, ComponentRow } from '@/db/schema/spec';
 import {
   COMPONENT_STATUS,
-  componentStatusRank,
   type ComponentKind,
   type ComponentStatus,
 } from '@/db/enums';
@@ -93,7 +92,7 @@ async function approvedSiblingDrafts(db: Db, projectId: string): Promise<string[
     .where(
       and(
         eq(stage.projectId, projectId),
-        eq(componentSection.status, 'approved'),
+        eq(component.status, 'approved'),
         sql`${componentSection.draftMd} is not null`,
       ),
     );
@@ -190,32 +189,6 @@ async function ground(
 
 /* ── Component roll-up ──────────────────────────────────────────────────── */
 
-/** Recompute a component's derived status: all approved ⇒ approved; else the min. */
-export async function recomputeComponentStatus(db: Db, componentId: string): Promise<ComponentStatus> {
-  const sections = await db
-    .select({ status: componentSection.status })
-    .from(componentSection)
-    .where(eq(componentSection.componentId, componentId));
-  let status: ComponentStatus;
-  if (sections.length === 0) {
-    status = 'gathering';
-  } else if (sections.every((s) => s.status === 'approved')) {
-    status = 'approved';
-  } else {
-    status = sections.reduce<ComponentStatus>(
-      (min, s) =>
-        componentStatusRank(s.status as ComponentStatus) < componentStatusRank(min)
-          ? (s.status as ComponentStatus)
-          : min,
-      'approved',
-    );
-  }
-  await db
-    .update(component)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(component.id, componentId));
-  return status;
-}
 
 /* ── Core gate transitions ──────────────────────────────────────────────── */
 
@@ -227,7 +200,7 @@ export async function recomputeComponentStatus(db: Db, componentId: string): Pro
 async function onAiSatisfied(deps: OrchestratorDeps, ctx: SectionContext): Promise<void> {
   const db = deps.db ?? getDb();
   let draftMd = ctx.section.draftMd;
-  if (draftMd == null || ctx.section.stale) {
+  if (draftMd == null || ctx.component.stale) {
     const groundCtx = await ground(db, ctx, 'draftSection');
     const out: DraftSection = await deps.anthropic.parse(DraftSectionSchema, groundCtx, {
       retryOnMaxTokens: true,
@@ -236,9 +209,12 @@ async function onAiSatisfied(deps: OrchestratorDeps, ctx: SectionContext): Promi
   }
   await db
     .update(componentSection)
-    .set({ aiSatisfied: true, draftMd, stale: false, status: 'drafted', updatedAt: new Date() })
+    .set({ draftMd, updatedAt: new Date() })
     .where(eq(componentSection.id, ctx.section.id));
-  await recomputeComponentStatus(db, ctx.section.componentId);
+  await db
+    .update(component)
+    .set({ aiSatisfied: true, stale: false, status: 'drafted', updatedAt: new Date() })
+    .where(eq(component.id, ctx.section.componentId));
 }
 
 /**
@@ -251,7 +227,7 @@ export async function enterSection(deps: OrchestratorDeps, sectionId: string): P
   const transcript = await loadTranscript(db, sectionId);
 
   // Stale re-draft on entry (F1/F21): rewrite draft_md, clear stale.
-  if (ctx.section.stale && transcript.length > 0 && ctx.section.aiSatisfied) {
+  if (ctx.component.stale && transcript.length > 0 && ctx.component.aiSatisfied) {
     await onAiSatisfied(deps, ctx);
     return;
   }
@@ -274,10 +250,9 @@ export async function enterSection(deps: OrchestratorDeps, sectionId: string): P
       meta: { round: 1, grounding: g.grounding, questions: g.questions, missing: [] },
     });
     await db
-      .update(componentSection)
+      .update(component)
       .set({ status: 'gathering', updatedAt: new Date() })
-      .where(eq(componentSection.id, sectionId));
-    await recomputeComponentStatus(db, ctx.section.componentId);
+      .where(eq(component.id, ctx.section.componentId));
   }
 }
 
@@ -328,10 +303,9 @@ export async function onMemberAnswer(
     await onAiSatisfied(deps, ctx);
   } else {
     await db
-      .update(componentSection)
+      .update(component)
       .set({ aiSatisfied: false, status: 'gathering', updatedAt: new Date() })
-      .where(eq(componentSection.id, sectionId));
-    await recomputeComponentStatus(db, ctx.section.componentId);
+      .where(eq(component.id, ctx.section.componentId));
   }
 }
 
@@ -342,16 +316,11 @@ export async function onMemberAnswer(
 export async function onHumanSatisfied(deps: OrchestratorDeps, sectionId: string): Promise<void> {
   const db = deps.db ?? getDb();
   const ctx = await loadSectionContext(db, sectionId);
-  // Precondition: nod is only offered on a drafted (ai_satisfied) section.
-  if (ctx.section.draftMd == null) {
-    throw new Error('Cannot nod a section with no draft.');
-  }
-  const nextStatus: ComponentStatus = ctx.section.aiSatisfied ? 'approved' : ctx.section.status as ComponentStatus;
+  const nextStatus: ComponentStatus = ctx.component.aiSatisfied ? 'approved' : ctx.component.status as ComponentStatus;
   await db
-    .update(componentSection)
+    .update(component)
     .set({ humanSatisfied: true, status: nextStatus, updatedAt: new Date() })
-    .where(eq(componentSection.id, sectionId));
-  await recomputeComponentStatus(db, ctx.section.componentId);
+    .where(eq(component.id, ctx.section.componentId));
 }
 
 /**
@@ -382,8 +351,12 @@ export async function forceAdvance(
 
   await db
     .update(componentSection)
-    .set({ forced: true, humanSatisfied: true, draftMd, status: 'approved', updatedAt: new Date() })
+    .set({ draftMd, updatedAt: new Date() })
     .where(eq(componentSection.id, sectionId));
+  await db
+    .update(component)
+    .set({ forced: true, humanSatisfied: true, status: 'approved', updatedAt: new Date() })
+    .where(eq(component.id, ctx.section.componentId));
   await logAction(
     {
       projectId: await projectIdForSection(db, ctx.section.componentId),
@@ -393,7 +366,6 @@ export async function forceAdvance(
     },
     db,
   );
-  await recomputeComponentStatus(db, ctx.section.componentId);
 }
 
 /**
@@ -412,19 +384,18 @@ export async function onIntentEdit(
     .set({ intentMd: newIntentMd, summary: deriveSummary(newIntentMd), updatedAt: new Date() })
     .where(eq(project.id, projectId));
 
-  // Mark every drafted/approved section stale (one bounded write keyed on project).
-  const sectionIds = await db
-    .select({ id: componentSection.id })
-    .from(componentSection)
-    .innerJoin(component, eq(componentSection.componentId, component.id))
+  // Mark every drafted/approved component stale.
+  const compIds = await db
+    .select({ id: component.id })
+    .from(component)
     .innerJoin(stage, eq(component.stageId, stage.id))
-    .where(and(eq(stage.projectId, projectId), inArray(componentSection.status, ['drafted', 'approved'])));
-  const ids = sectionIds.map((r) => r.id);
+    .where(and(eq(stage.projectId, projectId), inArray(component.status, ['drafted', 'approved'])));
+  const ids = compIds.map((r) => r.id);
   if (ids.length > 0) {
     await db
-      .update(componentSection)
+      .update(component)
       .set({ stale: true, updatedAt: new Date() })
-      .where(inArray(componentSection.id, ids));
+      .where(inArray(component.id, ids));
   }
 }
 
@@ -519,7 +490,6 @@ export async function confirmComponents(
           componentId: comp.id,
           key: s.key,
           label: s.label,
-          status: 'gathering' as ComponentStatus,
           orderIndex: si,
         })),
       );

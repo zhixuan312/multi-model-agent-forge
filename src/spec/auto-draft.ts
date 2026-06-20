@@ -12,7 +12,7 @@ import {
   type SectionRefinement,
 } from '@/spec/schemas';
 import { templateForKind, COMPONENT_TEMPLATES } from '@/spec/components';
-import { recomputeComponentStatus, getLatestExploration } from '@/spec/orchestrator';
+import { getLatestExploration } from '@/spec/orchestrator';
 import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
 import { logPoll } from '@/observability/poll-log';
 
@@ -105,7 +105,6 @@ export async function autoDraftAll(
       componentId: componentSection.componentId,
       key: componentSection.key,
       label: componentSection.label,
-      status: componentSection.status,
       orderIndex: componentSection.orderIndex,
     })
     .from(componentSection)
@@ -163,12 +162,7 @@ export async function autoDraftAll(
 
     await db
       .update(componentSection)
-      .set({
-        draftMd: drafted.draftMd,
-        status: 'drafted',
-        stale: false,
-        updatedAt: new Date(),
-      })
+      .set({ draftMd: drafted.draftMd, updatedAt: new Date() })
       .where(eq(componentSection.id, match.sectionId));
 
     const existing = questionsByComponent.get(match.componentId);
@@ -179,14 +173,12 @@ export async function autoDraftAll(
     }
   }
 
-  // Set aiSatisfied at the COMPONENT level — all sections get the same value
+  // Set status + aiSatisfied on the COMPONENT directly
   for (const [compId, { questions }] of questionsByComponent) {
-    const satisfied = questions.length === 0;
     await db
-      .update(componentSection)
-      .set({ aiSatisfied: satisfied, status: 'drafted', updatedAt: new Date() })
-      .where(eq(componentSection.componentId, compId));
-    await recomputeComponentStatus(db, compId);
+      .update(component)
+      .set({ aiSatisfied: questions.length === 0, status: 'drafted', updatedAt: new Date() })
+      .where(eq(component.id, compId));
   }
 
   // Clear old qa_messages and insert ONE fresh Forge message per component
@@ -315,16 +307,15 @@ export async function refineSection(
   if (firstSection) {
     await db
       .update(componentSection)
-      .set({ draftMd: result.data.draftMd, status: 'drafted', stale: false, updatedAt: new Date() })
+      .set({ draftMd: result.data.draftMd, updatedAt: new Date() })
       .where(eq(componentSection.id, firstSection.id));
   }
-  // Set aiSatisfied on all sections based on component questions
+  // Set aiSatisfied on the component directly
   const aiSatisfied = result.data.questions.length === 0;
   await db
-    .update(componentSection)
-    .set({ aiSatisfied, updatedAt: new Date() })
-    .where(eq(componentSection.componentId, deps.componentId));
-  await recomputeComponentStatus(db, deps.componentId);
+    .update(component)
+    .set({ aiSatisfied, status: 'drafted', updatedAt: new Date() })
+    .where(eq(component.id, deps.componentId));
 
   // Persist Forge reply
   const forgeReply = aiSatisfied

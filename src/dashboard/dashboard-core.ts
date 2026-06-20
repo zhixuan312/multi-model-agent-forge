@@ -72,15 +72,14 @@ export async function dashboardProjects(
   // Awaiting-human: component_section (ai && !human && !forced) → component → stage → project.
   const awaitingRows = await db
     .select({ projectId: stage.projectId, n: sql<number>`count(*)::int` })
-    .from(componentSection)
-    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .from(component)
     .innerJoin(stage, eq(component.stageId, stage.id))
     .where(
       and(
         inArray(stage.projectId, ids),
-        eq(componentSection.aiSatisfied, true),
-        eq(componentSection.humanSatisfied, false),
-        eq(componentSection.forced, false),
+        eq(component.aiSatisfied, true),
+        eq(component.humanSatisfied, false),
+        eq(component.forced, false),
       ),
     )
     .groupBy(stage.projectId);

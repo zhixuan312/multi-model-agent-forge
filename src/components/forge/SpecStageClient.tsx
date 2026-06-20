@@ -186,7 +186,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
   );
   const needsAutoDraft = components.length > 0 && components.some(
-    (c) => c.sections.some((s) => s.status === 'gathering' && !s.draftMd),
+    (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
   );
   const [autoDrafting, setAutoDrafting] = useState(
     () => phase === 'craft' && needsAutoDraft,
@@ -661,12 +661,12 @@ function TemplateRow({
 
 interface DisplayState { label: string; cls: string }
 
-function componentDisplayState(c: ComponentView, hasQuestions?: boolean): DisplayState {
+function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
-    return hasQuestions
-      ? { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' }
-      : { label: 'Ready', cls: 'bg-accent-tint text-accent' };
+    return c.aiSatisfied
+      ? { label: 'Ready', cls: 'bg-accent-tint text-accent' }
+      : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
   }
   return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
 }
@@ -1216,7 +1216,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
-                displayState={componentDisplayState(c, (collab[c.id]?.discussion ?? []).some((m) => m.authorId === 'forge' && m.body.includes('❓')))}
+                displayState={componentDisplayState(c)}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');

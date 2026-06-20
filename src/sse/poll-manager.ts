@@ -31,7 +31,7 @@ import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registr
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;
-export const POLL_HARD_TIMEOUT_MS = 15 * 60_000;
+export const POLL_HARD_TIMEOUT_MS = 30 * 60_000;
 const JITTER = 0.2;
 
 /** Pure backoff for a transient-error attempt (0-indexed): min(2s·2^n, 30s)±20%. */

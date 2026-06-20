@@ -124,11 +124,11 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
 }
 
 /** The next monotonic persisted pass_no for a project's spec audits (`max+1`). */
-export async function nextPassNo(db: Db, projectId: string): Promise<number> {
+export async function nextPassNo(db: Db, projectId: string, scope: 'spec' | 'plan' = 'spec'): Promise<number> {
   const [row] = await db
     .select({ m: sql<number>`coalesce(max(${auditPass.passNo}), 0)` })
     .from(auditPass)
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')));
+    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, scope)));
   return (row?.m ?? 0) + 1;
 }
 
@@ -232,8 +232,8 @@ export interface AuditPassView {
   applied: boolean;
 }
 
-/** The full spec audit-pass history for a project, oldest-first. */
-export async function auditPassHistory(db: Db, projectId: string): Promise<AuditPassView[]> {
+/** The full audit-pass history for a project+scope, oldest-first. */
+export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' | 'plan' = 'spec'): Promise<AuditPassView[]> {
   const dbi = db ?? getDb();
   const rows = await dbi
     .select({
@@ -245,7 +245,7 @@ export async function auditPassHistory(db: Db, projectId: string): Promise<Audit
     })
     .from(auditPass)
     .leftJoin(mmaBatch, eq(auditPass.mmaBatchId, mmaBatch.id))
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')))
+    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, scope)))
     .orderBy(asc(auditPass.passNo));
 
   // Check if any completed spec-audit-apply batches exist for this project
@@ -254,7 +254,7 @@ export async function auditPassHistory(db: Db, projectId: string): Promise<Audit
     .from(mmaBatch)
     .where(and(
       eq(mmaBatch.projectId, projectId),
-      eq(mmaBatch.handler, 'spec-audit-apply'),
+      eq(mmaBatch.handler, scope === 'plan' ? 'plan-audit-apply' : 'spec-audit-apply'),
       eq(mmaBatch.status, 'done'),
     ))
     .orderBy(desc(mmaBatch.terminalAt))

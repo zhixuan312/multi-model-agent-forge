@@ -14,7 +14,7 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
     isWrite: true,
     dependsOn: over.dependsOn ?? null,
     orderIndex: over.orderIndex ?? seq++,
-    reviewPolicy: 'full',
+    reviewPolicy: 'reviewed',
     status: 'queued',
     branch: null,
     commitSha: null,

@@ -410,7 +410,7 @@ export class MmaClient {
     input: {
       filePaths: [string];
       taskDescriptors: string[];
-      perTaskReviewPolicy?: Record<string, 'full' | 'quality_only' | 'diff_only' | 'none'>;
+      perTaskReviewPolicy?: Record<string, 'reviewed' | 'none'>;
       contextBlockIds?: string[];
     },
   ): Promise<{ batchId: string }> {

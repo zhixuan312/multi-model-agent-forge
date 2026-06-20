@@ -124,9 +124,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     .orderBy(artifact.version)
     .limit(1);
 
-  // Load audit history (scope='plan')
-  const history = await auditPassHistory(dbi, projectId);
-  const planHistory = history.filter((h) => h.findings.length >= 0);
+  const planHistory = await auditPassHistory(dbi, projectId, 'plan');
 
   return {
     phases,

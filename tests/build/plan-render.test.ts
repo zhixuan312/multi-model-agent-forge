@@ -17,8 +17,8 @@ function draft(tasks: PlanDraft['tasks']): PlanDraft {
 describe('plan-render: validateAndResolve', () => {
   it('decomposes one target_repo_id per task', () => {
     const d = draft([
-      { title: 'Task 1: A', detail: 'do A', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
-      { title: 'Task 2: B', detail: 'do B', targetRepoId: REPO_B, dependsOn: [], reviewPolicy: 'full' },
+      { title: 'Task 1: A', detail: 'do A', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
+      { title: 'Task 2: B', detail: 'do B', targetRepoId: REPO_B, dependsOn: [], reviewPolicy: 'reviewed' },
     ]);
     const resolved = validateAndResolve(d, new Set([REPO_A, REPO_B]));
     expect(resolved).toHaveLength(2);
@@ -28,15 +28,15 @@ describe('plan-render: validateAndResolve', () => {
 
   it('wires a cross-repo unit as two tasks via depends_on', () => {
     const d = draft([
-      { title: 'Lib change', detail: 'lib', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
-      { title: 'Consumer change', detail: 'consume', targetRepoId: REPO_B, dependsOn: ['Lib change'], reviewPolicy: 'full' },
+      { title: 'Lib change', detail: 'lib', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
+      { title: 'Consumer change', detail: 'consume', targetRepoId: REPO_B, dependsOn: ['Lib change'], reviewPolicy: 'reviewed' },
     ]);
     const resolved = validateAndResolve(d, new Set([REPO_A, REPO_B]));
     expect(resolved[1].dependsOnTitles).toEqual(['Lib change']);
   });
 
   it('rejects an unknown targetRepoId', () => {
-    const d = draft([{ title: 'X', detail: 'x', targetRepoId: 'nope', dependsOn: [], reviewPolicy: 'full' }]);
+    const d = draft([{ title: 'X', detail: 'x', targetRepoId: 'nope', dependsOn: [], reviewPolicy: 'reviewed' }]);
     expect(() => validateAndResolve(d, new Set([REPO_A])))
       .toThrowError(expect.objectContaining({ reason: 'unknown_repo' }));
   });
@@ -48,8 +48,8 @@ describe('plan-render: validateAndResolve', () => {
 
   it('rejects a dependency cycle', () => {
     const d = draft([
-      { title: 'A', detail: 'a', targetRepoId: REPO_A, dependsOn: ['B'], reviewPolicy: 'full' },
-      { title: 'B', detail: 'b', targetRepoId: REPO_A, dependsOn: ['A'], reviewPolicy: 'full' },
+      { title: 'A', detail: 'a', targetRepoId: REPO_A, dependsOn: ['B'], reviewPolicy: 'reviewed' },
+      { title: 'B', detail: 'b', targetRepoId: REPO_A, dependsOn: ['A'], reviewPolicy: 'reviewed' },
     ]);
     expect(() => validateAndResolve(d, new Set([REPO_A])))
       .toThrowError(expect.objectContaining({ reason: 'dep_cycle' }));
@@ -57,8 +57,8 @@ describe('plan-render: validateAndResolve', () => {
 
   it('rejects duplicate titles (ATX headings must be unique)', () => {
     const d = draft([
-      { title: 'Same', detail: 'a', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
-      { title: 'Same', detail: 'b', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
+      { title: 'Same', detail: 'a', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
+      { title: 'Same', detail: 'b', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
     ]);
     expect(() => validateAndResolve(d, new Set([REPO_A])))
       .toThrowError(expect.objectContaining({ reason: 'duplicate_title' }));
@@ -76,8 +76,8 @@ describe('plan-render: renderRepoPlan', () => {
   it('emits each title as a verbatim, unique ATX heading that round-trips', () => {
     const resolved = validateAndResolve(
       draft([
-        { title: 'Task 1: Add cache', detail: 'cache it', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
-        { title: 'Task 2: Wire it', detail: 'wire it', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'full' },
+        { title: 'Task 1: Add cache', detail: 'cache it', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
+        { title: 'Task 2: Wire it', detail: 'wire it', targetRepoId: REPO_A, dependsOn: [], reviewPolicy: 'reviewed' },
       ]),
       new Set([REPO_A]),
     );

@@ -39,7 +39,7 @@ export const planTask = forge.table(
     isWrite: boolean('is_write').notNull().default(true),
     dependsOn: uuid('depends_on').array(), // other plan_task.id[]
     orderIndex: integer('order_index').notNull(),
-    reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('full'),
+    reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('reviewed'),
     status: text('status', { enum: BUILD_TASK_STATUS }).notNull().default('queued'),
     branch: text('branch'), // the prepared per-run branch forge/<run>/<repo>
     commitSha: text('commit_sha'), // the MMA worker commit SHA (envelope.structuredReport.commitSha)

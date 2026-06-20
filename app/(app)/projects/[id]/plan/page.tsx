@@ -30,11 +30,17 @@ export default async function PlanStagePage({ params }: { params: Promise<{ id: 
     .limit(1);
   if (!proj) notFound();
 
+  // Activate the plan stage on first visit
+  const { stage } = await import('@/db/schema/projects');
+  const { and, eq: deq } = await import('drizzle-orm');
+  await db.update(stage).set({ status: 'active' }).where(and(deq(stage.projectId, id), deq(stage.kind, 'plan'), deq(stage.status, 'pending')));
+
   const planView = await loadPlanView(db, id);
   const mmaReady = readMmaBearer() !== null;
   const voiceEnabled = await isVoiceEnabled({ db });
   const pendingAuthor = await findInflight(db, id, 'plan-author');
   const pendingAudit = await findInflight(db, id, 'plan-audit');
+  const pendingApply = await findInflight(db, id, 'plan-audit-apply');
 
   return (
     <PlanStageClient
@@ -52,9 +58,11 @@ export default async function PlanStagePage({ params }: { params: Promise<{ id: 
         evidence: f.evidence,
         suggestion: f.suggestion,
       })))}
+      auditApplied={planView.auditHistory.map((h) => h.applied)}
       voiceEnabled={voiceEnabled}
       pendingAuthor={pendingAuthor}
       pendingAudit={pendingAudit}
+      pendingApply={pendingApply}
     />
   );
 }

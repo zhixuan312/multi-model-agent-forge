@@ -70,6 +70,8 @@ interface ExploreStageClientProps {
   initialArtifact: { id: string; version: number; bodyMd: string } | null;
   repoOptions: { id: string; name: string }[];
   voiceEnabled: boolean;
+  canMutate?: boolean;
+  lockedReason?: string;
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -410,7 +412,7 @@ function IdleStage() {
           </Title>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
             Tell Forge everything you know in the brain-dump on the right, then press{' '}
-            <span className="font-medium text-ink">Analyze sources</span>. Forge proposes an investigation · research ·
+            <span className="font-medium text-ink">Run analysis</span>. Forge proposes an investigation · research ·
             recall fan-out right here — you run it, then synthesize one grounded brief.
           </p>
         </div>
@@ -461,7 +463,7 @@ function RunStage(props: {
 const EXPLORE_NOTE = `### How exploration works
 
 - **Brain-dump** — tell Forge everything you know in the text area
-- **Analyze sources** — Forge proposes a fan-out of investigation, research, and journal recall tasks
+- **Run analysis** — Forge proposes a fan-out of investigation, research, and journal recall tasks
 - **Run** — agents investigate the codebase, research the web, and recall past decisions
 - **Synthesize** — one grounded brief for the Spec stage
 

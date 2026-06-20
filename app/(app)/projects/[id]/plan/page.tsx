@@ -43,6 +43,9 @@ export default async function PlanStagePage({ params }: { params: Promise<{ id: 
   const pendingAudit = await findInflight(db, id, 'plan-audit');
   const pendingApply = await findInflight(db, id, 'plan-audit-apply');
 
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
+
   return (
     <PlanStageClient
       projectId={id}

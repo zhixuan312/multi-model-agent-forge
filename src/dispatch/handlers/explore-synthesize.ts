@@ -8,17 +8,11 @@ import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schem
 import { gapMarker } from '@/exploration/synthesize';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
-import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
-function extractResponseText(envelope: unknown): string {
-  const env = envelope as { structuredReport?: { summary?: string } };
-  const summary = env?.structuredReport?.summary ?? '';
-  if (summary) return summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-  throw new Error('No parseable response in MMA envelope');
-}
 
 async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractResponseText(envelope);
+  const raw = extractJsonFromEnvelope(envelope);
   const synthesis = SynthesisSchema.parse(JSON.parse(raw));
   const request = ctx.request as { actorId: string };
 

@@ -1,37 +1,60 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
-import { USE_MOCK } from '@/mock/config';
-import { mockPlan } from '@/mock/domains/projects/plan';
+import { getDb } from '@/db/client';
+import { project } from '@/db/schema/projects';
+import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { readMmaBearer } from '@/mma/client-config';
+import { loadPlanView } from '@/plan/plan-core';
+import { findInflight } from '@/dispatch/dispatch-helpers';
+import { isVoiceEnabled } from '@/config/connections-core';
 import { PlanStageClient } from '@/components/forge/PlanStageClient';
 
-/**
- * Plan stage (DESIGN group) — the implementation plan is written straight from
- * the spec in the writing-plans-skill shape (phases of bite-sized TDD tasks for
- * engineers): Decompose → Detail → Validate, then "Lock the plan" opens BUILD.
- * Automated mode (offered once the spec is done) can drive the whole loop.
- */
 export default async function PlanStagePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
 
-  if (USE_MOCK) {
-    const m = mockPlan(id);
-    return (
-      <PlanStageClient
-        projectId={id}
-        projectName={m.projectName}
-        intentMd={m.intentMd}
-        phase={m.phase}
-        mmaReady={m.mmaReady}
-        phases={m.phases}
-        planMd={m.planMd}
-        auditRounds={m.auditRounds}
-      />
-    );
+  try {
+    await assertProjectReadable(id, { id: me.id });
+  } catch (e) {
+    if (e instanceof ProjectAccessError) notFound();
+    throw e;
   }
 
-  // Real backend wiring lands with the build-stage work; for now the planning UI
-  // is mock-driven (the legacy build monitor lives at /build).
-  redirect(`/projects/${id}/build`);
+  const db = getDb();
+  const [proj] = await db
+    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1);
+  if (!proj) notFound();
+
+  const planView = await loadPlanView(db, id);
+  const mmaReady = readMmaBearer() !== null;
+  const voiceEnabled = await isVoiceEnabled({ db });
+  const pendingAuthor = await findInflight(db, id, 'plan-author');
+  const pendingAudit = await findInflight(db, id, 'plan-audit');
+
+  return (
+    <PlanStageClient
+      projectId={id}
+      projectName={proj.name}
+      intentMd={proj.intentMd ?? ''}
+      phase={proj.phase}
+      mmaReady={mmaReady}
+      phases={planView.phases}
+      planMd={planView.planMd ?? ''}
+      auditRounds={planView.auditHistory.map((h) => h.findings.map((f) => ({
+        severity: f.severity,
+        category: f.category,
+        claim: f.claim,
+        evidence: f.evidence,
+        suggestion: f.suggestion,
+      })))}
+      voiceEnabled={voiceEnabled}
+      pendingAuthor={pendingAuthor}
+      pendingAudit={pendingAudit}
+    />
+  );
 }

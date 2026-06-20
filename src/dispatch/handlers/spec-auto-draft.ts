@@ -3,23 +3,12 @@ import type { Db } from '@/db/client';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { project } from '@/db/schema/projects';
 import { FullSpecDraftSchema } from '@/spec/schemas';
-import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import type { OutlineEntry } from '@/spec/auto-draft';
 
-function extractResponseText(envelope: unknown): string {
-  const env = envelope as { structuredReport?: { summary?: string }; results?: Array<{ report?: { reviewer?: { summary?: string } } }> };
-  const summary = env?.structuredReport?.summary ?? '';
-  if (summary) return summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-  const reviewer = env?.results?.[0]?.report?.reviewer;
-  if (reviewer && typeof reviewer === 'object' && 'summary' in reviewer) {
-    const rs = (reviewer as { summary?: string }).summary ?? '';
-    return rs.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-  }
-  throw new Error('No parseable response in MMA envelope');
-}
 
 async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractResponseText(envelope);
+  const raw = extractJsonFromEnvelope(envelope);
   const parsed = FullSpecDraftSchema.parse(JSON.parse(raw));
   const request = ctx.request as { outline?: OutlineEntry[] };
   const outline = request.outline ?? [];

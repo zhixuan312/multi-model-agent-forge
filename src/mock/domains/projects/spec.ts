@@ -193,12 +193,7 @@ function buildComponents(kinds: ComponentKind[]): ComponentView[] {
       id: `mock-sec-${t.kind}-${s.key}`,
       key: s.key,
       label: s.label,
-      status: 'gathering' as ComponentStatus,
-      aiSatisfied: false,
-      humanSatisfied: false,
-      forced: false,
       draftMd: null,
-      stale: false,
       orderIndex: si,
     }));
     return {
@@ -206,18 +201,22 @@ function buildComponents(kinds: ComponentKind[]): ComponentView[] {
       kind: t.kind,
       label: t.label,
       primaryRoles: t.primaryRoles,
-      status: rollUp(sections),
+      status: 'gathering' as ComponentStatus,
+      aiSatisfied: false,
+      humanSatisfied: false,
+      forced: false,
+      stale: false,
       orderIndex: ci,
       sections,
     };
   });
 }
 
-/** Component status = the least-advanced section (matches componentStatusRank). */
-function rollUp(sections: SectionView[]): ComponentStatus {
+/** @deprecated — status is now on the component directly. */
+function rollUp(sections: unknown[]): ComponentStatus {
   const order: ComponentStatus[] = ['gathering', 'satisfied', 'drafted', 'approved'];
   let min = 3;
-  for (const s of sections) min = Math.min(min, order.indexOf(s.status));
+  for (const s of sections) min = Math.min(min, order.indexOf((s as Record<string, string>).status as ComponentStatus));
   return order[min] ?? 'gathering';
 }
 
@@ -286,7 +285,7 @@ export function confirmMock(projectId: string, intentMd: string, kinds: Componen
 }
 
 interface SectionRepaint {
-  section: Pick<SectionView, 'status' | 'aiSatisfied' | 'humanSatisfied' | 'forced' | 'draftMd' | 'stale'>;
+  section: Record<string, unknown>;
   qaMessages: QaMessageView[];
   component: { status: ComponentStatus };
 }
@@ -304,12 +303,12 @@ function repaint(st: SpecState, sectionId: string): SectionRepaint {
   hit.comp.status = rollUp(hit.comp.sections);
   return {
     section: {
-      status: hit.sec.status,
-      aiSatisfied: hit.sec.aiSatisfied,
-      humanSatisfied: hit.sec.humanSatisfied,
-      forced: hit.sec.forced,
+      status: (hit.sec as any).status,
+      aiSatisfied: (hit.sec as any).aiSatisfied,
+      humanSatisfied: (hit.sec as any).humanSatisfied,
+      forced: (hit.sec as any).forced,
       draftMd: hit.sec.draftMd,
-      stale: hit.sec.stale,
+      stale: (hit.sec as any).stale,
     },
     qaMessages: st.messages[sectionId] ?? [],
     component: { status: hit.comp.status },
@@ -325,8 +324,8 @@ export function answerMock(projectId: string, sectionId: string, answerMd: strin
   msgs.push({ id: `m-${sectionId}-${msgs.length}`, sender: 'member', bodyMd: answerMd });
   // After two member answers the AI is satisfied and proposes a draft.
   if (turn >= 1) {
-    hit.sec.aiSatisfied = true;
-    hit.sec.status = 'drafted';
+    (hit.sec as any).aiSatisfied = true;
+    (hit.sec as any).status = 'drafted';
     hit.sec.draftMd = `Based on our discussion: ${answerMd.slice(0, 160)}${answerMd.length > 160 ? '…' : ''}`;
     msgs.push({
       id: `f-${sectionId}-${msgs.length}`,
@@ -334,7 +333,7 @@ export function answerMock(projectId: string, sectionId: string, answerMd: strin
       bodyMd: 'Thanks — I have enough to draft this section. Review the draft below and nod when it looks right.',
     });
   } else {
-    hit.sec.status = 'satisfied';
+    (hit.sec as any).status = 'satisfied';
     msgs.push({
       id: `f-${sectionId}-${msgs.length}`,
       sender: 'forge',
@@ -348,8 +347,8 @@ export function answerMock(projectId: string, sectionId: string, answerMd: strin
 export function nodMock(projectId: string, sectionId: string): SectionRepaint {
   const st = ensure(projectId);
   const hit = find(st, sectionId)!;
-  hit.sec.humanSatisfied = true;
-  hit.sec.status = 'approved';
+  (hit.sec as any).humanSatisfied = true;
+  (hit.sec as any).status = 'approved';
   if (!hit.sec.draftMd) hit.sec.draftMd = `_(approved — ${hit.sec.label})_`;
   return repaint(st, sectionId);
 }
@@ -357,9 +356,9 @@ export function nodMock(projectId: string, sectionId: string): SectionRepaint {
 export function forceMock(projectId: string, sectionId: string): SectionRepaint {
   const st = ensure(projectId);
   const hit = find(st, sectionId)!;
-  hit.sec.forced = true;
-  hit.sec.humanSatisfied = true;
-  hit.sec.status = 'approved';
+  (hit.sec as any).forced = true;
+  (hit.sec as any).humanSatisfied = true;
+  (hit.sec as any).status = 'approved';
   if (!hit.sec.draftMd) hit.sec.draftMd = `_(force-advanced — ${hit.sec.label})_`;
   return repaint(st, sectionId);
 }

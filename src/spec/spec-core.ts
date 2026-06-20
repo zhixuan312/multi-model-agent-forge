@@ -65,12 +65,7 @@ export interface SectionView {
   id: string;
   key: string;
   label: string;
-  status: ComponentStatus;
-  aiSatisfied: boolean;
-  humanSatisfied: boolean;
-  forced: boolean;
   draftMd: string | null;
-  stale: boolean;
   orderIndex: number;
 }
 
@@ -80,6 +75,10 @@ export interface ComponentView {
   label: string;
   primaryRoles: string[];
   status: ComponentStatus;
+  aiSatisfied: boolean;
+  humanSatisfied: boolean;
+  forced: boolean;
+  stale: boolean;
   orderIndex: number;
   sections: SectionView[];
 }
@@ -106,17 +105,16 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
       label: templateForKind(c.kind as ComponentKind).label,
       primaryRoles: c.primaryRoles,
       status: c.status as ComponentStatus,
+      aiSatisfied: c.aiSatisfied,
+      humanSatisfied: c.humanSatisfied,
+      forced: c.forced,
+      stale: c.stale,
       orderIndex: c.orderIndex,
       sections: secs.map((s) => ({
         id: s.id,
         key: s.key,
         label: s.label,
-        status: s.status as ComponentStatus,
-        aiSatisfied: s.aiSatisfied,
-        humanSatisfied: s.humanSatisfied,
-        forced: s.forced,
         draftMd: s.draftMd,
-        stale: s.stale,
         orderIndex: s.orderIndex,
       })),
     });
@@ -126,43 +124,40 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
 
 /** The repaint payload returned by the answer/force/nod handlers (F29). */
 export interface SectionRepaint {
-  section: {
+  component: {
     status: ComponentStatus;
     aiSatisfied: boolean;
     humanSatisfied: boolean;
     forced: boolean;
-    draftMd: string | null;
     stale: boolean;
   };
   qaMessages: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>;
-  component: { status: ComponentStatus };
 }
 
-/** Build the repaint payload for a section after a mutation. */
+/** Build the repaint payload for a component after a mutation. */
 export async function buildSectionRepaint(db: Db, sectionId: string): Promise<SectionRepaint> {
   const dbi = db ?? getDb();
   const [s] = await dbi
-    .select()
+    .select({ componentId: componentSection.componentId })
     .from(componentSection)
     .where(eq(componentSection.id, sectionId))
     .limit(1);
   if (!s) throw new Error(`No component_section '${sectionId}'.`);
   const [c] = await dbi
-    .select({ status: component.status })
+    .select()
     .from(component)
     .where(eq(component.id, s.componentId))
     .limit(1);
+  if (!c) throw new Error(`No component '${s.componentId}'.`);
   return {
-    section: {
-      status: s.status as ComponentStatus,
-      aiSatisfied: s.aiSatisfied,
-      humanSatisfied: s.humanSatisfied,
-      forced: s.forced,
-      draftMd: s.draftMd,
-      stale: s.stale,
+    component: {
+      status: c.status as ComponentStatus,
+      aiSatisfied: c.aiSatisfied,
+      humanSatisfied: c.humanSatisfied,
+      forced: c.forced,
+      stale: c.stale,
     },
     qaMessages: await loadComponentMessages(dbi, s.componentId),
-    component: { status: (c?.status ?? 'gathering') as ComponentStatus },
   };
 }
 

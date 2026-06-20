@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { readMmaBearer } from '@/mma/client-config';
-import { ensureSpecStage, loadOutline } from '@/spec/spec-core';
+import { ensureSpecStage, loadOutline, loadAllMessages } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
@@ -46,6 +46,7 @@ export default async function SpecStagePage({
   const stage = await ensureSpecStage(db, id);
   const components = await loadOutline(db, stage.id);
   const latestSpec = await getLatestSpec(db, id);
+  const initialMessages = await loadAllMessages(db, stage.id);
 
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.
@@ -69,6 +70,7 @@ export default async function SpecStagePage({
       initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict }))}
       initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      initialMessages={initialMessages}
     />
   );
 }

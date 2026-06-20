@@ -104,6 +104,8 @@ interface SpecStageClientProps {
   projectMembers?: MemberRef[];
   /** Mock-only: per-component seeded participants + group-chat (by kind). */
   craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
+  /** Persisted qa_messages per sectionId — loaded from DB on page render. */
+  initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -309,6 +311,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
           craftCollab={props.craftCollab ?? {}}
+          initialMessages={props.initialMessages ?? {}}
           onPatch={(id, patch) =>
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
@@ -719,6 +722,7 @@ function CraftStage({
   currentMember,
   projectMembers,
   craftCollab,
+  initialMessages,
   onPatch,
   onEditOutline,
   onConsolidate,
@@ -733,6 +737,7 @@ function CraftStage({
   currentMember: MemberRef;
   projectMembers: MemberRef[];
   craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
+  initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
   onEditOutline: () => void;
   onConsolidate: () => void;
@@ -769,12 +774,20 @@ function CraftStage({
     const out: Record<string, UnitCollab> = {};
     for (const c of components) {
       const seed = craftCollab[c.kind];
+      // Load persisted messages from DB (keyed by first section id)
+      const firstSectionId = c.sections[0]?.id;
+      const dbMessages = firstSectionId ? (initialMessages[firstSectionId] ?? []) : [];
+      const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
+        id: m.id,
+        authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
+        body: m.bodyMd,
+      }));
       out[c.id] = seed
         ? {
             participants: seed.participants.map((p) => ({ ...p })),
-            discussion: seed.discussion.map((d) => ({ ...d })),
+            discussion: [...seed.discussion.map((d) => ({ ...d })), ...dbDiscussion],
           }
-        : { participants: [], discussion: [] };
+        : { participants: [], discussion: dbDiscussion };
     }
     return out;
   });
@@ -1016,6 +1029,14 @@ function CraftStage({
 
   function backToEdit(): void {
     if (readOnly || !active) return;
+    // Revoke approval if approved, go back to drafted
+    if (active.status === 'approved') {
+      onPatch(active.id, { status: 'drafted' });
+      patchCollab((u) => ({
+        ...u,
+        participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
+      }));
+    }
     setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
     setManuallyEditing((prev) => new Set(prev).add(active.id));
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -1116,7 +1137,7 @@ function CraftStage({
                             </div>
                           ) : (
                             <p className="text-sm leading-relaxed text-ink">
-                              <span className="mr-1.5">✅</span>This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
+                              <span className="mr-1.5">✅</span>This section looks complete. You can approve it, or tell me what to change.
                             </p>
                           )}
                         </div>
@@ -1167,7 +1188,7 @@ function CraftStage({
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<ChevronLeft />}>
-                Back to edit
+                {approved ? 'Revoke & edit' : 'Back to edit'}
               </Button>
               <Button onClick={approve} disabled={readOnly || iApproved} leftIcon={<Check />}>
                 {iApproved ? 'Approved by you' : 'Approve'}

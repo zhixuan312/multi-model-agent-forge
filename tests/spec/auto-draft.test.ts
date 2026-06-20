@@ -86,6 +86,8 @@ describe('refineSection', () => {
         { id: 'comp-1', stageId: 'stage-1', kind: 'context', status: 'drafted' },
       ],
       'select:project_stage': [{ projectId: 'proj-1' }],
+      'select:project_qa_message': [{ maxSeq: 0 }],
+      'insert:project_qa_message': [],
       'update:project_component_section': [],
       'update:project_component': [],
       'insert:ops_mma_batch': [],

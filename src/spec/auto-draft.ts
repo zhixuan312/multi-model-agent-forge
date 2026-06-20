@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
-import { component, componentSection } from '@/db/schema/spec';
+import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import type { ComponentKind } from '@/db/enums';
 import { AnthropicClient, type CallUsage } from '@/anthropic/client';
 import {
@@ -170,6 +170,18 @@ export async function autoDraftAll(
       })
       .where(eq(componentSection.id, match.sectionId));
     await recomputeComponentStatus(db, match.componentId);
+
+    // Persist the initial Forge message (questions or "looks complete")
+    const forgeBody = drafted.questions.length > 0
+      ? drafted.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')
+      : '✅ This section looks complete. You can approve it, or tell me what to change.';
+    await db.insert(qaMessage).values({
+      sectionId: match.sectionId,
+      seq: 0,
+      sender: 'forge',
+      bodyMd: forgeBody,
+      meta: { autoDraft: true, questions: drafted.questions },
+    });
   }
 
   // Bump project updatedAt
@@ -251,6 +263,20 @@ export async function refineSection(
     .where(eq(component.id, section.componentId))
     .limit(1);
 
+  // Persist user message
+  const [{ maxSeq }] = await db
+    .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
+    .from(qaMessage)
+    .where(eq(qaMessage.sectionId, deps.sectionId));
+  let seq = (maxSeq ?? -1) + 1;
+  await db.insert(qaMessage).values({
+    sectionId: deps.sectionId,
+    seq,
+    sender: 'member',
+    bodyMd: deps.userAnswer,
+  });
+  seq++;
+
   const result = await deps.anthropic.parseWithUsage(SectionRefinementSchema, {
     system: buildRefinementSystem(tpl.label, section.label, secTpl?.prompt ?? ''),
     user: buildRefinementUser(section.draftMd ?? '', deps.userAnswer, deps.history),
@@ -271,6 +297,18 @@ export async function refineSection(
     })
     .where(eq(componentSection.id, deps.sectionId));
   await recomputeComponentStatus(db, section.componentId);
+
+  // Persist Forge reply
+  const forgeReply = aiSatisfied
+    ? '✅ Updated the draft with your feedback. I\'m satisfied with this section — press "Construct section" to review, then approve.'
+    : result.data.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n');
+  await db.insert(qaMessage).values({
+    sectionId: deps.sectionId,
+    seq,
+    sender: 'forge',
+    bodyMd: forgeReply,
+    meta: { questions: result.data.questions },
+  });
 
   if (stageRow?.projectId) {
     await recordOrchestratorUsage(stageRow.projectId, 'refineSection', result.usage, { db }).catch(() => {});

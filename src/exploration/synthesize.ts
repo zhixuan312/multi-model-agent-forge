@@ -55,6 +55,53 @@ export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', 
   return `(${label}${repoPart}: failed — findings unavailable)`;
 }
 
+export async function buildSynthesizeRequest(
+  projectId: string,
+  deps: { db?: Db } = {},
+): Promise<{ system: string; user: string } | { error: string }> {
+  const db = deps.db ?? getDb();
+
+  const rows = await db
+    .select({
+      taskId: explorationTask.id,
+      kind: explorationTask.kind,
+      prompt: explorationTask.prompt,
+      route: mmaBatch.route,
+      batchStatus: mmaBatch.status,
+      result: mmaBatch.result,
+      repoName: repo.name,
+    })
+    .from(explorationTask)
+    .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
+    .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
+    .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'recorded')));
+
+  if (rows.length === 0) return { error: 'No recorded tasks to synthesize.' };
+
+  const successes = rows.filter((r) => r.batchStatus === 'done');
+  const failures = rows.filter((r) => r.batchStatus === 'failed');
+
+  const recordsBlock = successes
+    .map((r) => {
+      const env = (r.result ?? {}) as { headline?: string; structuredReport?: unknown };
+      return `## ${r.route} — ${r.prompt}\n${env.headline ?? ''}\n${JSON.stringify(env.structuredReport ?? {})}`;
+    })
+    .join('\n\n');
+
+  const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
+
+  return {
+    system: SYNTH_SYSTEM,
+    user: [
+      '# Records',
+      recordsBlock || '(no successful records yet)',
+      '',
+      '# Failed tasks (you MUST mention each verbatim in Findings)',
+      failureMarkers.join('\n') || '(none)',
+    ].join('\n'),
+  };
+}
+
 export async function synthesize(
   projectId: string,
   actor: { id: string } | null,

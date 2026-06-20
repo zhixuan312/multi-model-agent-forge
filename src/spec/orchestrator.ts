@@ -39,7 +39,7 @@ export const FORCED_DRAFT_PLACEHOLDER =
 
 export interface OrchestratorDeps {
   db?: Db;
-  anthropic: AnthropicClient;
+  anthropic?: AnthropicClient;
 }
 
 /** Optional grounding the orchestrator passes to the model (intent + exploration). */
@@ -201,7 +201,7 @@ async function onAiSatisfied(deps: OrchestratorDeps, ctx: SectionContext): Promi
   let draftMd = ctx.section.draftMd;
   if (draftMd == null || ctx.component.stale) {
     const groundCtx = await ground(db, ctx, 'draftSection');
-    const out: DraftSection = await deps.anthropic.parse(DraftSectionSchema, groundCtx, {
+    const out: DraftSection = await deps.anthropic!.parse(DraftSectionSchema, groundCtx, {
       retryOnMaxTokens: true,
     });
     draftMd = out.draftMd;
@@ -234,7 +234,7 @@ export async function enterSection(deps: OrchestratorDeps, sectionId: string): P
   if (transcript.length > 0) return; // already in flight — nothing to do on entry
 
   const groundCtx = await ground(db, ctx, 'generateQuestions');
-  const g: GenerateQuestions = await deps.anthropic.parse(GenerateQuestionsSchema, groundCtx);
+  const g: GenerateQuestions = await deps.anthropic!.parse(GenerateQuestionsSchema, groundCtx);
 
   if (g.questions.length === 0 && g.aiSatisfiedWithoutAnswers) {
     // ZERO-QUESTION fast path → draft immediately, status 'drafted'.
@@ -284,7 +284,7 @@ export async function onMemberAnswer(
   );
 
   const groundCtx = await ground(db, ctx, 'assessAnswers');
-  const a: AssessAnswers = await deps.anthropic.parse(AssessAnswersSchema, groundCtx, {
+  const a: AssessAnswers = await deps.anthropic!.parse(AssessAnswersSchema, groundCtx, {
     effort: 'medium',
   });
 
@@ -339,7 +339,7 @@ export async function forceAdvance(
   if (draftMd == null) {
     try {
       const groundCtx = await ground(db, ctx, 'draftSection');
-      const out: DraftSection = await deps.anthropic.parse(DraftSectionSchema, groundCtx, {
+      const out: DraftSection = await deps.anthropic!.parse(DraftSectionSchema, groundCtx, {
         retryOnMaxTokens: true,
       });
       draftMd = out.draftMd;

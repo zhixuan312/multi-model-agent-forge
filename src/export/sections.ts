@@ -107,8 +107,8 @@ interface RawSection {
   bodyMd: string;
 }
 
-/** Split a spec body on `## NN.` (F21). Throws on zero matches. */
-function splitSpec(bodyMd: string): RawSection[] {
+/** Split a spec body on `## NN.` (F21). Returns null if no numbered headings found. */
+function splitSpec(bodyMd: string): RawSection[] | null {
   const matches: { nn: string; title: string; start: number; headingEnd: number }[] = [];
   let m: RegExpExecArray | null;
   SPEC_HEADING_RE.lastIndex = 0;
@@ -120,7 +120,7 @@ function splitSpec(bodyMd: string): RawSection[] {
       headingEnd: SPEC_HEADING_RE.lastIndex,
     });
   }
-  if (matches.length === 0) throw new SpecHeadingContractError(bodyMd);
+  if (matches.length === 0) return null;
 
   return matches.map((cur, i) => {
     const end = i + 1 < matches.length ? matches[i + 1].start : bodyMd.length;
@@ -169,7 +169,7 @@ export function parseArtifactSections(
   kind: ParseArtifactKind,
   opts: ParseOptions = {},
 ): ParsedSection[] {
-  const raw = kind === 'spec' ? splitSpec(bodyMd) : splitGeneric(bodyMd);
+  const raw = kind === 'spec' ? (splitSpec(bodyMd) ?? splitGeneric(bodyMd)) : splitGeneric(bodyMd);
 
   const keep =
     kind === 'spec' && opts.includeComponents && opts.includeComponents.length > 0

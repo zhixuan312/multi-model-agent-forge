@@ -69,7 +69,7 @@ function applyMermaidMode(html: string, mermaidAsDiagram: boolean): string {
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&#x26;|&amp;/g, '&');
-      return `<pre class="mermaid">${esc(decoded)}</pre>`;
+      return `<pre class="mermaid">${decoded}</pre>`;
     },
   );
 }
@@ -84,10 +84,11 @@ function renderCover(
   ranges: TocRanges | undefined,
 ): string {
   const tocRows = sections
+    .filter((s) => s.title.length > 0)
     .map(
       (s) =>
         `<div class="toc-row"><span class="snum">${esc(s.nn)}</span><span class="toc-title">${esc(
-          s.title || projectName,
+          s.title,
         )}</span><span class="snum toc-page" data-toc="${esc(s.nn)}">${tocCell(s.nn, ranges)}</span></div>`,
     )
     .join('\n');
@@ -126,11 +127,13 @@ function renderSection(
   const titleText = s.title || '';
   const continuedLabel = titleText ? `${titleText} (continued)` : '(continued)';
 
-  const body = applyMermaidMode(s.html, mermaidAsDiagram);
+  // Strip the leading <h2> from the body if it matches the section title
+  // (the template renders its own <h2>, so the markdown-generated one would double up)
+  let body = applyMermaidMode(s.html, mermaidAsDiagram);
+  if (titleText) {
+    body = body.replace(new RegExp(`^\\s*<h2>[^<]*</h2>\\s*`, 'i'), '');
+  }
 
-  // A single-row table whose <thead> repeats on every printed page the section
-  // spans (the F8 carry-on header). The first page shows the full NN · Title
-  // header; the repeated thead shows the muted "Title (continued)" line.
   return `<table class="section" data-section="${esc(s.nn)}">
   <thead><tr><td>
     <div class="cont">${esc(continuedLabel)}</div>
@@ -226,6 +229,7 @@ export function renderArtifactHtml(input: TemplateInput): string {
     input.tocRanges,
   );
   const body = input.sections
+    .filter((s) => s.title.length > 0)
     .map((s) => renderSection(s, input.sectionHeaders, input.mermaidAsDiagram))
     .join('\n');
 

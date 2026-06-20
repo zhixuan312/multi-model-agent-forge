@@ -19,6 +19,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       cwd: 'cwd',
       batchId: 'batch_id',
       status: 'status',
+      handler: 'handler',
       request: 'request',
       result: 'result',
       dispatchedBy: 'dispatched_by',

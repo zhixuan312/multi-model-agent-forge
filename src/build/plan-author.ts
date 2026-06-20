@@ -35,7 +35,7 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
  * file (F12).
  */
 
-const SYSTEM_PROMPT = `You are the build-plan author for Forge, a software delivery harness.
+export const PLAN_AUTHOR_SYSTEM_PROMPT = `You are the build-plan author for Forge, a software delivery harness.
 Given a frozen technical spec and the set of repos in scope, produce an ordered list of implementation tasks.
 
 HARD RULES:
@@ -47,10 +47,10 @@ HARD RULES:
 
 export interface PlanAuthorDeps {
   db?: Db;
-  anthropic: AnthropicClient;
+  anthropic?: AnthropicClient;
   fs?: PlanFs;
   bus?: ProjectEventBus;
-  /** Inject a pre-built draft to bypass the LLM (tests). */
+  /** Inject a pre-built draft to bypass the LLM (tests + dispatch handler). */
   draftOverride?: PlanDraft;
 }
 
@@ -134,10 +134,11 @@ export async function authorPlan(
       const repoList = repos
         .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
         .join('\n');
+      if (!deps.anthropic) return fail(bus, projectId, 'No Anthropic client and no draft override.');
       rawDraft = await deps.anthropic.parse(PlanDraftSchema, {
         call: 'authorPlan',
         projectId,
-        system: SYSTEM_PROMPT,
+        system: PLAN_AUTHOR_SYSTEM_PROMPT,
         user: `Frozen spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
       });
     }

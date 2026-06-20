@@ -6,6 +6,8 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { dispatchRecall } from '@/journal/recall';
 import { logAction } from '@/observability/action-log';
 import { getDb } from '@/db/client';
+
+export const maxDuration = 600;
 import { mmaBatch } from '@/db/schema/mma';
 
 /**

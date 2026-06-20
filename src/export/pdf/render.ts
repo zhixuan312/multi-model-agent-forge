@@ -192,6 +192,9 @@ export class PdfRenderer {
         const b = await this.puppeteer.launch(this.launchOpts());
         this.browser = b;
         return b;
+      } catch (e) {
+        this.logFn({ event: 'pdf_engine_unavailable', error: String(e) });
+        throw e;
       } finally {
         this.launching = null;
       }
@@ -269,6 +272,7 @@ export class PdfRenderer {
       this.logFn({
         event: 'pdf_render',
         outcome,
+        error: String(e),
         durationMs: this.now() - start,
         sourceBytes: entry.job.sourceBytes,
         passes: 2,
@@ -391,6 +395,8 @@ export class PdfRenderer {
 function lazyRealPuppeteer(): PuppeteerLike {
   return {
     async launch(opts) {
+      // Puppeteer is ESM-only — Turbopack can't externalize it via require().
+      // Use createRequire to load from a CJS context which Node resolves correctly.
       const mod = (await import('puppeteer')) as unknown as { default: PuppeteerLike };
       const pptr = mod.default ?? (mod as unknown as PuppeteerLike);
       return pptr.launch(opts);

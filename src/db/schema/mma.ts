@@ -27,6 +27,7 @@ export const mmaBatch = forge.table(
     cwd: text('cwd').notNull(), // the dispatched ?cwd= — REQUIRED for EVERY route
     batchId: text('batch_id'), // MMA's returned batchId (for polling)
     status: text('status', { enum: MMA_STATUS }).notNull().default('dispatched'),
+    handler: text('handler'), // on-terminal handler key (e.g. 'spec-auto-draft')
     request: jsonb('request').notNull(), // the POST body
     result: jsonb('result'), // terminal 7-field envelope
     dispatchedBy: uuid('dispatched_by').references(() => member.id), // nullable: actor-less resumed dispatch

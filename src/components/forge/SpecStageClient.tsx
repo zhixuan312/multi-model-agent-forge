@@ -33,6 +33,7 @@ import { ForgeMark } from '@/components/forge/ForgeMark';
 import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { ForgeComposer } from '@/components/forge/ForgeComposer';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Avatar,
@@ -45,7 +46,6 @@ import {
   Badge,
   Banner,
   Input,
-  Textarea,
   Heading,
   Text,
   TextSm,
@@ -82,6 +82,8 @@ export interface AuditPassView {
   passNo: number;
   findingsCount: number;
   verdict: 'clean' | 'revised';
+  findings?: AuditFinding[];
+  applied?: boolean;
 }
 
 interface SpecStageClientProps {
@@ -106,6 +108,14 @@ interface SpecStageClientProps {
   craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
   /** Persisted qa_messages per sectionId — loaded from DB on page render. */
   initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  /** Whether OpenAI transcription key is configured — enables voice input. */
+  voiceEnabled?: boolean;
+  /** In-flight audit batch ID (from DB on page load). */
+  pendingAudit?: string | null;
+  /** In-flight auto-draft batch ID (from DB on page load). */
+  pendingAutoDraft?: string | null;
+  /** In-flight audit-apply batch ID (from DB on page load). */
+  pendingApply?: string | null;
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -196,20 +206,45 @@ export function SpecStageClient(props: SpecStageClientProps) {
   // Auto-trigger drafting when landing on craft with undrafted sections.
   useEffect(() => {
     if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
+    // If already pending from DB (navigated away and back), just show spinner
+    if (props.pendingAutoDraft) { setAutoDrafting(true); autoDraftFired.current = true; return; }
     autoDraftFired.current = true;
     setAutoDrafting(true);
     fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-      .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); return r.json(); })
-      .then((data: { error?: string }) => {
-        if (data.error) { setError(data.error); return; }
-        // Reload the page to get fresh components + messages from server
-        router.refresh();
-        window.location.reload();
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
-      .finally(() => setAutoDrafting(false));
+      .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); })
+      .catch((e) => { setError(e instanceof Error ? e.message : 'Auto-draft failed.'); setAutoDrafting(false); });
+    // SSE dispatch.done handler (below) triggers the reload
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, needsAutoDraft]);
+
+  // SSE listener for auto-draft + refine completion
+  useEffect(() => {
+    if (!autoDrafting && phase !== 'craft') return;
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && data.handler === 'spec-auto-draft') {
+          setAutoDrafting(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-auto-draft') {
+          setAutoDrafting(false);
+          setError(data.error ?? 'Auto-draft failed.');
+        }
+        if (data.type === 'dispatch.done' && data.handler === 'spec-refine') {
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-refine') {
+          setError(data.error ?? 'Refinement failed.');
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDrafting, phase, props.projectId]);
 
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
@@ -303,6 +338,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           projectMembers={props.projectMembers ?? []}
           craftCollab={props.craftCollab ?? {}}
           initialMessages={props.initialMessages ?? {}}
+          voiceEnabled={props.voiceEnabled ?? false}
           onPatch={(id, patch) =>
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
@@ -319,6 +355,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
           mmaReady={props.mmaReady}
           initialAuditHistory={props.initialAuditHistory}
           initialCanFreeze={props.initialCanFreeze}
+          voiceEnabled={props.voiceEnabled ?? false}
+          pendingApply={props.pendingApply}
           driving={auto === 'running'}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
@@ -702,6 +740,7 @@ function CraftStage({
   projectMembers,
   craftCollab,
   initialMessages,
+  voiceEnabled,
   onPatch,
   onEditOutline,
   onConsolidate,
@@ -716,6 +755,7 @@ function CraftStage({
   projectMembers: MemberRef[];
   craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
   initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  voiceEnabled: boolean;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
   onEditOutline: () => void;
   onConsolidate: () => void;
@@ -938,34 +978,9 @@ function CraftStage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userAnswer: text, history }),
       })
-        .then((r) => r.json())
-        .then((data: { refinement?: { draftMd: string; questions: string[] } }) => {
-          if (data.refinement) {
-            // Update the draft + aiSatisfied from the refine response
-            const aiOk = data.refinement.questions.length === 0;
-            onPatch(active.id, {
-              aiSatisfied: aiOk,
-              sections: active.sections.map((s, i) =>
-                i === 0 ? { ...s, draftMd: data.refinement!.draftMd } : s,
-              ),
-            });
-            const forgeReply = aiOk
-              ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
-              : `❓ A few more things to clarify:\n\n${data.refinement.questions.map((q) => `• ${q}`).join('\n\n')}`;
-            setSectionHistory((prev) => ({
-              ...prev,
-              [active.id]: [...(prev[active.id] ?? []), { role: 'forge', text: forgeReply }],
-            }));
-            patchCollab((u) => ({
-              ...u,
-              discussion: [
-                ...u.discussion,
-                { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: forgeReply },
-              ],
-            }));
-            // Stay in dialogue mode — remove constructed draft so user stays in conversation
-            setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
-          }
+        .then((r) => {
+          if (!r.ok) throw new Error('Refine failed');
+          // Route returns 202 — SSE dispatch.done handler (in parent) will reload the page
         })
         .catch(() => {
           patchCollab((u) => ({
@@ -1168,30 +1183,19 @@ function CraftStage({
             </div>
           </div>
         ) : (
-          /* Dialogue: input area + action bar (Construct / Send) */
-          <>
-            <div className="shrink-0 border-t border-line px-5 py-3">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={readOnly}
-                placeholder="Message Forge…"
-                rows={2}
-                className="resize-none"
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
-              />
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
-              {drafted ? (
-                <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
-                  Show draft
-                </Button>
-              ) : null}
-              <Button size="sm" onClick={submit} disabled={readOnly || !input.trim()} rightIcon={<ArrowRight />}>
-                Send
+          /* Dialogue: rich input with voice + file */
+          <ForgeComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={submit}
+            disabled={readOnly}
+            voiceEnabled={voiceEnabled}
+            secondaryAction={drafted ? (
+              <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
+                Show draft
               </Button>
-            </div>
-          </>
+            ) : undefined}
+          />
         )}
       </Card>
 
@@ -1361,6 +1365,8 @@ function DocumentScreen({
   mmaReady,
   initialAuditHistory,
   initialCanFreeze,
+  voiceEnabled,
+  pendingApply,
   driving,
   onAdvance,
   onAssembled,
@@ -1374,18 +1380,37 @@ function DocumentScreen({
   mmaReady: boolean;
   initialAuditHistory: AuditPassView[];
   initialCanFreeze: boolean;
+  voiceEnabled: boolean;
+  pendingApply?: string | null;
   driving: boolean;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
-  const [messages, setMessages] = useState<DocMsg[]>([]);
+  // Seed chat from persisted audit history so findings survive page refresh
+  const [messages, setMessages] = useState<DocMsg[]>(() => {
+    const msgs: DocMsg[] = [];
+    if (spec) {
+      msgs.push({ id: 'seed-intro', role: 'forge', text: "I've assembled the full specification from your approved components. Run an audit to check it, tell me anything to refine, then freeze when you're ready." });
+      msgs.push({ id: 'seed-spec', role: 'draft', version: spec.version, md: spec.bodyMd });
+    }
+    for (const p of initialAuditHistory) {
+      if (p.findings && p.findings.length > 0) {
+        msgs.push({ id: `seed-audit-${p.passNo}`, role: 'audit', passNo: p.passNo, verdict: p.verdict, findings: p.findings });
+        if (p.applied) {
+          msgs.push({ id: `seed-applied-${p.passNo}`, role: 'forge', text: `Findings from pass ${p.passNo} have been applied. Press "Construct spec" to re-assemble.` });
+        }
+      }
+    }
+    return msgs;
+  });
   const [input, setInput] = useState('');
   const [rounds, setRounds] = useState<
-    { passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[] }[]
-  >(() => initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: [] as AuditFinding[] })));
+    { passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[]; applied: boolean }[]
+  >(() => initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })));
   const [canFreeze, setCanFreeze] = useState(initialCanFreeze);
-  const seeded = useRef(false);
+  const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
+  const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const idc = useRef(0);
   const nid = () => `dm${idc.current++}`;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1435,34 +1460,53 @@ function DocumentScreen({
     auditingRef.current = true;
     setAuditing(true);
     try {
-      const data = await postJson<{
-        pass: { passNo: number; verdict: 'clean' | 'revised'; findingsCount: number; findings: AuditFinding[] };
-        contextBlockId: string | null;
-        history: AuditPassView[];
-        canFreeze: boolean;
-      }>(`/projects/${projectId}/spec/audit`, {});
-      onError(null);
-      setCanFreeze(data.canFreeze);
-      setRounds((r) => [...r, { passNo: data.pass.passNo, verdict: data.pass.verdict, findings: data.pass.findings }]);
-      setMessages((m) => [
-        ...m,
-        { id: nid(), role: 'audit', passNo: data.pass.passNo, verdict: data.pass.verdict, findings: data.pass.findings },
-        {
-          id: nid(),
-          role: 'forge',
-          text:
-            data.pass.verdict === 'clean'
-              ? "Clean pass — no critical or high findings. You can continue to Plan whenever you're ready."
-              : "I found the issues above. Tell me to address one and I'll revise the spec, then re-run the audit to verify.",
-        },
-      ]);
+      await postJson<{ batchId: string }>(`/projects/${projectId}/spec/audit`, {});
+      // PollManager handles polling server-side; SSE delivers dispatch.done
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Audit failed.');
-    } finally {
       auditingRef.current = false;
       setAuditing(false);
     }
   }
+
+  // SSE listener for all document-phase dispatch events (audit + apply)
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && data.handler === 'spec-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+          onError(data.error ?? 'Audit failed.');
+        }
+        if ((data.type === 'dispatch.done' || data.type === 'dispatch.failed') && data.handler === 'spec-audit-apply') {
+          setApplyDone((prev) => prev + 1);
+          // Check if all apply batches are terminal
+          fetch(`/projects/${projectId}/spec/audit-apply/status`)
+            .then((r) => r.json())
+            .then((s: { allDone: boolean; done: number; total: number }) => {
+              setApplyDone(s.done);
+              setApplyTotal(s.total);
+              applyTotalRef.current = s.total;
+              if (s.allDone) {
+                setApplying(false);
+                setApplied(true);
+              }
+            })
+            .catch(() => {});
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  }, [projectId, onError]);
 
   // Automated mode (Spec Document → end): run the audit passes until clean
   // (clearing critical/high), exactly like Plan's Validate, then hand to Plan.
@@ -1522,23 +1566,37 @@ function DocumentScreen({
     ]);
   }
 
-  /** Apply a chosen subset (or all) of a pass's findings, then re-assemble. */
+  const [applying, setApplying] = useState(!!pendingApply);
+  const [applied, setApplied] = useState(false);
+  const [applyTotal, setApplyTotal] = useState(0);
+  const applyTotalRef = useRef(0);
+  const [applyDone, setApplyDone] = useState(0);
+
+  /** Apply a chosen subset (or all) of a pass's findings — dispatches per-section revisions. */
   function apply(passNo: number, indices: number[], total: number): void {
-    if (readOnly || indices.length === 0) return;
+    if (readOnly || indices.length === 0 || applying) return;
+    const round = rounds.find((r) => r.passNo === passNo);
+    if (!round) return;
+    const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
     const all = indices.length === total;
-    const nums = indices.map((i) => i + 1).sort((a, b) => a - b);
     const label = all
       ? `all ${total} findings`
-      : `finding${indices.length === 1 ? '' : 's'} #${nums.join(', #')}`;
+      : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
     setMessages((m) => [
       ...m,
-      {
-        id: nid(),
-        role: 'forge',
-        text: `Applied ${label} from pass ${passNo} — I've revised the affected sections and am re-assembling the spec.`,
-      },
+      { id: nid(), role: 'forge', text: `Revising the spec to address ${label} from pass ${passNo}…` },
     ]);
-    void runAssemble();
+    setApplying(true);
+    setApplyDone(0);
+    postJson<{ batchIds: string[]; sectionsToRevise: number }>(`/projects/${projectId}/spec/audit-apply`, {
+      findings: selectedFindings,
+    }).then((res) => {
+      applyTotalRef.current = res.sectionsToRevise;
+      setApplyTotal(res.sectionsToRevise);
+    }).catch((e) => {
+      onError(e instanceof Error ? e.message : 'Apply failed.');
+      setApplying(false);
+    });
   }
 
   /** Re-post a stored round's findings to the chat (rail card click). */
@@ -1574,121 +1632,164 @@ function DocumentScreen({
           </span>
         </CardHeader>
 
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {messages.length === 0 ? (
-            <div className="grid h-full place-items-center px-6 text-center">
-              <div className="max-w-sm">
-                <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
-                  <FileText className="size-6" />
-                </span>
-                <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-                  {allApproved
-                    ? 'Assembling the specification…'
-                    : 'Approve every component before finalizing the document.'}
-                </p>
+        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+          {docView === 'document' && spec ? (
+            /* Document mode — full rendered spec */
+            <div className="flex gap-2.5">
+              <ForgeMark className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-ink">Forge</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
+                    specification · v{spec.version}
+                  </span>
+                </div>
+                <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                  <Markdown>{spec.bodyMd}</Markdown>
+                </div>
               </div>
             </div>
           ) : (
-            messages.map((m) =>
-              m.role === 'forge' ? (
-                <ForgeSays key={m.id} text={m.text} />
-              ) : m.role === 'user' ? (
-                <AnswerBlock key={m.id} text={m.text} />
-              ) : m.role === 'draft' ? (
-                <SpecDraftCard key={m.id} version={m.version} md={m.md} />
+            /* Conversation mode — chat thread */
+            <div className="space-y-5">
+              {messages.length === 0 ? (
+                <div className="grid h-full place-items-center px-6 text-center">
+                  <div className="max-w-sm">
+                    <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
+                      <FileText className="size-6" />
+                    </span>
+                    <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+                      {allApproved
+                        ? 'Assembling the specification…'
+                        : 'Approve every component before finalizing the document.'}
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <AuditMsg
-                  key={m.id}
-                  passNo={m.passNo}
-                  verdict={m.verdict}
-                  findings={m.findings}
-                  readOnly={readOnly}
-                  onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
-                />
-              ),
-            )
+                messages.filter((m) => m.role !== 'draft').map((m) =>
+                  m.role === 'forge' ? (
+                    <ForgeSays key={m.id} text={m.text} />
+                  ) : m.role === 'user' ? (
+                    <AnswerBlock key={m.id} text={m.text} />
+                  ) : (
+                    <AuditMsg
+                      key={m.id}
+                      passNo={m.passNo}
+                      verdict={m.verdict}
+                      findings={m.findings}
+                      readOnly={readOnly}
+                      applying={applying}
+                      applied={applied || (rounds.find((r) => r.passNo === m.passNo)?.applied ?? false)}
+                      applyProgress={applying ? { done: applyDone, total: applyTotal } : undefined}
+                      onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
+                    />
+                  ),
+                )
+              )}
+            </div>
           )}
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Composer pinned to the bottom (messenger-style). */}
-        <div className="shrink-0 border-t border-line px-5 py-4">
-          <div className="flex gap-2.5">
-            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-              AD
-            </span>
-            <div className="min-w-0 flex-1">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                rows={2}
-                disabled={readOnly || !spec}
-                placeholder="Tell Forge what to refine across the spec…"
-                className="!min-h-0 !rounded-2xl !text-sm"
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void runAudit()}
-                  loading={auditing}
-                  disabled={readOnly || !mmaReady || !spec || auditing}
-                  leftIcon={<Shield />}
-                >
-                  {rounds.length > 0 ? 'Re-run audit' : 'Run audit'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void runAssemble()}
-                  loading={assembling}
-                  disabled={readOnly || !allApproved || assembling}
-                  leftIcon={<Sparkles />}
-                >
-                  Construct spec
-                </Button>
-                <span className="flex-1" />
-                <Button size="sm" onClick={sendRefine} disabled={readOnly || !input.trim()} rightIcon={<ArrowRight />}>
-                  Send
-                </Button>
+        {docView === 'document' ? (
+          /* Document mode footer — back to conversation */
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <FileText className="size-5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">Specification v{spec?.version ?? 1}</p>
+                <p className="text-xs text-ink-faint">Review the assembled spec, or go back to refine.</p>
               </div>
-              {!mmaReady ? (
-                <TextSm className="mt-2 !text-[var(--amber)]">
-                  <a href="/settings/connections" className="underline">
-                    Configure the MMA token
-                  </a>{' '}
-                  to run the audit.
-                </TextSm>
-              ) : null}
             </div>
+            <Button size="sm" variant="secondary" onClick={() => setDocView('conversation')} leftIcon={<ChevronLeft />}>
+              Back to conversation
+            </Button>
           </div>
-        </div>
+        ) : (
+          /* Conversation mode footer — input + show spec / construct */
+          <ForgeComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={sendRefine}
+            disabled={readOnly || !spec}
+            placeholder="Tell Forge what to refine across the spec…"
+            voiceEnabled={voiceEnabled}
+            secondaryAction={
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { void runAssemble(); setDocView('document'); }}
+                loading={assembling}
+                disabled={readOnly || !allApproved || assembling}
+                leftIcon={<Sparkles />}
+              >
+                Construct spec
+              </Button>
+            }
+          />
+        )}
+        {!mmaReady ? (
+          <div className="shrink-0 border-t border-line px-5 py-2">
+            <TextSm className="!text-[var(--amber)]">
+              <a href="/settings/connections" className="underline">
+                Configure the MMA token
+              </a>{' '}
+              to run the audit.
+            </TextSm>
+          </div>
+        ) : null}
       </Card>
 
       {/* RIGHT — every audit round + the freeze handoff (1/3) */}
       <aside className="flex min-h-0 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>Audit rounds</CardTitle>
-            {rounds.length > 0 ? (
-              <span className="text-sm font-medium text-ink-faint">{rounds.length}</span>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <CardTitle>Audit rounds</CardTitle>
+              {rounds.length > 0 ? (
+                <span className="text-sm font-medium text-ink-faint">{rounds.length}</span>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void runAudit()}
+              loading={auditing}
+              disabled={readOnly || !mmaReady || !spec || auditing || applying}
+              leftIcon={<Shield />}
+            >
+              {auditing ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
+            </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {rounds.length === 0 ? (
+            {auditing ? (
+              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">Pass {rounds.length + 1}</span>
+                  <Badge variant="neutral" size="sm">running</Badge>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-xs text-ink-soft">
+                    Auditing specification…
+                  </span>
+                </div>
+              </div>
+            ) : rounds.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the audit from the conversation. Each round lands here with its verdict and findings.
+                  Run an audit to check for gaps and issues. Each round lands here with its verdict and findings.
                 </p>
               </div>
-            ) : (
+            ) : null}
+            {(
               rounds.map((r) => (
                 <AuditRoundCard
                   key={r.passNo}
                   passNo={r.passNo}
                   verdict={r.verdict}
                   findings={r.findings}
+                  applied={r.applied || applied}
                   onReplay={() => replay(r.passNo)}
                 />
               ))
@@ -1802,12 +1903,18 @@ function AuditMsg({
   verdict,
   findings,
   readOnly,
+  applying,
+  applied,
+  applyProgress,
   onApply,
 }: {
   passNo: number;
   verdict: 'clean' | 'revised';
   findings: AuditFinding[];
   readOnly: boolean;
+  applying?: boolean;
+  applied?: boolean;
+  applyProgress?: { done: number; total: number };
   onApply: (indices: number[]) => void;
 }) {
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -1833,61 +1940,91 @@ function AuditMsg({
               ? 'clean'
               : `${findings.length} finding${findings.length === 1 ? '' : 's'} → revised`}
           </Badge>
+          {applied ? (
+            <Badge variant="sage" size="sm">applied</Badge>
+          ) : applying ? (
+            <Badge variant="neutral" size="sm">applying…</Badge>
+          ) : null}
         </div>
         <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
           {findings.length > 0 ? (
             <>
-              <ul className="divide-y divide-line/70">
-                {findings.map((f, i) => {
-                  const on = sel.has(i);
+              <div className="grid grid-cols-2 gap-px bg-line/70">
+                {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
+                  const origIdx = findings.indexOf(f);
+                  const on = sel.has(origIdx);
+                  const disabled = readOnly || applying || !!applied;
                   return (
-                    <li key={i}>
-                      <button
-                        type="button"
-                        onClick={() => !readOnly && toggle(i)}
-                        disabled={readOnly}
-                        className={cn(
-                          'flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition-colors',
-                          on ? 'bg-accent-tint/40' : 'hover:bg-surface-2/50',
-                        )}
-                      >
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => !disabled && toggle(origIdx)}
+                      disabled={disabled}
+                      className={cn(
+                        'flex flex-col gap-1.5 p-3 text-left transition-colors',
+                        applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50',
+                        disabled && !applied && 'opacity-60',
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            'mt-px grid size-5 shrink-0 place-items-center rounded-[6px] border text-[11px] font-semibold transition-colors',
-                            on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint',
+                            'grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors',
+                            applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white' : on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint',
                           )}
                         >
-                          {on ? <Check className="size-3.5" /> : i + 1}
+                          {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
                         </span>
                         <SeverityTag s={f.severity} />
-                        <span className="text-sm leading-relaxed text-ink">{f.claim}</span>
-                      </button>
-                    </li>
+                      </div>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
+                      <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
+                      {f.evidence ? <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p> : null}
+                      {f.suggestion ? <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p> : null}
+                    </button>
                   );
                 })}
-              </ul>
+              </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                <span className="text-[11px] text-ink-faint">
-                  Pick the ones to apply, or tell Forge by number — e.g. "apply #1, #2 and #5".
-                </span>
-                <span className="flex-1" />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onApply([...sel])}
-                  disabled={readOnly || sel.size === 0}
-                  leftIcon={<Check />}
-                >
-                  Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onApply(findings.map((_, i) => i))}
-                  disabled={readOnly}
-                  leftIcon={<Sparkles />}
-                >
-                  Apply all {findings.length}
-                </Button>
+                {applied ? (
+                  <div className="flex items-center gap-2">
+                    <Check className="size-3.5 text-[var(--sage-deep)]" />
+                    <span className="text-xs font-medium text-[var(--sage-deep)]">
+                      All findings applied — press "Construct spec" to re-assemble.
+                    </span>
+                  </div>
+                ) : applying ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">
+                      Revising {applyProgress ? `${applyProgress.done}/${applyProgress.total} sections` : '…'}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-[11px] text-ink-faint">
+                      Select findings to apply, or apply all at once.
+                    </span>
+                    <span className="flex-1" />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onApply([...sel])}
+                      disabled={readOnly || sel.size === 0}
+                      leftIcon={<Check />}
+                    >
+                      Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => onApply(findings.map((_, i) => i))}
+                      disabled={readOnly}
+                      leftIcon={<Sparkles />}
+                    >
+                      Apply all {findings.length}
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -1906,11 +2043,13 @@ function AuditRoundCard({
   passNo,
   verdict,
   findings,
+  applied,
   onReplay,
 }: {
   passNo: number;
   verdict: 'clean' | 'revised';
   findings: AuditFinding[];
+  applied?: boolean;
   onReplay: () => void;
 }) {
   const counts = severityCounts(findings);
@@ -1918,13 +2057,19 @@ function AuditRoundCard({
     <button
       type="button"
       onClick={onReplay}
-      className="group w-full rounded-[var(--r-md)] border border-line bg-surface p-3 text-left transition-colors hover:border-accent hover:bg-surface-2/40"
+      className={cn(
+        'group w-full rounded-[var(--r-md)] border p-3 text-left transition-colors',
+        applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface hover:border-accent hover:bg-surface-2/40',
+      )}
     >
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
         <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
           {verdict === 'clean' ? 'clean' : 'revised'}
         </Badge>
+        {applied ? (
+          <Badge variant="sage" size="sm">applied</Badge>
+        ) : null}
         <span className="ml-auto text-[11px] text-ink-faint">
           {findings.length} finding{findings.length === 1 ? '' : 's'}
         </span>
@@ -1935,9 +2080,7 @@ function AuditRoundCard({
             <CountChip key={s} s={s} n={counts[s]} />
           ))}
         </div>
-      ) : (
-        <p className="mt-1.5 text-xs text-ink-faint">No critical or high findings.</p>
-      )}
+      ) : null}
       <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-ink-faint group-hover:text-accent">
         <ArrowRight className="size-3" /> Re-post to chat
       </span>
@@ -1951,6 +2094,8 @@ export interface AuditFinding {
   severity: 'critical' | 'high' | 'medium' | 'low';
   category: string;
   claim: string;
+  evidence?: string;
+  suggestion?: string;
 }
 
 export function AuditPanel({

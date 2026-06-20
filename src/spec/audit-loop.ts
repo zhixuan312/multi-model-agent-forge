@@ -5,6 +5,7 @@ import type { AuditPassRow } from '@/db/schema/artifacts';
 import type { AuditVerdict } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import { MmaClient } from '@/mma/client';
+import { mmaBatch } from '@/db/schema/mma';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 
 /**
@@ -37,6 +38,8 @@ export interface ParsedFinding {
   severity: FindingSeverity;
   category: string;
   claim: string;
+  evidence: string;
+  suggestion: string;
 }
 
 /** The outcome of parsing one terminal envelope. */
@@ -77,23 +80,38 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
   if (sr == null || typeof sr !== 'object') {
     return { kind: 'missing_report', headline };
   }
-  const report = sr as { findings?: unknown; findingsOutcome?: unknown; kind?: unknown };
+  const report = sr as { findings?: unknown; findingsOutcome?: unknown; kind?: unknown; summary?: unknown };
   // Defensive: MMA's `{kind:'not_applicable'}` form (absent report) → missing.
   if (report.kind === 'not_applicable' || report.findingsOutcome === 'not_applicable') {
     return { kind: 'missing_report', headline };
   }
-  if (!Array.isArray(report.findings)) {
+
+  // Findings can be a direct array OR embedded as JSON inside the summary string
+  let rawFindings: unknown[] | null = null;
+  if (Array.isArray(report.findings)) {
+    rawFindings = report.findings;
+  } else if (typeof report.summary === 'string') {
+    try {
+      const cleaned = report.summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed?.findings)) rawFindings = parsed.findings;
+    } catch { /* not parseable — fall through to missing_report */ }
+  }
+
+  if (!rawFindings) {
     return { kind: 'missing_report', headline };
   }
 
-  const findings: ParsedFinding[] = report.findings
+  const findings: ParsedFinding[] = rawFindings
     .map((f) => {
-      const ff = (f ?? {}) as { severity?: unknown; category?: unknown; claim?: unknown };
+      const ff = (f ?? {}) as { severity?: unknown; category?: unknown; claim?: unknown; evidence?: unknown; suggestion?: unknown };
       const severity = (typeof ff.severity === 'string' ? ff.severity : '') as FindingSeverity;
       return {
         severity,
         category: typeof ff.category === 'string' ? ff.category : '',
         claim: typeof ff.claim === 'string' ? ff.claim : '',
+        evidence: typeof ff.evidence === 'string' ? ff.evidence : '',
+        suggestion: typeof ff.suggestion === 'string' ? ff.suggestion : '',
       };
     })
     .filter((f) => VALID_SEVERITY.has(f.severity));
@@ -210,6 +228,8 @@ export interface AuditPassView {
   findingsCount: number;
   verdict: AuditVerdict;
   createdAt: Date;
+  findings: ParsedFinding[];
+  applied: boolean;
 }
 
 /** The full spec audit-pass history for a project, oldest-first. */
@@ -221,16 +241,43 @@ export async function auditPassHistory(db: Db, projectId: string): Promise<Audit
       findingsCount: auditPass.findingsCount,
       verdict: auditPass.verdict,
       createdAt: auditPass.createdAt,
+      batchResult: mmaBatch.result,
     })
     .from(auditPass)
+    .leftJoin(mmaBatch, eq(auditPass.mmaBatchId, mmaBatch.id))
     .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')))
     .orderBy(asc(auditPass.passNo));
-  return rows.map((r) => ({
-    passNo: r.passNo,
-    findingsCount: r.findingsCount,
-    verdict: r.verdict as AuditVerdict,
-    createdAt: r.createdAt,
-  }));
+
+  // Check if any completed spec-audit-apply batches exist for this project
+  const applyBatches = await dbi
+    .select({ terminalAt: mmaBatch.terminalAt })
+    .from(mmaBatch)
+    .where(and(
+      eq(mmaBatch.projectId, projectId),
+      eq(mmaBatch.handler, 'spec-audit-apply'),
+      eq(mmaBatch.status, 'done'),
+    ))
+    .orderBy(desc(mmaBatch.terminalAt))
+    .limit(1);
+  const lastAppliedAt = applyBatches[0]?.terminalAt ?? null;
+
+  return rows.map((r) => {
+    let findings: ParsedFinding[] = [];
+    if (r.batchResult) {
+      const parsed = parseAuditEnvelope(r.batchResult);
+      if (parsed.kind === 'report') findings = parsed.findings;
+    }
+    // A pass is "applied" if a spec-audit-apply batch completed after this pass was created
+    const applied = lastAppliedAt != null && lastAppliedAt > r.createdAt;
+    return {
+      passNo: r.passNo,
+      findingsCount: r.findingsCount,
+      verdict: r.verdict as AuditVerdict,
+      createdAt: r.createdAt,
+      findings,
+      applied,
+    };
+  });
 }
 
 /** The latest spec audit_pass row (verdict gate for freeze), or null if none run. */

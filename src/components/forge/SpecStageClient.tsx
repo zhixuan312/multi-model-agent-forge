@@ -746,29 +746,26 @@ function CraftStage({
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
-  // Per-component view: 'dialogue' (Forge message + input) or 'constructed' (showing draft)
-  // All drafted components start as constructed (auto-pressed).
-  const [constructed, setConstructed] = useState<Set<string>>(
-    () => new Set(components.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id)),
-  );
-  // Track which components the user manually un-constructed (Back to edit).
-  const [manuallyEditing, setManuallyEditing] = useState<Set<string>>(new Set());
+  // Per-component: null = dialogue, string = showing fetched draft markdown
+  const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
   const [refining, setRefining] = useState(false);
   const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
 
-  // Auto-construct newly drafted components ONLY if not manually editing.
+  // Auto-fetch drafts for all drafted components on first load
+  const initialFetchDone = useRef(false);
   useEffect(() => {
-    const draftedIds = components
-      .filter((c) => (c.status === 'drafted' || c.status === 'approved') && !manuallyEditing.has(c.id))
-      .map((c) => c.id);
-    setConstructed((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      for (const id of draftedIds) { if (!next.has(id)) { next.add(id); changed = true; } }
-      return changed ? next : prev;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [components]);
+    if (initialFetchDone.current || autoDrafting) return;
+    const draftedComponents = components.filter((c) => c.status === 'drafted' || c.status === 'approved');
+    if (draftedComponents.length === 0) return;
+    initialFetchDone.current = true;
+    // Build drafts from the component sections we already have
+    const drafts: Record<string, string> = {};
+    for (const c of draftedComponents) {
+      const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+      if (md) drafts[c.id] = md;
+    }
+    setConstructedDrafts(drafts);
+  }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
@@ -838,9 +835,7 @@ function CraftStage({
   const drafted = active.status === 'drafted' || active.status === 'approved';
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
-  const draftMd = drafted
-    ? (active.sections.find((s) => s.draftMd)?.draftMd ?? null)
-    : null;
+  const showingDraft = constructedDrafts[active.id] ?? null;
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   // People already in this section's chat — the only ones you can @-mention.
@@ -967,9 +962,8 @@ function CraftStage({
                 { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: forgeReply },
               ],
             }));
-            // Stay in dialogue mode — don't auto-construct
-            setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
-            setManuallyEditing((prev) => new Set(prev).add(active.id));
+            // Stay in dialogue mode — remove constructed draft so user stays in conversation
+            setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
           }
         })
         .catch(() => {
@@ -1023,13 +1017,22 @@ function CraftStage({
   /** Reopen a drafted/approved section to keep editing the conversation. */
   function constructSection(): void {
     if (!active) return;
-    setConstructed((prev) => new Set(prev).add(active.id));
-    setManuallyEditing((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+    // Fetch the latest draft from DB
+    fetch(`/projects/${projectId}/spec/outline`)
+      .then((r) => r.json())
+      .then((data: { components?: ComponentView[] }) => {
+        const fresh = data.components?.find((c) => c.id === active.id);
+        if (fresh) {
+          const md = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+          if (md) setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
+          onPatch(active.id, { sections: fresh.sections, status: fresh.status });
+        }
+      })
+      .catch(() => {});
   }
 
   function backToEdit(): void {
     if (readOnly || !active) return;
-    // Revoke approval if approved, go back to drafted
     if (active.status === 'approved') {
       onPatch(active.id, { status: 'drafted' });
       patchCollab((u) => ({
@@ -1037,8 +1040,7 @@ function CraftStage({
         participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
       }));
     }
-    setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
-    setManuallyEditing((prev) => new Set(prev).add(active.id));
+    setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
@@ -1091,8 +1093,8 @@ function CraftStage({
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
               <p className="text-xs text-ink-soft">Each section is drafted using the exploration findings. This takes a moment.</p>
             </div>
-          ) : drafted && draftMd ? (
-            constructed.has(active.id) ? (
+          ) : drafted ? (
+            constructedDrafts[active.id] ? (
               /* Constructed: show the drafted content */
               <div className="flex gap-2.5">
                 <ForgeMark className="mt-0.5 shrink-0" />
@@ -1104,7 +1106,7 @@ function CraftStage({
                     </span>
                   </div>
                   <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                    <Markdown>{draftMd}</Markdown>
+                    <Markdown>{showingDraft ?? ''}</Markdown>
                   </div>
                 </div>
               </div>
@@ -1173,7 +1175,7 @@ function CraftStage({
         </CardContent>
 
         {/* Approve / back — shown when constructed */}
-        {drafted && !autoDrafting && constructed.has(active.id) ? (
+        {drafted && !autoDrafting && constructedDrafts[active.id] ? (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
             <div className="flex items-center gap-2.5">
               <FileText className="size-5 shrink-0 text-accent" />
@@ -1225,7 +1227,7 @@ function CraftStage({
                 }
                 submitLabel={liveMentions.length > 0 ? 'Send' : drafted ? 'Send' : 'Send answer'}
                 secondary={
-                  drafted && !constructed.has(active.id) ? (
+                  drafted && !constructedDrafts[active.id] ? (
                     <Button size="sm" variant="ghost" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
                       Construct section
                     </Button>

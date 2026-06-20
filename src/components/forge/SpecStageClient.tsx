@@ -665,7 +665,7 @@ function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
     return c.aiSatisfied
-      ? { label: 'Ready', cls: 'bg-accent-tint text-accent' }
+      ? { label: 'Ready', cls: 'bg-sage-tint text-[var(--sage-deep)]' }
       : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
   }
   return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
@@ -736,9 +736,10 @@ function CraftStage({
     const draftedComponents = components.filter((c) => c.status === 'drafted' || c.status === 'approved');
     if (draftedComponents.length === 0) return;
     initialFetchDone.current = true;
-    // Build drafts from the component sections we already have
+    // Only auto-construct Ready (aiSatisfied) or Approved — Needs input shows conversation
     const drafts: Record<string, string> = {};
     for (const c of draftedComponents) {
+      if (!c.aiSatisfied && c.status !== 'approved') continue;
       const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
       if (md) drafts[c.id] = md;
     }

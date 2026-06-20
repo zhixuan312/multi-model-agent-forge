@@ -63,7 +63,7 @@ export type ComponentKind = (typeof COMPONENT_KIND)[number];
  * is the roll-up (all approved ⇒ approved; else the lowest). The ordinal order of
  * this tuple is the `<` ordering used by the roll-up (`gathering < … < approved`).
  */
-export const COMPONENT_STATUS = ['gathering', 'satisfied', 'drafted', 'approved'] as const;
+export const COMPONENT_STATUS = ['gathering', 'drafted', 'approved'] as const;
 export type ComponentStatus = (typeof COMPONENT_STATUS)[number];
 
 /** qa_message.sender (schema.md §5). `forge` = the AI interviewer; `member` = a human. */
@@ -98,10 +98,6 @@ export type LearningOrigin = (typeof LEARNING_ORIGIN)[number];
 export const LEARNING_STATUS = ['proposed', 'kept', 'removed', 'recorded'] as const;
 export type LearningStatus = (typeof LEARNING_STATUS)[number];
 
-/** Ordinal rank for COMPONENT_STATUS — the `<` ordering used by the component roll-up. */
-export function componentStatusRank(status: ComponentStatus): number {
-  return COMPONENT_STATUS.indexOf(status);
-}
 
 /* ── Spec 5: Exploration ────────────────────────────────────────────────── */
 

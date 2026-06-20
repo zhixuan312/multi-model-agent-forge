@@ -161,26 +161,32 @@ export async function autoDraftAll(
     );
     if (!match) continue;
 
-    const aiSatisfied = drafted.questions.length === 0;
     await db
       .update(componentSection)
       .set({
         draftMd: drafted.draftMd,
-        aiSatisfied,
         status: 'drafted',
         stale: false,
         updatedAt: new Date(),
       })
       .where(eq(componentSection.id, match.sectionId));
-    await recomputeComponentStatus(db, match.componentId);
 
-    // Accumulate questions per component
     const existing = questionsByComponent.get(match.componentId);
     if (existing) {
       existing.questions.push(...drafted.questions);
     } else {
       questionsByComponent.set(match.componentId, { questions: [...drafted.questions], firstSectionId: match.sectionId });
     }
+  }
+
+  // Set aiSatisfied at the COMPONENT level — all sections get the same value
+  for (const [compId, { questions }] of questionsByComponent) {
+    const satisfied = questions.length === 0;
+    await db
+      .update(componentSection)
+      .set({ aiSatisfied: satisfied, status: 'drafted', updatedAt: new Date() })
+      .where(eq(componentSection.componentId, compId));
+    await recomputeComponentStatus(db, compId);
   }
 
   // Insert ONE Forge message per component (on the first section)

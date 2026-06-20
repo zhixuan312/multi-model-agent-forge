@@ -13,6 +13,8 @@ import {
 } from '@/spec/schemas';
 import { templateForKind, COMPONENT_TEMPLATES } from '@/spec/components';
 import { getLatestExploration } from '@/spec/orchestrator';
+import { mmaBatch } from '@/db/schema/mma';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
 import { logPoll } from '@/observability/poll-log';
 
@@ -148,6 +150,17 @@ export async function autoDraftAll(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logPoll({ level: 'error', event: 'auto_draft.failure', detail: message });
+    // Record the failed call so it shows in usage
+    await db.insert(mmaBatch).values({
+      projectId: deps.projectId,
+      route: 'orchestrate',
+      cwd: resolveWorkspaceRoot(),
+      status: 'failed',
+      request: { call: 'fullSpecDraft' },
+      result: { error: message },
+      implementerTier: 'main',
+      terminalAt: new Date(),
+    }).catch(() => {});
     return { ok: false, sections: [], error: message };
   }
 

@@ -686,8 +686,7 @@ function componentDisplayState(
     if (hasQuestions) return { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
     return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
   }
-  if (autoDrafting) return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
-  return { label: 'Gathering', cls: 'bg-surface-2 text-ink-soft' };
+  return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
 }
 
 /** Group a component's section prompts into Forge "ask" rounds (2 questions each). */
@@ -815,6 +814,27 @@ function CraftStage({
 
   const active = components.find((c) => c.id === activeId) ?? null;
   const approvedCount = components.filter((c) => c.status === 'approved').length;
+
+  // Auto-show constructed draft for approved components when clicked
+  useEffect(() => {
+    if (!active || active.status !== 'approved' || constructedDrafts[active.id]) return;
+    const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+    if (md) {
+      setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
+    } else {
+      // Fetch from server if not in client state
+      fetch(`/projects/${projectId}/spec/outline`)
+        .then((r) => r.json())
+        .then((data: { components?: ComponentView[] }) => {
+          const fresh = data.components?.find((c) => c.id === active.id);
+          if (fresh) {
+            const freshMd = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+            if (freshMd) setConstructedDrafts((prev) => ({ ...prev, [active.id]: freshMd }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [active, activeId, constructedDrafts, projectId]);
 
   /** Resolve a member id for attribution (you · pool · any seeded participant). */
   function memberById(id: string): MemberRef | undefined {
@@ -1028,7 +1048,6 @@ function CraftStage({
         if (fresh) {
           const md = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
           if (md) setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
-          onPatch(active.id, { sections: fresh.sections, status: fresh.status });
         }
       })
       .catch(() => {});
@@ -1199,8 +1218,8 @@ function CraftStage({
               <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<ChevronLeft />}>
                 {approved ? 'Revoke & edit' : 'Back to edit'}
               </Button>
-              <Button onClick={approve} disabled={readOnly || iApproved} leftIcon={<Check />}>
-                {iApproved ? 'Approved by you' : 'Approve'}
+              <Button onClick={approve} disabled={readOnly || approved || iApproved} leftIcon={<Check />}>
+                {approved || iApproved ? 'Approved' : 'Approve'}
               </Button>
             </div>
           </div>

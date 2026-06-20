@@ -736,19 +736,23 @@ function CraftStage({
   const [constructed, setConstructed] = useState<Set<string>>(
     () => new Set(components.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id)),
   );
+  // Track which components the user manually un-constructed (Back to edit).
+  const [manuallyEditing, setManuallyEditing] = useState<Set<string>>(new Set());
   const [refining, setRefining] = useState(false);
-  // Per-section conversation history for the refine route.
   const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
 
-  // Auto-construct newly drafted components (e.g. after auto-draft completes).
+  // Auto-construct newly drafted components ONLY if not manually editing.
   useEffect(() => {
-    const draftedIds = components.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id);
+    const draftedIds = components
+      .filter((c) => (c.status === 'drafted' || c.status === 'approved') && !manuallyEditing.has(c.id))
+      .map((c) => c.id);
     setConstructed((prev) => {
       const next = new Set(prev);
       let changed = false;
       for (const id of draftedIds) { if (!next.has(id)) { next.add(id); changed = true; } }
       return changed ? next : prev;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [components]);
   // Collaborative state per component (participants + group chat), seeded by kind.
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
@@ -924,10 +928,11 @@ function CraftStage({
                 s.id === sectionId ? { ...s, draftMd: data.refinement!.draftMd } : s,
               ),
             });
-            // Add Forge response to history
-            const forgeReply = data.refinement.questions.length > 0
-              ? data.refinement.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')
-              : 'Updated the draft with your feedback. You can review it by pressing "Construct section".';
+            // Add Forge response to history — make AI state clear
+            const aiOk = data.refinement.questions.length === 0;
+            const forgeReply = aiOk
+              ? '✅ Updated the draft with your feedback. I\'m satisfied with this section — press "Construct section" to review, then approve.'
+              : data.refinement.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n');
             setSectionHistory((prev) => ({
               ...prev,
               [active.id]: [...(prev[active.id] ?? []), { role: 'forge', text: forgeReply }],
@@ -939,8 +944,9 @@ function CraftStage({
                 { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: forgeReply },
               ],
             }));
-            // Remove from constructed so user sees the dialogue with new response
+            // Stay in dialogue mode — don't auto-construct
             setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+            setManuallyEditing((prev) => new Set(prev).add(active.id));
           }
         })
         .catch(() => {
@@ -995,11 +1001,13 @@ function CraftStage({
   function constructSection(): void {
     if (!active) return;
     setConstructed((prev) => new Set(prev).add(active.id));
+    setManuallyEditing((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
   }
 
   function backToEdit(): void {
     if (readOnly || !active) return;
     setConstructed((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+    setManuallyEditing((prev) => new Set(prev).add(active.id));
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
@@ -1087,7 +1095,7 @@ function CraftStage({
                           {questions.length > 0 ? (
                             <div className="space-y-2">
                               <p className="text-sm leading-relaxed text-ink">
-                                I've drafted this section. A few things I'd like to clarify:
+                                <span className="mr-1.5">❓</span>I've drafted this section but have a few questions:
                               </p>
                               {questions.map((q, i) => (
                                 <p key={i} className="text-sm leading-relaxed text-ink">
@@ -1098,7 +1106,7 @@ function CraftStage({
                             </div>
                           ) : (
                             <p className="text-sm leading-relaxed text-ink">
-                              This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
+                              <span className="mr-1.5">✅</span>This section looks complete based on the exploration findings. You can approve it, or tell me what to change.
                             </p>
                           )}
                         </div>

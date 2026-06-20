@@ -1151,13 +1151,17 @@ function CraftStage({
             )
           ) : null}
 
-          <DiscussionThread
-            messages={activeCollab.discussion}
-            memberById={memberById}
-            currentMemberId={currentMember.id}
-            mentionPool={inChatMembers}
-          />
-          {refining ? (
+          {!constructedDrafts[active.id] ? (
+            <>
+              <DiscussionThread
+                messages={activeCollab.discussion}
+                memberById={memberById}
+                currentMemberId={currentMember.id}
+                mentionPool={inChatMembers}
+              />
+            </>
+          ) : null}
+          {refining && !constructedDrafts[active.id] ? (
             <div className="flex gap-2.5">
               <ForgeMark className="mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -1174,8 +1178,8 @@ function CraftStage({
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Approve / back — shown when constructed */}
-        {drafted && !autoDrafting && constructedDrafts[active.id] ? (
+        {constructedDrafts[active.id] ? (
+          /* Constructed: single approve footer, no input */
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
             <div className="flex items-center gap-2.5">
               <FileText className="size-5 shrink-0 text-accent" />
@@ -1197,46 +1201,38 @@ function CraftStage({
               </Button>
             </div>
           </div>
-        ) : null}
-
-        {/* One conversation. No @-mention → you're talking to Forge (the AI), which
-            runs the interview. @-mention teammates already in the chat to talk to
-            them instead — the AI stays out of that turn and they reply. */}
-        <div className="shrink-0 border-t border-line px-5 py-4">
-          <div className="flex gap-2.5">
-            <Avatar
-              size="sm"
-              name={currentMember.displayName}
-              tint={currentMember.avatarTint}
-              aria-hidden
-              className="mt-0.5"
-            />
-            <div className="min-w-0 flex-1">
-              <MentionComposer
-                value={input}
-                onChange={setInput}
-                onSubmit={submit}
-                pool={inChatMembers}
-                disabled={readOnly}
-                placeholder={
-                  inChatMembers.length > 0
-                    ? 'Message Forge — or @mention a teammate in the chat…'
-                    : drafted
-                      ? 'Message Forge…'
-                      : 'Type your answer…'
-                }
-                submitLabel={liveMentions.length > 0 ? 'Send' : drafted ? 'Send' : 'Send answer'}
-                secondary={
-                  drafted && !constructedDrafts[active.id] ? (
-                    <Button size="sm" variant="ghost" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
-                      Construct section
-                    </Button>
-                  ) : undefined
-                }
+        ) : (
+          /* Dialogue: input area with Construct section button */
+          <div className="shrink-0 border-t border-line px-5 py-4">
+            <div className="flex gap-2.5">
+              <Avatar
+                size="sm"
+                name={currentMember.displayName}
+                tint={currentMember.avatarTint}
+                aria-hidden
+                className="mt-0.5"
               />
+              <div className="min-w-0 flex-1">
+                <MentionComposer
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={submit}
+                  pool={inChatMembers}
+                  disabled={readOnly}
+                  placeholder="Message Forge…"
+                  submitLabel="Send"
+                  secondary={
+                    drafted ? (
+                      <Button size="sm" variant="ghost" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
+                        Construct section
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </Card>
 
       {/* RIGHT — all selected components + progress (1/3) */}

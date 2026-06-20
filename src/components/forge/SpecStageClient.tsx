@@ -749,9 +749,8 @@ function CraftStage({
     const out: Record<string, UnitCollab> = {};
     for (const c of components) {
       const seed = craftCollab[c.kind];
-      // Load persisted messages from DB (keyed by first section id)
-      const firstSectionId = c.sections[0]?.id;
-      const dbMessages = firstSectionId ? (initialMessages[firstSectionId] ?? []) : [];
+      // Load persisted messages from DB (keyed by component id)
+      const dbMessages = initialMessages[c.id] ?? [];
       const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
         id: m.id,
         authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
@@ -920,8 +919,6 @@ function CraftStage({
 
     // No @-mention → you're talking to Forge. Send to the refine route.
     if (drafted) {
-      const sectionId = active.sections[0]?.id;
-      if (!sectionId) return;
       patchCollab((u) => ({
         ...u,
         discussion: [
@@ -935,7 +932,7 @@ function CraftStage({
       const newHistory = [...history, { role: 'user' as const, text }];
       setSectionHistory((prev) => ({ ...prev, [active.id]: newHistory }));
 
-      fetch(`/projects/${projectId}/spec/sections/${sectionId}/refine`, {
+      fetch(`/projects/${projectId}/spec/components/${active.id}/refine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userAnswer: text, history }),
@@ -943,10 +940,10 @@ function CraftStage({
         .then((r) => r.json())
         .then((data: { refinement?: { draftMd: string; questions: string[] } }) => {
           if (data.refinement) {
-            // Update the section draft
+            // Update the draft on the first section
             onPatch(active.id, {
-              sections: active.sections.map((s) =>
-                s.id === sectionId ? { ...s, draftMd: data.refinement!.draftMd } : s,
+              sections: active.sections.map((s, i) =>
+                i === 0 ? { ...s, draftMd: data.refinement!.draftMd } : s,
               ),
             });
             // Add Forge response to history — make AI state clear

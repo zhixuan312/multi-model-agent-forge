@@ -96,7 +96,7 @@ describe('refineSection', () => {
     const result = await refineSection({
       db: mockDb,
       anthropic,
-      sectionId: 'sec-1',
+      componentId: 'comp-1',
       userAnswer: 'We also need to support SQLite for testing.',
       history: [],
     });

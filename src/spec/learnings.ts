@@ -125,8 +125,7 @@ async function buildLearningsPrompt(
   const msgs = await db
     .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
     .from(qaMessage)
-    .innerJoin(componentSection, eq(qaMessage.sectionId, componentSection.id))
-    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .innerJoin(component, eq(qaMessage.componentId, component.id))
     .innerJoin(stage, eq(component.stageId, stage.id))
     .where(eq(stage.projectId, projectId))
     .orderBy(asc(qaMessage.createdAt));

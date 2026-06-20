@@ -161,42 +161,41 @@ export async function buildSectionRepaint(db: Db, sectionId: string): Promise<Se
       draftMd: s.draftMd,
       stale: s.stale,
     },
-    qaMessages: await loadSectionMessages(dbi, sectionId),
+    qaMessages: await loadComponentMessages(dbi, s.componentId),
     component: { status: (c?.status ?? 'gathering') as ComponentStatus },
   };
 }
 
 /** Load a single section's qa_message transcript (UI-shaped), in seq order. */
-/** Load all qa_messages for every section in a stage, keyed by sectionId. */
+/** Load all qa_messages for every component in a stage, keyed by componentId. */
 export async function loadAllMessages(
   db: Db,
   stageId: string,
 ): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>> {
   const rows = await db
-    .select({ id: qaMessage.id, sectionId: qaMessage.sectionId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, seq: qaMessage.seq })
+    .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, seq: qaMessage.seq })
     .from(qaMessage)
-    .innerJoin(componentSection, eq(qaMessage.sectionId, componentSection.id))
-    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .innerJoin(component, eq(qaMessage.componentId, component.id))
     .where(eq(component.stageId, stageId))
     .orderBy(qaMessage.seq);
   const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> = {};
   for (const r of rows) {
-    const list = result[r.sectionId] ?? [];
+    const list = result[r.componentId] ?? [];
     list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd });
-    result[r.sectionId] = list;
+    result[r.componentId] = list;
   }
   return result;
 }
 
-export async function loadSectionMessages(
+export async function loadComponentMessages(
   db: Db,
-  sectionId: string,
+  componentId: string,
 ): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> {
   const dbi = db ?? getDb();
   const rows = await dbi
     .select({ id: qaMessage.id, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
     .from(qaMessage)
-    .where(eq(qaMessage.sectionId, sectionId))
+    .where(eq(qaMessage.componentId, componentId))
     .orderBy(asc(qaMessage.seq));
   return rows.map((r) => ({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd }));
 }

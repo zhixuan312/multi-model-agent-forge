@@ -100,12 +100,12 @@ async function approvedSiblingDrafts(db: Db, projectId: string): Promise<string[
   return rows.filter((r) => r.draftMd).map((r) => `### ${r.label}\n${r.draftMd}`);
 }
 
-/** The section's full qa_message transcript, in seq order. */
-async function loadTranscript(db: Db, sectionId: string): Promise<QaMessageRow[]> {
+/** The component's full qa_message transcript, in seq order. */
+async function loadTranscript(db: Db, componentId: string): Promise<QaMessageRow[]> {
   return db
     .select()
     .from(qaMessage)
-    .where(eq(qaMessage.sectionId, sectionId))
+    .where(eq(qaMessage.componentId, componentId))
     .orderBy(asc(qaMessage.seq));
 }
 
@@ -178,7 +178,7 @@ async function ground(
   const projectId = await projectIdForSection(db, ctx.section.componentId);
   const grounding = await loadGrounding(db, projectId);
   const siblings = await approvedSiblingDrafts(db, projectId);
-  const transcript = await loadTranscript(db, ctx.section.id);
+  const transcript = await loadTranscript(db, ctx.component.id);
   return {
     system: buildSystem(ctx),
     user: buildUser(grounding, siblings, transcript, ctx.section.label),
@@ -263,13 +263,13 @@ export async function enterSection(deps: OrchestratorDeps, sectionId: string): P
 
   if (g.questions.length === 0 && g.aiSatisfiedWithoutAnswers) {
     // ZERO-QUESTION fast path → draft immediately, status 'drafted'.
-    await insertForgeMessage(db, sectionId, {
+    await insertForgeMessage(db, ctx.section.componentId, {
       bodyMd: g.grounding,
       meta: { round: 0, grounding: g.grounding, questions: [], assessment: { aiSatisfied: true, missingInfo: [] } },
     });
     await onAiSatisfied(deps, ctx);
   } else {
-    await insertForgeMessage(db, sectionId, {
+    await insertForgeMessage(db, ctx.section.componentId, {
       bodyMd: g.questions.join('\n'),
       meta: { round: 1, grounding: g.grounding, questions: g.questions, missing: [] },
     });
@@ -292,16 +292,13 @@ export async function onMemberAnswer(
   authorId: string,
 ): Promise<void> {
   const db = deps.db ?? getDb();
-  // Atomic seq allocation (F16): a single INSERT … SELECT max(seq)+1 removes the
-  // read-then-write race between concurrent same-section answers.
+  const ctx = await loadSectionContext(db, sectionId);
   await insertMessageAtomic(db, {
-    sectionId,
+    componentId: ctx.section.componentId,
     sender: 'member',
     bodyMd: answerMd,
     authorId,
   });
-
-  const ctx = await loadSectionContext(db, sectionId);
   await logAction(
     {
       projectId: await projectIdForSection(db, ctx.section.componentId),
@@ -317,7 +314,7 @@ export async function onMemberAnswer(
     effort: 'medium',
   });
 
-  await insertForgeMessage(db, sectionId, {
+  await insertForgeMessage(db, ctx.section.componentId, {
     bodyMd: a.followUpQuestions.join('\n'),
     meta: {
       round: 'n',
@@ -441,7 +438,7 @@ export async function onIntentEdit(
 async function insertMessageAtomic(
   db: Db,
   msg: {
-    sectionId: string;
+    componentId: string;
     sender: 'forge' | 'member';
     bodyMd: string;
     meta?: Record<string, unknown> | null;
@@ -450,10 +447,10 @@ async function insertMessageAtomic(
 ): Promise<void> {
   const metaJson = msg.meta == null ? null : JSON.stringify(msg.meta);
   await db.execute(sql`
-    insert into "forge"."qa_message" ("section_id", "seq", "sender", "body_md", "meta", "author_id")
+    insert into "forge"."project_qa_message" ("component_id", "seq", "sender", "body_md", "meta", "author_id")
     select
-      ${msg.sectionId}::uuid,
-      coalesce((select max("seq") from "forge"."qa_message" where "section_id" = ${msg.sectionId}::uuid), 0) + 1,
+      ${msg.componentId}::uuid,
+      coalesce((select max("seq") from "forge"."project_qa_message" where "component_id" = ${msg.componentId}::uuid), 0) + 1,
       ${msg.sender},
       ${msg.bodyMd},
       ${metaJson}::jsonb,
@@ -464,10 +461,10 @@ async function insertMessageAtomic(
 /** Insert a forge qa_message at the next seq (atomic). */
 async function insertForgeMessage(
   db: Db,
-  sectionId: string,
+  componentId: string,
   msg: { bodyMd: string; meta: Record<string, unknown> },
 ): Promise<void> {
-  await insertMessageAtomic(db, { sectionId, sender: 'forge', bodyMd: msg.bodyMd, meta: msg.meta });
+  await insertMessageAtomic(db, { componentId, sender: 'forge', bodyMd: msg.bodyMd, meta: msg.meta });
 }
 
 /* ── Outline confirm: create components + sections ──────────────────────── */

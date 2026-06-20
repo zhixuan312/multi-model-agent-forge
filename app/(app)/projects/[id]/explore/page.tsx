@@ -55,6 +55,9 @@ export default async function ExploreStagePage({
 
   const voiceEnabled = await isVoiceEnabled({ db });
 
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
+
   return (
     <ExploreStageClient
       projectId={id}
@@ -65,6 +68,8 @@ export default async function ExploreStagePage({
       initialArtifact={artifact}
       repoOptions={repos}
       voiceEnabled={voiceEnabled}
+      canMutate={perms.explore.canMutate}
+      lockedReason={perms.explore.reason}
     />
   );
 }

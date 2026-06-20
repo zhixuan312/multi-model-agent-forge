@@ -73,7 +73,7 @@ describe('SpecStageClient', () => {
         currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
       />,
     );
-    expect(screen.getByText(/Draft ready for review/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to conversation/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Approve/ })).toBeInTheDocument();
   });
 });

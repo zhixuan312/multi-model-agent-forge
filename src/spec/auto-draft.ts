@@ -153,7 +153,7 @@ export async function autoDraftAll(
   }
 
   // Apply drafts to DB sections — collect questions per component
-  const questionsByComponent = new Map<string, { questions: string[]; firstSectionId: string }>();
+  const questionsByComponent = new Map<string, { questions: string[] }>();
 
   for (const drafted of draft.sections) {
     const match = outline.find(
@@ -175,7 +175,7 @@ export async function autoDraftAll(
     if (existing) {
       existing.questions.push(...drafted.questions);
     } else {
-      questionsByComponent.set(match.componentId, { questions: [...drafted.questions], firstSectionId: match.sectionId });
+      questionsByComponent.set(match.componentId, { questions: [...drafted.questions] });
     }
   }
 
@@ -190,17 +190,14 @@ export async function autoDraftAll(
   }
 
   // Clear old qa_messages and insert ONE fresh Forge message per component
-  for (const [compId, { questions, firstSectionId }] of questionsByComponent) {
-    // Delete all old messages for this component's sections
-    const sectionIds = outline.filter((o) => o.componentId === compId).map((o) => o.sectionId);
-    if (sectionIds.length > 0) {
-      await db.delete(qaMessage).where(inArray(qaMessage.sectionId, sectionIds));
-    }
+  for (const [compId, { questions }] of questionsByComponent) {
+    // Delete all old messages for this component
+    await db.delete(qaMessage).where(eq(qaMessage.componentId, compId));
     const forgeBody = questions.length > 0
       ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
       : '✅ This looks complete. You can approve it, or tell me what to change.';
     await db.insert(qaMessage).values({
-      sectionId: firstSectionId,
+      componentId: compId,
       seq: 0,
       sender: 'forge',
       bodyMd: forgeBody,
@@ -256,45 +253,44 @@ export interface RefineSectionResult {
 
 export async function refineSection(
   deps: RefineSectionDeps & {
-    sectionId: string;
+    componentId: string;
     userAnswer: string;
     history: { role: 'forge' | 'user'; text: string }[];
   },
 ): Promise<RefineSectionResult> {
   const db = deps.db ?? getDb();
 
-  const [section] = await db
-    .select()
-    .from(componentSection)
-    .where(eq(componentSection.id, deps.sectionId))
-    .limit(1);
-  if (!section) throw new Error('Section not found.');
-
   const [comp] = await db
     .select()
     .from(component)
-    .where(eq(component.id, section.componentId))
+    .where(eq(component.id, deps.componentId))
     .limit(1);
   if (!comp) throw new Error('Component not found.');
 
   const tpl = templateForKind(comp.kind as ComponentKind);
-  const secTpl = tpl.sections.find((t) => t.key === section.key);
 
   const [stageRow] = await db
     .select({ projectId: stage.projectId })
     .from(component)
     .innerJoin(stage, eq(component.stageId, stage.id))
-    .where(eq(component.id, section.componentId))
+    .where(eq(component.id, deps.componentId))
     .limit(1);
+
+  // Get current draft (all sections combined)
+  const sections = await db
+    .select({ draftMd: componentSection.draftMd })
+    .from(componentSection)
+    .where(eq(componentSection.componentId, deps.componentId));
+  const currentDraft = sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
 
   // Persist user message
   const [{ maxSeq }] = await db
     .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
     .from(qaMessage)
-    .where(eq(qaMessage.sectionId, deps.sectionId));
+    .where(eq(qaMessage.componentId, deps.componentId));
   let seq = (maxSeq ?? -1) + 1;
   await db.insert(qaMessage).values({
-    sectionId: deps.sectionId,
+    componentId: deps.componentId,
     seq,
     sender: 'member',
     bodyMd: deps.userAnswer,
@@ -302,32 +298,40 @@ export async function refineSection(
   seq++;
 
   const result = await deps.anthropic.parseWithUsage(SectionRefinementSchema, {
-    system: buildRefinementSystem(tpl.label, section.label, secTpl?.prompt ?? ''),
-    user: buildRefinementUser(section.draftMd ?? '', deps.userAnswer, deps.history),
+    system: buildRefinementSystem(tpl.label, tpl.label, tpl.sections.map((s) => s.prompt).join('; ')),
+    user: buildRefinementUser(currentDraft, deps.userAnswer, deps.history),
     call: 'refineSection',
     projectId: stageRow?.projectId,
-    section: `${comp.kind}:${section.key}`,
+    section: comp.kind,
   });
 
+  // Update all sections with the new draft (store as single block on first section)
+  const [firstSection] = await db
+    .select({ id: componentSection.id })
+    .from(componentSection)
+    .where(eq(componentSection.componentId, deps.componentId))
+    .orderBy(componentSection.orderIndex)
+    .limit(1);
+  if (firstSection) {
+    await db
+      .update(componentSection)
+      .set({ draftMd: result.data.draftMd, status: 'drafted', stale: false, updatedAt: new Date() })
+      .where(eq(componentSection.id, firstSection.id));
+  }
+  // Set aiSatisfied on all sections based on component questions
   const aiSatisfied = result.data.questions.length === 0;
   await db
     .update(componentSection)
-    .set({
-      draftMd: result.data.draftMd,
-      aiSatisfied,
-      status: 'drafted',
-      stale: false,
-      updatedAt: new Date(),
-    })
-    .where(eq(componentSection.id, deps.sectionId));
-  await recomputeComponentStatus(db, section.componentId);
+    .set({ aiSatisfied, updatedAt: new Date() })
+    .where(eq(componentSection.componentId, deps.componentId));
+  await recomputeComponentStatus(db, deps.componentId);
 
   // Persist Forge reply
   const forgeReply = aiSatisfied
-    ? '✅ Updated the draft with your feedback. I\'m satisfied with this section — press "Construct section" to review, then approve.'
+    ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
     : `❓ A few more things to clarify:\n\n${result.data.questions.map((q) => `• ${q}`).join('\n\n')}`;
   await db.insert(qaMessage).values({
-    sectionId: deps.sectionId,
+    componentId: deps.componentId,
     seq,
     sender: 'forge',
     bodyMd: forgeReply,

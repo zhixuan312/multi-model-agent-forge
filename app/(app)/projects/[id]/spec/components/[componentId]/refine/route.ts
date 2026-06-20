@@ -2,10 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { guardSpecWrite, buildAnthropic, anthropicErrorResponse } from '@/spec/handler-guard';
 import { refineSection } from '@/spec/auto-draft';
-import { buildSectionRepaint } from '@/spec/spec-core';
-import { getDb } from '@/db/client';
 
-type Ctx = { params: Promise<{ id: string; sectionId: string }> };
+type Ctx = { params: Promise<{ id: string; componentId: string }> };
 
 const bodySchema = z.object({
   userAnswer: z.string().trim().min(1, 'An answer is required.'),
@@ -16,7 +14,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const { id, sectionId } = await ctx.params;
+  const { id, componentId } = await ctx.params;
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
@@ -31,12 +29,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const anthropic = await buildAnthropic();
     const result = await refineSection({
       anthropic,
-      sectionId,
+      componentId,
       userAnswer: parsed.data.userAnswer,
       history: parsed.data.history,
     });
-    const repaint = await buildSectionRepaint(getDb(), sectionId);
-    return NextResponse.json({ ...repaint, refinement: result });
+    return NextResponse.json({ refinement: result });
   } catch (e) {
     return anthropicErrorResponse(e);
   }

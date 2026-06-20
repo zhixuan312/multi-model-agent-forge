@@ -6,7 +6,7 @@ import {
   ensureSpecStage,
   captureIntent,
   loadOutline,
-  loadSectionMessages,
+  loadComponentMessages,
   buildSectionRepaint,
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
@@ -58,7 +58,7 @@ describe('captureIntent', () => {
 });
 
 describe('section + project_qa_message persistence (DB integration)', () => {
-  it('an answer persists a member project_qa_message, and loadSectionMessages returns them in seq order', async () => {
+  it('an answer persists a member project_qa_message, and loadComponentMessages returns them in seq order', async () => {
     const projectId = 'proj-4';
     const sectionId = 'sec-1';
     const ownerId = 'owner-4';
@@ -71,7 +71,7 @@ describe('section + project_qa_message persistence (DB integration)', () => {
       'select:project_component_section': [{ id: sectionId, status: 'gathering', aiSatisfied: false }],
     });
 
-    const msgs = await loadSectionMessages(mockDb, sectionId);
+    const msgs = await loadComponentMessages(mockDb, sectionId);
     expect(msgs.map((m) => m.sender)).toEqual(['forge', 'member', 'forge']);
     const memberMsg = msgs.find((m) => m.sender === 'member');
     expect(memberMsg?.bodyMd).toBe('Speed up checkout.');

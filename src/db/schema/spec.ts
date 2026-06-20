@@ -72,27 +72,26 @@ export const componentSection = forge.table(
 );
 
 /**
- * `project_qa_message` (schema.md §5) — the per-SECTION chat transcript. `seq` orders
- * within the section; `sender` is `forge` (the questions/assessment) or `member`
- * (an answer). `meta` carries the forge-turn structure (round, questions[],
- * missing[], assessment{aiSatisfied,missingInfo[]}). `author_id` is set for
+ * `project_qa_message` — the per-COMPONENT chat transcript. `seq` orders
+ * within the component; `sender` is `forge` or `member`. `meta` carries
+ * structured data (questions array, assessment). `author_id` is set for
  * member turns.
  */
 export const qaMessage = forge.table(
   'project_qa_message',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    sectionId: uuid('section_id')
+    componentId: uuid('component_id')
       .notNull()
-      .references(() => componentSection.id, { onDelete: 'cascade' }),
+      .references(() => component.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     sender: text('sender', { enum: QA_SENDER }).notNull(),
     bodyMd: text('body_md').notNull(),
     meta: jsonb('meta'),
-    authorId: uuid('author_id').references(() => member.id), // member turns only
+    authorId: uuid('author_id').references(() => member.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('qa_message_section_seq_idx').on(t.sectionId, t.seq)],
+  (t) => [index('qa_message_component_seq_idx').on(t.componentId, t.seq)],
 );
 
 export type ComponentRow = typeof component.$inferSelect;

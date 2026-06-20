@@ -5,7 +5,6 @@ import { artifact } from '@/db/schema/artifacts';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import type { ComponentSectionRow, QaMessageRow, ComponentRow } from '@/db/schema/spec';
 import {
-  COMPONENT_STATUS,
   type ComponentKind,
   type ComponentStatus,
 } from '@/db/enums';
@@ -507,4 +506,3 @@ export async function allComponentsApproved(db: Db, stageId: string): Promise<bo
 }
 
 // Re-export for callers that want the status ordinal set.
-export { COMPONENT_STATUS };

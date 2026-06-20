@@ -214,7 +214,7 @@ function buildComponents(kinds: ComponentKind[]): ComponentView[] {
 
 /** @deprecated — status is now on the component directly. */
 function rollUp(sections: unknown[]): ComponentStatus {
-  const order: ComponentStatus[] = ['gathering', 'satisfied', 'drafted', 'approved'];
+  const order: ComponentStatus[] = ['gathering', 'drafted', 'approved'];
   let min = 3;
   for (const s of sections) min = Math.min(min, order.indexOf((s as Record<string, string>).status as ComponentStatus));
   return order[min] ?? 'gathering';

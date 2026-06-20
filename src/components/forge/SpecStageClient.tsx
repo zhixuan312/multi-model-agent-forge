@@ -665,18 +665,28 @@ function TemplateRow({
 
 /* ── Craft stage — the per-component Q&A conversation (the soul) ───────────── */
 
-const STATUS_PILL: Record<ComponentStatus, string> = {
-  gathering: 'bg-surface-2 text-ink-soft',
-  satisfied: 'bg-amber-tint text-[var(--amber)]',
-  drafted: 'bg-accent-tint text-accent',
-  approved: 'bg-sage-tint text-[var(--sage-deep)]',
-};
-const STATUS_LABEL: Record<ComponentStatus, string> = {
-  gathering: 'Gathering',
-  satisfied: 'Satisfied',
-  drafted: 'Drafted',
-  approved: 'Approved',
-};
+interface DisplayState { label: string; cls: string }
+
+function componentDisplayState(
+  c: ComponentView,
+  autoDrafting?: boolean,
+  sectionQuestions?: Record<string, string[]>,
+): DisplayState {
+  if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
+  if (c.status === 'drafted') {
+    const aiSatisfied = c.sections.every((s) => s.aiSatisfied);
+    if (aiSatisfied) return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
+    // Check if there are questions from auto-draft
+    const hasQuestions = c.sections.some((s) => {
+      const qKey = `${c.kind}:${s.key}`;
+      return (sectionQuestions?.[qKey]?.length ?? 0) > 0;
+    });
+    if (hasQuestions) return { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
+    return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
+  }
+  if (autoDrafting) return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
+  return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
+}
 
 /** Group a component's section prompts into Forge "ask" rounds (2 questions each). */
 function roundsFor(c: ComponentView): { questions: string[]; source: string; missing: string[] }[] {
@@ -1228,6 +1238,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
+                displayState={componentDisplayState(c, autoDrafting, sectionQuestions)}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');
@@ -1316,16 +1327,16 @@ function ComponentRow({
   c,
   active,
   participants,
+  displayState,
   onClick,
 }: {
   c: ComponentView;
   active: boolean;
   participants: Participant[];
+  displayState: DisplayState;
   onClick: () => void;
 }) {
   const Icon = KIND_ICON[c.kind];
-  const ai = c.status !== 'gathering';
-  const human = c.status === 'approved';
   return (
     <button
       type="button"
@@ -1344,23 +1355,12 @@ function ComponentRow({
         <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
         <ApproverCluster participants={participants} />
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-6">
-        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', STATUS_PILL[c.status])}>
-          {STATUS_LABEL[c.status]}
+      <div className="mt-1.5 pl-6">
+        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', displayState.cls)}>
+          {displayState.label}
         </span>
-        <SatDot label="Forge" on={ai} />
-        <SatDot label="Human" on={human} />
       </div>
     </button>
-  );
-}
-
-function SatDot({ label, on }: { label: string; on: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px]">
-      <span className={cn('size-1.5 rounded-full', on ? 'bg-[var(--sage)]' : 'bg-line-strong')} />
-      <span className={on ? 'text-ink-soft' : 'text-ink-faint'}>{label}</span>
-    </span>
   );
 }
 

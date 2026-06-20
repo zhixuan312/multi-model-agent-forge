@@ -983,7 +983,7 @@ function CraftStage({
             const aiOk = data.refinement.questions.length === 0;
             const forgeReply = aiOk
               ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
-              : data.refinement.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n');
+              : `❓ A few more things to clarify:\n\n${data.refinement.questions.map((q) => `• ${q}`).join('\n\n')}`;
             setSectionHistory((prev) => ({
               ...prev,
               [active.id]: [...(prev[active.id] ?? []), { role: 'forge', text: forgeReply }],
@@ -1160,13 +1160,12 @@ function CraftStage({
                         </div>
                         <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
                           {questions.length > 0 ? (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               <p className="text-sm leading-relaxed text-ink">
-                                <span className="mr-1.5">❓</span>I've drafted this but have a few questions:
+                                <span className="mr-1.5">❓</span>I've drafted this but would like to clarify:
                               </p>
                               {questions.map((q, i) => (
-                                <p key={i} className="text-sm leading-relaxed text-ink">
-                                  <span className="mr-1.5 font-semibold text-accent">Q{i + 1}</span>
+                                <p key={i} className="text-sm leading-relaxed text-ink pl-1 border-l-2 border-accent/30 ml-1">
                                   {q}
                                 </p>
                               ))}

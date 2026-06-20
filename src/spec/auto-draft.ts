@@ -34,7 +34,7 @@ function buildFullDraftSystem(): string {
 
 For each section:
 - Do NOT add headings — they are added automatically.
-- Attach 0-N questions: ask only when the exploration brief is genuinely insufficient. If the brief already covers the section fully, return an empty questions array.
+- Attach 0-N questions: ask when the exploration brief leaves genuine gaps. Ask ALL your questions at once — do not hold back. If you have 3 concerns, ask all 3. If the brief already covers the section fully, return an empty questions array.
 - Ground your draft in the exploration findings, but ADAPT THE LANGUAGE TO THE AUDIENCE.
 
 Audience rules — each section lists its primary roles:
@@ -192,7 +192,7 @@ export async function autoDraftAll(
   // Insert ONE Forge message per component (on the first section)
   for (const [, { questions, firstSectionId }] of questionsByComponent) {
     const forgeBody = questions.length > 0
-      ? `❓ I've drafted this but have a few questions:\n${questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')}`
+      ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
       : '✅ This looks complete. You can approve it, or tell me what to change.';
     await db.insert(qaMessage).values({
       sectionId: firstSectionId,
@@ -320,7 +320,7 @@ export async function refineSection(
   // Persist Forge reply
   const forgeReply = aiSatisfied
     ? '✅ Updated the draft with your feedback. I\'m satisfied with this section — press "Construct section" to review, then approve.'
-    : result.data.questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n');
+    : `❓ A few more things to clarify:\n\n${result.data.questions.map((q) => `• ${q}`).join('\n\n')}`;
   await db.insert(qaMessage).values({
     sectionId: deps.sectionId,
     seq,

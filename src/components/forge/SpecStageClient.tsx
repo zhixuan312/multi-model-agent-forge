@@ -940,14 +940,14 @@ function CraftStage({
         .then((r) => r.json())
         .then((data: { refinement?: { draftMd: string; questions: string[] } }) => {
           if (data.refinement) {
-            // Update the draft on the first section
+            // Update the draft + aiSatisfied from the refine response
+            const aiOk = data.refinement.questions.length === 0;
             onPatch(active.id, {
+              aiSatisfied: aiOk,
               sections: active.sections.map((s, i) =>
                 i === 0 ? { ...s, draftMd: data.refinement!.draftMd } : s,
               ),
             });
-            // Add Forge response to history — make AI state clear
-            const aiOk = data.refinement.questions.length === 0;
             const forgeReply = aiOk
               ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
               : `❓ A few more things to clarify:\n\n${data.refinement.questions.map((q) => `• ${q}`).join('\n\n')}`;

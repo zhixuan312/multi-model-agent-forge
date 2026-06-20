@@ -42,7 +42,7 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['BO', 'PM'],
     default: true,
     sections: [
-      { key: 'background', label: 'Background', prompt: 'What background and current landscape frames this work?', draftHeading: 'Background' },
+      { key: 'background', label: 'Background', prompt: 'What background and current landscape frames this work? Format: 2-3 paragraphs of plain prose. Name the team, product, and key stakeholders.', draftHeading: 'Background' },
     ],
   },
   {
@@ -51,7 +51,7 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['BO', 'PM'],
     default: true,
     sections: [
-      { key: 'problem', label: 'Problem', prompt: 'What exactly is the problem being solved and why does it matter now?', draftHeading: 'Problem' },
+      { key: 'problem', label: 'Problem', prompt: 'What exactly is the problem being solved and why does it matter now? Format: a clear problem statement (1-2 sentences bold), then the impact and urgency in prose.', draftHeading: 'Problem' },
     ],
   },
   {
@@ -60,11 +60,11 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['BO', 'PM'],
     default: true,
     sections: [
-      { key: 'goals', label: 'Goals', prompt: 'What are the goals of this work?', draftHeading: 'Goals' },
-      { key: 'functional', label: 'Functional requirements', prompt: 'What must the system do (functional requirements)?', draftHeading: 'Functional requirements' },
-      { key: 'scope', label: 'Scope', prompt: 'What is in scope and what is explicitly out of scope?', draftHeading: 'Scope' },
-      { key: 'constraints', label: 'Constraints', prompt: 'What are the non-functional constraints (performance, security, scalability, etc.)?', draftHeading: 'Constraints' },
-      { key: 'success_metrics', label: 'Success metrics', prompt: 'How will success be measured? What are the key metrics?', draftHeading: 'Success metrics' },
+      { key: 'goals', label: 'Goals', prompt: 'What are the goals of this work? Format: numbered list, each goal as a clear outcome statement (not a task).', draftHeading: 'Goals' },
+      { key: 'functional', label: 'Functional requirements', prompt: 'What must the system do? Format: bulleted list grouped by area. Each requirement starts with "The system shall/must..."', draftHeading: 'Functional requirements' },
+      { key: 'scope', label: 'Scope', prompt: 'What is in scope and what is explicitly out of scope? Format: two sections — "In scope" (bulleted) and "Out of scope" (bulleted with brief reason for each exclusion).', draftHeading: 'Scope' },
+      { key: 'constraints', label: 'Constraints', prompt: 'What are the non-functional constraints? Format: bulleted list, each prefixed with category (Performance, Security, Scalability, Compatibility, etc.).', draftHeading: 'Constraints' },
+      { key: 'success_metrics', label: 'Success metrics', prompt: 'How will success be measured? Format: table with columns: Metric | Target | How measured.', draftHeading: 'Success metrics' },
     ],
   },
   {
@@ -73,9 +73,9 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['SWE'],
     default: true,
     sections: [
-      { key: 'driving_factors', label: 'Driving factors', prompt: 'What criteria and constraints drive the decision between options?', draftHeading: 'Driving factors' },
-      { key: 'options', label: 'Options', prompt: 'What alternative approaches were considered? Describe each option with its trade-offs.', draftHeading: 'Options' },
-      { key: 'comparison', label: 'Comparison', prompt: 'How do the options compare against the driving factors? Present a horizontal comparison.', draftHeading: 'Comparison' },
+      { key: 'driving_factors', label: 'Driving factors', prompt: 'What criteria drive the decision? Format: numbered list of factors, each with a brief explanation of why it matters and its relative weight (must-have vs nice-to-have).', draftHeading: 'Driving factors' },
+      { key: 'options', label: 'Options', prompt: 'What approaches were considered? Format: for each option use a subheading (#### Option A: Name), then a brief description, key advantages (✅), and disadvantages (❌).', draftHeading: 'Options' },
+      { key: 'comparison', label: 'Comparison', prompt: 'How do options compare? Format: markdown table with driving factors as rows, options as columns. Use ✅/⚠️/❌ for each cell. Add a final "Recommendation" row highlighting the chosen option in **bold**.', draftHeading: 'Comparison' },
     ],
   },
   {
@@ -84,9 +84,9 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['SWE'],
     default: true,
     sections: [
-      { key: 'current_state', label: 'Current state', prompt: 'What is the current implementation — architecture, data flow, key components? (For greenfield, state that nothing exists.)', draftHeading: 'Current state' },
-      { key: 'proposed', label: 'Proposed design', prompt: 'What is the proposed design? Cover architecture, interfaces, data model, and key implementation details.', draftHeading: 'Proposed design' },
-      { key: 'impact', label: 'Impact', prompt: 'What breaks, what migrates, and what is the rollout path from current to proposed?', draftHeading: 'Impact' },
+      { key: 'current_state', label: 'Current state', prompt: 'What is the current implementation? Format: describe architecture, data flow, and key components. Reference specific files/modules. Include a ```mermaid diagram if helpful. For greenfield, state that nothing exists.', draftHeading: 'Current state' },
+      { key: 'proposed', label: 'Proposed design', prompt: 'What is the proposed design? Format: cover architecture, interfaces/APIs, data model, and key implementation details. Use subheadings (####) for each area. Include ```mermaid diagrams for architecture or data flow where helpful.', draftHeading: 'Proposed design' },
+      { key: 'impact', label: 'Impact', prompt: 'What changes from current to proposed? Format: three subsections — "Breaking changes" (what stops working), "Migration path" (step-by-step), and "Rollout plan" (phases/flags/gates). Use bulleted lists.', draftHeading: 'Impact' },
     ],
   },
   {
@@ -95,7 +95,7 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['PM', 'SWE'],
     default: true,
     sections: [
-      { key: 'strategy', label: 'Test strategy', prompt: 'What is the testing strategy (unit, integration, e2e) and how is regression coverage ensured?', draftHeading: 'Test strategy' },
+      { key: 'strategy', label: 'Test strategy', prompt: 'What is the testing strategy? Format: table with columns: Layer (unit/integration/e2e) | What is tested | Tool/framework | Coverage target. Then a paragraph on regression strategy.', draftHeading: 'Test strategy' },
     ],
   },
   {
@@ -104,8 +104,8 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['SWE', 'PM'],
     default: true,
     sections: [
-      { key: 'risks', label: 'Risks', prompt: 'What risks and trade-offs follow from this approach?', draftHeading: 'Risks' },
-      { key: 'mitigations', label: 'Mitigations', prompt: 'How are the identified risks mitigated or monitored?', draftHeading: 'Mitigations' },
+      { key: 'risks', label: 'Risks', prompt: 'What risks follow from this approach? Format: table with columns: Risk | Likelihood (High/Med/Low) | Impact (High/Med/Low) | Description.', draftHeading: 'Risks' },
+      { key: 'mitigations', label: 'Mitigations', prompt: 'How are the risks mitigated? Format: table with columns: Risk | Mitigation | Owner | Status (planned/in-place).', draftHeading: 'Mitigations' },
     ],
   },
   {
@@ -114,8 +114,8 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['PM', 'SWE'],
     default: true,
     sections: [
-      { key: 'user_stories', label: 'User stories', prompt: 'What are the user stories from an end-user perspective? Include acceptance criteria for each.', draftHeading: 'User stories' },
-      { key: 'tech_tasks', label: 'Technical tasks', prompt: 'What are the technical tasks needed to implement the design?', draftHeading: 'Technical tasks' },
+      { key: 'user_stories', label: 'User stories', prompt: 'What are the user stories? Format: for each story use "**As a** [role], **I want** [action], **so that** [benefit]" followed by acceptance criteria as a checkbox list (- [ ] criterion).', draftHeading: 'User stories' },
+      { key: 'tech_tasks', label: 'Technical tasks', prompt: 'What technical tasks implement the design? Format: numbered list grouped by component/area. Each task has: name, brief description, estimated effort (S/M/L), and dependencies (if any).', draftHeading: 'Technical tasks' },
     ],
   },
 ] as const;

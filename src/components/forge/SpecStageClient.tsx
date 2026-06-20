@@ -1202,36 +1202,30 @@ function CraftStage({
             </div>
           </div>
         ) : (
-          /* Dialogue: input area with Construct section button */
-          <div className="shrink-0 border-t border-line px-5 py-4">
-            <div className="flex gap-2.5">
-              <Avatar
-                size="sm"
-                name={currentMember.displayName}
-                tint={currentMember.avatarTint}
-                aria-hidden
-                className="mt-0.5"
+          /* Dialogue: input area + action bar (Construct / Send) */
+          <>
+            <div className="shrink-0 border-t border-line px-5 py-3">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={readOnly}
+                placeholder="Message Forge…"
+                rows={2}
+                className="resize-none"
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
               />
-              <div className="min-w-0 flex-1">
-                <MentionComposer
-                  value={input}
-                  onChange={setInput}
-                  onSubmit={submit}
-                  pool={inChatMembers}
-                  disabled={readOnly}
-                  placeholder="Message Forge…"
-                  submitLabel="Send"
-                  secondary={
-                    drafted ? (
-                      <Button size="sm" variant="ghost" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
-                        Construct section
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </div>
             </div>
-          </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
+              {drafted ? (
+                <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
+                  Construct section
+                </Button>
+              ) : null}
+              <Button size="sm" onClick={submit} disabled={readOnly || !input.trim()} rightIcon={<ArrowRight />}>
+                Send
+              </Button>
+            </div>
+          </>
         )}
       </Card>
 

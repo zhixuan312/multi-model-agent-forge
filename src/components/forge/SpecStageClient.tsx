@@ -679,7 +679,6 @@ function componentDisplayState(
   if (c.status === 'drafted') {
     const aiSatisfied = c.sections.every((s) => s.aiSatisfied);
     if (aiSatisfied) return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
-    // Check if there are questions from auto-draft
     const hasQuestions = c.sections.some((s) => {
       const qKey = `${c.kind}:${s.key}`;
       return (sectionQuestions?.[qKey]?.length ?? 0) > 0;
@@ -688,7 +687,7 @@ function componentDisplayState(
     return { label: 'Ready', cls: 'bg-accent-tint text-accent' };
   }
   if (autoDrafting) return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
-  return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
+  return { label: 'Gathering', cls: 'bg-surface-2 text-ink-soft' };
 }
 
 /** Group a component's section prompts into Forge "ask" rounds (2 questions each). */
@@ -1007,6 +1006,10 @@ function CraftStage({
       participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
     }));
     onPatch(active.id, { status: 'approved' });
+    // Persist approval to DB — nod each section in this component
+    for (const s of active.sections) {
+      fetch(`/projects/${projectId}/spec/sections/${s.id}/nod`, { method: 'POST' }).catch(() => {});
+    }
     const nextOpen = components.find((c) => c.id !== active.id && c.status !== 'approved');
     if (nextOpen) {
       setActiveId(nextOpen.id);
@@ -1087,7 +1090,7 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {autoDrafting ? (
+          {autoDrafting && !drafted ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>

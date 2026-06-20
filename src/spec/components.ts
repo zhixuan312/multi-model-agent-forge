@@ -74,8 +74,8 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     default: true,
     sections: [
       { key: 'driving_factors', label: 'Driving factors', prompt: 'What criteria drive the decision? Format: numbered list of factors, each with a brief explanation of why it matters and its relative weight (must-have vs nice-to-have).', draftHeading: 'Driving factors' },
-      { key: 'options', label: 'Options', prompt: 'What approaches were considered? Format: for each option use a subheading (#### Option A: Name), then a brief description, key advantages (✅), and disadvantages (❌).', draftHeading: 'Options' },
-      { key: 'comparison', label: 'Comparison', prompt: 'How do options compare? Format: markdown table with driving factors as rows, options as columns. Use ✅/⚠️/❌ for each cell. Add a final "Recommendation" row highlighting the chosen option in **bold**.', draftHeading: 'Comparison' },
+      { key: 'options', label: 'Options', prompt: 'What approaches were considered? Format: for each option use a subheading (#### Option A: Name), then a brief description. Under each option, evaluate it against EVERY driving factor defined above — for each factor state how well this option satisfies it (✅ strong / ⚠️ partial / ❌ weak) with a one-line explanation.', draftHeading: 'Options' },
+      { key: 'comparison', label: 'Comparison', prompt: 'Side-by-side comparison table. Format: markdown table with driving factors as rows and options as columns. Use ✅/⚠️/❌ for each cell. The CHOSEN option column must be wrapped in **bold** headers (e.g. **Option B ✓**) to highlight the recommendation. Add a final row "Verdict" with the reasoning for the choice.', draftHeading: 'Comparison' },
     ],
   },
   {

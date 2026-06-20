@@ -11,7 +11,8 @@ import { auditPassHistory } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
 import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
-import { AnthropicClient } from '@/anthropic/client';
+import { isVoiceEnabled } from '@/config/connections-core';
+import { findInflight } from '@/dispatch/dispatch-helpers';
 
 /**
  * Spec stage (Spec 4 Part A) — the per-section dynamic Q&A authoring slice. RSC
@@ -55,6 +56,10 @@ export default async function SpecStagePage({
   const mmaReady = await isMmaReady(db);
   const auditHistory = await auditPassHistory(db, id);
   const freezeReady = await canFreeze(db, id);
+  const voiceEnabled = await isVoiceEnabled({ db });
+  const pendingAudit = await findInflight(db, id, 'spec-audit');
+  const pendingAutoDraft = await findInflight(db, id, 'spec-auto-draft');
+  const pendingApply = await findInflight(db, id, 'spec-audit-apply');
 
   return (
     <SpecStageClient
@@ -67,10 +72,14 @@ export default async function SpecStagePage({
       defaultKinds={defaultComponentKinds()}
       initialComponents={components}
       initialSpec={latestSpec ? { version: latestSpec.version, bodyMd: latestSpec.bodyMd } : null}
-      initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict }))}
+      initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings.map((f) => ({ severity: f.severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion })) }))}
       initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       initialMessages={initialMessages}
+      voiceEnabled={voiceEnabled}
+      pendingAudit={pendingAudit}
+      pendingAutoDraft={pendingAutoDraft}
+      pendingApply={pendingApply}
     />
   );
 }
@@ -81,16 +90,6 @@ async function isMmaReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
   return readMmaBearer() !== null;
 }
 
-/**
- * The main tier is ready when any auth resolves: the server's Claude Code
- * subscription OAuth, or an env key. Defer to the canonical resolver so the
- * precedence stays in one place.
- */
 async function isMainTierReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
-  try {
-    await AnthropicClient.resolveMainTier();
-    return true;
-  } catch {
-    return false;
-  }
+  return readMmaBearer() !== null;
 }

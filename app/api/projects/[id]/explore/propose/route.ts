@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { guardExploreWrite } from '@/exploration/guard';
-import { proposeFanOut } from '@/exploration/fan-out';
-import { AnthropicConfigError } from '@/anthropic/client';
-
-/** `POST /api/projects/[id]/explore/propose` — the main-agent fan-out proposal.
- *  Zod-validated, deterministic per-failure drop/repair, atomic insert of the
- *  conformant set; a failed/unparseable response inserts zero rows. */
-export const runtime = 'nodejs';
+import { buildProposeRequest } from '@/exploration/fan-out';
+import { buildMmaClient } from '@/mma/server-client';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { getDb } from '@/db/client';
+import { projectRepo } from '@/db/schema/projects';
+import '@/dispatch/handler-registry';
 
 export async function POST(
   req: NextRequest,
@@ -17,19 +18,36 @@ export async function POST(
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
-  try {
-    const res = await proposeFanOut(id, { id: guard.memberId });
-    if (res.failed) {
-      return NextResponse.json(
-        { error: 'Analysis failed — try again.', retryable: true, tasks: [] },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json({ tasks: res.inserted, empty: res.inserted.length === 0 });
-  } catch (err) {
-    if (err instanceof AnthropicConfigError) {
-      return NextResponse.json({ error: err.message, retryable: false }, { status: 503 });
-    }
-    return NextResponse.json({ error: 'Analysis failed — try again.', retryable: true }, { status: 502 });
+  const db = getDb();
+
+  const existing = await findInflight(db, id, 'explore-propose');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
+
+  const request = await buildProposeRequest(id, { db });
+
+  const repos = await db
+    .select({ repoId: projectRepo.repoId })
+    .from(projectRepo)
+    .where(eq(projectRepo.projectId, id));
+  const repoIds = repos.map((r) => r.repoId);
+
+  const mma = await buildMmaClient({ db });
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'explore-propose',
+    cwd: resolveWorkspaceRoot(),
+    body: {
+      prompt: `${request.system}\n\n${request.user}`,
+      actorId: guard.memberId,
+      repoIds,
+    },
+    actorId: guard.memberId,
+  });
+
+  return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

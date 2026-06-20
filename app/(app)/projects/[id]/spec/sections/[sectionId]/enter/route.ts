@@ -6,11 +6,7 @@ import { getDb } from '@/db/client';
 
 type Ctx = { params: Promise<{ id: string; sectionId: string }> };
 
-/**
- * `POST …/sections/[sectionId]/enter` — enter a section's loop: generate the
- * first round of questions (or take the zero-question fast path / stale re-draft).
- * Idempotent: a section already in flight is a no-op.
- */
+/** @deprecated Old per-section Q&A — replaced by auto-draft (Approach C). Not called from UI. */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, sectionId } = await ctx.params;
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });

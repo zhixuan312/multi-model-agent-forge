@@ -73,7 +73,7 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['SWE'],
     default: true,
     sections: [
-      { key: 'driving_factors', label: 'Driving factors', prompt: 'What criteria drive the decision? Format: numbered list of factors, each with a brief explanation of why it matters and its relative weight (must-have vs nice-to-have).', draftHeading: 'Driving factors' },
+      { key: 'driving_factors', label: 'Driving factors', prompt: 'What criteria drive the decision? Format: numbered list of factors, each with a brief explanation of why it matters and its relative weight (must-have vs nice-to-have). ONLY list the decision criteria here — do NOT include options, evaluations, comparisons, or verdicts (those have their own sections below).', draftHeading: 'Driving factors' },
       { key: 'options', label: 'Options', prompt: 'What approaches were considered? Format: for each option use a subheading (#### Option A: Name), then a brief description. Under each option, evaluate it against EVERY driving factor defined above — for each factor state how well this option satisfies it (✅ strong / ⚠️ partial / ❌ weak) with a one-line explanation.', draftHeading: 'Options' },
       { key: 'comparison', label: 'Comparison', prompt: 'Side-by-side comparison table. Format: markdown table with driving factors as rows and options as columns. Use ✅/⚠️/❌ for each cell. The CHOSEN option column must be wrapped in **bold** headers (e.g. **Option B ✓**) to highlight the recommendation. Add a final row "Verdict" with the reasoning for the choice.', draftHeading: 'Comparison' },
     ],
@@ -84,8 +84,8 @@ export const COMPONENT_TEMPLATES: readonly ComponentTemplate[] = [
     primaryRoles: ['SWE'],
     default: true,
     sections: [
-      { key: 'current_state', label: 'Current state', prompt: 'What is the current implementation? Format: describe architecture, data flow, and key components. Reference specific files/modules. Include a ```mermaid diagram if helpful. For greenfield, state that nothing exists.', draftHeading: 'Current state' },
-      { key: 'proposed', label: 'Proposed design', prompt: 'What is the proposed design? Format: cover architecture, interfaces/APIs, data model, and key implementation details. Use subheadings (####) for each area. Include ```mermaid diagrams for architecture or data flow where helpful.', draftHeading: 'Proposed design' },
+      { key: 'current_state', label: 'Current state', prompt: 'What is the current implementation? Format: describe architecture, data flow, and key components. Reference specific files/modules. MUST include a ```mermaid diagram showing the current architecture/data flow. For greenfield, state that nothing exists (no diagram needed).', draftHeading: 'Current state' },
+      { key: 'proposed', label: 'Proposed design', prompt: 'What is the proposed design? Format: cover architecture, interfaces/APIs, data model, and key implementation details. Use subheadings (####) for each area. MUST include a ```mermaid diagram showing the proposed architecture/data flow.', draftHeading: 'Proposed design' },
       { key: 'impact', label: 'Impact', prompt: 'What changes from current to proposed? Format: three subsections — "Breaking changes" (what stops working), "Migration path" (step-by-step), and "Rollout plan" (phases/flags/gates). Use bulleted lists.', draftHeading: 'Impact' },
     ],
   },

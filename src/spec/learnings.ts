@@ -104,7 +104,7 @@ export async function proposeLearnings(
 }
 
 /** Build the `composeLearningCandidates` prompt from intent + frozen spec + Q&A session. */
-async function buildLearningsPrompt(
+export async function buildLearningsPrompt(
   db: Db,
   projectId: string,
 ): Promise<{ system: string; user: string }> {

@@ -109,6 +109,36 @@ function classify(
   return { ok: true, task: t };
 }
 
+export async function buildProposeRequest(
+  projectId: string,
+  deps: { db?: Db } = {},
+): Promise<{ system: string; user: string }> {
+  const db = deps.db ?? getDb();
+
+  const [brief] = await db
+    .select({ bodyMd: artifact.bodyMd })
+    .from(artifact)
+    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
+    .orderBy(desc(artifact.version))
+    .limit(1);
+
+  const attachments = await db
+    .select({ kind: attachment.kind, label: attachment.label, payload: attachment.payload })
+    .from(attachment)
+    .where(eq(attachment.projectId, projectId));
+
+  const repos = await db
+    .select({ id: projectRepo.repoId, name: repo.name })
+    .from(projectRepo)
+    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
+    .where(eq(projectRepo.projectId, projectId));
+
+  return {
+    system: PROPOSE_SYSTEM,
+    user: buildProposeUser({ brief: brief?.bodyMd ?? '', attachments, repos: repos.map((r) => ({ id: r.id, name: r.name })) }),
+  };
+}
+
 export async function proposeFanOut(
   projectId: string,
   actor: { id: string },

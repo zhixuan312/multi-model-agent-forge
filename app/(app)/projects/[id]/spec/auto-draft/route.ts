@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
-import { guardSpecWrite, buildAnthropic, anthropicErrorResponse } from '@/spec/handler-guard';
-import { autoDraftAll } from '@/spec/auto-draft';
-import { loadOutline } from '@/spec/spec-core';
+import { guardSpecWrite } from '@/spec/handler-guard';
+import { buildAutoDraftRequest } from '@/spec/auto-draft';
+import { buildMmaClient } from '@/mma/server-client';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
-import { stage } from '@/db/schema/projects';
-
-export const runtime = 'nodejs';
+import '@/dispatch/handler-registry';
 
 export async function POST(
   req: NextRequest,
@@ -16,20 +15,32 @@ export async function POST(
   const guard = await guardSpecWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
-  try {
-    const anthropic = await buildAnthropic();
-    const result = await autoDraftAll({ anthropic, projectId: id });
+  const db = getDb();
 
-    const db = getDb();
-    const [specStage] = await db
-      .select({ id: stage.id })
-      .from(stage)
-      .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
-      .limit(1);
-    const components = specStage ? await loadOutline(db, specStage.id) : [];
-
-    return NextResponse.json({ ...result, components });
-  } catch (e) {
-    return anthropicErrorResponse(e);
+  const existing = await findInflight(db, id, 'spec-auto-draft');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
+
+  const request = await buildAutoDraftRequest({ db, projectId: id });
+  if ('error' in request) {
+    return NextResponse.json({ ok: false, error: request.error }, { status: 409 });
+  }
+
+  const mma = await buildMmaClient({ db });
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'spec-auto-draft',
+    cwd: resolveWorkspaceRoot(),
+    body: {
+      prompt: `${request.system}\n\n${request.user}`,
+      outline: request.outline,
+    },
+    actorId: guard.memberId,
+  });
+
+  return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

@@ -6,6 +6,8 @@ import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/mma';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 
+export const maxDuration = 600;
+
 /**
  * `GET /api/journal/recall/[batchId]` — server-side poll proxy for a recall
  * batch. The MMA bearer is server-only (never reaches the browser), so the

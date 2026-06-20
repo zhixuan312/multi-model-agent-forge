@@ -135,15 +135,13 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     setError(null);
     try {
       await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
-      const res = await postJson<{ tasks: unknown[]; empty?: boolean }>(
+      await postJson<{ batchId: string }>(
         `/api/projects/${props.projectId}/explore/propose`,
         {},
       );
-      if (res.empty) setError('No tasks proposed — add tasks manually below.');
-      refreshTasks();
+      // Route returns 202 — SSE dispatch.done will trigger refresh
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Analysis failed.');
-    } finally {
       setBusy(false);
     }
   }
@@ -167,18 +165,40 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     setBusy(true);
     try {
       await postJson(`/api/projects/${props.projectId}/explore/synthesize`, {});
-      // Seed the artifact cache directly (the summary appears without SSE).
-      const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
-      if (r.ok) {
-        const a = (await r.json()) as ArtifactCacheEntry | null;
-        if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a);
-      }
-    } catch {
-      /* non-blocking — prior version retained */
-    } finally {
+      // Route returns 202 — SSE dispatch.done will trigger refresh
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Synthesis failed.');
       setBusy(false);
     }
   }
+
+  // SSE listener for dispatch events (propose + synthesize completion)
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
+          setBusy(false);
+          refreshTasks();
+          if (data.handler === 'explore-synthesize') {
+            fetch(`/api/projects/${props.projectId}/explore/artifact`)
+              .then((r) => r.ok ? r.json() : null)
+              .then((a) => { if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry); })
+              .catch(() => {});
+          }
+        }
+        if (data.type === 'dispatch.failed' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
+          setBusy(false);
+          setError(data.error ?? 'Task failed.');
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.projectId]);
 
   async function addLink(): Promise<void> {
     const url = window.prompt('Link URL (http/https):');

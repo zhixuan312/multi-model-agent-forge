@@ -36,6 +36,7 @@ function buildFullDraftSystem(): string {
 
 For each section:
 - Do NOT add headings — they are added automatically.
+- Stay strictly within the section's stated scope. A component may have multiple sections (e.g. "Driving factors", "Options", "Comparison") — each covers ONLY what its prompt describes. Never duplicate content that belongs in a sibling section.
 - Attach 0-N questions: ask when the exploration brief leaves genuine gaps. Ask ALL your questions at once — do not hold back. If you have 3 concerns, ask all 3. If the brief already covers the section fully, return an empty questions array.
 - Ground your draft in the exploration findings, but ADAPT THE LANGUAGE TO THE AUDIENCE.
 
@@ -71,6 +72,87 @@ export interface AutoDraftResult {
   sections: FullSpecSection[];
   usage?: CallUsage;
   error?: string;
+}
+
+export interface OutlineEntry {
+  componentKind: string;
+  componentLabel: string;
+  sectionKey: string;
+  sectionLabel: string;
+  prompt: string;
+  roles: string[];
+  sectionId: string;
+  componentId: string;
+}
+
+export interface AutoDraftRequest {
+  system: string;
+  user: string;
+  outline: OutlineEntry[];
+}
+
+export async function buildAutoDraftRequest(
+  deps: { db?: Db; projectId: string },
+): Promise<AutoDraftRequest | { error: string }> {
+  const db = deps.db ?? getDb();
+
+  const [proj] = await db
+    .select({ intentMd: project.intentMd })
+    .from(project)
+    .where(eq(project.id, deps.projectId))
+    .limit(1);
+  const exploration = await getLatestExploration(db, deps.projectId);
+
+  const [specStage] = await db
+    .select({ id: stage.id })
+    .from(stage)
+    .where(and(eq(stage.projectId, deps.projectId), eq(stage.kind, 'spec')))
+    .limit(1);
+  if (!specStage) return { error: 'No spec stage.' };
+
+  const components = await db
+    .select({ id: component.id, kind: component.kind, orderIndex: component.orderIndex })
+    .from(component)
+    .where(eq(component.stageId, specStage.id))
+    .orderBy(component.orderIndex);
+
+  const sections = await db
+    .select({
+      id: componentSection.id,
+      componentId: componentSection.componentId,
+      key: componentSection.key,
+      label: componentSection.label,
+      orderIndex: componentSection.orderIndex,
+    })
+    .from(componentSection)
+    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .where(and(eq(component.stageId, specStage.id), sql`${component.status} != 'approved'`))
+    .orderBy(component.orderIndex, componentSection.orderIndex);
+
+  if (sections.length === 0) return { error: 'No sections to draft.' };
+
+  const compById = new Map(components.map((c) => [c.id, c]));
+  const outline: OutlineEntry[] = sections.map((s) => {
+    const comp = compById.get(s.componentId)!;
+    const tpl = templateForKind(comp.kind as ComponentKind);
+    const secTpl = tpl.sections.find((t) => t.key === s.key);
+    return {
+      componentKind: comp.kind,
+      componentLabel: tpl.label,
+      sectionKey: s.key,
+      sectionLabel: s.label,
+      prompt: secTpl?.prompt ?? s.label,
+      roles: tpl.primaryRoles,
+      sectionId: s.id,
+      componentId: s.componentId,
+    };
+  });
+
+  return {
+    system: buildFullDraftSystem(),
+    user: buildFullDraftUser(proj?.intentMd ?? null, exploration?.bodyMd ?? null, outline),
+    outline,
+  };
 }
 
 export async function autoDraftAll(
@@ -244,6 +326,53 @@ function buildRefinementUser(
   parts.push(`\n# Current draft\n${currentDraft}`);
   parts.push(`\n# User's feedback\n${userAnswer}`);
   return parts.join('\n');
+}
+
+export async function buildRefineRequest(
+  deps: { db?: Db; componentId: string; userAnswer: string; history: { role: 'forge' | 'user'; text: string }[] },
+): Promise<{ system: string; user: string; projectId: string } | { error: string }> {
+  const db = deps.db ?? getDb();
+
+  const [comp] = await db
+    .select()
+    .from(component)
+    .where(eq(component.id, deps.componentId))
+    .limit(1);
+  if (!comp) return { error: 'Component not found.' };
+
+  const tpl = templateForKind(comp.kind as ComponentKind);
+
+  const [stageRow] = await db
+    .select({ projectId: stage.projectId })
+    .from(component)
+    .innerJoin(stage, eq(component.stageId, stage.id))
+    .where(eq(component.id, deps.componentId))
+    .limit(1);
+
+  const sections = await db
+    .select({ draftMd: componentSection.draftMd })
+    .from(componentSection)
+    .where(eq(componentSection.componentId, deps.componentId));
+  const currentDraft = sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+
+  // Persist user message immediately (not deferred)
+  const [{ maxSeq }] = await db
+    .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
+    .from(qaMessage)
+    .where(eq(qaMessage.componentId, deps.componentId));
+  const seq = (maxSeq ?? -1) + 1;
+  await db.insert(qaMessage).values({
+    componentId: deps.componentId,
+    seq,
+    sender: 'member',
+    bodyMd: deps.userAnswer,
+  });
+
+  return {
+    system: buildRefinementSystem(tpl.label, tpl.label, tpl.sections.map((s) => s.prompt).join('; ')),
+    user: buildRefinementUser(currentDraft, deps.userAnswer, deps.history),
+    projectId: stageRow?.projectId ?? '',
+  };
 }
 
 export interface RefineSectionDeps {

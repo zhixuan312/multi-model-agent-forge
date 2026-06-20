@@ -69,6 +69,12 @@ export async function getConnections(deps: ConnectionsDeps = {}): Promise<Connec
   };
 }
 
+/** Centralized voice-enabled check — true when an OpenAI transcription key is configured. */
+export async function isVoiceEnabled(deps: ConnectionsDeps = {}): Promise<boolean> {
+  const c = await getConnections(deps);
+  return c.openaiTranscriptionKeySet;
+}
+
 export type UpdateConnectionsResult =
   | { kind: 'saved'; connections: ConnectionsView }
   | { kind: 'invalid' };

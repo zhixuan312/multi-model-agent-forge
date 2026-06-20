@@ -18,7 +18,8 @@ export type PollLogEvent =
   | 'propose.failure'
   | 'synthesize.failure'
   | 'attachment.write_error'
-  | 'auto_draft.failure';
+  | 'auto_draft.failure'
+  | 'handler.failed';
 
 export interface PollLogRecord {
   ts: string;

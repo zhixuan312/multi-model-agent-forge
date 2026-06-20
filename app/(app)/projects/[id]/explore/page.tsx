@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { connectionSettings } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { isVoiceEnabled } from '@/config/connections-core';
 import {
   latestBrief,
   readRailTasks,
@@ -53,11 +53,7 @@ export default async function ExploreStagePage({
     readProjectRepoOptions(id, db),
   ]);
 
-  const [settings] = await db
-    .select({ openaiRef: connectionSettings.openaiTranscriptionKeyRef })
-    .from(connectionSettings)
-    .limit(1);
-  const voiceEnabled = Boolean(settings?.openaiRef);
+  const voiceEnabled = await isVoiceEnabled({ db });
 
   return (
     <ExploreStageClient

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // matching the CapRover deploy pattern (see captain-definition).
   output: "standalone",
 
+
   // puppeteer is lazily imported in the PDF-export route (src/export/pdf/render.ts).
   // Force it into the standalone trace so headless-Chrome rendering works in prod.
   outputFileTracingIncludes: {

@@ -57,6 +57,11 @@ export default async function SpecStagePage({
   const auditHistory = await auditPassHistory(db, id);
   const freezeReady = await canFreeze(db, id);
   const voiceEnabled = await isVoiceEnabled({ db });
+  // Check if plan has been authored — if so, spec is locked
+  const { planTask: planTaskTable } = await import('@/db/schema/build');
+  const [planExists] = await db.select({ id: planTaskTable.id }).from(planTaskTable).where(eq(planTaskTable.projectId, id)).limit(1);
+  const specLocked = !!planExists;
+
   const pendingAudit = await findInflight(db, id, 'spec-audit');
   const pendingAutoDraft = await findInflight(db, id, 'spec-auto-draft');
   const pendingApply = await findInflight(db, id, 'spec-audit-apply');
@@ -66,7 +71,7 @@ export default async function SpecStagePage({
       projectId={id}
       projectName={proj.name}
       intentMd={proj.intentMd}
-      phase={proj.phase}
+      phase={specLocked ? 'frozen' as any : proj.phase}
       mainTierReady={mainTierReady}
       mmaReady={mmaReady}
       defaultKinds={defaultComponentKinds()}

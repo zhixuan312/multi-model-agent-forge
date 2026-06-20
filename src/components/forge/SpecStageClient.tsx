@@ -25,6 +25,7 @@ import {
   Loader2,
   Database,
   Shield,
+  RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
@@ -1160,30 +1161,24 @@ function CraftStage({
         </CardContent>
 
         {constructedDrafts[active.id] ? (
-          /* Constructed: single approve footer, no input */
+          /* Draft view footer: navigation + actions */
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <div className="flex items-center gap-2.5">
-              <FileText className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{approved ? 'Approved' : 'Draft ready for review'}</p>
-                <p className="text-xs text-ink-faint">
-                  {approved
-                    ? 'At least one approver has signed off — good to go.'
-                    : 'Approve to lock it, or tell me what to change.'}
-                </p>
-              </div>
-            </div>
+            <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); }} leftIcon={<ChevronLeft />}>
+              Back to conversation
+            </Button>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<ChevronLeft />}>
-                {approved ? 'Revoke & edit' : 'Back to edit'}
-              </Button>
+              {approved ? (
+                <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<RotateCcw />}>
+                  Revoke
+                </Button>
+              ) : null}
               <Button onClick={approve} disabled={readOnly || approved || iApproved} leftIcon={<Check />}>
                 {approved || iApproved ? 'Approved' : 'Approve'}
               </Button>
             </div>
           </div>
         ) : (
-          /* Dialogue: rich input with voice + file */
+          /* Conversation view footer: input + show draft */
           <ForgeComposer
             value={input}
             onChange={setInput}

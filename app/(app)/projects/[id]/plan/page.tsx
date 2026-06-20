@@ -30,10 +30,11 @@ export default async function PlanStagePage({ params }: { params: Promise<{ id: 
     .limit(1);
   if (!proj) notFound();
 
-  // Activate the plan stage on first visit
+  // Activate the plan stage + update current_stage on visit
   const { stage } = await import('@/db/schema/projects');
   const { and, eq: deq } = await import('drizzle-orm');
   await db.update(stage).set({ status: 'active' }).where(and(deq(stage.projectId, id), deq(stage.kind, 'plan'), deq(stage.status, 'pending')));
+  await db.update(project).set({ currentStage: 'plan' }).where(eq(project.id, id));
 
   const planView = await loadPlanView(db, id);
   const mmaReady = readMmaBearer() !== null;

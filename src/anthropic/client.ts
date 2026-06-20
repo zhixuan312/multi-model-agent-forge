@@ -28,7 +28,7 @@ import {
 export const DEFAULT_MAIN_MODEL = 'claude-opus-4-8';
 
 /** Hard per-call ceiling (F18/F23). 120s — well above worst-case, below the SDK's ~10-min guard. */
-export const ANTHROPIC_CALL_TIMEOUT_MS = 120_000;
+export const ANTHROPIC_CALL_TIMEOUT_MS = 300_000;
 
 /** SDK retry budget for the Q&A workload (F12) — raised from the SDK default of 2. */
 export const ANTHROPIC_MAX_RETRIES = 4;

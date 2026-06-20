@@ -191,7 +191,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [autoDrafting, setAutoDrafting] = useState(
     () => phase === 'craft' && needsAutoDraft,
   );
-  const [componentQuestions, setComponentQuestions] = useState<Record<string, string[]>>({});
   const autoDraftFired = useRef(false);
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
@@ -200,26 +199,12 @@ export function SpecStageClient(props: SpecStageClientProps) {
     autoDraftFired.current = true;
     setAutoDrafting(true);
     fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-      .then((r) => {
-        if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`);
-        return r.json();
-      })
-      .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+      .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); return r.json(); })
+      .then((data: { error?: string }) => {
         if (data.error) { setError(data.error); return; }
-        if (data.components) {
-          setComponents(data.components);
-          // Aggregate questions per component
-          if (data.sections) {
-            const byComp: Record<string, string[]> = {};
-            for (const s of data.sections) {
-              const comp = data.components.find((c) => c.kind === s.componentKind);
-              if (comp) {
-                byComp[comp.id] = [...(byComp[comp.id] ?? []), ...s.questions];
-              }
-            }
-            setComponentQuestions(byComp);
-          }
-        }
+        // Reload the page to get fresh components + messages from server
+        router.refresh();
+        window.location.reload();
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
       .finally(() => setAutoDrafting(false));
@@ -295,23 +280,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setPhase('craft');
             setAutoDrafting(true);
             fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-              .then((r) => {
-                if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`);
-                return r.json();
-              })
-              .then((data: { ok?: boolean; error?: string; components?: ComponentView[]; sections?: { componentKind: string; sectionKey: string; questions: string[] }[] }) => {
+              .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); return r.json(); })
+              .then((data: { error?: string }) => {
                 if (data.error) { setError(data.error); return; }
-                if (data.components) {
-                  setComponents(data.components);
-                  if (data.sections) {
-                    const byComp: Record<string, string[]> = {};
-                    for (const s of data.sections) {
-                      const comp = data.components.find((c) => c.kind === s.componentKind);
-                      if (comp) byComp[comp.id] = [...(byComp[comp.id] ?? []), ...s.questions];
-                    }
-                    setComponentQuestions(byComp);
-                  }
-                }
+                router.refresh();
+                window.location.reload();
               })
               .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
               .finally(() => setAutoDrafting(false));
@@ -324,7 +297,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           readOnly={readOnly}
           autoDrafting={autoDrafting}
-          componentQuestions={componentQuestions}
           allApproved={allApproved}
           craftContent={props.craftContent}
           currentMember={props.currentMember}
@@ -725,7 +697,6 @@ function CraftStage({
   readOnly,
   allApproved,
   autoDrafting,
-  componentQuestions,
   craftContent,
   currentMember,
   projectMembers,
@@ -740,7 +711,6 @@ function CraftStage({
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
-  componentQuestions?: Record<string, string[]>;
   craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];

@@ -873,7 +873,7 @@ function ValidateStage({
                 </p>
               </div>
             ) : null}
-            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} onReplay={() => replay(r.passNo)} />)}
+            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} applied={applied} onReplay={() => replay(r.passNo)} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <TextSm className="!text-ink-faint">

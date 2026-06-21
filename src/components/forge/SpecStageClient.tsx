@@ -1202,7 +1202,7 @@ function CraftStage({
             voiceEnabled={voiceEnabled}
             secondaryAction={drafted ? (
               <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
-                Show draft
+                View spec
               </Button>
             ) : undefined}
           />

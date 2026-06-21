@@ -29,7 +29,14 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
-import type { ExecUnit } from '@/mock/domains/projects/execute';
+export interface ExecUnit {
+  id: string;
+  num: number;
+  title: string;
+  repo: string;
+  dependsOn: string[];
+  filesCount: number;
+}
 
 type ExecPhase = 'dispatch' | 'run' | 'land';
 type RunStatus = 'queued' | 'running' | 'done';

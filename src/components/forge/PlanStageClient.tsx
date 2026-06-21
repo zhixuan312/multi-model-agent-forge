@@ -59,6 +59,7 @@ export interface PlanStageClientProps {
   pendingAuthor?: string | null;
   pendingAudit?: string | null;
   pendingApply?: string | null;
+  initialPhase?: 'detail' | 'validate';
 }
 
 const SEVERITY_ORDER: PlanAuditFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
@@ -80,12 +81,22 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const readOnly = props.phase !== 'design';
   const allTasks = useMemo(() => props.phases.flatMap((p) => p.tasks), [props.phases]);
 
-  const [phase, setPhase] = useState<PlanPhase>(() => {
+  const derivedPhase: PlanPhase = (() => {
     if (props.auditRounds.length > 0) return 'validate';
     const allApprovedInit = allTasks.length > 0 && allTasks.every((t) => t.dbStatus === 'committed' || t.dbStatus === 'approved');
     if (allApprovedInit) return 'validate';
     return 'detail';
-  });
+  })();
+  const [phase, setPhaseRaw] = useState<PlanPhase>(props.initialPhase ?? derivedPhase);
+
+  const setPhase = (p: PlanPhase) => {
+    setPhaseRaw(p);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('phase', p);
+      router.push(url.pathname + url.search, { scroll: false });
+    }
+  };
   const [status, setStatus] = useState<Record<string, TaskStatus>>(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
   );

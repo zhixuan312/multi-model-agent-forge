@@ -117,6 +117,8 @@ interface SpecStageClientProps {
   pendingAutoDraft?: string | null;
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
+  /** URL-persisted initial phase (outline/craft/document). */
+  initialPhase?: 'outline' | 'craft' | 'document';
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -193,9 +195,15 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [picked, setPicked] = useState<Set<ComponentKind>>(
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );
-  const [phase, setPhase] = useState<SpecPhase>(
-    components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
-  );
+  const derivedPhase: SpecPhase = components.length === 0 ? 'outline' : spec ? 'document' : 'craft';
+  const [phase, setPhaseRaw] = useState<SpecPhase>(props.initialPhase ?? derivedPhase);
+
+  const setPhase = (p: SpecPhase) => {
+    setPhaseRaw(p);
+    const url = new URL(window.location.href);
+    url.searchParams.set('phase', p);
+    router.push(url.pathname + url.search, { scroll: false });
+  };
   const needsAutoDraft = components.length > 0 && components.some(
     (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
   );
@@ -767,6 +775,8 @@ function CraftStage({
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
   const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
+  // Tracks components where user explicitly clicked "Back to conversation"
+  const [forceConversation, setForceConversation] = useState<Set<string>>(new Set());
   const [refining, setRefining] = useState(false);
   const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
 
@@ -842,7 +852,7 @@ function CraftStage({
 
   // Auto-show constructed draft for approved components when clicked
   useEffect(() => {
-    if (!active || active.status !== 'approved' || constructedDrafts[active.id]) return;
+    if (!active || active.status !== 'approved' || constructedDrafts[active.id] || forceConversation.has(active.id)) return;
     const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
     if (md) {
       setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
@@ -1038,6 +1048,7 @@ function CraftStage({
   /** Reopen a drafted/approved section to keep editing the conversation. */
   function constructSection(): void {
     if (!active) return;
+    setForceConversation((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
     // Fetch the latest draft from DB
     fetch(`/projects/${projectId}/spec/outline`)
       .then((r) => r.json())
@@ -1163,7 +1174,7 @@ function CraftStage({
         {constructedDrafts[active.id] ? (
           /* Draft view footer: navigation + actions */
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); }} leftIcon={<ChevronLeft />}>
+            <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
               Back to conversation
             </Button>
             <div className="flex items-center gap-2">

@@ -10,8 +10,11 @@ import { findInflight } from '@/dispatch/dispatch-helpers';
 import { isVoiceEnabled } from '@/config/connections-core';
 import { PlanStageClient } from '@/components/forge/PlanStageClient';
 
-export default async function PlanStagePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PlanStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
+  const { phase: phaseParam } = await searchParams;
+  const validPlanPhases = ['detail', 'validate'] as const;
+  const initialPhase = validPlanPhases.includes(phaseParam as any) ? (phaseParam as 'detail' | 'validate') : undefined;
   const me = await currentMember();
   if (!me) redirect('/login');
 
@@ -67,6 +70,7 @@ export default async function PlanStagePage({ params }: { params: Promise<{ id: 
       pendingAuthor={pendingAuthor}
       pendingAudit={pendingAudit}
       pendingApply={pendingApply}
+      initialPhase={initialPhase}
     />
   );
 }

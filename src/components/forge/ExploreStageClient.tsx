@@ -22,6 +22,7 @@ import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDum
 import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { LockedBanner } from '@/components/forge/LockedBanner';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
@@ -90,6 +91,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 export function ExploreStageClient(props: ExploreStageClientProps) {
   const qc = useQueryClient();
   useProjectEvents(props.projectId);
+  const locked = props.canMutate === false;
 
   // Seed the live caches from RSC first paint.
   if (qc.getQueryData(explorationKeys.tasks(props.projectId)) === undefined) {
@@ -315,6 +317,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      {locked && props.lockedReason ? <LockedBanner reason={props.lockedReason} /> : null}
       <AutomationBar
         mode="off"
         note=""
@@ -338,7 +341,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               repoOptions={props.repoOptions}
               onChanged={refreshTasks}
               onRun={run}
-              canRun={drafts.length > 0 && !busy}
+              canRun={drafts.length > 0 && !busy && !locked}
             />
           ) : phase === 'run' ? (
             <RunStage
@@ -348,7 +351,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               recorded={recorded}
               allDone={allDone}
               synthesizing={busy}
-              onSynthesize={resynthesize}
+              onSynthesize={locked ? () => {} : resynthesize}
+              locked={locked}
             />
           ) : (
             <SummaryPane
@@ -356,7 +360,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               bodyMd={bodyMd as string}
               version={version}
               busy={busy}
-              onResynthesize={resynthesize}
+              onResynthesize={locked ? () => {} : resynthesize}
+              locked={locked}
               projectId={props.projectId}
             />
           )}
@@ -378,14 +383,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
               <BrainDumpComposer
                 value={brief}
-                onChange={setBrief}
+                onChange={locked ? () => {} : setBrief}
                 attachments={attachments}
-                voiceEnabled={props.voiceEnabled}
+                voiceEnabled={props.voiceEnabled && !locked}
                 recording={recording}
                 transcribing={transcribing}
-                busy={busy}
+                busy={busy || locked}
                 error={error}
-                onAnalyze={analyze}
+                onAnalyze={locked ? () => {} : analyze}
                 onToggleRecord={toggleRecord}
                 onAddFile={addFile}
                 onRemoveAttachment={removeAttachment}
@@ -430,6 +435,7 @@ function RunStage(props: {
   allDone: boolean;
   synthesizing: boolean;
   onSynthesize: () => void;
+  locked?: boolean;
 }) {
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Agent run">
@@ -445,10 +451,10 @@ function RunStage(props: {
             size="sm"
             onClick={props.onSynthesize}
             loading={props.synthesizing}
-            disabled={props.synthesizing}
+            disabled={props.synthesizing || !!props.locked}
             leftIcon={<Sparkles />}
           >
-            {props.synthesizing ? 'Synthesizing…' : 'Synthesize brief'}
+            {props.synthesizing ? 'Synthesizing...' : 'Synthesize brief'}
           </Button>
         ) : null}
       </CardHeader>
@@ -801,6 +807,7 @@ function SummaryPane(props: {
   busy: boolean;
   onResynthesize: () => void;
   projectId: string;
+  locked?: boolean;
 }) {
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Synthesized summary">
@@ -819,9 +826,9 @@ function SummaryPane(props: {
           leftIcon={<RefreshCw />}
           onClick={props.onResynthesize}
           loading={props.busy}
-          disabled={props.busy}
+          disabled={props.busy || !!props.locked}
         >
-          {props.busy ? 'Synthesizing…' : 'Re-synthesize'}
+          {props.busy ? 'Synthesizing...' : 'Re-synthesize'}
         </Button>
       </CardHeader>
 

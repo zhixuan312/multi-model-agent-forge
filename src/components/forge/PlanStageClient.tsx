@@ -95,6 +95,10 @@ export function PlanStageClient(props: PlanStageClientProps) {
       const url = new URL(window.location.href);
       url.searchParams.set('phase', p);
       router.push(url.pathname + url.search, { scroll: false });
+      fetch(`/api/projects/${props.projectId}/phase`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'plan', phase: p }),
+      }).catch(() => {});
     }
   };
   const [status, setStatus] = useState<Record<string, TaskStatus>>(

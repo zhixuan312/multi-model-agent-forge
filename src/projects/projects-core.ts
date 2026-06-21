@@ -41,6 +41,7 @@ export class ProjectAccessError extends Error {
 export interface StageView {
   kind: StageKind;
   status: StageStatus;
+  lastPhase?: string | null;
 }
 
 /** The list-card DTO — one per visible project (single query, no N+1). */
@@ -344,10 +345,10 @@ export async function getProjectStages(
 ): Promise<StageView[]> {
   const db = deps.db ?? getDb();
   const rows = await db
-    .select({ kind: stage.kind, status: stage.status })
+    .select({ kind: stage.kind, status: stage.status, lastPhase: stage.lastPhase })
     .from(stage)
     .where(eq(stage.projectId, projectId));
-  return orderStages(rows.map((r) => ({ kind: r.kind, status: r.status })));
+  return orderStages(rows.map((r) => ({ kind: r.kind, status: r.status, lastPhase: r.lastPhase })));
 }
 
 /**

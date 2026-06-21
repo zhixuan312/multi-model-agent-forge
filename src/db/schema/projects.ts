@@ -94,6 +94,7 @@ export const stage = forge.table(
     status: text('status', { enum: STAGE_STATUS }).notNull().default('pending'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    lastPhase: text('last_phase'),
   },
   (t) => [unique('stage_project_kind_uniq').on(t.projectId, t.kind)],
 );

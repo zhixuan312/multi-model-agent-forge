@@ -29,8 +29,6 @@ export default async function SpecStagePage({
 }) {
   const { id } = await params;
   const { phase: phaseParam } = await searchParams;
-  const validSpecPhases = ['outline', 'craft', 'document'] as const;
-  const initialPhase = validSpecPhases.includes(phaseParam as any) ? (phaseParam as 'outline' | 'craft' | 'document') : undefined;
   const me = await currentMember();
   if (!me) redirect('/login');
 
@@ -42,6 +40,14 @@ export default async function SpecStagePage({
   }
 
   const db = getDb();
+
+  const validSpecPhases = ['outline', 'craft', 'document'] as const;
+  type SpecPhase = typeof validSpecPhases[number];
+  const { getLastPhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getLastPhase(db, id, 'spec') as SpecPhase | null;
+  const initialPhase: SpecPhase | undefined = validSpecPhases.includes(phaseParam as any)
+    ? (phaseParam as SpecPhase)
+    : lastPhase ?? undefined;
   const [proj] = await db
     .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
     .from(project)

@@ -2,6 +2,8 @@
   "name": "multi-model-agent-forge",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "description": "Collaborative AI SDLC web app — team workflow on top of multi-model-agent",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=20.9.0"

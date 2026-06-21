@@ -28,8 +28,8 @@ export const MOCK_PROJECT_MEMBERS: MemberRef[] = [BO, PRIYA, DEVON, AISHA, LEON]
  * 1 pending" before you touch anything, and the soft-nudge has something to warn
  * about.
  */
-export const MOCK_CRAFT_COLLAB: Partial<Record<ComponentKind, UnitCollab>> = {
-  proposed_design: {
+export const MOCK_CRAFT_COLLAB: Partial<Record<string, UnitCollab>> = {
+  technical_design: {
     participants: [
       { member: BO, addedBy: MOCK_ME_ID, approvedAt: '2026-06-13T09:40:00.000Z' },
       { member: PRIYA, addedBy: MOCK_ME_ID, approvedAt: null },

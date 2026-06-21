@@ -4,19 +4,17 @@
  *
  * Dependency-injected (`Db` + `SecretStore` + `WorkspaceService`) so the route
  * handlers are thin and the core is testable against the live DB with a mocked
- * git runner. The git token is resolved from `team_settings.git_token_ref` and
- * passed to the service, never returned to callers, never logged.
+ * git runner. The git token is resolved from `settings_connection.git_token_ref`
+ * and passed to the service, never returned to callers, never logged.
  */
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
-import { USE_MOCK } from '@/mock/config';
-import * as reposMock from '@/mock/domains/workspace/repos';
 
 export interface ReposDeps {
   db?: Db;
@@ -30,7 +28,6 @@ export interface RepoView {
   name: string;
   pathOnDisk: string;
   defaultBranch: string;
-  kind: string;
   tags: string[];
   headSha: string | null;
   status: 'cloned' | 'pulling' | 'error';
@@ -43,7 +40,6 @@ function toView(row: typeof repo.$inferSelect): RepoView {
     name: row.name,
     pathOnDisk: row.pathOnDisk,
     defaultBranch: row.defaultBranch,
-    kind: row.kind,
     tags: row.tags,
     headSha: row.headSha,
     status: row.status,
@@ -56,17 +52,30 @@ const tagsSchema = z
   .optional()
   .transform((t) => t ?? []);
 
+/**
+ * Normalize a repo name to a filesystem-safe snake_case slug: lowercase, every
+ * run of non-alphanumeric chars (spaces, punctuation, slashes) → a single `_`,
+ * trimmed of leading/trailing `_`. The name doubles as the on-disk clone
+ * directory (`path_on_disk`), so it must be a clean physical name — e.g.
+ * "Self Service Demo" → "self_service_demo". Also neutralizes path-escapes
+ * (`/`, `\`, `..` all collapse to `_`).
+ */
+export function toRepoSlug(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 export const cloneRepoSchema = z.object({
   name: z
     .string()
     .trim()
     .min(1)
-    // Reject path-escaping names up front (the service sandbox is the real guard).
-    .refine((n) => !n.includes('/') && !n.includes('\\') && n !== '.' && n !== '..', {
-      message: 'Name must be a simple directory name (no slashes or "..").',
+    // The name is the on-disk clone directory, so normalize it to a snake_case
+    // slug (no spaces / punctuation). A name with no alphanumerics → empty → invalid.
+    .transform(toRepoSlug)
+    .refine((n) => n.length > 0, {
+      message: 'Name must contain at least one letter or number.',
     }),
   url: z.string().trim().min(1),
-  kind: z.string().trim().min(1).default('service'),
   tags: tagsSchema,
 });
 export type CloneRepoInput = z.infer<typeof cloneRepoSchema>;
@@ -85,9 +94,9 @@ async function resolveWorkspace(deps: ReposDeps): Promise<WorkspaceService> {
   return deps.workspace ?? new WorkspaceService({ workspaceRoot: resolveWorkspaceRoot() });
 }
 
-/** Resolve the git token from team_settings.git_token_ref (null when unset). */
+/** Resolve the git token from settings_connection.git_token_ref (null when unset). */
 async function gitToken(db: Db, secrets: SecretStore): Promise<string | undefined> {
-  const [row] = await db.select().from(teamSettings).limit(1);
+  const [row] = await db.select().from(connectionSettings).limit(1);
   if (!row?.gitTokenRef) return undefined;
   const tok = await secrets.get(row.gitTokenRef);
   return tok ?? undefined;
@@ -95,7 +104,6 @@ async function gitToken(db: Db, secrets: SecretStore): Promise<string | undefine
 
 /** List all repos (unfiltered — the filter runs client-side, Flow E). */
 export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
-  if (USE_MOCK) return reposMock.listRepos();
   const db = deps.db ?? getDb();
   const rows = await db.select().from(repo).orderBy(repo.createdAt);
   return rows.map(toView);
@@ -106,11 +114,10 @@ export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
  * set the resolved path/branch/sha + status='cloned' (or 'error' on failure).
  */
 export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Promise<CloneRepoResult> {
-  if (USE_MOCK) return reposMock.cloneAndRegister(input);
   const db = deps.db ?? getDb();
   const parsed = cloneRepoSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message };
-  const { name, url, kind, tags } = parsed.data;
+  const { name, url, tags } = parsed.data;
 
   // Duplicate-name guard (the UNIQUE column is the real race guard).
   const [existing] = await db.select({ id: repo.id }).from(repo).where(eq(repo.name, name)).limit(1);
@@ -127,7 +134,7 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   try {
     const [row] = await db
       .insert(repo)
-      .values({ name, pathOnDisk: name, defaultBranch: 'unknown', kind, tags, status: 'pulling' })
+      .values({ name, pathOnDisk: name, defaultBranch: 'unknown', tags, status: 'pulling' })
       .returning({ id: repo.id });
     rowId = row.id;
   } catch (e) {
@@ -167,7 +174,6 @@ export type PullResult =
 
 /** Re-pull an existing repo (Flow B pull variant). */
 export async function pullExisting(id: string, deps: ReposDeps = {}): Promise<PullResult> {
-  if (USE_MOCK) return reposMock.pullExisting(id);
   const db = deps.db ?? getDb();
   const [row] = await db.select().from(repo).where(eq(repo.id, id)).limit(1);
   if (!row) return { kind: 'not_found' };
@@ -195,7 +201,6 @@ export type DeleteRepoResult = { kind: 'deleted' } | { kind: 'not_found' };
 
 /** Remove a repo row (does not delete files on disk in this slice). */
 export async function deleteRepo(id: string, deps: ReposDeps = {}): Promise<DeleteRepoResult> {
-  if (USE_MOCK) return reposMock.deleteRepo(id);
   const db = deps.db ?? getDb();
   const rows = await db.delete(repo).where(eq(repo.id, id)).returning({ id: repo.id });
   return rows.length > 0 ? { kind: 'deleted' } : { kind: 'not_found' };

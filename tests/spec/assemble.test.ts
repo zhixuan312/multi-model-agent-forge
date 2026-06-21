@@ -13,7 +13,7 @@ describe('buildSpecMarkdown (pure)', () => {
       { name: 'Proj', visibility: 'public', version: 1 },
       [
         {
-          kind: 'proposed_design',
+          kind: 'technical_design',
           label: 'Proposed design',
           sections: [{ key: 'system_context', label: 'System-context diagram', draftMd: fence }],
         },
@@ -26,7 +26,7 @@ describe('buildSpecMarkdown (pure)', () => {
 });
 
 describe('assembleSpec', () => {
-  it('produces one versioned spec artifact from approved sections + an assemble action_log row', async () => {
+  it('produces one versioned spec artifact from approved sections + an assemble ops_action_log row', async () => {
     const projectId = 'proj-1';
     const specStageId = 'stage-1';
     const componentId = 'comp-1';
@@ -35,13 +35,13 @@ describe('assembleSpec', () => {
 
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
-      'select:component': [{ id: componentId, kind: 'context_scope' }],
-      'select:component_section': [
+      'select:project_component': [{ id: componentId, kind: 'context' }],
+      'select:project_component_section': [
         { id: sectionId, componentId, key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body-background' },
       ],
-      'select:artifact': [{ m: 0 }],
-      'insert:artifact': [{ id: 'art-1', version: 1 }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'assemble', memberId: null }],
+      'select:project_artifact': [{ m: 0 }],
+      'insert:project_artifact': [{ id: 'art-1', version: 1 }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'assemble', memberId: null }],
     });
 
     const res = await assembleSpec(mockDb, projectId, specStageId, ownerId);
@@ -49,8 +49,8 @@ describe('assembleSpec', () => {
     expect(res.bodyMd).toContain('## Context');
     expect(res.bodyMd).toContain('### Background');
     expect(res.bodyMd).toContain('body-background');
-    expect(mockDb._assertCalled('artifact', 'insert')).toBe(true);
-    expect(mockDb._assertCalled('action_log', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('project_artifact', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('ops_action_log', 'insert')).toBe(true);
   });
 
   it('re-assemble bumps version (prevMax+1)', async () => {
@@ -60,13 +60,13 @@ describe('assembleSpec', () => {
 
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
-      'select:component': [{ id: 'comp-1', kind: 'context_scope' }],
-      'select:component_section': [
+      'select:project_component': [{ id: 'comp-1', kind: 'context' }],
+      'select:project_component_section': [
         { id: 'sec-1', componentId: 'comp-1', key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body' },
       ],
-      'select:artifact': seq([{ m: 0 }], [{ m: 1 }], [{ id: 'art-2', projectId, kind: 'spec', version: 2, bodyMd: 'v2' }]),
-      'insert:artifact': seq([{ id: 'art-1', version: 1 }], [{ id: 'art-2', version: 2 }]),
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'assemble' }, { id: 'log-2', projectId, action: 'assemble' }],
+      'select:project_artifact': seq([{ m: 0 }], [{ m: 1 }], [{ id: 'art-2', projectId, kind: 'spec', version: 2, bodyMd: 'v2' }]),
+      'insert:project_artifact': seq([{ id: 'art-1', version: 1 }], [{ id: 'art-2', version: 2 }]),
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'assemble' }, { id: 'log-2', projectId, action: 'assemble' }],
     });
 
     const first = await assembleSpec(mockDb, projectId, specStageId, ownerId);

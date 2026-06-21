@@ -78,6 +78,69 @@
       "when": 1781700000000,
       "tag": "0010_loop_target_branch_adhoc",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781800000000,
+      "tag": "0011_drop_repo_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0012_drop_provider_agent_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0013_drop_identity_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0014_regroup_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0015_rename_loop_def",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782300000000,
+      "tag": "0016_journal_pin",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0017_journal_pin_findings",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782500000000,
+      "tag": "0018_usage_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0019_batch_loop_run_fk",
+      "breakpoints": true
     }
   ]
 }

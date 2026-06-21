@@ -19,7 +19,7 @@ describe('synthesize', () => {
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const mockDb = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         {
           taskId: 'task-1',
           projectId,
@@ -31,8 +31,8 @@ describe('synthesize', () => {
           repoName: null,
         },
       ],
-      'select:artifact': [{ v: 0 }],
-      'insert:artifact': [{ id: 'art-1' }],
+      'select:project_artifact': [{ v: 0 }],
+      'insert:project_artifact': [{ id: 'art-1' }],
     });
 
     const bus = new ProjectEventBus();
@@ -45,7 +45,7 @@ describe('synthesize', () => {
       anthropic: mockAnthropic({ byCall: { synthesizeExploration: [synthOutput] } }),
     });
     expect(res).toMatchObject({ ok: true, version: 1 });
-    const valuesCall = mockDb._callsFor('artifact').find((c) => c.method === 'values');
+    const valuesCall = mockDb._callsFor('project_artifact').find((c) => c.method === 'values');
     expect(valuesCall?.args[0]).toMatchObject({
       bodyMd: expect.stringContaining('## Background'),
     });
@@ -58,7 +58,7 @@ describe('synthesize', () => {
     const projectId = 'proj-2';
     const ownerId = 'owner-2';
     const mockDb = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         {
           taskId: 'task-1',
           projectId,
@@ -70,8 +70,8 @@ describe('synthesize', () => {
           repoName: null,
         },
       ],
-      'select:artifact': seq([{ v: 0 }], [{ v: 1 }]),
-      'insert:artifact': seq([{ id: 'art-1' }], [{ id: 'art-2' }]),
+      'select:project_artifact': seq([{ v: 0 }], [{ v: 1 }]),
+      'insert:project_artifact': seq([{ id: 'art-1' }], [{ id: 'art-2' }]),
     });
 
     const deps = { db: mockDb, bus: new ProjectEventBus(), anthropic: mockAnthropic({ byCall: { synthesizeExploration: [synthOutput, synthOutput] } }) };
@@ -88,7 +88,7 @@ describe('synthesize', () => {
     const repoName = 'api';
 
     const mockDb = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         {
           taskId: 'task-1',
           projectId,
@@ -110,7 +110,7 @@ describe('synthesize', () => {
           repoName,
         },
       ],
-      'select:mma_batch': seq(
+      'select:ops_mma_batch': seq(
         [
           {
             id: 'batch-1',
@@ -164,7 +164,7 @@ describe('synthesize', () => {
           },
         ],
       ),
-      'select:repo': [
+      'select:workspace_repo': [
         {
           id: repoId,
           name: repoName,
@@ -173,8 +173,8 @@ describe('synthesize', () => {
           kind: 'service',
         },
       ],
-      'select:artifact': [{ v: 0 }],
-      'insert:artifact': [{ id: 'art-1' }],
+      'select:project_artifact': [{ v: 0 }],
+      'insert:project_artifact': [{ id: 'art-1' }],
     });
 
     const res = await synthesize(projectId, { id: ownerId }, {
@@ -183,7 +183,7 @@ describe('synthesize', () => {
       anthropic: mockAnthropic({ byCall: { synthesizeExploration: [synthOutput] } }),
     });
     expect(res.ok).toBe(true);
-    const valuesCall = mockDb._callsFor('artifact').find((c) => c.method === 'values');
+    const valuesCall = mockDb._callsFor('project_artifact').find((c) => c.method === 'values');
     expect((valuesCall?.args[0] as { bodyMd: string }).bodyMd).toContain(
       `(investigate · repo \`${repoName}\`: failed — findings unavailable)`,
     );
@@ -193,7 +193,7 @@ describe('synthesize', () => {
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
     const mockDb = createMockDb({
-      'select:exploration_task': seq(
+      'select:project_exploration_task': seq(
         [
           {
             id: 'task-1',
@@ -217,7 +217,7 @@ describe('synthesize', () => {
           },
         ],
       ),
-      'select:mma_batch': seq(
+      'select:ops_mma_batch': seq(
         [
           {
             id: 'batch-1',
@@ -247,8 +247,8 @@ describe('synthesize', () => {
           },
         ],
       ),
-      'select:artifact': seq([], [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'v1' }]),
-      'insert:artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'v1' }],
+      'select:project_artifact': seq([], [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'v1' }]),
+      'insert:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'v1' }],
     });
 
     const bus1 = new ProjectEventBus();
@@ -274,7 +274,7 @@ describe('synthesize', () => {
     const projectId = 'proj-5';
     const ownerId = 'owner-5';
     const mockDb = createMockDb({
-      'select:exploration_task': [],
+      'select:project_exploration_task': [],
     });
 
     const res = await synthesize(projectId, { id: ownerId }, {

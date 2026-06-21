@@ -2,11 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { guardExploreWrite } from '@/exploration/guard';
 import { editTask, removeTask, TaskLockedError } from '@/exploration/explore-core';
-import { USE_MOCK } from '@/mock/config';
-import { patchMockTask, removeMockTask } from '@/mock/domains/projects/explore-tasks';
 
-/** `PATCH /…/explore/tasks/[taskId]` — edit a draft prompt/target.
- *  `DELETE` — remove a draft task. Both reject non-draft (locked) rows. */
 export const runtime = 'nodejs';
 
 const patchSchema = z.object({
@@ -19,16 +15,6 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; taskId: string }> },
 ): Promise<NextResponse> {
   const { id, taskId } = await params;
-
-  if (USE_MOCK) {
-    const json = await req.json().catch(() => null);
-    const parsed = z
-      .object({ prompt: z.string().optional(), targetRepoId: z.string().nullable().optional() })
-      .safeParse(json);
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid patch.' }, { status: 400 });
-    patchMockTask(id, taskId, parsed.data);
-    return NextResponse.json({ ok: true });
-  }
 
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;
@@ -51,11 +37,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; taskId: string }> },
 ): Promise<NextResponse> {
   const { id, taskId } = await params;
-
-  if (USE_MOCK) {
-    removeMockTask(id, taskId);
-    return NextResponse.json({ ok: true });
-  }
 
   const guard = await guardExploreWrite(req, id);
   if (guard instanceof NextResponse) return guard;

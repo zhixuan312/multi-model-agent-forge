@@ -11,7 +11,7 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
   it('false when no audit has run', async () => {
     const projectId = 'proj-1';
     const mockDb = createMockDb({
-      'select:audit_pass': [],
+      'select:project_audit_pass': [],
     });
     expect(await canFreeze(mockDb, projectId)).toBe(false);
   });
@@ -19,7 +19,7 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
   it('true when the latest pass is clean', async () => {
     const projectId = 'proj-2';
     const mockDb = createMockDb({
-      'select:audit_pass': [
+      'select:project_audit_pass': [
         { id: 'pass-2', projectId, scope: 'spec', passNo: 2, verdict: 'clean', findingsCount: 0 },
         { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 },
       ],
@@ -30,7 +30,7 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
   it('false when the latest pass is revised and no override', async () => {
     const projectId = 'proj-3';
     const mockDb = createMockDb({
-      'select:audit_pass': [
+      'select:project_audit_pass': [
         { id: 'pass-2', projectId, scope: 'spec', passNo: 2, verdict: 'revised', findingsCount: 1 },
         { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 },
       ],
@@ -43,11 +43,11 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
     const mockDb = createMockDb({
-      'select:audit_pass': [
+      'select:project_audit_pass': [
         { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 },
       ],
-      'select:action_log': seq([], [{ id: 'override-1', projectId, memberId: ownerId }]),
-      'insert:action_log': [{ id: 'override-1', projectId, memberId: ownerId, action: 'audit_override' }],
+      'select:ops_action_log': seq([], [{ id: 'override-1', projectId, memberId: ownerId }]),
+      'insert:ops_action_log': [{ id: 'override-1', projectId, memberId: ownerId, action: 'audit_override' }],
     });
     expect(await canFreeze(mockDb, projectId)).toBe(false);
     await recordAuditOverride(projectId, ownerId, { db: mockDb });
@@ -56,19 +56,19 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
 });
 
 describe('freezeProject', () => {
-  it('design→frozen transactionally: phase, frozen_at, stage done, action_log', async () => {
+  it('design→frozen transactionally: phase, frozen_at, stage done, ops_action_log', async () => {
     const projectId = 'proj-5';
     const ownerId = 'owner-5';
     const frozenAt = new Date();
 
     const mockDb = createMockDb({
-      'select:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
+      'select:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
       'select:audit_override': [],
       'select:project': [{ id: projectId, phase: 'design', frozenAt: null }],
       'update:project': [{ id: projectId, phase: 'frozen', frozenAt }],
-      'select:stage': [{ projectId, kind: 'spec', status: 'active' }],
-      'update:stage': [{ projectId, kind: 'spec', status: 'done' }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],
+      'select:project_stage': [{ projectId, kind: 'spec', status: 'active' }],
+      'update:project_stage': [{ projectId, kind: 'spec', status: 'done' }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],
     });
 
     const res = await freezeProject(projectId, ownerId, { db: mockDb });
@@ -80,7 +80,7 @@ describe('freezeProject', () => {
     const ownerId = 'owner-6';
 
     const mockDb = createMockDb({
-      'select:audit_pass': [
+      'select:project_audit_pass': [
         { id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'revised', findingsCount: 1 },
       ],
       'select:audit_override': [],
@@ -97,7 +97,7 @@ describe('freezeProject', () => {
     const frozenAt = new Date('2026-01-01');
 
     const mockDb = createMockDb({
-      'select:audit_pass': seq(
+      'select:project_audit_pass': seq(
         [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
         [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
       ),
@@ -107,9 +107,9 @@ describe('freezeProject', () => {
         [{ id: projectId, phase: 'frozen', frozenAt }],
       ),
       'update:project': [{ id: projectId, phase: 'frozen', frozenAt }],
-      'select:stage': [{ projectId, kind: 'spec', status: 'active' }],
-      'update:stage': [{ projectId, kind: 'spec', status: 'done' }],
-      'insert:action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],
+      'select:project_stage': [{ projectId, kind: 'spec', status: 'active' }],
+      'update:project_stage': [{ projectId, kind: 'spec', status: 'done' }],
+      'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],
     });
 
     const res1 = await freezeProject(projectId, ownerId, { db: mockDb });
@@ -124,7 +124,7 @@ describe('freezeProject', () => {
     const ownerId = 'owner-8';
 
     const mockDb = createMockDb({
-      'select:audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
+      'select:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
       'select:audit_override': [],
       'select:project': [{ id: projectId, phase: 'build' }],
     });

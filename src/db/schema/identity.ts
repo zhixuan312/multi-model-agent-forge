@@ -1,15 +1,14 @@
 import { uuid, text, boolean, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
-import { AUTH_PROVIDER } from '@/db/enums';
 
 /**
- * `member` — pure identity, no credentials. Auth lives in `member_identity` so
+ * `member` — pure identity, no credentials. Auth lives in `team_identity` so
  * Forge can grow to SSO without touching `member`. `is_admin` is a single
  * capability flag (gates Team Settings + repo cloning only), not RBAC.
  */
 export const member = forge.table(
-  'iam_member',
+  'team_member',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     // stored as-typed; uniqueness is case-insensitive — see the functional index below (F4/F14)
@@ -30,20 +29,19 @@ export const member = forge.table(
 );
 
 /**
- * `iam_identity` — auth for a member. v1: every member has exactly one `local`
- * identity (password_hash set). The one-local-identity-per-member rule is
- * enforced in app code (LocalAuthProvider / Members-CRUD). The external-SSO seam
- * (provider_account_id + a metadata claims blob) was removed as unused; add it
- * back if/when external auth lands.
+ * `team_identity` — auth for a member. v1: every member has exactly one identity
+ * (password_hash set), `local` password auth only. The one-identity-per-member
+ * rule is enforced in app code (LocalAuthProvider / Members-CRUD), so lookups key
+ * on member_id. The external-SSO seam (a `provider` discriminator + claims blob)
+ * was removed as unused; add it back if/when external auth lands.
  */
 export const memberIdentity = forge.table(
-  'iam_identity',
+  'team_identity',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     memberId: uuid('member_id')
       .notNull()
       .references(() => member.id, { onDelete: 'cascade' }),
-    provider: text('provider', { enum: AUTH_PROVIDER }).notNull(), // only 'local' built now
     passwordHash: text('password_hash'), // argon2id — local only
     passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }), // bump → drop all sessions
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -57,7 +55,7 @@ export const memberIdentity = forge.table(
  * lifetime via expires_at. Server-side store makes the cookie instantly revocable.
  */
 export const session = forge.table(
-  'iam_session',
+  'team_session',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     memberId: uuid('member_id')

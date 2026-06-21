@@ -1,6 +1,7 @@
 import { and, eq, max } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { artifact } from '@/db/schema/artifacts';
+import { project } from '@/db/schema/projects';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
 import { repo } from '@/db/schema/workspace';
@@ -9,6 +10,7 @@ import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 import { SynthesisSchema, composeExplorationMarkdown, type Synthesis } from '@/exploration/schemas';
+import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
 
 /**
  * Synthesize the exploration records into `artifact(kind='exploration')` (Spec 5
@@ -24,7 +26,7 @@ import { SynthesisSchema, composeExplorationMarkdown, type Synthesis } from '@/e
 
 export interface SynthesizeDeps {
   db?: Db;
-  anthropic?: Pick<AnthropicClient, 'parse'>;
+  anthropic?: Pick<AnthropicClient, 'parse' | 'parseWithUsage'>;
   bus?: ProjectEventBus;
 }
 
@@ -34,18 +36,70 @@ export interface SynthesizeResult {
   version?: number;
 }
 
-const SYNTH_SYSTEM = [
-  'You are Forge\'s exploration synthesizer. Read the aggregate of completed task',
-  'records and write three concise sections: Background (what this work is about),',
-  'Current state (what exists today, grounded in the investigate/research/journal',
-  'findings), and Rough direction (where to go next). Be specific and cite findings.',
-].join(' ');
+const SYNTH_SYSTEM = `You are Forge's exploration synthesizer. You read the completed investigation, research, and journal recall results and produce a grounded brief that a spec author can work from in the next stage.
+
+Write three sections:
+
+**Context** — what problem the team is solving and why. Ground this in the original brain-dump intent, not just the task results. One paragraph.
+
+**Findings** — what the agents actually discovered. Organize by theme, not by task. Be specific: name files, functions, patterns, libraries, and prior decisions. For each finding, note whether it came from codebase investigation, web research, or journal recall. If a task failed, state what was attempted and that findings are unavailable. Do not pad with generic knowledge — only include what the agents found.
+
+**Recommendation** — a concrete proposed approach based on the findings. Not "consider options" — pick one approach and explain why the findings support it. Call out risks or open questions that the spec should address.
+
+Keep it concise but specific. The spec author will use this brief as their starting point — vague summaries waste their time.`;
 
 /** Build the gap marker for one failed task. */
 export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', repoName: string | null): string {
   const label = route === 'journal_recall' ? 'journal-recall' : route;
   const repoPart = route === 'investigate' && repoName ? ` · repo \`${repoName}\`` : '';
   return `(${label}${repoPart}: failed — findings unavailable)`;
+}
+
+export async function buildSynthesizeRequest(
+  projectId: string,
+  deps: { db?: Db } = {},
+): Promise<{ system: string; user: string } | { error: string }> {
+  const db = deps.db ?? getDb();
+
+  const rows = await db
+    .select({
+      taskId: explorationTask.id,
+      kind: explorationTask.kind,
+      prompt: explorationTask.prompt,
+      route: mmaBatch.route,
+      batchStatus: mmaBatch.status,
+      result: mmaBatch.result,
+      repoName: repo.name,
+    })
+    .from(explorationTask)
+    .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
+    .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
+    .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'recorded')));
+
+  if (rows.length === 0) return { error: 'No recorded tasks to synthesize.' };
+
+  const successes = rows.filter((r) => r.batchStatus === 'done');
+  const failures = rows.filter((r) => r.batchStatus === 'failed');
+
+  const recordsBlock = successes
+    .map((r) => {
+      const env = (r.result ?? {}) as { headline?: string; structuredReport?: unknown };
+      return `## ${r.route} — ${r.prompt}\n${env.headline ?? ''}\n${JSON.stringify(env.structuredReport ?? {})}`;
+    })
+    .join('\n\n');
+
+  const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
+
+  return {
+    system: SYNTH_SYSTEM,
+    user: [
+      '# Records',
+      recordsBlock || '(no successful records yet)',
+      '',
+      '# Failed tasks (you MUST mention each verbatim in Findings)',
+      failureMarkers.join('\n') || '(none)',
+    ].join('\n'),
+  };
 }
 
 export async function synthesize(
@@ -86,21 +140,23 @@ export async function synthesize(
 
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
-  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier({ db }));
+  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
   let synthesis: Synthesis;
   try {
-    synthesis = await anthropic.parse(SynthesisSchema, {
+    const result = await anthropic.parseWithUsage(SynthesisSchema, {
       system: SYNTH_SYSTEM,
       user: [
         '# Records',
         recordsBlock || '(no successful records yet)',
         '',
-        '# Failed tasks (you MUST mention each verbatim in Current state)',
+        '# Failed tasks (you MUST mention each verbatim in Findings)',
         failureMarkers.join('\n') || '(none)',
       ].join('\n'),
       call: 'synthesizeExploration',
       projectId,
     });
+    synthesis = result.data;
+    await recordOrchestratorUsage(projectId, 'synthesizeExploration', result.usage, { db }).catch(() => {});
   } catch (err) {
     // Retain the prior version; suppress synthesis.updated; log server-side.
     logPoll({ level: 'error', event: 'synthesize.failure', projectId, detail: errName(err) });
@@ -108,14 +164,14 @@ export async function synthesize(
   }
 
   // Deterministically guarantee every failed task's marker is present in
-  // Current state (the assertable observable), regardless of model output.
-  let currentState = synthesis.currentState;
+  // Findings (the assertable observable), regardless of model output.
+  let findings = synthesis.findings;
   for (const marker of failureMarkers) {
-    if (!currentState.includes(marker)) {
-      currentState = `${currentState.trim()}\n\n${marker}`;
+    if (!findings.includes(marker)) {
+      findings = `${findings.trim()}\n\n${marker}`;
     }
   }
-  const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
+  const bodyMd = composeExplorationMarkdown({ ...synthesis, findings });
 
   // Bump version = max+1 for kind='exploration'.
   const [{ v } = { v: null }] = await db
@@ -129,6 +185,7 @@ export async function synthesize(
       .insert(artifact)
       .values({ projectId, kind: 'exploration', bodyMd, version: nextVersion, createdBy: actor?.id ?? null })
       .returning({ id: artifact.id });
+    await tx.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
     if (actor) {
       await logAction(
         {

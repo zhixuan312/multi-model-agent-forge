@@ -25,7 +25,6 @@ export interface RepoMeta {
   id: string;
   name: string;
   pathOnDisk: string;
-  kind: string;
   defaultBranch: string;
 }
 

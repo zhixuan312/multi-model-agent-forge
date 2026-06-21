@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { verifyPassword, DUMMY_ARGON2_HASH } from '@/auth/password';
@@ -45,10 +45,7 @@ export class LocalAuthProvider implements AuthProvider {
         passwordHash: memberIdentity.passwordHash,
       })
       .from(member)
-      .leftJoin(
-        memberIdentity,
-        and(eq(memberIdentity.memberId, member.id), eq(memberIdentity.provider, 'local')),
-      )
+      .leftJoin(memberIdentity, eq(memberIdentity.memberId, member.id))
       .where(sql`lower(${member.username}) = lower(${username})`)
       .limit(1);
 

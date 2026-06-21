@@ -13,9 +13,9 @@ describe('proposeFanOut', () => {
     const repoId = 'repo-1';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'We want to add caching to the API.', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'We want to add caching to the API.', version: 1 }],
       'select:project_repo': [{ projectId, repoId }],
-      'insert:exploration_task': [
+      'insert:project_exploration_task': [
         { id: 'task-1', projectId, kind: 'investigate', targetRepoId: repoId, prompt: 'how does the API cache today?', status: 'draft', createdBy: ownerId },
         { id: 'task-2', projectId, kind: 'research', targetRepoId: null, prompt: 'what caching strategies fit our stack?', status: 'draft', createdBy: ownerId },
         { id: 'task-3', projectId, kind: 'journal', targetRepoId: null, prompt: 'what did we decide about caching before?', status: 'draft', createdBy: ownerId },
@@ -49,9 +49,9 @@ describe('proposeFanOut', () => {
     const repoId = 'repo-2';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'caching', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'caching', version: 1 }],
       'select:project_repo': [{ id: repoId }],
-      'insert:exploration_task': [
+      'insert:project_exploration_task': [
         { id: 'task-1', projectId, kind: 'investigate', targetRepoId: repoId, prompt: 'a valid investigate prompt for the selected repo', status: 'draft', createdBy: ownerId },
       ],
     });
@@ -83,9 +83,9 @@ describe('proposeFanOut', () => {
     const ownerId = 'owner-3';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
       'select:project_repo': [],
-      'insert:exploration_task': [
+      'insert:project_exploration_task': [
         { id: 'task-1', projectId, kind: 'research', targetRepoId: null, prompt: 'what external approaches address this problem well?', status: 'draft', createdBy: ownerId },
       ],
     });
@@ -108,9 +108,9 @@ describe('proposeFanOut', () => {
     const ownerId = 'owner-4';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
       'select:project_repo': [],
-      'insert:exploration_task': [],
+      'insert:project_exploration_task': [],
     });
 
     const res = await proposeFanOut(projectId, { id: ownerId }, {
@@ -130,7 +130,7 @@ describe('proposeFanOut', () => {
     const ownerId = 'owner-5';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
     });
 
     const res = await proposeFanOut(projectId, { id: ownerId }, {
@@ -146,9 +146,9 @@ describe('proposeFanOut', () => {
     const ownerId = 'owner-6';
 
     const mockDb = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'x', version: 1 }],
       'select:project_repo': [],
-      'insert:exploration_task': [],
+      'insert:project_exploration_task': [],
     });
 
     const res = await proposeFanOut(projectId, { id: ownerId }, {

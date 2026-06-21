@@ -25,6 +25,54 @@ export async function register(): Promise<void> {
     console.warn(JSON.stringify({ event: 'export_startup_deferred', reason: msg }));
   }
 
+  // Install the main-agent diagnostics sink so analysis/synthesis token usage
+  // is recorded as mma_batch rows (route='orchestrate') in the same pipeline as
+  // worker calls. Non-fatal — a sink failure never blocks the orchestrator call.
+  try {
+    const { setAnthropicDiagnosticsSink } = await import('@/anthropic/client');
+    const { getDb } = await import('@/db/client');
+    const { mmaBatch } = await import('@/db/schema/mma');
+    const { resolveWorkspaceRoot } = await import('@/git/workspace-root');
+
+    const workspaceRoot = resolveWorkspaceRoot();
+    console.log(JSON.stringify({ event: 'diagnostics_sink_installed' }));
+
+    setAnthropicDiagnosticsSink((record) => {
+      try {
+        if (!record.projectId) return;
+        const inputTokens = record.inputTokens ?? 0;
+        const cacheRead = record.cacheReadInputTokens ?? 0;
+        const cacheCreate = record.cacheCreationInputTokens ?? 0;
+        const outputTokens = record.outputTokens ?? 0;
+        const costUsd =
+          (inputTokens * 5 + cacheRead * 0.5 + cacheCreate * 6.25 + outputTokens * 25) / 1_000_000;
+        console.log(JSON.stringify({ event: 'diagnostics_sink_record', call: record.call, projectId: record.projectId, inputTokens, outputTokens, costUsd: costUsd.toFixed(6) }));
+        getDb().insert(mmaBatch)
+          .values({
+            projectId: record.projectId,
+            route: 'orchestrate' as const,
+            cwd: workspaceRoot,
+            status: record.ok ? ('done' as const) : ('failed' as const),
+            request: { call: record.call },
+            result: record.ok ? {} : { error: record.error },
+            inputTokens: inputTokens + cacheRead + cacheCreate,
+            outputTokens,
+            costUsd: costUsd.toFixed(6),
+            durationMs: record.latencyMs,
+            implementerTier: 'main',
+            terminalAt: new Date(),
+          })
+          .execute()
+          .then(() => console.log(JSON.stringify({ event: 'diagnostics_sink_inserted', call: record.call })))
+          .catch((err) => console.warn(JSON.stringify({ event: 'diagnostics_sink_insert_failed', error: err instanceof Error ? err.message : String(err) })));
+      } catch (err) {
+        console.warn(JSON.stringify({ event: 'diagnostics_sink_sync_error', error: err instanceof Error ? err.message : String(err) }));
+      }
+    });
+  } catch (e) {
+    console.warn(JSON.stringify({ event: 'diagnostics_sink_deferred', reason: e instanceof Error ? e.message : String(e) }));
+  }
+
   // Sweep any project whose Exploration tasks all completed but whose synthesis
   // never ran (e.g. a restart between dispatch and synthesis). Non-fatal.
   try {

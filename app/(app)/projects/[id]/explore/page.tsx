@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { teamSettings } from '@/db/schema/config';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { isVoiceEnabled } from '@/config/connections-core';
 import {
   latestBrief,
   readRailTasks,
@@ -13,8 +13,6 @@ import {
 } from '@/exploration/explore-core';
 import { listAttachments } from '@/exploration/attachments';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
-import { USE_MOCK } from '@/mock/config';
-import { mockExplore } from '@/mock/domains/projects/explore';
 
 /**
  * Exploration stage (Spec 5) — brain-dump → editable fan-out → live agent rail →
@@ -25,29 +23,15 @@ import { mockExplore } from '@/mock/domains/projects/explore';
  */
 export default async function ExploreStagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ phase?: string }>;
 }) {
   const { id } = await params;
+  const { phase: phaseParam } = await searchParams;
   const me = await currentMember();
   if (!me) redirect('/login');
-
-  // Mock mode: render the stage from seeded exploration content (no DB).
-  if (USE_MOCK) {
-    const data = mockExplore(id);
-    return (
-      <ExploreStageClient
-        projectId={id}
-        projectName={data.projectName}
-        initialBrief={data.brief}
-        initialAttachments={data.attachments}
-        initialTasks={data.tasks}
-        initialArtifact={data.artifact}
-        repoOptions={data.repoOptions}
-        voiceEnabled={data.voiceEnabled}
-      />
-    );
-  }
 
   try {
     await assertProjectReadable(id, { id: me.id });
@@ -72,11 +56,10 @@ export default async function ExploreStagePage({
     readProjectRepoOptions(id, db),
   ]);
 
-  const [settings] = await db
-    .select({ openaiRef: teamSettings.openaiTranscriptionKeyRef })
-    .from(teamSettings)
-    .limit(1);
-  const voiceEnabled = Boolean(settings?.openaiRef);
+  const voiceEnabled = await isVoiceEnabled({ db });
+
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
 
   return (
     <ExploreStageClient
@@ -88,6 +71,9 @@ export default async function ExploreStagePage({
       initialArtifact={artifact}
       repoOptions={repos}
       voiceEnabled={voiceEnabled}
+      canMutate={perms.explore.canMutate}
+      lockedReason={perms.explore.reason}
+      initialPhase={phaseParam === 'synthesize' ? 'synthesize' : undefined}
     />
   );
 }

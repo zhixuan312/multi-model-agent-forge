@@ -35,22 +35,98 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
  * file (F12).
  */
 
-const SYSTEM_PROMPT = `You are the build-plan author for Forge, a software delivery harness.
-Given a frozen technical spec and the set of repos in scope, produce an ordered list of implementation tasks.
+export const PLAN_AUTHOR_SYSTEM_PROMPT = `You are the build-plan author for Forge, a software delivery harness.
+Given a frozen technical spec and the set of repos in scope, decompose the spec into an ordered list of bite-sized, test-first implementation tasks.
+
+The engineer executing this plan has ZERO context about the codebase. Every task must be self-contained — they should be able to execute it by reading the task alone, without referring to other tasks or exploring the codebase.
+
+TASK DESIGN PRINCIPLES:
+
+1. TDD — every task follows this cycle:
+   - Write a FAILING test (show the actual test code)
+   - Run it to confirm it fails (name the expected error)
+   - Write the MINIMAL implementation (show the actual code)
+   - Run it to confirm it passes
+   The detail field must include the actual code for both the test and the implementation — not descriptions of what to write.
+
+2. Bite-sized — each task is 2-15 minutes of focused work. One interface, one function, one behavior. If a task has more than 3 files or takes longer, split it.
+
+3. Exact file paths — every task lists files to Create, Modify, or Test with exact paths and line ranges where applicable (e.g. "Modify: src/routes/claims.ts:80-95").
+
+4. Actual code — the detail field must contain:
+   - The complete type/interface definitions (not "define a type with these fields")
+   - The complete function signatures (not "write a function that does X")
+   - The complete test assertions (not "assert it returns the right shape")
+   Show the code in fenced code blocks. The engineer copies and pastes — they do not invent.
+
+5. No placeholders — these are plan FAILURES:
+   - "Add appropriate error handling"
+   - "Implement the logic"
+   - "Write tests for the above"
+   - "Similar to Task N" (repeat the code)
+   Every step must have the actual content.
+
+6. Edge cases — for each function/adapter, include test cases for:
+   - Empty input (no filters, no rows, empty arrays)
+   - Null/undefined fields
+   - Boundary values (0 results, 1 result, max pagination)
+   Name specific edge cases in the test code.
+
+7. Spec coverage — before finalizing, verify:
+   - Every acceptance criterion in the spec has at least one task covering it
+   - Every success metric has a task that proves it
+   - Non-functional requirements (fail-fast, observability, config defaults) each have a task
+   If a spec requirement has no task, add one.
+
+TASK FORMAT (JSON array):
+Each task object has:
+- title: unique, descriptive (e.g. "Define ClaimsRepository port and ClaimRow type")
+- detail: full task body in markdown with this structure:
+
+  **Files:**
+  - Create: \`exact/path/to/file.ts\`
+  - Modify: \`exact/path/to/existing.ts:10-25\`
+  - Test: \`tests/exact/path/to/test.ts\`
+
+  **Test (write first):**
+  \`\`\`typescript
+  // the actual test code the engineer writes
+  \`\`\`
+
+  **Implementation:**
+  \`\`\`typescript
+  // the actual code that makes the test pass
+  \`\`\`
+
+  **Run:** \`npm test -- tests/path/test.ts\`
+  **Expected:** PASS
+
+- targetRepoId: the ONE repo (from the provided set)
+- dependsOn: array of sibling task titles (exact match) that must complete first. Empty if none.
+- reviewPolicy: "reviewed" normally. "none" ONLY when intentionally incomplete (downstream task fixes errors).
 
 HARD RULES:
-- Each task targets EXACTLY ONE repo (its targetRepoId from the provided repo set). A unit of work spanning two repos is TWO tasks (one per repo), wired with dependsOn.
-- Describe CODE CHANGES ONLY. NEVER include git add / git commit / git push steps — the harness owns the commit.
-- Each task's title becomes a verbatim plan heading; keep titles unique and descriptive.
-- reviewPolicy is 'full' for every task UNLESS the task is intentionally incomplete (downstream errors expected, fixed by a later task) — only then use 'none'.
-- dependsOn lists sibling task titles (exact) that must complete first.`;
+- Each task targets EXACTLY ONE repo. Cross-repo work = separate tasks wired with dependsOn.
+- NEVER include git add / commit / push — the harness owns commits.
+- Order by dependency: a task's dependsOn titles must appear earlier in the list.
+- Aim for 8-20 tasks. Each independently testable.
+- Include actual TypeScript/JavaScript code in the detail — not pseudocode or descriptions.
+
+OUTPUT FORMAT:
+Return ONLY a JSON array inside a markdown code fence. No wrapper object. No commentary before or after.
+
+\`\`\`json
+[
+  { "title": "...", "detail": "...", "targetRepoId": "...", "dependsOn": [], "reviewPolicy": "full" }
+]
+\`\`\``;
 
 export interface PlanAuthorDeps {
   db?: Db;
-  anthropic: AnthropicClient;
+  anthropic?: AnthropicClient;
   fs?: PlanFs;
   bus?: ProjectEventBus;
-  /** Inject a pre-built draft to bypass the LLM (tests). */
+  /** Inject a pre-built draft to bypass the LLM (tests + dispatch handler). */
   draftOverride?: PlanDraft;
 }
 
@@ -72,7 +148,7 @@ interface RepoInfo {
   id: string;
   name: string;
   pathOnDisk: string;
-  kind: string;
+  tags: string[];
   defaultBranch: string;
 }
 
@@ -83,7 +159,7 @@ async function loadProjectRepos(db: Db, projectId: string): Promise<RepoInfo[]> 
       id: repo.id,
       name: repo.name,
       pathOnDisk: repo.pathOnDisk,
-      kind: repo.kind,
+      tags: repo.tags,
       defaultBranch: repo.defaultBranch,
     })
     .from(projectRepo)
@@ -132,12 +208,13 @@ export async function authorPlan(
       rawDraft = deps.draftOverride;
     } else {
       const repoList = repos
-        .map((r) => `- id=${r.id} name=${r.name} kind=${r.kind}`)
+        .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
         .join('\n');
+      if (!deps.anthropic) return fail(bus, projectId, 'No Anthropic client and no draft override.');
       rawDraft = await deps.anthropic.parse(PlanDraftSchema, {
         call: 'authorPlan',
         projectId,
-        system: SYSTEM_PROMPT,
+        system: PLAN_AUTHOR_SYSTEM_PROMPT,
         user: `Frozen spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
       });
     }

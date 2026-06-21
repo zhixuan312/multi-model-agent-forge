@@ -65,12 +65,7 @@ export interface SectionView {
   id: string;
   key: string;
   label: string;
-  status: ComponentStatus;
-  aiSatisfied: boolean;
-  humanSatisfied: boolean;
-  forced: boolean;
   draftMd: string | null;
-  stale: boolean;
   orderIndex: number;
 }
 
@@ -80,6 +75,10 @@ export interface ComponentView {
   label: string;
   primaryRoles: string[];
   status: ComponentStatus;
+  aiSatisfied: boolean;
+  humanSatisfied: boolean;
+  forced: boolean;
+  stale: boolean;
   orderIndex: number;
   sections: SectionView[];
 }
@@ -106,17 +105,16 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
       label: templateForKind(c.kind as ComponentKind).label,
       primaryRoles: c.primaryRoles,
       status: c.status as ComponentStatus,
+      aiSatisfied: c.aiSatisfied,
+      humanSatisfied: c.humanSatisfied,
+      forced: c.forced,
+      stale: c.stale,
       orderIndex: c.orderIndex,
       sections: secs.map((s) => ({
         id: s.id,
         key: s.key,
         label: s.label,
-        status: s.status as ComponentStatus,
-        aiSatisfied: s.aiSatisfied,
-        humanSatisfied: s.humanSatisfied,
-        forced: s.forced,
         draftMd: s.draftMd,
-        stale: s.stale,
         orderIndex: s.orderIndex,
       })),
     });
@@ -126,56 +124,73 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
 
 /** The repaint payload returned by the answer/force/nod handlers (F29). */
 export interface SectionRepaint {
-  section: {
+  component: {
     status: ComponentStatus;
     aiSatisfied: boolean;
     humanSatisfied: boolean;
     forced: boolean;
-    draftMd: string | null;
     stale: boolean;
   };
   qaMessages: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>;
-  component: { status: ComponentStatus };
 }
 
-/** Build the repaint payload for a section after a mutation. */
+/** Build the repaint payload for a component after a mutation. */
 export async function buildSectionRepaint(db: Db, sectionId: string): Promise<SectionRepaint> {
   const dbi = db ?? getDb();
   const [s] = await dbi
-    .select()
+    .select({ componentId: componentSection.componentId })
     .from(componentSection)
     .where(eq(componentSection.id, sectionId))
     .limit(1);
   if (!s) throw new Error(`No component_section '${sectionId}'.`);
   const [c] = await dbi
-    .select({ status: component.status })
+    .select()
     .from(component)
     .where(eq(component.id, s.componentId))
     .limit(1);
+  if (!c) throw new Error(`No component '${s.componentId}'.`);
   return {
-    section: {
-      status: s.status as ComponentStatus,
-      aiSatisfied: s.aiSatisfied,
-      humanSatisfied: s.humanSatisfied,
-      forced: s.forced,
-      draftMd: s.draftMd,
-      stale: s.stale,
+    component: {
+      status: c.status as ComponentStatus,
+      aiSatisfied: c.aiSatisfied,
+      humanSatisfied: c.humanSatisfied,
+      forced: c.forced,
+      stale: c.stale,
     },
-    qaMessages: await loadSectionMessages(dbi, sectionId),
-    component: { status: (c?.status ?? 'gathering') as ComponentStatus },
+    qaMessages: await loadComponentMessages(dbi, s.componentId),
   };
 }
 
 /** Load a single section's qa_message transcript (UI-shaped), in seq order. */
-export async function loadSectionMessages(
+/** Load all qa_messages for every component in a stage, keyed by componentId. */
+export async function loadAllMessages(
   db: Db,
-  sectionId: string,
+  stageId: string,
+): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>> {
+  const rows = await db
+    .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, seq: qaMessage.seq })
+    .from(qaMessage)
+    .innerJoin(component, eq(qaMessage.componentId, component.id))
+    .where(eq(component.stageId, stageId))
+    .orderBy(qaMessage.seq);
+  const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> = {};
+  for (const r of rows) {
+    const list = result[r.componentId] ?? [];
+    list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd });
+    result[r.componentId] = list;
+  }
+  return result;
+}
+
+export async function loadComponentMessages(
+  db: Db,
+  componentId: string,
 ): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> {
   const dbi = db ?? getDb();
   const rows = await dbi
     .select({ id: qaMessage.id, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
     .from(qaMessage)
-    .where(eq(qaMessage.sectionId, sectionId))
+    .where(eq(qaMessage.componentId, componentId))
     .orderBy(asc(qaMessage.seq));
   return rows.map((r) => ({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd }));
 }

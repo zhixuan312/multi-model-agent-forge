@@ -7,7 +7,7 @@ import { mmaBatch } from '@/db/schema/mma';
 import { LOOP_KIND, LOOP_WORKER_TIER, LOOP_TRIGGER, LOOP_RUN_STATUS } from '@/db/enums';
 
 /**
- * `loop` — an admin-only, cron-scheduled, goal-driven job (see
+ * `loop_def` — an admin-only, cron-scheduled, goal-driven job (see
  * docs/superpowers/specs/2026-06-15-loops-design.md). The config is a "cron job +
  * a goal": it targets a set of workspace repos (`repo_ids` uuid[], no join table —
  * repo membership is edited atomically with the config and only read whole at fire
@@ -18,7 +18,7 @@ import { LOOP_KIND, LOOP_WORKER_TIER, LOOP_TRIGGER, LOOP_RUN_STATUS } from '@/db
  * a registry entry + config shape — no schema change.
  */
 export const loop = forge.table(
-  'loop',
+  'loop_def',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(), // required, trimmed, unique-per-workspace (enforced in service)
@@ -38,8 +38,8 @@ export const loop = forge.table(
 
 /**
  * `loop_run` — one row per (repo, fire). `run_id` correlates the repos fired
- * together (the history "run" unit). Points at the `mma_batch` that did the work
- * (the same pattern as `plan_task` / `exploration_task`). `pr_url` is non-null only
+ * together (the history "run" unit). Points at the `ops_mma_batch` that did the work
+ * (the same pattern as `project_plan_task` / `project_exploration_task`). `pr_url` is non-null only
  * when `status='changed'`; a failed run never opens a PR. `key_changes` /
  * `journal_entries` are the point-form snapshots the history screen renders.
  */

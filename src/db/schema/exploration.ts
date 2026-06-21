@@ -7,14 +7,14 @@ import { mmaBatch } from '@/db/schema/mma';
 import { ATTACHMENT_KIND, EXPLORATION_TASK_KIND, EXPLORATION_TASK_STATUS } from '@/db/enums';
 
 /**
- * `attachment` (schema.md §4) — brief inputs (links, images, files). For
+ * `project_attachment` (schema.md §4) — brief inputs (links, images, files). For
  * image/file the stored `payload.path` is ALWAYS server-generated under the
  * traversal/symlink-checked workspace attachment area — never client-supplied.
  * Bytes are never sent to MMA; only label/url text folds into a research task's
  * background. CASCADE-deletes with the project (on-disk bytes cleaned up by a
  * Forge-owned unlink helper, since CASCADE cannot reach the filesystem).
  */
-export const attachment = forge.table('attachment', {
+export const attachment = forge.table('project_attachment', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id')
     .notNull()
@@ -29,13 +29,13 @@ export const attachment = forge.table('attachment', {
 });
 
 /**
- * `exploration_task` (schema.md §4) — the editable fan-out task. `status`:
+ * `project_exploration_task` (schema.md §4) — the editable fan-out task. `status`:
  * draft → running → recorded (terminal, LOCKED). There is no `failed` value;
  * per-task failure is derived from the joined `mma_batch.status`. The
  * conditional invariant (`kind='investigate' ⇒ target_repo_id required, else
  * null`) is enforced in the Zod input layer, not the DB.
  */
-export const explorationTask = forge.table('exploration_task', {
+export const explorationTask = forge.table('project_exploration_task', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id')
     .notNull()

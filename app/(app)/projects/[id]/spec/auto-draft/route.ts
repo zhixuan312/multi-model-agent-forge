@@ -1,0 +1,46 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { guardSpecWrite } from '@/spec/handler-guard';
+import { buildAutoDraftRequest } from '@/spec/auto-draft';
+import { buildMmaClient } from '@/mma/server-client';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { getDb } from '@/db/client';
+import '@/dispatch/handler-registry';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id } = await params;
+  const guard = await guardSpecWrite(req, id);
+  if (guard instanceof NextResponse) return guard;
+
+  const db = getDb();
+
+  const existing = await findInflight(db, id, 'spec-auto-draft');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
+  }
+
+  const request = await buildAutoDraftRequest({ db, projectId: id });
+  if ('error' in request) {
+    return NextResponse.json({ ok: false, error: request.error }, { status: 409 });
+  }
+
+  const mma = await buildMmaClient({ db });
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'spec-auto-draft',
+    cwd: resolveWorkspaceRoot(),
+    body: {
+      prompt: `${request.system}\n\n${request.user}`,
+      outline: request.outline,
+    },
+    actorId: guard.memberId,
+  });
+
+  return NextResponse.json({ batchId: batchRowId }, { status: 202 });
+}

@@ -9,7 +9,7 @@ function columnNames(table: Parameters<typeof getTableColumns>[0]) {
 
 describe('db/schema/loop — loop table', () => {
   it('has the canonical columns + db names', () => {
-    expect(getTableName(loop)).toBe('loop');
+    expect(getTableName(loop)).toBe('loop_def');
     expect(columnNames(loop)).toEqual({
       id: 'id',
       name: 'name',
@@ -73,7 +73,7 @@ describe('db/schema/loop — loop_run table', () => {
 });
 
 describe('db/schema/mma — project_id is now nullable (loops are team-level)', () => {
-  it('mma_batch.project_id is nullable', () => {
+  it('ops_mma_batch.project_id is nullable', () => {
     expect(getTableColumns(mmaBatch).projectId.notNull).toBe(false);
   });
 });

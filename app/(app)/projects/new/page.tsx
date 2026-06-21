@@ -1,15 +1,22 @@
 import { redirect } from 'next/navigation';
+import { FolderPlus } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
+import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
 
-/**
- * New project (Spec 3 flow 1). RSC loads the workspace repo set for the picker;
- * the client form owns name · visibility · repo-subset selection and submits via
- * the `createProjectAction` server action.
- */
+const NOTE = `### Creating a project
+
+- **Name** — a short label for the work; you can change it later
+- **Visibility** — public projects are visible to the whole team; private hides work artifacts (specs, plans, drafts) but not code
+- **Repositories** — pick the repos this project touches; agents read and build against them
+
+### What happens next
+
+- Forge opens the **Exploration** stage where you describe the idea, attach context, and let agents research before writing a spec`;
+
 export default async function NewProjectPage() {
   const me = await currentMember();
   if (!me) redirect('/login');
@@ -17,7 +24,6 @@ export default async function NewProjectPage() {
   const pickerRepos: RepoPickerRepo[] = repos.map((r) => ({
     id: r.id,
     name: r.name,
-    kind: r.kind,
     tags: r.tags,
     status: r.status,
   }));
@@ -26,9 +32,17 @@ export default async function NewProjectPage() {
     <PageFrame
       title="New project"
       breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: 'New project' }]}
-      description="Name it, choose visibility, pick the repos it touches."
+      width="full"
+      fill
     >
-      <NewProjectForm repos={pickerRepos} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        <div className="flex min-h-0 flex-col lg:col-span-2">
+          <NewProjectForm repos={pickerRepos} />
+        </div>
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+          <SettingsAccessNote icon={<FolderPlus />} body={NOTE} />
+        </div>
+      </div>
     </PageFrame>
   );
 }

@@ -5,7 +5,6 @@ import { Download, ChevronDown, Search, FileText, ClipboardList, ScanEye, Boxes,
 import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
-import { ExportPdfDialog } from '@/components/forge/export/ExportPdfDialog';
 import type { ExportKind } from '@/export/types';
 
 /**
@@ -50,7 +49,6 @@ async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtif
 export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, onToast }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [artifacts, setArtifacts] = useState<ExportMenuArtifact[]>([]);
-  const [dialogKind, setDialogKind] = useState<ExportKind | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -159,7 +157,11 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                   type="button"
                   disabled={!a.ready}
                   aria-disabled={!a.ready}
-                  onClick={() => setDialogKind(a.kind)}
+                  onClick={() => {
+                    setError(null);
+                    downloadPost(`/api/projects/${projectId}/export/pdf`, { artifact: a.kind, mermaidAsDiagram: true }, `${a.kind}.pdf`)
+                      .catch((e) => setError(e instanceof Error ? e.message : 'PDF export failed.'));
+                  }}
                   className="rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent-deep disabled:opacity-50"
                 >
                   PDF
@@ -190,14 +192,6 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
         </div>
       ) : null}
 
-      {dialogKind ? (
-        <ExportPdfDialog
-          projectId={projectId}
-          kind={dialogKind}
-          open={dialogKind !== null}
-          onClose={() => setDialogKind(null)}
-        />
-      ) : null}
     </div>
   );
 }

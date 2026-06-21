@@ -40,6 +40,13 @@ const GROUPS: { group: 'design' | 'build' | 'learn'; label: string; kinds: Stage
 /** Stages gated behind the DESIGN→BUILD handoff (locked while phase is design). */
 const LOCKED_KINDS: StageKind[] = ['execute', 'review', 'journal'];
 
+/** When revisiting a non-current stage, land on its furthest reached phase. */
+const STAGE_LAST_FALLBACK: Partial<Record<StageKind, string>> = {
+  exploration: 'synthesize',
+  spec: 'document',
+  plan: 'validate',
+};
+
 function glyph(status: StageStatus): string {
   return status === 'done' ? '●' : status === 'active' ? '◐' : '○';
 }
@@ -47,7 +54,7 @@ function glyph(status: StageStatus): string {
 export interface StageStepperProps {
   projectId: string;
   /** The project's stage rows (kind → status). */
-  stages: { kind: StageKind; status: StageStatus }[];
+  stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   /** The resume pointer — the highlighted/active stage. */
   currentStage: StageKind | null;
   /** The project phase — Build kinds are locked while design|frozen. */
@@ -123,6 +130,7 @@ function computeStage(
   currentStage: StageKind | null,
   phase: ProjectPhase,
   projectId: string,
+  lastPhaseByKind?: Map<StageKind, string | null>,
 ): ComputedStage {
   const status = statusByKind.get(kind) ?? 'pending';
   const locked = LOCKED_KINDS.includes(kind) && phase === 'design';
@@ -136,7 +144,12 @@ function computeStage(
     locked,
     reachable,
     isCurrent,
-    href: stageRoute(kind, projectId),
+    href: (() => {
+      const base = stageRoute(kind, projectId);
+      if (isCurrent) return base;
+      const lp = lastPhaseByKind?.get(kind) ?? STAGE_LAST_FALLBACK[kind];
+      return lp ? `${base}?phase=${lp}` : base;
+    })(),
     accessibleName: `${STAGE_LABEL[kind]} — ${statusWord}`,
   };
 }
@@ -199,6 +212,7 @@ export function StageStepper({
   onSubStepClick,
 }: StageStepperProps) {
   const statusByKind = new Map(stages.map((s) => [s.kind, s.status]));
+  const lastPhaseByKind = new Map(stages.map((s) => [s.kind, s.lastPhase ?? null]));
 
   return (
     <nav
@@ -215,7 +229,7 @@ export function StageStepper({
             <span className="t-eyebrow shrink-0 uppercase !text-ink-faint">{label}</span>
             <div className="flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
               {kinds.map((kind) => {
-                const s = computeStage(kind, statusByKind, currentStage, phase, projectId);
+                const s = computeStage(kind, statusByKind, currentStage, phase, projectId, lastPhaseByKind);
                 return (
                   <Fragment key={kind}>
                     <StagePill s={s} condensed={condensed} />

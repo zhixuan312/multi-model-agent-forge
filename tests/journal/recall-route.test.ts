@@ -23,6 +23,20 @@ vi.mock('@/observability/action-log', () => ({
 
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/workspace' }));
 
+function noopChain(): unknown {
+  return new Proxy(() => {}, {
+    get(_t, prop) {
+      if (prop === 'then') return undefined;
+      if (prop === 'catch') return () => Promise.resolve();
+      return noopChain;
+    },
+    apply() { return noopChain(); },
+  });
+}
+vi.mock('@/db/client', () => ({
+  getDb: () => ({ insert: noopChain, select: noopChain, update: noopChain }),
+}));
+
 const { POST } = await import('../../app/api/journal/recall/route');
 
 function asMember(): AuthedMember {
@@ -71,7 +85,7 @@ describe('POST /api/journal/recall', () => {
     expect(journalRecall.mock.calls[0]![1]).toEqual({ query: 'how do we gate completion?' });
   });
 
-  it('logs a team-level action_log row (project_id null) on dispatch', async () => {
+  it('logs a team-level ops_action_log row (project_id null) on dispatch', async () => {
     mockCaller = asMember();
     await POST(recallReq({ query: 'how do we gate completion?' }) as never);
     expect(logAction).toHaveBeenCalledTimes(1);

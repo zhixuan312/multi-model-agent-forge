@@ -2,13 +2,15 @@ import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { mmaBatch } from '@/db/schema/mma';
 import { PostgresSecretStore } from '@/secrets/secret-store';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
 import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
+import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 /**
  * Real `LoopRunDeps` wiring (spec §4 adapters). Reuses Forge's existing
@@ -19,7 +21,7 @@ import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
  */
 
 async function readGitToken(db: Db): Promise<string | null> {
-  const [row] = await db.select({ ref: teamSettings.gitTokenRef }).from(teamSettings).limit(1);
+  const [row] = await db.select({ ref: connectionSettings.gitTokenRef }).from(connectionSettings).limit(1);
   if (!row?.ref) return null;
   const secrets = await PostgresSecretStore.create({ db });
   return secrets.get(row.ref);
@@ -140,36 +142,74 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const ref = r.stdout.trim();
       return ref && ref !== 'HEAD' ? ref : null; // 'HEAD' = detached → unresolvable
     },
-    mainSession: async ({ cwd, prompt, outputFormat, sessionId }) => {
-      // MMA `main` (orchestrator) turn. `sessionIds.implementer` resumes the prior
-      // turn; the reply text + next session id come back on results[0].
+    mainSession: async ({ cwd, prompt, outputFormat, sessionId, loopRunId }) => {
       const mma = await buildMmaClient({ db });
       const body: Record<string, unknown> = { prompt };
       if (outputFormat) body.outputFormat = outputFormat;
       if (sessionId) body.sessionIds = { implementer: sessionId };
       const env = await mma.dispatchAndWait('orchestrate', { cwd, body });
+      const usage = extractUsageFields(env);
+      await db
+        .insert(mmaBatch)
+        .values({
+          projectId: null,
+          route: 'orchestrate',
+          cwd,
+          status: 'done',
+          request: { type: 'main', prompt: prompt.slice(0, 200) },
+          result: env as object,
+          terminalAt: new Date(),
+          ...(loopRunId && { loopRunId }),
+          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+        })
+        .catch(() => {});
       const r0 = ((env ?? {}) as {
         results?: { report?: { implementer?: string }; sessions?: { implementer?: { sessionId?: string | null } } }[];
       }).results?.[0];
       return { output: r0?.report?.implementer ?? '', sessionId: r0?.sessions?.implementer?.sessionId ?? null };
     },
-    recall: async (repo, query) => {
-      // Only recall against the repo's OWN journal. With no local `.mma/journal`,
-      // the recall worker walks UP the tree and recalls an UNRELATED repo's journal
-      // (e.g. the mma monorepo's) — irrelevant context + a slow search over a large
-      // graph. Skip instead: a repo with no prior loop learnings simply gets none.
-      // Recall is pure read-only retrieval, so never run it through the reviewer.
-      if (!existsSync(join(repo.pathOnDisk, '.mma', 'journal'))) return '';
+    recall: async (_repo, query, loopRunId) => {
+      const workspaceRoot = resolveWorkspaceRoot();
+      if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
         const env = await mma.dispatchAndWait('journal-recall', {
-          cwd: repo.pathOnDisk,
+          cwd: workspaceRoot,
           body: { query: query.slice(0, 4000), reviewPolicy: 'none' },
         });
+        const usage = extractUsageFields(env);
+        await db
+          .insert(mmaBatch)
+          .values({
+            projectId: null,
+            route: 'journal_recall',
+            cwd: workspaceRoot,
+            status: 'done',
+            request: { query: query.slice(0, 200) },
+            result: env as object,
+            terminalAt: new Date(),
+            ...(loopRunId && { loopRunId }),
+            ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+            ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+            ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+            ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+            ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+            ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+            ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+          })
+          .catch(() => {});
         const e = (env ?? {}) as { headline?: string };
         return e.headline ?? '';
       } catch {
-        return ''; // missing/empty journal → empty context
+        return '';
       }
     },
     createWorktree: async (repo, branch, baseBranch) =>
@@ -196,16 +236,14 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
         if (r.code !== 0) throw new Error(`git worktree add failed: ${r.stderr}`);
         return { path };
       }),
-    dispatch: async ({ repo, cwd, prompt, workerTier, priorJournalContext }) => {
+    dispatch: async ({ repo, cwd, prompt, workerTier, priorJournalContext, loopRunId }) => {
       const mma = await buildMmaClient({ db });
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`
         : prompt;
-      // Loops always run the worker through MMA's reviewer (slower but more accurate);
-      // the diff is reworked before it lands in the PR. reviewPolicy is TOP-LEVEL on the
-      // delegate input (not per-task) — placing it in the task is silently ignored.
       const body = { tasks: [{ prompt: fullPrompt, agentType: workerTier }], reviewPolicy: 'reviewed' };
       const env = await mma.dispatchAndWait('delegate', { cwd, body });
+      const usage = extractUsageFields(env);
       const [batch] = await db
         .insert(mmaBatch)
         .values({
@@ -217,6 +255,15 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
           request: body,
           result: env as object,
           terminalAt: new Date(),
+          ...(loopRunId && { loopRunId }),
+          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
         })
         .returning({ id: mmaBatch.id });
       return { mmaBatchId: batch.id, ...summarizeEnvelope(env) };
@@ -283,11 +330,34 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const json = (await res.json()) as { html_url: string };
       return { prUrl: json.html_url };
     },
-    record: async (repo, entries) => {
+    record: async (_repo, entries, loopRunId) => {
       try {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
-        await mma.dispatchAndWait('journal-record', { cwd: repo.pathOnDisk, body: { learnings: text } });
+        const workspaceRoot = resolveWorkspaceRoot();
+        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { learnings: text } });
+        const usage = extractUsageFields(env);
+        await db
+          .insert(mmaBatch)
+          .values({
+            projectId: null,
+            route: 'journal_record',
+            cwd: workspaceRoot,
+            status: 'done',
+            request: { learnings: text.slice(0, 200) },
+            result: env as object,
+            terminalAt: new Date(),
+            ...(loopRunId && { loopRunId }),
+            ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+            ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+            ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+            ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+            ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+            ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+            ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+          })
+          .catch(() => {});
       } catch {
         /* journal record is best-effort; a failure must not fail the run */
       }

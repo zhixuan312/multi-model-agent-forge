@@ -1,7 +1,8 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { artifact } from '@/db/schema/artifacts';
-import { projectRepo } from '@/db/schema/projects';
+import { project, projectRepo } from '@/db/schema/projects';
+import { repo } from '@/db/schema/workspace';
 import { attachment } from '@/db/schema/exploration';
 import { explorationTask } from '@/db/schema/exploration';
 import { AnthropicClient } from '@/anthropic/client';
@@ -15,6 +16,7 @@ import {
   type ProposedTask,
 } from '@/exploration/schemas';
 import type { ExplorationTaskKind } from '@/db/enums';
+import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
 
 /**
  * Brain-dump → editable fan-out proposal (Spec 5 flow B). A main-agent
@@ -30,7 +32,7 @@ import type { ExplorationTaskKind } from '@/db/enums';
 export interface FanOutDeps {
   db?: Db;
   /** Injectable for tests — a MOCK AnthropicClient. */
-  anthropic?: Pick<AnthropicClient, 'parse'>;
+  anthropic?: Pick<AnthropicClient, 'parse' | 'parseWithUsage'>;
 }
 
 export interface FanOutResult {
@@ -39,15 +41,25 @@ export interface FanOutResult {
   failed: boolean;
 }
 
-const PROPOSE_SYSTEM = [
-  'You are Forge\'s exploration planner. Given a brain-dump brief, its attachments,',
-  'and the project\'s repository subset, propose a fan-out of grounded read-only tasks:',
-  '- investigate (ONE target repo each) for "how does X work / where is Y" codebase questions,',
-  '- research for external prior-art / state-of-the-art questions,',
-  '- journal for prior-learnings recall.',
-  'Each prompt must already meet its floor: research/background ≥20 chars, journal ≥10.',
-  'Emit only conformant tasks; an investigate MUST name a target_repo_id from the provided subset.',
-].join(' ');
+const PROPOSE_SYSTEM = `You are Forge's exploration planner. Given a brain-dump brief, its attachments, and the project's repository subset, propose a small, focused fan-out of read-only tasks.
+
+Each task spawns a real agent session (an LLM call that reads the codebase or searches the web), so be economical — propose only tasks that will surface information the spec author genuinely needs.
+
+Task kinds:
+- investigate — one focused codebase question per task (e.g. "how is the DB connection managed", "where are the route handlers"). Each MUST name exactly one target_repo_id from the provided subset. Do NOT split closely related questions into separate tasks — combine them.
+- research — external web research for prior art, libraries, or approaches. Only when the brief references something outside the codebase. Most briefs need 0–1 research tasks.
+- journal — recall prior team decisions relevant to this work. Only when the brief touches an area the team has likely worked on before. Most briefs need 0–1 journal tasks.
+
+Task budget per kind:
+- investigate: 2–5 tasks. This is the core of every exploration — understand the codebase area being changed and what depends on it. Combine related questions into one task ("how is the data layer structured, what schema does it use, and where is it called from" is ONE task, not three). Always propose at least 2.
+- research: 0–2 tasks. Only when the brief involves evaluating external technologies, libraries, or approaches the team hasn't used before. Skip entirely for internal refactors or well-known tech.
+- journal: 1–2 tasks. Always propose at least 1 — there may be prior decisions or learnings relevant to this work. A second only if the brief spans two distinct areas the team has worked on before.
+
+Hard constraints:
+- Maximum 10 tasks total. Aim for 4–7.
+- Each prompt must meet its floor: research ≥20 chars, journal ≥10 chars.
+- Do not propose tasks for information obvious from the brief itself.
+- Emit only conformant tasks.`;
 
 /** Build the brief + attachments + repo-subset prompt the orchestrator reads. */
 function buildProposeUser(args: {
@@ -97,13 +109,43 @@ function classify(
   return { ok: true, task: t };
 }
 
+export async function buildProposeRequest(
+  projectId: string,
+  deps: { db?: Db } = {},
+): Promise<{ system: string; user: string }> {
+  const db = deps.db ?? getDb();
+
+  const [brief] = await db
+    .select({ bodyMd: artifact.bodyMd })
+    .from(artifact)
+    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
+    .orderBy(desc(artifact.version))
+    .limit(1);
+
+  const attachments = await db
+    .select({ kind: attachment.kind, label: attachment.label, payload: attachment.payload })
+    .from(attachment)
+    .where(eq(attachment.projectId, projectId));
+
+  const repos = await db
+    .select({ id: projectRepo.repoId, name: repo.name })
+    .from(projectRepo)
+    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
+    .where(eq(projectRepo.projectId, projectId));
+
+  return {
+    system: PROPOSE_SYSTEM,
+    user: buildProposeUser({ brief: brief?.bodyMd ?? '', attachments, repos: repos.map((r) => ({ id: r.id, name: r.name })) }),
+  };
+}
+
 export async function proposeFanOut(
   projectId: string,
   actor: { id: string },
   deps: FanOutDeps = {},
 ): Promise<FanOutResult> {
   const db = deps.db ?? getDb();
-  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier({ db }));
+  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
 
   // Latest exploration_brief + attachments + repo subset.
   const [brief] = await db
@@ -119,24 +161,27 @@ export async function proposeFanOut(
     .where(eq(attachment.projectId, projectId));
 
   const repos = await db
-    .select({ id: projectRepo.repoId })
+    .select({ id: projectRepo.repoId, name: repo.name })
     .from(projectRepo)
+    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
     .where(eq(projectRepo.projectId, projectId));
   const repoIds = new Set(repos.map((r) => r.id));
 
   // The orchestrator call. A failure / wholly-unparseable output → zero rows.
   let proposal: Proposal;
   try {
-    proposal = await anthropic.parse(ProposalSchema, {
+    const result = await anthropic.parseWithUsage(ProposalSchema, {
       system: PROPOSE_SYSTEM,
       user: buildProposeUser({
         brief: brief?.bodyMd ?? '',
         attachments,
-        repos: repos.map((r) => ({ id: r.id, name: null })),
+        repos: repos.map((r) => ({ id: r.id, name: r.name })),
       }),
       call: 'proposeFanOut',
       projectId,
     });
+    proposal = result.data;
+    await recordOrchestratorUsage(projectId, 'proposeFanOut', result.usage, { db }).catch(() => {});
   } catch (err) {
     logPoll({ level: 'error', event: 'propose.failure', projectId, detail: errName(err) });
     return { inserted: [], failed: true };
@@ -174,8 +219,11 @@ export async function proposeFanOut(
     return { inserted: [], failed: false }; // parseable but empty fan-out
   }
 
-  // Atomic insert of the validated set + the analyze action_log row.
+  // Atomic: clear stale drafts → insert the new set → log.
   const inserted = await db.transaction(async (tx) => {
+    await tx
+      .delete(explorationTask)
+      .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'draft')));
     const rows = await tx
       .insert(explorationTask)
       .values(
@@ -194,6 +242,7 @@ export async function proposeFanOut(
         prompt: explorationTask.prompt,
         targetRepoId: explorationTask.targetRepoId,
       });
+    await tx.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
     await logAction(
       {
         projectId,

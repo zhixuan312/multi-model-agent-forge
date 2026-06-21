@@ -23,8 +23,6 @@ import {
   type ProjectsDeps,
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
-import { USE_MOCK } from '@/mock/config';
-import * as dashboardMock from '@/mock/domains/projects/dashboard';
 
 export interface DashboardCollaborator {
   id: string;
@@ -66,7 +64,6 @@ export async function dashboardProjects(
   actor: ProjectActor,
   deps: ProjectsDeps = {},
 ): Promise<DashboardProject[]> {
-  if (USE_MOCK) return dashboardMock.dashboardProjects();
   const db: Db = deps.db ?? getDb();
   const base = await visibleProjects(actor, { db });
   if (base.length === 0) return [];
@@ -75,15 +72,14 @@ export async function dashboardProjects(
   // Awaiting-human: component_section (ai && !human && !forced) → component → stage → project.
   const awaitingRows = await db
     .select({ projectId: stage.projectId, n: sql<number>`count(*)::int` })
-    .from(componentSection)
-    .innerJoin(component, eq(componentSection.componentId, component.id))
+    .from(component)
     .innerJoin(stage, eq(component.stageId, stage.id))
     .where(
       and(
         inArray(stage.projectId, ids),
-        eq(componentSection.aiSatisfied, true),
-        eq(componentSection.humanSatisfied, false),
-        eq(componentSection.forced, false),
+        eq(component.aiSatisfied, true),
+        eq(component.humanSatisfied, false),
+        eq(component.forced, false),
       ),
     )
     .groupBy(stage.projectId);

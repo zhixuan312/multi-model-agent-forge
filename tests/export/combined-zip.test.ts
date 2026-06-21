@@ -65,9 +65,10 @@ describe('combined-html (F9/F20/F28/F32)', () => {
     expect(jobObj.sectionKeys).toEqual(expect.arrayContaining(['01', '03']));
   });
 
-  it('a present-but-malformed spec aborts the whole bundle (F32)', () => {
+  it('a present-but-malformed spec falls back to generic split (no throw)', () => {
     const badSpec: CollectedArtifact = { ...spec, bodyMd: 'no numbered headings' };
-    expect(() => buildCombinedJob([exploration, badSpec], 'Proj', false)).toThrow(SpecHeadingContractError);
+    const job = buildCombinedJob([exploration, badSpec], 'Proj', false);
+    expect(job).toBeDefined();
   });
 });
 

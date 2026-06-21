@@ -40,18 +40,18 @@ function pm(db = createMockDb()): PollManager {
 }
 
 describe('dispatchTasks', () => {
-  it('creates one mma_batch per task with the right cwd per route + flips to running', async () => {
+  it('creates one ops_mma_batch per task with the right cwd per route + flips to running', async () => {
     const db = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         { id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-2', projectId: 'proj-1', kind: 'research', targetRepoId: null, prompt: 'what external approaches exist for this problem?', status: 'draft', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-3', projectId: 'proj-1', kind: 'journal', targetRepoId: null, prompt: 'what did we learn before about this?', status: 'draft', createdBy: 'member-1', createdAt: new Date() },
       ],
-      'select:repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'insert:mma_batch': [
+      'select:workspace_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'insert:ops_mma_batch': [
         { id: 'batch-1', projectId: 'proj-1', route: 'investigate', targetRepoId: 'repo-1', cwd: '/work/a', request: {}, dispatchedBy: 'member-1', createdAt: new Date() },
       ],
-      'update:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'running', createdBy: 'member-1', createdAt: new Date() }],
+      'update:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'running', createdBy: 'member-1', createdAt: new Date() }],
     });
 
     const calls: RodCall[] = [];
@@ -71,10 +71,10 @@ describe('dispatchTasks', () => {
     expect(byRoute['journal_recall']).toBe('/work');
   });
 
-  it('a dispatch POST failure leaves the task draft with NO mma_batch row (F10)', async () => {
+  it('a dispatch POST failure leaves the task draft with NO ops_mma_batch row (F10)', async () => {
     const db = createMockDb({
-      'select:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
-      'select:repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
+      'select:workspace_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
     });
 
     const out = await dispatchTasks('proj-1', { id: 'member-1' }, {
@@ -86,13 +86,13 @@ describe('dispatchTasks', () => {
     });
 
     expect(out[0]).toMatchObject({ ok: false, reason: 'dispatch_failed' });
-    expect(db._assertCalled('mma_batch', 'insert')).toBe(false);
+    expect(db._assertCalled('ops_mma_batch', 'insert')).toBe(false);
   });
 
   it('a missing cwd path fails fast (task stays draft) rather than dispatching', async () => {
     const db = createMockDb({
-      'select:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
-      'select:repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-missing', pathOnDisk: '/work/missing', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
+      'select:workspace_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-missing', pathOnDisk: '/work/missing', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
     });
 
     const calls: RodCall[] = [];
@@ -112,10 +112,10 @@ describe('dispatchTasks', () => {
 
   it('registers each dispatched batch with the PollManager', async () => {
     const db = createMockDb({
-      'select:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
-      'select:repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'insert:mma_batch': [{ id: 'batch-1', projectId: 'proj-1', route: 'investigate', targetRepoId: 'repo-1', cwd: '/work/a', request: {}, dispatchedBy: 'member-1', createdAt: new Date() }],
-      'update:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'running', createdBy: 'member-1', createdAt: new Date() }],
+      'select:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'draft', createdBy: 'member-1', createdAt: new Date() }],
+      'select:workspace_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'insert:ops_mma_batch': [{ id: 'batch-1', projectId: 'proj-1', route: 'investigate', targetRepoId: 'repo-1', cwd: '/work/a', request: {}, dispatchedBy: 'member-1', createdAt: new Date() }],
+      'update:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'how does this work?', status: 'running', createdBy: 'member-1', createdAt: new Date() }],
     });
     const manager = pm(db);
     const spy = vi.spyOn(manager, 'register');

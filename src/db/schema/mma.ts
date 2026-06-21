@@ -1,4 +1,4 @@
-import { uuid, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { uuid, text, jsonb, timestamp, index, integer, numeric } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { project } from '@/db/schema/projects';
@@ -6,7 +6,7 @@ import { repo } from '@/db/schema/workspace';
 import { MMA_ROUTE, MMA_STATUS } from '@/db/enums';
 
 /**
- * `mma_batch` (schema.md §7 / Spec 5) — one row per MMA call. The scalar
+ * `ops_mma_batch` (schema.md §7 / Spec 5) — one row per MMA call. The scalar
  * `target_repo_id` FK structurally bounds each batch to ≤1 repo (the one-repo
  * invariant's structural half; the conditional half — which routes carry a repo
  * — lives in the Zod input layer). `cwd` is `notNull` for EVERY route (research
@@ -18,7 +18,7 @@ import { MMA_ROUTE, MMA_STATUS } from '@/db/enums';
  * actor; a system-resumed (rehydrated) dispatch is actor-less.
  */
 export const mmaBatch = forge.table(
-  'mma_batch',
+  'ops_mma_batch',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }), // nullable: loop dispatches are team-level (not project-scoped); SDLC dispatches still set it
@@ -27,15 +27,26 @@ export const mmaBatch = forge.table(
     cwd: text('cwd').notNull(), // the dispatched ?cwd= — REQUIRED for EVERY route
     batchId: text('batch_id'), // MMA's returned batchId (for polling)
     status: text('status', { enum: MMA_STATUS }).notNull().default('dispatched'),
+    handler: text('handler'), // on-terminal handler key (e.g. 'spec-auto-draft')
     request: jsonb('request').notNull(), // the POST body
     result: jsonb('result'), // terminal 7-field envelope
     dispatchedBy: uuid('dispatched_by').references(() => member.id), // nullable: actor-less resumed dispatch
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     terminalAt: timestamp('terminal_at', { withTimezone: true }),
+    costUsd: numeric('cost_usd'),
+    savedVsMainUsd: numeric('saved_vs_main_usd'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    durationMs: integer('duration_ms'),
+    implementerModel: text('implementer_model'),
+    reviewerModel: text('reviewer_model'),
+    implementerTier: text('implementer_tier'), // standard | complex | main
+    loopRunId: uuid('loop_run_id'), // FK to loop_run.id (no Drizzle ref to avoid circular import with loop.ts)
   },
   (t) => [
     index('mma_batch_project_created_idx').on(t.projectId, t.createdAt),
     index('mma_batch_batch_id_idx').on(t.batchId),
+    index('mma_batch_loop_run_idx').on(t.loopRunId),
   ],
 );
 

@@ -154,5 +154,5 @@ describe('SecretStore interface seam (fake row store, real crypto)', () => {
 });
 
 // The PostgresSecretStore round-trip (encrypted put/get/delete against a real
-// settings_secret table) runs in production only — tests never touch a database
+// team_secret table) runs in production only — tests never touch a database
 // (see tests/setup.ts). The crypto + interface seam above cover the logic DB-free.

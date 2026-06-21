@@ -17,6 +17,18 @@ The AI software development lifecycle as a team workflow. Business users, engine
 
 Each stage routes to the person best suited for that job. The business user for the problem. The engineer for the solution. Both for the decision.
 
+**Exploration** — brain-dump your idea, attach files, or use voice. Forge fans out investigation, research, and journal recall in parallel, then synthesizes a grounded brief.
+
+![Explore stage](public/screenshots/explore.png)
+
+**Spec crafting** — multi-approver component review. Each spec section (Context, Problem, Goals, Technical Design, Testing Plan) is reviewed and approved by the right team members.
+
+![Spec craft](public/screenshots/spec-craft.png)
+
+**Spec audit** — AI audits the spec across multiple passes, auto-applies fixes, and shows findings by severity. The team reviews before proceeding to plan.
+
+![Spec audit](public/screenshots/spec-audit.png)
+
 ### 2. Journal — know together
 
 A persistent team-level knowledge graph at `<workspaceRoot>/.mma/journal/`. Every team member contributes — business owners recording process decisions, engineers capturing design rationale, product managers logging user behavior patterns. Knowledge accumulates through daily work, not through dedicated documentation sprints.
@@ -26,6 +38,8 @@ A persistent team-level knowledge graph at `<workspaceRoot>/.mma/journal/`. Ever
 - **People move on, knowledge doesn't**: the journal is the team's institutional memory, not any individual's
 
 Every project, every loop, every operational task feeds back into the journal. Future work recalls prior learnings before starting — the team gets smarter over time, not just busier.
+
+![Journal](public/screenshots/journal.png)
 
 ### 3. Loops — operate together
 
@@ -37,6 +51,14 @@ Automated, recurring maintenance jobs that keep the lights on. As teams ship mor
 - **Extensible**: kind-registry pattern — add new loop types as operational needs evolve
 
 The goal is simple: reduce the amount of work needed to keep operations running. Every repeatable task that a loop can govern is a task a person doesn't have to remember.
+
+![Loops](public/screenshots/loops.png)
+
+### Usage — see the cost
+
+Full visibility into what the AI is doing and what it costs. Breakdown by projects, loops, and standalone tasks. See actual spend, estimated savings vs. your main model, agent hours, and token consumption.
+
+![Usage](public/screenshots/usage.png)
 
 ## Why team-level
 

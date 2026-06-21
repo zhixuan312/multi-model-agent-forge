@@ -461,7 +461,7 @@ export async function refineSection(
 
   // Persist Forge reply
   const forgeReply = aiSatisfied
-    ? '✅ Updated the draft with your feedback. I\'m satisfied — press "Show draft" to review, then approve.'
+    ? '✅ Updated the draft with your feedback. I\'m satisfied — press "View spec" to review, then approve.'
     : `❓ A few more things to clarify:\n\n${result.data.questions.map((q) => `• ${q}`).join('\n\n')}`;
   await db.insert(qaMessage).values({
     componentId: deps.componentId,

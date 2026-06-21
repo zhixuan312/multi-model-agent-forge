@@ -73,6 +73,7 @@ interface ExploreStageClientProps {
   voiceEnabled: boolean;
   canMutate?: boolean;
   lockedReason?: string;
+  initialPhase?: 'synthesize';
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -123,7 +124,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
-  const [viewOverride, setViewOverride] = useState<'scope' | 'discover' | 'synthesize' | null>(null);
+  const [viewOverride, setViewOverride] = useState<'scope' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const recStartRef = useRef<number>(0);

@@ -203,6 +203,10 @@ export function SpecStageClient(props: SpecStageClientProps) {
     const url = new URL(window.location.href);
     url.searchParams.set('phase', p);
     router.push(url.pathname + url.search, { scroll: false });
+    fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'spec', phase: p }),
+    }).catch(() => {});
   };
   const needsAutoDraft = components.length > 0 && components.some(
     (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),

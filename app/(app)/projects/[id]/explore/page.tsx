@@ -23,10 +23,13 @@ import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
  */
 export default async function ExploreStagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ phase?: string }>;
 }) {
   const { id } = await params;
+  const { phase: phaseParam } = await searchParams;
   const me = await currentMember();
   if (!me) redirect('/login');
 
@@ -70,6 +73,7 @@ export default async function ExploreStagePage({
       voiceEnabled={voiceEnabled}
       canMutate={perms.explore.canMutate}
       lockedReason={perms.explore.reason}
+      initialPhase={phaseParam === 'synthesize' ? 'synthesize' : undefined}
     />
   );
 }

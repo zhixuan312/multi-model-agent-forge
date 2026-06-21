@@ -13,8 +13,6 @@ import { PlanStageClient } from '@/components/forge/PlanStageClient';
 export default async function PlanStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
   const { phase: phaseParam } = await searchParams;
-  const validPlanPhases = ['detail', 'validate'] as const;
-  const initialPhase = validPlanPhases.includes(phaseParam as any) ? (phaseParam as 'detail' | 'validate') : undefined;
   const me = await currentMember();
   if (!me) redirect('/login');
 
@@ -26,6 +24,14 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
   }
 
   const db = getDb();
+
+  const validPlanPhases = ['detail', 'validate'] as const;
+  type PlanPhase = typeof validPlanPhases[number];
+  const { getLastPhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getLastPhase(db, id, 'plan') as PlanPhase | null;
+  const initialPhase: PlanPhase | undefined = validPlanPhases.includes(phaseParam as any)
+    ? (phaseParam as PlanPhase)
+    : lastPhase ?? undefined;
   const [proj] = await db
     .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
     .from(project)

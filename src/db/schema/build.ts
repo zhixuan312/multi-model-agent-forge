@@ -42,6 +42,7 @@ export const planTask = forge.table(
     reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('reviewed'),
     status: text('status', { enum: BUILD_TASK_STATUS }).notNull().default('queued'),
     branch: text('branch'), // the prepared per-run branch forge/<run>/<repo>
+    targetBranch: text('target_branch'), // user-selected base branch for build + PR target
     commitSha: text('commit_sha'), // the MMA worker commit SHA (envelope.structuredReport.commitSha)
     fixNote: text('fix_note'), // the main-agent inline fix description, if any
     meta: jsonb('meta'), // { buildCmd?, testCmd?, fixCommitSha? } — display/audit only

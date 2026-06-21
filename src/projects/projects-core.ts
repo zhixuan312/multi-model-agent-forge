@@ -477,9 +477,13 @@ export async function advanceStage(
       .update(stage)
       .set({ status: 'active', startedAt: now })
       .where(and(eq(stage.projectId, projectId), eq(stage.kind, next)));
+    // Derive phase from the next stage's group
+    const nextPhase = (['exploration', 'spec', 'plan'] as const).includes(next as any) ? 'design' as const
+      : (['execute', 'review'] as const).includes(next as any) ? 'build' as const
+      : next === 'journal' ? 'build' as const : undefined;
     await tx
       .update(project)
-      .set({ currentStage: next, updatedAt: new Date() })
+      .set({ currentStage: next, ...(nextPhase && { phase: nextPhase }), updatedAt: new Date() })
       .where(eq(project.id, projectId));
     await logAction(
       {

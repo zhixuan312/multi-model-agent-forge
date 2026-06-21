@@ -1192,15 +1192,7 @@ function CraftStage({
               </Button>
             </div>
           </div>
-        ) : readOnly && drafted ? (
-          /* Read-only: just show the view spec toggle */
-          <div className="flex shrink-0 items-center justify-end border-t border-line px-5 py-3">
-            <Button size="sm" variant="secondary" onClick={constructSection} leftIcon={<FileText />}>
-              View spec
-            </Button>
-          </div>
         ) : (
-          /* Editable conversation footer: input + view spec toggle */
           <ForgeComposer
             value={input}
             onChange={setInput}

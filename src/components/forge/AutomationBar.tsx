@@ -39,7 +39,8 @@ export function AutomationBar({
   const [countdown, setCountdown] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { automationThemeStore.set(running); return () => { automationThemeStore.set(false); }; }, [running]);
+  const themeActive = running || countdown !== null;
+  useEffect(() => { automationThemeStore.set(themeActive); return () => { automationThemeStore.set(false); }; }, [themeActive]);
 
   const clearCountdown = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }

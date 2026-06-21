@@ -175,7 +175,7 @@ function stepClasses(s: ComputedStage): string {
     'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
     s.isCurrent && 'bg-accent text-white shadow-sm',
     !s.isCurrent && s.locked && 'text-ink-faint',
-    !s.isCurrent && !s.locked && s.status === 'done' && 'text-accent-deep hover:bg-accent-tint',
+    !s.isCurrent && !s.locked && s.status === 'done' && 'text-[var(--sage-deep)] hover:bg-sage-tint',
     !s.isCurrent && !s.locked && s.status === 'active' && 'text-accent-deep hover:bg-accent-tint',
     !s.isCurrent && !s.locked && s.status === 'pending' && 'text-ink-faint',
   );

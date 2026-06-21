@@ -8,6 +8,7 @@ import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { BuildScheduler, type RepoMeta, type SchedulerResult } from '@/build/scheduler';
 import type { ExecutorDeps } from '@/build/executor';
 import { reviewRepo, type RunReviewDeps, type ReviewResult } from '@/build/review';
+import { createBuildPr, type BuildPrDeps } from '@/build/pr';
 
 /**
  * Build pipeline orchestrator (Spec 7 §SSE monitor / phase machine). Drives the
@@ -26,6 +27,7 @@ export interface RunExecuteDeps {
   bus?: ProjectEventBus;
   executor: Omit<ExecutorDeps, 'db' | 'bus'>;
   review: Omit<RunReviewDeps, 'bus'>;
+  pr?: BuildPrDeps;
   maxConcurrentLanes?: number;
 }
 
@@ -68,7 +70,7 @@ export async function loadRepoMeta(db: Db, projectId: string): Promise<Map<strin
  */
 export async function runExecutePipeline(
   deps: RunExecuteDeps,
-  args: { projectId: string; actorId: string },
+  args: { projectId: string; actorId: string; targetBranches?: Record<string, string> },
 ): Promise<ExecutePipelineResult> {
   const db = deps.db ?? getDb();
   const bus = deps.bus ?? projectEventBus;
@@ -102,6 +104,42 @@ export async function runExecutePipeline(
       { projectId, repoName: meta.name, repoCwd: meta.pathOnDisk, changedFiles },
     );
     reviews.push(r);
+  }
+
+  // PR creation for non-halted repos with committed tasks.
+  const haltedSet = new Set(schedResult.haltedRepos);
+  const buildPrs: Record<string, { url: string; branch: string; targetBranch: string }> = {};
+  if (deps.pr) {
+    const [projRow] = await db.select({ name: project.name }).from(project).where(eq(project.id, projectId));
+    const projectName = projRow?.name ?? projectId;
+
+    for (const [repoId, meta] of repos) {
+      if (haltedSet.has(repoId)) continue;
+      const repoTasks = tasks.filter((t) => t.targetRepoId === repoId && committedTaskIds.has(t.id));
+      if (repoTasks.length === 0) continue;
+      const branch = repoTasks[0]!.branch;
+      const targetBranch = repoTasks[0]!.targetBranch ?? meta.defaultBranch;
+      if (!branch || !targetBranch) continue;
+
+      try {
+        const result = await createBuildPr(deps.pr, {
+          projectName,
+          branch,
+          targetBranch,
+          repoPath: meta.pathOnDisk,
+          tasks: repoTasks.map((t) => ({ title: t.title, commitSha: t.commitSha })),
+        });
+        if (result && 'url' in result) {
+          buildPrs[repoId] = { url: result.url, branch, targetBranch };
+        }
+      } catch (err) {
+        console.error(`[forge] PR creation failed for repo ${meta.name}`, err);
+      }
+    }
+
+    if (Object.keys(buildPrs).length > 0) {
+      await db.update(project).set({ buildPrs }).where(eq(project.id, projectId));
+    }
   }
 
   // Advance to done (review never blocks; an errored review is "done (advisory)").

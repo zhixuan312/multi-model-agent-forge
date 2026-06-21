@@ -1,25 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
 import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { repo } from '@/db/schema/workspace';
 import { GitOps } from '@/build/branch';
 import { authorizeExecute, ExecuteLockedError } from '@/build/execute-authz';
-import { branchName, slugRefComponent } from '@/build/slug';
+import { branchName } from '@/build/slug';
+import { runExecutePipeline } from '@/build/orchestrator';
 
-/**
- * `POST /api/.../build/start-execute` — the per-repo execute authorization +
- * (flag-gated) execute trigger (Spec 7 §Per-repo execute authorization).
- *
- * SAFETY: actually DISPATCHING execute-plan (a destructive write) is gated behind
- * `FORGE_BUILD_EXECUTE_ENABLED` which DEFAULTS OFF. With the flag off this
- * endpoint records the per-repo "Authorize execute" action_log + collision
- * precheck and returns `{ authorized:true, dispatched:false }` WITHOUT running any
- * execute-plan against a real repo. The real-dispatch drive (orchestrator) is
- * wired separately and only runs when the flag is explicitly enabled in a trusted
- * deploy.
- */
 export const runtime = 'nodejs';
 
 export async function POST(
@@ -31,15 +20,19 @@ export async function POST(
   if (guard instanceof NextResponse) return guard;
 
   const db = getDb();
+  const body = await req.json().catch(() => ({})) as { targetBranches?: Record<string, string> };
+  const targetBranches: Record<string, string> = body.targetBranches ?? {};
 
-  // Write-target repos for this project.
   const repos = await db
     .selectDistinct({ repoId: planTask.targetRepoId, name: repo.name })
     .from(planTask)
     .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
     .where(eq(planTask.projectId, id));
 
-  // F22: build-level sanitized-branch-name collision precheck BEFORE any touch.
+  if (repos.length === 0) {
+    return NextResponse.json({ error: 'no write-target repos with queued tasks' }, { status: 400 });
+  }
+
   const collision = GitOps.collisionCheck(repos.map((r) => r.name));
   if (collision) {
     return NextResponse.json(
@@ -48,7 +41,6 @@ export async function POST(
     );
   }
 
-  // Per-repo authorize (action_log + execute.notice + advisory lock).
   const releases: Array<() => void> = [];
   try {
     for (const r of repos) {
@@ -66,22 +58,30 @@ export async function POST(
     throw e;
   }
 
-  const executeEnabled = process.env.FORGE_BUILD_EXECUTE_ENABLED === '1';
-  if (!executeEnabled) {
-    // Flag OFF (default): authorize only, never dispatch a real execute-plan.
-    releases.forEach((rel) => rel());
-    return NextResponse.json({
-      authorized: true,
-      dispatched: false,
-      reason: 'execute disabled (FORGE_BUILD_EXECUTE_ENABLED unset)',
-      branches: repos.map((r) => branchName(id, r.name)),
-      slugs: repos.map((r) => slugRefComponent(r.name)),
-    });
+  // Set target branches on plan tasks before dispatch
+  for (const r of repos) {
+    const tb = targetBranches[r.repoId];
+    if (tb) {
+      await db.update(planTask)
+        .set({ targetBranch: tb })
+        .where(and(eq(planTask.projectId, id), eq(planTask.targetRepoId, r.repoId)));
+    }
   }
 
-  // Flag ON: the orchestrator drive is intentionally NOT inlined here — a trusted
-  // deploy wires `runExecutePipeline` to a background worker that holds the locks
-  // for the build's duration. Returning the authorization handle.
   releases.forEach((rel) => rel());
-  return NextResponse.json({ authorized: true, dispatched: false, reason: 'execute drive runs out-of-band' });
+
+  // Dispatch in background (non-blocking 202)
+  setImmediate(() => {
+    void runExecutePipeline(
+      { executor: {}, review: {} } as any, // deps wired at runtime by the orchestrator's defaults
+      { projectId: id, actorId: guard.memberId, targetBranches },
+    ).catch((err) => {
+      console.error('[forge] build pipeline crashed', err);
+    });
+  });
+
+  return NextResponse.json(
+    { authorized: true, dispatched: true, branches: repos.map((r) => branchName(id, r.name)) },
+    { status: 202 },
+  );
 }

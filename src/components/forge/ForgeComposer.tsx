@@ -19,7 +19,7 @@ export interface ForgeComposerProps {
   submitLabel?: string;
   disabled?: boolean;
   voiceEnabled?: boolean;
-  /** Additional buttons to show in the action bar (e.g. "Show draft"). */
+  /** Additional buttons to show in the action bar (e.g. "View spec"). */
   secondaryAction?: React.ReactNode;
 }
 

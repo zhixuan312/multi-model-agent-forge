@@ -1181,16 +1181,14 @@ function CraftStage({
             <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
               Back to conversation
             </Button>
-            <div className="flex items-center gap-2">
-              {approved ? (
-                <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<RotateCcw />}>
-                  Revoke
-                </Button>
-              ) : null}
-              <Button onClick={approve} disabled={readOnly || approved || iApproved} leftIcon={<Check />}>
-                {approved || iApproved ? 'Approved' : 'Approve'}
-              </Button>
-            </div>
+            <Button
+              onClick={approved || iApproved ? backToEdit : approve}
+              disabled={readOnly}
+              variant={approved || iApproved ? 'secondary' : 'primary'}
+              leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
+            >
+              {approved || iApproved ? 'Revoke' : 'Approve'}
+            </Button>
           </div>
         ) : (
           <ForgeComposer

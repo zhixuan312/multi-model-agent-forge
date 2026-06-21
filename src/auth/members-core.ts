@@ -94,10 +94,9 @@ export async function createMember(
           avatarTint: member.avatarTint,
           isAdmin: member.isAdmin,
         });
-      // Exactly one local identity per member (the one-local-identity rule).
+      // Exactly one identity per member (the one-identity rule).
       await tx.insert(memberIdentity).values({
         memberId: m.id,
-        provider: 'local',
         passwordHash,
       });
       return m;
@@ -180,7 +179,7 @@ export async function resetMemberPassword(
   const [identity] = await db
     .select({ id: memberIdentity.id })
     .from(memberIdentity)
-    .where(and(eq(memberIdentity.memberId, memberId), eq(memberIdentity.provider, 'local')))
+    .where(eq(memberIdentity.memberId, memberId))
     .limit(1);
   if (!identity) return { kind: 'not_found' };
 

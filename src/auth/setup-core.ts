@@ -58,7 +58,6 @@ export async function createAdminMember(
     });
   await db.insert(memberIdentity).values({
     memberId: m.id,
-    provider: 'local',
     passwordHash,
   });
   return m;

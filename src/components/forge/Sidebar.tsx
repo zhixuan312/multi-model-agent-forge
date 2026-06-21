@@ -2,14 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, type LucideIcon } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
-import { AccountMenu } from '@/components/forge/AccountMenu';
-import { NotificationBell } from '@/components/forge/collab/NotificationBell';
 import type { AuthedMember } from '@/auth/auth-provider';
-import type { NotificationItem } from '@/collab/types';
 
 /**
  * Sidebar — the locked dashboard rail: brand lockup, grouped primary nav, and
@@ -39,15 +36,19 @@ const SECTIONS: NavSection[] = [
     id: 'main',
     items: [
       { href: '/projects', label: 'Projects', icon: FolderKanban },
-      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+      // Loops sits directly below Projects. Still admin-only (the /loops pages are
+      // admin-gated by require-admin.ts) — so it's hidden for non-admins, just no
+      // longer grouped under the "Admin" eyebrow.
+      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen },
+      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
     ],
   },
   {
     id: 'admin',
     label: 'Admin',
     items: [
-      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
+      { href: '/usage', label: 'Usage', icon: BarChart3, adminOnly: true },
       { href: '/settings', label: 'Team settings', icon: Settings, adminOnly: true },
     ],
   },
@@ -55,12 +56,9 @@ const SECTIONS: NavSection[] = [
 
 export function Sidebar({
   member,
-  notifications = [],
   forceVisible = false,
 }: {
   member: AuthedMember;
-  /** Feed for the shell notification bell (mentions + approvals). */
-  notifications?: NotificationItem[];
   /** When true, render even below md (used inside the mobile drawer). */
   forceVisible?: boolean;
 }) {
@@ -76,9 +74,6 @@ export function Sidebar({
     >
       <div className="flex items-center gap-2 px-2 pb-4 pt-1">
         <ForgeMark withWordmark />
-        <div className="ml-auto">
-          <NotificationBell items={notifications} />
-        </div>
       </div>
 
       <nav aria-label="Primary" className="flex flex-col gap-5">
@@ -126,8 +121,6 @@ export function Sidebar({
       </nav>
 
       <div className="flex-1" />
-
-      <AccountMenu member={member} variant="rail" />
     </aside>
   );
 }

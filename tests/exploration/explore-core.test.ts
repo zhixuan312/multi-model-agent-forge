@@ -21,8 +21,8 @@ describe('brief persistence', () => {
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const mockDb = createMockDb({
-      'select:artifact': seq([], [{ v: 1 }], [{ bodyMd: 'second dump' }]),
-      'insert:artifact': seq([{ id: 'art-1', projectId, kind: 'exploration_brief', version: 1, bodyMd: 'first dump' }], [{ id: 'art-2', projectId, kind: 'exploration_brief', version: 2, bodyMd: 'second dump' }]),
+      'select:project_artifact': seq([], [{ v: 1 }], [{ bodyMd: 'second dump' }]),
+      'insert:project_artifact': seq([{ id: 'art-1', projectId, kind: 'exploration_brief', version: 1, bodyMd: 'first dump' }], [{ id: 'art-2', projectId, kind: 'exploration_brief', version: 2, bodyMd: 'second dump' }]),
     });
 
     const r1 = await saveBrief(projectId, 'first dump', { id: ownerId }, mockDb);
@@ -35,11 +35,11 @@ describe('brief persistence', () => {
 });
 
 describe('rail + summary reads', () => {
-  it('joins exploration_task to mma_batch for live status/headline/error', async () => {
+  it('joins project_exploration_task to ops_mma_batch for live status/headline/error', async () => {
     const projectId = 'proj-2';
     const ownerId = 'owner-2';
     const mockDb = createMockDb({
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         {
           id: 'task-1',
           projectId,
@@ -53,7 +53,7 @@ describe('rail + summary reads', () => {
           createdBy: ownerId,
         },
       ],
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         {
           id: 'batch-1',
           projectId,
@@ -76,7 +76,7 @@ describe('rail + summary reads', () => {
   it('latestExplorationArtifact returns the highest version', async () => {
     const projectId = 'proj-3';
     const mockDb = createMockDb({
-      'select:artifact': [
+      'select:project_artifact': [
         { id: 'art-2', projectId, kind: 'exploration', bodyMd: 'v2', version: 2, createdAt: new Date() },
         { id: 'art-1', projectId, kind: 'exploration', bodyMd: 'v1', version: 1, createdAt: new Date() },
       ],
@@ -92,7 +92,7 @@ describe('task editing + reversibility', () => {
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
     const mockDb = createMockDb({
-      'insert:exploration_task': [{ id: 'task-1', projectId, kind: 'research', targetRepoId: null, prompt: 'what external options exist for this?', status: 'draft', createdBy: ownerId }],
+      'insert:project_exploration_task': [{ id: 'task-1', projectId, kind: 'research', targetRepoId: null, prompt: 'what external options exist for this?', status: 'draft', createdBy: ownerId }],
     });
 
     const { id } = await addTask(projectId, { kind: 'research', prompt: 'what external options exist for this?' }, { id: ownerId }, mockDb);
@@ -123,17 +123,17 @@ describe('task editing + reversibility', () => {
         [{ id: repoA, name: 'Repo A' }, { id: repoB, name: 'Repo B' }],
         [{ id: repoA, name: 'Repo A' }, { id: repoB, name: 'Repo B' }],
       ),
-      'select:exploration_task': seq(
+      'select:project_exploration_task': seq(
         [{ id: taskId, projectId, kind: 'investigate', targetRepoId: repoA, prompt: 'how?', status: 'draft', createdBy: ownerId }],
         [{ id: taskId, projectId, kind: 'investigate', targetRepoId: repoB, prompt: 'how does it really work?', status: 'draft', createdBy: ownerId }],
       ),
-      'insert:exploration_task': [{ id: taskId }],
-      'update:exploration_task': [{ id: taskId, projectId, kind: 'investigate', targetRepoId: repoB, prompt: 'how does it really work?', status: 'draft', createdBy: ownerId }],
+      'insert:project_exploration_task': [{ id: taskId }],
+      'update:project_exploration_task': [{ id: taskId, projectId, kind: 'investigate', targetRepoId: repoB, prompt: 'how does it really work?', status: 'draft', createdBy: ownerId }],
     });
 
     await addTask(projectId, { kind: 'investigate', targetRepoId: repoA, prompt: 'how does this repository support the checkout flow?' }, { id: ownerId }, mockDb);
     await editTask(projectId, taskId, { prompt: 'how does it really work?', targetRepoId: repoB }, { id: ownerId }, mockDb);
-    expect(mockDb._assertCalled('exploration_task', 'update')).toBe(true);
+    expect(mockDb._assertCalled('project_exploration_task', 'update')).toBe(true);
   });
 
   it('rejects editing a recorded (locked) task', async () => {
@@ -142,7 +142,7 @@ describe('task editing + reversibility', () => {
     const taskId = 'task-1';
 
     const mockDb = createMockDb({
-      'select:exploration_task': [{ id: taskId, projectId, kind: 'research', targetRepoId: null, prompt: 'p', status: 'recorded', createdBy: ownerId }],
+      'select:project_exploration_task': [{ id: taskId, projectId, kind: 'research', targetRepoId: null, prompt: 'p', status: 'recorded', createdBy: ownerId }],
     });
 
     await expect(editTask(projectId, taskId, { prompt: 'new prompt long enough' }, { id: ownerId }, mockDb)).rejects.toThrow(TaskLockedError);
@@ -155,13 +155,13 @@ describe('task editing + reversibility', () => {
     const taskId = 'task-1';
 
     const mockDb = createMockDb({
-      'insert:exploration_task': [{ id: taskId, projectId, kind: 'journal', targetRepoId: null, prompt: 'what was decided?', status: 'draft', createdBy: ownerId }],
-      'select:exploration_task': [{ id: taskId, projectId, kind: 'journal', targetRepoId: null, prompt: 'what was decided?', status: 'draft', createdBy: ownerId }],
-      'delete:exploration_task': [],
+      'insert:project_exploration_task': [{ id: taskId, projectId, kind: 'journal', targetRepoId: null, prompt: 'what was decided?', status: 'draft', createdBy: ownerId }],
+      'select:project_exploration_task': [{ id: taskId, projectId, kind: 'journal', targetRepoId: null, prompt: 'what was decided?', status: 'draft', createdBy: ownerId }],
+      'delete:project_exploration_task': [],
     });
 
     const { id } = await addTask(projectId, { kind: 'journal', prompt: 'what was decided?' }, { id: ownerId }, mockDb);
     await removeTask(projectId, id, { id: ownerId }, mockDb);
-    expect(mockDb._assertCalled('exploration_task', 'delete')).toBe(true);
+    expect(mockDb._assertCalled('project_exploration_task', 'delete')).toBe(true);
   });
 });

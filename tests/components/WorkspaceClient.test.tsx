@@ -7,9 +7,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 const REPOS: RepoCardData[] = [
-  { id: 'a', name: 'core-api', kind: 'library', tags: ['core', 'backend'], defaultBranch: 'main', status: 'cloned', headSha: 'abcdef1234' },
-  { id: 'b', name: 'web', kind: 'service', tags: ['frontend'], defaultBranch: 'main', status: 'pulling', headSha: null },
-  { id: 'c', name: 'core-docs', kind: 'docs', tags: ['core'], defaultBranch: 'main', status: 'error', headSha: null },
+  { id: 'a', name: 'core-api', tags: ['core', 'backend'], defaultBranch: 'main', status: 'cloned', headSha: 'abcdef1234' },
+  { id: 'b', name: 'web', tags: ['frontend'], defaultBranch: 'main', status: 'pulling', headSha: null },
+  { id: 'c', name: 'core-docs', tags: ['core'], defaultBranch: 'main', status: 'error', headSha: null },
 ];
 
 /** The table row that contains a repo name. */
@@ -46,15 +46,31 @@ describe('WorkspaceClient filter island (Flow E)', () => {
     expect(within(row('core-docs')).getByRole('status')).toHaveAccessibleName(/Error/i);
   });
 
-  it('hides the clone form + row actions for non-admins', () => {
+  it('hides the New-repo button + row actions for non-admins', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    expect(screen.queryByText('Add / clone repo')).toBeNull();
+    expect(screen.queryByText('New repo')).toBeNull();
     expect(within(row('core-api')).queryByText('Pull')).toBeNull();
   });
 
-  it('shows the admin clone form + row actions for admins', () => {
+  it('shows the New-repo button + row actions for admins', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
-    expect(screen.getByText('Add / clone repo')).toBeInTheDocument();
+    expect(screen.getByText('New repo')).toBeInTheDocument();
     expect(within(row('core-api')).getByText('Pull')).toBeInTheDocument();
+  });
+
+  it('"New repo" reveals the inline clone form at the top of the table', () => {
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
+    expect(screen.queryByLabelText('Clone repo')).toBeNull();
+    fireEvent.click(screen.getByText('New repo'));
+    expect(screen.getByLabelText('Clone repo')).toBeInTheDocument();
+    expect(screen.getByText('Clone repo')).toBeInTheDocument(); // submit button
+  });
+
+  it('Remove asks for confirmation before deleting (no one-click delete)', () => {
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
+    fireEvent.click(within(row('core-api')).getByLabelText('Remove core-api'));
+    expect(within(row('core-api')).getByText('Remove?')).toBeInTheDocument();
+    expect(within(row('core-api')).getByText('Confirm')).toBeInTheDocument();
+    expect(within(row('core-api')).getByText('Keep')).toBeInTheDocument();
   });
 });

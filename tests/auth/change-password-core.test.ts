@@ -26,29 +26,29 @@ describe('changeOwnPassword', () => {
   });
 
   it('returns no_identity when the member has no local credential', async () => {
-    const db = createMockDb({ 'select:iam_identity': [] });
+    const db = createMockDb({ 'select:team_identity': [] });
     const res = await changeOwnPassword({ memberId: 'm1', currentPassword: CURRENT, newPassword: NEXT }, { db, store: store() });
     expect(res.kind).toBe('no_identity');
   });
 
   it('returns wrong_current_password when the current password does not verify', async () => {
     const hash = await hashPassword(CURRENT);
-    const db = createMockDb({ 'select:iam_identity': [{ id: 'i1', passwordHash: hash }] });
+    const db = createMockDb({ 'select:team_identity': [{ id: 'i1', passwordHash: hash }] });
     const res = await changeOwnPassword({ memberId: 'm1', currentPassword: 'WRONG', newPassword: NEXT }, { db, store: store() });
     expect(res.kind).toBe('wrong_current_password');
-    expect(db._assertCalled('iam_identity', 'update')).toBe(false);
+    expect(db._assertCalled('team_identity', 'update')).toBe(false);
   });
 
   it('rotates the hash, re-issues the caller session, and revokes the others', async () => {
     const hash = await hashPassword(CURRENT);
-    const db = createMockDb({ 'select:iam_identity': [{ id: 'i1', passwordHash: hash }] });
+    const db = createMockDb({ 'select:team_identity': [{ id: 'i1', passwordHash: hash }] });
     const st = store();
     const res = await changeOwnPassword({ memberId: 'm1', currentPassword: CURRENT, newPassword: NEXT }, { db, store: st });
     expect(res).toEqual({ kind: 'success', token: 'fresh-token' });
-    expect(db._assertCalled('iam_identity', 'update')).toBe(true);
+    expect(db._assertCalled('team_identity', 'update')).toBe(true);
     expect(st.create).toHaveBeenCalledWith('m1');
     expect(st.revokeAllForMemberExcept).toHaveBeenCalledWith('m1', 's-new');
-    const set = db._callsFor('iam_identity').find((c) => c.method === 'set');
+    const set = db._callsFor('team_identity').find((c) => c.method === 'set');
     expect(JSON.stringify(set?.args)).not.toContain(NEXT); // hash, not plaintext
   });
 });

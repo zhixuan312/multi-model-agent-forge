@@ -4,7 +4,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui';
 import { NodesView } from '@/components/forge/journal/NodesView';
 import { NodeDetail } from '@/components/forge/journal/NodeDetail';
-import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { RailLayout, LazyNodeDetail } from '@/components/forge/journal/journal-shell';
 import { RecordLearningButton } from '@/components/forge/journal/RecordLearningButton';
 import { useRecordedLearnings } from '@/components/forge/journal/recorded-store';
@@ -57,23 +56,20 @@ export function NodesTab({
   return (
     <RailLayout
       rail={
-        <>
-          <JournalNote />
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-              <div className="flex shrink-0 items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Nodes</span>
-                <RecordLearningButton />
-              </div>
-              <NodesView
-                nodes={allNodes}
-                skippedCount={skippedCount}
-                selectedId={selectedId}
-                onSelect={select}
-              />
-            </CardContent>
-          </Card>
-        </>
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Nodes</span>
+              <RecordLearningButton />
+            </div>
+            <NodesView
+              nodes={allNodes}
+              skippedCount={skippedCount}
+              selectedId={selectedId}
+              onSelect={select}
+            />
+          </CardContent>
+        </Card>
       }
     >
       <Card className="flex min-h-0 flex-1 flex-col">

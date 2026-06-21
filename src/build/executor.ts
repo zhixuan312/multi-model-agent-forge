@@ -7,6 +7,7 @@ import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { GitOps } from '@/build/branch';
 import { ensureForgeExcluded, planFilePath, nodePlanFs, type PlanFs } from '@/build/plan-fs';
 import { parseExecuteEnvelope, classifyExecute } from '@/build/execute-envelope';
+import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { inferCommands, cmdToString, type ManifestSnapshot } from '@/build/command-inference';
 import { type CommandRunner } from '@/build/command-runner';
 
@@ -25,7 +26,6 @@ export interface RepoContext {
   id: string;
   name: string;
   pathOnDisk: string;
-  kind: string;
   defaultBranch: string;
   /** First task targeting this repo this run? (drives checkout -b vs assert.) */
   firstTask: boolean;
@@ -126,11 +126,24 @@ export async function executeTask(
     .returning({ id: mmaBatch.id });
   await db.update(planTask).set({ mmaBatchId: batchRow.id }).where(eq(planTask.id, task.id));
 
-  // 3. Poll to terminal + persist the envelope.
+  // 3. Poll to terminal + persist the envelope + usage columns.
   const envelope = await pollToTerminal(deps.mma, batchId, deps.pollIntervalMs ?? 25);
+  const usage = extractUsageFields(envelope);
   await db
     .update(mmaBatch)
-    .set({ status: 'done', result: envelope as object, terminalAt: new Date() })
+    .set({
+      status: 'done',
+      result: envelope as object,
+      terminalAt: new Date(),
+      ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+      ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+      ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+      ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+      ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+      ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+      ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+    })
     .where(eq(mmaBatch.id, batchRow.id));
 
   const parsed = parseExecuteEnvelope(envelope);

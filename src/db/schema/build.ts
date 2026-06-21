@@ -6,7 +6,7 @@ import { mmaBatch } from '@/db/schema/mma';
 import { BUILD_TASK_STATUS, REVIEW_POLICY } from '@/db/enums';
 
 /**
- * `plan_task` (schema.md §8 / Spec 7) — the build plan + execute lanes.
+ * `project_plan_task` (schema.md §8 / Spec 7) — the build plan + execute lanes.
  *
  * 7a fills queued rows (one `target_repo_id` per task; `review_policy` set at
  * authoring; `branch`/`commit_sha`/`fix_note` null). 7b consumes queued rows:
@@ -25,7 +25,7 @@ import { BUILD_TASK_STATUS, REVIEW_POLICY } from '@/db/enums';
  *  - `meta` shape: `{ buildCmd?, testCmd?, fixCommitSha? }` (display/audit only).
  */
 export const planTask = forge.table(
-  'plan_task',
+  'project_plan_task',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')
@@ -39,7 +39,7 @@ export const planTask = forge.table(
     isWrite: boolean('is_write').notNull().default(true),
     dependsOn: uuid('depends_on').array(), // other plan_task.id[]
     orderIndex: integer('order_index').notNull(),
-    reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('full'),
+    reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('reviewed'),
     status: text('status', { enum: BUILD_TASK_STATUS }).notNull().default('queued'),
     branch: text('branch'), // the prepared per-run branch forge/<run>/<repo>
     commitSha: text('commit_sha'), // the MMA worker commit SHA (envelope.structuredReport.commitSha)
@@ -75,7 +75,7 @@ export interface PlanTaskMeta {
  * variable is `exportRecord` while the DB table name stays `export`.
  */
 export const exportRecord = forge.table(
-  'export',
+  'project_export',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id')

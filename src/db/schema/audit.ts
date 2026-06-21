@@ -4,7 +4,7 @@ import { member } from '@/db/schema/identity';
 import { project } from '@/db/schema/projects';
 
 /**
- * `action_log` (schema.md §10) — the domain accountability trail (distinct from
+ * `ops_action_log` (schema.md §10) — the domain accountability trail (distinct from
  * the operational `logEvent` logger). One row per project mutation under the
  * shared agent credential; the *member* is the human who acted. `project_id` is
  * NULLABLE (team-level actions have no project). The spec prefers a `uuidv7()`
@@ -14,7 +14,7 @@ import { project } from '@/db/schema/projects';
  * ordering. `action`/`target` are free-form text (not enums).
  */
 export const actionLog = forge.table(
-  'action_log',
+  'ops_action_log',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id').references(() => project.id), // NULL = team-level

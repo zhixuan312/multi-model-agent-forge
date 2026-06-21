@@ -5,7 +5,10 @@ import { buildMmaClient } from '@/mma/server-client';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { dispatchRecall } from '@/journal/recall';
 import { logAction } from '@/observability/action-log';
-import { USE_MOCK } from '@/mock/config';
+import { getDb } from '@/db/client';
+
+export const maxDuration = 600;
+import { mmaBatch } from '@/db/schema/mma';
 
 /**
  * `POST /api/journal/recall` — the ONE money-spending endpoint in Spec 6.
@@ -40,13 +43,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Query must be at most 4000 characters.' }, { status: 400 });
   }
 
-  // Mock mode: skip MMA, encode the query in the batchId so the poll route can
-  // synthesize an answer from the seed nodes (the [batchId] route decodes it).
-  if (USE_MOCK) {
-    const batchId = `mock-${Buffer.from(query, 'utf8').toString('base64url')}`;
-    return NextResponse.json({ batchId }, { status: 202 });
-  }
-
   const workspaceRoot = resolveWorkspaceRoot();
   let client;
   try {
@@ -67,6 +63,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 503 },
     );
   }
+
+  // Persist an ops_mma_batch row so usage tracking captures this dispatch.
+  const db = getDb();
+  await db
+    .insert(mmaBatch)
+    .values({
+      projectId: null,
+      route: 'journal_recall',
+      cwd: workspaceRoot,
+      batchId: result.batchId,
+      status: 'dispatched',
+      request: { query },
+      dispatchedBy: guard.memberId,
+    })
+    .catch(() => {});
 
   // Team-level audit row (project-less). Best-effort: a logging failure must not
   // fail the dispatch that already succeeded.

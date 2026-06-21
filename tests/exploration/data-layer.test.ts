@@ -7,14 +7,14 @@ import { proposeFanOut } from '@/exploration/fan-out';
 import { mockAnthropic } from './mock-anthropic';
 
 describe('Spec-5 data layer (live DB)', () => {
-  it('mma_batch round-trips one-repo-per-task; research/journal-recall store null repo but NON-NULL cwd', async () => {
+  it('ops_mma_batch round-trips one-repo-per-task; research/journal-recall store null repo but NON-NULL cwd', async () => {
     const db = createMockDb({
-      'select:mma_batch': [
+      'select:ops_mma_batch': [
         { id: 'batch-1', projectId: 'proj-1', route: 'investigate', targetRepoId: 'repo-1', cwd: '/work/a', request: {}, dispatchedBy: 'member-1', createdAt: new Date() },
         { id: 'batch-2', projectId: 'proj-1', route: 'research', targetRepoId: null, cwd: '/work', request: {}, dispatchedBy: null, createdAt: new Date() },
         { id: 'batch-3', projectId: 'proj-1', route: 'journal_recall', targetRepoId: null, cwd: '/work', request: {}, dispatchedBy: null, createdAt: new Date() },
       ],
-      'insert:mma_batch': [
+      'insert:ops_mma_batch': [
         { id: 'batch-1', projectId: 'proj-1', route: 'investigate', targetRepoId: 'repo-1', cwd: '/work/a', request: {}, dispatchedBy: 'member-1', createdAt: new Date() },
       ],
     });
@@ -26,14 +26,14 @@ describe('Spec-5 data layer (live DB)', () => {
     expect(rows.find((r) => r.route === 'research')!.targetRepoId).toBeNull();
   });
 
-  it('cascades exploration_task / attachment / mma_batch on project delete', async () => {
+  it('cascades project_exploration_task / attachment / ops_mma_batch on project delete', async () => {
     const db = createMockDb({
-      'insert:exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'research', prompt: 'p', createdBy: 'member-1', createdAt: new Date() }],
-      'insert:attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'link', label: 'x', payload: { url: 'https://x' }, createdAt: new Date() }],
-      'insert:mma_batch': [{ id: 'batch-1', projectId: 'proj-1', route: 'research', cwd: '/work', request: {}, dispatchedBy: null, createdAt: new Date() }],
-      'select:exploration_task': [],
-      'select:attachment': [],
-      'select:mma_batch': [],
+      'insert:project_exploration_task': [{ id: 'task-1', projectId: 'proj-1', kind: 'research', prompt: 'p', createdBy: 'member-1', createdAt: new Date() }],
+      'insert:project_attachment': [{ id: 'att-1', projectId: 'proj-1', kind: 'link', label: 'x', payload: { url: 'https://x' }, createdAt: new Date() }],
+      'insert:ops_mma_batch': [{ id: 'batch-1', projectId: 'proj-1', route: 'research', cwd: '/work', request: {}, dispatchedBy: null, createdAt: new Date() }],
+      'select:project_exploration_task': [],
+      'select:project_attachment': [],
+      'select:ops_mma_batch': [],
       'delete:project': [],
     });
     await db.insert(explorationTask).values({ projectId: 'proj-1', kind: 'research', prompt: 'p', createdBy: 'member-1' });
@@ -47,14 +47,14 @@ describe('Spec-5 data layer (live DB)', () => {
 
   it('parseable proposal with 1 invalid of N inserts the valid subset atomically (not a batch abort)', async () => {
     const db = createMockDb({
-      'select:artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'exploration_brief', bodyMd: 'b', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'exploration_brief', bodyMd: 'b', version: 1, createdAt: new Date(), updatedAt: new Date() }],
       'select:project_repo': [{ repoId: 'repo-1', id: 'repo-1' }],
-      'insert:exploration_task': [
+      'insert:project_exploration_task': [
         { id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'valid one', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-2', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'valid two', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-3', projectId: 'proj-1', kind: 'research', targetRepoId: null, prompt: 'valid research enough chars here', createdBy: 'member-1', createdAt: new Date() },
       ],
-      'select:exploration_task': [
+      'select:project_exploration_task': [
         { id: 'task-1', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'valid one', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-2', projectId: 'proj-1', kind: 'investigate', targetRepoId: 'repo-1', prompt: 'valid two', createdBy: 'member-1', createdAt: new Date() },
         { id: 'task-3', projectId: 'proj-1', kind: 'research', targetRepoId: null, prompt: 'valid research enough chars here', createdBy: 'member-1', createdAt: new Date() },

@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/db/client';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { recordAuditOverride, canFreeze } from '@/spec/freeze';
-import { USE_MOCK } from '@/mock/config';
-import { auditOverrideMock } from '@/mock/domains/projects/spec';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -14,8 +12,6 @@ type Ctx = { params: Promise<{ id: string }> };
  */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
-
-  if (USE_MOCK) return NextResponse.json(auditOverrideMock(id));
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;

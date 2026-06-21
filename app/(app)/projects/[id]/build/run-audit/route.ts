@@ -5,16 +5,9 @@ import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { repo } from '@/db/schema/workspace';
 import { buildMmaClient } from '@/mma/server-client';
-import { runPlanAuditPass, MAX_PLAN_AUDIT_PASSES } from '@/build/audit-plan-loop';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { planFilePath } from '@/build/plan-fs';
-
-/**
- * `POST /api/.../build/run-audit` — run ONE plan-audit pass per write-target repo
- * (Spec 7 §Audit loop). Read-only: `audit(subtype='plan')` against each repo's
- * plan file. The full revise-loop (re-author on blocking findings) is driven by
- * the orchestrator; this endpoint exposes one round for the gated UI.
- */
-export const runtime = 'nodejs';
+import '@/dispatch/handler-registry';
 
 export async function POST(
   req: NextRequest,
@@ -25,28 +18,36 @@ export async function POST(
   if (guard instanceof NextResponse) return guard;
 
   const db = getDb();
-  const mma = await buildMmaClient({ db });
 
-  // One plan file per write-target repo.
+  const existing = await findInflight(db, id, 'plan-audit');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
+  }
+
   const rows = await db
     .selectDistinct({ repoId: planTask.targetRepoId, name: repo.name, path: repo.pathOnDisk })
     .from(planTask)
     .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
     .where(eq(planTask.projectId, id));
 
-  const passes = [];
-  for (const r of rows) {
-    const res = await runPlanAuditPass(
-      { db, mma },
-      {
-        projectId: id,
-        repoName: r.name,
-        repoCwd: r.path,
-        planFilePath: planFilePath(r.path, id),
-        actorId: guard.memberId,
-      },
-    );
-    passes.push({ repo: r.name, ...res });
+  if (rows.length === 0) {
+    return NextResponse.json({ error: 'No plan tasks found.' }, { status: 409 });
   }
-  return NextResponse.json({ passes, maxPasses: MAX_PLAN_AUDIT_PASSES });
+
+  const r = rows[0];
+  const mma = await buildMmaClient({ db });
+  const filePath = planFilePath(r.path, id);
+
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'audit',
+    handler: 'plan-audit',
+    cwd: r.path,
+    body: { subtype: 'plan', filePaths: [filePath] },
+    actorId: guard.memberId,
+  });
+
+  return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

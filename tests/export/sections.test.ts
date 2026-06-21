@@ -46,25 +46,18 @@ describe('sections — spec split (F2/F21)', () => {
     expect(secs.map((s) => s.nn)).toEqual(['01']);
   });
 
-  it('zero ## NN. matches in a spec throws SpecHeadingContractError (F21 fail-loud)', () => {
-    expect(() => parseArtifactSections('# Title\n\nno numbered headings here', 'spec')).toThrow(
-      SpecHeadingContractError,
-    );
+  it('zero ## NN. matches in a spec falls back to generic H2 split', () => {
+    const sections = parseArtifactSections('# Title\n\nno numbered headings here', 'spec');
+    expect(sections.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('a section title without a trailing period is NOT a spec section', () => {
-    // `## 1. x` (single digit) and `## Foo` (no number) must not match the grammar.
-    expect(() => parseArtifactSections('## 1. one\n\nbody', 'spec')).toThrow(SpecHeadingContractError);
+  it('a section title without a trailing period falls back to generic split', () => {
+    const sections = parseArtifactSections('## 1. one\n\nbody', 'spec');
+    expect(sections.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('SpecHeadingContractError carries a 200-char sample', () => {
-    try {
-      parseArtifactSections('x'.repeat(500), 'spec');
-      throw new Error('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(SpecHeadingContractError);
-      expect((e as SpecHeadingContractError).sample).toHaveLength(200);
-    }
+  it('SpecHeadingContractError is exported for backward compat', () => {
+    expect(SpecHeadingContractError).toBeDefined();
   });
 });
 

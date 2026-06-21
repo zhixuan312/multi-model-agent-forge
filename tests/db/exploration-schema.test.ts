@@ -9,8 +9,8 @@ function columnNames(table: Parameters<typeof getTableColumns>[0]) {
 }
 
 describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
-  it('mma_batch has the canonical columns; cwd NOT NULL for every route', () => {
-    expect(getTableName(mmaBatch)).toBe('mma_batch');
+  it('ops_mma_batch has the canonical columns; cwd NOT NULL for every route', () => {
+    expect(getTableName(mmaBatch)).toBe('ops_mma_batch');
     expect(columnNames(mmaBatch)).toEqual({
       id: 'id',
       projectId: 'project_id',
@@ -19,11 +19,21 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       cwd: 'cwd',
       batchId: 'batch_id',
       status: 'status',
+      handler: 'handler',
       request: 'request',
       result: 'result',
       dispatchedBy: 'dispatched_by',
       createdAt: 'created_at',
       terminalAt: 'terminal_at',
+      costUsd: 'cost_usd',
+      savedVsMainUsd: 'saved_vs_main_usd',
+      inputTokens: 'input_tokens',
+      outputTokens: 'output_tokens',
+      durationMs: 'duration_ms',
+      implementerModel: 'implementer_model',
+      reviewerModel: 'reviewer_model',
+      implementerTier: 'implementer_tier',
+      loopRunId: 'loop_run_id',
     });
     const cols = getTableColumns(mmaBatch);
     expect(cols.cwd.notNull).toBe(true); // every route carries a cwd
@@ -41,13 +51,14 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
       'review',
       'journal_record',
       'delegate',
+      'orchestrate',
     ]);
     expect(cols.status.enumValues).toEqual(['dispatched', 'running', 'done', 'failed']);
     expect(cols.status.default).toBe('dispatched');
   });
 
-  it('exploration_task has draft|running|recorded status (NO failed value)', () => {
-    expect(getTableName(explorationTask)).toBe('exploration_task');
+  it('project_exploration_task has draft|running|recorded status (NO failed value)', () => {
+    expect(getTableName(explorationTask)).toBe('project_exploration_task');
     const cols = getTableColumns(explorationTask);
     expect(cols.status.enumValues).toEqual(['draft', 'running', 'recorded']);
     expect(cols.status.enumValues).not.toContain('failed');
@@ -58,7 +69,7 @@ describe('db/schema — Spec-5 exploration tables (no live DB)', () => {
   });
 
   it('attachment has link|image|file kinds + a jsonb payload', () => {
-    expect(getTableName(attachment)).toBe('attachment');
+    expect(getTableName(attachment)).toBe('project_attachment');
     const cols = getTableColumns(attachment);
     expect(cols.kind.enumValues).toEqual(['link', 'image', 'file']);
     expect(cols.label.notNull).toBe(true);

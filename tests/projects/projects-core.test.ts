@@ -19,7 +19,7 @@ describe('createProject — seeding + validation', () => {
     const projectId = 'proj-1';
     const mockDb = createMockDb({
       'insert:project': [{ id: projectId, name: 'test-proj', visibility: 'public', phase: 'design', currentStage: 'exploration', ownerId }],
-      'insert:stage': [
+      'insert:project_stage': [
         { id: 'stage-1', projectId, kind: 'exploration', status: 'active' },
         { id: 'stage-2', projectId, kind: 'spec', status: 'pending' },
         { id: 'stage-3', projectId, kind: 'plan', status: 'pending' },
@@ -31,7 +31,7 @@ describe('createProject — seeding + validation', () => {
         { projectId, repoId: repo1 },
         { projectId, repoId: repo2 },
       ],
-      'insert:action_log': [{ projectId, action: 'create_project', memberId: ownerId }],
+      'insert:ops_action_log': [{ projectId, action: 'create_project', memberId: ownerId }],
     });
 
     const res = await createProject(
@@ -40,7 +40,7 @@ describe('createProject — seeding + validation', () => {
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
-    expect(mockDb._assertCalled('stage', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('project_stage', 'insert')).toBe(true);
   });
 
   it('creates the project with phase=design, current_stage=exploration, owner set, summary NULL', async () => {
@@ -48,10 +48,10 @@ describe('createProject — seeding + validation', () => {
     const projectId = 'proj-2';
     const mockDb = createMockDb({
       'insert:project': [{ id: projectId, phase: 'design', currentStage: 'exploration', ownerId, summary: null, intentMd: null }],
-      'insert:stage': [],
+      'insert:project_stage': [],
       'insert:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
       'insert:project_repo': [{ projectId, repoId: repo1 }],
-      'insert:action_log': [{ projectId, action: 'create_project' }],
+      'insert:ops_action_log': [{ projectId, action: 'create_project' }],
     });
 
     const res = await createProject(
@@ -92,10 +92,10 @@ describe('createProject — seeding + validation', () => {
     const ownerId = 'owner-5';
     const mockDb = createMockDb({
       'insert:project': [{ id: 'p-1' }, { id: 'p-2' }],
-      'insert:stage': [],
+      'insert:project_stage': [],
       'insert:project_member': [],
       'insert:project_repo': [],
-      'insert:action_log': [],
+      'insert:ops_action_log': [],
     });
 
     const a = await createProject(
@@ -156,7 +156,7 @@ describe('mutation authorization', () => {
       'select:project': [{ id: projectId, visibility: 'public', ownerId }],
       'select:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
       'update:project': [{ id: projectId, visibility: 'private' }],
-      'insert:action_log': [{ projectId, action: 'change_visibility', memberId: ownerId }],
+      'insert:ops_action_log': [{ projectId, action: 'change_visibility', memberId: ownerId }],
     });
 
     await changeVisibility(projectId, 'private', { id: ownerId }, { db: mockDb });
@@ -172,7 +172,7 @@ describe('mutation authorization', () => {
       'select:project_repo': [{ projectId, repoId: 'repo-1' }],
       'delete:project_repo': [],
       'insert:project_repo': [{ projectId, repoId: 'repo-2' }],
-      'insert:action_log': [{ projectId, action: 'change_repos' }],
+      'insert:ops_action_log': [{ projectId, action: 'change_repos' }],
     });
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId }, { db: mockDb });
@@ -185,8 +185,8 @@ describe('getProjectRepos — dangling + errored repo resolution', () => {
     const projectId = 'proj-10';
     const mockDb = createMockDb({
       'select:project_repo': [
-        { projectId, repoId: 'good-repo', name: 'Good', kind: 'app', tags: [], status: 'cloned' },
-        { projectId, repoId: 'bad-repo', name: 'Bad', kind: 'app', tags: [], status: 'error' },
+        { projectId, repoId: 'good-repo', name: 'Good', tags: [], status: 'cloned' },
+        { projectId, repoId: 'bad-repo', name: 'Bad', tags: [], status: 'error' },
       ],
     });
 

@@ -10,7 +10,6 @@ import {
   ArrowRight,
   ChevronLeft,
   Lightbulb,
-  Save,
   Pencil,
   Plus,
   Search,
@@ -18,18 +17,15 @@ import {
   BookOpen,
   Target,
   Flag,
-  ClipboardList,
   Blocks,
-  Plug,
-  Database,
   GitBranch,
-  Gavel,
-  Shield,
   AlertTriangle,
   FlaskConical,
-  Rocket,
   ListTodo,
-  TrendingUp,
+  Loader2,
+  Database,
+  Shield,
+  RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 import { Markdown } from '@/components/forge/Markdown';
@@ -38,6 +34,7 @@ import { ForgeMark } from '@/components/forge/ForgeMark';
 import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { ForgeComposer } from '@/components/forge/ForgeComposer';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Avatar,
@@ -50,7 +47,6 @@ import {
   Badge,
   Banner,
   Input,
-  Textarea,
   Heading,
   Text,
   TextSm,
@@ -87,6 +83,8 @@ export interface AuditPassView {
   passNo: number;
   findingsCount: number;
   verdict: 'clean' | 'revised';
+  findings?: AuditFinding[];
+  applied?: boolean;
 }
 
 interface SpecStageClientProps {
@@ -109,6 +107,18 @@ interface SpecStageClientProps {
   projectMembers?: MemberRef[];
   /** Mock-only: per-component seeded participants + group-chat (by kind). */
   craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
+  /** Persisted qa_messages per sectionId — loaded from DB on page render. */
+  initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  /** Whether OpenAI transcription key is configured — enables voice input. */
+  voiceEnabled?: boolean;
+  /** In-flight audit batch ID (from DB on page load). */
+  pendingAudit?: string | null;
+  /** In-flight auto-draft batch ID (from DB on page load). */
+  pendingAutoDraft?: string | null;
+  /** In-flight audit-apply batch ID (from DB on page load). */
+  pendingApply?: string | null;
+  /** URL-persisted initial phase (outline/craft/document). */
+  initialPhase?: 'outline' | 'craft' | 'document';
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -120,21 +130,14 @@ interface CraftSeed {
 type SpecPhase = 'outline' | 'craft' | 'document';
 
 const KIND_ICON: Record<ComponentKind, LucideIcon> = {
-  context_scope: BookOpen,
-  problem_motivation: Target,
-  goals_nongoals: Flag,
-  requirements: ClipboardList,
-  proposed_design: Blocks,
-  interfaces_apis: Plug,
-  data_storage: Database,
+  context: BookOpen,
+  problem: Target,
+  goals_requirements: Flag,
   alternatives: GitBranch,
-  decision_status: Gavel,
-  cross_cutting: Shield,
-  risks_consequences: AlertTriangle,
-  test_validation: FlaskConical,
-  rollout_migration: Rocket,
-  work_breakdown: ListTodo,
-  success_metrics: TrendingUp,
+  technical_design: Blocks,
+  testing_plan: FlaskConical,
+  risks: AlertTriangle,
+  stories_tasks: ListTodo,
 };
 
 /** True when the picked set exactly equals a template's component set. */
@@ -143,7 +146,7 @@ function sameKinds(picked: Set<ComponentKind>, kinds: ComponentKind[]): boolean 
 }
 
 /** Resolve the active template id for the current selection ('custom' if none). */
-function matchTemplate(picked: Set<ComponentKind>, templates: DocTemplate[]): string {
+function matchTemplate(picked: Set<ComponentKind>, templates: readonly DocTemplate[]): string {
   return templates.find((t) => sameKinds(picked, t.kinds))?.id ?? 'custom';
 }
 
@@ -192,10 +195,70 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [picked, setPicked] = useState<Set<ComponentKind>>(
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );
-  const [savedTemplates, setSavedTemplates] = useState<DocTemplate[]>([]);
-  const [phase, setPhase] = useState<SpecPhase>(
-    components.length === 0 ? 'outline' : spec ? 'document' : 'craft',
+  const derivedPhase: SpecPhase = components.length === 0 ? 'outline' : spec ? 'document' : 'craft';
+  const [phase, setPhaseRaw] = useState<SpecPhase>(props.initialPhase ?? derivedPhase);
+
+  const setPhase = (p: SpecPhase) => {
+    setPhaseRaw(p);
+    const url = new URL(window.location.href);
+    url.searchParams.set('phase', p);
+    router.push(url.pathname + url.search, { scroll: false });
+    fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'spec', phase: p }),
+    }).catch(() => {});
+  };
+  const needsAutoDraft = components.length > 0 && components.some(
+    (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
   );
+  const [autoDrafting, setAutoDrafting] = useState(
+    () => phase === 'craft' && needsAutoDraft,
+  );
+  const autoDraftFired = useRef(false);
+
+  // Auto-trigger drafting when landing on craft with undrafted sections.
+  useEffect(() => {
+    if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
+    // If already pending from DB (navigated away and back), just show spinner
+    if (props.pendingAutoDraft) { setAutoDrafting(true); autoDraftFired.current = true; return; }
+    autoDraftFired.current = true;
+    setAutoDrafting(true);
+    fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
+      .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); })
+      .catch((e) => { setError(e instanceof Error ? e.message : 'Auto-draft failed.'); setAutoDrafting(false); });
+    // SSE dispatch.done handler (below) triggers the reload
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, needsAutoDraft]);
+
+  // SSE listener for auto-draft + refine completion
+  useEffect(() => {
+    if (!autoDrafting && phase !== 'craft') return;
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && data.handler === 'spec-auto-draft') {
+          setAutoDrafting(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-auto-draft') {
+          setAutoDrafting(false);
+          setError(data.error ?? 'Auto-draft failed.');
+        }
+        if (data.type === 'dispatch.done' && data.handler === 'spec-refine') {
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-refine') {
+          setError(data.error ?? 'Refinement failed.');
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDrafting, phase, props.projectId]);
+
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
@@ -256,26 +319,39 @@ export function SpecStageClient(props: SpecStageClientProps) {
           intent={intent}
           picked={picked}
           onPick={setPicked}
-          templates={[...DOC_TEMPLATES, ...savedTemplates]}
-          onSaveTemplate={(t) => setSavedTemplates((s) => [...s, t])}
+          templates={DOC_TEMPLATES}
           existing={components}
           readOnly={readOnly}
           onConfirmed={(next) => {
             setComponents(next);
             setPicked(new Set(next.map((c) => c.kind)));
             setPhase('craft');
+            setAutoDrafting(true);
+            fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
+              .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); return r.json(); })
+              .then((data: { error?: string }) => {
+                if (data.error) { setError(data.error); return; }
+                router.refresh();
+                window.location.reload();
+              })
+              .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
+              .finally(() => setAutoDrafting(false));
           }}
           onError={setError}
         />
       ) : phase === 'craft' ? (
         <CraftStage
+          projectId={props.projectId}
           components={components}
           readOnly={readOnly}
+          autoDrafting={autoDrafting}
           allApproved={allApproved}
           craftContent={props.craftContent}
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
           craftCollab={props.craftCollab ?? {}}
+          initialMessages={props.initialMessages ?? {}}
+          voiceEnabled={props.voiceEnabled ?? false}
           onPatch={(id, patch) =>
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
@@ -292,6 +368,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
           mmaReady={props.mmaReady}
           initialAuditHistory={props.initialAuditHistory}
           initialCanFreeze={props.initialCanFreeze}
+          voiceEnabled={props.voiceEnabled ?? false}
+          pendingApply={props.pendingApply}
           driving={auto === 'running'}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
@@ -315,7 +393,7 @@ function SpecNote() {
           How the spec works
         </Eyebrow>
         <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-          Pick the skeleton here, then Forge interviews you <span className="font-medium text-ink">section by section</span>{' '}
+          Pick the skeleton here, then Forge drafts each component{' '}
           — in any order — and consolidates your answers into one specification document.
         </p>
       </div>
@@ -354,7 +432,6 @@ function OutlineStage({
   picked,
   onPick,
   templates,
-  onSaveTemplate,
   existing,
   readOnly,
   onConfirmed,
@@ -364,8 +441,7 @@ function OutlineStage({
   intent: string;
   picked: Set<ComponentKind>;
   onPick: (s: Set<ComponentKind>) => void;
-  templates: DocTemplate[];
-  onSaveTemplate: (t: DocTemplate) => void;
+  templates: readonly DocTemplate[];
   existing: ComponentView[];
   readOnly: boolean;
   onConfirmed: (next: ComponentView[]) => void;
@@ -373,17 +449,6 @@ function OutlineStage({
 }) {
   const existingKinds = useMemo(() => new Set(existing.map((c) => c.kind)), [existing]);
   const active = matchTemplate(picked, templates);
-
-  function saveAsTemplate(): void {
-    const name = window.prompt('Save this selection as a template — name:');
-    if (!name?.trim()) return;
-    onSaveTemplate({
-      id: `saved-${name.trim().toLowerCase().replace(/\s+/g, '-')}`,
-      label: name.trim(),
-      description: 'Saved template',
-      kinds: [...picked],
-    });
-  }
 
   const confirm = useMutation({
     mutationFn: () =>
@@ -399,7 +464,7 @@ function OutlineStage({
   });
 
   function toggle(kind: ComponentKind): void {
-    if (readOnly || existingKinds.has(kind)) return;
+    if (readOnly) return;
     const next = new Set(picked);
     if (next.has(kind)) next.delete(kind);
     else next.add(kind);
@@ -487,19 +552,18 @@ function OutlineStage({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {shownKinds.map((c) => {
               const Icon = KIND_ICON[c.kind];
-              const locked = existingKinds.has(c.kind);
-              const selected = picked.has(c.kind) || locked;
+              const selected = picked.has(c.kind);
               return (
                 <button
                   key={c.kind}
                   type="button"
-                  disabled={readOnly || locked}
+                  disabled={readOnly}
                   aria-pressed={selected}
                   onClick={() => toggle(c.kind)}
                   className={cn(
                     'flex flex-col gap-2.5 rounded-[var(--r-md)] border p-3.5 text-left transition-colors',
                     selected ? 'border-accent bg-accent-tint/25 shadow-sm' : 'border-line bg-surface hover:border-line-strong',
-                    (readOnly || locked) && 'cursor-default',
+                    readOnly && 'cursor-default',
                   )}
                 >
                   <div className="flex items-center gap-2.5">
@@ -585,18 +649,7 @@ function OutlineStage({
                   {picked.size} comp
                 </Badge>
               </div>
-              {active === 'custom' ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="mt-2 w-full"
-                  leftIcon={<Save />}
-                  disabled={readOnly || picked.size === 0}
-                  onClick={saveAsTemplate}
-                >
-                  Save as template
-                </Button>
-              ) : (
+              {active === 'custom' ? null : (
                 <p className="mt-1 pl-6 text-xs text-ink-faint">Toggle components to make your own.</p>
               )}
             </div>
@@ -657,18 +710,17 @@ function TemplateRow({
 
 /* ── Craft stage — the per-component Q&A conversation (the soul) ───────────── */
 
-const STATUS_PILL: Record<ComponentStatus, string> = {
-  gathering: 'bg-surface-2 text-ink-soft',
-  satisfied: 'bg-amber-tint text-[var(--amber)]',
-  drafted: 'bg-accent-tint text-accent',
-  approved: 'bg-sage-tint text-[var(--sage-deep)]',
-};
-const STATUS_LABEL: Record<ComponentStatus, string> = {
-  gathering: 'Gathering',
-  satisfied: 'Satisfied',
-  drafted: 'Drafted',
-  approved: 'Approved',
-};
+interface DisplayState { label: string; cls: string }
+
+function componentDisplayState(c: ComponentView): DisplayState {
+  if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
+  if (c.status === 'drafted') {
+    return c.aiSatisfied
+      ? { label: 'Ready', cls: 'bg-sage-tint text-[var(--sage-deep)]' }
+      : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
+  }
+  return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
+}
 
 /** Group a component's section prompts into Forge "ask" rounds (2 questions each). */
 function roundsFor(c: ComponentView): { questions: string[]; source: string; missing: string[] }[] {
@@ -691,24 +743,32 @@ function buildDraft(c: ComponentView, answers: string[]): string {
 }
 
 function CraftStage({
+  projectId,
   components,
   readOnly,
   allApproved,
+  autoDrafting,
   craftContent,
   currentMember,
   projectMembers,
   craftCollab,
+  initialMessages,
+  voiceEnabled,
   onPatch,
   onEditOutline,
   onConsolidate,
 }: {
+  projectId: string;
   components: ComponentView[];
   readOnly: boolean;
   allApproved: boolean;
+  autoDrafting?: boolean;
   craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
   craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
+  initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  voiceEnabled: boolean;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
   onEditOutline: () => void;
   onConsolidate: () => void;
@@ -717,17 +777,51 @@ function CraftStage({
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
+  // Per-component: null = dialogue, string = showing fetched draft markdown
+  const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
+  // Tracks components where user explicitly clicked "Back to conversation"
+  const [forceConversation, setForceConversation] = useState<Set<string>>(new Set());
+  const [refining, setRefining] = useState(false);
+  const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
+
+  // Auto-fetch drafts for all drafted components on first load
+  const initialFetchDone = useRef(false);
+  useEffect(() => {
+    if (initialFetchDone.current || autoDrafting) return;
+    const draftedComponents = components.filter((c) => c.status === 'drafted' || c.status === 'approved');
+    if (draftedComponents.length === 0) return;
+    initialFetchDone.current = true;
+    // Only auto-construct Ready (aiSatisfied) or Approved — Needs input shows conversation
+    const drafts: Record<string, string> = {};
+    for (const c of draftedComponents) {
+      if (!c.aiSatisfied && c.status !== 'approved') continue;
+      const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+      if (md) drafts[c.id] = md;
+    }
+    setConstructedDrafts(drafts);
+  }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
     for (const c of components) {
       const seed = craftCollab[c.kind];
+      // Load persisted messages from DB (keyed by component id)
+      const dbMessages = initialMessages[c.id] ?? [];
+      const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
+        id: m.id,
+        authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
+        body: m.bodyMd,
+      }));
+      // If component is already approved, seed the current user as approver
+      const approvedParticipants: Participant[] = c.status === 'approved'
+        ? [{ member: currentMember, addedBy: null, approvedAt: new Date().toISOString() }]
+        : [];
       out[c.id] = seed
         ? {
             participants: seed.participants.map((p) => ({ ...p })),
-            discussion: seed.discussion.map((d) => ({ ...d })),
+            discussion: [...seed.discussion.map((d) => ({ ...d })), ...dbDiscussion],
           }
-        : { participants: [], discussion: [] };
+        : { participants: approvedParticipants, discussion: dbDiscussion };
     }
     return out;
   });
@@ -760,6 +854,27 @@ function CraftStage({
   const active = components.find((c) => c.id === activeId) ?? null;
   const approvedCount = components.filter((c) => c.status === 'approved').length;
 
+  // Auto-show constructed draft for approved components when clicked
+  useEffect(() => {
+    if (!active || active.status !== 'approved' || constructedDrafts[active.id] || forceConversation.has(active.id)) return;
+    const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+    if (md) {
+      setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
+    } else {
+      // Fetch from server if not in client state
+      fetch(`/projects/${projectId}/spec/outline`)
+        .then((r) => r.json())
+        .then((data: { components?: ComponentView[] }) => {
+          const fresh = data.components?.find((c) => c.id === active.id);
+          if (fresh) {
+            const freshMd = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+            if (freshMd) setConstructedDrafts((prev) => ({ ...prev, [active.id]: freshMd }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [active, activeId, constructedDrafts, projectId]);
+
   /** Resolve a member id for attribution (you · pool · any seeded participant). */
   function memberById(id: string): MemberRef | undefined {
     if (id === currentMember.id) return currentMember;
@@ -775,20 +890,10 @@ function CraftStage({
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
   }
 
-  const seed = craftContent?.[active.kind];
-  const rounds = seed
-    ? seed.questions.map((qs, i) => ({
-        questions: qs,
-        source: i === 0 ? 'mma-investigate · codebase scan' : 'mma-investigate · follow-up',
-        missing: i > 0 ? ['edge cases', 'constraints'] : [],
-      }))
-    : roundsFor(active);
-  const given = answers[active.id] ?? [];
-  const answeredRounds = given.length;
   const drafted = active.status === 'drafted' || active.status === 'approved';
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
-  const draftMd = drafted ? (seed?.draftMd ?? buildDraft(active, given)) : null;
+  const showingDraft = constructedDrafts[active.id] ?? null;
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   // People already in this section's chat — the only ones you can @-mention.
@@ -868,8 +973,7 @@ function CraftStage({
       return;
     }
 
-    // No @-mention → you're talking to Forge. Once a draft exists it's a refine
-    // note Forge acks; while gathering it answers the interview and advances.
+    // No @-mention → you're talking to Forge. Send to the refine route.
     if (drafted) {
       patchCollab((u) => ({
         ...u,
@@ -879,20 +983,51 @@ function CraftStage({
         ],
       }));
       setInput('');
-      scheduleReply('forge', active.id, 'Noted — I can fold that into the draft. Hit “Construct section” when you’re ready.');
+      setRefining(true);
+      const history = sectionHistory[active.id] ?? [];
+      const newHistory = [...history, { role: 'user' as const, text }];
+      setSectionHistory((prev) => ({ ...prev, [active.id]: newHistory }));
+
+      fetch(`/projects/${projectId}/spec/components/${active.id}/refine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userAnswer: text, history }),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error('Refine failed');
+          // Route returns 202 — SSE dispatch.done handler (in parent) will reload the page
+        })
+        .catch(() => {
+          patchCollab((u) => ({
+            ...u,
+            discussion: [
+              ...u.discussion,
+              { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
+            ],
+          }));
+        })
+        .finally(() => setRefining(false));
       return;
     }
-    const next = [...given, text];
-    setAnswers((a) => ({ ...a, [active.id]: next }));
     setInput('');
-    onPatch(active.id, { status: next.length >= rounds.length ? 'drafted' : 'satisfied' });
+    // User feedback on the draft — will be handled by the refine route in future
+    onPatch(active.id, { status: 'drafted' });
   }
 
   /** End the Q&A and let Forge construct the draft from what's gathered. */
   function construct(): void {
     if (readOnly || !active) return;
-    if (input.trim()) setAnswers((a) => ({ ...a, [active.id]: [...given, input.trim()] }));
+    if (input.trim()) setInput('');
     setInput('');
+    // A freshly constructed draft supersedes any prior sign-offs — they approved
+    // an EARLIER version. Reset approvals so the author reviews the new draft and
+    // approvers re-sign it. Without this, a stale approval (e.g. the seeded "Bo
+    // already approved" on technical_design) trips the auto-approve gate the instant
+    // the section is drafted, skipping review and showing "approved" immediately.
+    patchCollab((u) => ({
+      ...u,
+      participants: u.participants.map((p) => (p.approvedAt ? { ...p, approvedAt: null } : p)),
+    }));
     onPatch(active.id, { status: 'drafted' });
   }
 
@@ -903,6 +1038,10 @@ function CraftStage({
       participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
     }));
     onPatch(active.id, { status: 'approved' });
+    // Persist approval to DB — nod each section in this component
+    for (const s of active.sections) {
+      fetch(`/projects/${projectId}/spec/sections/${s.id}/nod`, { method: 'POST' }).catch(() => {});
+    }
     const nextOpen = components.find((c) => c.id !== active.id && c.status !== 'approved');
     if (nextOpen) {
       setActiveId(nextOpen.id);
@@ -911,9 +1050,33 @@ function CraftStage({
   }
 
   /** Reopen a drafted/approved section to keep editing the conversation. */
+  function constructSection(): void {
+    if (!active) return;
+    setForceConversation((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
+    // Fetch the latest draft from DB
+    fetch(`/projects/${projectId}/spec/outline`)
+      .then((r) => r.json())
+      .then((data: { components?: ComponentView[] }) => {
+        const fresh = data.components?.find((c) => c.id === active.id);
+        if (fresh) {
+          const md = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+          if (md) setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
+        }
+      })
+      .catch(() => {});
+  }
+
   function backToEdit(): void {
     if (readOnly || !active) return;
-    onPatch(active.id, { status: 'satisfied' });
+    if (active.status === 'approved') {
+      onPatch(active.id, { status: 'drafted' });
+      patchCollab((u) => ({
+        ...u,
+        participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
+      }));
+    }
+    setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
   /** Total teammates still pending across every section — drives the soft nudge. */
@@ -959,97 +1122,91 @@ function CraftStage({
         </div>
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {rounds.map((round, ri) => {
-            if (ri > answeredRounds) return null;
-            return (
-              <div key={ri} className="space-y-3">
-                <ForgeAsks round={ri + 1} questions={round.questions} source={round.source} missing={ri > 0 ? round.missing : []} />
-                {ri < answeredRounds ? <AnswerBlock text={given[ri]} /> : null}
-              </div>
-            );
-          })}
-
-          {drafted && draftMd ? (
-            <div ref={draftRef} className="scroll-mt-4 rounded-[var(--r-md)] border border-accent/30 bg-surface p-4 shadow-sm">
-              <Micro className="mb-2 block !font-semibold !uppercase !tracking-wide !text-accent">
-                Constructed draft
-              </Micro>
-              <Markdown>{draftMd}</Markdown>
+          {autoDrafting && !drafted ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
+              <p className="text-xs text-ink-soft">Each component is drafted using the exploration findings. This takes a moment.</p>
             </div>
+          ) : drafted ? (
+            constructedDrafts[active.id] ? (
+              /* Constructed: show the drafted content */
+              <div className="flex gap-2.5">
+                <ForgeMark className="mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-ink">Forge</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
+                      draft
+                    </span>
+                  </div>
+                  <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                    <Markdown>{showingDraft ?? ''}</Markdown>
+                  </div>
+                </div>
+              </div>
+            ) : null
           ) : null}
 
-          <DiscussionThread
-            messages={activeCollab.discussion}
-            memberById={memberById}
-            currentMemberId={currentMember.id}
-            mentionPool={inChatMembers}
-          />
+          {!constructedDrafts[active.id] ? (
+            <>
+              <DiscussionThread
+                messages={activeCollab.discussion}
+                memberById={memberById}
+                currentMemberId={currentMember.id}
+                mentionPool={inChatMembers}
+              />
+            </>
+          ) : null}
+          {refining && !constructedDrafts[active.id] ? (
+            <div className="flex gap-2.5">
+              <ForgeMark className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1">
+                  <span className="text-xs font-semibold text-ink">Forge</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-sm text-ink-soft">Thinking…</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Approve / back — shown once a draft exists. */}
-        {drafted ? (
+        {constructedDrafts[active.id] ? (
+          /* Draft view footer: navigation + actions */
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <div className="flex items-center gap-2.5">
-              <FileText className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{approved ? 'Section approved' : 'Draft ready for review'}</p>
-                <p className="text-xs text-ink-faint">
-                  {approved
-                    ? 'At least one approver has signed off — good to go.'
-                    : 'Approve to lock it, or @mention a teammate below to co-approve.'}
-                </p>
-              </div>
-            </div>
+            <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
+              Back to conversation
+            </Button>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<ChevronLeft />}>
-                Back to edit
-              </Button>
-              <Button onClick={approve} disabled={readOnly || iApproved} leftIcon={<Check />}>
-                {iApproved ? 'Approved by you' : 'Approve'}
+              {approved ? (
+                <Button size="sm" variant="secondary" onClick={backToEdit} disabled={readOnly} leftIcon={<RotateCcw />}>
+                  Revoke
+                </Button>
+              ) : null}
+              <Button onClick={approve} disabled={readOnly || approved || iApproved} leftIcon={<Check />}>
+                {approved || iApproved ? 'Approved' : 'Approve'}
               </Button>
             </div>
           </div>
-        ) : null}
-
-        {/* One conversation. No @-mention → you're talking to Forge (the AI), which
-            runs the interview. @-mention teammates already in the chat to talk to
-            them instead — the AI stays out of that turn and they reply. */}
-        <div className="shrink-0 border-t border-line px-5 py-4">
-          <div className="flex gap-2.5">
-            <Avatar
-              size="sm"
-              name={currentMember.displayName}
-              tint={currentMember.avatarTint}
-              aria-hidden
-              className="mt-0.5"
-            />
-            <div className="min-w-0 flex-1">
-              <MentionComposer
-                value={input}
-                onChange={setInput}
-                onSubmit={submit}
-                pool={inChatMembers}
-                disabled={readOnly}
-                placeholder={
-                  inChatMembers.length > 0
-                    ? 'Message Forge — or @mention a teammate in the chat…'
-                    : drafted
-                      ? 'Message Forge…'
-                      : 'Type your answer…'
-                }
-                submitLabel={liveMentions.length > 0 ? 'Send' : drafted ? 'Send' : 'Send answer'}
-                secondary={
-                  liveMentions.length === 0 && !drafted ? (
-                    <Button size="sm" variant="ghost" onClick={construct} disabled={readOnly} leftIcon={<FileText />}>
-                      Construct section
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </div>
-          </div>
-        </div>
+        ) : (
+          /* Conversation view footer: input + show draft */
+          <ForgeComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={submit}
+            disabled={readOnly}
+            voiceEnabled={voiceEnabled}
+            secondaryAction={drafted ? (
+              <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
+                Show draft
+              </Button>
+            ) : undefined}
+          />
+        )}
       </Card>
 
       {/* RIGHT — all selected components + progress (1/3) */}
@@ -1074,6 +1231,7 @@ function CraftStage({
                 c={c}
                 active={c.id === activeId}
                 participants={collab[c.id]?.participants ?? []}
+                displayState={componentDisplayState(c)}
                 onClick={() => {
                   setActiveId(c.id);
                   setInput('');
@@ -1091,12 +1249,12 @@ function CraftStage({
           <CardFooter className="flex-col !items-stretch gap-2">
             {nudge && pendingTotal > 0 ? (
               <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-                {pendingTotal} {pendingTotal === 1 ? 'invited approver hasn’t' : 'invited approvers haven’t'} responded
+                {pendingTotal} {pendingTotal === 1 ? "invited approver hasn't" : "invited approvers haven't"} responded
                 yet. One nod per section is enough — you can proceed anyway.
               </div>
             ) : null}
             <Button className="w-full" onClick={consolidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
-              {nudge && pendingTotal > 0 ? 'Consolidate anyway' : 'Consolidate into document'}
+              {nudge && pendingTotal > 0 ? 'Proceed to Document' : 'Proceed to Document'}
             </Button>
           </CardFooter>
         </Card>
@@ -1162,16 +1320,16 @@ function ComponentRow({
   c,
   active,
   participants,
+  displayState,
   onClick,
 }: {
   c: ComponentView;
   active: boolean;
   participants: Participant[];
+  displayState: DisplayState;
   onClick: () => void;
 }) {
   const Icon = KIND_ICON[c.kind];
-  const ai = c.status !== 'gathering';
-  const human = c.status === 'approved';
   return (
     <button
       type="button"
@@ -1190,23 +1348,12 @@ function ComponentRow({
         <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
         <ApproverCluster participants={participants} />
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-6">
-        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', STATUS_PILL[c.status])}>
-          {STATUS_LABEL[c.status]}
+      <div className="mt-1.5 pl-6">
+        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', displayState.cls)}>
+          {displayState.label}
         </span>
-        <SatDot label="Forge" on={ai} />
-        <SatDot label="Human" on={human} />
       </div>
     </button>
-  );
-}
-
-function SatDot({ label, on }: { label: string; on: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px]">
-      <span className={cn('size-1.5 rounded-full', on ? 'bg-[var(--sage)]' : 'bg-line-strong')} />
-      <span className={on ? 'text-ink-soft' : 'text-ink-faint'}>{label}</span>
-    </span>
   );
 }
 
@@ -1228,6 +1375,8 @@ function DocumentScreen({
   mmaReady,
   initialAuditHistory,
   initialCanFreeze,
+  voiceEnabled,
+  pendingApply,
   driving,
   onAdvance,
   onAssembled,
@@ -1241,18 +1390,37 @@ function DocumentScreen({
   mmaReady: boolean;
   initialAuditHistory: AuditPassView[];
   initialCanFreeze: boolean;
+  voiceEnabled: boolean;
+  pendingApply?: string | null;
   driving: boolean;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
-  const [messages, setMessages] = useState<DocMsg[]>([]);
+  // Seed chat from persisted audit history so findings survive page refresh
+  const [messages, setMessages] = useState<DocMsg[]>(() => {
+    const msgs: DocMsg[] = [];
+    if (spec) {
+      msgs.push({ id: 'seed-intro', role: 'forge', text: "I've assembled the full specification from your approved components. Run an audit to check it, tell me anything to refine, then freeze when you're ready." });
+      msgs.push({ id: 'seed-spec', role: 'draft', version: spec.version, md: spec.bodyMd });
+    }
+    for (const p of initialAuditHistory) {
+      if (p.findings && p.findings.length > 0) {
+        msgs.push({ id: `seed-audit-${p.passNo}`, role: 'audit', passNo: p.passNo, verdict: p.verdict, findings: p.findings });
+        if (p.applied) {
+          msgs.push({ id: `seed-applied-${p.passNo}`, role: 'forge', text: `Findings from pass ${p.passNo} have been applied. Press "Construct spec" to re-assemble.` });
+        }
+      }
+    }
+    return msgs;
+  });
   const [input, setInput] = useState('');
   const [rounds, setRounds] = useState<
-    { passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[] }[]
-  >(() => initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: [] as AuditFinding[] })));
+    { passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[]; applied: boolean }[]
+  >(() => initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })));
   const [canFreeze, setCanFreeze] = useState(initialCanFreeze);
-  const seeded = useRef(false);
+  const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
+  const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const idc = useRef(0);
   const nid = () => `dm${idc.current++}`;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1302,34 +1470,53 @@ function DocumentScreen({
     auditingRef.current = true;
     setAuditing(true);
     try {
-      const data = await postJson<{
-        pass: { passNo: number; verdict: 'clean' | 'revised'; findingsCount: number; findings: AuditFinding[] };
-        contextBlockId: string | null;
-        history: AuditPassView[];
-        canFreeze: boolean;
-      }>(`/projects/${projectId}/spec/audit`, {});
-      onError(null);
-      setCanFreeze(data.canFreeze);
-      setRounds((r) => [...r, { passNo: data.pass.passNo, verdict: data.pass.verdict, findings: data.pass.findings }]);
-      setMessages((m) => [
-        ...m,
-        { id: nid(), role: 'audit', passNo: data.pass.passNo, verdict: data.pass.verdict, findings: data.pass.findings },
-        {
-          id: nid(),
-          role: 'forge',
-          text:
-            data.pass.verdict === 'clean'
-              ? 'Clean pass — no critical or high findings. You can continue to Plan whenever you’re ready.'
-              : 'I found the issues above. Tell me to address one and I’ll revise the spec, then re-run the audit to verify.',
-        },
-      ]);
+      await postJson<{ batchId: string }>(`/projects/${projectId}/spec/audit`, {});
+      // PollManager handles polling server-side; SSE delivers dispatch.done
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Audit failed.');
-    } finally {
       auditingRef.current = false;
       setAuditing(false);
     }
   }
+
+  // SSE listener for all document-phase dispatch events (audit + apply)
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${projectId}/events`);
+    const onMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'dispatch.done' && data.handler === 'spec-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+          window.location.reload();
+        }
+        if (data.type === 'dispatch.failed' && data.handler === 'spec-audit') {
+          auditingRef.current = false;
+          setAuditing(false);
+          onError(data.error ?? 'Audit failed.');
+        }
+        if ((data.type === 'dispatch.done' || data.type === 'dispatch.failed') && data.handler === 'spec-audit-apply') {
+          setApplyDone((prev) => prev + 1);
+          // Check if all apply batches are terminal
+          fetch(`/projects/${projectId}/spec/audit-apply/status`)
+            .then((r) => r.json())
+            .then((s: { allDone: boolean; done: number; total: number }) => {
+              setApplyDone(s.done);
+              setApplyTotal(s.total);
+              applyTotalRef.current = s.total;
+              if (s.allDone) {
+                setApplying(false);
+                setApplied(true);
+              }
+            })
+            .catch(() => {});
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onmessage = onMessage;
+    return () => es.close();
+  }, [projectId, onError]);
 
   // Automated mode (Spec Document → end): run the audit passes until clean
   // (clearing critical/high), exactly like Plan's Validate, then hand to Plan.
@@ -1384,28 +1571,42 @@ function DocumentScreen({
       {
         id: nid(),
         role: 'forge',
-        text: 'Done — I’ve revised the spec to address that. Press “Construct spec” to regenerate the document, or run the audit again to verify.',
+        text: "Done — I've revised the spec to address that. Press \"Construct spec\" to regenerate the document, or run the audit again to verify.",
       },
     ]);
   }
 
-  /** Apply a chosen subset (or all) of a pass's findings, then re-assemble. */
+  const [applying, setApplying] = useState(!!pendingApply);
+  const [applied, setApplied] = useState(false);
+  const [applyTotal, setApplyTotal] = useState(0);
+  const applyTotalRef = useRef(0);
+  const [applyDone, setApplyDone] = useState(0);
+
+  /** Apply a chosen subset (or all) of a pass's findings — dispatches per-section revisions. */
   function apply(passNo: number, indices: number[], total: number): void {
-    if (readOnly || indices.length === 0) return;
+    if (readOnly || indices.length === 0 || applying) return;
+    const round = rounds.find((r) => r.passNo === passNo);
+    if (!round) return;
+    const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
     const all = indices.length === total;
-    const nums = indices.map((i) => i + 1).sort((a, b) => a - b);
     const label = all
       ? `all ${total} findings`
-      : `finding${indices.length === 1 ? '' : 's'} #${nums.join(', #')}`;
+      : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
     setMessages((m) => [
       ...m,
-      {
-        id: nid(),
-        role: 'forge',
-        text: `Applied ${label} from pass ${passNo} — I’ve revised the affected sections and am re-assembling the spec.`,
-      },
+      { id: nid(), role: 'forge', text: `Revising the spec to address ${label} from pass ${passNo}…` },
     ]);
-    void runAssemble();
+    setApplying(true);
+    setApplyDone(0);
+    postJson<{ batchIds: string[]; sectionsToRevise: number }>(`/projects/${projectId}/spec/audit-apply`, {
+      findings: selectedFindings,
+    }).then((res) => {
+      applyTotalRef.current = res.sectionsToRevise;
+      setApplyTotal(res.sectionsToRevise);
+    }).catch((e) => {
+      onError(e instanceof Error ? e.message : 'Apply failed.');
+      setApplying(false);
+    });
   }
 
   /** Re-post a stored round's findings to the chat (rail card click). */
@@ -1417,7 +1618,7 @@ function DocumentScreen({
       {
         id: nid(),
         role: 'forge',
-        text: `Here are the pass ${passNo} findings again — select the ones to apply, hit “Apply all”, or tell me by number.`,
+        text: `Here are the pass ${passNo} findings again — select the ones to apply, hit "Apply all", or tell me by number.`,
       },
       { id: nid(), role: 'audit', passNo: round.passNo, verdict: round.verdict, findings: round.findings },
     ]);
@@ -1441,121 +1642,164 @@ function DocumentScreen({
           </span>
         </CardHeader>
 
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {messages.length === 0 ? (
-            <div className="grid h-full place-items-center px-6 text-center">
-              <div className="max-w-sm">
-                <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
-                  <FileText className="size-6" />
-                </span>
-                <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-                  {allApproved
-                    ? 'Assembling the specification…'
-                    : 'Approve every component before finalizing the document.'}
-                </p>
+        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+          {docView === 'document' && spec ? (
+            /* Document mode — full rendered spec */
+            <div className="flex gap-2.5">
+              <ForgeMark className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-ink">Forge</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
+                    specification · v{spec.version}
+                  </span>
+                </div>
+                <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                  <Markdown>{spec.bodyMd}</Markdown>
+                </div>
               </div>
             </div>
           ) : (
-            messages.map((m) =>
-              m.role === 'forge' ? (
-                <ForgeSays key={m.id} text={m.text} />
-              ) : m.role === 'user' ? (
-                <AnswerBlock key={m.id} text={m.text} />
-              ) : m.role === 'draft' ? (
-                <SpecDraftCard key={m.id} version={m.version} md={m.md} />
+            /* Conversation mode — chat thread */
+            <div className="space-y-5">
+              {messages.length === 0 ? (
+                <div className="grid h-full place-items-center px-6 text-center">
+                  <div className="max-w-sm">
+                    <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
+                      <FileText className="size-6" />
+                    </span>
+                    <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+                      {allApproved
+                        ? 'Assembling the specification…'
+                        : 'Approve every component before finalizing the document.'}
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <AuditMsg
-                  key={m.id}
-                  passNo={m.passNo}
-                  verdict={m.verdict}
-                  findings={m.findings}
-                  readOnly={readOnly}
-                  onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
-                />
-              ),
-            )
+                messages.filter((m) => m.role !== 'draft').map((m) =>
+                  m.role === 'forge' ? (
+                    <ForgeSays key={m.id} text={m.text} />
+                  ) : m.role === 'user' ? (
+                    <AnswerBlock key={m.id} text={m.text} />
+                  ) : (
+                    <AuditMsg
+                      key={m.id}
+                      passNo={m.passNo}
+                      verdict={m.verdict}
+                      findings={m.findings}
+                      readOnly={readOnly}
+                      applying={applying}
+                      applied={applied || (rounds.find((r) => r.passNo === m.passNo)?.applied ?? false)}
+                      applyProgress={applying ? { done: applyDone, total: applyTotal } : undefined}
+                      onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
+                    />
+                  ),
+                )
+              )}
+            </div>
           )}
           <div ref={bottomRef} />
         </CardContent>
 
-        {/* Composer pinned to the bottom (messenger-style). */}
-        <div className="shrink-0 border-t border-line px-5 py-4">
-          <div className="flex gap-2.5">
-            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-              AD
-            </span>
-            <div className="min-w-0 flex-1">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                rows={2}
-                disabled={readOnly || !spec}
-                placeholder="Tell Forge what to refine across the spec…"
-                className="!min-h-0 !rounded-2xl !text-sm"
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void runAudit()}
-                  loading={auditing}
-                  disabled={readOnly || !mmaReady || !spec || auditing}
-                  leftIcon={<Shield />}
-                >
-                  {rounds.length > 0 ? 'Re-run audit' : 'Run audit'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void runAssemble()}
-                  loading={assembling}
-                  disabled={readOnly || !allApproved || assembling}
-                  leftIcon={<Sparkles />}
-                >
-                  Construct spec
-                </Button>
-                <span className="flex-1" />
-                <Button size="sm" onClick={sendRefine} disabled={readOnly || !input.trim()} rightIcon={<ArrowRight />}>
-                  Send
-                </Button>
+        {docView === 'document' ? (
+          /* Document mode footer — back to conversation */
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <FileText className="size-5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">Specification v{spec?.version ?? 1}</p>
+                <p className="text-xs text-ink-faint">Review the assembled spec, or go back to refine.</p>
               </div>
-              {!mmaReady ? (
-                <TextSm className="mt-2 !text-[var(--amber)]">
-                  <a href="/settings/connections" className="underline">
-                    Configure the MMA token
-                  </a>{' '}
-                  to run the audit.
-                </TextSm>
-              ) : null}
             </div>
+            <Button size="sm" variant="secondary" onClick={() => setDocView('conversation')} leftIcon={<ChevronLeft />}>
+              Back to conversation
+            </Button>
           </div>
-        </div>
+        ) : (
+          /* Conversation mode footer — input + show spec / construct */
+          <ForgeComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={sendRefine}
+            disabled={readOnly || !spec}
+            placeholder="Tell Forge what to refine across the spec…"
+            voiceEnabled={voiceEnabled}
+            secondaryAction={
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { void runAssemble(); setDocView('document'); }}
+                loading={assembling}
+                disabled={readOnly || !allApproved || assembling}
+                leftIcon={<Sparkles />}
+              >
+                Construct spec
+              </Button>
+            }
+          />
+        )}
+        {!mmaReady ? (
+          <div className="shrink-0 border-t border-line px-5 py-2">
+            <TextSm className="!text-[var(--amber)]">
+              <a href="/settings/connections" className="underline">
+                Configure the MMA token
+              </a>{' '}
+              to run the audit.
+            </TextSm>
+          </div>
+        ) : null}
       </Card>
 
       {/* RIGHT — every audit round + the freeze handoff (1/3) */}
       <aside className="flex min-h-0 flex-col">
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>Audit rounds</CardTitle>
-            {rounds.length > 0 ? (
-              <span className="text-sm font-medium text-ink-faint">{rounds.length}</span>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <CardTitle>Audit rounds</CardTitle>
+              {rounds.length > 0 ? (
+                <span className="text-sm font-medium text-ink-faint">{rounds.length}</span>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void runAudit()}
+              loading={auditing}
+              disabled={readOnly || !mmaReady || !spec || auditing || applying}
+              leftIcon={<Shield />}
+            >
+              {auditing ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
+            </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {rounds.length === 0 ? (
+            {auditing ? (
+              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">Pass {rounds.length + 1}</span>
+                  <Badge variant="neutral" size="sm">running</Badge>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-xs text-ink-soft">
+                    Auditing specification…
+                  </span>
+                </div>
+              </div>
+            ) : rounds.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the audit from the conversation. Each round lands here with its verdict and findings.
+                  Run an audit to check for gaps and issues. Each round lands here with its verdict and findings.
                 </p>
               </div>
-            ) : (
+            ) : null}
+            {(
               rounds.map((r) => (
                 <AuditRoundCard
                   key={r.passNo}
                   passNo={r.passNo}
                   verdict={r.verdict}
                   findings={r.findings}
+                  applied={r.applied || applied}
                   onReplay={() => replay(r.passNo)}
                 />
               ))
@@ -1565,7 +1809,7 @@ function DocumentScreen({
             <TextSm className="!text-ink-faint">
               {canFreeze
                 ? 'Clean audit — the spec is ready for planning.'
-                : 'Open findings won’t block you — move on whenever you’re ready.'}
+                : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
             <StageAdvance
               href={`/projects/${projectId}/plan`}
@@ -1669,12 +1913,18 @@ function AuditMsg({
   verdict,
   findings,
   readOnly,
+  applying,
+  applied,
+  applyProgress,
   onApply,
 }: {
   passNo: number;
   verdict: 'clean' | 'revised';
   findings: AuditFinding[];
   readOnly: boolean;
+  applying?: boolean;
+  applied?: boolean;
+  applyProgress?: { done: number; total: number };
   onApply: (indices: number[]) => void;
 }) {
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -1700,61 +1950,91 @@ function AuditMsg({
               ? 'clean'
               : `${findings.length} finding${findings.length === 1 ? '' : 's'} → revised`}
           </Badge>
+          {applied ? (
+            <Badge variant="sage" size="sm">applied</Badge>
+          ) : applying ? (
+            <Badge variant="neutral" size="sm">applying…</Badge>
+          ) : null}
         </div>
         <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
           {findings.length > 0 ? (
             <>
-              <ul className="divide-y divide-line/70">
-                {findings.map((f, i) => {
-                  const on = sel.has(i);
+              <div className="grid grid-cols-2 gap-px bg-line/70">
+                {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
+                  const origIdx = findings.indexOf(f);
+                  const on = sel.has(origIdx);
+                  const disabled = readOnly || applying || !!applied;
                   return (
-                    <li key={i}>
-                      <button
-                        type="button"
-                        onClick={() => !readOnly && toggle(i)}
-                        disabled={readOnly}
-                        className={cn(
-                          'flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition-colors',
-                          on ? 'bg-accent-tint/40' : 'hover:bg-surface-2/50',
-                        )}
-                      >
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => !disabled && toggle(origIdx)}
+                      disabled={disabled}
+                      className={cn(
+                        'flex flex-col gap-1.5 p-3 text-left transition-colors',
+                        applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50',
+                        disabled && !applied && 'opacity-60',
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            'mt-px grid size-5 shrink-0 place-items-center rounded-[6px] border text-[11px] font-semibold transition-colors',
-                            on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint',
+                            'grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors',
+                            applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white' : on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint',
                           )}
                         >
-                          {on ? <Check className="size-3.5" /> : i + 1}
+                          {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
                         </span>
                         <SeverityTag s={f.severity} />
-                        <span className="text-sm leading-relaxed text-ink">{f.claim}</span>
-                      </button>
-                    </li>
+                      </div>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
+                      <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
+                      {f.evidence ? <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p> : null}
+                      {f.suggestion ? <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p> : null}
+                    </button>
                   );
                 })}
-              </ul>
+              </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                <span className="text-[11px] text-ink-faint">
-                  Pick the ones to apply, or tell Forge by number — e.g. “apply #1, #2 and #5”.
-                </span>
-                <span className="flex-1" />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onApply([...sel])}
-                  disabled={readOnly || sel.size === 0}
-                  leftIcon={<Check />}
-                >
-                  Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onApply(findings.map((_, i) => i))}
-                  disabled={readOnly}
-                  leftIcon={<Sparkles />}
-                >
-                  Apply all {findings.length}
-                </Button>
+                {applied ? (
+                  <div className="flex items-center gap-2">
+                    <Check className="size-3.5 text-[var(--sage-deep)]" />
+                    <span className="text-xs font-medium text-[var(--sage-deep)]">
+                      All findings applied — press "Construct spec" to re-assemble.
+                    </span>
+                  </div>
+                ) : applying ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">
+                      Revising {applyProgress ? `${applyProgress.done}/${applyProgress.total} sections` : '…'}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-[11px] text-ink-faint">
+                      Select findings to apply, or apply all at once.
+                    </span>
+                    <span className="flex-1" />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onApply([...sel])}
+                      disabled={readOnly || sel.size === 0}
+                      leftIcon={<Check />}
+                    >
+                      Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => onApply(findings.map((_, i) => i))}
+                      disabled={readOnly}
+                      leftIcon={<Sparkles />}
+                    >
+                      Apply all {findings.length}
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -1773,11 +2053,13 @@ function AuditRoundCard({
   passNo,
   verdict,
   findings,
+  applied,
   onReplay,
 }: {
   passNo: number;
   verdict: 'clean' | 'revised';
   findings: AuditFinding[];
+  applied?: boolean;
   onReplay: () => void;
 }) {
   const counts = severityCounts(findings);
@@ -1785,13 +2067,19 @@ function AuditRoundCard({
     <button
       type="button"
       onClick={onReplay}
-      className="group w-full rounded-[var(--r-md)] border border-line bg-surface p-3 text-left transition-colors hover:border-accent hover:bg-surface-2/40"
+      className={cn(
+        'group w-full rounded-[var(--r-md)] border p-3 text-left transition-colors',
+        applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface hover:border-accent hover:bg-surface-2/40',
+      )}
     >
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
         <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
           {verdict === 'clean' ? 'clean' : 'revised'}
         </Badge>
+        {applied ? (
+          <Badge variant="sage" size="sm">applied</Badge>
+        ) : null}
         <span className="ml-auto text-[11px] text-ink-faint">
           {findings.length} finding{findings.length === 1 ? '' : 's'}
         </span>
@@ -1802,9 +2090,7 @@ function AuditRoundCard({
             <CountChip key={s} s={s} n={counts[s]} />
           ))}
         </div>
-      ) : (
-        <p className="mt-1.5 text-xs text-ink-faint">No critical or high findings.</p>
-      )}
+      ) : null}
       <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-ink-faint group-hover:text-accent">
         <ArrowRight className="size-3" /> Re-post to chat
       </span>
@@ -1818,6 +2104,8 @@ export interface AuditFinding {
   severity: 'critical' | 'high' | 'medium' | 'low';
   category: string;
   claim: string;
+  evidence?: string;
+  suggestion?: string;
 }
 
 export function AuditPanel({

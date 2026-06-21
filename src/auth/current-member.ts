@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { eq, and, max } from 'drizzle-orm';
+import { eq, max } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { SESSION_COOKIE_NAME } from '@/auth/cookie';
@@ -66,10 +66,7 @@ export async function resolveSessionFromToken(
       passwordChangedAt: max(memberIdentity.passwordChangedAt),
     })
     .from(member)
-    .leftJoin(
-      memberIdentity,
-      and(eq(memberIdentity.memberId, member.id), eq(memberIdentity.provider, 'local')),
-    )
+    .leftJoin(memberIdentity, eq(memberIdentity.memberId, member.id))
     .where(eq(member.id, sess.memberId))
     .groupBy(member.id)
     .limit(1);

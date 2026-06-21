@@ -1,12 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { logPoll } from '@/observability/poll-log';
 
 /**
  * Server-side voice transcription via OpenAI `gpt-4o-transcribe` (Spec 5 §Voice).
- * The OpenAI key is resolved from `team_settings.openai_transcription_key_ref`
+ * The OpenAI key is resolved from `settings_connection.openai_transcription_key_ref`
  * and NEVER reaches the browser; the audio bytes + key are never logged. This is
  * the ONLY non-Anthropic, non-MMA external call in the product.
  */
@@ -89,8 +89,8 @@ export function gateClip(args: { byteSize: number; mime: string; durationMs: num
 export async function resolveTranscriptionKey(deps: TranscribeDeps = {}): Promise<string> {
   const db = deps.db ?? getDb();
   const [row] = await db
-    .select({ ref: teamSettings.openaiTranscriptionKeyRef })
-    .from(teamSettings)
+    .select({ ref: connectionSettings.openaiTranscriptionKeyRef })
+    .from(connectionSettings)
     .limit(1);
   if (!row?.ref) throw new TranscriptionNotConfiguredError();
   const secrets = deps.secrets ?? (await PostgresSecretStore.create({ db }));

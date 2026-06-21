@@ -70,7 +70,7 @@ describe('repos API route handlers', () => {
 
   it('admin same-origin POST → 201 cloned', async () => {
     mockCaller = asAdmin();
-    const res = await reposPOST(req({ name: 'core-api', url: 'https://h/r.git', kind: 'library' }) as never);
+    const res = await reposPOST(req({ name: 'core-api', url: 'https://h/r.git', tags: ['core'] }) as never);
     expect(res.status).toBe(201);
     expect(cloneAndRegister).toHaveBeenCalledOnce();
   });

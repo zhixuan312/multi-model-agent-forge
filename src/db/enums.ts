@@ -4,29 +4,7 @@
  * Enums live in code, never in Postgres (no `pgEnum`). Columns reference these
  * arrays via Drizzle `text({ enum: X })`; Zod schemas derive via `z.enum(X)`.
  * Adding/removing a value is a code change, not an `ALTER TYPE` migration.
- *
- * Spec 1 only needs `auth_provider` (the other sets in schema.md §1 belong to
- * later-spec tables and are added when those tables land — YAGNI).
  */
-
-export const AUTH_PROVIDER = ['local'] as const; // ldap|oidc|saml|supabase added with their strategies later
-export type AuthProvider = (typeof AUTH_PROVIDER)[number];
-
-/**
- * Provider API dialect (schema.md §1 `provider_type`). The two on-the-wire
- * dialects MMA's config layer discriminates: `claude` (Anthropic-style) and
- * `codex` (OpenAI-style / Codex). OpenAI-compatible providers are `codex`.
- */
-export const PROVIDER_TYPE = ['claude', 'codex'] as const;
-export type ProviderType = (typeof PROVIDER_TYPE)[number];
-
-/**
- * Agent tiers (schema.md §1 `agent_tier`). `main` = Forge's orchestrator model
- * (sent as X-MMA-Main-Model, NOT an MMA worker tier); `complex`/`standard` =
- * MMA's two worker tiers → config.agents.{complex,standard}. Exactly 3 rows.
- */
-export const AGENT_TIER = ['main', 'complex', 'standard'] as const;
-export type AgentTier = (typeof AGENT_TIER)[number];
 
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
 export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
@@ -68,21 +46,14 @@ export type StageStatus = (typeof STAGE_STATUS)[number];
  * `COMPONENT_TEMPLATES`. `nfr`/`assumptions` are the two ☐-by-default components.
  */
 export const COMPONENT_KIND = [
-  'context_scope',
-  'problem_motivation',
-  'goals_nongoals',
-  'requirements',
-  'proposed_design',
-  'interfaces_apis',
-  'data_storage',
+  'context',
+  'problem',
+  'goals_requirements',
   'alternatives',
-  'decision_status',
-  'cross_cutting',
-  'risks_consequences',
-  'test_validation',
-  'rollout_migration',
-  'work_breakdown',
-  'success_metrics',
+  'technical_design',
+  'testing_plan',
+  'risks',
+  'stories_tasks',
 ] as const;
 export type ComponentKind = (typeof COMPONENT_KIND)[number];
 
@@ -92,7 +63,7 @@ export type ComponentKind = (typeof COMPONENT_KIND)[number];
  * is the roll-up (all approved ⇒ approved; else the lowest). The ordinal order of
  * this tuple is the `<` ordering used by the roll-up (`gathering < … < approved`).
  */
-export const COMPONENT_STATUS = ['gathering', 'satisfied', 'drafted', 'approved'] as const;
+export const COMPONENT_STATUS = ['gathering', 'drafted', 'approved'] as const;
 export type ComponentStatus = (typeof COMPONENT_STATUS)[number];
 
 /** qa_message.sender (schema.md §5). `forge` = the AI interviewer; `member` = a human. */
@@ -127,10 +98,6 @@ export type LearningOrigin = (typeof LEARNING_ORIGIN)[number];
 export const LEARNING_STATUS = ['proposed', 'kept', 'removed', 'recorded'] as const;
 export type LearningStatus = (typeof LEARNING_STATUS)[number];
 
-/** Ordinal rank for COMPONENT_STATUS — the `<` ordering used by the component roll-up. */
-export function componentStatusRank(status: ComponentStatus): number {
-  return COMPONENT_STATUS.indexOf(status);
-}
 
 /* ── Spec 5: Exploration ────────────────────────────────────────────────── */
 
@@ -171,7 +138,8 @@ export const MMA_ROUTE = [
   'execute_plan',
   'review',
   'journal_record',
-  'delegate', // ad-hoc implementation dispatch — used by Loops' maintenance work step
+  'delegate',
+  'orchestrate', // orchestrator brain — used by Loops' plan + journal stages
 ] as const;
 export type MmaRoute = (typeof MMA_ROUTE)[number];
 
@@ -204,7 +172,7 @@ export type BuildTaskStatus = (typeof BUILD_TASK_STATUS)[number];
  * 'diff_only','none'])`). Authoring sets `none` only for tasks the plan marks
  * "downstream errors expected, fixed by a later task"; default is `full`.
  */
-export const REVIEW_POLICY = ['full', 'quality_only', 'diff_only', 'none'] as const;
+export const REVIEW_POLICY = ['reviewed', 'none'] as const;
 export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
 
 /**

@@ -41,6 +41,7 @@ export class ProjectAccessError extends Error {
 export interface StageView {
   kind: StageKind;
   status: StageStatus;
+  lastPhase?: string | null;
 }
 
 /** The list-card DTO — one per visible project (single query, no N+1). */
@@ -344,10 +345,10 @@ export async function getProjectStages(
 ): Promise<StageView[]> {
   const db = deps.db ?? getDb();
   const rows = await db
-    .select({ kind: stage.kind, status: stage.status })
+    .select({ kind: stage.kind, status: stage.status, lastPhase: stage.lastPhase })
     .from(stage)
     .where(eq(stage.projectId, projectId));
-  return orderStages(rows.map((r) => ({ kind: r.kind, status: r.status })));
+  return orderStages(rows.map((r) => ({ kind: r.kind, status: r.status, lastPhase: r.lastPhase })));
 }
 
 /**
@@ -358,7 +359,6 @@ export async function getProjectStages(
 export interface ProjectRepoView {
   repoId: string;
   name: string | null;
-  kind: string | null;
   tags: string[] | null;
   status: 'cloned' | 'pulling' | 'error' | null;
   /** False ⟺ dangling join OR status='error'. */
@@ -374,7 +374,6 @@ export async function getProjectRepos(
     .select({
       repoId: projectRepo.repoId,
       name: repo.name,
-      kind: repo.kind,
       tags: repo.tags,
       status: repo.status,
     })
@@ -385,7 +384,6 @@ export async function getProjectRepos(
   return rows.map((r) => ({
     repoId: r.repoId,
     name: r.name,
-    kind: r.kind,
     tags: r.tags,
     status: r.status,
     available: r.status !== null && r.status !== 'error',
@@ -432,6 +430,66 @@ export async function changeVisibility(
       tx as unknown as Db,
     );
   });
+}
+
+/**
+ * `advanceStage` — move the project's current stage forward. Marks the current
+ * stage `done`, the next stage `active`, and updates `currentStage` on the
+ * project. Only advances if `from` matches the current stage (idempotent guard).
+ */
+export async function advanceStage(
+  projectId: string,
+  from: StageKind,
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<{ advanced: boolean; currentStage: StageKind }> {
+  const db = deps.db ?? getDb();
+  await assertProjectReadable(projectId, actor, deps);
+
+  const [proj] = await db
+    .select({ currentStage: project.currentStage })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+  if (!proj) throw new ProjectAccessError('Project not found.');
+
+  // Already past this stage — idempotent.
+  if (proj.currentStage !== from) {
+    return { advanced: false, currentStage: proj.currentStage! };
+  }
+
+  const fromIdx = STAGE_ORDER.indexOf(from);
+  if (fromIdx < 0 || fromIdx >= STAGE_ORDER.length - 1) {
+    return { advanced: false, currentStage: from };
+  }
+  const next = STAGE_ORDER[fromIdx + 1];
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(stage)
+      .set({ status: 'done', completedAt: new Date() })
+      .where(and(eq(stage.projectId, projectId), eq(stage.kind, from)));
+    await tx
+      .update(stage)
+      .set({ status: 'active', startedAt: new Date() })
+      .where(and(eq(stage.projectId, projectId), eq(stage.kind, next)));
+    await tx
+      .update(project)
+      .set({ currentStage: next, updatedAt: new Date() })
+      .where(eq(project.id, projectId));
+    await logAction(
+      {
+        projectId,
+        memberId: actor.id,
+        action: 'advance_stage',
+        target: `project:${projectId}`,
+        meta: { from, to: next },
+      },
+      tx as unknown as Db,
+    );
+  });
+
+  return { advanced: true, currentStage: next };
 }
 
 /**

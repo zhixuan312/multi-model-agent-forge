@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   if (!gate.ok) return gate.response;
 
   const json = await req.json().catch(() => null);
-  const result = await updateConnections(json);
+  const result = await updateConnections(json, { actorId: gate.actor.id });
 
   switch (result.kind) {
     case 'invalid':

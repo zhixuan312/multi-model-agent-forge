@@ -12,6 +12,8 @@ import {
   type TerminalState,
 } from '@/sse/envelope';
 import { logPoll } from '@/observability/poll-log';
+import { extractUsageFields } from '@/usage/extract-usage-fields';
+import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 
 /**
  * Server-owned MMA poll loop (Spec 5 §SSE). The browser NEVER polls MMA; this
@@ -29,7 +31,7 @@ import { logPoll } from '@/observability/poll-log';
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;
-export const POLL_HARD_TIMEOUT_MS = 15 * 60_000;
+export const POLL_HARD_TIMEOUT_MS = 30 * 60_000;
 const JITTER = 0.2;
 
 /** Pure backoff for a transient-error attempt (0-indexed): min(2s·2^n, 30s)±20%. */
@@ -53,6 +55,7 @@ interface RegisteredBatch {
   projectId: string;
   route: string;
   taskId: string | null;
+  handler: string | null; // on-terminal handler key (dispatch system)
   createdAt: Date;
   attempt: number; // transient-error attempt counter
   timer: ReturnType<typeof setTimeout> | null;
@@ -82,6 +85,7 @@ export class PollManager {
     this.clientPromise = deps.client ? Promise.resolve(deps.client) : null;
     this.now = deps.now ?? Date.now;
     this.rand = deps.rand ?? Math.random;
+    ensureHandlersRegistered();
   }
 
   /** Suppress timer scheduling — tests drive `pollOnce` by hand. */
@@ -113,10 +117,11 @@ export class PollManager {
     projectId: string;
     route: string;
     taskId: string | null;
+    handler?: string | null;
     createdAt: Date;
   }): void {
     if (this.inFlight.has(b.batchId)) return;
-    const entry: RegisteredBatch = { ...b, attempt: 0, timer: null };
+    const entry: RegisteredBatch = { ...b, handler: b.handler ?? null, attempt: 0, timer: null };
     this.inFlight.set(b.batchId, entry);
     this.schedule(entry, POLL_BASE_INTERVAL_MS);
   }
@@ -221,25 +226,80 @@ export class PollManager {
     }
   }
 
-  /** 200 terminal → persist result/status/terminal_at, flip task, emit, deregister. */
+  /** 200 terminal → persist result/status/terminal_at + usage columns, call handler, flip task, emit, deregister. */
   private async markTerminal(
     entry: RegisteredBatch,
     envelope: unknown,
     state: TerminalState,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(mmaBatch)
-        .set({ status: state.status, result: envelope as object, terminalAt: new Date() })
-        .where(eq(mmaBatch.id, entry.batchId));
-      if (entry.taskId) {
+    const usage = extractUsageFields(envelope);
+    let effectiveState = state;
+    try {
+      await this.db.transaction(async (tx) => {
         await tx
-          .update(explorationTask)
-          .set({ status: 'recorded' })
-          .where(eq(explorationTask.id, entry.taskId));
-      }
-    });
-    this.emitTerminal(entry, state);
+          .update(mmaBatch)
+          .set({
+            status: state.status,
+            result: envelope as object,
+            terminalAt: new Date(),
+            ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+            ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+            ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+            ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+            ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+            ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+            ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+            ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+          })
+          .where(eq(mmaBatch.id, entry.batchId));
+
+        if (entry.taskId) {
+          await tx
+            .update(explorationTask)
+            .set({ status: 'recorded' })
+            .where(eq(explorationTask.id, entry.taskId));
+        }
+
+        // Call the registered on-terminal handler (if any)
+        if (state.status === 'done') {
+          const [batchRow] = await tx
+            .select({ handler: mmaBatch.handler, projectId: mmaBatch.projectId, request: mmaBatch.request, dispatchedBy: mmaBatch.dispatchedBy })
+            .from(mmaBatch)
+            .where(eq(mmaBatch.id, entry.batchId))
+            .limit(1);
+          if (batchRow?.handler) {
+            const handler = getHandler(batchRow.handler);
+            if (handler) {
+              await handler(tx as unknown as Db, {
+                batchRowId: entry.batchId,
+                projectId: batchRow.projectId ?? '',
+                handler: batchRow.handler,
+                request: batchRow.request,
+                actorId: batchRow.dispatchedBy ?? null,
+              }, envelope);
+            }
+          }
+        }
+      });
+    } catch (handlerErr) {
+      logPoll({
+        level: 'error',
+        event: 'handler.failed',
+        batchId: entry.mmaBatchId,
+        projectId: entry.projectId,
+        detail: String(handlerErr),
+      });
+      await this.db
+        .update(mmaBatch)
+        .set({
+          status: 'failed',
+          result: { error: { message: String(handlerErr) } } as object,
+          terminalAt: new Date(),
+        })
+        .where(eq(mmaBatch.id, entry.batchId));
+      effectiveState = { status: 'failed', error: { code: 'handler_error', message: String(handlerErr) }, contextBlockId: null };
+    }
+    this.emitTerminal(entry, effectiveState);
     this.deregister(entry.batchId);
   }
 
@@ -285,6 +345,7 @@ export class PollManager {
       batchId: entry.mmaBatchId,
       taskId: entry.taskId ?? undefined,
     });
+    // Existing explore-specific events (backward compat)
     if (entry.taskId) {
       this.bus.publish(
         entry.projectId,
@@ -294,6 +355,13 @@ export class PollManager {
           route: entry.route,
           state,
         }),
+      );
+    }
+    // Universal dispatch events for handler-based batches
+    if (entry.handler) {
+      this.bus.publish(entry.projectId, state.status === 'failed'
+        ? { type: 'dispatch.failed', batchId: entry.batchId, handler: entry.handler, error: state.error?.message ?? 'Unknown error' }
+        : { type: 'dispatch.done', batchId: entry.batchId, handler: entry.handler },
       );
     }
   }
@@ -310,6 +378,7 @@ export class PollManager {
         batchId: mmaBatch.batchId,
         projectId: mmaBatch.projectId,
         route: mmaBatch.route,
+        handler: mmaBatch.handler,
         createdAt: mmaBatch.createdAt,
       })
       .from(mmaBatch)
@@ -339,6 +408,7 @@ export class PollManager {
         projectId: r.projectId,
         route: r.route,
         taskId: taskByBatch.get(r.id) ?? null,
+        handler: r.handler,
         createdAt: r.createdAt,
       });
       n += 1;

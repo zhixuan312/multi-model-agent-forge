@@ -43,10 +43,14 @@ export function buildSpecMarkdown(
     out.push(`## ${comp.label}`);
     out.push('');
     const tpl = templateForKind(comp.kind);
+    const skipSectionHeading = comp.sections.length === 1
+      && (tpl.sections[0]?.draftHeading ?? comp.sections[0].label) === comp.label;
     for (const sec of comp.sections) {
-      const draftHeading = tpl.sections.find((s) => s.key === sec.key)?.draftHeading ?? sec.label;
-      out.push(`### ${draftHeading}`);
-      out.push('');
+      if (!skipSectionHeading) {
+        const draftHeading = tpl.sections.find((s) => s.key === sec.key)?.draftHeading ?? sec.label;
+        out.push(`### ${draftHeading}`);
+        out.push('');
+      }
       out.push(sec.draftMd ?? '');
       out.push('');
     }

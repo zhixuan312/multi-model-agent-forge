@@ -49,7 +49,10 @@ export type ProjectEvent =
       runCostUsd: number;
       byRoute: { audit: number; executePlan: number; review: number };
     }
-  | { type: 'heartbeat'; t: number };
+  | { type: 'heartbeat'; t: number }
+  // ── Universal dispatch events (handler-based, all routes) ────────────────
+  | { type: 'dispatch.done'; batchId: string; handler: string }
+  | { type: 'dispatch.failed'; batchId: string; handler: string; error: string };
 
 const EVENT = 'event';
 

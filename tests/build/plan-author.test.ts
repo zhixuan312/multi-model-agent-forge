@@ -19,15 +19,15 @@ describe('authorPlan', () => {
         { id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
         { id: 'repo-b', projectId: 'proj-1', name: 'repo-b', pathOnDisk: '/work/b', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
       ],
-      'select:artifact': seq(
+      'select:project_artifact': seq(
         [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
         [{ m: 0 }],
       ),
-      'insert:plan_task': [
-        { id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Task 1: Cache', detail: 'add caching to A', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'full', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
-        { id: 'task-2', projectId: 'proj-1', targetRepoId: 'repo-b', title: 'Task 2: Read-only? no, write B', detail: 'wire B', orderIndex: 1, isWrite: true, status: 'queued', reviewPolicy: 'full', dependsOn: ['task-1'], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
+      'insert:project_plan_task': [
+        { id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Task 1: Cache', detail: 'add caching to A', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
+        { id: 'task-2', projectId: 'proj-1', targetRepoId: 'repo-b', title: 'Task 2: Read-only? no, write B', detail: 'wire B', orderIndex: 1, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: ['task-1'], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
       ],
-      'insert:artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const fs = new FakePlanFs();
     const bus = new RecordingBus();
@@ -39,8 +39,8 @@ describe('authorPlan', () => {
         fs,
         bus,
         draftOverride: draft([
-          { title: 'Task 1: Cache', detail: 'add caching to A', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'full' },
-          { title: 'Task 2: Read-only? no, write B', detail: 'wire B', targetRepoId: 'repo-b', dependsOn: ['Task 1: Cache'], reviewPolicy: 'full' },
+          { title: 'Task 1: Cache', detail: 'add caching to A', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' },
+          { title: 'Task 2: Read-only? no, write B', detail: 'wire B', targetRepoId: 'repo-b', dependsOn: ['Task 1: Cache'], reviewPolicy: 'reviewed' },
         ]),
       },
       { projectId: 'proj-1', actorId: 'member-1' },
@@ -56,11 +56,11 @@ describe('authorPlan', () => {
     expect(aFile).toContain('## Task 1: Cache');
     expect(aFile).not.toMatch(/git (commit|add|push)/);
 
-    // plan_task rows persisted (queued)
-    expect(db._assertCalled('plan_task', 'insert')).toBe(true);
+    // project_plan_task rows persisted (queued)
+    expect(db._assertCalled('project_plan_task', 'insert')).toBe(true);
 
     // Combined plan artifact persisted.
-    expect(db._assertCalled('artifact', 'insert')).toBe(true);
+    expect(db._assertCalled('project_artifact', 'insert')).toBe(true);
 
     // plan.authored emitted.
     expect(bus.ofType('plan.authored')).toHaveLength(1);
@@ -72,15 +72,15 @@ describe('authorPlan', () => {
         { id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
         { id: 'repo-metrics', projectId: 'proj-1', name: 'metrics', pathOnDisk: '/work/metrics', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
       ],
-      'select:artifact': seq(
+      'select:project_artifact': seq(
         [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
         [{ m: 0 }],
       ),
-      'insert:plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Only A', detail: 'do', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'full', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'insert:artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Only A', detail: 'do', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'Only A', detail: 'do', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'full' }]) },
+      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'Only A', detail: 'do', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(true);
@@ -92,18 +92,18 @@ describe('authorPlan', () => {
   it('re-authoring increments the artifact version', async () => {
     const db = createMockDb({
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'select:artifact': seq(
+      'select:project_artifact': seq(
         [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
         [{ m: 0 }],
         [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
         [{ m: 1 }],
       ),
-      'insert:plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'A', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'full', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'insert:artifact': [{ id: 'art-2', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan v2', version: 2, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'A', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
+      'insert:project_artifact': [{ id: 'art-2', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan v2', version: 2, createdAt: new Date(), updatedAt: new Date() }],
     });
     const mk = () =>
       authorPlan(
-        { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'full' }]) },
+        { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
         { projectId: 'proj-1', actorId: 'member-1' },
       );
     await mk();
@@ -115,44 +115,44 @@ describe('authorPlan', () => {
   it('unknown targetRepoId → plan.failed, no partial rows', async () => {
     const db = createMockDb({
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'select:artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const bus = new RecordingBus();
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus, draftOverride: draft([{ title: 'X', detail: 'd', targetRepoId: 'unknown-repo', dependsOn: [], reviewPolicy: 'full' }]) },
+      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus, draftOverride: draft([{ title: 'X', detail: 'd', targetRepoId: 'unknown-repo', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);
     expect(bus.ofType('plan.failed')).toHaveLength(1);
-    expect(db._assertCalled('plan_task', 'insert')).toBe(false);
+    expect(db._assertCalled('project_plan_task', 'insert')).toBe(false);
   });
 
   it('git-commit step in a task body → plan.failed, no rows', async () => {
     const db = createMockDb({
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'select:artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'X', detail: 'then git commit -m done', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'full' }]) },
+      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'X', detail: 'then git commit -m done', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);
-    expect(db._assertCalled('plan_task', 'insert')).toBe(false);
+    expect(db._assertCalled('project_plan_task', 'insert')).toBe(false);
   });
 
   it('plan-file write failure halts before any dispatch, no rows persisted', async () => {
     const db = createMockDb({
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
-      'select:artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      'select:project_artifact': [{ id: 'spec-1', projectId: 'proj-1', kind: 'spec', bodyMd: '# Spec', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const fs = new FakePlanFs();
     fs.failWriteOn = '.forge';
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs, bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'full' }]) },
+      { db, anthropic: anthropicStub, fs, bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);
-    expect(db._assertCalled('plan_task', 'insert')).toBe(false);
-    expect(db._assertCalled('artifact', 'insert')).toBe(false);
+    expect(db._assertCalled('project_plan_task', 'insert')).toBe(false);
+    expect(db._assertCalled('project_artifact', 'insert')).toBe(false);
   });
 });

@@ -1,15 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
-import { AnthropicClient } from '@/anthropic/client';
-import { authorPlan } from '@/build/plan-author';
-
-/**
- * `POST /api/.../build/author-plan` — author the build plan from the frozen spec
- * (Spec 7 §Plan authoring). Decomposes per repo, writes per-repo plan files, and
- * persists plan_task rows + the plan artifact. Read-only against repos here (no
- * execute-plan dispatch).
- */
-export const runtime = 'nodejs';
+import { PLAN_AUTHOR_SYSTEM_PROMPT } from '@/build/plan-author';
+import { buildMmaClient } from '@/mma/server-client';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { getDb } from '@/db/client';
+import { getLatestSpec } from '@/spec/assemble';
+import { projectRepo } from '@/db/schema/projects';
+import { repo } from '@/db/schema/workspace';
+import '@/dispatch/handler-registry';
 
 export async function POST(
   req: NextRequest,
@@ -19,10 +19,46 @@ export async function POST(
   const guard = await guardBuildWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
-  const anthropic = await AnthropicClient.fromMainTier();
-  const result = await authorPlan({ anthropic }, { projectId: id, actorId: guard.memberId });
-  if (!result.ok) {
-    return NextResponse.json({ error: result.reason }, { status: 422 });
+  const db = getDb();
+
+  const existing = await findInflight(db, id, 'plan-author');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
-  return NextResponse.json(result);
+
+  const spec = await getLatestSpec(db, id);
+  if (!spec) {
+    return NextResponse.json({ error: 'No frozen spec to plan from.' }, { status: 409 });
+  }
+
+  const repos = await db
+    .select({ id: repo.id, name: repo.name, tags: repo.tags })
+    .from(projectRepo)
+    .innerJoin(repo, eq(projectRepo.repoId, repo.id))
+    .where(eq(projectRepo.projectId, id));
+
+  if (repos.length === 0) {
+    return NextResponse.json({ error: 'No repos in the project.' }, { status: 409 });
+  }
+
+  const repoList = repos
+    .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
+    .join('\n');
+
+  const mma = await buildMmaClient({ db });
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'plan-author',
+    cwd: resolveWorkspaceRoot(),
+    body: {
+      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nFrozen spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
+      actorId: guard.memberId,
+    },
+    actorId: guard.memberId,
+  });
+
+  return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

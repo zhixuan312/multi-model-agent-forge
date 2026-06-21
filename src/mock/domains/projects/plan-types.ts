@@ -5,14 +5,15 @@
  */
 
 export interface PlanTaskSeed {
-  id: string; // 't8'
-  num: number; // 8
+  id: string;
+  num: number;
   title: string;
-  /** The FULL task markdown from the plan — Files, TDD steps, code blocks, commit. */
   body: string;
   files: string[];
-  dependsOn: string[]; // ['Task 1', 'Task 2']
+  dependsOn: string[];
   targetRepo: string;
+  /** DB status — used to initialize approval state on page load. */
+  dbStatus?: string;
 }
 
 export interface PlanPhaseSeed {
@@ -25,4 +26,6 @@ export interface PlanAuditFinding {
   severity: 'critical' | 'high' | 'medium' | 'low';
   category: string;
   claim: string;
+  evidence?: string;
+  suggestion?: string;
 }

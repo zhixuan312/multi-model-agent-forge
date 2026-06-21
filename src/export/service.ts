@@ -6,6 +6,8 @@
 import { getPdfRenderer, artifactRenderJob, type PdfRenderer } from '@/export/pdf/render';
 import { parseArtifactSections } from '@/export/sections';
 import { renderArtifactHtml } from '@/export/pdf/template';
+import { spawnPdfRender } from '@/export/pdf/spawn-render';
+import { slug } from '@/export/slug';
 import {
   collectArtifact,
   collectReadyArtifacts,
@@ -123,21 +125,21 @@ export async function exportPdf(
 
   const name = await projectName(projectId);
   const lede = await projectLede(projectId);
-  const renderer = deps.renderer ?? getPdfRenderer();
-  const buffer = await renderer.render(
-    artifactRenderJob(
-      {
-        kind,
-        projectName: name,
-        lede,
-        meta: collected.meta,
-        sections,
-        sectionHeaders: collected.sectionHeaders,
-        mermaidAsDiagram: opts.mermaidAsDiagram,
-      },
-      Buffer.byteLength(collected.bodyMd),
-    ),
-  );
+
+  let buffer: Buffer;
+  if (deps.renderer) {
+    // Test injection — use in-process renderer
+    buffer = await deps.renderer.render(
+      artifactRenderJob(
+        { kind, projectName: name, lede, meta: collected.meta, sections, sectionHeaders: collected.sectionHeaders, mermaidAsDiagram: opts.mermaidAsDiagram },
+        Buffer.byteLength(collected.bodyMd),
+      ),
+    );
+  } else {
+    // Production: spawn subprocess to avoid Turbopack ESM issues with puppeteer
+    const html = renderArtifactHtml({ kind, projectName: name, lede, meta: collected.meta, sections, sectionHeaders: collected.sectionHeaders, mermaidAsDiagram: opts.mermaidAsDiagram });
+    buffer = await spawnPdfRender(html, { mermaidAsDiagram: opts.mermaidAsDiagram });
+  }
 
   const { exportId } = await recordExport({
     projectId,
@@ -148,7 +150,7 @@ export async function exportPdf(
     projectName: name,
     createdBy: actor.id,
   });
-  return { fileName: `${name}-${kind}.pdf`, buffer, exportId };
+  return { fileName: `${slug(name)}-${kind}.pdf`, buffer, exportId };
 }
 
 /* ── D. bundle (.zip) ───────────────────────────────────────────────────── */
@@ -211,5 +213,7 @@ export async function specSectionList(
   actor: ProjectActor,
 ): Promise<{ nn: string; title: string }[]> {
   const collected = await collectArtifact(projectId, 'spec', actor);
-  return parseArtifactSections(collected.bodyMd, 'spec').map((s) => ({ nn: s.nn, title: s.title }));
+  return parseArtifactSections(collected.bodyMd, 'spec')
+    .filter((s) => s.title.length > 0)
+    .map((s) => ({ nn: s.nn, title: s.title }));
 }

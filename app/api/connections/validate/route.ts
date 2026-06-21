@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { getDb } from '@/db/client';
-import { teamSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/config';
 import { PostgresSecretStore } from '@/secrets/secret-store';
 import { buildMmaClient } from '@/mma/server-client';
 import { probeGit, probeOpenai } from '@/config/connections-probe';
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // git / openai — use the typed token if present, else decrypt the stored one.
   let value = token?.trim() ?? '';
   if (!value) {
-    const [row] = await getDb().select().from(teamSettings).limit(1);
+    const [row] = await getDb().select().from(connectionSettings).limit(1);
     const ref = type === 'git' ? (row?.gitTokenRef ?? null) : (row?.openaiTranscriptionKeyRef ?? null);
     if (ref) {
       const secrets = await PostgresSecretStore.create({});

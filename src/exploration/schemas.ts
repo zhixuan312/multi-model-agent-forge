@@ -24,7 +24,7 @@ export const ProposedTaskSchema = z.object({
 export type ProposedTask = z.infer<typeof ProposedTaskSchema>;
 
 export const ProposalSchema = z.object({
-  tasks: z.array(ProposedTaskSchema),
+  tasks: z.array(ProposedTaskSchema).max(10),
 });
 export type Proposal = z.infer<typeof ProposalSchema>;
 
@@ -39,26 +39,26 @@ export type RepairedTask = z.infer<typeof RepairedTaskSchema>;
  * combined markdown is what lands in `artifact(kind='exploration')`.
  */
 export const SynthesisSchema = z.object({
-  background: z.string(),
-  currentState: z.string(),
-  roughDirection: z.string(),
+  context: z.string(),
+  findings: z.string(),
+  recommendation: z.string(),
 });
 export type Synthesis = z.infer<typeof SynthesisSchema>;
 
 /** Compose the three sections into the artifact body markdown. */
 export function composeExplorationMarkdown(s: Synthesis): string {
   return [
-    '## Background',
+    '## Context',
     '',
-    s.background.trim(),
+    s.context.trim(),
     '',
-    '## Current state',
+    '## Findings',
     '',
-    s.currentState.trim(),
+    s.findings.trim(),
     '',
-    '## Rough direction',
+    '## Recommendation',
     '',
-    s.roughDirection.trim(),
+    s.recommendation.trim(),
     '',
   ].join('\n');
 }

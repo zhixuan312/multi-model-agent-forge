@@ -22,27 +22,20 @@ describe('RecallAnswer + RecallSources', () => {
     expect(screen.getByText('mma-journal-recall')).toBeInTheDocument();
   });
 
-  it('maps findings → Sources rows (id · status · title) and per-finding deduped chips (F4)', () => {
+  it('renders each learning with its node chip and resolves Sources rows (id · status · title)', () => {
     const parsed: ParsedRecall = {
       summary: 'answer',
       findings: [
-        {
-          title: 'Completion gating',
-          claim: 'Completion gating',
-          category: 'completion-gating',
-          severity: 'critical',
-          suggestion: '',
-          // free-text evidence citing 0001 once and 0008 twice (same node → dedup)
-          evidence: 'See `nodes/0001-a.md`, then `nodes/0008-b.md` (line 2) and `nodes/0008-b.md` (line 9).',
-        },
+        { learning: 'Completion gating', context: 'refines 0008', relevance: 'critical', nodeId: '0001', category: 'decision', status: 'adopted' },
+        { learning: 'Single read path', context: 'depends on 0001', relevance: 'high', nodeId: '0008', category: 'design', status: 'adopted' },
       ],
       citationIds: ['0001', '0008'],
     };
     render(<RecallAnswer parsed={parsed} index={INDEX} onNavigate={() => {}} />);
-    // two distinct chips on the finding
+    // each finding shows its learning + its single node chip
     const finding = screen.getByTestId('recall-finding-0');
+    expect(within(finding).getByText('Completion gating')).toBeInTheDocument();
     expect(within(finding).getByText('0001')).toBeInTheDocument();
-    expect(within(finding).getAllByText('0008')).toHaveLength(1);
 
     // Sources list resolves title+status
     const sources = screen.getByTestId('recall-sources');

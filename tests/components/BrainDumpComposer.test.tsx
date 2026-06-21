@@ -9,11 +9,11 @@ const baseProps = {
   attachments: [] as AttachmentView[],
   voiceEnabled: true,
   recording: false,
+  transcribing: false,
   busy: false,
   error: null as string | null,
   onAnalyze: noop,
   onToggleRecord: noop,
-  onAddLink: noop,
   onAddFile: noop,
   onRemoveAttachment: noop,
 };
@@ -35,9 +35,8 @@ describe('BrainDumpComposer (F19 controls)', () => {
     expect(screen.getByRole('button', { name: /record voice/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('attach link/file controls expose aria-labels', () => {
+  it('attach file control exposes aria-label', () => {
     render(<BrainDumpComposer {...baseProps} />);
-    expect(screen.getByRole('button', { name: /attach link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /attach file/i })).toBeInTheDocument();
   });
 

@@ -71,9 +71,9 @@ export interface LoopRunDeps {
   /** The branch the repo is currently checked out on (the base when no targetBranch is set); null if detached/unresolvable. */
   resolveCurrentBranch: (repo: LoopRepoTarget) => Promise<string | null>;
   /** One main-agent (orchestrator) turn; pass `sessionId` to resume the same conversation. */
-  mainSession: (args: { cwd: string; prompt: string; outputFormat?: string; sessionId?: string }) => Promise<MainTurn>;
+  mainSession: (args: { cwd: string; prompt: string; outputFormat?: string; sessionId?: string; loopRunId?: string }) => Promise<MainTurn>;
   /** Journal lookup for a query (empty string if the journal is absent). */
-  recall: (repo: LoopRepoTarget, query: string) => Promise<string>;
+  recall: (repo: LoopRepoTarget, query: string, loopRunId?: string) => Promise<string>;
   /** Create an isolated worktree on `branch`, forked from the (freshly fetched) remote `baseBranch`. */
   createWorktree: (repo: LoopRepoTarget, branch: string, baseBranch: string) => Promise<{ path: string }>;
   /** Dispatch the MMA worker against the worktree; returns the work outcome. */
@@ -83,6 +83,7 @@ export interface LoopRunDeps {
     prompt: string;
     workerTier: LoopRow['workerTier'];
     priorJournalContext: string;
+    loopRunId?: string;
   }) => Promise<DispatchOutcome>;
   /** Run the verify command in the worktree (the planned command, or auto-detect when null). */
   runVerify: (repo: LoopRepoTarget, cwd: string, command: string | null) => Promise<VerifyOutcome>;
@@ -93,7 +94,7 @@ export interface LoopRunDeps {
   /** Open a GitHub PR from `branch` into `base`; returns the PR URL. */
   openPr: (args: { repo: LoopRepoTarget; branch: string; base: string; title: string; body: string }) => Promise<{ prUrl: string }>;
   /** Record journal entries for the repo (initializes the journal if absent). */
-  record: (repo: LoopRepoTarget, entries: JournalEntry[]) => Promise<void>;
+  record: (repo: LoopRepoTarget, entries: JournalEntry[], loopRunId?: string) => Promise<void>;
   /** Remove the worktree (best-effort; runs after every outcome). */
   removeWorktree: (cwd: string) => Promise<void>;
   now?: () => Date;
@@ -183,7 +184,7 @@ export async function runLoopForRepo(
     let plan: LoopPlan = { recalls: [{ query: goalMd }], verifyCommand: null };
     let sessionId: string | null = null;
     try {
-      const planTurn = await deps.mainSession({ cwd: worktree, prompt: planPrompt(goalMd), outputFormat: PLAN_OUTPUT_FORMAT });
+      const planTurn = await deps.mainSession({ cwd: worktree, prompt: planPrompt(goalMd), outputFormat: PLAN_OUTPUT_FORMAT, loopRunId: runRowId });
       sessionId = planTurn.sessionId;
       const parsed = parsePlan(planTurn.output);
       if (parsed) plan = parsed.recalls.length || parsed.verifyCommand ? parsed : plan;
@@ -192,13 +193,13 @@ export async function runLoopForRepo(
     // Stage 4 — recall (worker fan-out of the planned queries).
     const recallTexts: string[] = [];
     for (const r of plan.recalls) {
-      const text = await deps.recall(repo, r.query);
+      const text = await deps.recall(repo, r.query, runRowId);
       if (text.trim()) recallTexts.push(r.purpose ? `### ${r.purpose}\n${text}` : text);
     }
     const priorJournalContext = recallTexts.join('\n\n');
 
     // Stage 5 — work (worker; static buildPrompt + recall context).
-    const out = await deps.dispatch({ repo, cwd: worktree, prompt: goal, workerTier: loop.workerTier, priorJournalContext });
+    const out = await deps.dispatch({ repo, cwd: worktree, prompt: goal, workerTier: loop.workerTier, priorJournalContext, loopRunId: runRowId });
 
     // Stage 6 — verify (deterministic run of the planned command; whatever it returns stands).
     const verify = await deps.runVerify(repo, worktree, plan.verifyCommand);
@@ -228,13 +229,14 @@ export async function runLoopForRepo(
         prompt: journalPrompt({ goalMd, workerSummary: keyChanges[0] ?? '', filesChanged: out.filesChanged, verify }),
         outputFormat: JOURNAL_OUTPUT_FORMAT,
         sessionId: sessionId ?? undefined,
+        loopRunId: runRowId,
       });
       const parsed = parseJournal(jTurn.output);
       if (parsed) journalEntries = parsed.entries; // respect "nothing worth recording" (empty)
     } catch { /* keep the fallback entry */ }
 
     // Stage 9 — record + report.
-    if (journalEntries.length) await deps.record(repo, journalEntries);
+    if (journalEntries.length) await deps.record(repo, journalEntries, runRowId);
     return await finish({
       status,
       branch: branchOut,

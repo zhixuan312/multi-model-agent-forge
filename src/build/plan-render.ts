@@ -33,7 +33,7 @@ export interface ResolvedTask {
   detail: string;
   targetRepoId: string;
   dependsOnTitles: string[];
-  reviewPolicy: 'full' | 'quality_only' | 'diff_only' | 'none';
+  reviewPolicy: 'reviewed' | 'none';
   orderIndex: number;
 }
 

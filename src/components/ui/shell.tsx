@@ -23,11 +23,15 @@ import { Breadcrumb, type Crumb } from '@/components/ui/breadcrumb';
 export function AppShell({
   sidebar,
   mobileBar,
+  topRight,
   children,
   className,
 }: {
   sidebar: ReactNode;
   mobileBar?: ReactNode;
+  /** Global utilities pinned to the top-right corner on desktop (notification
+   *  bell + account menu), sitting in the page-header band above the scroll body. */
+  topRight?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -37,8 +41,16 @@ export function AppShell({
   return (
     <div className={cn('fixed inset-0 isolate flex overflow-hidden bg-bg', className)}>
       <div className="hidden h-full shrink-0 overflow-y-auto overscroll-contain lg:block">{sidebar}</div>
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col">
         {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}
+        {topRight ? (
+          // Pinned to the top-right corner, vertically centered in the h-16 header
+          // band. z-30 keeps it above the page's own ShellHeader (z-20) so the
+          // account menu / bell are always reachable.
+          <div className="pointer-events-none absolute right-0 top-0 z-30 hidden h-16 items-center pr-5 md:pr-8 lg:flex">
+            <div className="pointer-events-auto flex items-center gap-1">{topRight}</div>
+          </div>
+        ) : null}
         <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
     </div>
@@ -53,6 +65,9 @@ export function ShellHeader({ children, className }: { children: ReactNode; clas
     <header
       className={cn(
         'relative z-20 flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-5 md:px-8',
+        // Reserve room on the right for the global top-right cluster (bell +
+        // account menu) so a page's header actions don't slide under it (desktop).
+        'lg:pr-32',
         className,
       )}
     >

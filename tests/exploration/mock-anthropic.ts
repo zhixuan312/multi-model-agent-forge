@@ -19,23 +19,32 @@ export interface MockParseOpts {
   calls?: ParseCall[];
 }
 
+const ZERO_USAGE = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, durationMs: 0 };
+
 export function mockAnthropic(opts: MockParseOpts): {
   parse: <T>(schema: z.ZodType<T>, ctx: { call: string; system: string; user: string }) => Promise<T>;
+  parseWithUsage: <T>(schema: z.ZodType<T>, ctx: { call: string; system: string; user: string }) => Promise<{ data: T; usage: typeof ZERO_USAGE }>;
 } {
   const queues: Record<string, unknown[]> = {};
   for (const [k, v] of Object.entries(opts.byCall)) queues[k] = [...v];
+
+  async function doParse<T>(_schema: z.ZodType<T>, ctx: { call: string; system: string; user: string }): Promise<T> {
+    opts.calls?.push({ call: ctx.call, system: ctx.system, user: ctx.user });
+    if (opts.throwOn?.has(ctx.call)) {
+      opts.throwOn.delete(ctx.call);
+      throw new Error(`mockAnthropic: scripted failure for '${ctx.call}'`);
+    }
+    const next = (queues[ctx.call] ?? []).shift();
+    if (next === undefined) {
+      throw new Error(`mockAnthropic: no scripted response for '${ctx.call}'`);
+    }
+    return next as T;
+  }
+
   return {
-    async parse<T>(_schema: z.ZodType<T>, ctx: { call: string; system: string; user: string }): Promise<T> {
-      opts.calls?.push({ call: ctx.call, system: ctx.system, user: ctx.user });
-      if (opts.throwOn?.has(ctx.call)) {
-        opts.throwOn.delete(ctx.call);
-        throw new Error(`mockAnthropic: scripted failure for '${ctx.call}'`);
-      }
-      const next = (queues[ctx.call] ?? []).shift();
-      if (next === undefined) {
-        throw new Error(`mockAnthropic: no scripted response for '${ctx.call}'`);
-      }
-      return next as T;
+    parse: doParse,
+    async parseWithUsage<T>(schema: z.ZodType<T>, ctx: { call: string; system: string; user: string }) {
+      return { data: await doParse(schema, ctx), usage: ZERO_USAGE };
     },
   };
 }

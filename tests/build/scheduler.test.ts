@@ -14,7 +14,7 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
     isWrite: true,
     dependsOn: over.dependsOn ?? null,
     orderIndex: over.orderIndex ?? seq++,
-    reviewPolicy: 'full',
+    reviewPolicy: 'reviewed',
     status: 'queued',
     branch: null,
     commitSha: null,
@@ -27,7 +27,7 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
 }
 
 function repoMap(ids: string[]): Map<string, RepoMeta> {
-  return new Map(ids.map((id) => [id, { id, name: id, pathOnDisk: `/work/${id}`, kind: 'node', defaultBranch: 'main' }]));
+  return new Map(ids.map((id) => [id, { id, name: id, pathOnDisk: `/work/${id}`, defaultBranch: 'main' }]));
 }
 
 /** A runner that records dispatch order + concurrency, returning a scripted outcome. */

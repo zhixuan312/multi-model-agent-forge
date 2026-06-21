@@ -26,7 +26,7 @@ export interface MmaClientConfig {
   baseUrl: string;
   /** The local mma bearer (MMA_AUTH_TOKEN env or its auth-token file). */
   token: string;
-  /** agent_tier(main).model → X-MMA-Main-Model; null when the main tier is unset. */
+  /** config.json `main` model → X-MMA-Main-Model; null when the main tier is unset. */
   mainModel: string | null;
 }
 
@@ -144,7 +144,7 @@ export class MmaClient {
       'debug': 'debug',
       'journal-record': 'journal_record',
       'journal-recall': 'journal_recall',
-      'orchestrate': 'main',
+      'orchestrate': 'orchestrate',
     };
     return MAP[route] ?? route;
   }
@@ -360,6 +360,11 @@ export class MmaClient {
     if (query.length < 10) {
       throw new Error('journalRecall.query must be at least 10 characters');
     }
+    // Review stays ON: MMA's journal_recall reviewer is a REFINER — it verifies
+    // the draft's citations against the journal, drops hallucinated/irrelevant
+    // nodes, adds missed ones, and re-emits the FINAL answer in the same
+    // `{results, summary}` shape. That refined answer lands in
+    // structuredReport.summary, which is what `parseRecallEnvelope` reads.
     const body: Record<string, unknown> = { query };
     if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
     return this.dispatch('journal-recall', { cwd, body });
@@ -405,7 +410,7 @@ export class MmaClient {
     input: {
       filePaths: [string];
       taskDescriptors: string[];
-      perTaskReviewPolicy?: Record<string, 'full' | 'quality_only' | 'diff_only' | 'none'>;
+      perTaskReviewPolicy?: Record<string, 'reviewed' | 'none'>;
       contextBlockIds?: string[];
     },
   ): Promise<{ batchId: string }> {

@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { memberIdentity } from '@/db/schema/identity';
 import { hashPassword, verifyPassword, passwordSchema } from '@/auth/password';
@@ -41,7 +41,7 @@ export async function changeOwnPassword(
   const [identity] = await db
     .select({ id: memberIdentity.id, passwordHash: memberIdentity.passwordHash })
     .from(memberIdentity)
-    .where(and(eq(memberIdentity.memberId, input.memberId), eq(memberIdentity.provider, 'local')))
+    .where(eq(memberIdentity.memberId, input.memberId))
     .limit(1);
 
   if (!identity || !identity.passwordHash) return { kind: 'no_identity' };

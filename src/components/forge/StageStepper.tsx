@@ -4,6 +4,7 @@ import { Lock, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
+import { STAGE_SUBSTEPS } from '@/components/forge/stage-substeps';
 
 /**
  * StageStepper (Spec 3 flow 3) — stage-driven. Renders into the LOCKED
@@ -47,8 +48,20 @@ const STAGE_LAST_FALLBACK: Partial<Record<StageKind, string>> = {
   plan: 'validate',
 };
 
-function glyph(status: StageStatus): string {
-  return status === 'done' ? '●' : status === 'active' ? '◐' : '○';
+function glyph(status: StageStatus, kind?: StageKind, lastPhase?: string | null): string {
+  if (status === 'done') return '●';
+  if (status === 'pending') return '○';
+  // Active — compute fractional fill from lastPhase
+  if (!kind || !lastPhase) return '◐';
+  const phases = STAGE_SUBSTEPS[kind];
+  if (!phases || phases.length <= 1) return '◐';
+  const idx = phases.findIndex((p) => p.key === lastPhase);
+  if (idx < 0) return '◐';
+  const fraction = (idx + 1) / phases.length;
+  if (fraction <= 0.34) return '◔';
+  if (fraction <= 0.67) return '◑';
+  if (fraction < 1) return '◕';
+  return '●';
 }
 
 export interface StageStepperProps {
@@ -117,6 +130,7 @@ interface ComputedStage {
   kind: StageKind;
   label: string;
   status: StageStatus;
+  lastPhase: string | null;
   locked: boolean;
   reachable: boolean;
   isCurrent: boolean;
@@ -137,10 +151,12 @@ function computeStage(
   const reachable = !locked && (status === 'active' || status === 'done');
   const isCurrent = currentStage === kind;
   const statusWord = locked ? 'locked' : status;
+  const lastPhase = lastPhaseByKind?.get(kind) ?? null;
   return {
     kind,
     label: STAGE_LABEL[kind],
     status,
+    lastPhase,
     locked,
     reachable,
     isCurrent,
@@ -159,7 +175,7 @@ function stepClasses(s: ComputedStage): string {
     'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
     s.isCurrent && 'bg-accent text-white shadow-sm',
     !s.isCurrent && s.locked && 'text-ink-faint',
-    !s.isCurrent && !s.locked && s.status === 'done' && 'text-[var(--sage-deep)] hover:bg-sage-tint',
+    !s.isCurrent && !s.locked && s.status === 'done' && 'text-accent-deep hover:bg-accent-tint',
     !s.isCurrent && !s.locked && s.status === 'active' && 'text-accent-deep hover:bg-accent-tint',
     !s.isCurrent && !s.locked && s.status === 'pending' && 'text-ink-faint',
   );
@@ -172,7 +188,7 @@ function StagePill({ s, condensed }: { s: ComputedStage; condensed: boolean }) {
       {s.locked ? (
         <Lock aria-hidden="true" className="size-3" />
       ) : (
-        <span aria-hidden="true">{glyph(s.status)}</span>
+        <span aria-hidden="true">{glyph(s.status, s.kind, s.lastPhase)}</span>
       )}
       {showLabel ? <span>{s.label}</span> : null}
     </>

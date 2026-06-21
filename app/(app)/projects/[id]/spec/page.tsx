@@ -22,10 +22,15 @@ import { findInflight } from '@/dispatch/dispatch-helpers';
  */
 export default async function SpecStagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ phase?: string }>;
 }) {
   const { id } = await params;
+  const { phase: phaseParam } = await searchParams;
+  const validSpecPhases = ['outline', 'craft', 'document'] as const;
+  const initialPhase = validSpecPhases.includes(phaseParam as any) ? (phaseParam as 'outline' | 'craft' | 'document') : undefined;
   const me = await currentMember();
   if (!me) redirect('/login');
 
@@ -60,6 +65,18 @@ export default async function SpecStagePage({
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
+  // Load project members for collaborative approval
+  const { projectMember } = await import('@/db/schema/projects');
+  const { member } = await import('@/db/schema/identity');
+  const memberRows = await db
+    .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(projectMember)
+    .innerJoin(member, eq(projectMember.memberId, member.id))
+    .where(eq(projectMember.projectId, id));
+  const projectMembers = memberRows
+    .filter((m) => m.id !== me.id)
+    .map((m) => ({ id: m.id, displayName: m.displayName, avatarTint: m.avatarTint }));
+
   const pendingAudit = await findInflight(db, id, 'spec-audit');
   const pendingAutoDraft = await findInflight(db, id, 'spec-auto-draft');
   const pendingApply = await findInflight(db, id, 'spec-audit-apply');
@@ -78,13 +95,49 @@ export default async function SpecStagePage({
       initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings.map((f) => ({ severity: f.severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion })) }))}
       initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      projectMembers={projectMembers}
+      craftCollab={buildCraftCollab(projectMembers, me)}
       initialMessages={initialMessages}
       voiceEnabled={voiceEnabled}
       pendingAudit={pendingAudit}
       pendingAutoDraft={pendingAutoDraft}
       pendingApply={pendingApply}
+      initialPhase={initialPhase}
     />
   );
+}
+
+type MemberRef = { id: string; displayName: string; avatarTint: string };
+type ComponentKind = 'context' | 'problem' | 'goals_requirements' | 'alternatives' | 'technical_design' | 'testing_plan' | 'risks' | 'stories_tasks';
+
+function buildCraftCollab(
+  members: MemberRef[],
+  me: { id: string; displayName: string; avatarTint: string },
+): Partial<Record<ComponentKind, { participants: Array<{ member: MemberRef; addedBy: null; approvedAt: string | null }>; discussion: [] }>> {
+  const byName = (name: string) => members.find((m) => m.displayName.toLowerCase().includes(name.toLowerCase()));
+  const business = byName('business');
+  const product = byName('product');
+  const xuan = byName('xuan') ?? { id: me.id, displayName: me.displayName, avatarTint: me.avatarTint };
+  const tester = byName('tester');
+
+  const toParticipant = (m: MemberRef | undefined) => m ? { member: m, addedBy: null, approvedAt: new Date().toISOString() } : null;
+
+  const boPm = [toParticipant(business), toParticipant(product)].filter(Boolean) as any[];
+  const xuanOnly = [toParticipant(xuan)].filter(Boolean) as any[];
+  const xuanTester = [toParticipant(xuan), toParticipant(tester)].filter(Boolean) as any[];
+  const pmTester = [toParticipant(product), toParticipant(tester)].filter(Boolean) as any[];
+  const all = [toParticipant(business), toParticipant(product), toParticipant(xuan), toParticipant(tester)].filter(Boolean) as any[];
+
+  return {
+    context: { participants: boPm, discussion: [] },
+    problem: { participants: boPm, discussion: [] },
+    goals_requirements: { participants: boPm, discussion: [] },
+    alternatives: { participants: xuanOnly, discussion: [] },
+    technical_design: { participants: xuanTester, discussion: [] },
+    testing_plan: { participants: pmTester, discussion: [] },
+    risks: { participants: all, discussion: [] },
+    stories_tasks: { participants: pmTester, discussion: [] },
+  };
 }
 
 /** True iff a usable MMA bearer is available — auto-resolved from the local

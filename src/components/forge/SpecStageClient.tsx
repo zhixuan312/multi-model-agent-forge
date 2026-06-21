@@ -1727,12 +1727,12 @@ function DocumentScreen({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => { void runAssemble(); setDocView('document'); }}
+                onClick={() => { if (readOnly && spec) { setDocView('document'); } else { void runAssemble(); setDocView('document'); } }}
                 loading={assembling}
-                disabled={readOnly || !allApproved || assembling}
+                disabled={(!readOnly && !allApproved) || assembling || (readOnly && !spec)}
                 leftIcon={<Sparkles />}
               >
-                Construct spec
+                {readOnly ? 'View spec' : 'Construct spec'}
               </Button>
             }
           />

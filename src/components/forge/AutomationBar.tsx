@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Bot, Hand, Square } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui';
@@ -14,6 +14,9 @@ export type AutoMode = 'off' | 'running';
  * BUILD-onward stages (Plan, Execute, Review, Journal). When running, Forge drives
  * the loop; the human can Stop and take over mid-flight because the on-disk plan is
  * the shared source of truth, so the baton passes freely either way.
+ *
+ * "Run automated" has a 3-second countdown to guard against accidental clicks.
+ * Click again or wait for the countdown to complete. Click "Cancel" to abort.
  */
 export function AutomationBar({
   mode,
@@ -33,7 +36,33 @@ export function AutomationBar({
   onStop: () => void;
 }) {
   const running = mode === 'running';
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => { automationThemeStore.set(running); return () => { automationThemeStore.set(false); }; }, [running]);
+
+  const clearCountdown = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setCountdown(null);
+  }, []);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  function handleRunClick() {
+    if (countdown !== null) return;
+    setCountdown(3);
+    timerRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearCountdown();
+          onRun();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
   return (
     <div
       className={cn(
@@ -51,22 +80,28 @@ export function AutomationBar({
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-          {running ? 'Forge is driving' : 'You have the wheel'}
+          {running ? 'Forge is driving' : countdown !== null ? `Starting in ${countdown}…` : 'You have the wheel'}
           {running ? <span className="inline-flex size-1.5 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden /> : null}
         </p>
         <p className="truncate text-xs text-ink-soft">
           {note ||
-            (running
-              ? runningHint ?? 'Forge runs the loop and steps through the gates. Stop anytime to take over.'
-              : idleHint ?? 'Drive it yourself, or let Forge run Plan → Build → Journal and step in whenever.')}
+            (countdown !== null
+              ? 'Forge will take over shortly. Cancel to stay manual.'
+              : running
+                ? runningHint ?? 'Forge runs the loop and steps through the gates. Stop anytime to take over.'
+                : idleHint ?? 'Drive it yourself, or let Forge run Plan → Build → Journal and step in whenever.')}
         </p>
       </div>
       {running ? (
         <Button size="sm" variant="secondary" onClick={onStop} leftIcon={<Square />}>
           Stop &amp; take over
         </Button>
+      ) : countdown !== null ? (
+        <Button size="sm" variant="secondary" onClick={clearCountdown}>
+          Cancel
+        </Button>
       ) : (
-        <Button size="sm" onClick={onRun} disabled={disabled} leftIcon={<Bot />}>
+        <Button size="sm" onClick={handleRunClick} disabled={disabled} leftIcon={<Bot />}>
           Run automated
         </Button>
       )}

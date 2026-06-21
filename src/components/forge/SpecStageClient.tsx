@@ -1176,19 +1176,29 @@ function CraftStage({
         </CardContent>
 
         {constructedDrafts[active.id] ? (
-          /* Draft view footer: navigation + actions */
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
-              Back to conversation
-            </Button>
-            <Button
-              onClick={approved || iApproved ? backToEdit : approve}
-              disabled={readOnly}
-              variant={approved || iApproved ? 'secondary' : 'primary'}
-              leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
-            >
-              {approved || iApproved ? 'Revoke' : 'Approve'}
-            </Button>
+          /* Draft view footer — matches Document phase layout */
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <FileText className="size-5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">{active.label}</p>
+                <p className="text-xs text-ink-faint">Review the draft, or go back to refine.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
+                Back to conversation
+              </Button>
+              <Button
+                size="sm"
+                onClick={approved || iApproved ? backToEdit : approve}
+                disabled={readOnly}
+                variant={approved || iApproved ? 'secondary' : 'primary'}
+                leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
+              >
+                {approved || iApproved ? 'Revoke' : 'Approve'}
+              </Button>
+            </div>
           </div>
         ) : (
           <ForgeComposer

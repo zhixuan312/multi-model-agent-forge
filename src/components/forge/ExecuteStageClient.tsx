@@ -59,6 +59,8 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
   const { units } = props;
 
   const [phase, setPhase] = useState<ExecPhase>('dispatch');
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [run, setRun] = useState<Record<string, RunState>>(
     () => Object.fromEntries(units.map((u) => [u.id, { status: 'queued' as RunStatus }])),
   );
@@ -169,7 +171,30 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
           units={units}
           writeTargets={props.writeTargets}
           readOnly={readOnly}
-          onDispatch={() => setPhase('run')}
+          dispatching={dispatching}
+          dispatchError={dispatchError}
+          onDispatch={async () => {
+            setDispatching(true);
+            setDispatchError(null);
+            try {
+              const res = await fetch(`/api/projects/${props.projectId}/build/start-execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+              });
+              if (res.status === 202) {
+                router.push(`/projects/${props.projectId}/build`);
+                router.refresh();
+              } else {
+                const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+                setDispatchError(data.error ?? 'Dispatch failed');
+                setDispatching(false);
+              }
+            } catch {
+              setDispatchError('Network error');
+              setDispatching(false);
+            }
+          }}
         />
       ) : phase === 'run' ? (
         <RunStage
@@ -201,6 +226,8 @@ function DispatchStage({
   writeTargets,
   readOnly,
   onDispatch,
+  dispatching,
+  dispatchError,
 }: {
   projectName: string;
   planVersion: number;
@@ -208,6 +235,8 @@ function DispatchStage({
   writeTargets: string[];
   readOnly: boolean;
   onDispatch: () => void;
+  dispatching?: boolean;
+  dispatchError?: string | null;
 }) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -273,9 +302,10 @@ function DispatchStage({
               ))}
             </div>
           </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onDispatch} disabled={readOnly} leftIcon={<Rocket />}>
-              Dispatch to workers
+          <CardFooter className="flex-col !items-stretch gap-2">
+            {dispatchError ? <p className="text-sm text-[var(--rose)]">{dispatchError}</p> : null}
+            <Button className="w-full" onClick={onDispatch} disabled={readOnly || dispatching} loading={dispatching} leftIcon={<Rocket />}>
+              {dispatching ? 'Dispatching…' : 'Dispatch to workers'}
             </Button>
           </CardFooter>
         </Card>

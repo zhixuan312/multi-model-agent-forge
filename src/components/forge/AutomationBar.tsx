@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Bot, Hand, Square } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui';
+import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
 
 /** off = human-driven · running = the AI is driving the loop autonomously. */
 export type AutoMode = 'off' | 'running';
@@ -31,6 +33,7 @@ export function AutomationBar({
   onStop: () => void;
 }) {
   const running = mode === 'running';
+  useEffect(() => { automationThemeStore.set(running); return () => { automationThemeStore.set(false); }; }, [running]);
   return (
     <div
       className={cn(

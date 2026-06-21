@@ -1,15 +1,19 @@
 'use client';
 
-import { useSelectedLayoutSegment } from 'next/navigation';
+import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
-const DESIGN_SEGMENTS = new Set(['explore', 'spec', 'plan', 'freeze']);
-const BUILD_SEGMENTS = new Set(['execute', 'build', 'review']);
+let autoRunning = false;
+const listeners = new Set<() => void>();
+function emit() { for (const l of listeners) l(); }
 
-export function PhaseFromRoute({ fallback, children }: { fallback: 'design' | 'build'; children: ReactNode }) {
-  const seg = useSelectedLayoutSegment();
-  const phase = seg && DESIGN_SEGMENTS.has(seg) ? 'design'
-    : seg && BUILD_SEGMENTS.has(seg) ? 'build'
-    : fallback;
-  return <div data-phase={phase} className="contents">{children}</div>;
+export const automationThemeStore = {
+  get: () => autoRunning,
+  set: (v: boolean) => { if (v !== autoRunning) { autoRunning = v; emit(); } },
+  subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
+};
+
+export function PhaseFromRoute({ children }: { children: ReactNode }) {
+  const isAuto = useSyncExternalStore(automationThemeStore.subscribe, automationThemeStore.get, () => false);
+  return <div data-phase={isAuto ? 'build' : 'design'} className="contents">{children}</div>;
 }

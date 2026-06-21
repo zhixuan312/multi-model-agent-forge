@@ -11,6 +11,7 @@ import {
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { DATA_PHASE } from '@/projects/stage-route';
+import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
 
 /**
  * Project shell (Spec 3 flow 3). Guarded: `assertProjectReadable` throws for a
@@ -42,7 +43,7 @@ export default async function ProjectLayout({
   const stages = await getProjectStages(id);
 
   return (
-    <div data-phase={DATA_PHASE[project.phase]} className="contents">
+    <PhaseFromRoute fallback={DATA_PHASE[project.phase]}>
       <ShellHeader>
         <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
       </ShellHeader>
@@ -55,6 +56,6 @@ export default async function ProjectLayout({
         />
       </ShellSubNav>
       <ShellBody width="full" fill>{children}</ShellBody>
-    </div>
+    </PhaseFromRoute>
   );
 }

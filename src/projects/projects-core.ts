@@ -465,13 +465,17 @@ export async function advanceStage(
   const next = STAGE_ORDER[fromIdx + 1];
 
   await db.transaction(async (tx) => {
+    // Mark ALL stages up to and including `from` as done (catches skipped intermediates)
+    const now = new Date();
+    for (let i = 0; i <= fromIdx; i++) {
+      await tx
+        .update(stage)
+        .set({ status: 'done', completedAt: now })
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, STAGE_ORDER[i])));
+    }
     await tx
       .update(stage)
-      .set({ status: 'done', completedAt: new Date() })
-      .where(and(eq(stage.projectId, projectId), eq(stage.kind, from)));
-    await tx
-      .update(stage)
-      .set({ status: 'active', startedAt: new Date() })
+      .set({ status: 'active', startedAt: now })
       .where(and(eq(stage.projectId, projectId), eq(stage.kind, next)));
     await tx
       .update(project)

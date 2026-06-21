@@ -109,8 +109,7 @@
   --rail-pending: var(--line-strong);
 }
 
-/* ---- cool world: everything after the freeze ---- */
-[data-phase="frozen"],
+/* ---- cool world: build and beyond ---- */
 [data-phase="build"],
 [data-phase="done"] {
   --bg: var(--ice-paper);

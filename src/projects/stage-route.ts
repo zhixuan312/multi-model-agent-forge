@@ -25,12 +25,12 @@ export function stageRoute(kind: StageKind, projectId: string): string {
 
 /**
  * `project.phase` → `data-phase` value (Spec 3 flow 3). The CSS token set has
- * three phase worlds (`design | frozen | build`) while `project.phase` has four;
- * `done` reuses Build's cool palette (no distinct `done` palette in this slice).
+ * two visual worlds (`design | build`) mapped from `project.phase`.
+ * `done` reuses Build's cool palette.
  */
-export const DATA_PHASE: Record<ProjectPhase, 'design' | 'frozen' | 'build'> = {
+export const DATA_PHASE: Record<ProjectPhase, 'design' | 'build'> = {
   design: 'design',
-  frozen: 'frozen',
+  frozen: 'design',
   build: 'build',
   done: 'build',
 } as const;

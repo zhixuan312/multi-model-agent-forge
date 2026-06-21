@@ -43,7 +43,7 @@ export default async function ProjectLayout({
   const stages = await getProjectStages(id);
 
   return (
-    <PhaseFromRoute fallback={DATA_PHASE[project.phase]}>
+    <PhaseFromRoute>
       <ShellHeader>
         <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
       </ShellHeader>

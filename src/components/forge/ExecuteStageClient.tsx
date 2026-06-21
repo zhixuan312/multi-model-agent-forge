@@ -62,7 +62,7 @@ const branchFor = (u: ExecUnit) => `mma/exec-${u.repo.split('/').pop() ?? 'repo'
 
 export function ExecuteStageClient(props: ExecuteStageClientProps) {
   const router = useRouter();
-  const readOnly = props.phase !== 'build';
+  const readOnly = props.phase === 'done';
   const { units } = props;
 
   const [phase, setPhase] = useState<ExecPhase>('dispatch');

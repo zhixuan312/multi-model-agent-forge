@@ -17,6 +17,7 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
     reviewPolicy: 'reviewed',
     status: 'queued',
     branch: null,
+    targetBranch: null,
     commitSha: null,
     fixNote: null,
     meta: null,

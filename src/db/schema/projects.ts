@@ -1,4 +1,4 @@
-import { uuid, text, timestamp, index, primaryKey, unique } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, primaryKey, unique, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
@@ -31,6 +31,7 @@ export const project = forge.table(
     phase: text('phase', { enum: PROJECT_PHASE }).notNull().default('design'),
     currentStage: text('current_stage', { enum: STAGE_KIND }), // resume pointer
     frozenAt: timestamp('frozen_at', { withTimezone: true }), // set at freeze (Spec 4)
+    buildPrs: jsonb('build_prs').$type<Record<string, { url: string; branch: string; targetBranch: string }>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

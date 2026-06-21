@@ -186,8 +186,11 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
                 router.push(`/projects/${props.projectId}/build`);
                 router.refresh();
               } else {
-                const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-                setDispatchError(data.error ?? 'Dispatch failed');
+                const text = await res.text();
+                let msg: string;
+                try { msg = (JSON.parse(text) as { error?: string }).error ?? `HTTP ${res.status}`; }
+                catch { msg = `HTTP ${res.status}: ${text.slice(0, 200)}`; }
+                setDispatchError(msg);
                 setDispatching(false);
               }
             } catch {

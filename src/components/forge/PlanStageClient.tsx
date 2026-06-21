@@ -292,9 +292,15 @@ export function PlanStageClient(props: PlanStageClientProps) {
           locked={locked}
           auditClean={auditClean}
           onRunAudit={runAudit}
-          onLock={() => {
+          onLock={async () => {
             setLocked(true);
+            await fetch(`/api/projects/${props.projectId}/advance`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ from: 'plan' }),
+            });
             router.push(`/projects/${props.projectId}/execute`);
+            router.refresh();
           }}
         />
       )}

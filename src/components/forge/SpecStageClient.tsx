@@ -1192,8 +1192,15 @@ function CraftStage({
               </Button>
             </div>
           </div>
+        ) : readOnly && drafted ? (
+          /* Read-only: just show the view spec toggle */
+          <div className="flex shrink-0 items-center justify-end border-t border-line px-5 py-3">
+            <Button size="sm" variant="secondary" onClick={constructSection} leftIcon={<FileText />}>
+              View spec
+            </Button>
+          </div>
         ) : (
-          /* Conversation view footer: input + show draft */
+          /* Editable conversation footer: input + view spec toggle */
           <ForgeComposer
             value={input}
             onChange={setInput}
@@ -1201,7 +1208,7 @@ function CraftStage({
             disabled={readOnly}
             voiceEnabled={voiceEnabled}
             secondaryAction={drafted ? (
-              <Button size="sm" variant="secondary" onClick={constructSection} disabled={readOnly} leftIcon={<FileText />}>
+              <Button size="sm" variant="secondary" onClick={constructSection} leftIcon={<FileText />}>
                 View spec
               </Button>
             ) : undefined}

@@ -389,7 +389,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 voiceEnabled={props.voiceEnabled && !locked}
                 recording={recording}
                 transcribing={transcribing}
-                busy={busy || locked}
+                busy={busy}
+                locked={locked}
                 error={error}
                 onAnalyze={locked ? () => {} : analyze}
                 onToggleRecord={toggleRecord}

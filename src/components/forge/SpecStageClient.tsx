@@ -1821,7 +1821,6 @@ function DocumentScreen({
             <StageAdvance
               href={`/projects/${projectId}/plan`}
               label="Continue to Plan"
-              disabled={readOnly}
               testId="spec-continue-link"
             />
           </CardFooter>

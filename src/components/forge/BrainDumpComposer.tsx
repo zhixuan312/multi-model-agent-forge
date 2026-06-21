@@ -48,6 +48,7 @@ interface BrainDumpComposerProps {
   recording: boolean;
   transcribing: boolean;
   busy: boolean;
+  locked?: boolean;
   error: string | null;
   onAnalyze: () => void;
   onToggleRecord: () => void;
@@ -130,7 +131,7 @@ export function BrainDumpComposer(props: BrainDumpComposerProps) {
 
         <span className="flex-1" />
 
-        <Button size="sm" loading={props.busy} disabled={props.recording || props.transcribing} onClick={props.onAnalyze} rightIcon={props.busy ? undefined : <ArrowRight />}>
+        <Button size="sm" loading={props.busy} disabled={props.locked || props.recording || props.transcribing} onClick={props.onAnalyze} rightIcon={props.busy ? undefined : <ArrowRight />}>
           {props.busy ? 'Thinking…' : 'Analyze sources'}
         </Button>
       </div>

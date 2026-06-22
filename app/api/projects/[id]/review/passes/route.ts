@@ -1,44 +1,43 @@
-import { notFound, redirect } from 'next/navigation';
-import { eq, and, desc } from 'drizzle-orm';
+import { NextResponse, type NextRequest } from 'next/server';
+import { eq, and } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
+import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/mma';
-import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
-import { ReviewStageClient, type ReviewPassView } from '@/components/forge/ReviewStageClient';
 
-export default async function ReviewStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
+export const runtime = 'nodejs';
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
   const { id } = await params;
-  const { phase: urlPhase } = await searchParams;
   const me = await currentMember();
-  if (!me) redirect('/login');
-
+  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     await assertProjectReadable(id, { id: me.id });
   } catch (e) {
-    if (e instanceof ProjectAccessError) notFound();
+    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     throw e;
   }
 
-  const proj = await getProject(id);
-  if (!proj) notFound();
-
   const db = getDb();
 
-  // Load review batches → passes
+  // Load review batches (each = one pass)
   const reviewBatches = await db
-    .select({ id: mmaBatch.id, result: mmaBatch.result, status: mmaBatch.status })
+    .select({ id: mmaBatch.id, result: mmaBatch.result, status: mmaBatch.status, createdAt: mmaBatch.createdAt })
     .from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review')))
     .orderBy(mmaBatch.createdAt);
 
-  // Load apply batches
+  // Load apply batches to determine which findings were applied per pass
   const applyBatches = await db
     .select({ request: mmaBatch.request, status: mmaBatch.status })
     .from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
     .orderBy(mmaBatch.createdAt);
 
-  const passes: ReviewPassView[] = reviewBatches.map((b, i) => {
+  const passes = reviewBatches.map((b, i) => {
     const passNo = i + 1;
     const env = b.result as Record<string, unknown> | null;
     const output = (env?.output ?? {}) as Record<string, unknown>;
@@ -49,18 +48,29 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
     const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];
 
+    // Check which findings were applied by looking at apply batches for this pass
     const appliedForPass = applyBatches
-      .filter((ab) => (ab.request as Record<string, unknown> | null)?.passNo === passNo)
+      .filter((ab) => {
+        const req = ab.request as Record<string, unknown> | null;
+        return req?.passNo === passNo;
+      })
       .flatMap((ab) => {
         const req = ab.request as Record<string, unknown> | null;
         return Array.isArray(req?.findingIndices) ? req.findingIndices as number[] : [];
       });
 
+    const severity = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const f of findings) {
+      const w = f.weight as string;
+      if (w in severity) severity[w as keyof typeof severity]++;
+    }
+
     return {
       passNo,
-      status: (b.status === 'done' ? 'done' : 'failed') as 'done' | 'failed',
+      status: b.status as 'done' | 'failed',
+      findingsCount: findings.length,
       findings: findings.map((f) => ({
-        weight: (f.weight as string) ?? 'medium',
+        weight: f.weight as string,
         category: (f.category as string) ?? '',
         claim: (f.claim as string) ?? '',
         evidence: (f.evidence as string) ?? '',
@@ -69,30 +79,9 @@ export default async function ReviewStagePage({ params, searchParams }: { params
         suggestion: (f.suggestion as string) ?? '',
       })),
       appliedIndices: [...new Set(appliedForPass)],
+      severity,
     };
   });
 
-  // Check if there's a running review or apply
-  const [runningReview] = await db
-    .select({ id: mmaBatch.id })
-    .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running')))
-    .limit(1);
-  const [runningApply] = await db
-    .select({ id: mmaBatch.id })
-    .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running')))
-    .limit(1);
-
-  return (
-    <ReviewStageClient
-      projectId={id}
-      projectName={proj.name}
-      phase={proj.phase as any}
-      passes={passes}
-      reviewRunning={!!runningReview}
-      applyRunning={!!runningApply}
-      initialPhase={urlPhase === 'judge' ? 'judge' : urlPhase === 'resolve' ? 'resolve' : undefined}
-    />
-  );
+  return NextResponse.json(passes);
 }

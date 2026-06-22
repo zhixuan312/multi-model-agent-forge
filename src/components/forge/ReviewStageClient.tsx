@@ -1,20 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  ArrowLeft,
   Check,
   CheckCircle2,
+  Loader2,
   Shield,
-  ScanSearch,
-  Sparkles,
-  GitBranch,
-  FileCode,
+  Circle,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { ForgeMark } from '@/components/forge/ForgeMark';
 import {
   Button,
   Card,
@@ -24,7 +20,6 @@ import {
   CardFooter,
   Badge,
   Banner,
-  Textarea,
   TextSm,
   Eyebrow,
 } from '@/components/ui';
@@ -32,670 +27,387 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
-import type { ReviewUnit, ReviewFinding } from '@/build/review-types';
+
+/* ── Types ───────────────────────────────────────────────────────── */
+
+export interface ReviewFindingView {
+  weight: string;
+  category: string;
+  claim: string;
+  evidence: string;
+  file: string;
+  line: number;
+  suggestion: string;
+}
+
+export interface ReviewPassView {
+  passNo: number;
+  status: 'done' | 'failed';
+  findings: ReviewFindingView[];
+  appliedIndices: number[];
+}
 
 type ReviewPhase = 'inspect' | 'judge' | 'resolve';
-type Msg =
-  | { id: string; role: 'forge' | 'user'; text: string }
-  | { id: string; role: 'review'; passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] };
 
 export interface ReviewStageClientProps {
   projectId: string;
   projectName: string;
   phase: ProjectPhase;
-  mmaReady: boolean;
-  units: ReviewUnit[];
-  reviewRounds: ReviewFinding[][];
+  passes: ReviewPassView[];
+  reviewRunning: boolean;
+  applyRunning: boolean;
+  initialPhase?: ReviewPhase;
 }
 
-const SEVERITY_ORDER: ReviewFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
-const SEVERITY_STYLE: Record<ReviewFinding['severity'], string> = {
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
+const SEV_STYLE: Record<string, string> = {
   critical: 'bg-rose-tint text-[var(--rose)]',
   high: 'bg-amber-tint text-[var(--amber)]',
   medium: 'bg-[var(--frost)] text-[var(--steel)]',
   low: 'bg-surface-2 text-ink-soft',
 };
 
-let _id = 0;
-const nid = () => `rv${_id++}`;
+function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
+  const c: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const f of findings) if (f.weight in c) c[f.weight]++;
+  return c;
+}
+
+/* ── Main Component ──────────────────────────────────────────────── */
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
   const router = useRouter();
   const readOnly = props.phase !== 'build';
-  const { units } = props;
 
-  const [phase, setPhase] = useState<ReviewPhase>('inspect');
-  const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] }[]>([]);
+  const derivePhase = (): ReviewPhase => {
+    if (props.passes.length === 0) return 'inspect';
+    const lastPass = props.passes[props.passes.length - 1];
+    if (lastPass.findings.length === 0) return 'resolve';
+    return 'judge';
+  };
+
+  const [phase, setPhaseRaw] = useState<ReviewPhase>(props.initialPhase ?? derivePhase());
+  const [reviewing, setReviewing] = useState(props.reviewRunning);
+  const [applying, setApplying] = useState(props.applyRunning);
+  const [activePassNo, setActivePassNo] = useState(props.passes.length || 1);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
-  const [reviewing, setReviewing] = useState(false);
+
+  const setPhase = (p: ReviewPhase) => {
+    setPhaseRaw(p);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('phase', p);
+      router.push(url.pathname + url.search, { scroll: false });
+    }
+  };
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   useEffect(
-    () =>
-      stagePhaseStore.onNavigate((key) => {
-        if (key === 'inspect') setPhase('inspect');
-        else if (key === 'judge') setPhase('judge');
-        else if (key === 'resolve' && rounds.length > 0) setPhase('resolve');
-      }),
-    [rounds.length],
+    () => stagePhaseStore.onNavigate((key) => {
+      if (key === 'inspect' || key === 'judge' || key === 'resolve') setPhase(key as ReviewPhase);
+    }),
+    [],
   );
 
+  // SSE listener
   useEffect(() => {
-    if (readOnly) return;
-    if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('Forge is driving — reviewing the changeset…');
-      setAuto('running');
-    }
-  }, [readOnly]);
-
-  // SSE listener for review completion
-  useEffect(() => {
-    if (!reviewing) return;
-    if (typeof EventSource === 'undefined') return;
+    if (!reviewing && !applying) return;
     const es = new EventSource(`/api/projects/${props.projectId}/events`);
     es.onmessage = (msg) => {
       try {
         const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if (e.type === 'dispatch.done' && e.handler === 'code-review') {
-          setReviewing(false);
-          // Reload the page to pick up the new review round from DB
+        if ((e.type === 'dispatch.done' || e.type === 'dispatch.failed') &&
+            (e.handler === 'code-review' || e.handler === 'review-apply')) {
           window.location.reload();
         }
-        if (e.type === 'dispatch.failed' && e.handler === 'code-review') {
-          setReviewing(false);
-        }
-      } catch { /* ignore */ }
+      } catch {}
     };
     return () => es.close();
-  }, [reviewing, props.projectId]);
+  }, [reviewing, applying, props.projectId]);
 
-  const reviewClean = rounds[rounds.length - 1]?.verdict === 'clean';
+  const activePass = props.passes.find((p) => p.passNo === activePassNo);
+  const isViewingPast = activePass && activePass.passNo < props.passes.length;
+  const isApplied = (idx: number) => activePass?.appliedIndices.includes(idx) ?? false;
+  const allApplied = activePass ? activePass.appliedIndices.length > 0 : false;
 
   async function runReview() {
     setReviewing(true);
     try {
       const res = await fetch(`/api/projects/${props.projectId}/review/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
       });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        console.error('Review dispatch failed:', json.error);
-        setReviewing(false);
-      }
-      // SSE dispatch.done will populate the round — don't setReviewing(false) here
-    } catch {
-      setReviewing(false);
-    }
+      if (!res.ok) setReviewing(false);
+    } catch { setReviewing(false); }
   }
 
-  // Automated driver: inspect → judge → run review (clear crit/high) → resolve → Journal.
-  useEffect(() => {
-    if (auto !== 'running' || readOnly) return;
-    const t = setTimeout(() => {
-      if (phase === 'inspect') {
-        setAutoNote('Inspected the changeset — running code review…');
-        setPhase('judge');
-      } else if (phase === 'judge') {
-        if (!reviewClean && rounds.length < props.reviewRounds.length) {
-          setAutoNote('Code review pass ' + (rounds.length + 1) + ' — applied critical/high fixes.');
-          runReview();
-        } else {
-          setAutoNote('Critical & high cleared — resolving the review.');
-          setPhase('resolve');
-        }
-      } else if (phase === 'resolve') {
-        router.push(`/projects/${props.projectId}/journal?auto=1`);
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, phase, rounds, reviewClean, readOnly]);
+  async function applySelected() {
+    if (!activePass || selected.size === 0) return;
+    setApplying(true);
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/review/apply`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passNo: activePass.passNo, findingIndices: [...selected] }),
+      });
+      if (!res.ok) setApplying(false);
+    } catch { setApplying(false); }
+  }
+
+  function toggleSelect(idx: number) {
+    setSelected((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; });
+  }
+
+  function selectAll() {
+    if (!activePass) return;
+    const all = new Set(activePass.findings.map((_, i) => i).filter((i) => !isApplied(i)));
+    setSelected(all);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="review-stage">
-      {!props.mmaReady ? (
-        <Banner
-          variant="warning"
-          title="The MMA token is not configured."
-          description={
-            <>
-              <a href="/settings/connections" className="font-medium underline">
-                Configure the MMA token
-              </a>{' '}
-              to run code review.
-            </>
-          }
-        />
-      ) : null}
-
       <AutomationBar
-        mode={auto}
-        note={autoNote}
-        disabled={readOnly}
-        idleHint="Review the changeset yourself, or let Forge run code review and resolve it on to Journal."
-        runningHint="Forge runs code review, applies critical & high, resolves, then hands off to Journal. Stop anytime."
-        onRun={() => {
-          setAutoNote('Forge is driving — reviewing the changeset…');
-          setAuto('running');
-        }}
-        onStop={() => {
-          setAuto('off');
-          setAutoNote('Stopped — you have the wheel.');
-        }}
+        mode={auto} note={autoNote} disabled={readOnly}
+        idleHint="Run code review, fix findings, re-run until clean."
+        runningHint="Forge reviews, applies critical/high fixes, and re-runs. Stop anytime."
+        onRun={() => { setAuto('running'); setAutoNote('Running review…'); runReview(); }}
+        onStop={() => { setAuto('off'); setAutoNote('Stopped.'); }}
       />
 
-      {phase === 'inspect' ? (
-        <InspectStage units={units} readOnly={readOnly} onReview={() => setPhase('judge')} />
-      ) : phase === 'judge' ? (
-        <JudgeStage
-          projectName={props.projectName}
-          units={units}
-          readOnly={readOnly}
-          driving={auto === 'running'}
-          mmaReady={props.mmaReady}
-          rounds={rounds}
-          reviewClean={reviewClean}
-          onRunReview={runReview}
-          onResolve={() => setPhase('resolve')}
-          onBack={() => setPhase('inspect')}
-        />
-      ) : (
-        <ResolveStage
-          projectId={props.projectId}
-          projectName={props.projectName}
-          units={units}
-          rounds={rounds}
-          readOnly={readOnly}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ── Inspect — the landed changeset ─────────────────────────────────────────── */
-function InspectStage({ units, readOnly, onReview }: { units: ReviewUnit[]; readOnly: boolean; onReview: () => void }) {
-  const totalFiles = useMemo(() => units.reduce((n, u) => n + u.files.length, 0), [units]);
-  const repos = useMemo(() => [...new Set(units.map((u) => u.repo).filter((r) => r !== 'monorepo'))], [units]);
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <ScanSearch className="size-4 shrink-0 text-accent" />
-            <CardTitle>Changeset</CardTitle>
-            <Badge variant="neutral" size="sm">
-              {units.length} commits
-            </Badge>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            from Execute
-          </span>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-          {units.map((u) => (
-            <div key={u.id} className="rounded-[var(--r-md)] border border-line bg-surface px-3 py-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">
-                  {u.num}
-                </span>
-                <span className="text-sm font-medium text-ink">{u.title}</span>
-                <span className="ml-auto shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">{u.commit}</span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5 pl-[26px]">
-                {u.files.map((f) => (
-                  <span key={f} className="rounded-[5px] bg-surface-2 px-2 py-0.5 font-mono text-[10px] text-ink-soft">{f}</span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <aside className="flex min-h-0 flex-col gap-4">
-        <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/30 px-4 py-4">
-          <Shield className="mt-0.5 size-4 shrink-0 text-accent" />
-          <div className="min-w-0">
-            <Eyebrow as="h3" className="text-accent-deep">
-              Ready to review
-            </Eyebrow>
-            <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-              Forge runs MMA code-review across the landed commits — a reviewer on the opposite tier. Findings come back
-              with their file + severity; you apply or discuss them, just like the audit.
-            </p>
-          </div>
-        </div>
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Diff</CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <Stat label="Commits" value={`${units.length}`} />
-            <Stat label="Files touched" value={`${totalFiles}`} />
-            <Stat label="Repos" value={`${repos.length}`} />
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onReview} disabled={readOnly} leftIcon={<Shield />}>
-              Run code review
-            </Button>
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-line pb-2 last:border-0">
-      <span className="text-xs text-ink-faint">{label}</span>
-      <span className="text-sm font-semibold text-ink">{value}</span>
-    </div>
-  );
-}
-
-/* ── Judge — the code-review chat (mirrors the audit interface) ─────────────── */
-function JudgeStage({
-  projectName,
-  units,
-  readOnly,
-  driving,
-  mmaReady,
-  rounds,
-  reviewClean,
-  onRunReview,
-  onResolve,
-  onBack,
-}: {
-  projectName: string;
-  units: ReviewUnit[];
-  readOnly: boolean;
-  driving: boolean;
-  mmaReady: boolean;
-  rounds: { passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] }[];
-  reviewClean: boolean;
-  onRunReview: () => void;
-  onResolve: () => void;
-  onBack: () => void;
-}) {
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
-    {
-      id: nid(),
-      role: 'forge',
-      text: `I've got the ${units.length} commits from Execute. Run a code review — findings land here with their file and severity; apply the ones you want, tell me by number, or discuss.`,
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const seen = useRef(0);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [msgs]);
-
-  useEffect(() => {
-    if (rounds.length <= seen.current) return;
-    const fresh = rounds.slice(seen.current);
-    seen.current = rounds.length;
-    setMsgs((m) => [
-      ...m,
-      ...fresh.flatMap((r) => [
-        { id: nid(), role: 'review', passNo: r.passNo, verdict: r.verdict, findings: r.findings } as Msg,
-        {
-          id: nid(),
-          role: 'forge',
-          text: r.verdict === 'clean' ? 'Clean pass — no critical or high. You can resolve the review.' : 'Pick the findings to apply, or tell me by number — I’ll push the fixes and you re-review.',
-        } as Msg,
-      ]),
-    ]);
-  }, [rounds]);
-
-  function apply(passNo: number, indices: number[], total: number) {
-    if (readOnly || indices.length === 0) return;
-    const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
-    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Pushed fixes for ${label} from pass ${passNo}. Re-run the review to verify.` }]);
-  }
-  function send() {
-    const text = input.trim();
-    if (!text) return;
-    setInput('');
-    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Done — pushed that fix to the branch. Re-run the review to verify.' }]);
-  }
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} — code review</CardTitle>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            <Shield className="size-3" /> reviewer · opposite tier
-          </span>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {msgs.map((m) =>
-            m.role === 'user' ? (
-              <ChatUser key={m.id} text={m.text} />
-            ) : m.role === 'review' ? (
-              <ReviewMessage key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
-            ) : (
-              <ChatForge key={m.id}>{m.text}</ChatForge>
-            ),
-          )}
-          <div ref={bottomRef} />
-        </CardContent>
-        <Composer
-          value={input}
-          onChange={setInput}
-          onSend={send}
-          secondaries={[
-            { label: rounds.length > 0 ? 'Re-run review' : 'Run code review', icon: <Shield />, onClick: onRunReview, disabled: readOnly || !mmaReady || reviewClean },
-            { label: 'Back to diff', icon: <ArrowLeft />, onClick: onBack },
-          ]}
-          placeholder="Discuss the review — “address the worktree quoting finding”…"
-          disabled={readOnly || driving}
-        />
-      </Card>
-
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Review rounds</CardTitle>
-            {rounds.length > 0 ? <span className="text-sm font-medium text-ink-faint">{rounds.length}</span> : null}
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {rounds.length === 0 ? (
-              <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
-                <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
-                <p className="text-xs leading-relaxed text-ink-soft">
-                  Run the review from the conversation. {driving ? 'Forge clears critical & high, then resolves.' : 'Each pass lands here with its severity summary.'}
-                </p>
-              </div>
-            ) : (
-              rounds.map((r) => <RoundCard key={r.passNo} round={r} />)
-            )}
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <TextSm className="!text-ink-faint">
-              {reviewClean ? 'Clean review — ready to resolve.' : 'Resolving accepts the changes. Open findings won’t block it.'}
-            </TextSm>
-            <Button className="w-full" onClick={onResolve} disabled={readOnly} rightIcon={<ArrowRight />}>
-              Resolve the review
-            </Button>
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-/* ── Resolve — accepted changeset + handoff to Journal ──────────────────────── */
-function ResolveStage({
-  projectId,
-  projectName,
-  units,
-  rounds,
-  readOnly,
-}: {
-  projectId: string;
-  projectName: string;
-  units: ReviewUnit[];
-  rounds: { passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] }[];
-  readOnly: boolean;
-}) {
-  const passes = rounds.length;
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-            <CardTitle>{projectName} — review resolved</CardTitle>
-            <Badge variant="sage" size="sm">
-              {units.length} commits accepted
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-1.5 overflow-y-auto !py-4">
-          {units.map((u) => (
-            <div key={u.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
-              <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-              <span className="font-mono text-[10px] text-ink-faint">{u.num}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{u.title}</span>
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-faint">
-                <FileCode className="size-2.5" /> {u.files.length}
-              </span>
-              <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">{u.commit}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Resolved</CardTitle>
-            <Badge variant="sage" size="sm">accepted</Badge>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <Stat label="Commits accepted" value={`${units.length}`} />
-            <Stat label="Review passes" value={`${passes}`} />
-            <div className="flex items-start gap-2 rounded-[var(--r-md)] border border-sage-tint bg-sage-tint/40 px-3 py-2.5">
-              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-[var(--sage-deep)]" />
-              <p className="text-[11px] leading-relaxed text-ink-soft">Build complete — the changes are reviewed and accepted. Last stop is the journal.</p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <TextSm className="!text-ink-faint">Capture what this run taught us before closing out.</TextSm>
-            <StageAdvance
-              href={`/projects/${projectId}/journal`}
-              label="Continue to Journal"
-              disabled={readOnly}
-              testId="review-continue-link"
-            />
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-/* ── chat + finding primitives (audit-style, shared language) ───────────────── */
-function ChatForge({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-xs font-semibold text-ink">Forge</span>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatUser({ text }: { text: string }) {
-  return (
-    <div className="flex flex-row-reverse gap-2.5">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-        AD
-      </span>
-      <div className="flex min-w-0 max-w-[88%] flex-col items-end">
-        <span className="mb-1 text-[11px] text-ink-faint">You</span>
-        <div className="rounded-2xl rounded-tr-md border border-accent/20 bg-accent-tint px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface ComposerAction {
-  label: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}
-
-function Composer({
-  value,
-  onChange,
-  onSend,
-  secondaries,
-  placeholder,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  secondaries?: ComposerAction[];
-  placeholder: string;
-  disabled: boolean;
-}) {
-  return (
-    <div className="shrink-0 border-t border-line px-5 py-4">
-      <div className="flex gap-2.5">
-        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-          AD
-        </span>
-        <div className="min-w-0 flex-1">
-          <Textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={2}
-            disabled={disabled}
-            placeholder={placeholder}
-            className="!min-h-0 !rounded-2xl !text-sm"
-          />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {(secondaries ?? []).map((s, i) => (
-              <Button key={i} size="sm" variant="ghost" onClick={s.onClick} disabled={disabled || s.disabled} leftIcon={s.icon}>
-                {s.label}
-              </Button>
-            ))}
-            <span className="flex-1" />
-            <Button size="sm" onClick={onSend} disabled={disabled || !value.trim()} rightIcon={<ArrowRight />}>
-              Send
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SeverityTag({ s }: { s: ReviewFinding['severity'] }) {
-  return (
-    <span className={cn('inline-flex w-[58px] shrink-0 items-center justify-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', SEVERITY_STYLE[s])}>
-      {s}
-    </span>
-  );
-}
-
-/** A code-review pass — numbered, selectable findings with file location + apply. */
-function ReviewMessage({
-  passNo,
-  verdict,
-  findings,
-  readOnly,
-  onApply,
-}: {
-  passNo: number;
-  verdict: 'clean' | 'changes';
-  findings: ReviewFinding[];
-  readOnly: boolean;
-  onApply: (indices: number[]) => void;
-}) {
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const toggle = (i: number) =>
-    setSel((s) => {
-      const n = new Set(s);
-      if (n.has(i)) n.delete(i);
-      else n.add(i);
-      return n;
-    });
-  return (
-    <div className="flex gap-2.5">
-      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
-        <Shield className="size-[18px]" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Code review</span>
-          <span className="text-[11px] text-ink-faint">pass {passNo}</span>
-          <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-            {verdict === 'clean' ? 'clean' : `${findings.length} finding${findings.length === 1 ? '' : 's'} → changes`}
-          </Badge>
-        </div>
-        <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
-          {findings.length > 0 ? (
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        {/* LEFT — findings card */}
+        <Card className="flex min-h-0 flex-col lg:col-span-2">
+          {phase === 'inspect' && !reviewing && props.passes.length === 0 ? (
             <>
-              <ul className="divide-y divide-line/70">
-                {findings.map((f, i) => {
-                  const on = sel.has(i);
-                  return (
-                    <li key={i}>
-                      <button type="button" onClick={() => !readOnly && toggle(i)} disabled={readOnly} className={cn('flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition-colors', on ? 'bg-accent-tint/40' : 'hover:bg-surface-2/50')}>
-                        <span className={cn('mt-px grid size-5 shrink-0 place-items-center rounded-[6px] border text-[11px] font-semibold transition-colors', on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
-                          {on ? <Check className="size-3.5" /> : i + 1}
-                        </span>
-                        <SeverityTag s={f.severity} />
-                        <span className="min-w-0">
-                          <span className="text-sm leading-relaxed text-ink">{f.claim}</span>
-                          <span className="mt-0.5 block font-mono text-[10px] text-ink-faint">{f.location}</span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                <span className="text-[11px] text-ink-faint">Pick the ones to apply, or tell Forge by number.</span>
-                <span className="flex-1" />
-                <Button size="sm" variant="secondary" onClick={() => onApply([...sel])} disabled={readOnly || sel.size === 0} leftIcon={<Check />}>
-                  Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                </Button>
-                <Button size="sm" onClick={() => onApply(findings.map((_, i) => i))} disabled={readOnly} leftIcon={<Sparkles />}>
-                  Apply all {findings.length}
-                </Button>
-              </div>
+              <CardHeader><CardTitle><Shield className="size-4 text-accent" /> Code review</CardTitle><Badge variant="neutral" size="sm">no review yet</Badge></CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <span className="text-3xl opacity-25">🔍</span>
+                <p className="text-sm font-medium text-ink-soft">No review findings yet</p>
+                <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 280 }}>Run a code review to check the changes for correctness, security, performance, and style issues.</p>
+              </CardContent>
             </>
-          ) : (
-            <p className="px-4 py-3 text-sm leading-relaxed text-ink">No critical or high findings — the changes are ready to accept.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+          ) : reviewing ? (
+            <>
+              <CardHeader style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                <CardTitle><Loader2 className="size-4 animate-spin text-accent" /> Code review</CardTitle>
+                <Badge variant="accent" size="sm">reviewing</Badge>
+              </CardHeader>
+              <div className="flex items-center gap-2 border-b border-accent-tint bg-accent-tint px-4 py-2">
+                <Loader2 className="size-3 animate-spin text-accent" />
+                <span className="text-xs font-medium">Pass {props.passes.length + 1} — reviewing…</span>
+              </div>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <Loader2 className="size-7 animate-spin text-accent" />
+                <p className="text-sm font-medium">Checking correctness, security, performance…</p>
+                <p className="text-xs text-ink-faint">10 categories</p>
+              </CardContent>
+            </>
+          ) : applying ? (
+            <>
+              <CardHeader><CardTitle><Loader2 className="size-4 animate-spin text-accent" /> Applying fixes</CardTitle><Badge variant="accent" size="sm">applying</Badge></CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <Loader2 className="size-7 animate-spin text-accent" />
+                <p className="text-sm font-medium">Applying {selected.size} fix{selected.size !== 1 ? 'es' : ''}…</p>
+                <p className="text-xs text-ink-faint">MMA delegate (complex tier) working in worktree</p>
+              </CardContent>
+            </>
+          ) : phase === 'resolve' && activePass?.findings.length === 0 ? (
+            <>
+              <CardHeader style={{ borderBottomColor: 'var(--sage-tint)' }}>
+                <CardTitle><span className="text-[var(--sage)]">✓</span> Pass {activePassNo} — clean</CardTitle>
+                <Badge variant="sage" size="sm">no merge-blocking issues</Badge>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <span className="text-3xl">✅</span>
+                <p className="text-sm font-semibold text-[var(--sage-deep)]">All clear</p>
+                <p className="text-center text-xs text-ink-faint">10 categories checked — no merge-blocking issues.</p>
+              </CardContent>
+            </>
+          ) : activePass ? (
+            <>
+              <CardHeader>
+                <CardTitle>
+                  <Shield className="size-4 text-accent" />
+                  Pass {activePassNo}
+                  <Badge variant={activePass.findings.length > 0 ? 'amber' : 'sage'} size="sm">
+                    {activePass.findings.length > 0 ? `${activePass.findings.length} findings` : 'clean'}
+                  </Badge>
+                  {allApplied && <Badge variant="sage" size="sm">applied</Badge>}
+                </CardTitle>
+                {!isViewingPast && !allApplied && activePass.findings.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" onClick={selectAll}>Select all</Button>
+                    <Button size="sm" onClick={applySelected} disabled={selected.size === 0 || applying}>
+                      Apply {selected.size} selected
+                    </Button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
+                <div className="grid grid-cols-1 gap-px bg-line/50 sm:grid-cols-2">
+                  {[...activePass.findings]
+                    .map((f, origIdx) => ({ f, origIdx }))
+                    .sort((a, b) => SEVERITY_ORDER.indexOf(a.f.weight) - SEVERITY_ORDER.indexOf(b.f.weight))
+                    .map(({ f, origIdx }) => {
+                      const applied = isApplied(origIdx);
+                      const on = selected.has(origIdx);
+                      const disabled = readOnly || isViewingPast || allApplied || applied || applying;
+                      return (
+                        <button
+                          key={origIdx}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => !disabled && toggleSelect(origIdx)}
+                          className={cn(
+                            'flex flex-col gap-1.5 p-3 text-left transition-colors',
+                            applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50',
+                            disabled && !applied && 'opacity-50',
+                          )}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              'grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors',
+                              applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white'
+                                : on ? 'border-accent bg-accent text-white'
+                                : 'border-line-strong text-ink-faint',
+                            )}>
+                              {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
+                            </span>
+                            <span className={cn('inline-flex w-[54px] shrink-0 items-center justify-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', SEV_STYLE[f.weight] ?? SEV_STYLE.medium)}>
+                              {f.weight}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
+                          <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
+                          {f.evidence && <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p>}
+                          {f.file && <p className="font-mono text-[10px] text-ink-faint">{f.file}{f.line > 0 ? `:${f.line}` : ''}</p>}
+                          {f.suggestion && <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p>}
+                        </button>
+                      );
+                    })}
+                </div>
+                {!isViewingPast && !allApplied && activePass.findings.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
+                    <span className="text-xs text-ink-faint">{selected.size} of {activePass.findings.length} selected</span>
+                    <span className="flex-1" />
+                    <Button size="sm" variant="secondary" onClick={() => {
+                      setSelected(new Set(activePass.findings.map((_, i) => i)));
+                      void applySelected();
+                    }}>Apply all {activePass.findings.length}</Button>
+                    <Button size="sm" onClick={applySelected} disabled={selected.size === 0 || applying}>
+                      Apply {selected.size} selected
+                    </Button>
+                  </div>
+                )}
+                {allApplied && (
+                  <div className="flex items-center gap-2 border-t border-line bg-sage-tint/20 px-3.5 py-2.5">
+                    <Check className="size-3.5 text-[var(--sage-deep)]" />
+                    <span className="text-xs font-medium text-[var(--sage-deep)]">
+                      {activePass.appliedIndices.length} finding{activePass.appliedIndices.length !== 1 ? 's' : ''} applied — re-run review to verify.
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </>
+          ) : null}
+        </Card>
 
-function RoundCard({ round }: { round: { passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] } }) {
-  const counts: Record<ReviewFinding['severity'], number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of round.findings) counts[f.severity] += 1;
-  return (
-    <div className="rounded-[var(--r-md)] border border-line bg-surface p-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-ink">Pass {round.passNo}</span>
-        <Badge variant={round.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-          {round.verdict === 'clean' ? 'clean' : 'changes'}
-        </Badge>
-        <span className="ml-auto text-[11px] text-ink-faint">
-          {round.findings.length} finding{round.findings.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      {round.findings.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
-            <span key={s} className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium', SEVERITY_STYLE[s])}>
-              <span className="font-semibold">{counts[s]}</span>
-              {s}
+        {/* RIGHT — rounds rail */}
+        <aside className="flex min-h-0 flex-col gap-4">
+          <div className={cn('flex items-start gap-3 rounded-[var(--r-lg)] border px-4 py-4',
+            phase === 'resolve' ? 'border-[var(--sage-tint)] bg-[var(--sage-tint)]/40' : 'border-accent-tint bg-accent-tint/40',
+          )}>
+            <span className={cn('mt-0.5 grid size-9 shrink-0 place-items-center rounded-full',
+              phase === 'resolve' ? 'bg-[var(--sage-tint)] text-[var(--sage)]' : 'bg-accent-tint text-accent',
+            )}>
+              {reviewing ? <Loader2 className="size-5 animate-spin" /> : phase === 'resolve' ? <CheckCircle2 className="size-5" /> : <Shield className="size-5" />}
             </span>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-1.5 text-xs text-ink-faint">No critical or high findings.</p>
-      )}
+            <div>
+              <h3 className="text-sm font-semibold text-ink">
+                {reviewing ? 'Reviewing…' : applying ? 'Applying fixes…' : phase === 'resolve' ? 'Review clean' : props.passes.length === 0 ? 'Code review' : `${activePass?.findings.length ?? 0} findings`}
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+                {reviewing ? 'MMA sweeps all 10 categories. Findings appear when complete.'
+                  : applying ? 'Delegate worker applying fixes in worktree.'
+                  : phase === 'resolve' ? 'All merge-blocking issues resolved. Ready to close the loop.'
+                  : props.passes.length === 0 ? '10 review categories: security, test gaps, cross-file ripple…'
+                  : 'Select findings to fix. Each dispatches a delegate worker.'}
+              </p>
+            </div>
+          </div>
+
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader>
+              <CardTitle>Review rounds</CardTitle>
+              {!reviewing && !applying && (
+                <Button size="sm" variant={props.passes.length === 0 ? 'primary' : 'secondary'} onClick={runReview} disabled={readOnly || reviewing || applying}>
+                  <Shield className="size-3" />
+                  {props.passes.length === 0 ? 'Run review' : 'Re-run'}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
+              {reviewing && (
+                <div className="flex items-center gap-2 rounded-[var(--r-md)] border border-accent bg-accent-tint p-2.5">
+                  <Loader2 className="size-3 animate-spin text-accent" />
+                  <span className="text-xs font-semibold">Pass {props.passes.length + 1}</span>
+                  <Badge variant="accent" size="sm">running</Badge>
+                </div>
+              )}
+              {[...props.passes].reverse().map((p) => {
+                const isActive = p.passNo === activePassNo && !reviewing;
+                const counts = sevCounts(p.findings);
+                const hasApplied = p.appliedIndices.length > 0;
+                return (
+                  <button
+                    key={p.passNo}
+                    type="button"
+                    onClick={() => { setActivePassNo(p.passNo); if (props.passes.length > 0) setPhase('judge'); }}
+                    className={cn(
+                      'w-full rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
+                      isActive ? 'border-accent bg-accent-tint' : hasApplied ? 'border-[var(--sage-tint)] hover:bg-sage-tint/10' : 'border-line hover:bg-surface-2',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {hasApplied && <span className="text-[var(--sage)]">✓</span>}
+                        <span className="text-xs font-semibold">Pass {p.passNo}</span>
+                      </div>
+                      <Badge variant={p.findings.length === 0 ? 'sage' : hasApplied ? 'sage' : 'neutral'} size="sm">
+                        {p.findings.length === 0 ? 'clean' : hasApplied ? `${p.appliedIndices.length} fixed` : `${p.findings.length} findings`}
+                      </Badge>
+                    </div>
+                    {p.findings.length > 0 && !hasApplied && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
+                          <span key={s} className={cn('rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold uppercase', SEV_STYLE[s])}>
+                            {counts[s]} {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {hasApplied && p.findings.length - p.appliedIndices.length > 0 && (
+                      <p className="mt-1 text-[10px] text-ink-faint">{p.findings.length - p.appliedIndices.length} accepted</p>
+                    )}
+                  </button>
+                );
+              })}
+              {props.passes.length === 0 && !reviewing && (
+                <p className="py-4 text-center text-xs text-ink-faint">Each round appears here with its findings.</p>
+              )}
+            </CardContent>
+            <CardFooter className="flex-col !items-stretch gap-2">
+              <StageAdvance
+                href={`/projects/${props.projectId}/journal`}
+                label="Continue to Journal"
+                disabled={props.passes.length === 0 || readOnly}
+                testId="review-continue-link"
+              />
+              {props.passes.length === 0 && <TextSm className="text-center !text-ink-faint">Run at least one review first</TextSm>}
+            </CardFooter>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

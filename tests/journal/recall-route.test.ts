@@ -9,7 +9,7 @@ vi.mock('@/auth/current-member', () => ({
   currentSession: async () => null,
 }));
 
-const journalRecall = vi.fn(async (_cwd: string, _input: { query: string }) => ({
+const journalRecall = vi.fn(async (_cwd: string, _input: { prompt: string }) => ({
   batchId: 'b-recall-1',
 }));
 vi.mock('@/mma/server-client', () => ({
@@ -82,7 +82,7 @@ describe('POST /api/journal/recall', () => {
     expect(json).toEqual({ batchId: 'b-recall-1' });
     expect(journalRecall).toHaveBeenCalledTimes(1);
     expect(journalRecall.mock.calls[0]![0]).toBe('/workspace');
-    expect(journalRecall.mock.calls[0]![1]).toEqual({ query: 'how do we gate completion?' });
+    expect(journalRecall.mock.calls[0]![1]).toEqual({ prompt: 'how do we gate completion?' });
   });
 
   it('logs a team-level ops_action_log row (project_id null) on dispatch', async () => {

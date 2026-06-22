@@ -16,8 +16,8 @@ export type RepoStatus = (typeof REPO_STATUS)[number];
 export const PROJECT_VISIBILITY = ['private', 'public'] as const;
 export type ProjectVisibility = (typeof PROJECT_VISIBILITY)[number];
 
-/** project.phase (schema.md §3). design→frozen→build→done. Spec 3 only seeds `design`. */
-export const PROJECT_PHASE = ['design', 'frozen', 'build', 'done'] as const;
+/** project.phase (schema.md §3). design→build→learn. Matches stepper groups. */
+export const PROJECT_PHASE = ['design', 'build', 'learn'] as const;
 export type ProjectPhase = (typeof PROJECT_PHASE)[number];
 
 /** project_member.role (schema.md §3). owner seeded on create; collaborator added later. */

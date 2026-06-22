@@ -22,9 +22,13 @@ function isNotApplicable(v: unknown): boolean {
   );
 }
 
-/** Interpret a terminal envelope: success vs failure + extract the error/cbId. */
+/**
+ * Interpret a terminal envelope (v5.4+): success vs failure + extract error/cbId.
+ * Shape: { task: { status }, output: { contextBlockId }, error: { code, message } | null }
+ */
 export function interpretTerminal(envelope: unknown): TerminalState {
   const env = (envelope ?? {}) as Record<string, unknown>;
+
   const err = env.error;
   let error: { code: string; message: string } | null = null;
   if (err && !isNotApplicable(err)) {
@@ -34,7 +38,14 @@ export function interpretTerminal(envelope: unknown): TerminalState {
       message: typeof e.message === 'string' ? e.message : 'The task failed.',
     };
   }
-  const cb = env.contextBlockId;
+
+  const task = env.task as { status?: string } | undefined;
+  if (!error && task?.status === 'failed') {
+    error = { code: 'pipeline_failed', message: 'Pipeline completed with failed status' };
+  }
+
+  const output = env.output as { contextBlockId?: unknown } | undefined;
+  const cb = output?.contextBlockId;
   return {
     status: error ? 'failed' : 'done',
     error,

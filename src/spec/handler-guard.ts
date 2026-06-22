@@ -13,7 +13,7 @@ import {
 
 /**
  * Shared guard for every Spec-4 write handler (F20/F31): CSRF → auth → membership
- * (public OR project_member; else 403) → phase guard (post-freeze writes 409).
+ * (public OR project_member; else 403) → phase guard (post-lock writes 409).
  * Returns either an error `NextResponse` or the resolved `{ memberId }`.
  */
 export interface GuardedActor {
@@ -50,7 +50,7 @@ export async function guardSpecWrite(
       .limit(1);
     if (!row) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
     if (row.phase !== 'design') {
-      return NextResponse.json({ error: 'Spec is frozen — read-only.' }, { status: 409 });
+      return NextResponse.json({ error: 'Spec is locked — read-only.' }, { status: 409 });
     }
   }
 

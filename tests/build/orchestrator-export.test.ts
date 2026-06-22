@@ -15,10 +15,11 @@ import {
 
 function committedEnvelope(sha: string) {
   return {
-    headline: 'done',
-    costSummary: { totalActualCostUSD: 0.05 },
-    results: [{ status: 'done', error: null }],
-    structuredReport: { commitSha: sha, commitSkipReason: null, filesChanged: [{ path: 'a.ts', summary: 's' }], unresolved: [] },
+    task: { taskId: 't1', type: 'execute_plan', status: 'done' },
+    output: { summary: { commitSha: sha, commitSkipReason: null, unresolved: [] }, filesChanged: ['a.ts'], contextBlockId: null },
+    execution: { sessions: { implementer: 's1', reviewer: null }, worktree: { merged: true, branch: 'b' } },
+    metrics: { totalCostUsd: 0.05 },
+    error: null,
   };
 }
 
@@ -30,12 +31,12 @@ describe('runExecutePipeline', () => {
       'select:project_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'test-repo', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
       'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
       'update:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-1', title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'committed', reviewPolicy: 'full', commitSha: 'WORKER01', fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'update:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'done', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
+      'update:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'learn', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
       'insert:ops_action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
     });
     const mma = new FakeMma({
       'execute-plan': [committedEnvelope('WORKER01')],
-      review: [{ structuredReport: { findings: [{ severity: 'high', claim: 'advisory' }] } }],
+      review: [{ task: { status: 'done' }, output: { summary: { findings: [{ severity: 'high', claim: 'advisory' }] } }, error: null }],
     });
     const git = new FakeGit(makeGitScript({ commitsSince: ['WORKER01'], hasDiff: true }));
     const bus = new RecordingBus();

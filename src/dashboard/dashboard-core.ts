@@ -48,7 +48,7 @@ export interface DashboardMetrics {
   active: number;
   awaitingHuman: number;
   agentsRunning: number;
-  frozenBuild: number;
+  inBuild: number;
   auditIssues: number;
 }
 
@@ -189,10 +189,10 @@ export async function dashboardProjects(
 /** The five flow-health metrics — reduced from the enriched list (no extra round-trips). */
 export function dashboardMetrics(projects: DashboardProject[]): DashboardMetrics {
   return {
-    active: projects.filter((p) => p.phase !== 'done').length,
+    active: projects.filter((p) => p.phase !== 'learn').length,
     awaitingHuman: projects.filter((p) => p.awaitingHuman > 0).length,
     agentsRunning: projects.filter((p) => p.agentsRunning > 0).length,
-    frozenBuild: projects.filter((p) => p.phase === 'frozen' || p.phase === 'build').length,
+    inBuild: projects.filter((p) => p.phase === 'build').length,
     auditIssues: projects.filter((p) => p.openAuditIssues > 0).length,
   };
 }

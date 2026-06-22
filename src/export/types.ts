@@ -17,7 +17,7 @@ export interface CoverMeta {
   componentsApproved: number;
   /** Count of `audit_pass{scope='spec',verdict='clean'}`. */
   auditClean: number;
-  /** Display version, e.g. `v1` or `v1 · frozen`. */
+  /** Display version, e.g. `v1` or `v1 · locked`. */
   version: string;
 }
 

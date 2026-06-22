@@ -51,24 +51,24 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
   });
 });
 
-describe('collect-artifacts — frozen·audited flag (F4)', () => {
-  it('frozen phase + ≥1 clean spec audit ⇒ frozenAudited true', async () => {
+describe('collect-artifacts — locked·audited flag (F4)', () => {
+  it('locked (build) phase + ≥1 clean spec audit ⇒ lockedAudited true', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'frozen' }],
-        [{ ownerId, visibility: 'public', phase: 'frozen' }],
+        [{ ownerId, visibility: 'public', phase: 'build' }],
+        [{ ownerId, visibility: 'public', phase: 'build' }],
       ),
       'select:project_audit_pass': [{ id: 'audit-1' }],
       'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
-    expect(spec.frozenAudited).toBe(true);
+    expect(spec.lockedAudited).toBe(true);
   });
 
-  it('unfrozen project ⇒ frozenAudited false even with a clean audit', async () => {
+  it('unlocked (design) project ⇒ lockedAudited false even with a clean audit', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const db = createMockDb({
@@ -81,7 +81,7 @@ describe('collect-artifacts — frozen·audited flag (F4)', () => {
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
-    expect(spec.frozenAudited).toBe(false);
+    expect(spec.lockedAudited).toBe(false);
   });
 });
 
@@ -112,8 +112,8 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     const specStageId = 'stage-1';
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'frozen' }],
-        [{ ownerId, visibility: 'public', phase: 'frozen' }],
+        [{ ownerId, visibility: 'public', phase: 'build' }],
+        [{ ownerId, visibility: 'public', phase: 'build' }],
       ),
       'select:team_member': [{ displayName: 'Maya Adeyemi' }],
       'select:project_stage': [{ id: specStageId }],
@@ -132,7 +132,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     expect(collected.meta.visibility).toBe('Public');
     expect(collected.meta.componentsApproved).toBe(3);
     expect(collected.meta.auditClean).toBe(2);
-    expect(collected.meta.version).toBe('v2 · frozen');
+    expect(collected.meta.version).toBe('v2 · locked');
 
     expect(collected.sectionHeaders['01']).toEqual({
       status: 'Approved',
@@ -147,7 +147,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     expect(collected.sectionHeaders['04'].roles).toBe('');
   });
 
-  it('an unfrozen project omits the · frozen suffix', async () => {
+  it('an unlocked project omits the · locked suffix', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';

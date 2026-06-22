@@ -14,7 +14,7 @@ const META: CoverMeta = {
   visibility: 'Public',
   componentsApproved: 5,
   auditClean: 2,
-  version: 'v1 · frozen',
+  version: 'v1 · locked',
 };
 
 // A multi-page spec: §03 has a lot of content so it overflows onto a 2nd page.

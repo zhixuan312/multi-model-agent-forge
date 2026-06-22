@@ -37,8 +37,8 @@ function item(over: Partial<DashboardProject>): DashboardProject {
 const projects: DashboardProject[] = [
   item({ id: 'a', name: 'Foo Bar', phase: 'design', isMember: true }),
   item({ id: 'b', name: 'Payments', summary: 'refund flow', phase: 'build', isMember: false }),
-  item({ id: 'c', name: 'Reranker', phase: 'done', isMember: false }),
-  item({ id: 'd', name: 'Frozen thing', phase: 'frozen', isMember: false }),
+  item({ id: 'c', name: 'Reranker', phase: 'learn', isMember: false }),
+  item({ id: 'd', name: 'Another design', phase: 'design', isMember: false }),
 ];
 
 describe('filterProjects (pure)', () => {
@@ -55,10 +55,10 @@ describe('filterProjects (pure)', () => {
     expect(filterProjects(projects, { search: 'rerank', phase: 'all', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['c']);
   });
 
-  it('phase buckets design|frozen→design, build→build, done→done', () => {
+  it('phase buckets design→design, build→build, learn→learn', () => {
     expect(filterProjects(projects, { search: '', phase: 'design', needsAction: false, mine: false }).map((p) => p.id).sort()).toEqual(['a', 'd']);
     expect(filterProjects(projects, { search: '', phase: 'build', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['b']);
-    expect(filterProjects(projects, { search: '', phase: 'done', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['c']);
+    expect(filterProjects(projects, { search: '', phase: 'learn', needsAction: false, mine: false }).map((p) => p.id)).toEqual(['c']);
   });
 
   it('mine filters to owner-or-collaborator; all team shows the full set', () => {

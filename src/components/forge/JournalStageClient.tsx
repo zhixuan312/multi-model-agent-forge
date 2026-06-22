@@ -6,9 +6,11 @@ import {
   Check,
   CheckCircle2,
   ChevronLeft,
+  Loader2,
   Plus,
   Sparkles,
   NotebookPen,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -95,7 +97,7 @@ function frameLearning(raw: string): string {
 }
 
 export function JournalStageClient(props: JournalStageClientProps) {
-  const readOnly = props.phase !== 'build' && props.phase !== 'done';
+  const readOnly = props.phase !== 'build' && props.phase !== 'learn';
   const [learnings, setLearnings] = useState<Learning[]>(props.learnings);
 
   const [phase, setPhase] = useState<JournalPhase>('harvest');
@@ -186,7 +188,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
       />
 
       {phase === 'harvest' ? (
-        <HarvestStage learnings={learnings} onCurate={() => setPhase('curate')} />
+        <HarvestStage
+          projectId={props.projectId}
+          learnings={learnings}
+          onCurate={() => setPhase('curate')}
+          onLearningsLoaded={(ls) => setLearnings(ls)}
+        />
       ) : phase === 'curate' ? (
         <CurateStage
           learnings={learnings}
@@ -206,59 +213,121 @@ export function JournalStageClient(props: JournalStageClientProps) {
   );
 }
 
-/* ── Harvest — all gathered learnings (main), summary (right) — Spec-Outline-style ── */
-function HarvestStage({ learnings, onCurate }: { learnings: Learning[]; onCurate: () => void }) {
+/* ── Harvest — auto-dispatch or show gathered learnings ───────────────────── */
+function HarvestStage({
+  projectId, learnings, onCurate, onLearningsLoaded,
+}: {
+  projectId: string; learnings: Learning[]; onCurate: () => void;
+  onLearningsLoaded: (ls: Learning[]) => void;
+}) {
+  const [harvesting, setHarvesting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function startHarvest() {
+    setHarvesting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/journal/harvest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        setError(json.error ?? `Harvest failed (HTTP ${res.status})`);
+        setHarvesting(false);
+      }
+    } catch {
+      setError('Network error');
+      setHarvesting(false);
+    }
+  }
+
+  // SSE listener for harvest completion
+  useEffect(() => {
+    if (!harvesting) return;
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${projectId}/events`);
+    es.onmessage = (msg) => {
+      try {
+        const e = JSON.parse(msg.data) as Record<string, unknown>;
+        if (e.type === 'dispatch.done' && e.handler === 'journal-harvest') {
+          setHarvesting(false);
+          window.location.reload();
+        }
+        if (e.type === 'dispatch.failed' && e.handler === 'journal-harvest') {
+          setHarvesting(false);
+          setError((e.error as string) ?? 'Harvest failed');
+        }
+      } catch { /* ignore */ }
+    };
+    return () => es.close();
+  }, [harvesting, projectId]);
+
   const sources = [...new Set(learnings.map((l) => l.source))];
+  const empty = learnings.length === 0;
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* MAIN — every harvested learning (2/3) */}
+      {/* MAIN — learnings list or harvest prompt (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <NotebookPen className="size-4 shrink-0 text-accent" />
-            <CardTitle>Harvested learnings</CardTitle>
-            <Badge variant="neutral" size="sm">
-              {learnings.length}
-            </Badge>
+            {harvesting
+              ? <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+              : <NotebookPen className="size-4 shrink-0 text-accent" />
+            }
+            <CardTitle>{harvesting ? 'Harvesting learnings…' : 'Harvested learnings'}</CardTitle>
+            {!empty && <Badge variant="neutral" size="sm">{learnings.length}</Badge>}
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
             <Sparkles className="size-3" /> from the whole run
           </span>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-          {learnings.map((l) => (
-            <div key={l.id} className="rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
-              <div className="flex items-start gap-2.5">
-                <span className="mt-px grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">
-                  {l.num}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="text-sm leading-relaxed text-ink">{l.text}</span>
-                  <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-soft">{l.source}</span>
-                    <CategoryChip c={l.category} />
-                    {l.tags.map((t) => (
-                      <span key={t} className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-faint">#{t}</span>
-                    ))}
-                  </span>
-                </span>
-              </div>
+          {harvesting ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Extracting learnings from the project run…</p>
+              <p className="text-xs text-ink-soft">MMA is analyzing your spec, plan, execution, and review to identify reusable lessons.</p>
             </div>
-          ))}
+          ) : empty ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <NotebookPen className="size-6 text-ink-faint" />
+              <p className="text-sm font-medium text-ink">No learnings harvested yet</p>
+              <p className="text-xs text-ink-soft">Press "Harvest learnings" to extract lessons from the entire project run.</p>
+              {error && <p className="text-sm text-[var(--rose)]">{error}</p>}
+            </div>
+          ) : (
+            learnings.map((l) => (
+              <div key={l.id} className="rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-px grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{l.num}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-sm leading-relaxed text-ink">{l.text}</span>
+                    <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-soft">{l.source}</span>
+                      <CategoryChip c={l.category} />
+                      {l.tags.map((t) => (
+                        <span key={t} className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-faint">#{t}</span>
+                      ))}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
-      {/* RIGHT — summary + move-on (1/3) */}
+      {/* RIGHT — summary + action (1/3) */}
       <aside className="flex min-h-0 flex-col gap-4">
         <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/30 px-4 py-4">
           <NotebookPen className="mt-0.5 size-4 shrink-0 text-accent" />
           <div className="min-w-0">
-            <Eyebrow as="h3" className="text-accent-deep">
-              Close the loop
-            </Eyebrow>
+            <Eyebrow as="h3" className="text-accent-deep">Close the loop</Eyebrow>
             <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-              The journal is durable memory across projects. Recording these means the next run starts knowing what this
-              one learned.
+              The journal is durable memory across projects. Recording these means the next run starts knowing what this one learned.
             </p>
           </div>
         </div>
@@ -267,33 +336,45 @@ function HarvestStage({ learnings, onCurate }: { learnings: Learning[]; onCurate
             <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <div className="flex items-center justify-between border-b border-line pb-2">
-              <span className="text-xs text-ink-faint">Learnings</span>
-              <span className="text-sm font-semibold text-ink">{learnings.length}</span>
-            </div>
-            <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By category</Micro>
-            <div className="space-y-1.5">
-              {LEARNING_CATEGORIES.filter((c) => learnings.some((l) => l.category === c)).map((c) => (
-                <div key={c} className="flex items-center justify-between">
-                  <CategoryChip c={c} />
-                  <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.category === c).length}</span>
+            {empty ? (
+              <TextSm className="!text-ink-faint">Harvest learnings first to see the summary.</TextSm>
+            ) : (
+              <>
+                <div className="flex items-center justify-between border-b border-line pb-2">
+                  <span className="text-xs text-ink-faint">Learnings</span>
+                  <span className="text-sm font-semibold text-ink">{learnings.length}</span>
                 </div>
-              ))}
-            </div>
-            <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By source</Micro>
-            <div className="space-y-1.5">
-              {sources.map((s) => (
-                <div key={s} className="flex items-center justify-between">
-                  <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">{s}</span>
-                  <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.source === s).length}</span>
+                <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By category</Micro>
+                <div className="space-y-1.5">
+                  {LEARNING_CATEGORIES.filter((c) => learnings.some((l) => l.category === c)).map((c) => (
+                    <div key={c} className="flex items-center justify-between">
+                      <CategoryChip c={c} />
+                      <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.category === c).length}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By source</Micro>
+                <div className="space-y-1.5">
+                  {sources.map((s) => (
+                    <div key={s} className="flex items-center justify-between">
+                      <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">{s}</span>
+                      <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.source === s).length}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onCurate} rightIcon={<ArrowRight />}>
-              Curate the learnings
-            </Button>
+          <CardFooter className="flex-col !items-stretch gap-2">
+            {empty ? (
+              <Button className="w-full" onClick={startHarvest} disabled={harvesting} loading={harvesting} leftIcon={<Sparkles />}>
+                {harvesting ? 'Harvesting…' : 'Harvest learnings'}
+              </Button>
+            ) : (
+              <Button className="w-full" onClick={onCurate} rightIcon={<ArrowRight />}>
+                Curate the learnings
+              </Button>
+            )}
           </CardFooter>
         </Card>
       </aside>

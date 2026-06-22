@@ -40,10 +40,15 @@ function createTask(projectId: string, repoId: string, overrides: Partial<{ titl
 
 function committedEnvelope(opts: { commitSha?: string; cost?: number } = {}) {
   return {
-    headline: 'execute_plan: 1 task complete',
-    costSummary: { totalActualCostUSD: opts.cost ?? 0.1 },
-    results: [{ status: 'done', error: null }],
-    structuredReport: { commitSha: opts.commitSha ?? 'WORKER01', commitSkipReason: null, filesChanged: [{ path: 'a.ts', summary: 's' }], unresolved: [] },
+    task: { taskId: 't1', type: 'execute_plan', status: 'done' },
+    output: {
+      summary: { commitSha: opts.commitSha ?? 'WORKER01', commitSkipReason: null, unresolved: [] },
+      filesChanged: ['a.ts'],
+      contextBlockId: null,
+    },
+    execution: { sessions: { implementer: 's1', reviewer: null }, worktree: { merged: true, branch: 'b' } },
+    metrics: { totalCostUsd: opts.cost ?? 0.1 },
+    error: null,
   };
 }
 
@@ -101,9 +106,9 @@ describe('executeTask', () => {
     expect(bus.ofType('task.committed')).toHaveLength(1);
     // execute-plan dispatch shape.
     expect(mma.dispatches[0].body).toMatchObject({
-      filePaths: [expect.stringContaining('.forge')],
-      taskDescriptors: ['Task 1: Do it'],
-      perTaskReviewPolicy: { '0': 'reviewed' },
+      planPath: expect.stringContaining('.forge'),
+      tasks: ['Task 1: Do it'],
+      reviewPolicy: 'reviewed',
     });
   });
 
@@ -114,7 +119,12 @@ describe('executeTask', () => {
       'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
       'update:project_plan_task': [{ ...task, status: 'failed' }],
     });
-    const env = { structuredReport: { commitSha: null, commitSkipReason: 'no_diff', filesChanged: [], unresolved: [] } };
+    const env = {
+      task: { status: 'done' },
+      output: { summary: { commitSha: null, commitSkipReason: 'no_diff', unresolved: [] }, filesChanged: [] },
+      execution: { worktree: { merged: false, branch: 'b' } },
+      error: null,
+    };
     const mma = new FakeMma({ 'execute-plan': [env] });
     const git = new FakeGit(makeGitScript({}));
     const bus = new RecordingBus();
@@ -212,8 +222,8 @@ describe('executeTask', () => {
     });
     expect(out).toEqual({ status: 'committed', commitSha: 'WORKER01' });
     expect(bus.ofType('task.fixing')).toHaveLength(0);
-    // perTaskReviewPolicy maps the typed column.
-    expect(mma.dispatches[0].body).toMatchObject({ perTaskReviewPolicy: { '0': 'none' } });
+    // reviewPolicy maps the typed column.
+    expect(mma.dispatches[0].body).toMatchObject({ reviewPolicy: 'none' });
   });
 
   it('F2: absent build+test commands → vacuous pass → committed', async () => {
@@ -264,7 +274,12 @@ describe('executeTask', () => {
       'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
       'update:project_plan_task': [{ ...task, status: 'halt' }],
     });
-    const env = { results: [{ error: { code: 'validator_no_changes' } }], structuredReport: { commitSha: null, filesChanged: [], unresolved: [] } };
+    const env = {
+      task: { status: 'failed' },
+      output: { summary: { commitSha: null, unresolved: [] }, filesChanged: [] },
+      execution: { worktree: null },
+      error: { code: 'validator_no_changes', message: 'm' },
+    };
     const mma = new FakeMma({ 'execute-plan': [env] });
     const git = new FakeGit(makeGitScript({}));
     const out = await executeTask(buildDeps(db, { mma, git, cmd: new FakeCommandRunner(), fs: new FakePlanFs(), bus: new RecordingBus() }), {

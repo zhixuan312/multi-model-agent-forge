@@ -25,7 +25,7 @@ const META: CoverMeta = {
   visibility: 'Public',
   componentsApproved: 2,
   auditClean: 2,
-  version: 'v1 · frozen',
+  version: 'v1 · locked',
 };
 
 const big = (label: string) =>

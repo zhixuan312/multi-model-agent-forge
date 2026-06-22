@@ -7,10 +7,10 @@
  *  - READY/PENDING: for each of the four deliverable kinds (exploration · spec ·
  *    plan · review), determine whether the latest artifact (or the review batch
  *    result) exists.
- *  - frozen·audited flag (F4): the Specification menu badge is derived —
- *    `project.phase ∈ {frozen,build,done}` AND ≥1 `audit_pass{spec,clean}`.
+ *  - locked·audited flag (F4): the Specification menu badge is derived —
+ *    `project.phase ∈ {build,done}` AND ≥1 `audit_pass{spec,clean}`.
  *  - COVER META (§1a): owner / visibility / components-N-approved /
- *    audit-clean-N / version (+ `· frozen`).
+ *    audit-clean-N / version (+ `· locked`).
  *  - PER-SECTION HEADER MAP (F1): for the spec, `NN → {status, roles}` from the
  *    spec-stage `component` rows (NN = order_index+1, zero-padded).
  *  - REVIEW→MARKDOWN adapter (F25): normalize the review batch result.
@@ -45,8 +45,8 @@ export interface ArtifactMenuItem {
   ready: boolean;
   /** Latest artifact version (null when pending / review). */
   version: number | null;
-  /** Spec only (F4): true ⟺ frozen-phase AND ≥1 clean spec audit. */
-  frozenAudited: boolean;
+  /** Spec only (F4): true ⟺ locked-phase AND ≥1 clean spec audit. */
+  lockedAudited: boolean;
 }
 
 function titleCase(s: string): string {
@@ -134,8 +134,8 @@ async function buildMeta(
   const componentsApproved = comps.filter((c) => c.status === 'approved').length;
   const auditClean = await countCleanSpecAudits(db, projectId);
 
-  const frozen = proj.phase === 'frozen' || proj.phase === 'build' || proj.phase === 'done';
-  const version = `v${artifactVersion}${frozen ? ' · frozen' : ''}`;
+  const locked = proj.phase === 'build' || proj.phase === 'learn';
+  const version = `v${artifactVersion}${locked ? ' · locked' : ''}`;
 
   const sectionHeaders: SectionHeaderMap = {};
   comps.forEach((c, i) => {
@@ -160,7 +160,7 @@ async function buildMeta(
 
 /**
  * The `Export ▾` menu model: one item per deliverable kind with ready/pending +
- * the derived frozen·audited flag for the spec. Visibility-guarded (throws for a
+ * the derived locked·audited flag for the spec. Visibility-guarded (throws for a
  * non-collaborator on a private project).
  */
 export async function collectMenu(
@@ -178,24 +178,24 @@ export async function collectMenu(
     .limit(1);
   if (!proj) throw new Error(`Project ${projectId} not found.`);
 
-  const frozenPhase = proj.phase === 'frozen' || proj.phase === 'build' || proj.phase === 'done';
+  const lockedPhase = proj.phase === 'build' || proj.phase === 'learn';
   const cleanSpecAudits = await countCleanSpecAudits(db, projectId);
 
   const items: ArtifactMenuItem[] = [];
   for (const kind of DELIVERABLE_KINDS) {
     if (kind === 'review') {
       const result = await latestReviewResult(db, projectId);
-      items.push({ kind, label: KIND_LABEL[kind], ready: result != null, version: null, frozenAudited: false });
+      items.push({ kind, label: KIND_LABEL[kind], ready: result != null, version: null, lockedAudited: false });
       continue;
     }
     const art = await latestArtifact(db, projectId, kind);
-    const frozenAudited = kind === 'spec' && frozenPhase && cleanSpecAudits >= 1;
+    const lockedAudited = kind === 'spec' && lockedPhase && cleanSpecAudits >= 1;
     items.push({
       kind,
       label: KIND_LABEL[kind],
       ready: art != null,
       version: art?.version ?? null,
-      frozenAudited,
+      lockedAudited,
     });
   }
   return items;
@@ -238,7 +238,7 @@ export async function collectArtifact(
     if (result == null) throw new ArtifactNotReadyError('review');
     const bodyMd = reviewResultToMarkdown(result);
     // Review has no artifact version; meta version reads the latest artifact present
-    // for the project's frozen suffix — but with no stored artifact, default to v1.
+    // for the project's locked suffix — but with no stored artifact, default to v1.
     const { meta, sectionHeaders } = await buildMeta(db, projectId, 1);
     return { kind, bodyMd, version: null, meta, sectionHeaders };
   }

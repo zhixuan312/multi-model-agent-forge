@@ -8,7 +8,7 @@ function auditEnv(findings: Array<{ severity: string; claim: string }>) {
 }
 
 describe('runPlanAuditPass', () => {
-  it('dispatches audit(subtype=plan) with exactly one filePaths entry', async () => {
+  it('dispatches audit(subtype=plan) with exactly one paths entry', async () => {
     const db = createMockDb({
       'select:project_audit_pass': [],
       'insert:project_audit_pass': [{ id: 'pass-1', projectId: 'proj-1', scope: 'plan', passNo: 1, findingsCount: 0, verdict: 'clean', mmaBatchId: null, createdAt: new Date(), updatedAt: new Date() }],
@@ -21,9 +21,9 @@ describe('runPlanAuditPass', () => {
       { projectId: 'proj-1', repoName: 'test-repo', repoCwd: '/work/a', planFilePath: '/work/a/.forge/plan-x.md', actorId: 'member-1' },
     );
     expect(res.verdict).toBe('clean');
-    const body = mma.dispatches[0].body as { subtype: string; filePaths: string[] };
+    const body = mma.dispatches[0].body as { subtype: string; paths: string[] };
     expect(body.subtype).toBe('plan');
-    expect(body.filePaths).toHaveLength(1);
+    expect(body.paths).toHaveLength(1);
   });
 
   it("clean (no critical/high) → verdict 'clean'; persists an project_audit_pass(scope='plan') row", async () => {

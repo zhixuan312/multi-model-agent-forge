@@ -155,5 +155,5 @@ export async function dispatchRecall(
   workspaceRoot: string,
   query: string,
 ): Promise<{ batchId: string }> {
-  return client.journalRecall(workspaceRoot, { query });
+  return client.journalRecall(workspaceRoot, { prompt: query });
 }

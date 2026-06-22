@@ -3,19 +3,28 @@ import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 describe('extractUsageFields', () => {
   const validEnvelope = {
-    costSummary: {
-      totalActualCostUSD: 0.1234,
-      totalCostDeltaVsMainUSD: 0.5678,
-      totalMainEquivalentUSD: 0.6912,
+    task: { taskId: 't0', type: 'audit', status: 'done' },
+    output: { summary: 'ok', filesChanged: [], contextBlockId: null },
+    execution: {
+      sessions: { implementer: 'sess-impl', reviewer: 'sess-rev' },
+      worktree: null,
     },
-    taskTimings: { wallClockMs: 42000 },
-    totalInputTokens: 5000,
-    totalOutputTokens: 3000,
-    stages: [
-      { name: 'implementing', model: 'deepseek-v4-pro', tier: 'standard', inputTokens: 3000, outputTokens: 2000 },
-      { name: 'reviewing', model: 'gpt-5.5', tier: 'complex', inputTokens: 2000, outputTokens: 1000 },
-    ],
-    results: [{ cost: { implementerUsd: 0.05, reviewerUsd: 0.0734 } }],
+    metrics: {
+      totalCostUsd: 0.1234,
+      savedVsMainCostUsd: 0.5678,
+      mainEquivalentCostUsd: 0.6912,
+      totalDurationMs: 42000,
+      totalUsage: {
+        inputTokens: 5000,
+        outputTokens: 3000,
+        cachedReadTokens: 0,
+        cachedNonReadTokens: 0,
+      },
+      implementer: { durationMs: 30000, costUsd: 0.05, usage: { inputTokens: 3000, outputTokens: 2000, cachedReadTokens: 0, cachedNonReadTokens: 0 } },
+      reviewer: { durationMs: 12000, costUsd: 0.0734, usage: { inputTokens: 2000, outputTokens: 1000, cachedReadTokens: 0, cachedNonReadTokens: 0 } },
+    },
+    raw: { implementer: '', reviewer: '' },
+    error: null,
   };
 
   it('extracts all fields from a well-formed envelope', () => {
@@ -25,9 +34,6 @@ describe('extractUsageFields', () => {
     expect(fields.inputTokens).toBe(5000);
     expect(fields.outputTokens).toBe(3000);
     expect(fields.durationMs).toBe(42000);
-    expect(fields.implementerModel).toBe('deepseek-v4-pro');
-    expect(fields.reviewerModel).toBe('gpt-5.5');
-    expect(fields.implementerTier).toBe('standard');
   });
 
   it('returns nulls for a completely empty envelope', () => {
@@ -51,45 +57,42 @@ describe('extractUsageFields', () => {
     expect(fields.costUsd).toBeNull();
   });
 
-  it('handles missing reviewer stage', () => {
+  it('handles a missing reviewer (single-phase task)', () => {
     const envelope = {
       ...validEnvelope,
-      stages: [{ name: 'implementing', model: 'deepseek-v4-pro' }],
+      metrics: { ...validEnvelope.metrics, reviewer: null },
     };
     const fields = extractUsageFields(envelope);
-    expect(fields.implementerModel).toBe('deepseek-v4-pro');
+    expect(fields.costUsd).toBe('0.1234');
     expect(fields.reviewerModel).toBeNull();
   });
 
-  it('handles totalCostDeltaVsMainUSD = 0 (old envelopes)', () => {
+  it('handles savedVsMainCostUsd = 0', () => {
     const envelope = {
       ...validEnvelope,
-      costSummary: { totalActualCostUSD: 0.1, totalCostDeltaVsMainUSD: 0 },
+      metrics: { ...validEnvelope.metrics, savedVsMainCostUsd: 0 },
     };
     const fields = extractUsageFields(envelope);
     expect(fields.savedVsMainUsd).toBe('0');
   });
 
-  it('handles null totalCostDeltaVsMainUSD', () => {
+  it('handles null savedVsMainCostUsd', () => {
     const envelope = {
       ...validEnvelope,
-      costSummary: { totalActualCostUSD: 0.1, totalCostDeltaVsMainUSD: null },
+      metrics: { ...validEnvelope.metrics, savedVsMainCostUsd: null },
     };
     const fields = extractUsageFields(envelope);
     expect(fields.savedVsMainUsd).toBeNull();
   });
 
-  it('looks up stage by name, not array position', () => {
+  it('returns null tokens when totalUsage is absent', () => {
     const envelope = {
       ...validEnvelope,
-      stages: [
-        { name: 'reviewing', model: 'reviewer-model' },
-        { name: 'implementing', model: 'impl-model' },
-      ],
+      metrics: { ...validEnvelope.metrics, totalUsage: undefined },
     };
     const fields = extractUsageFields(envelope);
-    expect(fields.implementerModel).toBe('impl-model');
-    expect(fields.reviewerModel).toBe('reviewer-model');
+    expect(fields.inputTokens).toBeNull();
+    expect(fields.outputTokens).toBeNull();
   });
 
   it('extracts cost as string for numeric column', () => {

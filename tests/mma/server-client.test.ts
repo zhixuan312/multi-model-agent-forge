@@ -33,7 +33,7 @@ describe('buildMmaClient', () => {
     const realFetch = globalThis.fetch;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), init });
-      return new Response(JSON.stringify({ batchId: 'b-1' }), {
+      return new Response(JSON.stringify({ taskId: 'b-1' }), {
         status: 202,
         headers: { 'content-type': 'application/json' },
       });
@@ -41,7 +41,7 @@ describe('buildMmaClient', () => {
 
     try {
       const client = await buildMmaClient({ db: dbNoSettings(), tiers: noTiers });
-      const res = await client.investigate('/tmp/repo', { question: 'hi there' });
+      const res = await client.investigate('/tmp/repo', { prompt: 'hi there' });
       expect(res.batchId).toBe('b-1');
       expect(headerVal(calls[0]!.init, 'X-MMA-Main-Model')).toBe(DEFAULT_MAIN_MODEL);
     } finally {

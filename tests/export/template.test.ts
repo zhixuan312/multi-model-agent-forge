@@ -13,7 +13,7 @@ const META: CoverMeta = {
   visibility: 'Public',
   componentsApproved: 5,
   auditClean: 2,
-  version: 'v1 · frozen',
+  version: 'v1 · locked',
 };
 
 const SPEC_BODY = [
@@ -63,7 +63,7 @@ describe('template — cover + meta + TOC (F1/F3/F10)', () => {
     expect(html).toContain('Public');
     expect(html).toContain('5 approved');
     expect(html).toContain('clean ×2');
-    expect(html).toContain('v1 · frozen');
+    expect(html).toContain('v1 · locked');
   });
 
   it('renders one Contents TOC row per included section', () => {

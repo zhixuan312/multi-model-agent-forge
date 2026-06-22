@@ -46,7 +46,7 @@ export default async function FreezePage({
   return (
     <FreezeClient
       projectId={id}
-      frozen={proj.phase !== 'design'}
+      locked={proj.phase !== 'design'}
       initialCandidates={candidates.map((c) => ({
         id: c.id,
         bodyMd: c.bodyMd,

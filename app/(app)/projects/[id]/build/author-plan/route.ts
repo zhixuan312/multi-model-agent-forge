@@ -28,7 +28,7 @@ export async function POST(
 
   const spec = await getLatestSpec(db, id);
   if (!spec) {
-    return NextResponse.json({ error: 'No frozen spec to plan from.' }, { status: 409 });
+    return NextResponse.json({ error: 'No locked spec to plan from.' }, { status: 409 });
   }
 
   const repos = await db
@@ -54,7 +54,7 @@ export async function POST(
     handler: 'plan-author',
     cwd: resolveWorkspaceRoot(),
     body: {
-      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nFrozen spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
+      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nLocked spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
       actorId: guard.memberId,
     },
     actorId: guard.memberId,

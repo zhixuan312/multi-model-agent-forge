@@ -26,8 +26,7 @@ describe('deriveNextAction', () => {
   it('stage-driven steps when unblocked', () => {
     expect(deriveNextAction({ ...base, currentStage: 'exploration' })).toEqual({ label: 'Continue exploration', tone: 'normal' });
     expect(deriveNextAction({ ...base, currentStage: 'spec' })).toEqual({ label: 'Continue spec', tone: 'normal' });
-    expect(deriveNextAction({ ...base, phase: 'frozen' })).toEqual({ label: 'Start the build', tone: 'normal' });
     expect(deriveNextAction({ ...base, phase: 'build' })).toEqual({ label: 'Build running', tone: 'info' });
-    expect(deriveNextAction({ ...base, phase: 'done' })).toEqual({ label: 'Done', tone: 'done' });
+    expect(deriveNextAction({ ...base, phase: 'learn' })).toEqual({ label: 'Learn', tone: 'done' });
   });
 });

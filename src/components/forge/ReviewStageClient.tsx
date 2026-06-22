@@ -68,6 +68,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'changes'; findings: ReviewFinding[] }[]>([]);
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   useEffect(
@@ -88,13 +89,46 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     }
   }, [readOnly]);
 
+  // SSE listener for review completion
+  useEffect(() => {
+    if (!reviewing) return;
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
+    es.onmessage = (msg) => {
+      try {
+        const e = JSON.parse(msg.data) as Record<string, unknown>;
+        if (e.type === 'dispatch.done' && e.handler === 'code-review') {
+          setReviewing(false);
+          // Reload the page to pick up the new review round from DB
+          window.location.reload();
+        }
+        if (e.type === 'dispatch.failed' && e.handler === 'code-review') {
+          setReviewing(false);
+        }
+      } catch { /* ignore */ }
+    };
+    return () => es.close();
+  }, [reviewing, props.projectId]);
+
   const reviewClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
-  function runReview() {
-    const passNo = rounds.length + 1;
-    const findings = props.reviewRounds[passNo - 1] ?? [];
-    const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
-    setRounds((r) => [...r, { passNo, verdict: hasCritHigh ? 'changes' : 'clean', findings }]);
+  async function runReview() {
+    setReviewing(true);
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/review/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        console.error('Review dispatch failed:', json.error);
+        setReviewing(false);
+      }
+      // SSE dispatch.done will populate the round — don't setReviewing(false) here
+    } catch {
+      setReviewing(false);
+    }
   }
 
   // Automated driver: inspect → judge → run review (clear crit/high) → resolve → Journal.

@@ -6,7 +6,7 @@ import { mapExportError } from '@/export/route-helpers';
 /**
  * `GET /api/projects/[id]/export/artifacts` (Spec 8 Key flow A) — the `Export ▾`
  * menu model: one item per deliverable kind with ready/pending + the derived
- * frozen·audited flag. Visibility-gated in `collect-artifacts` (403 for a
+ * locked·audited flag. Visibility-gated in `collect-artifacts` (403 for a
  * non-collaborator on a private project).
  */
 export const runtime = 'nodejs';

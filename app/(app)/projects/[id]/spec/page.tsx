@@ -92,7 +92,7 @@ export default async function SpecStagePage({
       projectId={id}
       projectName={proj.name}
       intentMd={proj.intentMd}
-      phase={perms.spec.canMutate ? proj.phase : 'frozen' as any}
+      phase={perms.spec.canMutate ? proj.phase : 'build'}
       mainTierReady={mainTierReady}
       mmaReady={mmaReady}
       defaultKinds={defaultComponentKinds()}

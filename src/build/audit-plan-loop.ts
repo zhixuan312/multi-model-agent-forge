@@ -80,7 +80,7 @@ export async function runPlanAuditPass(
   const bus = deps.bus ?? projectEventBus;
 
   const { batchId } = await deps.mma.auditPlan(args.repoCwd, {
-    filePaths: [args.planFilePath],
+    paths: [args.planFilePath],
     ...(args.contextBlockIds && args.contextBlockIds.length > 0
       ? { contextBlockIds: args.contextBlockIds }
       : {}),

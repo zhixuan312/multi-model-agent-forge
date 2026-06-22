@@ -27,8 +27,8 @@ import type { LearningType } from '@/db/enums';
 /**
  * `FreezeClient` (Spec 4 Part B / `/freeze`) — the learnings-curation island.
  *
- * Two parts: (1) the freeze confirmation banner (the page is reached AFTER the
- * irreversible freeze — `data-phase` is already cold on the layout), and (2) the
+ * Two parts: (1) the spec-lock confirmation banner (the page is reached AFTER the
+ * irreversible lock — `data-phase` is already cold on the layout), and (2) the
  * `learning_candidate` curation list — editable candidates, keep/remove toggles,
  * an "add your own" affordance, and "Record to journal" which dispatches
  * `journal-record` at the workspace root and stamps each `recorded_node_id`.
@@ -60,11 +60,11 @@ async function send<T>(url: string, method: string, body?: unknown): Promise<T> 
 export function FreezeClient({
   projectId,
   initialCandidates,
-  frozen,
+  locked,
 }: {
   projectId: string;
   initialCandidates: LearningCandidateView[];
-  frozen: boolean;
+  locked: boolean;
 }) {
   const [candidates, setCandidates] = useState<LearningCandidateView[]>(initialCandidates);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +123,7 @@ export function FreezeClient({
 
   return (
     <div className="flex flex-col gap-5" data-testid="freeze-screen">
-      <Card data-testid="freeze-banner" data-frozen={frozen ? 'true' : 'false'}>
+      <Card data-testid="freeze-banner" data-locked={locked ? 'true' : 'false'}>
         <CardContent className="flex items-start gap-3">
           <span
             aria-hidden="true"
@@ -133,12 +133,12 @@ export function FreezeClient({
           </span>
           <div className="min-w-0">
             <Title className="!text-lg">
-              {frozen ? 'Specification frozen' : 'Freeze the specification'}
+              {locked ? 'Specification locked' : 'Lock the specification'}
             </Title>
             <Text className="mt-1 !text-sm !text-ink-soft">
-              {frozen
-                ? 'The spec is frozen — this is a point of no return. The project has moved into the Build phase.'
-                : 'Freezing is irreversible. Once frozen, the spec is read-only and the project enters Build.'}
+              {locked
+                ? 'The spec is locked — this is a point of no return. The project has moved into the Build phase.'
+                : 'Locking is irreversible. Once locked, the spec is read-only and the project enters Build.'}
             </Text>
           </div>
         </CardContent>

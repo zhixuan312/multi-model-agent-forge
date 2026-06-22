@@ -41,13 +41,13 @@ describe('MmaClient.dispatch', () => {
 
   it('POSTs /task?cwd=<path> with unified API { type, ... }, returns { batchId }, and sets the three headers', async () => {
     const { fn, calls } = stubFetch(() =>
-      new Response(JSON.stringify({ batchId: 'b-1', statusUrl: '/batch/b-1' }), {
+      new Response(JSON.stringify({ taskId: 'b-1', statusUrl: '/task/b-1' }), {
         status: 202,
         headers: { 'content-type': 'application/json' },
       }),
     );
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
-    const res = await client.dispatch('audit', { cwd: '/work/repo', body: { document: 'hi' } });
+    const res = await client.dispatch('audit', { cwd: '/work/repo', body: { type: 'audit', document: 'hi' } });
 
     expect(res.batchId).toBe('b-1');
     const c = calls[0]!;
@@ -62,19 +62,19 @@ describe('MmaClient.dispatch', () => {
 
   it('honors a client override (interop with the current allowlist-enforcing server)', async () => {
     const { fn, calls } = stubFetch(() =>
-      new Response(JSON.stringify({ batchId: 'b' }), {
+      new Response(JSON.stringify({ taskId: 'b' }), {
         status: 202,
         headers: { 'content-type': 'application/json' },
       }),
     );
     const client = new MmaClient(baseCfg, { fetchImpl: fn, client: 'claude-code' });
-    await client.dispatch('audit', { cwd: '/w', body: {} });
+    await client.dispatch('audit', { cwd: '/w', body: { type: 'audit' } });
     expect(headerVal(calls[0]!.init, 'X-MMA-Client')).toBe('claude-code');
   });
 
   it('omits X-MMA-Main-Model when mainModel is null', async () => {
     const { fn, calls } = stubFetch(() =>
-      new Response(JSON.stringify({ batchId: 'b-2' }), {
+      new Response(JSON.stringify({ taskId: 'b-2' }), {
         status: 202,
         headers: { 'content-type': 'application/json' },
       }),
@@ -100,17 +100,21 @@ describe('MmaClient.dispatch', () => {
 });
 
 describe('MmaClient.poll', () => {
-  it('returns { state: "pending" } on a 202 text/plain headline', async () => {
+  it('returns { state: "pending" } on a 202 JSON running status', async () => {
     const { fn } = stubFetch(() =>
-      new Response('[1/1] Auditing — tools=4', {
+      new Response(JSON.stringify({ taskId: 'b-1', status: 'running', phase: 'Auditing', elapsedMs: 1200 }), {
         status: 202,
-        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        headers: { 'content-type': 'application/json' },
       }),
     );
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
     const r = await client.poll('b-1');
     expect(r.state).toBe('pending');
-    if (r.state === 'pending') expect(r.headline).toContain('Auditing');
+    if (r.state === 'pending') {
+      expect(r.headline).toContain('Auditing');
+      expect(r.phase).toBe('Auditing');
+      expect(r.elapsedMs).toBe(1200);
+    }
   });
 
   it('returns { state: "terminal", envelope } on a 200 application/json envelope', async () => {
@@ -248,17 +252,17 @@ describe('MmaClient.dispatchAndWait', () => {
     let polls = 0;
     const { fn } = stubFetch((url, init) => {
       if (init?.method === 'POST') {
-        return new Response(JSON.stringify({ batchId: 'bw' }), {
+        return new Response(JSON.stringify({ taskId: 'bw' }), {
           status: 202,
           headers: { 'content-type': 'application/json' },
         });
       }
-      // GET /batch/bw
+      // GET /task/bw
       polls += 1;
       if (polls < 2) {
-        return new Response('[0/1] queued', {
+        return new Response(JSON.stringify({ taskId: 'bw', status: 'running', phase: 'queued' }), {
           status: 202,
-          headers: { 'content-type': 'text/plain' },
+          headers: { 'content-type': 'application/json' },
         });
       }
       return new Response(JSON.stringify({ headline: 'done', results: [] }), {

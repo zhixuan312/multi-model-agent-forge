@@ -16,8 +16,8 @@ describe('FreezeClient (learnings curation)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('warns that freeze is irreversible and renders the candidate cards', () => {
-    wrap(<FreezeClient projectId="p1" frozen={true} initialCandidates={candidates} />);
-    expect(screen.getByTestId('freeze-banner')).toHaveAttribute('data-frozen', 'true');
+    wrap(<FreezeClient projectId="p1" locked={true} initialCandidates={candidates} />);
+    expect(screen.getByTestId('freeze-banner')).toHaveAttribute('data-locked', 'true');
     expect(screen.getByText(/point of no return/i)).toBeInTheDocument();
     expect(screen.getAllByTestId('learning-card')).toHaveLength(2);
   });
@@ -31,7 +31,7 @@ describe('FreezeClient (learnings curation)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    wrap(<FreezeClient projectId="p1" frozen={true} initialCandidates={candidates} />);
+    wrap(<FreezeClient projectId="p1" locked={true} initialCandidates={candidates} />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -51,7 +51,7 @@ describe('FreezeClient (learnings curation)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    wrap(<FreezeClient projectId="p1" frozen={true} initialCandidates={candidates} />);
+    wrap(<FreezeClient projectId="p1" locked={true} initialCandidates={candidates} />);
     fireEvent.click(screen.getByRole('button', { name: 'Record to journal' }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -69,7 +69,7 @@ describe('FreezeClient (learnings curation)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    wrap(<FreezeClient projectId="p1" frozen={true} initialCandidates={[]} />);
+    wrap(<FreezeClient projectId="p1" locked={true} initialCandidates={[]} />);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/projects/p1/spec/learnings',

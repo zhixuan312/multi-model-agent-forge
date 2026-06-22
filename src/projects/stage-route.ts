@@ -24,13 +24,11 @@ export function stageRoute(kind: StageKind, projectId: string): string {
 }
 
 /**
- * `project.phase` → `data-phase` value (Spec 3 flow 3). The CSS token set has
- * two visual worlds (`design | build`) mapped from `project.phase`.
- * `done` reuses Build's cool palette.
+ * `project.phase` → `data-phase` CSS token. Three stepper groups map to two
+ * visual worlds: design (warm) and build/learn (cool).
  */
 export const DATA_PHASE: Record<ProjectPhase, 'design' | 'build'> = {
   design: 'design',
-  frozen: 'design',
   build: 'build',
-  done: 'build',
+  learn: 'build',
 } as const;

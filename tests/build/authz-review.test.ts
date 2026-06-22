@@ -57,7 +57,7 @@ describe('execute authorization (F10)', () => {
 describe('reviewRepo verdict derivation (F4)', () => {
   it('changes_required iff ≥1 critical/high; emits review.done', async () => {
     const bus = new RecordingBus();
-    const mma = new FakeMma({ review: [{ structuredReport: { findings: [{ severity: 'critical', claim: 'sqli' }, { severity: 'low', claim: 'nit' }] } }] });
+    const mma = new FakeMma({ review: [{ task: { status: 'done' }, output: { summary: { findings: [{ severity: 'critical', claim: 'sqli' }, { severity: 'low', claim: 'nit' }] } }, error: null }] });
     const res = await reviewRepo(
       { mma: mma as unknown as any, bus, pollIntervalMs: 1 },
       { projectId: 'p1', repoName: 'svc', repoCwd: '/work/svc', changedFiles: ['a.ts'] },
@@ -68,7 +68,7 @@ describe('reviewRepo verdict derivation (F4)', () => {
   });
 
   it('approved for only medium/low; advisory error on a failed batch', async () => {
-    const mma = new FakeMma({ review: [{ structuredReport: { findings: [{ severity: 'medium', claim: 'x' }] } }] });
+    const mma = new FakeMma({ review: [{ task: { status: 'done' }, output: { summary: { findings: [{ severity: 'medium', claim: 'x' }] } }, error: null }] });
     const approved = await reviewRepo(
       { mma: mma as unknown as any, bus: new RecordingBus(), pollIntervalMs: 1 },
       { projectId: 'p1', repoName: 'svc', repoCwd: '/work/svc', changedFiles: [] },

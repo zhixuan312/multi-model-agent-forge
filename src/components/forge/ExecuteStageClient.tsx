@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -8,10 +8,8 @@ import {
   Loader2,
   GitBranch,
   Rocket,
-  Boxes,
-  FileCode,
-  Circle,
   XCircle,
+  Circle,
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -26,238 +24,234 @@ import {
   Banner,
   TextSm,
   Eyebrow,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/components/ui';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
+import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 
-export interface ExecUnit {
-  id: string;
-  num: number;
-  title: string;
-  repo: string;
-  dependsOn: string[];
-  filesCount: number;
-  dbStatus?: string;
-  branch?: string | null;
-  commitSha?: string | null;
+/* ── Props ───────────────────────────────────────────────────────────── */
+
+export interface RepoTerminalResult {
+  status: 'done' | 'failed';
+  durationMs: number | null;
+  costUsd: number | null;
+  filesChanged: string[];
+  worktreeMerged: boolean;
+  branch: string | null;
 }
-
-type ExecPhase = 'dispatch' | 'run' | 'land';
 
 export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
-  planVersion: number;
   phase: ProjectPhase;
-  mmaReady: boolean;
-  units: ExecUnit[];
-  writeTargets: string[];
+  repoGroups: RepoGroup[];
+  buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
+  terminalResults?: Record<string, RepoTerminalResult>;
 }
 
-/** Job-level state driven by SSE dispatch.progress events. */
-interface JobProgress {
-  phase: string;
-  elapsedMs: number;
-  totalTasks: number;
-}
+/* ── Types ───────────────────────────────────────────────────────────── */
 
-/** Terminal result populated from dispatch.done + page refresh. */
-type TerminalResult = 'committed' | 'failed' | null;
-
-function inferPhase(units: ExecUnit[]): ExecPhase {
-  if (units.length === 0) return 'dispatch';
-  const hasStarted = units.some((u) => u.dbStatus && u.dbStatus !== 'queued');
-  if (!hasStarted) return 'dispatch';
-  const allTerminal = units.every((u) => u.dbStatus === 'committed' || u.dbStatus === 'failed' || u.dbStatus === 'skipped');
-  if (allTerminal) return 'land';
-  return 'run';
+type RepoJobStatus = 'queued' | 'implementing' | 'reviewing' | 'done' | 'failed';
+interface RepoJobState {
+  status: RepoJobStatus;
+  elapsedMs?: number;
+  totalTasks?: number;
+  costUsd?: number;
+  filesChanged?: string[];
+  prUrl?: string | null;
+  error?: string;
 }
 
 function formatElapsed(ms: number): string {
   const secs = Math.floor(ms / 1000);
   if (secs < 60) return `${secs}s`;
   const mins = Math.floor(secs / 60);
-  const rem = secs % 60;
-  return `${mins}m ${rem}s`;
+  return `${mins}m ${secs % 60}s`;
 }
 
-const PHASE_LABEL: Record<string, string> = {
-  implementing: 'Implementing',
-  reviewing: 'Reviewing',
-  running: 'Running',
-};
+function progressPct(status: RepoJobStatus): number {
+  if (status === 'implementing') return 40;
+  if (status === 'reviewing') return 80;
+  if (status === 'done' || status === 'failed') return 100;
+  return 0;
+}
 
-export function ExecuteStageClient(props: ExecuteStageClientProps) {
+/* ── Main Component ──────────────────────────────────────────────────── */
+
+export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
   const readOnly = props.phase === 'learn';
-  const { units } = props;
+  const derivedPhase = inferExecutePhase(props.repoGroups);
+  const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
-  const initialPhase = inferPhase(units);
-  const [phase, setPhase] = useState<ExecPhase>(initialPhase);
-  const [maxPhase, setMaxPhase] = useState<ExecPhase>(initialPhase);
+  const setExecPhase = (p: ExecutePhase) => {
+    setExecPhaseRaw(p);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('phase', p);
+      router.push(url.pathname + url.search, { scroll: false });
+      fetch(`/api/projects/${props.projectId}/phase`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'execute', phase: p }),
+      }).catch(() => {});
+    }
+  };
+  const [branches, setBranches] = useState<Record<string, string>>(
+    () => Object.fromEntries(props.repoGroups.map((g) => [g.repoId, g.targetBranch])),
+  );
   const [dispatching, setDispatching] = useState(false);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
-  const [jobProgress, setJobProgress] = useState<JobProgress>({ phase: 'implementing', elapsedMs: 0, totalTasks: units.length });
-  const [terminalResult, setTerminalResult] = useState<TerminalResult>(
-    initialPhase === 'land'
-      ? units.every((u) => u.dbStatus === 'committed') ? 'committed' : 'failed'
-      : null,
-  );
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
 
-  const PHASE_ORDER: ExecPhase[] = ['dispatch', 'run', 'land'];
-  const advancePhase = (next: ExecPhase) => {
-    setPhase(next);
-    setMaxPhase((prev) => PHASE_ORDER.indexOf(next) > PHASE_ORDER.indexOf(prev) ? next : prev);
-  };
+  // Monitor state — seed from terminal results if available
+  const [jobs, setJobs] = useState<Record<string, RepoJobState>>(() =>
+    Object.fromEntries(
+      props.repoGroups.map((g) => {
+        const tr = props.terminalResults?.[g.repoId];
+        const pr = props.buildPrs[g.repoId];
+        if (tr?.status === 'done') {
+          return [g.repoId, {
+            status: 'done' as const,
+            elapsedMs: tr.durationMs ?? undefined,
+            costUsd: tr.costUsd ?? undefined,
+            filesChanged: tr.filesChanged,
+            prUrl: pr?.url ?? null,
+          }];
+        }
+        if (tr?.status === 'failed') {
+          return [g.repoId, {
+            status: 'failed' as const,
+            elapsedMs: tr.durationMs ?? undefined,
+            costUsd: tr.costUsd ?? undefined,
+            error: 'Execution failed',
+          }];
+        }
+        const allCommitted = g.tasks.every((t) => t.status === 'committed');
+        if (allCommitted) return [g.repoId, { status: 'done' as const, prUrl: pr?.url ?? null }];
+        const anyFailed = g.tasks.some((t) => t.status === 'failed');
+        if (anyFailed) return [g.repoId, { status: 'failed' as const, error: 'Execution failed' }];
+        const anyRunning = g.tasks.some((t) => t.status === 'executing');
+        return [g.repoId, { status: anyRunning ? ('implementing' as const) : ('queued' as const) }];
+      }),
+    ),
+  );
 
-  useEffect(() => stagePhaseStore.set(phase), [phase]);
+  useEffect(() => stagePhaseStore.set(execPhase), [execPhase]);
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        const target = key as ExecPhase;
-        if (PHASE_ORDER.includes(target) && PHASE_ORDER.indexOf(target) <= PHASE_ORDER.indexOf(maxPhase)) {
-          setPhase(target);
-        }
+        if (key === 'configure' || key === 'monitor') setExecPhase(key as ExecutePhase);
       }),
-    [maxPhase],
+    [],
   );
 
+  // SSE listener for monitor phase
   useEffect(() => {
-    if (readOnly) return;
-    if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('Forge is driving — dispatching the plan…');
-      setAuto('running');
-    }
-  }, [readOnly]);
-
-  // SSE listener: job-level progress + terminal events
-  useEffect(() => {
-    if (phase !== 'run') return;
+    if (execPhase !== 'monitor') return;
     if (typeof EventSource === 'undefined') return;
     const es = new EventSource(`/api/projects/${props.projectId}/events`);
     es.onmessage = (msg) => {
       try {
         const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if (e.type === 'dispatch.progress' && e.handler === 'execute-pipeline') {
-          setJobProgress({
-            phase: (e.phase as string) ?? 'running',
-            elapsedMs: (e.elapsedMs as number) ?? 0,
-            totalTasks: (e.totalTasks as number) ?? units.length,
-          });
+        if (e.handler !== 'execute-pipeline' || !e.repoId) return;
+        const rid = e.repoId as string;
+        if (e.type === 'dispatch.progress') {
+          setJobs((prev) => ({
+            ...prev,
+            [rid]: {
+              status: (e.phase as string) === 'reviewing' ? 'reviewing' : 'implementing',
+              elapsedMs: e.elapsedMs as number,
+              totalTasks: e.totalTasks as number,
+            },
+          }));
         }
-        if (e.type === 'dispatch.done' && e.handler === 'execute-pipeline') {
-          setTerminalResult('committed');
-          advancePhase('land');
+        if (e.type === 'dispatch.done') window.location.reload();
+        if (e.type === 'dispatch.failed') {
+          setJobs((prev) => ({ ...prev, [rid]: { status: 'failed', error: (e.error as string) ?? 'Failed' } }));
         }
-        if (e.type === 'dispatch.failed' && e.handler === 'execute-pipeline') {
-          setTerminalResult('failed');
-          advancePhase('land');
-        }
-      } catch { /* ignore */ }
+      } catch {}
     };
     return () => es.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, props.projectId]);
+  }, [execPhase, props.projectId]);
 
-  // Automated driver
-  useEffect(() => {
-    if (auto !== 'running' || readOnly) return;
-    const t = setTimeout(() => {
-      if (phase === 'dispatch') {
-        setAutoNote('Dispatched the plan to MMA execute-plan…');
-        advancePhase('run');
-      } else if (phase === 'land') {
-        router.push(`/projects/${props.projectId}/review?auto=1`);
+  async function startExecution() {
+    setDispatching(true);
+    setDispatchError(null);
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/build/start-execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repos: props.repoGroups.map((g) => ({ repoId: g.repoId, targetBranch: branches[g.repoId] })),
+        }),
+      });
+      if (res.status === 202) {
+        setDispatching(false);
+        setExecPhase('monitor');
+        // Init all jobs to implementing
+        setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
+      } else {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setDispatchError(json.error ?? `Dispatch failed (HTTP ${res.status})`);
+        setDispatching(false);
       }
-    }, 1000);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, phase, readOnly]);
+    } catch {
+      setDispatchError('Network error');
+      setDispatching(false);
+    }
+  }
+
+  const allTerminal = props.repoGroups.every((g) => {
+    const j = jobs[g.repoId];
+    return j?.status === 'done' || j?.status === 'failed';
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">
-      {!props.mmaReady ? (
-        <Banner
-          variant="warning"
-          title="The MMA token is not configured."
-          description={
-            <>
-              <a href="/settings/connections" className="font-medium underline">Configure the MMA token</a>{' '}
-              to dispatch the plan to workers.
-            </>
-          }
-        />
-      ) : null}
-
       <AutomationBar
         mode={auto}
         note={autoNote}
         disabled={readOnly}
-        idleHint="Dispatch the plan yourself and watch it run, or let Forge run Execute → Review → Journal."
-        runningHint="Forge dispatches the plan, runs every task, lands the commits, then hands off to review. Stop anytime."
-        onRun={() => { setAutoNote('Forge is driving — dispatching the plan…'); setAuto('running'); }}
-        onStop={() => { setAuto('off'); setAutoNote('Stopped — you have the wheel.'); }}
+        idleHint="Pick target branches and start execution, or let Forge drive."
+        runningHint="Forge dispatches the plan, runs every task, creates PRs, then hands off to review."
+        onRun={() => {
+          setAutoNote('Starting execution…');
+          setAuto('running');
+          startExecution();
+        }}
+        onStop={() => {
+          setAuto('off');
+          setAutoNote('Stopped.');
+        }}
       />
 
-      {phase === 'dispatch' ? (
-        <DispatchStage
+      {execPhase === 'configure' ? (
+        <ConfigurePhase
           projectName={props.projectName}
-          planVersion={props.planVersion}
-          units={units}
-          writeTargets={props.writeTargets}
-          readOnly={readOnly}
+          repoGroups={props.repoGroups}
+          branches={branches}
+          onBranchChange={(repoId, branch) => setBranches((b) => ({ ...b, [repoId]: branch }))}
           dispatching={dispatching}
           dispatchError={dispatchError}
-          onDispatch={async () => {
-            setDispatching(true);
-            setDispatchError(null);
-            try {
-              const res = await fetch(`/api/projects/${props.projectId}/build/start-execute`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
-              });
-              if (res.status === 202) {
-                setDispatching(false);
-                advancePhase('run');
-              } else {
-                const ct = res.headers.get('content-type') ?? '';
-                let msg: string;
-                if (ct.includes('application/json')) {
-                  const json = await res.json().catch(() => ({})) as { error?: string };
-                  msg = json.error ?? `Dispatch failed (HTTP ${res.status})`;
-                } else if (res.status === 404) {
-                  msg = 'Execute endpoint not found — the MMA service may not be configured.';
-                } else {
-                  msg = `Dispatch failed (HTTP ${res.status})`;
-                }
-                setDispatchError(msg);
-                setDispatching(false);
-              }
-            } catch {
-              setDispatchError('Network error');
-              setDispatching(false);
-            }
-          }}
-        />
-      ) : phase === 'run' ? (
-        <RunStage
-          projectName={props.projectName}
-          units={units}
-          writeTargets={props.writeTargets}
-          progress={jobProgress}
+          readOnly={readOnly}
+          onStart={startExecution}
         />
       ) : (
-        <LandStage
+        <MonitorPhase
           projectId={props.projectId}
           projectName={props.projectName}
-          units={units}
-          writeTargets={props.writeTargets}
-          terminalResult={terminalResult}
+          repoGroups={props.repoGroups}
+          jobs={jobs}
+          buildPrs={props.buildPrs}
+          allTerminal={allTerminal}
           readOnly={readOnly}
         />
       )}
@@ -265,70 +259,81 @@ export function ExecuteStageClient(props: ExecuteStageClientProps) {
   );
 }
 
-/* ── Dispatch ─────────────────────────────────────────────────────────────── */
-function DispatchStage({
-  projectName, planVersion, units, writeTargets, readOnly, onDispatch, dispatching, dispatchError,
+/* ── Configure Phase ─────────────────────────────────────────────────── */
+
+function ConfigurePhase({
+  projectName, repoGroups, branches, onBranchChange, dispatching, dispatchError, readOnly, onStart,
 }: {
-  projectName: string; planVersion: number; units: ExecUnit[]; writeTargets: string[];
-  readOnly: boolean; onDispatch: () => void; dispatching?: boolean; dispatchError?: string | null;
+  projectName: string;
+  repoGroups: RepoGroup[];
+  branches: Record<string, string>;
+  onBranchChange: (repoId: string, branch: string) => void;
+  dispatching: boolean;
+  dispatchError: string | null;
+  readOnly: boolean;
+  onStart: () => void;
 }) {
+  const totalTasks = repoGroups.reduce((n, g) => n + g.tasks.length, 0);
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+      {/* LEFT — scrollable task list card */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <Boxes className="size-4 shrink-0 text-accent" />
-            <CardTitle>Execution queue</CardTitle>
-            <Badge variant="neutral" size="sm">{units.length} tasks</Badge>
+            <GitBranch className="size-4 shrink-0 text-accent" />
+            <CardTitle>Execution plan</CardTitle>
+            <Badge variant="neutral" size="sm">{totalTasks} tasks · {repoGroups.length} repo{repoGroups.length > 1 ? 's' : ''}</Badge>
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent-tint px-2.5 py-1 text-[11px] font-medium text-accent-deep">
             <Rocket className="size-3" /> MMA execute-plan
           </span>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-1.5 overflow-y-auto !py-4">
-          {units.map((u) => (
-            <div key={u.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
-              <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{u.num}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{u.title}</span>
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-faint">
-                <GitBranch className="size-2.5" /> {u.repo}
-              </span>
-              <Circle className="size-3 shrink-0 text-line-strong" />
-            </div>
+        <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto !py-4">
+          {repoGroups.map((g) => (
+            <RepoConfigCard key={g.repoId} group={g} targetBranch={branches[g.repoId] ?? g.defaultBranch} onBranchChange={(b) => onBranchChange(g.repoId, b)} />
           ))}
         </CardContent>
       </Card>
 
+      {/* RIGHT — note + card filling rest of column */}
       <aside className="flex min-h-0 flex-col gap-4">
-        <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/30 px-4 py-4">
-          <Rocket className="mt-0.5 size-4 shrink-0 text-accent" />
-          <div className="min-w-0">
-            <Eyebrow as="h3" className="text-accent-deep">Ready to execute</Eyebrow>
-            <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-              Forge hands the plan to MMA execute-plan. All tasks run in one session inside an isolated worktree. Changes merge back when done.
-            </p>
+        <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
+            <Rocket className="size-5" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Ready to execute</h3>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Each repo runs in its own isolated worktree session</li>
+              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">All tasks execute sequentially, then reviewed</li>
+              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">A PR is created per repo when complete</li>
+            </ul>
           </div>
         </div>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>{projectName}</CardTitle>
-            <Badge variant="sage" size="sm">plan · v{planVersion}</Badge>
+            <Badge variant="neutral" size="sm">plan</Badge>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <Stat label="Tasks" value={`${units.length}`} />
-            <Stat label="Write targets" value={`${writeTargets.length}`} />
-            <div className="flex flex-wrap gap-1.5">
-              {writeTargets.map((r) => (
-                <span key={r} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-soft">
-                  <GitBranch className="size-2.5" /> {r}
-                </span>
+          <CardContent className="min-h-0 flex-1 space-y-2.5 !py-4">
+            <Stat label="Repos" value={`${repoGroups.length}`} />
+            <Stat label="Tasks" value={`${totalTasks}`} />
+            <Stat label="PRs" value={`${repoGroups.length}`} />
+            <div className="mt-2">
+              <Eyebrow className="mb-1.5 !text-ink-faint">Branch plan</Eyebrow>
+              {repoGroups.map((g) => (
+                <div key={g.repoId} className="flex items-center gap-1.5 text-[11px] text-ink-faint">
+                  <GitBranch className="size-2.5" />
+                  {g.forgeBranch} → {branches[g.repoId] ?? g.defaultBranch}
+                </div>
               ))}
             </div>
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {dispatchError ? <p className="text-sm text-[var(--rose)]">{dispatchError}</p> : null}
-            <Button className="w-full" onClick={onDispatch} disabled={readOnly || dispatching} loading={dispatching} leftIcon={<Rocket />}>
-              {dispatching ? 'Dispatching…' : 'Dispatch to workers'}
+            {dispatchError && <p className="text-sm text-[var(--rose)]">{dispatchError}</p>}
+            <Button className="w-full" onClick={onStart} disabled={readOnly || dispatching} loading={dispatching} leftIcon={<Rocket />}>
+              {dispatching ? 'Dispatching…' : repoGroups.length > 1 ? `Start execution (${repoGroups.length} repos)` : 'Start execution'}
             </Button>
           </CardFooter>
         </Card>
@@ -337,229 +342,269 @@ function DispatchStage({
   );
 }
 
+function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGroup; targetBranch: string; onBranchChange: (b: string) => void }) {
+  return (
+    <div className="rounded-[var(--r-lg)] border border-line">
+      <div className="flex items-center justify-between bg-surface-2 px-4 py-3 first:rounded-t-[var(--r-lg)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <GitBranch className="size-4 shrink-0 text-ink-soft" />
+          <span className="text-sm font-semibold">{group.repoName}</span>
+          <Badge variant="neutral" size="sm">{group.tasks.length} tasks</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-ink-faint">Target:</span>
+          <Select value={targetBranch} onValueChange={onBranchChange}>
+            <SelectTrigger aria-label={`Target branch for ${group.repoName}`} className="!h-7 w-auto min-w-[120px] !text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {group.branches.map((b) => (
+                <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-1.5 px-4 py-3">
+        {group.tasks.map((t, i) => (
+          <div key={t.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+            <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{i + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.title}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 border-t border-line px-4 py-2 text-[11px] text-ink-faint">
+        <GitBranch className="size-3" />
+        {group.forgeBranch} → {targetBranch}
+      </div>
+    </div>
+  );
+}
+
+/* ── Monitor Phase ───────────────────────────────────────────────────── */
+
+function MonitorPhase({
+  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly,
+}: {
+  projectId: string;
+  projectName: string;
+  repoGroups: RepoGroup[];
+  jobs: Record<string, RepoJobState>;
+  buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
+  allTerminal: boolean;
+  readOnly: boolean;
+}) {
+  const doneCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'done').length;
+  const failedCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'failed').length;
+  const totalTasks = repoGroups.reduce((n, g) => n + g.tasks.length, 0);
+  const maxElapsed = Math.max(...repoGroups.map((g) => jobs[g.repoId]?.elapsedMs ?? 0));
+  const anyRunning = repoGroups.some((g) => { const s = jobs[g.repoId]?.status; return s === 'implementing' || s === 'reviewing'; });
+
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+      {/* LEFT — repo job cards inside a Card with scrollable content */}
+      <Card className="flex min-h-0 flex-col lg:col-span-2">
+        <CardHeader>
+          <div className="flex min-w-0 items-center gap-2">
+            {allTerminal
+              ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
+              : <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+            }
+            <CardTitle>{allTerminal ? 'Execution complete' : 'Executing…'}</CardTitle>
+            <Badge variant={allTerminal ? 'sage' : 'accent'} size="sm">
+              {allTerminal ? `${doneCount} done` : `${doneCount}/${repoGroups.length}`}
+            </Badge>
+          </div>
+          {maxElapsed > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-ink-faint font-mono">
+              <Clock className="size-3" /> {formatElapsed(maxElapsed)}
+            </span>
+          )}
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4" role="status" aria-live="polite">
+          {repoGroups.map((g) => (
+            <RepoJobCard key={g.repoId} group={g} job={jobs[g.repoId] ?? { status: 'queued' }} pr={buildPrs[g.repoId]} />
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* RIGHT — note + summary card filling column */}
+      <aside className="flex min-h-0 flex-col gap-4">
+        {anyRunning && (
+          <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
+              <Loader2 className="size-5 animate-spin" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Executing plan</h3>
+              <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Tasks run sequentially in an isolated worktree</li>
+                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Reviewer verifies the implementation after</li>
+                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">PR created automatically when complete</li>
+              </ul>
+            </div>
+          </div>
+        )}
+        {allTerminal && (
+          <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-[var(--sage-tint)] bg-[var(--sage-tint)]/40 px-4 py-4">
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--sage-tint)] text-[var(--sage)]">
+              <CheckCircle2 className="size-5" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Execution complete</h3>
+              <p className="mt-1 text-xs leading-relaxed text-ink-soft">All repos have finished. Review the results and continue to code review.</p>
+            </div>
+          </div>
+        )}
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader>
+            <CardTitle>Execution</CardTitle>
+            <Badge variant={allTerminal ? 'sage' : 'accent'} size="sm">{allTerminal ? 'complete' : 'running'}</Badge>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 space-y-2.5 !py-4">
+            <Stat label="Repos" value={`${doneCount} / ${repoGroups.length} done`} />
+            {failedCount > 0 && <Stat label="Failed" value={`${failedCount}`} />}
+            <Stat label="Tasks" value={`${totalTasks}`} />
+            {(() => {
+              const totalFiles = Object.values(jobs).reduce((n, j) => n + (j.filesChanged?.length ?? 0), 0);
+              const totalCost = Object.values(jobs).reduce((n, j) => n + (j.costUsd ?? 0), 0);
+              const totalDuration = Math.max(...Object.values(jobs).map((j) => j.elapsedMs ?? 0));
+              return (
+                <>
+                  {totalFiles > 0 && <Stat label="Files changed" value={`${totalFiles}`} />}
+                  {totalCost > 0 && <Stat label="Cost" value={`$${totalCost.toFixed(2)}`} />}
+                  {totalDuration > 0 && <Stat label="Duration" value={formatElapsed(totalDuration)} />}
+                </>
+              );
+            })()}
+            {Object.keys(buildPrs).length > 0 && (
+              <div className="mt-2">
+                <Eyebrow className="mb-1.5 !text-ink-faint">Pull requests</Eyebrow>
+                {Object.entries(buildPrs).map(([rid, pr]) => (
+                  <a key={rid} href={pr.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-accent underline">
+                    {pr.branch} → {pr.targetBranch}
+                  </a>
+                ))}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex-col !items-stretch gap-2">
+            <StageAdvance
+              href={`/projects/${projectId}/review`}
+              label="Continue to Review"
+              disabled={!allTerminal || readOnly}
+              testId="execute-continue-link"
+            />
+            {!allTerminal && <TextSm className="text-center !text-ink-faint">Waiting for all repos to complete</TextSm>}
+          </CardFooter>
+        </Card>
+      </aside>
+    </div>
+  );
+}
+
+function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; pr?: { url: string; branch: string; targetBranch: string } }) {
+  const isDone = job.status === 'done';
+  const isFailed = job.status === 'failed';
+  const isRunning = job.status === 'implementing' || job.status === 'reviewing';
+  const isReviewing = job.status === 'reviewing';
+
+  const borderColor = isDone ? 'border-[var(--sage-tint)]' : isFailed ? 'border-[var(--rose-tint)]' : isRunning ? 'border-accent-tint' : 'border-line';
+
+  return (
+    <div className={cn('rounded-[var(--r-lg)] border', borderColor)}>
+      <div className={cn('flex items-center justify-between px-4 py-3 border-b', isDone ? 'border-b-[var(--sage-tint)]' : isFailed ? 'border-b-[var(--rose-tint)]' : isRunning ? 'border-b-accent-tint' : 'border-b-line')}>
+        <div className="flex min-w-0 items-center gap-2">
+          {isDone ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" /> : isFailed ? <XCircle className="size-4 shrink-0 text-[var(--rose)]" /> : isRunning ? <Loader2 className="size-4 shrink-0 animate-spin text-accent" /> : <Circle className="size-4 shrink-0 text-line-strong" />}
+          <span className="font-semibold text-sm">{group.repoName}</span>
+          <Badge variant={isDone ? 'sage' : isFailed ? 'rose' : isRunning ? 'accent' : 'neutral'} size="sm">{job.status}</Badge>
+        </div>
+        {(isDone || isFailed) && job.elapsedMs != null && (
+          <span className="text-xs text-ink-faint font-mono">{formatElapsed(job.elapsedMs)}{job.costUsd != null ? ` · $${job.costUsd.toFixed(2)}` : ''}</span>
+        )}
+        {isRunning && job.elapsedMs != null && (
+          <span className="text-xs text-ink-faint font-mono">{formatElapsed(job.elapsedMs)}</span>
+        )}
+      </div>
+      <div className="space-y-3 px-4 py-3">
+        {/* Progress bar */}
+        <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ede8]">
+          <div
+            className={cn('h-full rounded-full transition-all duration-700', isDone ? 'bg-[var(--sage)]' : isFailed ? 'bg-[var(--rose)]' : 'bg-accent')}
+            style={{ width: `${progressPct(job.status)}%` }}
+          />
+        </div>
+
+        {/* Phase pills (running) */}
+        {isRunning && (
+          <div className="flex items-center gap-1.5">
+            <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isReviewing ? 'bg-[var(--sage-tint)] text-[var(--sage-deep)]' : 'bg-accent-tint text-accent-deep')}>
+              {isReviewing ? <CheckCircle2 className="size-2.5" /> : <Loader2 className="size-2.5 animate-spin" />}
+              {isReviewing ? 'Implemented' : 'Implementing'}
+            </span>
+            <ArrowRight className="size-2.5 text-line-strong" />
+            <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isReviewing ? 'bg-accent-tint text-accent-deep' : 'text-ink-faint')}>
+              {isReviewing ? <Loader2 className="size-2.5 animate-spin" /> : <Circle className="size-2.5" />}
+              Reviewing
+            </span>
+            <ArrowRight className="size-2.5 text-line-strong" />
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-ink-faint">
+              <Circle className="size-2.5" /> PR
+            </span>
+          </div>
+        )}
+
+        {/* Done phase pills */}
+        {isDone && (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ Implemented</span>
+            <ArrowRight className="size-2.5 text-line-strong" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ Reviewed</span>
+            <ArrowRight className="size-2.5 text-line-strong" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ PR</span>
+          </div>
+        )}
+
+        {/* Done summary */}
+        {isDone && (
+          <div className="flex flex-wrap gap-3 text-xs text-ink-soft">
+            <span>{group.tasks.length} tasks committed</span>
+            {job.filesChanged && job.filesChanged.length > 0 && (
+              <><span>·</span><span>{job.filesChanged.length} files changed</span></>
+            )}
+            {job.costUsd != null && job.costUsd > 0 && (
+              <><span>·</span><span>${job.costUsd.toFixed(2)}</span></>
+            )}
+            {job.elapsedMs != null && job.elapsedMs > 0 && (
+              <><span>·</span><span>{formatElapsed(job.elapsedMs)}</span></>
+            )}
+            {pr && (
+              <><span>·</span><a href={pr.url} target="_blank" rel="noopener noreferrer" className="text-accent underline">PR: {pr.branch} → {pr.targetBranch}</a></>
+            )}
+          </div>
+        )}
+
+        {/* Failed error */}
+        {isFailed && job.error && (
+          <p className="text-xs text-[var(--rose)]" role="alert">{job.error}</p>
+        )}
+
+        {/* Info line */}
+        {isRunning && (
+          <div className="text-[11px] text-ink-faint">{job.totalTasks ?? group.tasks.length} tasks · target: {group.targetBranch}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Shared ───────────────────────────────────────────────────────────── */
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between border-b border-line pb-2 last:border-0">
       <span className="text-xs text-ink-faint">{label}</span>
       <span className="text-sm font-semibold text-ink">{value}</span>
-    </div>
-  );
-}
-
-/* ── Run — 3-col grid matching Dispatch/Land layout ───────────────────────── */
-function RunStage({
-  projectName, units, writeTargets, progress,
-}: {
-  projectName: string; units: ExecUnit[]; writeTargets: string[]; progress: JobProgress;
-}) {
-  const phaseLabel = PHASE_LABEL[progress.phase] ?? progress.phase;
-  const isReviewing = progress.phase === 'reviewing';
-  const progressPct = isReviewing ? 85 : 45;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — task list with executing overlay (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
-            <CardTitle>Executing…</CardTitle>
-            <Badge variant="neutral" size="sm">{progress.totalTasks} tasks</Badge>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent-tint px-2.5 py-1 text-[11px] font-medium text-accent-deep">
-            <Rocket className="size-3" /> {phaseLabel}
-          </span>
-        </CardHeader>
-
-        {/* Progress bar */}
-        <div className="px-5">
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-accent transition-all duration-1000"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-        </div>
-
-        <CardContent className="min-h-0 flex-1 space-y-1.5 overflow-y-auto !py-4">
-          {units.map((u) => (
-            <div key={u.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2 opacity-60">
-              <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{u.num}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{u.title}</span>
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-faint">
-                <GitBranch className="size-2.5" /> {u.repo}
-              </span>
-              <Loader2 className="size-3 shrink-0 animate-spin text-accent" />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* RIGHT — run status panel (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
-        {/* Phase card */}
-        <div className="flex shrink-0 flex-col gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/30 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              'grid size-8 place-items-center rounded-full',
-              isReviewing ? 'bg-[var(--sage-tint)]' : 'bg-accent-tint',
-            )}>
-              {isReviewing
-                ? <CheckCircle2 className="size-4 text-[var(--sage-deep)]" />
-                : <Rocket className="size-4 text-accent" />
-              }
-            </div>
-            <div>
-              <Eyebrow as="h3" className="text-accent-deep">{phaseLabel}</Eyebrow>
-              <p className="mt-0.5 text-xs text-ink-soft">
-                {isReviewing
-                  ? 'Reviewer verifying the implementation'
-                  : 'Implementer working through tasks sequentially'
-                }
-              </p>
-            </div>
-          </div>
-
-          {/* Phase pipeline */}
-          <div className="flex items-center gap-1.5">
-            <span className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
-              isReviewing ? 'bg-[var(--sage-tint)] text-[var(--sage-deep)]' : 'bg-white/80 text-accent-deep',
-            )}>
-              {isReviewing ? <CheckCircle2 className="size-2.5" /> : <Loader2 className="size-2.5 animate-spin" />}
-              Implement
-            </span>
-            <ArrowRight className="size-2.5 text-accent/40" />
-            <span className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
-              isReviewing ? 'bg-white/80 text-accent-deep' : 'text-ink-faint',
-            )}>
-              {isReviewing ? <Loader2 className="size-2.5 animate-spin" /> : <Circle className="size-2.5" />}
-              Review
-            </span>
-            <ArrowRight className="size-2.5 text-accent/40" />
-            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-ink-faint">
-              <Circle className="size-2.5" /> Merge
-            </span>
-          </div>
-        </div>
-
-        {/* Stats card */}
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>{projectName}</CardTitle>
-            <Badge variant="neutral" size="sm">running</Badge>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <Stat label="Tasks" value={`${progress.totalTasks}`} />
-            <Stat label="Write targets" value={`${writeTargets.length}`} />
-            <Stat label="Elapsed" value={formatElapsed(progress.elapsedMs)} />
-            <Stat label="Phase" value={phaseLabel} />
-            <div className="flex flex-wrap gap-1.5">
-              {writeTargets.map((r) => (
-                <span key={r} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-soft">
-                  <GitBranch className="size-2.5" /> {r}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <div className="flex w-full items-center justify-center gap-2 text-sm text-ink-soft">
-              <Clock className="size-3.5" />
-              <span className="font-mono font-medium text-ink">{formatElapsed(progress.elapsedMs)}</span>
-            </div>
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-/* ── Land — per-task results from terminal envelope ───────────────────────── */
-function LandStage({
-  projectId, projectName, units, writeTargets, terminalResult, readOnly,
-}: {
-  projectId: string; projectName: string; units: ExecUnit[]; writeTargets: string[];
-  terminalResult: TerminalResult; readOnly: boolean;
-}) {
-  const succeeded = terminalResult === 'committed';
-  const committedCount = units.filter((u) => u.dbStatus === 'committed').length;
-  const failedCount = units.filter((u) => u.dbStatus === 'failed').length;
-  const totalFiles = useMemo(() => units.reduce((n, u) => n + u.filesCount, 0), [units]);
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            {succeeded
-              ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-              : <XCircle className="size-4 shrink-0 text-[var(--rose)]" />
-            }
-            <CardTitle>{projectName} — {succeeded ? 'landed' : 'failed'}</CardTitle>
-            <Badge variant={succeeded ? 'sage' : 'rose'} size="sm">
-              {succeeded ? `${units.length} tasks committed` : `${failedCount} failed`}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-1.5 overflow-y-auto !py-4">
-          {units.map((u) => {
-            const isCommitted = u.dbStatus === 'committed';
-            const isFailed = u.dbStatus === 'failed';
-            return (
-              <div key={u.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
-                {isCommitted
-                  ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-                  : isFailed
-                    ? <XCircle className="size-4 shrink-0 text-[var(--rose)]" />
-                    : <Circle className="size-4 shrink-0 text-line-strong" />
-                }
-                <span className="font-mono text-[10px] text-ink-faint">{u.num}</span>
-                <span className="min-w-0 flex-1 truncate text-sm text-ink">{u.title}</span>
-                <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-faint">
-                  <GitBranch className="size-2.5" /> {u.repo}
-                </span>
-                {u.commitSha ? (
-                  <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">{u.commitSha.slice(0, 7)}</span>
-                ) : null}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Landed</CardTitle>
-            <Badge variant={succeeded ? 'sage' : 'rose'} size="sm">{succeeded ? 'complete' : 'issues'}</Badge>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <Stat label="Tasks" value={`${units.length}`} />
-            <Stat label="Committed" value={`${committedCount}`} />
-            {failedCount > 0 ? <Stat label="Failed" value={`${failedCount}`} /> : null}
-            <Stat label="Repos" value={`${writeTargets.length}`} />
-            <div className="flex flex-wrap gap-1.5">
-              {writeTargets.map((r) => (
-                <span key={r} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-soft">
-                  <GitBranch className="size-2.5" /> {r}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <TextSm className="!text-ink-faint">
-              {succeeded ? 'Execution done — the changes are ready for code review.' : 'Some tasks failed — review the results before continuing.'}
-            </TextSm>
-            <StageAdvance
-              href={`/projects/${projectId}/review`}
-              label="Continue to Review"
-              disabled={readOnly}
-              testId="execute-continue-link"
-            />
-          </CardFooter>
-        </Card>
-      </aside>
     </div>
   );
 }

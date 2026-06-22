@@ -31,6 +31,9 @@ export default async function ExecuteStagePage({ params }: { params: Promise<{ i
       repoName: repo.name,
       dependsOn: planTask.dependsOn,
       targetRepoId: planTask.targetRepoId,
+      status: planTask.status,
+      branch: planTask.branch,
+      commitSha: planTask.commitSha,
     })
     .from(planTask)
     .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
@@ -44,6 +47,9 @@ export default async function ExecuteStagePage({ params }: { params: Promise<{ i
     repo: t.repoName,
     dependsOn: (t.dependsOn ?? []) as string[],
     filesCount: 0,
+    dbStatus: t.status,
+    branch: t.branch,
+    commitSha: t.commitSha,
   }));
 
   const writeTargets = [...new Set(tasks.map((t) => t.repoName))];

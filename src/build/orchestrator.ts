@@ -61,12 +61,12 @@ export async function loadRepoMeta(db: Db, projectId: string): Promise<Map<strin
 }
 
 /**
- * Run the execute + review phases for a project, then advance to `done`.
+ * Run the execute + review phases for a project, then advance to `learn`.
  *
  * 1. Schedule all queued plan_tasks (one-writer-per-cwd, depends_on, lane cap).
  * 2. For each write-target repo whose tasks committed, run review (advisory).
- * 3. Advance `project.phase='done'` + mark plan/execute/review stages done (review
- *    NEVER blocks `done`; an errored review still lets the pipeline finish).
+ * 3. Advance `project.phase='learn'` + mark plan/execute/review stages done (review
+ *    NEVER blocks completion; an errored review still lets the pipeline finish).
  */
 export async function runExecutePipeline(
   deps: RunExecuteDeps,
@@ -145,7 +145,7 @@ export async function runExecutePipeline(
   // Advance to done (review never blocks; an errored review is "done (advisory)").
   await db.transaction(async (tx) => {
     const now = new Date();
-    await tx.update(project).set({ phase: 'done', updatedAt: now }).where(eq(project.id, projectId));
+    await tx.update(project).set({ phase: 'learn', updatedAt: now }).where(eq(project.id, projectId));
     for (const kind of ['plan', 'execute', 'review'] as const) {
       await tx
         .update(stage)

@@ -152,7 +152,7 @@ export class FakeMma {
     return { batchId };
   }
 
-  async auditPlan(cwd: string, input: { filePaths: [string]; contextBlockIds?: string[] }): Promise<{ batchId: string }> {
+  async auditPlan(cwd: string, input: { paths: [string]; contextBlockIds?: string[] }): Promise<{ batchId: string }> {
     this.dispatches.push({ route: 'audit', cwd, body: { subtype: 'plan', ...input } });
     return this.register('audit');
   }

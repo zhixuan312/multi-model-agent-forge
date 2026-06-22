@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 
-export type Phase = 'design' | 'frozen' | 'build';
+export type Phase = 'design' | 'build';
 
 /**
  * Sets `data-phase` on a wrapper so the `@theme` token values swap between the
- * warm (design) and cool (frozen/build) worlds (`globals.css`). Components read
+ * warm (design) and cool (build) worlds (`globals.css`). Components read
  * tokens and never branch on phase in JS. Spec 1 renders `design` only — no
  * project drives the phase yet — but the swap mechanism is real and tested.
  */

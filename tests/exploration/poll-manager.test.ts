@@ -20,7 +20,10 @@ function scriptedClient(script: (id: string) => Response): MmaClient {
 }
 
 function pendingRes(headline: string): Response {
-  return new Response(headline, { status: 202, headers: { 'content-type': 'text/plain' } });
+  return new Response(JSON.stringify({ status: 'running', phase: headline }), {
+    status: 202,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 function terminalRes(envelope: unknown): Response {
   return new Response(JSON.stringify(envelope), {

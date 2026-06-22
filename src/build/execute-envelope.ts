@@ -1,29 +1,25 @@
 /**
- * Pure interpretation of the MMA `execute-plan` terminal envelope (Spec 7
- * §Execute step 3/4). No DB, no git, no network.
+ * Pure interpretation of the MMA `execute-plan` terminal envelope (v5.4+).
+ * No DB, no git, no network.
  *
- * The wire envelope is the 7-field `{ headline, results, batchTimings,
- * costSummary, structuredReport, error }` shape (verified against MMA
- * `packages/server/src/http/handlers/control/batch.ts`). The fields this module
- * reads:
- *   - `structuredReport.commitSha`   — the MMA worker commit SHA (null = no commit)
- *   - `structuredReport.commitSkipReason` — the no-op reason (e.g. 'no_diff'/'no_repo')
- *   - `structuredReport.filesChanged` — FileChange[] (real field; there is NO `filesWritten`)
- *   - `structuredReport.unresolved`   — string[] (worker blocking notes)
- *   - per-task `results[i].error.code` — the structured error code (halt-set keying)
- *   - top-level `error.code`           — the batch error code (fallback)
- *   - `costSummary.totalActualCostUSD` — for the running-cost tick
+ * The new terminal response shape:
+ *   { task: { taskId, type, status },
+ *     output: { summary, filesChanged, contextBlockId },
+ *     execution: { sessions, worktree: { merged, branch, path? } | null },
+ *     metrics: { totalDurationMs, totalCostUsd, ... },
+ *     raw: { implementer, reviewer },
+ *     error: { code, message } | null }
  *
- * NOTE on the spec's `terminalStatus`/`errorCode`: the public wire envelope does
- * NOT project a literal `terminalStatus`/`errorCode` per task — it exposes the
- * structured `error.{code,message}` (top-level + per-task) and per-task `status`.
- * The halt predicate therefore keys on the real `error.code` against the spec's
- * enumerated halt set, plus the `structuredReport` empty-filesChanged +
- * non-empty-unresolved branch. (Documented deviation from the spec's field names;
- * the SEMANTICS are exactly the spec's.)
+ * Fields this module reads:
+ *   - `task.status`                  — 'done' | 'done_with_concerns' | 'failed'
+ *   - `output.summary`              — parsed worker output (may contain commitSha)
+ *   - `output.filesChanged`         — string[] of changed file paths
+ *   - `execution.worktree.branch`   — the worktree branch name
+ *   - `execution.worktree.merged`   — whether the worktree was merged back
+ *   - `metrics.totalCostUsd`        — for the running-cost tick
+ *   - `error.code`                  — the structured error code
  */
 
-/** The enumerated halt-for-decision error codes (Spec 7 §Execute step 4a). */
 export const HALT_ERROR_CODES = new Set([
   'validator_silent_incomplete',
   'validator_no_artifacts',
@@ -33,9 +29,7 @@ export const HALT_ERROR_CODES = new Set([
 ]);
 
 export interface CommitPayload {
-  /** The MMA worker commit SHA, or null when nothing was committed (no_op). */
   commitSha: string | null;
-  /** The no-op reason (e.g. 'no_diff', 'no_repo'), when no commit landed. */
   commitSkipReason: string | null;
 }
 
@@ -43,96 +37,89 @@ export interface ParsedExecuteEnvelope {
   commit: CommitPayload;
   filesChanged: string[];
   unresolved: string[];
-  /** The structured error code (per-task first, else top-level), or null. */
   errorCode: string | null;
-  /** Total batch cost in USD (for the cost tick). */
   costUsd: number;
-  /** The terminal headline. */
   headline: string;
+  worktreeBranch: string | null;
+  worktreeMerged: boolean;
 }
 
 function asObj(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
 }
 
-/** Parse the execute-plan terminal envelope into the fields the executor reads. */
 export function parseExecuteEnvelope(envelope: unknown): ParsedExecuteEnvelope {
   const env = asObj(envelope);
-  const sr = asObj(env.structuredReport);
+  const task = asObj(env.task);
+  const output = asObj(env.output);
+  const execution = asObj(env.execution);
+  const metrics = asObj(env.metrics);
+  const error = env.error ? asObj(env.error) : null;
+  const worktree = execution.worktree ? asObj(execution.worktree) : null;
 
-  const commitSha = typeof sr.commitSha === 'string' && sr.commitSha.length > 0 ? sr.commitSha : null;
-  const commitSkipReason =
-    typeof sr.commitSkipReason === 'string' && sr.commitSkipReason.length > 0 ? sr.commitSkipReason : null;
+  // Extract commit info from output.summary (worker JSON output may contain commitSha)
+  const summary = output.summary;
+  const summaryObj = summary && typeof summary === 'object' ? asObj(summary) : {};
+  const commitSha = typeof summaryObj.commitSha === 'string' && summaryObj.commitSha.length > 0
+    ? summaryObj.commitSha
+    : null;
+  const commitSkipReason = typeof summaryObj.commitSkipReason === 'string' && summaryObj.commitSkipReason.length > 0
+    ? summaryObj.commitSkipReason
+    : null;
 
-  const filesChanged = Array.isArray(sr.filesChanged)
-    ? sr.filesChanged
-        .map((f) => {
-          const fc = asObj(f);
-          return typeof fc.path === 'string' ? fc.path : '';
-        })
-        .filter((p) => p.length > 0)
+  const filesChanged = Array.isArray(output.filesChanged)
+    ? (output.filesChanged as unknown[]).filter((f): f is string => typeof f === 'string')
     : [];
 
-  const unresolved = Array.isArray(sr.unresolved)
-    ? sr.unresolved.filter((u): u is string => typeof u === 'string')
+  const unresolved = Array.isArray(summaryObj.unresolved)
+    ? (summaryObj.unresolved as unknown[]).filter((u): u is string => typeof u === 'string')
     : [];
 
-  // Error code: prefer the first per-task result error, else top-level error.
-  let errorCode: string | null = null;
-  const results = Array.isArray(env.results) ? env.results : [];
-  for (const r of results) {
-    const re = asObj(asObj(r).error);
-    if (typeof re.code === 'string') {
-      errorCode = re.code;
-      break;
-    }
-  }
-  if (!errorCode) {
-    const topErr = asObj(env.error);
-    if (typeof topErr.code === 'string') errorCode = topErr.code;
-  }
+  const errorCode = error && typeof error.code === 'string' ? error.code : null;
+  const costUsd = typeof metrics.totalCostUsd === 'number' ? metrics.totalCostUsd : 0;
 
-  const cost = asObj(env.costSummary);
-  const costUsd = typeof cost.totalActualCostUSD === 'number' ? cost.totalActualCostUSD : 0;
+  const status = typeof task.status === 'string' ? task.status : '';
+  const headline = status === 'failed' ? 'failed' : 'done';
 
-  const headline = typeof env.headline === 'string' ? env.headline : '';
-
-  return { commit: { commitSha, commitSkipReason }, filesChanged, unresolved, errorCode, costUsd, headline };
+  return {
+    commit: { commitSha, commitSkipReason },
+    filesChanged,
+    unresolved,
+    errorCode,
+    costUsd,
+    headline,
+    worktreeBranch: worktree && typeof worktree.branch === 'string' ? worktree.branch : null,
+    worktreeMerged: worktree ? worktree.merged === true : false,
+  };
 }
 
 export type ExecuteDisposition =
   | { kind: 'committed'; commitSha: string }
-  | { kind: 'halt'; marker: string } // halt-for-decision (surface, don't push past)
-  | { kind: 'failure'; reason: string }; // task failure (no_op / non-halt error)
+  | { kind: 'halt'; marker: string }
+  | { kind: 'failure'; reason: string };
 
-/**
- * Classify the envelope into the executor's first disposition (before verify).
- *  - halt-for-decision: an error code in the halt set, OR empty filesChanged +
- *    non-empty unresolved (the "cannot implement as written" branch).
- *  - failure: a non-halt error code, or a no-op commit payload (no commitSha).
- *  - committed: a real commit SHA landed.
- */
 export function classifyExecute(parsed: ParsedExecuteEnvelope): ExecuteDisposition {
-  // Halt branch (a): an enumerated halt error code.
   if (parsed.errorCode && HALT_ERROR_CODES.has(parsed.errorCode)) {
     return { kind: 'halt', marker: `worker could not produce a committable result (${parsed.errorCode})` };
   }
-  // Halt branch (b): the worker reports it cannot implement the task as written.
   if (parsed.filesChanged.length === 0 && parsed.unresolved.length > 0) {
     return { kind: 'halt', marker: parsed.unresolved.join(' · ') };
   }
-  // A non-halt structured error → task failure.
   if (parsed.errorCode) {
     return { kind: 'failure', reason: `task error: ${parsed.errorCode}` };
   }
-  // No commit payload → the falsely-not-implemented trap → verification failure.
-  if (!parsed.commit.commitSha) {
-    return {
-      kind: 'failure',
-      reason: parsed.commit.commitSkipReason
-        ? `no commit (${parsed.commit.commitSkipReason})`
-        : 'no commit payload',
-    };
+  // With worktree-based execution, "committed" means the worktree was merged.
+  // The old commitSha from worker self-commit may not exist; the worktree merge IS the commit.
+  if (parsed.worktreeMerged) {
+    return { kind: 'committed', commitSha: parsed.commit.commitSha ?? 'worktree-merged' };
   }
-  return { kind: 'committed', commitSha: parsed.commit.commitSha };
+  if (parsed.commit.commitSha) {
+    return { kind: 'committed', commitSha: parsed.commit.commitSha };
+  }
+  return {
+    kind: 'failure',
+    reason: parsed.commit.commitSkipReason
+      ? `no commit (${parsed.commit.commitSkipReason})`
+      : 'no commit payload and worktree not merged',
+  };
 }

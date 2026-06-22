@@ -41,10 +41,11 @@ describe('command-inference (F17)', () => {
 
 describe('execute-envelope', () => {
   const committedEnv = {
-    headline: 'execute_plan: 1 task(s) complete',
-    costSummary: { totalActualCostUSD: 0.42 },
-    results: [{ status: 'done', error: null }],
-    structuredReport: { commitSha: 'ABC123', commitSkipReason: null, filesChanged: [{ path: 'a.ts', summary: 's' }], unresolved: [] },
+    task: { taskId: 't1', type: 'execute_plan', status: 'done' },
+    output: { summary: { commitSha: 'ABC123', commitSkipReason: null, unresolved: [] }, filesChanged: ['a.ts'], contextBlockId: null },
+    execution: { sessions: { implementer: 's1', reviewer: null }, worktree: { merged: true, branch: 'b' } },
+    metrics: { totalCostUsd: 0.42 },
+    error: null,
   };
 
   it('parses commit payload, filesChanged, cost', () => {
@@ -58,51 +59,72 @@ describe('execute-envelope', () => {
     expect(classifyExecute(parseExecuteEnvelope(committedEnv))).toEqual({ kind: 'committed', commitSha: 'ABC123' });
   });
 
-  it('classifies a no_op (no commitSha) as a verification failure', () => {
-    const env = { structuredReport: { commitSha: null, commitSkipReason: 'no_diff', filesChanged: [], unresolved: [] } };
+  it('classifies a no_op (no commitSha, worktree not merged) as a verification failure', () => {
+    const env = {
+      task: { status: 'done' },
+      output: { summary: { commitSha: null, commitSkipReason: 'no_diff', unresolved: [] }, filesChanged: [] },
+      execution: { worktree: { merged: false, branch: 'b' } },
+      error: null,
+    };
     expect(classifyExecute(parseExecuteEnvelope(env))).toMatchObject({ kind: 'failure' });
   });
 
   it('classifies an enumerated halt errorCode as halt-for-decision', () => {
     for (const code of HALT_ERROR_CODES) {
-      const env = { results: [{ error: { code } }], structuredReport: { commitSha: null, filesChanged: [], unresolved: [] } };
+      const env = {
+        task: { status: 'failed' },
+        output: { summary: { commitSha: null, unresolved: [] }, filesChanged: [] },
+        execution: { worktree: null },
+        error: { code, message: 'm' },
+      };
       expect(classifyExecute(parseExecuteEnvelope(env))).toMatchObject({ kind: 'halt' });
     }
   });
 
   it('classifies empty filesChanged + non-empty unresolved as halt (uses filesChanged/unresolved, not filesWritten)', () => {
-    const env = { structuredReport: { commitSha: null, filesChanged: [], unresolved: ['cannot resolve the auth contract'] } };
+    const env = {
+      task: { status: 'done' },
+      output: { summary: { commitSha: null, unresolved: ['cannot resolve the auth contract'] }, filesChanged: [] },
+      execution: { worktree: null },
+      error: null,
+    };
     const d = classifyExecute(parseExecuteEnvelope(env));
     expect(d).toMatchObject({ kind: 'halt' });
     if (d.kind === 'halt') expect(d.marker).toContain('cannot resolve');
   });
 
   it('classifies a non-halt errorCode as task failure', () => {
-    const env = { results: [{ error: { code: 'provider_unavailable' } }], structuredReport: { commitSha: null, filesChanged: [], unresolved: [] } };
+    const env = {
+      task: { status: 'failed' },
+      output: { summary: { commitSha: null, unresolved: [] }, filesChanged: [] },
+      execution: { worktree: null },
+      error: { code: 'provider_unavailable', message: 'm' },
+    };
     expect(classifyExecute(parseExecuteEnvelope(env))).toMatchObject({ kind: 'failure' });
   });
 });
 
 describe('review verdict derivation (F4)', () => {
   it('changes_required iff ≥1 critical/high', () => {
-    const env = { structuredReport: { findings: [{ severity: 'high', claim: 'x' }, { severity: 'low', claim: 'y' }] } };
+    const env = { task: { status: 'done' }, output: { summary: { findings: [{ severity: 'high', claim: 'x' }, { severity: 'low', claim: 'y' }] } }, error: null };
     const parsed = parseReviewEnvelope(env);
     expect(parsed.findingsCount).toBe(2);
     expect(deriveVerdict(parsed)).toBe('changes_required');
   });
 
   it('approved when only medium/low findings', () => {
-    const env = { structuredReport: { findings: [{ severity: 'medium', claim: 'x' }] } };
+    const env = { task: { status: 'done' }, output: { summary: { findings: [{ severity: 'medium', claim: 'x' }] } }, error: null };
     expect(deriveVerdict(parseReviewEnvelope(env))).toBe('approved');
   });
 
   it('approved for a clean report', () => {
-    const env = { structuredReport: { findings: [], findingsOutcome: 'clean' } };
+    const env = { task: { status: 'done' }, output: { summary: { findings: [] } }, error: null };
     expect(deriveVerdict(parseReviewEnvelope(env))).toBe('approved');
   });
 
-  it('error for a missing structured report', () => {
-    expect(deriveVerdict(parseReviewEnvelope({}))).toBe('error');
+  it('error for a failed batch', () => {
+    const env = { task: { status: 'failed' }, output: {}, error: { code: 'provider_unavailable', message: 'm' } };
+    expect(deriveVerdict(parseReviewEnvelope(env))).toBe('error');
   });
 });
 

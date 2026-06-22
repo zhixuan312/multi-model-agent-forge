@@ -51,9 +51,11 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
                 aria-describedby={nameError ? 'name-error' : undefined}
                 aria-invalid={nameError ? true : undefined}
               />
-              {nameError ? (
-                <Micro id="name-error" role="alert" className="text-rose">{nameError}</Micro>
-              ) : null}
+              <div aria-live="polite">
+                {nameError ? (
+                  <Micro id="name-error" className="text-rose">{nameError}</Micro>
+                ) : null}
+              </div>
             </div>
 
             <div className="flex shrink-0 flex-col gap-1.5">
@@ -65,23 +67,28 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
               >
                 {VISIBILITY_OPTIONS.map((o) => {
                   const Icon = o.icon;
+                  const active = visibility === o.value;
                   return (
-                    <button
+                    <label
                       key={o.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={visibility === o.value}
-                      onClick={() => setVisibility(o.value)}
                       className={cn(
-                        'focus-ring inline-flex items-center gap-1.5 rounded-[calc(var(--r-md)-2px)] px-3 py-1.5 text-sm transition-colors',
-                        visibility === o.value
+                        'focus-within:focus-ring inline-flex cursor-pointer items-center gap-1.5 rounded-[calc(var(--r-md)-2px)] px-3 py-1.5 text-sm transition-colors',
+                        active
                           ? 'bg-accent-tint font-medium text-accent-deep'
                           : 'text-ink-soft hover:text-ink',
                       )}
                     >
+                      <input
+                        type="radio"
+                        name="visibility-choice"
+                        value={o.value}
+                        checked={active}
+                        onChange={() => setVisibility(o.value)}
+                        className="sr-only"
+                      />
                       <Icon className="size-3.5" aria-hidden />
                       {o.label}
-                    </button>
+                    </label>
                   );
                 })}
               </div>

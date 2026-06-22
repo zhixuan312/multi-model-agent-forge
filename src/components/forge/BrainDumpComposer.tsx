@@ -98,7 +98,7 @@ export function BrainDumpComposer(props: BrainDumpComposerProps) {
           <Button
             size="sm"
             variant={props.recording ? 'danger' : 'secondary'}
-            aria-label={props.recording ? 'Stop recording' : 'Record voice'}
+            aria-label="Record voice"
             aria-pressed={props.recording}
             onClick={props.onToggleRecord}
             disabled={props.transcribing}

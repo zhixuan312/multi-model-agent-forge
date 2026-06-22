@@ -25,7 +25,7 @@ function okClient(calls: RodCall[], fail = false): MmaClient {
       body: init?.body ? JSON.parse(init.body as string) : {},
     });
     if (fail) return new Response('err', { status: 503 });
-    return new Response(JSON.stringify({ batchId: `mma-${calls.length}` }), {
+    return new Response(JSON.stringify({ taskId: `mma-${calls.length}` }), {
       status: 202,
       headers: { 'content-type': 'application/json' },
     });

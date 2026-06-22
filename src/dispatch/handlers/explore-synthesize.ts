@@ -26,13 +26,13 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   const failures = rows.filter((r) => r.batchStatus === 'failed');
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
-  let findings = synthesis.findings;
+  let currentState = synthesis.currentState;
   for (const marker of failureMarkers) {
-    if (!findings.includes(marker)) {
-      findings = `${findings.trim()}\n\n${marker}`;
+    if (!currentState.includes(marker)) {
+      currentState = `${currentState.trim()}\n\n${marker}`;
     }
   }
-  const bodyMd = composeExplorationMarkdown({ ...synthesis, findings });
+  const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
   const [{ v } = { v: null }] = await db
     .select({ v: max(artifact.version) })

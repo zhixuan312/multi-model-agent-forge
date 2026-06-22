@@ -210,7 +210,7 @@ export default function StyleguidePage() {
           <Badge variant="rose" dot>
             failed
           </Badge>
-          <Badge variant="steel">frozen</Badge>
+          <Badge variant="steel">locked</Badge>
         </div>
       </Block>
 

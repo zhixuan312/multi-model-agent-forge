@@ -100,9 +100,9 @@ export async function executeTask(
   let batchId: string;
   try {
     ({ batchId } = await deps.mma.executePlan(repo.pathOnDisk, {
-      filePaths: [planPath],
-      taskDescriptors: [task.title],
-      perTaskReviewPolicy: { '0': task.reviewPolicy },
+      planPath,
+      tasks: [task.title],
+      reviewPolicy: task.reviewPolicy,
     }));
   } catch (err) {
     const reason = `dispatch failed: ${(err as Error).message}`;
@@ -120,7 +120,7 @@ export async function executeTask(
       cwd: repo.pathOnDisk,
       batchId,
       status: 'dispatched',
-      request: { filePaths: [planPath], taskDescriptors: [task.title], perTaskReviewPolicy: { '0': task.reviewPolicy } },
+      request: { planPath, tasks: [task.title], reviewPolicy: task.reviewPolicy },
       dispatchedBy: args.actorId,
     })
     .returning({ id: mmaBatch.id });

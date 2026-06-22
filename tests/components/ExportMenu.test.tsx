@@ -13,10 +13,10 @@ vi.mock('@/components/forge/export/download', () => ({
 
 function artifacts(over: Partial<Record<string, Partial<ExportMenuArtifact>>> = {}): ExportMenuArtifact[] {
   const base: ExportMenuArtifact[] = [
-    { kind: 'exploration', label: 'Exploration summary', ready: true, version: 1, frozenAudited: false },
-    { kind: 'spec', label: 'Specification', ready: true, version: 1, frozenAudited: false },
-    { kind: 'plan', label: 'Plan', ready: true, version: 1, frozenAudited: false },
-    { kind: 'review', label: 'Review report', ready: false, version: null, frozenAudited: false },
+    { kind: 'exploration', label: 'Exploration summary', ready: true, version: 1, lockedAudited: false },
+    { kind: 'spec', label: 'Specification', ready: true, version: 1, lockedAudited: false },
+    { kind: 'plan', label: 'Plan', ready: true, version: 1, lockedAudited: false },
+    { kind: 'review', label: 'Review report', ready: false, version: null, lockedAudited: false },
   ];
   return base.map((a) => ({ ...a, ...(over[a.kind] ?? {}) }));
 }
@@ -54,23 +54,23 @@ describe('ExportMenu (test 12, F10)', () => {
     buttons.forEach((b) => expect(b).not.toBeDisabled());
   });
 
-  it('shows the derived frozen · audited badge only for a frozen+audited spec', async () => {
+  it('shows the derived locked · audited badge only for a locked+audited spec', async () => {
     render(
       <ExportMenu
         projectId="p1"
-        fetchArtifacts={async () => artifacts({ spec: { frozenAudited: true } })}
+        fetchArtifacts={async () => artifacts({ spec: { lockedAudited: true } })}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
-    await waitFor(() => screen.getByText('frozen · audited'));
-    expect(screen.getByText('frozen · audited')).toBeInTheDocument();
+    await waitFor(() => screen.getByText('locked · audited'));
+    expect(screen.getByText('locked · audited')).toBeInTheDocument();
   });
 
-  it('an unfrozen spec shows ● ready, NOT frozen · audited', async () => {
+  it('an unlocked spec shows ● ready, NOT locked · audited', async () => {
     render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByTestId('export-row-spec'));
-    expect(screen.queryByText('frozen · audited')).toBeNull();
+    expect(screen.queryByText('locked · audited')).toBeNull();
     expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
   });
 

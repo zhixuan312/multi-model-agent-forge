@@ -135,14 +135,13 @@ export async function dispatchTasks(
     let batchId: string;
     try {
       if (task.kind === 'investigate') {
-        ({ batchId } = await client.investigate(cwd, { question: task.prompt }));
+        ({ batchId } = await client.investigate(cwd, { prompt: task.prompt }));
       } else if (task.kind === 'research') {
         ({ batchId } = await client.research(cwd, {
-          researchQuestion: body.researchQuestion as string,
-          background: body.background as string,
+          prompt: `${body.researchQuestion as string}\n\nBackground: ${body.background as string}`,
         }));
       } else {
-        ({ batchId } = await client.journalRecall(cwd, { query: task.prompt }));
+        ({ batchId } = await client.journalRecall(cwd, { prompt: task.prompt }));
       }
     } catch (err) {
       // Surface the real cause — MmaClient error messages are safe (no token);

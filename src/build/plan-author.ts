@@ -21,7 +21,7 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
 /**
  * Plan authoring orchestrator (Spec 7 §Plan authoring; the 7a producer).
  *
- * Triggered when `project.phase` reaches `build`. Reads the frozen
+ * Triggered when `project.phase` reaches `build`. Reads the locked
  * `artifact(kind='spec')` + the project's repos, has the Anthropic main model
  * decompose a per-repo plan (one `targetRepoId` per task), validates atomically
  * (known repos, no dep cycle, no git-commit steps), writes each write-target
@@ -36,7 +36,7 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
  */
 
 export const PLAN_AUTHOR_SYSTEM_PROMPT = `You are the build-plan author for Forge, a software delivery harness.
-Given a frozen technical spec and the set of repos in scope, decompose the spec into an ordered list of bite-sized, test-first implementation tasks.
+Given a locked technical spec and the set of repos in scope, decompose the spec into an ordered list of bite-sized, test-first implementation tasks.
 
 The engineer executing this plan has ZERO context about the codebase. Every task must be self-contained — they should be able to execute it by reading the task alone, without referring to other tasks or exploring the codebase.
 
@@ -198,7 +198,7 @@ export async function authorPlan(
 
   const spec = await getLatestSpec(db, projectId);
   if (!spec) {
-    return fail(bus, projectId, 'No frozen spec artifact to plan from.');
+    return fail(bus, projectId, 'No locked spec artifact to plan from.');
   }
 
   // 1. Author the structured plan (Anthropic main model) — or use the injected draft.
@@ -215,7 +215,7 @@ export async function authorPlan(
         call: 'authorPlan',
         projectId,
         system: PLAN_AUTHOR_SYSTEM_PROMPT,
-        user: `Frozen spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
+        user: `Locked spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
       });
     }
   } catch {

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * The structured-output schema the orchestrator (Anthropic main model) returns
- * when authoring the build plan from the frozen spec (Spec 7 §Plan authoring).
+ * when authoring the build plan from the locked spec (Spec 7 §Plan authoring).
  *
  * Each task targets EXACTLY ONE repo (`targetRepoId`); a unit spanning two repos
  * is two tasks wired by `dependsOn`. `reviewPolicy` defaults to `full`; the model

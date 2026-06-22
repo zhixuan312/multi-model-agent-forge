@@ -56,7 +56,7 @@ describe('canFreeze (the verdict-or-override gate, F5/F26)', () => {
 });
 
 describe('freezeProject', () => {
-  it('design→frozen transactionally: phase, frozen_at, stage done, ops_action_log', async () => {
+  it('design→build transactionally: phase, frozen_at, stage done, ops_action_log', async () => {
     const projectId = 'proj-5';
     const ownerId = 'owner-5';
     const frozenAt = new Date();
@@ -65,7 +65,7 @@ describe('freezeProject', () => {
       'select:project_audit_pass': [{ id: 'pass-1', projectId, scope: 'spec', passNo: 1, verdict: 'clean', findingsCount: 0 }],
       'select:audit_override': [],
       'select:project': [{ id: projectId, phase: 'design', frozenAt: null }],
-      'update:project': [{ id: projectId, phase: 'frozen', frozenAt }],
+      'update:project': [{ id: projectId, phase: 'build', frozenAt }],
       'select:project_stage': [{ projectId, kind: 'spec', status: 'active' }],
       'update:project_stage': [{ projectId, kind: 'spec', status: 'done' }],
       'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],
@@ -104,9 +104,9 @@ describe('freezeProject', () => {
       'select:audit_override': seq([], []),
       'select:project': seq(
         [{ id: projectId, phase: 'design', frozenAt: null }],
-        [{ id: projectId, phase: 'frozen', frozenAt }],
+        [{ id: projectId, phase: 'build', frozenAt }],
       ),
-      'update:project': [{ id: projectId, phase: 'frozen', frozenAt }],
+      'update:project': [{ id: projectId, phase: 'build', frozenAt }],
       'select:project_stage': [{ projectId, kind: 'spec', status: 'active' }],
       'update:project_stage': [{ projectId, kind: 'spec', status: 'done' }],
       'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'freeze', memberId: ownerId }],

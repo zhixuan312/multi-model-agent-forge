@@ -28,7 +28,7 @@ export default async function ProjectsPage() {
           <MetricCard label="Active" value={metrics.active} sublabel="In flight" icon={<LayoutGrid />} iconTint="accent" />
           <MetricCard label="Waiting for human" value={metrics.awaitingHuman} muted={metrics.awaitingHuman === 0} sublabel="Need a decision" icon={<Clock />} iconTint="amber" />
           <MetricCard label="Agents running" value={metrics.agentsRunning} muted={metrics.agentsRunning === 0} sublabel="Live agent work" icon={<Sparkles />} iconTint="sage" />
-          <MetricCard label="Frozen / Build" value={metrics.frozenBuild} muted={metrics.frozenBuild === 0} sublabel="Shipping" icon={<Hammer />} iconTint="steel" />
+          <MetricCard label="Build" value={metrics.inBuild} muted={metrics.inBuild === 0} sublabel="Shipping" icon={<Hammer />} iconTint="steel" />
           <MetricCard label="Audit issues" value={metrics.auditIssues} muted={metrics.auditIssues === 0} sublabel="Open findings" icon={<AlertTriangle />} iconTint="rose" />
         </div>
 

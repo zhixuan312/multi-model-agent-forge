@@ -20,7 +20,7 @@ import { formatCost, formatDuration } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
 import type { ProjectUsageRow, RouteAggRow } from '@/usage/usage-core';
 
-type PhaseFilter = 'all' | 'design' | 'frozen' | 'build' | 'done';
+type PhaseFilter = 'all' | 'design' | 'build' | 'learn';
 
 export function ProjectUsageTable({
   data,
@@ -118,9 +118,8 @@ export function ProjectUsageTable({
             <SelectContent>
               <SelectItem value="all">All phases</SelectItem>
               <SelectItem value="design">Design</SelectItem>
-              <SelectItem value="frozen">Frozen</SelectItem>
               <SelectItem value="build">Build</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value="learn">Learn</SelectItem>
             </SelectContent>
           </Select>
         </div>

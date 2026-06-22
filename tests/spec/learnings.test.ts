@@ -35,7 +35,7 @@ describe('proposeLearnings (mock Anthropic)', () => {
   it('inserts proposed/origin=spec candidates from composeLearningCandidates', async () => {
     const projectId = 'proj-1';
     const mockDb = createMockDb({
-      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Locked spec', version: 1 }],
       'select:project_learning_candidate': [],
       'insert:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'The dual gate was the riskiest part.', type: 'challenge' },
@@ -60,7 +60,7 @@ describe('proposeLearnings (mock Anthropic)', () => {
   it('is idempotent — a re-load does not duplicate candidates', async () => {
     const projectId = 'proj-2';
     const mockDb = createMockDb({
-      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Locked spec', version: 1 }],
       'select:project_learning_candidate': seq([], [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }]),
       'insert:project_learning_candidate': [{ id: 'cand-1', projectId, status: 'proposed', origin: 'spec', bodyMd: 'One.', type: 'insight' }],
     });
@@ -78,7 +78,7 @@ describe('curation', () => {
     const projectId = 'proj-3';
     const ownerId = 'owner-3';
     const mockDb = createMockDb({
-      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Locked spec', version: 1 }],
       'select:project_learning_candidate': seq(
         [],
         [
@@ -148,7 +148,7 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
     const ownerId = 'owner-5';
     const calls: RecordedDispatch[] = [];
     const mockDb = createMockDb({
-      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Frozen spec', version: 1 }],
+      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'spec', bodyMd: '# Locked spec', version: 1 }],
       'select:project_learning_candidate': seq(
         [],
         [{ id: 'cand-3', projectId, status: 'kept', origin: 'member', bodyMd: 'The only kept.', type: 'decision' }],

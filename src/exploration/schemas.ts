@@ -39,26 +39,26 @@ export type RepairedTask = z.infer<typeof RepairedTaskSchema>;
  * combined markdown is what lands in `artifact(kind='exploration')`.
  */
 export const SynthesisSchema = z.object({
-  context: z.string(),
-  findings: z.string(),
-  recommendation: z.string(),
+  background: z.string(),
+  currentState: z.string(),
+  roughDirection: z.string(),
 });
 export type Synthesis = z.infer<typeof SynthesisSchema>;
 
 /** Compose the three sections into the artifact body markdown. */
 export function composeExplorationMarkdown(s: Synthesis): string {
   return [
-    '## Context',
+    '## Background',
     '',
-    s.context.trim(),
+    s.background.trim(),
     '',
-    '## Findings',
+    '## Current state',
     '',
-    s.findings.trim(),
+    s.currentState.trim(),
     '',
-    '## Recommendation',
+    '## Rough direction',
     '',
-    s.recommendation.trim(),
+    s.roughDirection.trim(),
     '',
   ].join('\n');
 }

@@ -118,15 +118,15 @@ describe('parseRecallEnvelope (live refiner envelope shape, verified 2026-06-18)
 
 describe('dispatchRecall', () => {
   it('calls MmaClient.journalRecall with the workspace root as cwd', async () => {
-    const calls: { cwd: string; query: string }[] = [];
+    const calls: { cwd: string; prompt: string }[] = [];
     const client = {
-      journalRecall: async (cwd: string, input: { query: string }) => {
-        calls.push({ cwd, query: input.query });
+      journalRecall: async (cwd: string, input: { prompt: string }) => {
+        calls.push({ cwd, prompt: input.prompt });
         return { batchId: 'b-1' };
       },
     } as unknown as MmaClient;
     const out = await dispatchRecall(client, '/workspace', 'how do we gate completion?');
     expect(out).toEqual({ batchId: 'b-1' });
-    expect(calls).toEqual([{ cwd: '/workspace', query: 'how do we gate completion?' }]);
+    expect(calls).toEqual([{ cwd: '/workspace', prompt: 'how do we gate completion?' }]);
   });
 });

@@ -10,6 +10,7 @@ const SEGMENT_TO_STAGE: Record<string, StageKind> = {
   spec: 'spec',
   plan: 'plan',
   execute: 'execute',
+  build: 'execute',
   review: 'review',
   journal: 'journal',
 };

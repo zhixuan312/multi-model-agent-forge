@@ -30,7 +30,7 @@ export const project = forge.table(
     visibility: text('visibility', { enum: PROJECT_VISIBILITY }).notNull(),
     phase: text('phase', { enum: PROJECT_PHASE }).notNull().default('design'),
     currentStage: text('current_stage', { enum: STAGE_KIND }), // resume pointer
-    frozenAt: timestamp('frozen_at', { withTimezone: true }), // set at freeze (Spec 4)
+    frozenAt: timestamp('frozen_at', { withTimezone: true }), // set when the spec is locked (design→build, Spec 4)
     buildPrs: jsonb('build_prs').$type<Record<string, { url: string; branch: string; targetBranch: string }>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

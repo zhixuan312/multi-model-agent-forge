@@ -13,7 +13,7 @@ function stubFetch() {
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
     calls.push({ url, init });
-    return new Response(JSON.stringify({ batchId: 'b-1', statusUrl: '/batch/b-1' }), {
+    return new Response(JSON.stringify({ taskId: 'b-1', statusUrl: '/task/b-1' }), {
       status: 202,
       headers: { 'content-type': 'application/json' },
     });
@@ -33,10 +33,10 @@ function header(init: RequestInit | undefined, name: string): string | null {
 }
 
 describe('MmaClient rod methods', () => {
-  it('investigate POSTs /task?cwd=<repo> with unified API { type, ...body } + three headers', async () => {
+  it('investigate POSTs /task?cwd=<repo> with unified API { type, prompt, target } + three headers', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn, client: 'claude-code' });
-    const res = await client.investigate('/work/api', { question: 'how does auth work?' });
+    const res = await client.investigate('/work/api', { prompt: 'how does auth work?' });
 
     expect(res.batchId).toBe('b-1');
     const c = calls[0]!;
@@ -45,23 +45,25 @@ describe('MmaClient rod methods', () => {
     expect(header(c.init, 'Authorization')).toBe('Bearer secret-bearer-xyz');
     expect(header(c.init, 'X-MMA-Client')).toBe('claude-code');
     expect(header(c.init, 'X-MMA-Main-Model')).toBe('claude-opus-4-8');
-    expect(bodyOf(c.init)).toEqual({ type: 'investigate', question: 'how does auth work?' });
+    expect(bodyOf(c.init)).toEqual({
+      type: 'investigate',
+      prompt: 'how does auth work?',
+      target: { paths: [] },
+    });
   });
 
-  it('investigate forwards optional keys when present', async () => {
+  it('investigate forwards optional paths + contextBlockIds when present', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
     await client.investigate('/w', {
-      question: 'x',
-      subtype: 'default',
-      tools: 'readonly',
+      prompt: 'x',
+      paths: ['src/auth.ts'],
       contextBlockIds: ['cb-1'],
     });
     expect(bodyOf(calls[0]!.init)).toEqual({
       type: 'investigate',
-      question: 'x',
-      subtype: 'default',
-      tools: 'readonly',
+      prompt: 'x',
+      target: { paths: ['src/auth.ts'] },
       contextBlockIds: ['cb-1'],
     });
   });
@@ -70,40 +72,37 @@ describe('MmaClient rod methods', () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
     await client.research('/work', {
-      researchQuestion: 'what approaches exist for X today?',
-      background: 'we are building a thing and need prior art here.',
+      prompt: 'what approaches exist for X today? we need prior art here.',
     });
     const c = calls[0]!;
     expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork');
     const body = bodyOf(c.init);
-    expect(Object.keys(body).sort()).toEqual(['background', 'researchQuestion', 'type']);
+    expect(Object.keys(body).sort()).toEqual(['prompt', 'type']);
     expect(body.type).toBe('research');
     expect(body).not.toHaveProperty('agentType');
     expect(body).not.toHaveProperty('tools');
   });
 
-  it('research rejects a sub-20-char field BEFORE dispatch (never reaches MMA)', async () => {
+  it('research rejects a sub-20-char prompt BEFORE dispatch (never reaches MMA)', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
-    await expect(
-      client.research('/work', { researchQuestion: 'too short', background: 'also way too short' }),
-    ).rejects.toThrow(/at least 20/);
+    await expect(client.research('/work', { prompt: 'too short' })).rejects.toThrow(/at least 20/);
     expect(calls).toHaveLength(0);
   });
 
-  it('journalRecall POSTs /task?cwd=<workspace root> with unified API { type, query }', async () => {
+  it('journalRecall POSTs /task?cwd=<workspace root> with unified API { type, prompt }', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
-    await client.journalRecall('/work', { query: 'what did we learn about caching?' });
+    await client.journalRecall('/work', { prompt: 'what did we learn about caching?' });
     const c = calls[0]!;
     expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork');
-    expect(bodyOf(c.init)).toEqual({ type: 'journal_recall', query: 'what did we learn about caching?' });
+    expect(bodyOf(c.init)).toEqual({ type: 'journal_recall', prompt: 'what did we learn about caching?' });
   });
 
-  it('journalRecall rejects a sub-10-char query before dispatch', async () => {
+  it('journalRecall rejects a sub-10-char prompt before dispatch', async () => {
     const { fn, calls } = stubFetch();
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
-    await expect(client.journalRecall('/work', { query: 'short' })).rejects.toThrow(/at least 10/);
+    await expect(client.journalRecall('/work', { prompt: 'short' })).rejects.toThrow(/at least 10/);
     expect(calls).toHaveLength(0);
   });
 });

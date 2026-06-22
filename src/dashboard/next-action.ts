@@ -33,12 +33,10 @@ export function deriveNextAction(i: NextActionInput): NextAction {
   }
   // Otherwise, the stage-driven next step.
   switch (i.phase) {
-    case 'done':
-      return { label: 'Done', tone: 'done' };
+    case 'learn':
+      return { label: 'Learn', tone: 'done' };
     case 'build':
       return { label: 'Build running', tone: 'info' };
-    case 'frozen':
-      return { label: 'Start the build', tone: 'normal' };
     case 'design':
       return i.currentStage === 'spec'
         ? { label: 'Continue spec', tone: 'normal' }

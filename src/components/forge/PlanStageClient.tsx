@@ -517,8 +517,8 @@ function DetailStage({
           <CardContent className="min-h-0 flex-1">
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
-              <p className="text-sm font-medium text-ink">Authoring plan from frozen spec...</p>
-              <p className="text-xs text-ink-soft">Forge writes the implementation plan from the frozen spec. This takes a moment.</p>
+              <p className="text-sm font-medium text-ink">Authoring plan from locked spec...</p>
+              <p className="text-xs text-ink-soft">Forge writes the implementation plan from the locked spec. This takes a moment.</p>
             </div>
           </CardContent>
         </Card>

@@ -8,11 +8,11 @@ import { logAction } from '@/observability/action-log';
 /**
  * Freeze (Spec 4 Part B / Key flow 6) — the irreversible Design→Build boundary.
  *
- * Freeze flips `project.phase` design→frozen, stamps `frozen_at`, and marks the
- * spec stage `done`, ALL in a single transaction that re-reads `phase` and aborts
- * if the project is already past Design (no double-freeze, no two-member race).
- * There is NO un-freeze. The `data-phase` cold flip is downstream (the layout
- * RSC reads `phase`).
+ * Freeze flips `project.phase` design→build, stamps `frozen_at` (the lock
+ * timestamp, kept for audit), and marks the spec stage `done`, ALL in a single
+ * transaction that re-reads `phase` and aborts if the project is already past
+ * Design (no double-lock, no two-member race). There is NO un-lock. The
+ * `data-phase` cold flip is downstream (the layout RSC reads `phase`).
  *
  * Precondition (F5/F26): the latest spec `audit_pass.verdict='clean'`, OR an
  * `audit_override` `action_log` row exists for the project. There is no separate
@@ -27,7 +27,7 @@ export type FreezeResult =
 /** Thrown when a freeze is attempted on a project that is already past Design. */
 export class FreezeIrreversibleError extends Error {
   constructor() {
-    super('This project is already frozen — freeze is a point of no return.');
+    super('This project spec is already locked — locking is a point of no return.');
     this.name = 'FreezeIrreversibleError';
   }
 }
@@ -53,9 +53,9 @@ export async function canFreeze(db: Db, projectId: string): Promise<boolean> {
 
 /**
  * Freeze a project. Precondition-checks the freeze gate, then transactionally
- * flips phase + stamps `frozen_at` + advances the spec stage + writes the
- * `freeze` action_log — irreversibly. Idempotent-safe: a second call on an
- * already-frozen project returns `{ ok:true, alreadyFrozen:true }` without
+ * flips phase design→build + stamps `frozen_at` + advances the spec stage +
+ * writes the `freeze` action_log — irreversibly. Idempotent-safe: a second call
+ * on an already-locked project returns `{ ok:true, alreadyFrozen:true }` without
  * mutating (the irreversibility guard fires inside the transaction on a true
  * race; a sequential re-call is a no-op).
  */
@@ -88,7 +88,7 @@ export async function freezeProject(
     const now = new Date();
     await tx
       .update(project)
-      .set({ phase: 'frozen', frozenAt: now, updatedAt: now })
+      .set({ phase: 'build', frozenAt: now, updatedAt: now })
       .where(eq(project.id, projectId));
 
     await tx

@@ -21,7 +21,7 @@ export interface ExportMenuArtifact {
   label: string;
   ready: boolean;
   version: number | null;
-  frozenAudited: boolean;
+  lockedAudited: boolean;
 }
 
 export interface ExportMenuProps {
@@ -86,10 +86,10 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
 
   function badge(a: ExportMenuArtifact) {
     if (!a.ready) return <Badge size="sm">pending</Badge>;
-    if (a.frozenAudited)
+    if (a.lockedAudited)
       return (
         <Badge variant="sage" size="sm" dot>
-          frozen · audited
+          locked · audited
         </Badge>
       );
     return (

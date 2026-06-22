@@ -92,7 +92,7 @@ const AUDIT_ROUNDS: PlanAuditFinding[][] = [
 export function mockPlan(projectId: string): {
   projectName: string;
   intentMd: string;
-  phase: 'design' | 'build' | 'done';
+  phase: 'design' | 'build' | 'learn';
   mmaReady: boolean;
   phases: PlanPhaseSeed[];
   planMd: string;

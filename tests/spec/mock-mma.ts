@@ -46,18 +46,19 @@ export function mockMma(opts: {
     if (method === 'POST') {
       // Dispatch: POST /task?cwd=... with { type, ...body }
       const u = new URL(url);
-      const body = init?.body ? JSON.parse(init.body as string) : undefined;
-      const type = typeof body?.type === 'string' ? body.type : '';
-      const route = type === 'journal_record' ? 'journal-record' : type;
+      const body = (init?.body ? JSON.parse(init.body as string) : {}) as Record<string, unknown>;
+      // The unified `dispatch()` passes the body through verbatim (no `type` field),
+      // so infer the route from the body shape — `journal-record` carries `learnings`,
+      // everything else in these tests is an `audit`.
+      const route = 'learnings' in body ? 'journal-record' : 'audit';
       const cwd = u.searchParams.get('cwd') ?? '';
-      const { type: _type, ...payload } = body ?? {};
-      opts.calls?.push({ route, cwd, body: payload });
+      opts.calls?.push({ route, cwd, body });
 
       const envelope = (queues[route] ?? []).shift();
       const hang = opts.hang?.has(route) ?? false;
       const batchId = `b-${nextId++}`;
       pending.set(batchId, { route, envelope, hang });
-      return new Response(JSON.stringify({ batchId }), {
+      return new Response(JSON.stringify({ taskId: batchId }), {
         status: 202,
         headers: { 'content-type': 'application/json' },
       });

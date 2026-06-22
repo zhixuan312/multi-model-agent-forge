@@ -28,18 +28,36 @@ function asObj(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
 }
 
-/** Parse a review terminal envelope → finding count + the critical/high gate. */
+/**
+ * Parse a review terminal envelope (v5.4+) → finding count + critical/high gate.
+ * New shape: { task, output: { summary }, error }.
+ * The summary is the refined reviewer output which may contain findings.
+ */
 export function parseReviewEnvelope(envelope: unknown): ParsedReview {
   const env = asObj(envelope);
-  const sr = env.structuredReport;
-  if (sr == null || typeof sr !== 'object') return { findingsCount: 0, hasCriticalOrHigh: false, missing: true };
-  const report = asObj(sr);
-  if (report.kind === 'not_applicable') return { findingsCount: 0, hasCriticalOrHigh: false, missing: true };
-  if (!Array.isArray(report.findings)) {
-    // findingsOutcome clean / not_applicable with no findings array → approved.
+  const task = asObj(env.task);
+  const output = asObj(env.output);
+  const error = env.error ? asObj(env.error) : null;
+
+  if (task.status === 'failed' || error) {
+    return { findingsCount: 0, hasCriticalOrHigh: false, missing: true };
+  }
+
+  // output.summary is the refined reviewer output — parse findings from it
+  const summary = output.summary;
+  let findings: Record<string, unknown>[] = [];
+
+  if (summary && typeof summary === 'object') {
+    const summaryObj = asObj(summary);
+    if (Array.isArray(summaryObj.findings)) {
+      findings = summaryObj.findings.map((f) => asObj(f));
+    }
+  }
+
+  if (findings.length === 0) {
     return { findingsCount: 0, hasCriticalOrHigh: false, missing: false };
   }
-  const findings = report.findings.map((f) => asObj(f));
+
   const hasCriticalOrHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
   return { findingsCount: findings.length, hasCriticalOrHigh, missing: false };
 }
@@ -69,9 +87,8 @@ export async function reviewRepo(
   let result: ReviewResult;
   try {
     const { batchId } = await deps.mma.review(args.repoCwd, {
-      filePaths: args.changedFiles.length > 0 ? args.changedFiles : undefined,
-      code: args.changedFiles.length > 0 ? undefined : '// no file list — review the working tree',
-      focus: ['correctness', 'security'],
+      paths: args.changedFiles.length > 0 ? args.changedFiles : undefined,
+      inline: args.changedFiles.length > 0 ? undefined : '// no file list — review the working tree',
     });
     const envelope = await pollToTerminal(deps.mma, batchId, deps.pollIntervalMs ?? 25);
     const parsed = parseReviewEnvelope(envelope);

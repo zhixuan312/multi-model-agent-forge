@@ -22,14 +22,12 @@ describe('stage-route', () => {
     expect(stageRoute('review', 'p1')).toBe('/projects/p1/review');
   });
 
-  it('DATA_PHASE maps each project phase, reusing Build cool tokens for done', () => {
+  it('DATA_PHASE maps each project phase to design or build (two CSS worlds)', () => {
     expect(DATA_PHASE.design).toBe('design');
-    expect(DATA_PHASE.frozen).toBe('frozen');
     expect(DATA_PHASE.build).toBe('build');
-    expect(DATA_PHASE.done).toBe('build');
-    // every project phase is mapped to one of the three CSS phase worlds
+    expect(DATA_PHASE.learn).toBe('build');
     for (const phase of PROJECT_PHASE) {
-      expect(['design', 'frozen', 'build']).toContain(DATA_PHASE[phase]);
+      expect(['design', 'build']).toContain(DATA_PHASE[phase]);
     }
   });
 });

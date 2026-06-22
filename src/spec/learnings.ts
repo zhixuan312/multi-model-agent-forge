@@ -17,8 +17,8 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
  * Learnings curation → journal-record (Spec 4 Part B / Key flow 7) — the only
  * write path into the team journal.
  *
- * At freeze, `proposeLearnings` runs the orchestrator's fourth opus call
- * (`composeLearningCandidates`) over the frozen spec + Q&A session to stage
+ * At spec-lock, `proposeLearnings` runs the orchestrator's fourth opus call
+ * (`composeLearningCandidates`) over the locked spec + Q&A session to stage
  * `learning_candidate` rows. The user keeps/edits/removes them; on Save,
  * `commitLearnings` dispatches `journal-record` at `cwd`=WORKSPACE ROOT (the team
  * journal lives at `.mma/journal/`, never per-project) and stamps each kept
@@ -59,7 +59,7 @@ export interface ProposeLearningsDeps {
 }
 
 /**
- * Propose learnings for a frozen project. IDEMPOTENT: if any `learning_candidate`
+ * Propose learnings for a locked project. IDEMPOTENT: if any `learning_candidate`
  * rows already exist, returns them without re-proposing (a re-load of /freeze
  * never duplicates). Otherwise runs `composeLearningCandidates` and inserts
  * `proposed`/`origin='spec'` rows.
@@ -103,7 +103,7 @@ export async function proposeLearnings(
   return inserted.map(toView);
 }
 
-/** Build the `composeLearningCandidates` prompt from intent + frozen spec + Q&A session. */
+/** Build the `composeLearningCandidates` prompt from intent + locked spec + Q&A session. */
 export async function buildLearningsPrompt(
   db: Db,
   projectId: string,
@@ -133,7 +133,7 @@ export async function buildLearningsPrompt(
   const transcript = msgs.map((m) => `- ${m.sender}: ${m.bodyMd}`).join('\n');
 
   const system = [
-    "You are Forge's learnings curator. From the freeze of a spec, propose the durable",
+    "You are Forge's learnings curator. From the locking of a spec, propose the durable",
     'learnings worth recording in the team journal: what was figured out (insight), what',
     'was decided (decision), and what was hard about brainstorming it with Forge (challenge).',
     'Each learning is a self-contained markdown statement. Propose only what is durable',
@@ -143,7 +143,7 @@ export async function buildLearningsPrompt(
   const user = [
     `# Project: ${proj?.name ?? '(unknown)'}`,
     `\n## Intent\n${proj?.intentMd ?? '(none)'}`,
-    `\n## Frozen specification\n${spec?.bodyMd ?? '(none)'}`,
+    `\n## Locked specification\n${spec?.bodyMd ?? '(none)'}`,
     transcript ? `\n## Q&A session\n${transcript}` : '',
   ].join('\n');
 

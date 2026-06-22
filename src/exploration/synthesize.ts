@@ -40,11 +40,11 @@ const SYNTH_SYSTEM = `You are Forge's exploration synthesizer. You read the comp
 
 Write three sections:
 
-**Context** — what problem the team is solving and why. Ground this in the original brain-dump intent, not just the task results. One paragraph.
+**Background** — what problem the team is solving and why. Ground this in the original brain-dump intent, not just the task results. One paragraph.
 
-**Findings** — what the agents actually discovered. Organize by theme, not by task. Be specific: name files, functions, patterns, libraries, and prior decisions. For each finding, note whether it came from codebase investigation, web research, or journal recall. If a task failed, state what was attempted and that findings are unavailable. Do not pad with generic knowledge — only include what the agents found.
+**Current state** — what the agents actually discovered. Organize by theme, not by task. Be specific: name files, functions, patterns, libraries, and prior decisions. For each finding, note whether it came from codebase investigation, web research, or journal recall. If a task failed, state what was attempted and that findings are unavailable. Do not pad with generic knowledge — only include what the agents found.
 
-**Recommendation** — a concrete proposed approach based on the findings. Not "consider options" — pick one approach and explain why the findings support it. Call out risks or open questions that the spec should address.
+**Rough direction** — a concrete proposed approach based on the findings. Not "consider options" — pick one approach and explain why the findings support it. Call out risks or open questions that the spec should address.
 
 Keep it concise but specific. The spec author will use this brief as their starting point — vague summaries waste their time.`;
 
@@ -164,14 +164,14 @@ export async function synthesize(
   }
 
   // Deterministically guarantee every failed task's marker is present in
-  // Findings (the assertable observable), regardless of model output.
-  let findings = synthesis.findings;
+  // Current state (the assertable observable), regardless of model output.
+  let currentState = synthesis.currentState;
   for (const marker of failureMarkers) {
-    if (!findings.includes(marker)) {
-      findings = `${findings.trim()}\n\n${marker}`;
+    if (!currentState.includes(marker)) {
+      currentState = `${currentState.trim()}\n\n${marker}`;
     }
   }
-  const bodyMd = composeExplorationMarkdown({ ...synthesis, findings });
+  const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
   // Bump version = max+1 for kind='exploration'.
   const [{ v } = { v: null }] = await db

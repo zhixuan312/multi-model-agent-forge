@@ -70,7 +70,7 @@ export interface StageStepperProps {
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   /** The resume pointer — the highlighted/active stage. */
   currentStage: StageKind | null;
-  /** The project phase — Build kinds are locked while design|frozen. */
+  /** The project phase — Build kinds are locked while design. */
   phase: ProjectPhase;
   /** Tablet: icons + active label only. */
   condensed?: boolean;

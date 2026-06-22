@@ -123,3 +123,34 @@ export type JournalReadOutcome =
   | { kind: 'empty' } // no dir / nothing in it
   | { kind: 'unreadable' } // EACCES — present but unreadable
   | { kind: 'unconfigured' }; // workspace root missing / not configured
+
+// ---------------------------------------------------------------------------
+// Journal-stage (LEARN group) view types — the candidate-learnings curation UI.
+// ---------------------------------------------------------------------------
+
+/** `source` = which lifecycle stage the learning came out of (Manual = user-added). */
+export const LEARNING_SOURCES = ['Exploration', 'Spec', 'Plan', 'Execute', 'Review', 'Journal', 'Manual'] as const;
+export type LearningSource = (typeof LEARNING_SOURCES)[number];
+
+/** `category` = what kind of learning it is (fixed taxonomy). */
+export const LEARNING_CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
+export type LearningCategory = (typeof LEARNING_CATEGORIES)[number];
+
+/** One-line description of each category (shown in the journal summary). */
+export const CATEGORY_DESC: Record<LearningCategory, string> = {
+  decision: 'Technical trade-off outcomes — tried X, dropped it, use Y instead.',
+  design: 'Architecture / pattern rationale — why things are built this way.',
+  behavior: 'User interaction patterns, workflow preferences, communication style.',
+  process: 'SDLC / workflow learnings — what works, what doesn’t, how phases operate.',
+  knowledge: 'Factual findings from research / exploration — domain facts, API capabilities, ecosystem state.',
+  style: 'Documentation conventions, code patterns, naming rules, writing norms.',
+};
+
+export interface Learning {
+  id: string;
+  num: number;
+  text: string;
+  tags: string[];
+  source: LearningSource;
+  category: LearningCategory;
+}

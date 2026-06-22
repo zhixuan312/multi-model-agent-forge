@@ -1,31 +1,6 @@
 /**
- * Client-safe Plan-stage view types. Kept separate from `plan.ts` (which reads +
- * parses the plan markdown with `node:fs`) so the client island can `import type`
- * these without pulling `fs` into the browser bundle.
+ * Mock re-export shim. The canonical Plan-stage view types live in
+ * `@/build/plan-types`; this module is kept only so the mock data layer
+ * (`plan.ts`) and its tests can resolve them under the mock path.
  */
-
-export interface PlanTaskSeed {
-  id: string;
-  num: number;
-  title: string;
-  body: string;
-  files: string[];
-  dependsOn: string[];
-  targetRepo: string;
-  /** DB status — used to initialize approval state on page load. */
-  dbStatus?: string;
-}
-
-export interface PlanPhaseSeed {
-  id: string;
-  title: string;
-  tasks: PlanTaskSeed[];
-}
-
-export interface PlanAuditFinding {
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  category: string;
-  claim: string;
-  evidence?: string;
-  suggestion?: string;
-}
+export type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/build/plan-types';

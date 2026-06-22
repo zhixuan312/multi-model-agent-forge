@@ -1,7 +1,6 @@
 import { currentMember } from '@/auth/current-member';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { projectEventBus, type ProjectEvent } from '@/sse/event-bus';
-import { USE_MOCK } from '@/mock/config';
 
 /**
  * Per-project SSE stream (Spec 5 §SSE). The server owns the MMA poll loop and
@@ -25,18 +24,14 @@ export async function GET(
 ): Promise<Response> {
   const { id } = await params;
 
-  // Mock mode: project ids are non-UUID seed values ('mock-project-01'), so the
-  // real-DB auth check (assertProjectReadable) would throw. Skip auth and open the
-  // stream — mock domain writes still fan out via projectEventBus, plus heartbeats.
-  if (!USE_MOCK) {
-    const me = await currentMember();
-    if (!me) return new Response('Unauthorized', { status: 401 });
-    try {
-      await assertProjectReadable(id, { id: me.id });
-    } catch (e) {
-      if (e instanceof ProjectAccessError) return new Response('Not found', { status: 404 });
-      throw e;
-    }
+  // Auth (session) + private-project visibility are checked ONCE at stream open.
+  const me = await currentMember();
+  if (!me) return new Response('Unauthorized', { status: 401 });
+  try {
+    await assertProjectReadable(id, { id: me.id });
+  } catch (e) {
+    if (e instanceof ProjectAccessError) return new Response('Not found', { status: 404 });
+    throw e;
   }
 
   const enc = new TextEncoder();

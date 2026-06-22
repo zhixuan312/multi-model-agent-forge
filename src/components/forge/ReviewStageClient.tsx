@@ -32,7 +32,7 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
-import type { ReviewUnit, ReviewFinding } from '@/mock/domains/projects/review';
+import type { ReviewUnit, ReviewFinding } from '@/build/review-types';
 
 type ReviewPhase = 'inspect' | 'judge' | 'resolve';
 type Msg =

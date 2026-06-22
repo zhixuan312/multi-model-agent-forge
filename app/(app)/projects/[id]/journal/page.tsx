@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { learningCandidate } from '@/db/schema/artifacts';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { JournalStageClient } from '@/components/forge/JournalStageClient';
-import type { Learning, LearningCategory, LearningSource } from '@/mock/domains/projects/journal';
+import type { Learning, LearningCategory, LearningSource } from '@/journal/types';
 
 export default async function JournalStagePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

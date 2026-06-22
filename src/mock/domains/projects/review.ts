@@ -1,27 +1,10 @@
 import { mockPlan } from '@/mock/domains/projects/plan';
+import type { ReviewUnit, ReviewFinding } from '@/build/review-types';
 
 /**
  * Review-stage mock. After Execute lands the commits, MMA's code-review (or a
- * human) reviews the changeset. The interface mirrors the spec/plan audit:
- * numbered, selectable findings with severity + file location; apply selected /
- * all, or discuss. Server-only (mockPlan reads fs).
+ * human) reviews the changeset. Server-only (mockPlan reads fs).
  */
-
-export interface ReviewUnit {
-  id: string;
-  num: number;
-  title: string;
-  repo: string;
-  files: string[];
-  commit: string;
-}
-
-export interface ReviewFinding {
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  category: string;
-  claim: string;
-  location: string;
-}
 
 const shaFor = (n: number) => ((n * 2654435761) >>> 0).toString(16).padStart(7, '0').slice(0, 7);
 

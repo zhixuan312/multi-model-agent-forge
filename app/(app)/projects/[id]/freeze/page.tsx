@@ -6,8 +6,6 @@ import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { loadLearnings } from '@/spec/learnings';
 import { FreezeClient } from '@/components/forge/FreezeClient';
-import { USE_MOCK } from '@/mock/config';
-import { StagePlaceholder } from '@/components/forge/StagePlaceholder';
 
 /**
  * Freeze stage (Spec 4 Part B) — the learnings-curation screen reached after the
@@ -23,8 +21,6 @@ export default async function FreezePage({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
-
-  if (USE_MOCK) return <StagePlaceholder stage="Freeze" />;
 
   try {
     await assertProjectReadable(id, { id: me.id });

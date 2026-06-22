@@ -35,7 +35,7 @@ import { useRouter } from 'next/navigation';
 import { ForgeComposer } from '@/components/forge/ForgeComposer';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
-import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/mock/domains/projects/plan-types';
+import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/build/plan-types';
 
 type PlanPhase = 'detail' | 'validate';
 type TaskStatus = 'proposed' | 'detailed' | 'approved';

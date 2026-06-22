@@ -7,7 +7,7 @@ import { mmaBatch } from '@/db/schema/mma';
 import { repo } from '@/db/schema/workspace';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { ReviewStageClient } from '@/components/forge/ReviewStageClient';
-import type { ReviewUnit, ReviewFinding } from '@/mock/domains/projects/review';
+import type { ReviewUnit, ReviewFinding } from '@/build/review-types';
 
 export default async function ReviewStagePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

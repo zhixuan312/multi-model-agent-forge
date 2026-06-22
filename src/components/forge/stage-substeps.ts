@@ -30,9 +30,8 @@ export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: str
   ],
   // BUILD
   execute: [
-    { key: 'dispatch', label: 'Dispatch' },
-    { key: 'run', label: 'Run' },
-    { key: 'land', label: 'Land' },
+    { key: 'configure', label: 'Configure' },
+    { key: 'monitor', label: 'Monitor' },
   ],
   review: [
     { key: 'inspect', label: 'Inspect' },

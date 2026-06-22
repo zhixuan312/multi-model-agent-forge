@@ -1,0 +1,117 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { eq, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { currentMember } from '@/auth/current-member';
+import { rejectCrossOrigin } from '@/auth/same-origin';
+import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { getDb } from '@/db/client';
+import { planTask } from '@/db/schema/build';
+import { project } from '@/db/schema/projects';
+import { repo } from '@/db/schema/workspace';
+import { connectionSettings } from '@/db/schema/config';
+import { createBuildPr } from '@/build/pr';
+import { buildForgeBranch } from '@/build/execute-core';
+import { projectShortId } from '@/build/slug';
+import { logAction } from '@/observability/action-log';
+import { execFileSync } from 'node:child_process';
+
+/**
+ * `POST /api/projects/[id]/build/retry-pr` — retry PR creation for a repo
+ * where execution succeeded but PR creation failed. Does NOT re-run MMA.
+ */
+export const runtime = 'nodejs';
+
+const bodySchema = z.object({ repoId: z.string().uuid() });
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id } = await params;
+  const csrf = rejectCrossOrigin(_req);
+  if (csrf) return csrf;
+  const me = await currentMember();
+  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    await assertProjectReadable(id, { id: me.id });
+  } catch (e) {
+    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    throw e;
+  }
+
+  const json = await _req.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(json);
+  if (!parsed.success) return NextResponse.json({ error: 'repoId required' }, { status: 400 });
+  const { repoId } = parsed.data;
+
+  const db = getDb();
+
+  // Verify tasks are committed for this repo
+  const tasks = await db
+    .select({ id: planTask.id, title: planTask.title, status: planTask.status, branch: planTask.branch, targetBranch: planTask.targetBranch })
+    .from(planTask)
+    .where(and(eq(planTask.projectId, id), eq(planTask.targetRepoId, repoId)));
+
+  if (tasks.length === 0) return NextResponse.json({ error: 'No tasks for this repo' }, { status: 400 });
+  if (!tasks.every((t) => t.status === 'committed')) return NextResponse.json({ error: 'Not all tasks committed' }, { status: 400 });
+
+  const [repoRow] = await db.select({ name: repo.name, pathOnDisk: repo.pathOnDisk }).from(repo).where(eq(repo.id, repoId)).limit(1);
+  if (!repoRow) return NextResponse.json({ error: 'Repo not found' }, { status: 404 });
+
+  const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, id));
+  const shortId = projectShortId(id);
+  const forgeBranch = tasks[0].branch ?? buildForgeBranch(proj?.name ?? id, shortId);
+  const targetBranch = tasks[0].targetBranch ?? 'main';
+
+  // Push the branch (may already be pushed)
+  try {
+    execFileSync('git', ['-C', repoRow.pathOnDisk, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
+  } catch (pushErr) {
+    return NextResponse.json({ error: `Push failed: ${(pushErr as Error).message}` }, { status: 500 });
+  }
+
+  // Read git token from DB
+  const [settings] = await db.select({ ref: connectionSettings.gitTokenRef }).from(connectionSettings).limit(1);
+  let gitToken: string | null = null;
+  if (settings?.ref) {
+    const { PostgresSecretStore } = await import('@/secrets/secret-store');
+    const secrets = await PostgresSecretStore.create({ db });
+    gitToken = await secrets.get(settings.ref);
+  }
+  if (!gitToken) return NextResponse.json({ error: 'No git token configured' }, { status: 400 });
+
+  const pr = await createBuildPr(
+    {
+      readGitToken: async () => gitToken,
+      parseRemote: (path) => {
+        try {
+          const url = execFileSync('git', ['-C', path, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+          const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+          return m ? { owner: m[1], repo: m[2] } : null;
+        } catch { return null; }
+      },
+      branchHasChanges: async () => true,
+      fetch: globalThis.fetch,
+    },
+    {
+      projectName: proj?.name ?? id,
+      branch: forgeBranch,
+      targetBranch,
+      repoPath: repoRow.pathOnDisk,
+      tasks: tasks.map((t) => ({ title: t.title, commitSha: null })),
+    },
+  );
+
+  if (!pr) return NextResponse.json({ error: 'No changes to create PR' }, { status: 400 });
+  if ('error' in pr) return NextResponse.json({ error: pr.error }, { status: 502 });
+
+  // Store PR
+  await db.update(project).set({
+    buildPrs: sql`jsonb_set(COALESCE(build_prs, '{}'::jsonb), ${sql.raw(`'{${repoId}}'`)}, ${sql.raw(`'${JSON.stringify({ url: pr.url, branch: forgeBranch, targetBranch })}'`)}::jsonb)`,
+  }).where(eq(project.id, id));
+
+  await logAction({ projectId: id, memberId: me.id, action: 'create_pr', target: `repo:${repoRow.name}` }, db);
+
+  return NextResponse.json({ url: pr.url });
+}

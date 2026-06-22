@@ -31,7 +31,7 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
-import { LEARNING_CATEGORIES, type Learning, type LearningCategory } from '@/mock/domains/projects/journal';
+import { LEARNING_CATEGORIES, type Learning, type LearningCategory } from '@/journal/types';
 
 /** A distinct tint per learning category. */
 const CATEGORY_STYLE: Record<LearningCategory, string> = {

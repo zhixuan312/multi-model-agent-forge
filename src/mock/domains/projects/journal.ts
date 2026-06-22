@@ -1,37 +1,15 @@
 import { findMockProject } from '@/mock/domains/projects/dashboard';
+import type { Learning } from '@/journal/types';
+
+export { LEARNING_SOURCES, LEARNING_CATEGORIES, CATEGORY_DESC } from '@/journal/types';
+export type { Learning, LearningSource, LearningCategory } from '@/journal/types';
 
 /**
  * Journal-stage mock (LEARN group). The final stop: harvest the learnings from
  * the run, curate which to keep, record them to the journal. Backed by MMA
  * journal-record in the real product; here the candidate learnings are static.
+ * The view types live in `@/journal/types`; re-exported above for the mock path.
  */
-
-/** `source` = which lifecycle stage the learning came out of (Manual = user-added). */
-export const LEARNING_SOURCES = ['Exploration', 'Spec', 'Plan', 'Execute', 'Review', 'Journal', 'Manual'] as const;
-export type LearningSource = (typeof LEARNING_SOURCES)[number];
-
-/** `category` = what kind of learning it is (fixed taxonomy). */
-export const LEARNING_CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
-export type LearningCategory = (typeof LEARNING_CATEGORIES)[number];
-
-/** One-line description of each category (shown in the journal summary). */
-export const CATEGORY_DESC: Record<LearningCategory, string> = {
-  decision: 'Technical trade-off outcomes — tried X, dropped it, use Y instead.',
-  design: 'Architecture / pattern rationale — why things are built this way.',
-  behavior: 'User interaction patterns, workflow preferences, communication style.',
-  process: 'SDLC / workflow learnings — what works, what doesn’t, how phases operate.',
-  knowledge: 'Factual findings from research / exploration — domain facts, API capabilities, ecosystem state.',
-  style: 'Documentation conventions, code patterns, naming rules, writing norms.',
-};
-
-export interface Learning {
-  id: string;
-  num: number;
-  text: string;
-  tags: string[];
-  source: LearningSource;
-  category: LearningCategory;
-}
 
 // Learnings span the WHOLE run — every group/stage/phase, and not just technical:
 // how the user works, usage patterns, doc style, exploration questions, design

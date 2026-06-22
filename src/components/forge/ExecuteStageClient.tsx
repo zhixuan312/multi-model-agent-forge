@@ -35,6 +35,7 @@ import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
+import { ReviewStageClient, type ReviewPassView as ReviewPassViewImport } from '@/components/forge/ReviewStageClient';
 
 /* ── Props ───────────────────────────────────────────────────────────── */
 
@@ -47,6 +48,13 @@ export interface RepoTerminalResult {
   branch: string | null;
 }
 
+export interface ReviewPassView {
+  passNo: number;
+  status: 'done' | 'failed';
+  findings: Array<{ weight: string; category: string; claim: string; evidence: string; file: string; line: number; suggestion: string }>;
+  appliedIndices: number[];
+}
+
 export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
@@ -54,6 +62,9 @@ export interface ExecuteStageClientProps {
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   terminalResults?: Record<string, RepoTerminalResult>;
+  reviewPasses?: ReviewPassView[];
+  reviewRunning?: boolean;
+  applyRunning?: boolean;
 }
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -88,7 +99,8 @@ function progressPct(status: RepoJobStatus): number {
 export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
   const readOnly = props.phase === 'learn';
-  const derivedPhase = inferExecutePhase(props.repoGroups);
+  const hasReviewPasses = (props.reviewPasses?.length ?? 0) > 0;
+  const derivedPhase = inferExecutePhase(props.repoGroups, hasReviewPasses);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
   const setExecPhase = (p: ExecutePhase) => {
@@ -148,7 +160,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'configure' || key === 'monitor') setExecPhase(key as ExecutePhase);
+        if (key === 'configure' || key === 'monitor' || key === 'review') setExecPhase(key as ExecutePhase);
       }),
     [],
   );
@@ -244,7 +256,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           readOnly={readOnly}
           onStart={startExecution}
         />
-      ) : (
+      ) : execPhase === 'monitor' ? (
         <MonitorPhase
           projectId={props.projectId}
           projectName={props.projectName}
@@ -252,6 +264,15 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           jobs={jobs}
           buildPrs={props.buildPrs}
           allTerminal={allTerminal}
+          readOnly={readOnly}
+          onAdvanceToReview={() => setExecPhase('review')}
+        />
+      ) : (
+        <ReviewPhaseInline
+          projectId={props.projectId}
+          passes={props.reviewPasses ?? []}
+          reviewRunning={props.reviewRunning ?? false}
+          applyRunning={props.applyRunning ?? false}
           readOnly={readOnly}
         />
       )}
@@ -384,7 +405,7 @@ function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGr
 /* ── Monitor Phase ───────────────────────────────────────────────────── */
 
 function MonitorPhase({
-  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly,
+  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly, onAdvanceToReview,
 }: {
   projectId: string;
   projectName: string;
@@ -393,6 +414,7 @@ function MonitorPhase({
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   allTerminal: boolean;
   readOnly: boolean;
+  onAdvanceToReview: () => void;
 }) {
   const doneCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'done').length;
   const failedCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'failed').length;
@@ -489,12 +511,9 @@ function MonitorPhase({
             )}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            <StageAdvance
-              href={`/projects/${projectId}/review`}
-              label="Continue to Review"
-              disabled={!allTerminal || readOnly}
-              testId="execute-continue-link"
-            />
+            <Button className="w-full" onClick={onAdvanceToReview} disabled={!allTerminal || readOnly}>
+              Continue to Review <ArrowRight className="ml-1 size-4" />
+            </Button>
             {!allTerminal && <TextSm className="text-center !text-ink-faint">Waiting for all repos to complete</TextSm>}
           </CardFooter>
         </Card>
@@ -599,6 +618,29 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
 }
 
 /* ── Shared ───────────────────────────────────────────────────────────── */
+
+/* ── Review Phase (inline within Execute) ─────────────────────────── */
+
+function ReviewPhaseInline({
+  projectId, passes, reviewRunning, applyRunning, readOnly,
+}: {
+  projectId: string;
+  passes: ReviewPassView[];
+  reviewRunning: boolean;
+  applyRunning: boolean;
+  readOnly: boolean;
+}) {
+  return (
+    <ReviewStageClient
+      projectId={projectId}
+      projectName=""
+      phase={readOnly ? 'learn' as any : 'build' as any}
+      passes={passes as ReviewPassViewImport[]}
+      reviewRunning={reviewRunning}
+      applyRunning={applyRunning}
+    />
+  );
+}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (

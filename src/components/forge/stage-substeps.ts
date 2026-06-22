@@ -32,11 +32,7 @@ export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: str
   execute: [
     { key: 'configure', label: 'Configure' },
     { key: 'monitor', label: 'Monitor' },
-  ],
-  review: [
-    { key: 'inspect', label: 'Inspect' },
-    { key: 'judge', label: 'Judge' },
-    { key: 'resolve', label: 'Resolve' },
+    { key: 'review', label: 'Review' },
   ],
   // LEARN
   journal: [

@@ -76,6 +76,50 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     };
   }
 
+  // Load review passes
+  const reviewBatches = await db
+    .select({ result: mmaBatch.result, status: mmaBatch.status })
+    .from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'done')))
+    .orderBy(mmaBatch.createdAt);
+
+  const applyBatches = await db
+    .select({ request: mmaBatch.request, status: mmaBatch.status })
+    .from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
+    .orderBy(mmaBatch.createdAt);
+
+  const reviewPasses = reviewBatches.map((b, i) => {
+    const passNo = i + 1;
+    const env = b.result as Record<string, unknown> | null;
+    const output = (env?.output ?? {}) as Record<string, unknown>;
+    let summary = output.summary;
+    if (typeof summary === 'string') {
+      try { summary = JSON.parse(summary.replace(/^```json\n?/, '').replace(/\n?```\s*$/, '')); } catch {}
+    }
+    const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
+    const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];
+    const appliedForPass = applyBatches
+      .filter((ab) => (ab.request as Record<string, unknown> | null)?.passNo === passNo)
+      .flatMap((ab) => { const req = ab.request as Record<string, unknown> | null; return Array.isArray(req?.findingIndices) ? req.findingIndices as number[] : []; });
+    return {
+      passNo,
+      status: 'done' as const,
+      findings: findings.map((f) => ({
+        weight: (f.weight as string) ?? 'medium', category: (f.category as string) ?? '',
+        claim: (f.claim as string) ?? '', evidence: (f.evidence as string) ?? '',
+        file: (f.file as string) ?? '', line: typeof f.line === 'number' ? f.line : 0,
+        suggestion: (f.suggestion as string) ?? '',
+      })),
+      appliedIndices: [...new Set(appliedForPass)],
+    };
+  });
+
+  const [runningReview] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running'))).limit(1);
+  const [runningApply] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running'))).limit(1);
+
   return (
     <ExecuteStageClient
       projectId={id}
@@ -84,7 +128,10 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       repoGroups={groups}
       buildPrs={(proj.buildPrs ?? {}) as Record<string, { url: string; branch: string; targetBranch: string }>}
       terminalResults={terminalResults}
-      initialPhase={urlPhase === 'monitor' ? 'monitor' : undefined}
+      reviewPasses={reviewPasses}
+      reviewRunning={!!runningReview}
+      applyRunning={!!runningApply}
+      initialPhase={urlPhase === 'monitor' ? 'monitor' : urlPhase === 'review' ? 'review' : undefined}
     />
   );
 }

@@ -120,10 +120,16 @@ async function pollReview(
       continue;
     }
     const envelope = res.envelope as Record<string, unknown> | null;
+    const task = (envelope?.task ?? {}) as Record<string, unknown>;
+    const taskStatus = task.status as string | undefined;
+    // done_with_concerns is a SUCCESS — findings exist but the review completed
+    const isSuccess = taskStatus === 'done' || taskStatus === 'done_with_concerns';
     const isFlatError = envelope && typeof envelope.code === 'string' && !envelope.task;
     const error = isFlatError
       ? { code: envelope.code as string, message: envelope.message as string }
-      : (envelope?.error as { code: string; message: string } | null);
+      : (!isSuccess && taskStatus === 'failed')
+        ? (envelope?.error as { code: string; message: string } | null) ?? { code: 'pipeline_failed', message: 'Review failed' }
+        : null;
     const usage = extractUsageFields(envelope);
 
     await db.update(mmaBatch).set({

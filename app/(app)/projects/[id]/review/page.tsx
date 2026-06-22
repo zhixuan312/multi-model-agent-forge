@@ -28,7 +28,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
   const reviewBatches = await db
     .select({ id: mmaBatch.id, result: mmaBatch.result, status: mmaBatch.status })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review')))
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'done')))
     .orderBy(mmaBatch.createdAt);
 
   // Load apply batches
@@ -92,7 +92,6 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       passes={passes}
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
-      initialPhase={urlPhase === 'judge' ? 'judge' : urlPhase === 'resolve' ? 'resolve' : undefined}
     />
   );
 }

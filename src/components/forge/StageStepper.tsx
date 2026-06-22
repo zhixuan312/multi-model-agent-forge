@@ -34,7 +34,7 @@ const STAGE_LABEL: Record<StageKind, string> = {
 
 const GROUPS: { group: 'design' | 'build' | 'learn'; label: string; kinds: StageKind[] }[] = [
   { group: 'design', label: 'Design', kinds: ['exploration', 'spec', 'plan'] },
-  { group: 'build', label: 'Build', kinds: ['execute', 'review'] },
+  { group: 'build', label: 'Build', kinds: ['execute'] },
   { group: 'learn', label: 'Learn', kinds: ['journal'] },
 ];
 

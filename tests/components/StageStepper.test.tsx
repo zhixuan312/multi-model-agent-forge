@@ -35,7 +35,7 @@ describe('StageStepper (stage-driven)', () => {
     const plan = container.querySelector('[data-stage="plan"]')!;
     expect(plan).toHaveAttribute('data-state', 'pending');
 
-    for (const kind of ['execute', 'review', 'journal']) {
+    for (const kind of ['execute', 'journal']) {
       const el = container.querySelector(`[data-stage="${kind}"]`)!;
       expect(el).toHaveAttribute('data-state', 'locked');
       expect(el).toHaveAttribute('aria-disabled', 'true');

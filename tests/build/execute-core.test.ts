@@ -48,9 +48,9 @@ describe('inferExecutePhase', () => {
     expect(inferExecutePhase(groups)).toBe('monitor');
   });
 
-  it('returns monitor when all committed', () => {
+  it('returns review when all committed', () => {
     const groups = [{ tasks: [{ status: 'committed' }] }];
-    expect(inferExecutePhase(groups)).toBe('monitor');
+    expect(inferExecutePhase(groups)).toBe('review');
   });
 
   it('returns configure when empty', () => {

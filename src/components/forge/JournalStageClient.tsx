@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   Check,
@@ -8,9 +9,9 @@ import {
   ChevronLeft,
   Loader2,
   Plus,
-  Sparkles,
   NotebookPen,
-  Clock,
+  FileText,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -22,18 +23,42 @@ import {
   CardContent,
   CardFooter,
   Badge,
-  Textarea,
   TextSm,
-  Micro,
-  Eyebrow,
 } from '@/components/ui';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
-import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
-import { StageAdvance } from '@/components/forge/StageAdvance';
+import { ForgeComposer } from '@/components/forge/ForgeComposer';
 import type { ProjectPhase } from '@/db/enums';
-import { LEARNING_CATEGORIES, type Learning, type LearningCategory } from '@/journal/types';
+import { LEARNING_CATEGORIES, type LearningCategory, type LearningSource } from '@/journal/types';
 
-/** A distinct tint per learning category. */
+/* ── Types ─────────────────────────────────────────────────────── */
+
+interface JournalMsg {
+  id: string;
+  role: 'forge' | 'user';
+  text: string;
+  isDraft?: boolean;
+}
+
+export interface JournalLearningView {
+  id: string;
+  num: number;
+  text: string;
+  category: LearningCategory;
+  source: LearningSource;
+  status: 'proposed' | 'kept' | 'recorded';
+  isManual: boolean;
+  recordedNodeId?: string | null;
+}
+
+export interface JournalStageClientProps {
+  projectId: string;
+  projectName: string;
+  phase: ProjectPhase;
+  learnings: JournalLearningView[];
+  harvesting: boolean;
+  recording: boolean;
+  activeLearningId?: string;
+}
+
 const CATEGORY_STYLE: Record<LearningCategory, string> = {
   decision: 'bg-accent-tint text-accent',
   design: 'bg-[var(--frost)] text-[var(--steel)]',
@@ -43,35 +68,9 @@ const CATEGORY_STYLE: Record<LearningCategory, string> = {
   style: 'bg-surface-2 text-ink-soft',
 };
 
-function CategoryChip({ c }: { c: LearningCategory }) {
-  return (
-    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[c])}>{c}</span>
-  );
-}
+let _nid = 0;
+const nid = () => `jm-${++_nid}`;
 
-type JournalPhase = 'harvest' | 'curate' | 'record';
-interface Msg {
-  id: string;
-  role: 'forge' | 'user';
-  text: string;
-}
-
-export interface JournalStageClientProps {
-  projectId: string;
-  projectName: string;
-  phase: ProjectPhase;
-  learnings: Learning[];
-}
-
-let _id = 0;
-const nid = () => `jl${_id++}`;
-
-/**
- * Reframe a raw gist into a generalized, articulated principle — NOT an echo of
- * the user's words. Strips conversational fillers + first-person framing so the
- * entry reads as a reusable learning the AI authored. (The real product runs this
- * through the model with the full journaling frame; this is the mock's stand-in.)
- */
 function frameLearning(raw: string): string {
   let s = raw.trim();
   const strips = [
@@ -85,635 +84,413 @@ function frameLearning(raw: string): string {
     changed = false;
     for (const re of strips) {
       const next = s.replace(re, '');
-      if (next !== s) {
-        s = next;
-        changed = true;
-      }
+      if (next !== s) { s = next; changed = true; }
     }
   }
   s = s.charAt(0).toUpperCase() + s.slice(1);
   if (!/[.!?]$/.test(s)) s += '.';
-  return s;
+  return s || raw;
 }
+
+/* ── Main Component ────────────────────────────────────────────── */
 
 export function JournalStageClient(props: JournalStageClientProps) {
+  const router = useRouter();
   const readOnly = props.phase !== 'build' && props.phase !== 'learn';
-  const [learnings, setLearnings] = useState<Learning[]>(props.learnings);
 
-  const [phase, setPhase] = useState<JournalPhase>('harvest');
-  const [approved, setApproved] = useState<Set<string>>(new Set());
-  const [auto, setAuto] = useState<AutoMode>('off');
-  const [autoNote, setAutoNote] = useState('');
+  const [activeId, setActiveId] = useState<string>(props.activeLearningId ?? props.learnings[0]?.id ?? '');
+  const [threads, setThreads] = useState<Record<string, JournalMsg[]>>({});
+  const [draftViews, setDraftViews] = useState<Set<string>>(new Set());
+  const [input, setInput] = useState('');
+  const [harvesting, setHarvesting] = useState(props.harvesting);
+  const [recording, setRecording] = useState(props.recording);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => stagePhaseStore.set(phase), [phase]);
-  useEffect(
-    () =>
-      stagePhaseStore.onNavigate((key) => {
-        if (key === 'harvest') setPhase('harvest');
-        else if (key === 'curate') setPhase('curate');
-        else if (key === 'record' && approved.size > 0) setPhase('record');
-      }),
-    [approved.size],
-  );
+  const active = props.learnings.find((l) => l.id === activeId);
+  const approvedCount = props.learnings.filter((l) => l.status === 'kept' || l.status === 'recorded').length;
+  const isDraftView = draftViews.has(activeId);
 
+  // Seed thread when a learning is opened
   useEffect(() => {
-    if (readOnly) return;
-    if (new URLSearchParams(window.location.search).get('auto') === '1') {
-      setAutoNote('Forge is driving — harvesting the learnings…');
-      setAuto('running');
-    }
-  }, [readOnly]);
+    if (!active || threads[active.id]) return;
+    setThreads((t) => ({
+      ...t,
+      [active.id]: [{
+        id: nid(),
+        role: 'forge',
+        text: active.isManual
+          ? "What did you learn? Type your observation below — I'll frame it as a reusable principle for the journal."
+          : "Here's a learning I extracted from the project run. Review it and tell me if you'd like to refine, or approve as-is.",
+      }, {
+        id: nid(),
+        role: 'forge',
+        text: active.text,
+        isDraft: true,
+      }],
+    }));
+  }, [active, threads]);
 
-  const approvedCount = approved.size;
+  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [threads, activeId]);
 
-  // Automated driver: harvest → curate (approve each) → record → complete.
+  // SSE listener
   useEffect(() => {
-    if (auto !== 'running' || readOnly || phase === 'record') return;
-    const t = setTimeout(() => {
-      if (phase === 'harvest') {
-        setAutoNote('Harvested ' + learnings.length + ' learnings — curating…');
-        setPhase('curate');
-      } else if (phase === 'curate') {
-        const next = learnings.find((l) => !approved.has(l.id));
-        if (next) {
-          setAutoNote('Approved: ' + next.text.slice(0, 48) + '…');
-          setApproved((s) => new Set(s).add(next.id));
-        } else {
-          setAutoNote('Recorded ' + approvedCount + ' learnings to the journal — project complete.');
-          setPhase('record');
-          setAuto('off');
-        }
-      }
-    }, 900);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, phase, approved, readOnly]);
-
-  function toggleApprove(id: string) {
-    setApproved((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }
-
-  /** Add a blank learning (drafted by talking to Forge); returns its id. */
-  function addLearning(): string {
-    const num = learnings.reduce((m, l) => Math.max(m, l.num), 0) + 1;
-    const id = `lnew-${num}`;
-    setLearnings((ls) => [...ls, { id, num, text: '', tags: [], source: 'Manual', category: 'decision' }]);
-    return id;
-  }
-  function updateLearning(id: string, patch: Partial<Learning>) {
-    setLearnings((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4" data-testid="journal-stage">
-      <AutomationBar
-        mode={auto}
-        note={autoNote}
-        disabled={readOnly}
-        idleHint="Curate the learnings yourself, or let Forge harvest and record them to close out the project."
-        runningHint="Forge harvests the run’s learnings, approves the worthwhile ones, and records them. Stop anytime."
-        onRun={() => {
-          setAutoNote('Forge is driving — harvesting the learnings…');
-          setAuto('running');
-        }}
-        onStop={() => {
-          setAuto('off');
-          setAutoNote('Stopped — you have the wheel.');
-        }}
-      />
-
-      {phase === 'harvest' ? (
-        <HarvestStage
-          projectId={props.projectId}
-          learnings={learnings}
-          onCurate={() => setPhase('curate')}
-          onLearningsLoaded={(ls) => setLearnings(ls)}
-        />
-      ) : phase === 'curate' ? (
-        <CurateStage
-          learnings={learnings}
-          approved={approved}
-          approvedCount={approvedCount}
-          readOnly={readOnly}
-          driving={auto === 'running'}
-          onToggleApprove={toggleApprove}
-          onAdd={addLearning}
-          onUpdate={updateLearning}
-          onRecord={() => setPhase('record')}
-        />
-      ) : (
-        <RecordStage projectName={props.projectName} learnings={learnings.filter((l) => approved.has(l.id))} />
-      )}
-    </div>
-  );
-}
-
-/* ── Harvest — auto-dispatch or show gathered learnings ───────────────────── */
-function HarvestStage({
-  projectId, learnings, onCurate, onLearningsLoaded,
-}: {
-  projectId: string; learnings: Learning[]; onCurate: () => void;
-  onLearningsLoaded: (ls: Learning[]) => void;
-}) {
-  const [harvesting, setHarvesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function startHarvest() {
-    setHarvesting(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/journal/harvest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? `Harvest failed (HTTP ${res.status})`);
-        setHarvesting(false);
-      }
-    } catch {
-      setError('Network error');
-      setHarvesting(false);
-    }
-  }
-
-  // SSE listener for harvest completion
-  useEffect(() => {
-    if (!harvesting) return;
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${projectId}/events`);
+    if (!harvesting && !recording) return;
+    const es = new EventSource(`/api/projects/${props.projectId}/events`);
     es.onmessage = (msg) => {
       try {
         const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if (e.type === 'dispatch.done' && e.handler === 'journal-harvest') {
-          setHarvesting(false);
+        if ((e.type === 'dispatch.done' || e.type === 'dispatch.failed') &&
+            (e.handler === 'journal-harvest' || e.handler === 'journal-record')) {
           window.location.reload();
         }
-        if (e.type === 'dispatch.failed' && e.handler === 'journal-harvest') {
-          setHarvesting(false);
-          setError((e.error as string) ?? 'Harvest failed');
-        }
-      } catch { /* ignore */ }
+      } catch {}
     };
     return () => es.close();
-  }, [harvesting, projectId]);
+  }, [harvesting, recording, props.projectId]);
 
-  const sources = [...new Set(learnings.map((l) => l.source))];
-  const empty = learnings.length === 0;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* MAIN — learnings list or harvest prompt (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            {harvesting
-              ? <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
-              : <NotebookPen className="size-4 shrink-0 text-accent" />
-            }
-            <CardTitle>{harvesting ? 'Harvesting learnings…' : 'Harvested learnings'}</CardTitle>
-            {!empty && <Badge variant="neutral" size="sm">{learnings.length}</Badge>}
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            <Sparkles className="size-3" /> from the whole run
-          </span>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-          {harvesting ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-              <Loader2 className="size-6 animate-spin text-accent" />
-              <p className="text-sm font-medium text-ink">Extracting learnings from the project run…</p>
-              <p className="text-xs text-ink-soft">MMA is analyzing your spec, plan, execution, and review to identify reusable lessons.</p>
-            </div>
-          ) : empty ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-              <NotebookPen className="size-6 text-ink-faint" />
-              <p className="text-sm font-medium text-ink">No learnings harvested yet</p>
-              <p className="text-xs text-ink-soft">Press "Harvest learnings" to extract lessons from the entire project run.</p>
-              {error && <p className="text-sm text-[var(--rose)]">{error}</p>}
-            </div>
-          ) : (
-            learnings.map((l) => (
-              <div key={l.id} className="rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-px grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{l.num}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="text-sm leading-relaxed text-ink">{l.text}</span>
-                    <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-soft">{l.source}</span>
-                      <CategoryChip c={l.category} />
-                      {l.tags.map((t) => (
-                        <span key={t} className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-faint">#{t}</span>
-                      ))}
-                    </span>
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {/* RIGHT — summary + action (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
-        <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/30 px-4 py-4">
-          <NotebookPen className="mt-0.5 size-4 shrink-0 text-accent" />
-          <div className="min-w-0">
-            <Eyebrow as="h3" className="text-accent-deep">Close the loop</Eyebrow>
-            <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-              The journal is durable memory across projects. Recording these means the next run starts knowing what this one learned.
-            </p>
-          </div>
-        </div>
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            {empty ? (
-              <TextSm className="!text-ink-faint">Harvest learnings first to see the summary.</TextSm>
-            ) : (
-              <>
-                <div className="flex items-center justify-between border-b border-line pb-2">
-                  <span className="text-xs text-ink-faint">Learnings</span>
-                  <span className="text-sm font-semibold text-ink">{learnings.length}</span>
-                </div>
-                <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By category</Micro>
-                <div className="space-y-1.5">
-                  {LEARNING_CATEGORIES.filter((c) => learnings.some((l) => l.category === c)).map((c) => (
-                    <div key={c} className="flex items-center justify-between">
-                      <CategoryChip c={c} />
-                      <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.category === c).length}</span>
-                    </div>
-                  ))}
-                </div>
-                <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">By source</Micro>
-                <div className="space-y-1.5">
-                  {sources.map((s) => (
-                    <div key={s} className="flex items-center justify-between">
-                      <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">{s}</span>
-                      <span className="text-sm font-semibold text-ink">{learnings.filter((l) => l.source === s).length}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            {empty ? (
-              <Button className="w-full" onClick={startHarvest} disabled={harvesting} loading={harvesting} leftIcon={<Sparkles />}>
-                {harvesting ? 'Harvesting…' : 'Harvest learnings'}
-              </Button>
-            ) : (
-              <Button className="w-full" onClick={onCurate} rightIcon={<ArrowRight />}>
-                Curate the learnings
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-/* ── Curate — per-learning conversation + approve (Craft-style) ─────────────── */
-function CurateStage({
-  learnings,
-  approved,
-  approvedCount,
-  readOnly,
-  driving,
-  onToggleApprove,
-  onAdd,
-  onUpdate,
-  onRecord,
-}: {
-  learnings: Learning[];
-  approved: Set<string>;
-  approvedCount: number;
-  readOnly: boolean;
-  driving: boolean;
-  onToggleApprove: (id: string) => void;
-  onAdd: () => string;
-  onUpdate: (id: string, patch: Partial<Learning>) => void;
-  onRecord: () => void;
-}) {
-  const firstOpen = learnings.find((l) => !approved.has(l.id)) ?? learnings[0];
-  const [activeId, setActiveId] = useState<string>(firstOpen?.id ?? '');
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
-  const [input, setInput] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  const active = learnings.find((l) => l.id === activeId) ?? learnings[0];
-
-  useEffect(() => {
-    if (!active || threads[active.id]) return;
-    const seed = active.text
-      ? `This came from the ${active.source}. I'd record it as-is — it’s a ${active.tags[0] ?? 'general'} learning the next run should know. Want to reword it, add context, or approve?`
-      : 'New learning — tell me what happened in your own words. I’ll generalize it into a reusable principle, ground it in this run, and note how to apply it next time.';
-    setThreads((th) => ({ ...th, [active.id]: [{ id: nid(), role: 'forge', text: seed }] }));
-  }, [active, threads]);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [threads, activeId]);
-
-  // Follow the AI as it auto-approves.
-  useEffect(() => {
-    if (active && approved.has(active.id)) {
-      const next = learnings.find((l) => !approved.has(l.id));
-      if (next) setActiveId(next.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [approved]);
-
-  if (!active) return null;
-  const isApproved = approved.has(active.id);
-  const msgs = threads[active.id] ?? [];
-  const allApproved = approvedCount === learnings.length;
-
-  function send() {
-    const text = input.trim();
-    if (!text) return;
+  // URL sync
+  function switchLearning(id: string) {
+    setActiveId(id);
     setInput('');
-    const drafting = !active.text; // a new, empty learning being written up
-    if (drafting) onUpdate(active.id, { text: frameLearning(text) });
-    setThreads((th) => ({
-      ...th,
+    const url = new URL(window.location.href);
+    url.searchParams.set('learning', id);
+    router.push(url.pathname + url.search, { scroll: false });
+  }
+
+  // Get current draft text (last draft message in thread)
+  function currentDraft(): string {
+    const msgs = threads[activeId] ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].isDraft) return msgs[i].text;
+    }
+    return active?.text ?? '';
+  }
+
+  function submit() {
+    const text = input.trim();
+    if (!text || !active) return;
+    setInput('');
+    const reframed = frameLearning(text);
+    setThreads((t) => ({
+      ...t,
       [active.id]: [
-        ...(th[active.id] ?? []),
+        ...(t[active.id] ?? []),
         { id: nid(), role: 'user', text },
-        {
-          id: nid(),
-          role: 'forge',
-          text: drafting
-            ? 'Framed it as a reusable principle above — generalized from your note, not a transcript. Tighten the wording, or approve it for the journal.'
-            : 'Good — folded that into the entry below. Approve it when it reads right.',
-        },
+        { id: nid(), role: 'forge', text: 'Updated:' },
+        { id: nid(), role: 'forge', text: reframed, isDraft: true },
       ],
     }));
   }
 
+  async function harvest() {
+    setHarvesting(true);
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/journal/harvest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) setHarvesting(false);
+    } catch { setHarvesting(false); }
+  }
+
+  async function approve() {
+    if (!active) return;
+    const draft = currentDraft();
+    await fetch(`/api/projects/${props.projectId}/journal/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ learningId: active.id, action: 'approve', text: draft }),
+    });
+    window.location.reload();
+  }
+
+  async function revoke() {
+    if (!active) return;
+    await fetch(`/api/projects/${props.projectId}/journal/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ learningId: active.id, action: 'revoke' }),
+    });
+    window.location.reload();
+  }
+
+  async function addLearning() {
+    const res = await fetch(`/api/projects/${props.projectId}/journal/add`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'New learning', category: 'knowledge', source: 'Manual' }),
+    });
+    if (res.ok) window.location.reload();
+  }
+
+  async function record() {
+    setRecording(true);
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/journal/record`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) setRecording(false);
+    } catch { setRecording(false); }
+  }
+
+  const isApproved = active?.status === 'kept' || active?.status === 'recorded';
+
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — the active learning's full entry + conversation (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <Badge variant="neutral" size="sm">
-              #{active.num}
-            </Badge>
-            <CardTitle>Journal entry</CardTitle>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-ink-soft">
-              {active.source}
-            </span>
-            <CategoryChip c={active.category} />
-          </div>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {/* The full journal entry. */}
-          <div className="rounded-[var(--r-md)] border border-line bg-surface p-4">
-            {active.text ? (
-              <p className="text-[15px] leading-relaxed text-ink">{active.text}</p>
-            ) : (
-              <p className="text-[15px] italic leading-relaxed text-ink-faint">
-                New learning — describe it in the chat below and I’ll write it up here.
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
-              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-soft">{active.source}</span>
-              <CategoryChip c={active.category} />
-              {active.tags.map((t) => (
-                <span key={t} className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-faint">#{t}</span>
-              ))}
-            </div>
-          </div>
-          {msgs.map((m) => (m.role === 'user' ? <UserBubble key={m.id} text={m.text} /> : <ForgeBubble key={m.id}>{m.text}</ForgeBubble>))}
-          <div ref={bottomRef} />
-        </CardContent>
-        {isApproved ? (
-          <CardFooter>
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="size-5 shrink-0 text-[var(--sage)]" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Approved for the journal</p>
-                <p className="text-xs text-ink-faint">Re-open to revoke and keep discussing, or pick another.</p>
-              </div>
-            </div>
-            <Button variant="secondary" onClick={() => onToggleApprove(active.id)} disabled={readOnly} leftIcon={<ChevronLeft />}>
-              Re-open
-            </Button>
-          </CardFooter>
-        ) : (
-          <Composer
-            value={input}
-            onChange={setInput}
-            onSend={send}
-            secondary={{ label: 'Approve learning', icon: <Check />, onClick: () => onToggleApprove(active.id), disabled: readOnly }}
-            placeholder="Discuss this learning — “reword it”, “add the token-delta number”…"
-            disabled={readOnly || driving}
-          />
-        )}
-      </Card>
+    <div className="flex h-full min-h-0 flex-col gap-4" data-testid="journal-stage">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
 
-      {/* RIGHT — the harvested learnings list (1/3) */}
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Harvested</CardTitle>
-            <span className="text-sm font-medium text-ink-faint">
-              {approvedCount}/{learnings.length}
-            </span>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-            <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${learnings.length ? (approvedCount / learnings.length) * 100 : 0}%` }} />
-            </div>
-            {learnings.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => setActiveId(l.id)}
-                className={cn(
-                  'flex w-full items-start gap-2 rounded-[var(--r-md)] border px-3 py-2 text-left transition-colors',
-                  l.id === active.id ? 'border-accent bg-surface shadow-sm' : 'border-transparent hover:bg-surface-2/50',
-                )}
-              >
-                {approved.has(l.id) ? (
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--sage)]" />
-                ) : (
-                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-line-strong font-mono text-[9px] text-ink-faint">{l.num}</span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className={cn('line-clamp-2 text-[13px] leading-snug', l.text ? 'text-ink' : 'italic text-ink-faint')}>
-                    {l.text || 'New learning…'}
-                  </span>
-                  <span className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-faint">{l.source}</span>
-                    <CategoryChip c={l.category} />
-                  </span>
-                </span>
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                const id = onAdd();
-                setActiveId(id);
-              }}
-              disabled={readOnly}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus className="size-4" /> Add learning
-            </button>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onRecord} disabled={!allApproved} rightIcon={<NotebookPen />}>
-              Record {approvedCount} learning{approvedCount === 1 ? '' : 's'}
-            </Button>
-          </CardFooter>
-        </Card>
-      </aside>
-    </div>
-  );
-}
-
-/* ── Record — written to the journal, project complete ─────────────────────── */
-function RecordStage({ projectName, learnings }: { projectName: string; learnings: Learning[] }) {
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-            <CardTitle>Recorded to the journal</CardTitle>
-            <Badge variant="sage" size="sm">
-              {learnings.length}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-          {learnings.map((l) => (
-            <div key={l.id} className="flex items-start gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2.5">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--sage)]" />
-              <span className="min-w-0 flex-1">
-                <span className="text-sm leading-relaxed text-ink">{l.text}</span>
-                <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-soft">{l.source}</span>
-                  <CategoryChip c={l.category} />
-                  {l.tags.map((t) => (
-                    <span key={t} className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-faint">#{t}</span>
-                  ))}
-                </span>
-              </span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <aside className="flex min-h-0 flex-col">
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Complete</CardTitle>
-            <Badge variant="sage" size="sm">done</Badge>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <div className="flex items-start gap-2.5 rounded-[var(--r-md)] border border-sage-tint bg-sage-tint/40 px-3.5 py-3">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--sage-deep)]" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{projectName} is complete</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-ink-soft">
-                  Explore → Spec → Plan → Execute → Review → Journal. The learnings are now durable memory for the next run.
+        {/* LEFT — conversation or state card */}
+        <Card className="flex min-h-0 flex-col lg:col-span-2">
+          {props.learnings.length === 0 && !harvesting ? (
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <NotebookPen className="size-4 shrink-0 text-accent" />
+                  <CardTitle>Learnings</CardTitle>
+                  <Badge variant="neutral" size="sm">no learnings yet</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <NotebookPen className="size-8 text-ink-faint/30" />
+                <p className="text-sm font-medium text-ink-soft">No learnings yet</p>
+                <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 280 }}>
+                  Harvest AI learnings from the full project run, or add your own manually.
                 </p>
+              </CardContent>
+            </>
+          ) : harvesting && props.learnings.length === 0 ? (
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+                  <CardTitle>Harvesting learnings</CardTitle>
+                  <Badge variant="accent" size="sm">harvesting</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <Loader2 className="size-8 animate-spin text-accent" />
+                <p className="text-sm font-medium text-ink">Extracting learnings from the project run…</p>
+                <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 300 }}>
+                  MMA is analyzing all 5 stages: Exploration, Spec, Plan, Execute, Review.
+                </p>
+              </CardContent>
+            </>
+          ) : recording ? (
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+                  <CardTitle>Writing to journal</CardTitle>
+                  <Badge variant="accent" size="sm">recording</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+                <Loader2 className="size-8 animate-spin text-accent" />
+                <p className="text-sm font-medium text-ink">Recording {approvedCount} learnings to .mma/journal/</p>
+              </CardContent>
+            </>
+          ) : active && isDraftView ? (
+            /* Draft view — matches Spec Craft "View spec" */
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <NotebookPen className="size-4 shrink-0 text-accent" />
+                  <CardTitle>{active.text.slice(0, 50)}{active.text.length > 50 ? '…' : ''}</CardTitle>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
+                <div className="w-full max-w-xl rounded-[var(--r-md)] border border-line bg-surface p-5 shadow-sm">
+                  <p className="text-sm leading-relaxed text-ink">{currentDraft()}</p>
+                  <div className="mt-3 flex gap-2">
+                    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
+                    <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-medium text-ink-faint">{active.source}</span>
+                  </div>
+                </div>
+              </CardContent>
+              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+                <div className="flex items-center gap-2.5">
+                  <NotebookPen className="size-5 shrink-0 text-accent" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">{active.text.slice(0, 40)}…</p>
+                    <p className="text-xs text-ink-faint">Review the draft, or go back to refine.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setDraftViews((s) => { const n = new Set(s); n.delete(activeId); return n; })} leftIcon={<ChevronLeft />}>
+                    Back to conversation
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={isApproved ? revoke : approve}
+                    disabled={readOnly}
+                    variant={isApproved ? 'secondary' : 'primary'}
+                    leftIcon={isApproved ? <RotateCcw /> : <Check />}
+                  >
+                    {isApproved ? 'Revoke' : 'Approve'}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <StageAdvance href="/journal" label="View the journal" />
-            <a
-              href="/projects"
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-2"
-            >
-              Back to projects
-            </a>
-          </CardFooter>
+            </>
+          ) : active ? (
+            /* Conversation mode — matches Spec Craft conversation */
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
+                    <NotebookPen className="size-4" />
+                  </span>
+                  <CardTitle>{active.text.slice(0, 50)}{active.text.length > 50 ? '…' : ''}</CardTitle>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
+                  {active.source}
+                </span>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
+                {(threads[active.id] ?? []).map((m) => (
+                  m.role === 'forge' ? (
+                    <div key={m.id} className="flex gap-2.5">
+                      <ForgeMark className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1"><span className="text-xs font-semibold text-ink">Forge</span></div>
+                        {m.isDraft ? (
+                          <div className="rounded-[var(--r-md)] border-l-[3px] border-accent bg-surface-2 px-4 py-3">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-accent">Draft learning</span>
+                            </div>
+                            <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                            <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={m.id} className="flex justify-end gap-2.5">
+                      <div className="max-w-[80%] rounded-2xl rounded-tr-md border border-[rgba(53,90,116,0.15)] bg-[var(--frost)] px-4 py-3 shadow-sm">
+                        <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                      </div>
+                    </div>
+                  )
+                ))}
+                <div ref={bottomRef} />
+              </CardContent>
+              <ForgeComposer
+                value={input}
+                onChange={setInput}
+                onSubmit={submit}
+                disabled={readOnly || isApproved}
+                placeholder={isApproved ? 'Approved — revoke to edit' : 'Refine this learning…'}
+                secondaryAction={
+                  <Button size="sm" variant="secondary" onClick={() => setDraftViews((s) => new Set(s).add(activeId))} leftIcon={<FileText />}>
+                    View draft
+                  </Button>
+                }
+              />
+            </>
+          ) : null}
         </Card>
-      </aside>
-    </div>
-  );
-}
 
-/* ── chat primitives ────────────────────────────────────────────────────────── */
-function ForgeBubble({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-xs font-semibold text-ink">Forge</span>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
+        {/* RIGHT — learning list rail */}
+        <aside className="flex min-h-0 flex-col">
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader>
+              <CardTitle>Learnings</CardTitle>
+              <span className="text-sm font-medium text-ink-faint">{approvedCount}/{props.learnings.length}</span>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
+              {/* Progress bar */}
+              <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${props.learnings.length ? (approvedCount / props.learnings.length) * 100 : 0}%` }} />
+              </div>
 
-function UserBubble({ text }: { text: string }) {
-  return (
-    <div className="flex flex-row-reverse gap-2.5">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-        AD
-      </span>
-      <div className="flex min-w-0 max-w-[88%] flex-col items-end">
-        <span className="mb-1 text-[11px] text-ink-faint">You</span>
-        <div className="rounded-2xl rounded-tr-md border border-accent/20 bg-accent-tint px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
+              {/* Harvesting card */}
+              {harvesting && (
+                <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-ink">Harvesting</span>
+                    <Badge variant="neutral" size="sm">running</Badge>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs text-ink-soft">Extracting learnings…</span>
+                  </div>
+                </div>
+              )}
 
-function Composer({
-  value,
-  onChange,
-  onSend,
-  secondary,
-  placeholder,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  secondary?: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean };
-  placeholder: string;
-  disabled: boolean;
-}) {
-  return (
-    <div className="shrink-0 border-t border-line px-5 py-4">
-      <div className="flex gap-2.5">
-        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-          AD
-        </span>
-        <div className="min-w-0 flex-1">
-          <Textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} disabled={disabled} placeholder={placeholder} className="!min-h-0 !rounded-2xl !text-sm" />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {secondary ? (
-              <Button size="sm" variant="ghost" onClick={secondary.onClick} disabled={disabled || secondary.disabled} leftIcon={secondary.icon}>
-                {secondary.label}
-              </Button>
-            ) : null}
-            <span className="flex-1" />
-            <Button size="sm" onClick={onSend} disabled={disabled || !value.trim()} rightIcon={<ArrowRight />}>
-              Send
-            </Button>
-          </div>
-        </div>
+              {/* Recording card */}
+              {recording && (
+                <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-ink">Recording</span>
+                    <Badge variant="neutral" size="sm">running</Badge>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs text-ink-soft">Writing to journal…</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Learning rows */}
+              {props.learnings.map((l) => {
+                const isActive = l.id === activeId;
+                const approved = l.status === 'kept' || l.status === 'recorded';
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => switchLearning(l.id)}
+                    className={cn(
+                      'w-full rounded-[var(--r-md)] border px-3 py-2.5 text-left transition-colors',
+                      isActive ? 'border-accent bg-surface shadow-sm' : 'border-transparent hover:bg-surface-2/50',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {approved ? (
+                        <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
+                      ) : (
+                        <span className="grid size-4 shrink-0 place-items-center rounded-[4px] bg-surface-2 text-[10px] font-bold text-ink-faint">{l.num}</span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{l.text.slice(0, 60)}{l.text.length > 60 ? '…' : ''}</span>
+                      {l.isManual && <span className="text-[9px] text-[var(--sage)]">✎</span>}
+                    </div>
+                    <div className="mt-1.5 pl-6">
+                      <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        approved ? 'bg-sage-tint text-[var(--sage-deep)]'
+                          : 'bg-surface-2 text-ink-faint',
+                      )}>
+                        {l.status === 'recorded' ? 'recorded' : approved ? 'approved' : 'needs input'}
+                      </span>
+                      {l.recordedNodeId && (
+                        <span className="ml-1.5 font-mono text-[10px] text-[var(--sage)]">{l.recordedNodeId}</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Add learning button */}
+              <button
+                type="button"
+                onClick={addLearning}
+                disabled={readOnly}
+                className="flex w-full items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent"
+              >
+                <Plus className="size-4" /> Add learning
+              </button>
+            </CardContent>
+            <CardFooter className="flex-col !items-stretch gap-2">
+              {props.learnings.length === 0 ? (
+                <Button className="w-full" onClick={harvest} disabled={readOnly || harvesting} loading={harvesting} leftIcon={<NotebookPen />}>
+                  {harvesting ? 'Harvesting…' : 'Harvest learnings'}
+                </Button>
+              ) : (
+                <>
+                  <Button className="w-full" onClick={record} disabled={approvedCount === 0 || readOnly || recording} loading={recording} leftIcon={<NotebookPen />}>
+                    {recording ? 'Writing…' : `Write ${approvedCount} to journal`}
+                  </Button>
+                  {approvedCount === 0 && <TextSm className="text-center !text-ink-faint">Approve learnings to enable writing</TextSm>}
+                </>
+              )}
+            </CardFooter>
+          </Card>
+        </aside>
       </div>
     </div>
   );

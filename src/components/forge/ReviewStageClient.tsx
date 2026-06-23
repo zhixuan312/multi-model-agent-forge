@@ -70,7 +70,7 @@ function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
 /* ── Main Component ──────────────────────────────────────────────── */
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
-  const readOnly = props.phase !== 'build';
+  const readOnly = props.phase !== 'build' && props.phase !== 'learn';
 
   const [reviewing, setReviewing] = useState(props.reviewRunning);
   const [applying, setApplying] = useState(props.applyRunning);
@@ -394,10 +394,11 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               <StageAdvance
                 href={`/projects/${props.projectId}/journal`}
                 label="Continue to Journal"
-                disabled={props.passes.length === 0 || readOnly}
+                disabled={readOnly}
+                projectId={props.projectId}
+                from="review"
                 testId="review-continue-link"
               />
-              {props.passes.length === 0 && <TextSm className="text-center !text-ink-faint">Run at least one review first</TextSm>}
             </CardFooter>
           </Card>
         </aside>

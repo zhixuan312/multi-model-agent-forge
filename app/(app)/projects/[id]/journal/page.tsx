@@ -28,14 +28,22 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const candidates = await db.select().from(learningCandidate)
     .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
 
+  // Map DB type enum back to UI category for display
+  const TYPE_TO_CATEGORY: Record<string, LearningCategory> = {
+    decision: 'decision', insight: 'knowledge', challenge: 'process',
+  };
+  const ORIGIN_TO_SOURCE: Record<string, LearningSource> = {
+    exploration: 'Exploration', spec: 'Spec',
+  };
+
   const learnings: JournalLearningView[] = candidates.map((c, i) => {
-    const { category, source, text } = parseTags(c.bodyMd);
+    const { category: tagCat, source: tagSrc, text } = parseTags(c.bodyMd);
     return {
       id: c.id,
       num: i + 1,
       text,
-      category: (category ?? 'knowledge') as LearningCategory,
-      source: (source ?? 'Manual') as LearningSource,
+      category: (tagCat ?? TYPE_TO_CATEGORY[c.type] ?? 'knowledge') as LearningCategory,
+      source: (tagSrc ?? ORIGIN_TO_SOURCE[c.origin] ?? 'Manual') as LearningSource,
       status: c.status as 'proposed' | 'kept' | 'recorded',
       isManual: !!c.createdBy,
       recordedNodeId: c.recordedNodeId,

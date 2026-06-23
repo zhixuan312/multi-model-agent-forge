@@ -110,27 +110,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const approvedCount = props.learnings.filter((l) => l.status === 'kept' || l.status === 'recorded').length;
   const isDraftView = draftViews.has(activeId);
 
-  // Seed thread when a learning is opened
-  useEffect(() => {
-    if (!active || threads[active.id]) return;
-    setThreads((t) => ({
-      ...t,
-      [active.id]: [{
-        id: nid(),
-        role: 'forge',
-        text: active.isManual
-          ? "What did you learn? Type your observation below — I'll frame it as a reusable principle for the journal."
-          : "Here's a learning I extracted from the project run. Review it and tell me if you'd like to refine, or approve as-is.",
-      }, {
-        id: nid(),
-        role: 'forge',
-        text: active.text,
-        isDraft: true,
-      }],
-    }));
-  }, [active, threads]);
+  // Whether the user has started a conversation (typed something) for this learning
+  const hasConversation = !!(threads[activeId]?.length);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [threads, activeId]);
+
+  // Auto-harvest on first visit (no learnings, not already harvesting)
+  useEffect(() => {
+    if (props.learnings.length === 0 && !harvesting && !readOnly) {
+      harvest();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // SSE listener
   useEffect(() => {
@@ -171,10 +162,11 @@ export function JournalStageClient(props: JournalStageClientProps) {
     if (!text || !active) return;
     setInput('');
     const reframed = frameLearning(text);
+    const existing = threads[active.id] ?? [];
     setThreads((t) => ({
       ...t,
       [active.id]: [
-        ...(t[active.id] ?? []),
+        ...existing,
         { id: nid(), role: 'user', text },
         { id: nid(), role: 'forge', text: 'Updated:' },
         { id: nid(), role: 'forge', text: reframed, isDraft: true },
@@ -281,8 +273,79 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 <p className="text-sm font-medium text-ink">Recording {approvedCount} learnings to .mma/journal/</p>
               </CardContent>
             </>
-          ) : active && isDraftView ? (
-            /* Draft view — matches Spec Craft "View spec" */
+          ) : active && !isDraftView ? (
+            /* Conversation mode (default) — empty unless user has typed */
+            <>
+              <CardHeader>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
+                    <NotebookPen className="size-4" />
+                  </span>
+                  <CardTitle>{active.text.slice(0, 50)}{active.text.length > 50 ? '…' : ''}</CardTitle>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
+                  {active.source}
+                </span>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+                {hasConversation ? (
+                  <div className="space-y-5">
+                    {(threads[active.id] ?? []).map((m) => (
+                      m.role === 'forge' ? (
+                        <div key={m.id} className="flex gap-2.5">
+                          <ForgeMark className="mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1"><span className="text-xs font-semibold text-ink">Forge</span></div>
+                            {m.isDraft ? (
+                              <div className="rounded-[var(--r-md)] border-l-[3px] border-accent bg-surface-2 px-4 py-3">
+                                <div className="mb-1 flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wide text-accent">Draft learning</span>
+                                </div>
+                                <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                              </div>
+                            ) : (
+                              <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                                <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={m.id} className="flex justify-end gap-2.5">
+                          <div className="max-w-[80%] rounded-2xl rounded-tr-md border border-[rgba(53,90,116,0.15)] bg-[var(--frost)] px-4 py-3 shadow-sm">
+                            <p className="text-sm leading-relaxed text-ink">{m.text}</p>
+                          </div>
+                        </div>
+                      )
+                    ))}
+                    <div ref={bottomRef} />
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 py-16">
+                    <NotebookPen className="size-8 text-ink-faint/30" />
+                    <p className="text-sm font-medium text-ink-soft">No questions</p>
+                    <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 280 }}>
+                      Type a refinement below, or view the draft to approve.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+              <ForgeComposer
+                value={input}
+                onChange={setInput}
+                onSubmit={submit}
+                disabled={readOnly || isApproved}
+                placeholder={isApproved ? 'Approved — revoke to edit' : 'Refine this learning…'}
+                secondaryAction={
+                  <Button size="sm" variant="secondary" onClick={() => setDraftViews((s) => new Set(s).add(activeId))} leftIcon={<FileText />}>
+                    View draft
+                  </Button>
+                }
+              />
+            </>
+          ) : active ? (
+            /* Draft mode — shows the constructed learning content */
             <>
               <CardHeader>
                 <div className="flex min-w-0 items-center gap-2">
@@ -304,7 +367,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 <div className="flex items-center gap-2.5">
                   <NotebookPen className="size-5 shrink-0 text-accent" />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{active.text.slice(0, 40)}…</p>
+                    <p className="text-sm font-semibold text-ink">{active.text.slice(0, 40)}{active.text.length > 40 ? '…' : ''}</p>
                     <p className="text-xs text-ink-faint">Review the draft, or go back to refine.</p>
                   </div>
                 </div>
@@ -323,65 +386,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
                   </Button>
                 </div>
               </div>
-            </>
-          ) : active ? (
-            /* Conversation mode — matches Spec Craft conversation */
-            <>
-              <CardHeader>
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
-                    <NotebookPen className="size-4" />
-                  </span>
-                  <CardTitle>{active.text.slice(0, 50)}{active.text.length > 50 ? '…' : ''}</CardTitle>
-                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-                  {active.source}
-                </span>
-              </CardHeader>
-              <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-                {(threads[active.id] ?? []).map((m) => (
-                  m.role === 'forge' ? (
-                    <div key={m.id} className="flex gap-2.5">
-                      <ForgeMark className="mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1"><span className="text-xs font-semibold text-ink">Forge</span></div>
-                        {m.isDraft ? (
-                          <div className="rounded-[var(--r-md)] border-l-[3px] border-accent bg-surface-2 px-4 py-3">
-                            <div className="mb-1 flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold uppercase tracking-wide text-accent">Draft learning</span>
-                            </div>
-                            <p className="text-sm leading-relaxed text-ink">{m.text}</p>
-                          </div>
-                        ) : (
-                          <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                            <p className="text-sm leading-relaxed text-ink">{m.text}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={m.id} className="flex justify-end gap-2.5">
-                      <div className="max-w-[80%] rounded-2xl rounded-tr-md border border-[rgba(53,90,116,0.15)] bg-[var(--frost)] px-4 py-3 shadow-sm">
-                        <p className="text-sm leading-relaxed text-ink">{m.text}</p>
-                      </div>
-                    </div>
-                  )
-                ))}
-                <div ref={bottomRef} />
-              </CardContent>
-              <ForgeComposer
-                value={input}
-                onChange={setInput}
-                onSubmit={submit}
-                disabled={readOnly || isApproved}
-                placeholder={isApproved ? 'Approved — revoke to edit' : 'Refine this learning…'}
-                secondaryAction={
-                  <Button size="sm" variant="secondary" onClick={() => setDraftViews((s) => new Set(s).add(activeId))} leftIcon={<FileText />}>
-                    View draft
-                  </Button>
-                }
-              />
             </>
           ) : null}
         </Card>
@@ -450,15 +454,17 @@ export function JournalStageClient(props: JournalStageClientProps) {
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{l.text.slice(0, 60)}{l.text.length > 60 ? '…' : ''}</span>
                       {l.isManual && <span className="text-[9px] text-[var(--sage)]">✎</span>}
                     </div>
-                    <div className="mt-1.5 pl-6">
-                      <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium',
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[l.category])}>{l.category}</span>
+                      <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-medium text-ink-faint">{l.source}</span>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium',
                         approved ? 'bg-sage-tint text-[var(--sage-deep)]'
                           : 'bg-surface-2 text-ink-faint',
                       )}>
-                        {l.status === 'recorded' ? 'recorded' : approved ? 'approved' : 'needs input'}
+                        {l.status === 'recorded' ? 'recorded' : approved ? 'approved' : 'ready'}
                       </span>
                       {l.recordedNodeId && (
-                        <span className="ml-1.5 font-mono text-[10px] text-[var(--sage)]">{l.recordedNodeId}</span>
+                        <span className="font-mono text-[10px] text-[var(--sage)]">{l.recordedNodeId}</span>
                       )}
                     </div>
                   </button>

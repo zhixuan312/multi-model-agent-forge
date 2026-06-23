@@ -67,10 +67,13 @@ export async function POST(
   const executeSummary = batches.find((b) => b.route === 'execute_plan');
   const reviewSummary = batches.find((b) => b.route === 'review');
 
-  // Build the harvest prompt
+  // Build the harvest prompt — include ALL 5 lifecycle stages
   const sections: string[] = [];
   sections.push(`# Project: ${proj.name}`);
   if (proj.intentMd) sections.push(`## Intent\n${proj.intentMd}`);
+
+  const explorationMd = latestByKind.get('exploration');
+  if (explorationMd) sections.push(`## Exploration findings\n${explorationMd.slice(0, 6000)}`);
 
   const specMd = latestByKind.get('spec');
   if (specMd) sections.push(`## Specification (latest)\n${specMd.slice(0, 8000)}`);
@@ -228,13 +231,14 @@ async function pollAndInsert(
       for (const l of learnings) {
         const entry = l as { text?: string; category?: string; source?: string };
         if (!entry.text) continue;
+        const cat = entry.category ?? 'knowledge';
+        const src = entry.source ?? 'Spec';
         await db.insert(learningCandidate).values({
           projectId,
-          bodyMd: String(entry.text),
-          type: TYPE_MAP[entry.category ?? ''] ?? 'insight',
-          origin: ORIGIN_MAP[entry.source ?? ''] ?? 'spec',
+          bodyMd: `[category:${cat}][source:${src}] ${String(entry.text)}`,
+          type: TYPE_MAP[cat] ?? 'insight',
+          origin: ORIGIN_MAP[src] ?? 'spec',
           status: 'proposed',
-          createdBy: actorId,
         });
       }
     }

@@ -46,6 +46,7 @@ export async function POST(
       reviewPolicy: 'none',
     },
     actorId: guard.memberId,
+    meta: { actorId: guard.memberId, repoIds },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

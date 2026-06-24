@@ -55,9 +55,10 @@ export async function POST(
     cwd: resolveWorkspaceRoot(),
     body: {
       prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nLocked spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
-      actorId: guard.memberId,
+      reviewPolicy: 'none',
     },
     actorId: guard.memberId,
+    meta: { actorId: guard.memberId },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

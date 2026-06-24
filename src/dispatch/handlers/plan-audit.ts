@@ -8,7 +8,7 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 async function handlePlanAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const parsed = parseAuditEnvelope(envelope);
   if (parsed.kind === 'missing_report') {
-    throw new Error(`Plan audit returned no structured report: ${parsed.headline}`);
+    throw new Error('Plan audit returned no structured report');
   }
 
   const passNo = await nextPassNo(db, ctx.projectId, 'plan');

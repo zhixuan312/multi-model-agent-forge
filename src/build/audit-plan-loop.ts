@@ -89,7 +89,7 @@ export async function runPlanAuditPass(
   const parsed = parseAuditEnvelope(terminal);
 
   if (parsed.kind === 'missing_report') {
-    throw new PlanAuditIncompleteError(parsed.headline);
+    throw new PlanAuditIncompleteError('No structured report returned');
   }
 
   const passNo = await nextPlanPassNo(db, args.projectId);

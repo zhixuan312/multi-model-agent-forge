@@ -12,8 +12,26 @@ import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/di
 
 
 async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractJsonFromEnvelope(envelope);
-  const synthesis = SynthesisSchema.parse(JSON.parse(raw));
+  const env = (envelope ?? {}) as Record<string, unknown>;
+  const output = (env.output ?? {}) as Record<string, unknown>;
+  const summaryRaw = output.summary;
+
+  let synthesis;
+  if (summaryRaw && typeof summaryRaw === 'object' && !Array.isArray(summaryRaw)) {
+    synthesis = SynthesisSchema.parse(summaryRaw);
+  } else {
+    const raw = typeof summaryRaw === 'string' ? summaryRaw : extractJsonFromEnvelope(envelope);
+    try {
+      synthesis = SynthesisSchema.parse(JSON.parse(raw));
+    } catch {
+      // MMA returned free-text markdown — extract sections by heading
+      const text = raw;
+      const bg = text.match(/\*\*Background\*\*[:\s]*\n?([\s\S]*?)(?=\*\*Current state\*\*|\*\*Rough direction\*\*|$)/i)?.[1]?.trim() ?? '';
+      const cs = text.match(/\*\*Current state\*\*[:\s]*\n?([\s\S]*?)(?=\*\*Rough direction\*\*|$)/i)?.[1]?.trim() ?? '';
+      const rd = text.match(/\*\*Rough direction\*\*[:\s]*\n?([\s\S]*?)$/i)?.[1]?.trim() ?? '';
+      synthesis = { background: bg || text, currentState: cs, roughDirection: rd };
+    }
+  }
   const request = ctx.request as { actorId: string };
 
   // Get failure markers for gap injection

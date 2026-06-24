@@ -145,12 +145,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       cwd,
       body: {
         prompt: `${REVISE_SYSTEM}\n\n${userPrompt}`,
-        componentKind: kind,
-        sectionKey: key,
-        actorId: guard.memberId,
-        totalSections: sectionFindings.size,
+        reviewPolicy: 'none',
       },
       actorId: guard.memberId,
+      meta: { componentKind: kind, sectionKey: key, actorId: guard.memberId, totalSections: sectionFindings.size },
     });
     batchIds.push(batchRowId);
   }

@@ -15,6 +15,8 @@ export interface DispatchOpts {
   cwd: string;
   body: unknown;
   actorId: string;
+  /** Extra metadata stored on the batch row but NOT sent to MMA. */
+  meta?: Record<string, unknown>;
 }
 
 export async function findInflight(
@@ -106,7 +108,7 @@ export async function dispatchAndRegister(opts: DispatchOpts): Promise<string> {
       cwd: opts.cwd,
       batchId: mmaBatchId,
       status: 'dispatched',
-      request: opts.body as object,
+      request: { ...(opts.body as object), ...opts.meta } as object,
       dispatchedBy: opts.actorId,
     })
     .returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });

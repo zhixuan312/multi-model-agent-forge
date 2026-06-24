@@ -45,7 +45,23 @@ Audience rules — each section lists its primary roles:
 - **SWE (Software Engineer)**: Technical detail is expected. Name files, functions, libraries, patterns, and architecture decisions. Reference the exploration findings directly.
 - **Mixed roles (e.g. PM + SWE)**: Lead with the business context in plain language, then add a technical details subsection for engineers.
 
-Return ALL sections in the spec outline, in order.`;
+Return ALL sections in the spec outline, in order.
+
+Return a JSON object with this EXACT structure:
+\`\`\`json
+{
+  "sections": [
+    {
+      "componentKind": "<the component kind>",
+      "sectionKey": "<the section key>",
+      "draftMd": "<your drafted markdown content for this section>",
+      "questions": ["question 1", "question 2"]
+    }
+  ]
+}
+\`\`\`
+
+IMPORTANT: The content field MUST be named "draftMd" — not "draft", "body", "content", or "text".`;
 }
 
 function buildFullDraftUser(
@@ -308,6 +324,12 @@ function buildRefinementSystem(componentLabel: string, sectionLabel: string, pro
     'You have the current draft and the user\'s feedback. Revise the draft to address',
     'their input. If you have further questions, ask them. If the section is now complete,',
     'return an empty questions array.',
+    '',
+    'Return a JSON object with this EXACT structure:',
+    '```json',
+    '{ "draftMd": "<your revised markdown>", "questions": ["question 1"] }',
+    '```',
+    'IMPORTANT: The content field MUST be named "draftMd".',
   ].join('\n');
 }
 

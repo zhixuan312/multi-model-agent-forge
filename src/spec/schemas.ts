@@ -49,10 +49,10 @@ export type DraftSection = z.infer<typeof DraftSectionSchema>;
 
 /** 4. fullSpecDraft — draft ALL sections in one pass + attach questions per section. */
 export const FullSpecSectionSchema = z.object({
-  componentKind: z.string().describe('The component kind (e.g. context, problem, technical_design).'),
-  sectionKey: z.string().describe('The section key within the component (e.g. background, goals, current_state).'),
-  draftMd: z.string().describe('The drafted markdown content for this section. Do not include a heading — it is added automatically.'),
-  questions: z.array(z.string()).describe('Follow-up questions for the user to clarify or refine this section. Empty array if the section is complete as-is.'),
+  componentKind: z.string(),
+  sectionKey: z.string(),
+  draftMd: z.string(),
+  questions: z.array(z.string()),
 });
 export const FullSpecDraftSchema = z.object({
   sections: z.array(FullSpecSectionSchema),

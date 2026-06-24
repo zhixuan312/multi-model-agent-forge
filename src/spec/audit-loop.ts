@@ -49,15 +49,12 @@ export type AuditParseResult =
       findings: ParsedFinding[];
       /** True iff any finding is critical/high — the verdict gate. */
       hasCriticalOrHigh: boolean;
-      /** The terminal headline (for surfacing). */
-      headline: string;
       /** The read-route context block id (reusable on the next pass), if present. */
       contextBlockId: string | null;
     }
   | {
       /** A dispatch that returned NO structured report — a failed/incomplete audit, NOT a clean pass (F20). */
       kind: 'missing_report';
-      headline: string;
     };
 
 const VALID_SEVERITY = new Set<FindingSeverity>(['critical', 'high', 'medium', 'low']);
@@ -68,44 +65,49 @@ const VALID_SEVERITY = new Set<FindingSeverity>(['critical', 'high', 'medium', '
  * envelope carries no parseable `structuredReport.findings` (F20).
  */
 export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
-  const env = (envelope ?? {}) as {
-    headline?: unknown;
-    structuredReport?: unknown;
-    contextBlockId?: unknown;
-  };
-  const headline = typeof env.headline === 'string' ? env.headline : '';
+  const env = (envelope ?? {}) as Record<string, unknown>;
+  const output = (env.output ?? {}) as Record<string, unknown>;
+  const summary = output.summary;
 
-  const sr = env.structuredReport;
-  // Missing-report guard (F20): no structured report object → not a pass.
-  if (sr == null || typeof sr !== 'object') {
-    return { kind: 'missing_report', headline };
+  // v5.4: output.summary is the report (object or JSON string)
+  let report: Record<string, unknown> | null = null;
+  if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
+    report = summary as Record<string, unknown>;
+  } else if (typeof summary === 'string') {
+    try {
+      const cleaned = summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      const parsed = JSON.parse(cleaned);
+      if (parsed && typeof parsed === 'object') report = parsed as Record<string, unknown>;
+    } catch { /* not parseable */ }
   }
-  const report = sr as { findings?: unknown; findingsOutcome?: unknown; kind?: unknown; summary?: unknown };
-  // Defensive: MMA's `{kind:'not_applicable'}` form (absent report) → missing.
+
+  if (!report) {
+    return { kind: 'missing_report' };
+  }
   if (report.kind === 'not_applicable' || report.findingsOutcome === 'not_applicable') {
-    return { kind: 'missing_report', headline };
+    return { kind: 'missing_report' };
   }
 
-  // Findings can be a direct array OR embedded as JSON inside the summary string
   let rawFindings: unknown[] | null = null;
   if (Array.isArray(report.findings)) {
     rawFindings = report.findings;
   } else if (typeof report.summary === 'string') {
     try {
-      const cleaned = report.summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      const cleaned = (report.summary as string).replace(/^```json\n?/, '').replace(/\n?```$/, '');
       const parsed = JSON.parse(cleaned);
       if (Array.isArray(parsed?.findings)) rawFindings = parsed.findings;
-    } catch { /* not parseable — fall through to missing_report */ }
+    } catch { /* not parseable */ }
   }
 
   if (!rawFindings) {
-    return { kind: 'missing_report', headline };
+    return { kind: 'missing_report' };
   }
 
   const findings: ParsedFinding[] = rawFindings
     .map((f) => {
-      const ff = (f ?? {}) as { severity?: unknown; category?: unknown; claim?: unknown; evidence?: unknown; suggestion?: unknown };
-      const severity = (typeof ff.severity === 'string' ? ff.severity : '') as FindingSeverity;
+      const ff = (f ?? {}) as Record<string, unknown>;
+      const severity = (typeof ff.severity === 'string' ? ff.severity
+        : typeof ff.weight === 'string' ? ff.weight : '') as FindingSeverity;
       return {
         severity,
         category: typeof ff.category === 'string' ? ff.category : '',
@@ -117,10 +119,10 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
     .filter((f) => VALID_SEVERITY.has(f.severity));
 
   const hasCriticalOrHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
-  const contextBlockId =
-    typeof env.contextBlockId === 'string' && env.contextBlockId.length > 0 ? env.contextBlockId : null;
+  const ctxBlock = (output.contextBlockId ?? env.contextBlockId) as string | undefined;
+  const contextBlockId = typeof ctxBlock === 'string' && ctxBlock.length > 0 ? ctxBlock : null;
 
-  return { kind: 'report', findings, hasCriticalOrHigh, headline, contextBlockId };
+  return { kind: 'report', findings, hasCriticalOrHigh, contextBlockId };
 }
 
 /** The next monotonic persisted pass_no for a project's spec audits (`max+1`). */
@@ -192,7 +194,7 @@ export async function runAuditPass(
 
   if (parsed.kind === 'missing_report') {
     // Failed/incomplete audit — no audit_pass row, no verdict, freeze stays gated (F20).
-    throw new AuditIncompleteError(parsed.headline);
+    throw new AuditIncompleteError('No structured report returned');
   }
 
   const passNo = await nextPassNo(db, args.projectId);

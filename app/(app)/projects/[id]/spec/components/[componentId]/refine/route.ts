@@ -57,9 +57,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     cwd: resolveWorkspaceRoot(),
     body: {
       prompt: `${request.system}\n\n${request.user}`,
-      componentId,
+      reviewPolicy: 'none',
     },
     actorId: guard.memberId,
+    meta: { componentId },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

@@ -489,24 +489,6 @@ function DetailStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  if (!active) return null;
-  const approved = status[active.id] === 'approved';
-  const msgs = threads[active.id] ?? [];
-
-  function send() {
-    const text = input.trim();
-    if (!text) return;
-    setInput('');
-    setThreads((th) => ({
-      ...th,
-      [active.id]: [
-        ...(th[active.id] ?? []),
-        { id: nid(), role: 'user', text },
-        { id: nid(), role: 'forge', text: 'Good call -- I will fold that into the task below. Approve when it reads right.' },
-      ],
-    }));
-  }
-
   if (authoring && allTasks.length === 0) {
     return (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -537,6 +519,24 @@ function DetailStage({
         </aside>
       </div>
     );
+  }
+
+  if (!active) return null;
+  const approved = status[active.id] === 'approved';
+  const msgs = threads[active.id] ?? [];
+
+  function send() {
+    const text = input.trim();
+    if (!text) return;
+    setInput('');
+    setThreads((th) => ({
+      ...th,
+      [active.id]: [
+        ...(th[active.id] ?? []),
+        { id: nid(), role: 'user', text },
+        { id: nid(), role: 'forge', text: 'Good call -- I will fold that into the task below. Approve when it reads right.' },
+      ],
+    }));
   }
 
   return (

@@ -83,8 +83,13 @@ export async function buildSynthesizeRequest(
 
   const recordsBlock = successes
     .map((r) => {
-      const env = (r.result ?? {}) as { headline?: string; structuredReport?: unknown };
-      return `## ${r.route} — ${r.prompt}\n${env.headline ?? ''}\n${JSON.stringify(env.structuredReport ?? {})}`;
+      const env = (r.result ?? {}) as Record<string, unknown>;
+      const output = (env.output ?? {}) as Record<string, unknown>;
+      const summary = output.summary;
+      const summaryText = typeof summary === 'string' ? summary
+        : summary && typeof summary === 'object' ? JSON.stringify(summary)
+        : '';
+      return `## ${r.route} — ${r.prompt}\n${summaryText}`;
     })
     .join('\n\n');
 
@@ -133,8 +138,13 @@ export async function synthesize(
 
   const recordsBlock = successes
     .map((r) => {
-      const env = (r.result ?? {}) as { headline?: string; structuredReport?: unknown };
-      return `## ${r.route} — ${r.prompt}\n${env.headline ?? ''}\n${JSON.stringify(env.structuredReport ?? {})}`;
+      const env = (r.result ?? {}) as Record<string, unknown>;
+      const output = (env.output ?? {}) as Record<string, unknown>;
+      const summary = output.summary;
+      const summaryText = typeof summary === 'string' ? summary
+        : summary && typeof summary === 'object' ? JSON.stringify(summary)
+        : '';
+      return `## ${r.route} — ${r.prompt}\n${summaryText}`;
     })
     .join('\n\n');
 

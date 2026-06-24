@@ -16,11 +16,18 @@ export const PROMPT_FLOORS = { investigate: 1, research: 20, journal: 10 } as co
  * `targetRepoId` is required for investigate, null/absent otherwise — enforced in
  * the propose layer, not here (the model may still emit a wrong shape).
  */
-export const ProposedTaskSchema = z.object({
+const RawProposedTaskSchema = z.object({
   kind: z.enum(['investigate', 'research', 'journal']),
   targetRepoId: z.string().nullable().optional(),
+  target_repo_id: z.string().nullable().optional(),
   prompt: z.string(),
-});
+}).passthrough();
+
+export const ProposedTaskSchema = RawProposedTaskSchema.transform((t) => ({
+  kind: t.kind,
+  targetRepoId: t.targetRepoId ?? t.target_repo_id ?? null,
+  prompt: t.prompt,
+}));
 export type ProposedTask = z.infer<typeof ProposedTaskSchema>;
 
 export const ProposalSchema = z.object({

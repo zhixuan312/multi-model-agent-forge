@@ -38,9 +38,10 @@ export async function POST(
     cwd: resolveWorkspaceRoot(),
     body: {
       prompt: `${request.system}\n\n${request.user}`,
-      actorId: guard.memberId,
+      reviewPolicy: 'none',
     },
     actorId: guard.memberId,
+    meta: { actorId: guard.memberId },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

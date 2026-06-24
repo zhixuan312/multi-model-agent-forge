@@ -7,9 +7,31 @@ import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/di
 import type { OutlineEntry } from '@/spec/auto-draft';
 
 
+function normalizeSections(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const obj = data as Record<string, unknown>;
+  const sections = Array.isArray(obj.sections) ? obj.sections : [];
+  return {
+    sections: sections.map((s: unknown) => {
+      if (!s || typeof s !== 'object') return s;
+      const sec = s as Record<string, unknown>;
+      const draftMd = (sec.draftMd ?? sec.draft_md ?? sec.draft ?? sec.content ?? sec.body ?? sec.text ?? sec.markdown ?? '') as string;
+      const questions = Array.isArray(sec.questions)
+        ? sec.questions.map((q: unknown) => typeof q === 'string' ? q : typeof q === 'object' && q ? (q as Record<string, unknown>).question ?? (q as Record<string, unknown>).text ?? JSON.stringify(q) : String(q))
+        : [];
+      return {
+        componentKind: (sec.componentKind ?? sec.component_kind ?? '') as string,
+        sectionKey: (sec.sectionKey ?? sec.section_key ?? '') as string,
+        draftMd,
+        questions,
+      };
+    }),
+  };
+}
+
 async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
-  const parsed = FullSpecDraftSchema.parse(JSON.parse(raw));
+  const parsed = FullSpecDraftSchema.parse(normalizeSections(JSON.parse(raw)));
   const request = ctx.request as { outline?: OutlineEntry[] };
   const outline = request.outline ?? [];
 

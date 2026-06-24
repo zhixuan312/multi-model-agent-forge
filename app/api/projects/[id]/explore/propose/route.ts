@@ -43,8 +43,7 @@ export async function POST(
     cwd: resolveWorkspaceRoot(),
     body: {
       prompt: `${request.system}\n\n${request.user}`,
-      actorId: guard.memberId,
-      repoIds,
+      reviewPolicy: 'none',
     },
     actorId: guard.memberId,
   });

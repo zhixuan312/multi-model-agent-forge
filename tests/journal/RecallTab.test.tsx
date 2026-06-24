@@ -26,7 +26,11 @@ function installFetch(overrides: Partial<Record<string, () => Response>> = {}) {
       return new Response(
         JSON.stringify({
           state: 'terminal',
-          envelope: { structuredReport: { summary: '```json\n' + JSON.stringify({ results: [], summary: 'Recalled answer.' }) + '\n```' } },
+          envelope: {
+            output: { summary: { answer: 'Recalled answer.', findings: [], criteriaCovered: [] }, filesChanged: [], contextBlockId: null },
+            raw: { implementer: '', reviewer: null },
+            error: null,
+          },
         }),
         { status: 200 },
       );

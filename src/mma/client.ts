@@ -273,8 +273,10 @@ export class MmaClient {
     const body: Record<string, unknown> = {
       type: 'investigate',
       prompt,
-      target: { paths: input.paths ?? [] },
     };
+    if (input.paths && input.paths.length > 0) {
+      body.target = { paths: input.paths };
+    }
     if (input.contextBlockIds) body.contextBlockIds = input.contextBlockIds;
     return this.dispatch('investigate', { cwd, body });
   }

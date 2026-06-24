@@ -91,9 +91,10 @@ export async function dispatchLocal(opts: LocalDispatchOpts): Promise<string> {
 }
 
 export async function dispatchAndRegister(opts: DispatchOpts): Promise<string> {
+  const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
   const { batchId: mmaBatchId } = await opts.mma.dispatch(opts.route, {
     cwd: opts.cwd,
-    body: opts.body,
+    body: payload,
   });
 
   const [row] = await opts.db

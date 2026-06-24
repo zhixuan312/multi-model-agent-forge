@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     cwd: resolveWorkspaceRoot(),
     body: {
       subtype: 'spec',
-      document: spec.bodyMd,
+      target: { inline: spec.bodyMd },
       ...(parsed.data.contextBlockIds?.length ? { contextBlockIds: parsed.data.contextBlockIds } : {}),
     },
     actorId: guard.memberId,

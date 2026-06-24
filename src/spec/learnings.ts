@@ -186,12 +186,13 @@ export async function addLearning(
   return toView(row);
 }
 
-/** Extract node ids from a journal-record terminal envelope: `structuredReport.recorded[].ids[]`. */
+/** Extract node ids from a journal-record terminal envelope: `output.summary.recorded[].ids[]`. */
 export function parseRecordedNodeIds(envelope: unknown): string[] {
-  const env = (envelope ?? {}) as { structuredReport?: unknown };
-  const sr = env.structuredReport;
-  if (sr == null || typeof sr !== 'object') return [];
-  const recorded = (sr as { recorded?: unknown }).recorded;
+  const env = (envelope ?? {}) as Record<string, unknown>;
+  const output = (env.output ?? {}) as Record<string, unknown>;
+  const summary = output.summary;
+  if (!summary || typeof summary !== 'object') return [];
+  const recorded = (summary as Record<string, unknown>).recorded;
   if (!Array.isArray(recorded)) return [];
   const ids: string[] = [];
   for (const entry of recorded) {

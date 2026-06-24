@@ -1,42 +1,51 @@
 import { parseRecallEnvelope, dispatchRecall } from '@/journal/recall';
 import type { MmaClient } from '@/mma/client';
 
-/** Wrap a worker answer object as the live envelope: a ```json block in summary. */
-function envWith(answer: unknown) {
+/**
+ * Wrap a recall answer as the v5.4 terminal envelope. For journal_recall,
+ * `output.summary` is an already-parsed object `{ answer, findings, criteriaCovered }`;
+ * each finding uses v5.4 fields `{ claim, evidence, weight, nodeId, nodePath, category }`.
+ */
+function envWith(summary: {
+  answer: string;
+  findings?: Array<Record<string, unknown>>;
+  criteriaCovered?: string[];
+}) {
   return {
-    headline: 'recall complete',
-    structuredReport: {
-      summary: '```json\n' + JSON.stringify(answer) + '\n```',
-      workerStatus: 'done',
-      filesChanged: [],
+    output: {
+      summary: {
+        answer: summary.answer,
+        findings: summary.findings ?? [],
+        criteriaCovered: summary.criteriaCovered ?? [],
+      },
     },
   };
 }
 
-describe('parseRecallEnvelope (live refiner envelope shape, verified 2026-06-18)', () => {
-  it('parses results[] + summary out of the structuredReport.summary JSON block', () => {
+describe('parseRecallEnvelope (v5.4 terminal envelope shape)', () => {
+  it('parses findings[] + answer out of output.summary', () => {
     const env = envWith({
-      results: [
+      answer: 'We gate completion on objective signals and keep one read path.',
+      findings: [
         {
-          learning: 'Completion is gated by objective lifecycle signals',
-          context: 'Refines nodes/0008; supersedes the self-report gate.',
-          relevance: 'critical',
+          claim: 'Completion is gated by objective lifecycle signals',
+          evidence: 'Refines nodes/0008; supersedes the self-report gate.',
+          weight: 'critical',
           nodeId: '0001',
           nodePath: 'nodes/0001-derive-completion.md',
           category: 'decision',
           status: 'adopted',
         },
         {
-          learning: 'One canonical read path per lifecycle fact',
-          context: 'Depends on 0001.',
-          relevance: 'high',
+          claim: 'One canonical read path per lifecycle fact',
+          evidence: 'Depends on 0001.',
+          weight: 'high',
           nodeId: '0008',
           nodePath: 'nodes/0008-keep-one-read-path.md',
           category: 'design',
           status: 'adopted',
         },
       ],
-      summary: 'We gate completion on objective signals and keep one read path.',
     });
     const r = parseRecallEnvelope(env);
     expect(r.findings).toHaveLength(2);
@@ -49,47 +58,47 @@ describe('parseRecallEnvelope (live refiner envelope shape, verified 2026-06-18)
 
   it('normalizes a nodeId given as a nodes/000X-….md path', () => {
     const env = envWith({
-      results: [{ learning: 'x', context: 'c', relevance: 'low', nodeId: 'nodes/0042-foo.md', nodePath: 'nodes/0042-foo.md', category: 'process', status: 'adopted' }],
-      summary: 's',
+      answer: 's',
+      findings: [{ claim: 'x', evidence: 'c', weight: 'low', nodeId: 'nodes/0042-foo.md', nodePath: 'nodes/0042-foo.md', category: 'process', status: 'adopted' }],
     });
     expect(parseRecallEnvelope(env).citationIds).toEqual(['0042']);
   });
 
-  it('empty results → no findings, recall-miss summary when the worker summary is blank', () => {
-    const env = envWith({ results: [], summary: '' });
+  it('empty findings → no findings, recall-miss summary when the answer is blank', () => {
+    const env = envWith({ answer: '', findings: [] });
     const r = parseRecallEnvelope(env);
     expect(r.findings).toEqual([]);
     expect(r.citationIds).toEqual([]);
     expect(r.summary).toBe('No relevant prior learnings.');
   });
 
-  it('keeps a real worker summary even with no results', () => {
-    const env = envWith({ results: [], summary: 'No prior learnings on this topic.' });
+  it('keeps a real answer even with no findings', () => {
+    const env = envWith({ answer: 'No prior learnings on this topic.', findings: [] });
     expect(parseRecallEnvelope(env).summary).toBe('No prior learnings on this topic.');
   });
 
-  it('dedupes citation ids across results, first-seen order', () => {
+  it('dedupes citation ids across findings, first-seen order', () => {
     const env = envWith({
-      results: [
-        { learning: 'a', context: 'c', relevance: 'high', nodeId: '0005', nodePath: 'p', category: 'design', status: 'adopted' },
-        { learning: 'b', context: 'c', relevance: 'low', nodeId: '0005', nodePath: 'p', category: 'design', status: 'adopted' },
-        { learning: 'c', context: 'c', relevance: 'low', nodeId: '0002', nodePath: 'p', category: 'design', status: 'adopted' },
+      answer: 's',
+      findings: [
+        { claim: 'a', evidence: 'c', weight: 'high', nodeId: '0005', nodePath: 'p', category: 'design', status: 'adopted' },
+        { claim: 'b', evidence: 'c', weight: 'low', nodeId: '0005', nodePath: 'p', category: 'design', status: 'adopted' },
+        { claim: 'c', evidence: 'c', weight: 'low', nodeId: '0002', nodePath: 'p', category: 'design', status: 'adopted' },
       ],
-      summary: 's',
     });
     expect(parseRecallEnvelope(env).citationIds).toEqual(['0005', '0002']);
   });
 
   it('falls back to the implementer draft when the refiner returns no findings (auth/path failure)', () => {
     const real = {
-      results: [{ learning: 'The graph store is the authority', context: 'c', relevance: 'critical', nodeId: '0035', nodePath: 'nodes/0035-x.md', category: 'decision', status: 'adopted' }],
+      results: [{ claim: 'The graph store is the authority', evidence: 'c', weight: 'critical', nodeId: '0035', nodePath: 'nodes/0035-x.md', category: 'decision', status: 'adopted' }],
       summary: 'The journal graph store is the canonical authority.',
     };
     // Refiner over-rejected everything (wrong journal path → "all hallucinated");
-    // the implementer's real draft is preserved at results[0].report.implementer.
+    // the implementer's real draft is preserved at raw.implementer.
     const env = {
-      structuredReport: { summary: 'No journal nodes exist at .mma/journal/nodes/. All cited entries are hallucinated and have been removed.' },
-      results: [{ report: { implementer: '```json\n' + JSON.stringify(real) + '\n```', reviewer: null } }],
+      output: { summary: { answer: 'No journal nodes exist at .mma/journal/nodes/. All cited entries are hallucinated and have been removed.', findings: [] } },
+      raw: { implementer: '```json\n' + JSON.stringify(real) + '\n```' },
     };
     const r = parseRecallEnvelope(env);
     expect(r.findings).toHaveLength(1);
@@ -98,11 +107,11 @@ describe('parseRecallEnvelope (live refiner envelope shape, verified 2026-06-18)
   });
 
   it('prefers the refiner answer when it DID refine (has findings)', () => {
-    const refined = { results: [{ learning: 'L', context: 'c', relevance: 'high', nodeId: '0001', nodePath: 'p', category: 'design', status: 'adopted' }], summary: 'refined' };
-    const draft = { results: [{ learning: 'D', context: 'c', relevance: 'low', nodeId: '0009', nodePath: 'p', category: 'design', status: 'adopted' }], summary: 'draft' };
+    const refinedFindings = [{ claim: 'L', evidence: 'c', weight: 'high', nodeId: '0001', nodePath: 'p', category: 'design', status: 'adopted' }];
+    const draft = { results: [{ claim: 'D', evidence: 'c', weight: 'low', nodeId: '0009', nodePath: 'p', category: 'design', status: 'adopted' }], summary: 'draft' };
     const env = {
-      structuredReport: { summary: '```json\n' + JSON.stringify(refined) + '\n```' },
-      results: [{ report: { implementer: '```json\n' + JSON.stringify(draft) + '\n```' } }],
+      output: { summary: { answer: 'refined', findings: refinedFindings } },
+      raw: { implementer: '```json\n' + JSON.stringify(draft) + '\n```' },
     };
     const r = parseRecallEnvelope(env);
     expect(r.summary).toBe('refined');

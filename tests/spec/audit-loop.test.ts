@@ -94,7 +94,7 @@ describe('runAuditPass (live DB + mock MMA)', () => {
     expect(res.findingsCount).toBe(1);
     expect(calls[0].route).toBe('audit');
     expect(calls[0].cwd).toBe(WS_ROOT);
-    expect(calls[0].body).toMatchObject({ subtype: 'spec', document: '# spec' });
+    expect(calls[0].body).toMatchObject({ subtype: 'spec', target: { inline: '# spec' } });
   });
 
   it('writes a clean project_audit_pass when no critical/high', async () => {

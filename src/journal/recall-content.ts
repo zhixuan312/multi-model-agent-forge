@@ -20,6 +20,8 @@ export interface PinnedFinding {
   nodeId: string;
   category: string;
   status: string;
+  /** v5.4 field — weight (critical/high/medium/low). */
+  weight?: string;
 }
 
 export interface PinnedView {

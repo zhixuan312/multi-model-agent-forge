@@ -11,8 +11,7 @@ describe('summarizeEnvelope', () => {
       verdict: 'changes_made',
     });
     const env = {
-      headline: '1/1 done',
-      results: [{ summary: report, filesChanged: ['a.ts', 'b.ts', 'c.ts'] }],
+      output: { summary: report, filesChanged: ['a.ts', 'b.ts', 'c.ts'] },
     };
 
     const out = summarizeEnvelope(env);
@@ -34,27 +33,21 @@ describe('summarizeEnvelope', () => {
       summary: 'Fixed the test harness mock wiring.',
       verdict: 'changes_made',
     }) + '\n```';
-    const out = summarizeEnvelope({ results: [{ summary: fenced, filesChanged: ['a.test.ts'] }] });
+    const out = summarizeEnvelope({ output: { summary: fenced, filesChanged: ['a.test.ts'] } });
     expect(out.keyChanges[0]).toBe('Fixed the test harness mock wiring.');
     expect(out.keyChanges.some((c) => c.includes('```') || c.includes('"findings"'))).toBe(false);
   });
 
   it('uses plain prose summary directly when the worker did not emit JSON', () => {
-    const env = { headline: 'done', results: [{ summary: 'Removed three dead branches.', filesChanged: ['x.ts'] }] };
+    const env = { output: { summary: 'Removed three dead branches.', filesChanged: ['x.ts'] } };
     const out = summarizeEnvelope(env);
     expect(out.keyChanges[0]).toBe('Removed three dead branches.');
     expect(out.filesChanged).toEqual(['x.ts']);
   });
 
-  it('falls back to the headline when there is nothing else', () => {
-    const out = summarizeEnvelope({ headline: 'maintenance run complete', results: [] });
+  it('falls back gracefully when output is absent', () => {
+    const out = summarizeEnvelope({});
     expect(out.keyChanges).toEqual(['maintenance run complete']);
     expect(out.filesChanged).toEqual([]);
-  });
-
-  it('reads legacy structuredReport.summary shape', () => {
-    const out = summarizeEnvelope({ structuredReport: { summary: 'legacy summary', filesChanged: ['a.ts'] } });
-    expect(out.keyChanges[0]).toBe('legacy summary');
-    expect(out.filesChanged).toEqual(['a.ts']);
   });
 });

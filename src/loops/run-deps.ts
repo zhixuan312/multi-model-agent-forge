@@ -95,20 +95,20 @@ function unwrapReport(text: string | undefined): { summary: string; findings: Re
   }
 }
 
-/** Summarize a delegate envelope into changes + touched files. (Journaling is the main agent's job now.) */
+/** Summarize a delegate envelope into changes + touched files. */
 export function summarizeEnvelope(env: unknown): { keyChanges: string[]; filesChanged: string[] } {
   const e = (env ?? {}) as {
-    headline?: string;
-    results?: { summary?: string; message?: string; filesChanged?: string[]; findings?: ReportFinding[] }[];
-    structuredReport?: { summary?: string; filesChanged?: string[] };
+    output?: { summary?: unknown; filesChanged?: string[] };
   };
-  const r0 = e.results?.[0];
-  const filesChanged = r0?.filesChanged ?? e.structuredReport?.filesChanged ?? [];
-  const rawText = r0?.summary ?? r0?.message ?? e.structuredReport?.summary ?? '';
+  const out = e.output;
+  const filesChanged = out?.filesChanged ?? [];
+  const rawText = typeof out?.summary === 'string' ? out.summary
+    : (out?.summary && typeof out.summary === 'object') ? (out.summary as Record<string, unknown>).answer as string ?? ''
+    : '';
   const report = unwrapReport(rawText);
 
   const summary = report?.summary || (report ? '' : rawText);
-  const findings = report?.findings ?? r0?.findings ?? [];
+  const findings: ReportFinding[] = report?.findings ?? [];
 
   // Each finding becomes a readable "key change" line — never raw JSON. File
   // counts + verification are NOT changes; they live in their own slots.
@@ -124,7 +124,7 @@ export function summarizeEnvelope(env: unknown): { keyChanges: string[]; filesCh
   const keyChanges: string[] = [];
   if (summary) keyChanges.push(summary);
   keyChanges.push(...findingLines);
-  if (keyChanges.length === 0) keyChanges.push(e.headline ?? 'maintenance run complete');
+  if (keyChanges.length === 0) keyChanges.push('maintenance run complete');
 
   return { keyChanges, filesChanged };
 }
@@ -170,10 +170,14 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
           ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
         })
         .catch(() => {});
-      const r0 = ((env ?? {}) as {
-        results?: { report?: { implementer?: string }; sessions?: { implementer?: { sessionId?: string | null } } }[];
-      }).results?.[0];
-      return { output: r0?.report?.implementer ?? '', sessionId: r0?.sessions?.implementer?.sessionId ?? null };
+      const e = (env ?? {}) as Record<string, unknown>;
+      const raw = (e.raw ?? {}) as Record<string, unknown>;
+      const execution = (e.execution ?? {}) as Record<string, unknown>;
+      const sessions = (execution.sessions ?? {}) as Record<string, unknown>;
+      return {
+        output: typeof raw.implementer === 'string' ? raw.implementer : '',
+        sessionId: typeof sessions.implementer === 'string' ? sessions.implementer : null,
+      };
     },
     recall: async (_repo, query, loopRunId) => {
       const workspaceRoot = resolveWorkspaceRoot();
@@ -182,7 +186,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
         const mma = await buildMmaClient({ db });
         const env = await mma.dispatchAndWait('journal-recall', {
           cwd: workspaceRoot,
-          body: { query: query.slice(0, 4000), reviewPolicy: 'none' },
+          body: { type: 'journal_recall', prompt: query.slice(0, 4000), reviewPolicy: 'none' },
         });
         const usage = extractUsageFields(env);
         await db

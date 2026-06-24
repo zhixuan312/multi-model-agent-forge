@@ -182,7 +182,7 @@ export async function runAuditPass(
   const db = deps.db ?? getDb();
   const cwd = deps.workspaceRoot ?? resolveWorkspaceRoot();
 
-  const body: Record<string, unknown> = { subtype: 'spec', document: args.specMd };
+  const body: Record<string, unknown> = { type: 'audit', subtype: 'spec', target: { inline: args.specMd } };
   if (args.contextBlockIds && args.contextBlockIds.length > 0) {
     body.contextBlockIds = args.contextBlockIds;
   }

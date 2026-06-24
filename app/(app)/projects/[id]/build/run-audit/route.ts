@@ -45,7 +45,7 @@ export async function POST(
     route: 'audit',
     handler: 'plan-audit',
     cwd: r.path,
-    body: { subtype: 'plan', filePaths: [filePath] },
+    body: { subtype: 'plan', target: { paths: [filePath] } },
     actorId: guard.memberId,
   });
 

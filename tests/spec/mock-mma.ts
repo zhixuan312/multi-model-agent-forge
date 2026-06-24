@@ -110,19 +110,21 @@ export function auditEnvelope(
   };
 }
 
-/** A journal-record envelope with the given node ids in structuredReport.recorded[]. */
+/** A journal-record envelope with the given node ids in output.summary.recorded[]. */
 export function journalEnvelope(nodeIds: string[]): unknown {
   return {
-    headline: `journal-record: ${nodeIds.length} node(s)`,
-    results: [],
-    batchTimings: { kind: 'not_applicable' },
-    costSummary: { kind: 'not_applicable' },
-    structuredReport: {
-      summary: `recorded ${nodeIds.length}`,
+    task: { type: 'journal_record', status: 'done', taskId: 'mock-jr' },
+    output: {
+      summary: {
+        recorded: nodeIds.map((id, i) => ({ learningIndex: i, op: 'create', ids: [id] })),
+        failed: [],
+      },
       filesChanged: nodeIds.map((id) => `nodes/${id}.md`),
-      recorded: nodeIds.map((id, i) => ({ learningIndex: i, op: 'create', ids: [id] })),
-      failed: [],
+      contextBlockId: null,
     },
-    error: { kind: 'not_applicable' },
+    execution: { sessions: { implementer: 'mock', reviewer: null }, worktree: null },
+    metrics: { totalCostUsd: 0, totalDurationMs: 0, totalUsage: { inputTokens: 0, outputTokens: 0 }, implementer: null, reviewer: null },
+    raw: { implementer: '', reviewer: null },
+    error: null,
   };
 }

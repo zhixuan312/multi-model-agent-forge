@@ -48,7 +48,6 @@ describe('MmaClient rod methods', () => {
     expect(bodyOf(c.init)).toEqual({
       type: 'investigate',
       prompt: 'how does auth work?',
-      target: { paths: [] },
     });
   });
 

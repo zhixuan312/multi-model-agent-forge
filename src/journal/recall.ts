@@ -73,16 +73,20 @@ function normalizeNodeId(raw: string): string {
 function asFinding(v: unknown): ParsedFinding | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
-  const learning = str(o.learning);
+  // v5.4 uses claim/evidence; legacy used learning/context/relevance
+  const learning = str(o.learning) || str(o.claim);
+  const context = str(o.context) || str(o.evidence);
+  const relevance = str(o.relevance) || str(o.weight) || '';
   const nodeId = normalizeNodeId(str(o.nodeId));
   if (!learning && !nodeId) return null;
   return {
     learning,
-    context: str(o.context),
-    relevance: str(o.relevance),
+    context,
+    relevance,
     nodeId,
     category: str(o.category),
     status: str(o.status),
+    weight: str(o.weight),
   };
 }
 
@@ -103,31 +107,41 @@ function parseAnswerText(raw: string): ParsedRecall {
   return { summary: answer ? str(answer.summary) : '', findings, citationIds };
 }
 
-/** The implementer's raw output, preserved alongside the refiner's structuredReport. */
+/** The implementer's raw output from the `raw` block. */
 function implementerRaw(env: Record<string, unknown>): string {
-  const results = Array.isArray(env.results) ? env.results : [];
-  const first = (results[0] ?? {}) as Record<string, unknown>;
-  const report = (first.report ?? {}) as Record<string, unknown>;
-  return str(report.implementer);
+  const raw = (env.raw ?? {}) as Record<string, unknown>;
+  return typeof raw.implementer === 'string' ? raw.implementer : '';
 }
 
 /**
  * Parse a recall terminal envelope into synthesis + findings + cited ids.
  *
- * The envelope carries TWO answers: the REFINER's (in `structuredReport.summary`,
- * which MMA prefers) and the IMPLEMENTER's draft (preserved at
- * `results[0].report.implementer`). We prefer the refiner when it actually
- * produced learnings — that's the second-pass verification working. But a refiner
- * that FAILS (auth error → 0 tokens; or resolves the journal to the wrong path →
- * "all citations hallucinated") returns an empty answer, and must NOT be allowed
- * to destroy the real answer the implementer produced. So when the refiner yields
- * no findings, we fall back to the implementer's draft.
+ * v5.4 shape: `{ task, output: { summary: { answer, findings, criteriaCovered } }, raw }`
+ *
+ * Prefers the refiner (output.summary) when it produced findings. Falls back to
+ * the implementer's draft (raw.implementer) when the refiner yielded nothing.
  */
 export function parseRecallEnvelope(envelope: unknown): ParsedRecall {
   const env = (envelope ?? {}) as Record<string, unknown>;
-  const sr = (env.structuredReport ?? {}) as Record<string, unknown>;
 
-  const refiner = parseAnswerText(str(sr.summary));
+  const output = (env.output ?? {}) as Record<string, unknown>;
+  const outputSummary = output.summary;
+
+  let refiner: ParsedRecall;
+  if (outputSummary && typeof outputSummary === 'object' && !Array.isArray(outputSummary)) {
+    const obj = outputSummary as Record<string, unknown>;
+    const rawFindings = Array.isArray(obj.findings) ? obj.findings : [];
+    const findings = rawFindings.map(asFinding).filter((f): f is ParsedFinding => f !== null);
+    const citationIds: string[] = [];
+    const seen = new Set<string>();
+    for (const f of findings) {
+      if (f.nodeId && !seen.has(f.nodeId)) { seen.add(f.nodeId); citationIds.push(f.nodeId); }
+    }
+    refiner = { summary: str(obj.answer), findings, citationIds };
+  } else {
+    refiner = { summary: '', findings: [], citationIds: [] };
+  }
+
   const implementer = parseAnswerText(implementerRaw(env));
 
   const base =

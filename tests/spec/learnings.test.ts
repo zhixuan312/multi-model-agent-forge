@@ -18,7 +18,7 @@ import { createMockDb, seq } from '../test-utils/mock-db';
 const WS_ROOT = '/forge-workspace-test-root';
 
 describe('parseRecordedNodeIds (pure)', () => {
-  it('reads structuredReport.recorded[].ids[]', () => {
+  it('reads output.summary.recorded[].ids[]', () => {
     expect(parseRecordedNodeIds(journalEnvelope(['0007-some-slug', '0008-next']))).toEqual([
       '0007-some-slug',
       '0008-next',
@@ -26,7 +26,7 @@ describe('parseRecordedNodeIds (pure)', () => {
   });
 
   it('returns [] when recorded is absent', () => {
-    expect(parseRecordedNodeIds({ structuredReport: { summary: 'x' } })).toEqual([]);
+    expect(parseRecordedNodeIds({ output: { summary: { other: 'x' } } })).toEqual([]);
     expect(parseRecordedNodeIds({})).toEqual([]);
   });
 });

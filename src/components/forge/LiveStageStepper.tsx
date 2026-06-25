@@ -20,11 +20,13 @@ export function LiveStageStepper({
   stages,
   currentStage,
   phase,
+  lockedStages,
 }: {
   projectId: string;
   stages: { kind: StageKind; status: StageStatus }[];
   currentStage: StageKind | null;
   phase: ProjectPhase;
+  lockedStages?: StageKind[];
 }) {
   const seg = useSelectedLayoutSegment();
   const viewingStage: StageKind = (seg ? SEGMENT_TO_STAGE[seg] : undefined) ?? currentStage ?? 'exploration';
@@ -36,6 +38,7 @@ export function LiveStageStepper({
       stages={stages}
       currentStage={viewingStage}
       phase={phase}
+      lockedStages={lockedStages}
       subSteps={STAGE_SUBSTEPS[viewingStage]}
       activeSubPhase={subPhase}
       onSubStepClick={stagePhaseStore.navigate}

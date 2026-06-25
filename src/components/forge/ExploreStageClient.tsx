@@ -22,7 +22,6 @@ import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDum
 import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
-import { LockedBanner } from '@/components/forge/LockedBanner';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
@@ -318,7 +317,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      {locked && props.lockedReason ? <LockedBanner reason={props.lockedReason} /> : null}
+      {/* Lock status is shown in the stage stepper — no in-page banner needed */}
       <AutomationBar
         mode="off"
         note=""

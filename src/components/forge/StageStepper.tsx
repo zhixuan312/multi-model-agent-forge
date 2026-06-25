@@ -1,27 +1,10 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { Lock, ChevronRight } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
 import { STAGE_SUBSTEPS } from '@/components/forge/stage-substeps';
-
-/**
- * StageStepper (Spec 3 flow 3) — stage-driven. Renders into the LOCKED
- * `ShellSubNav` bar (the sub-nav owns the border / background), so this is a
- * clean horizontal stepper: the six stage kinds grouped Design (explore·spec·
- * plan) › Build (execute·review) › Learn (journal) as segmented pill links.
- * Current stage = accent, done = sage, locked = muted with a `Lock` glyph.
- *
- * Per-stage glyph from status: active → ◐, done → ● (sage), pending → ○. Build
- * and Learn stages show a `Lock` while phase is design (the DESIGN→BUILD handoff
- * — "Lock the plan" — opens them).
- *
- * Reachable ⟺ NOT locked AND status∈{active,done} → a focusable link to
- * `stageRoute`. pending (inert) + locked stages are aria-disabled, out of the
- * tab order, non-navigable. Status is never conveyed by colour alone — every
- * stage's accessible name carries its kind + status text (+ "locked").
- */
 
 const STAGE_LABEL: Record<StageKind, string> = {
   exploration: 'Explore',
@@ -32,106 +15,40 @@ const STAGE_LABEL: Record<StageKind, string> = {
   journal: 'Journal',
 };
 
-const GROUPS: { group: 'design' | 'build' | 'learn'; label: string; kinds: StageKind[] }[] = [
-  { group: 'design', label: 'Design', kinds: ['exploration', 'spec', 'plan'] },
-  { group: 'build', label: 'Build', kinds: ['execute'] },
-  { group: 'learn', label: 'Learn', kinds: ['journal'] },
-];
+const ALL_STAGES: StageKind[] = ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'];
 
-/** Stages gated behind the DESIGN→BUILD handoff (locked while phase is design). */
-const LOCKED_KINDS: StageKind[] = ['execute', 'review', 'journal'];
-
-/** When revisiting a non-current stage, land on its furthest reached phase. */
 const STAGE_LAST_FALLBACK: Partial<Record<StageKind, string>> = {
   exploration: 'synthesize',
   spec: 'document',
   plan: 'validate',
 };
 
-function glyph(status: StageStatus, kind?: StageKind, lastPhase?: string | null): string {
-  if (status === 'done') return '●';
-  if (status === 'pending') return '○';
-  // Active — compute fractional fill from lastPhase
-  if (!kind || !lastPhase) return '◐';
-  const phases = STAGE_SUBSTEPS[kind];
-  if (!phases || phases.length <= 1) return '◐';
-  const idx = phases.findIndex((p) => p.key === lastPhase);
-  if (idx < 0) return '◐';
-  const fraction = (idx + 1) / phases.length;
-  if (fraction <= 0.34) return '◔';
-  if (fraction <= 0.67) return '◑';
-  if (fraction < 1) return '◕';
-  return '●';
-}
-
 export interface StageStepperProps {
   projectId: string;
-  /** The project's stage rows (kind → status). */
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
-  /** The resume pointer — the highlighted/active stage. */
   currentStage: StageKind | null;
-  /** The project phase — Build kinds are locked while design. */
   phase: ProjectPhase;
-  /** Tablet: icons + active label only. */
+  /** Stages where canMutate=false — shown as "locked" (done with lock overlay). */
+  lockedStages?: StageKind[];
   condensed?: boolean;
-  /** Sub-phases of the current stage, rendered inline (expanded) after its pill. */
   subSteps?: { key: string; label: string }[];
-  /** The active sub-phase key (highlighted within `subSteps`). */
   activeSubPhase?: string;
-  /** When provided, sub-phase chips become clickable to jump to that phase. */
   onSubStepClick?: (key: string) => void;
 }
 
-/** Inline sub-phase stepper shown under the active stage (e.g. Outline › Craft › Document). */
-function SubStepper({
-  steps,
-  active,
-  onClick,
-}: {
-  steps: { key: string; label: string }[];
-  active?: string;
-  onClick?: (key: string) => void;
-}) {
-  return (
-    <span className="inline-flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
-      {steps.map((st, i) => {
-        const isActive = st.key === active;
-        const cls = cn(
-          'rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
-          isActive ? 'bg-accent text-white' : 'text-ink-soft',
-          onClick && !isActive && 'hover:bg-accent-tint hover:text-accent-deep',
-        );
-        return (
-          <Fragment key={st.key}>
-            {i > 0 ? <ChevronRight aria-hidden="true" className="size-3 text-line-strong" /> : null}
-            {onClick ? (
-              <button
-                type="button"
-                data-substep={st.key}
-                aria-current={isActive ? 'step' : undefined}
-                onClick={() => onClick(st.key)}
-                className={cls}
-              >
-                {st.label}
-              </button>
-            ) : (
-              <span data-substep={st.key} aria-current={isActive ? 'step' : undefined} className={cls}>
-                {st.label}
-              </span>
-            )}
-          </Fragment>
-        );
-      })}
-    </span>
-  );
-}
+/**
+ * Visual state of a stage:
+ * - not_started: stage hasn't begun
+ * - ongoing:     stage is the current active one (in progress)
+ * - done:        completed, still editable
+ * - locked:      completed, edits disabled (downstream work depends on it)
+ */
+type VisualState = 'not_started' | 'ongoing' | 'done' | 'locked';
 
 interface ComputedStage {
   kind: StageKind;
   label: string;
-  status: StageStatus;
-  lastPhase: string | null;
-  locked: boolean;
+  visual: VisualState;
   reachable: boolean;
   isCurrent: boolean;
   href: string;
@@ -142,22 +59,26 @@ function computeStage(
   kind: StageKind,
   statusByKind: Map<StageKind, StageStatus>,
   currentStage: StageKind | null,
-  phase: ProjectPhase,
   projectId: string,
+  lockedSet: Set<StageKind>,
   lastPhaseByKind?: Map<StageKind, string | null>,
 ): ComputedStage {
   const status = statusByKind.get(kind) ?? 'pending';
-  const locked = LOCKED_KINDS.includes(kind) && phase === 'design';
-  const reachable = !locked && (status === 'active' || status === 'done');
   const isCurrent = currentStage === kind;
-  const statusWord = locked ? 'locked' : status;
-  const lastPhase = lastPhaseByKind?.get(kind) ?? null;
+
+  let visual: VisualState;
+  if (status === 'done' && lockedSet.has(kind)) visual = 'locked';
+  else if (status === 'done') visual = 'done';
+  else if (status === 'active') visual = 'ongoing';
+  else visual = 'not_started';
+
+  const reachable = status === 'active' || status === 'done';
+  const stateWord = visual === 'not_started' ? 'not started' : visual;
+
   return {
     kind,
     label: STAGE_LABEL[kind],
-    status,
-    lastPhase,
-    locked,
+    visual,
     reachable,
     isCurrent,
     href: (() => {
@@ -166,50 +87,118 @@ function computeStage(
       const lp = lastPhaseByKind?.get(kind) ?? STAGE_LAST_FALLBACK[kind];
       return lp ? `${base}?phase=${lp}` : base;
     })(),
-    accessibleName: `${STAGE_LABEL[kind]} — ${statusWord}`,
+    accessibleName: `${STAGE_LABEL[kind]} — ${stateWord}`,
   };
 }
 
-function stepClasses(s: ComputedStage): string {
-  return cn(
-    'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
-    s.isCurrent && 'bg-accent text-white shadow-sm',
-    !s.isCurrent && s.locked && 'text-ink-faint',
-    !s.isCurrent && !s.locked && s.status === 'done' && 'text-[var(--sage-deep)] hover:bg-sage-tint',
-    !s.isCurrent && !s.locked && s.status === 'active' && 'text-accent-deep hover:bg-accent-tint',
-    !s.isCurrent && !s.locked && s.status === 'pending' && 'text-ink-faint',
+/* ── Indicators ────────────────────────────────────────────────────────── */
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 6.5L5 9L9.5 3.5" />
+    </svg>
   );
 }
 
-function StagePill({ s, condensed }: { s: ComputedStage; condensed: boolean }) {
-  const showLabel = !condensed || s.isCurrent;
-  const inner = (
-    <>
-      {s.locked ? (
-        <Lock aria-hidden="true" className="size-3" />
-      ) : (
-        <span aria-hidden="true">{glyph(s.status, s.kind, s.lastPhase)}</span>
+function StageIndicator({ s }: { s: ComputedStage }) {
+  switch (s.visual) {
+    case 'locked':
+      return (
+        <span className="relative flex size-5 items-center justify-center rounded-full bg-[var(--sage)]">
+          <CheckIcon />
+          <span className="absolute -bottom-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full bg-surface ring-1 ring-line">
+            <Lock aria-hidden="true" className="size-2 text-ink-faint" />
+          </span>
+        </span>
+      );
+    case 'done':
+      return (
+        <span className="flex size-5 items-center justify-center rounded-full bg-[var(--sage)]">
+          <CheckIcon />
+        </span>
+      );
+    case 'ongoing':
+      if (s.isCurrent) {
+        return (
+          <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 ring-2 ring-accent/30">
+            <span className="size-3 rounded-full bg-accent" />
+          </span>
+        );
+      }
+      return (
+        <span className="flex size-5 items-center justify-center">
+          <span className="size-3 rounded-full border-2 border-accent" />
+        </span>
+      );
+    case 'not_started':
+    default:
+      return (
+        <span className="flex size-5 items-center justify-center">
+          <span className="size-2.5 rounded-full border-2 border-line-strong" />
+        </span>
+      );
+  }
+}
+
+/* ── Track line ────────────────────────────────────────────────────────── */
+
+function TrackLine({ status }: { status: 'done' | 'active' | 'pending' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'block h-0.5 w-full rounded-full',
+        status === 'done' && 'bg-[var(--sage)]',
+        status === 'active' && 'bg-accent/30',
+        status === 'pending' && 'bg-line',
       )}
-      {showLabel ? <span>{s.label}</span> : null}
-    </>
+    />
   );
+}
+
+function trackLineStatus(left: ComputedStage, right: ComputedStage): 'done' | 'active' | 'pending' {
+  const lDone = left.visual === 'done' || left.visual === 'locked';
+  const rDone = right.visual === 'done' || right.visual === 'locked';
+  if (lDone && rDone) return 'done';
+  if (lDone || left.visual === 'ongoing') return 'active';
+  return 'pending';
+}
+
+/* ── Stage node (indicator + label) ───────────────────────────────────── */
+
+function StageNode({ s, condensed }: { s: ComputedStage; condensed: boolean }) {
+  const showLabel = !condensed || s.isCurrent;
+  const labelCls = cn(
+    'text-xs font-medium whitespace-nowrap transition-colors mt-1.5',
+    s.isCurrent && 'text-accent-deep font-semibold',
+    !s.isCurrent && (s.visual === 'done' || s.visual === 'locked') && 'text-[var(--sage-deep)]',
+    !s.isCurrent && s.visual === 'ongoing' && 'text-accent-deep',
+    !s.isCurrent && s.visual === 'not_started' && 'text-ink-faint',
+  );
+
+  const inner = (
+    <span className={cn('flex flex-col items-center', s.reachable && 'cursor-pointer')}>
+      <StageIndicator s={s} />
+      {showLabel ? <span className={labelCls}>{s.label}</span> : null}
+    </span>
+  );
+
   const shared = {
     'data-stage': s.kind,
-    'data-state': (s.locked ? 'locked' : s.status) as string,
+    'data-state': s.visual,
     'data-reachable': s.reachable ? 'true' : 'false',
     'aria-label': s.accessibleName,
     'aria-current': s.isCurrent ? ('step' as const) : undefined,
-    className: stepClasses(s),
   };
 
   if (s.reachable) {
     return (
-      <Link href={s.href} {...shared}>
+      <Link href={s.href} {...shared} className="group">
         {inner}
       </Link>
     );
   }
-  // Inert (pending) + locked stages: not a link, aria-disabled, out of tab order.
   return (
     <span {...shared} aria-disabled="true">
       {inner}
@@ -217,11 +206,76 @@ function StagePill({ s, condensed }: { s: ComputedStage; condensed: boolean }) {
   );
 }
 
+/* ── Sub-phase track ──────────────────────────────────────────────────── */
+
+function SubPhaseTrack({
+  steps,
+  active,
+  onClick,
+}: {
+  steps: { key: string; label: string }[];
+  active?: string;
+  onClick?: (key: string) => void;
+}) {
+  const activeIdx = steps.findIndex((s) => s.key === active);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {steps.map((st, i) => {
+        const isActive = st.key === active;
+        const isDone = activeIdx >= 0 && i < activeIdx;
+        const Tag = onClick ? 'button' : 'span';
+        return (
+          <Fragment key={st.key}>
+            {i > 0 ? (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'h-px w-5',
+                  isDone ? 'bg-[var(--sage)]/40' : isActive ? 'bg-accent/30' : 'bg-line',
+                )}
+              />
+            ) : null}
+            <Tag
+              {...(Tag === 'button' ? { type: 'button' as const, onClick: () => onClick?.(st.key) } : {})}
+              data-substep={st.key}
+              aria-current={isActive ? 'step' : undefined}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
+                isActive && 'bg-accent/10 text-accent-deep',
+                isDone && 'text-[var(--sage-deep)]',
+                !isActive && !isDone && 'text-ink-faint',
+                onClick && !isActive && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'size-1.5 rounded-full',
+                  isActive && 'bg-accent',
+                  isDone && 'bg-[var(--sage)]',
+                  !isActive && !isDone && 'bg-line-strong',
+                )}
+              />
+              {st.label}
+            </Tag>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Main stepper ─────────────────────────────────────────────────────── */
+
+const GRID_COLS = 'auto 1fr auto 1fr auto 1fr auto 1fr auto 1fr auto';
+
 export function StageStepper({
   projectId,
   stages,
   currentStage,
   phase,
+  lockedStages,
   condensed = false,
   subSteps,
   activeSubPhase,
@@ -229,36 +283,46 @@ export function StageStepper({
 }: StageStepperProps) {
   const statusByKind = new Map(stages.map((s) => [s.kind, s.status]));
   const lastPhaseByKind = new Map(stages.map((s) => [s.kind, s.lastPhase ?? null]));
+  const lockedSet = new Set(lockedStages ?? []);
+  const computed = ALL_STAGES.map((kind) =>
+    computeStage(kind, statusByKind, currentStage, projectId, lockedSet, lastPhaseByKind),
+  );
+  const hasSubSteps = subSteps && subSteps.length > 0;
+  const currentIdx = currentStage ? ALL_STAGES.indexOf(currentStage) : 0;
+  const subPhaseCol = currentIdx * 2 + 1;
+  const subPhaseSpan = Math.max(1, 12 - subPhaseCol);
 
   return (
     <nav
       aria-label="Stage progress"
       data-condensed={condensed ? 'true' : undefined}
-      className="flex w-full items-center gap-2"
+      className="grid w-full items-start gap-y-1.5"
+      style={{ gridTemplateColumns: GRID_COLS }}
     >
-      {GROUPS.map(({ group, label, kinds }, gi) => (
-        <div key={group} className="flex items-center gap-2">
-          {gi > 0 ? (
-            <ChevronRight aria-hidden="true" className="size-3.5 text-line-strong" />
-          ) : null}
-          <div className="flex items-center gap-2">
-            <span className="t-eyebrow shrink-0 uppercase !text-ink-faint">{label}</span>
-            <div className="flex items-center gap-0.5 rounded-full bg-surface/70 p-0.5 ring-1 ring-inset ring-line">
-              {kinds.map((kind) => {
-                const s = computeStage(kind, statusByKind, currentStage, phase, projectId, lastPhaseByKind);
-                return (
-                  <Fragment key={kind}>
-                    <StagePill s={s} condensed={condensed} />
-                    {s.isCurrent && subSteps && subSteps.length > 0 ? (
-                      <SubStepper steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </div>
-          </div>
+      {computed.flatMap((s, i) => {
+        const items: React.ReactNode[] = [];
+        if (i > 0) {
+          const prev = computed[i - 1];
+          const ptPx = (s.isCurrent || prev.isCurrent) ? 12 : 8;
+          items.push(
+            <div key={`line-${i}`} className="flex items-center self-start" style={{ paddingTop: ptPx }}>
+              <TrackLine status={trackLineStatus(prev, s)} />
+            </div>,
+          );
+        }
+        items.push(
+          <div key={s.kind} className="flex justify-center">
+            <StageNode s={s} condensed={condensed} />
+          </div>,
+        );
+        return items;
+      })}
+
+      {hasSubSteps ? (
+        <div style={{ gridColumn: `${subPhaseCol} / span ${subPhaseSpan}`, gridRow: 2 }}>
+          <SubPhaseTrack steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
         </div>
-      ))}
+      ) : null}
     </nav>
   );
 }

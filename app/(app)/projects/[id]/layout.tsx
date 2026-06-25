@@ -10,7 +10,8 @@ import {
   assertProjectReadable,
   ProjectAccessError,
 } from '@/projects/projects-core';
-import { DATA_PHASE } from '@/projects/stage-route';
+import { getStagePermissions } from '@/projects/stage-gate';
+import { getDb } from '@/db/client';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
 
 /**
@@ -40,19 +41,30 @@ export default async function ProjectLayout({
 
   const project = await getProject(id);
   if (!project) notFound();
-  const stages = await getProjectStages(id);
+  const [stages, perms] = await Promise.all([
+    getProjectStages(id),
+    getStagePermissions(getDb(), id),
+  ]);
+
+  const PERM_KEY: Record<string, keyof typeof perms> = {
+    exploration: 'explore', spec: 'spec', plan: 'plan',
+    execute: 'execute', review: 'review', journal: 'journal',
+  };
+  const lockedStages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const)
+    .filter((k) => !perms[PERM_KEY[k]].canMutate);
 
   return (
     <PhaseFromRoute>
       <ShellHeader>
         <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
       </ShellHeader>
-      <ShellSubNav className="!h-auto !py-2">
+      <ShellSubNav className="!h-auto !py-3 !px-8 md:!px-12 lg:!px-16">
         <LiveStageStepper
           projectId={project.id}
           stages={stages}
           currentStage={project.currentStage}
           phase={project.phase}
+          lockedStages={lockedStages}
         />
       </ShellSubNav>
       <ShellBody width="full" fill>{children}</ShellBody>

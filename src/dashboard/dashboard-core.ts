@@ -23,6 +23,7 @@ import {
   type ProjectsDeps,
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
+import { readExplorationSummary } from '@/projects/project-files';
 
 export interface DashboardCollaborator {
   id: string;
@@ -130,10 +131,11 @@ export async function dashboardProjects(
   for (const r of taskRun) add(r.projectId, Number(r.n));
 
   // Latest artifact: furthest-along kind, highest version.
+  // DB holds spec/plan/exploration_brief; exploration summary is file-based.
   const arts = await db
     .select({ projectId: artifact.projectId, kind: artifact.kind, version: artifact.version })
     .from(artifact)
-    .where(inArray(artifact.projectId, ids));
+    .where(and(inArray(artifact.projectId, ids), sql`${artifact.kind} != 'exploration'`));
   const artByP = new Map<string, { kind: ArtifactKind; version: number }>();
   for (const a of arts) {
     const cur = artByP.get(a.projectId);
@@ -143,6 +145,15 @@ export async function dashboardProjects(
       (a.kind === cur.kind && a.version > cur.version)
     ) {
       artByP.set(a.projectId, { kind: a.kind, version: a.version });
+    }
+  }
+  // Exploration summary: check file existence for each project.
+  for (const pid of ids) {
+    if (readExplorationSummary(pid)) {
+      const cur = artByP.get(pid);
+      if (!cur || KIND_RANK['exploration'] > KIND_RANK[cur.kind]) {
+        artByP.set(pid, { kind: 'exploration', version: 1 });
+      }
     }
   }
 

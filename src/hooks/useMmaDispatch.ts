@@ -5,15 +5,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /**
  * useMmaDispatch — centralised hook for ALL MMA dispatch calls.
  *
- * Self-recovering: on mount, fetches pending handlers from the server so the
- * UI knows about in-flight batches even after a page refresh. The SSE
- * connection then picks up dispatch.done/dispatch.failed when the PollManager
- * resolves them.
+ * Every stage uses the same pattern:
+ *   const mma = useMmaDispatch(projectId, {
+ *     onDone: {
+ *       'explore-synthesize': () => refreshArtifact(),
+ *       'explore-propose': () => refreshTasks(),
+ *     },
+ *   });
+ *   await mma.dispatch(url, 'explore-synthesize');
+ *   // ↑ resolves after SSE dispatch.done, AFTER onDone callback runs
+ *
+ * The hook handles: SSE connection, busy state, pending-handler recovery,
+ * notification bell refresh on failure, and per-handler data refresh on success.
  */
 
 export interface UseMmaDispatchOpts {
-  /** Handler names already in-flight (server-side, avoids the fetch). */
   initialBusy?: string[];
+  /** Per-handler refresh callback — runs when dispatch.done fires for that handler. */
+  onDone?: Record<string, () => void | Promise<void>>;
+  /** Custom SSE event handlers (dispatch.progress, synthesis.updated, etc.). */
   events?: Record<string, (data: Record<string, unknown>) => void | Promise<void>>;
 }
 
@@ -38,6 +48,8 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
   const [error, setError] = useState<string | null>(null);
   const eventsRef = useRef(opts?.events);
   eventsRef.current = opts?.events;
+  const onDoneRef = useRef(opts?.onDone);
+  onDoneRef.current = opts?.onDone;
 
   const pendingRef = useRef<Map<string, PendingDispatch>>(new Map());
 
@@ -53,17 +65,14 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
     });
   }, []);
 
-  // On mount: fetch pending handlers from the server so the UI shows busy
-  // state for in-flight batches dispatched before this page load.
-  // The endpoint probes MMA and auto-fails 404 batches before responding.
+  // On mount: fetch pending handlers so the UI shows busy state for
+  // in-flight batches dispatched before this page load.
   useEffect(() => {
     if (!projectId || opts?.initialBusy) return;
     fetch(`/api/projects/${projectId}/pending-handlers`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { handlers: string[] } | null) => {
-        if (data) {
-          setBusyHandlers(new Set(data.handlers));
-        }
+        if (data) setBusyHandlers(new Set(data.handlers));
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,8 +91,14 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         if (type === 'dispatch.done') {
           const handler = data.handler as string;
           clearBusy(handler);
+          // Run the per-handler refresh callback, then resolve the promise
+          const refresh = onDoneRef.current?.[handler];
           const pending = pendingRef.current.get(handler);
-          if (pending) {
+          if (refresh) {
+            void Promise.resolve(refresh()).finally(() => {
+              if (pending) { pendingRef.current.delete(handler); pending.resolve(); }
+            });
+          } else if (pending) {
             pendingRef.current.delete(handler);
             pending.resolve();
           }

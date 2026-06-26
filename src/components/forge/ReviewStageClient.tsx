@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
@@ -93,7 +93,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const [activePassNo, setActivePassNo] = useState(props.passes.length || 1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const mma = useMmaDispatch(props.projectId);
+  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'code-review': refresh,
+      'review-apply': refresh,
+    },
+  });
 
   const reviewing = props.reviewRunning || mma.busyHandlers.has('code-review');
   const applying = props.applyRunning || mma.busyHandlers.has('review-apply');
@@ -107,7 +113,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
 
   async function runReview() {
     await mma.dispatch(`/api/projects/${props.projectId}/review/run`, 'code-review', {});
-    router.refresh();
   }
 
   async function applySelected() {
@@ -117,7 +122,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
       'review-apply',
       { passNo: activePass.passNo, findingIndices: [...selected] },
     );
-    router.refresh();
   }
 
   function toggleSelect(idx: number) {

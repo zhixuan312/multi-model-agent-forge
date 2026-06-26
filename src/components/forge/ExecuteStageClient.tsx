@@ -171,6 +171,9 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   const refresh = useCallback(() => { router.refresh(); }, [router]);
 
   const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'execute-pipeline': refresh,
+    },
     events: {
       'dispatch.progress': (data: Record<string, unknown>) => {
         if (data.handler !== 'execute-pipeline' || !data.repoId) return;
@@ -216,7 +219,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
         setDispatching(false);
         setExecPhase('monitor');
         setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
-        void mma.waitFor('execute-pipeline').then(() => refresh()).catch(() => {});
+        void mma.waitFor('execute-pipeline').catch(() => {});
       } else {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         setDispatchError(json.error ?? `Dispatch failed (HTTP ${res.status})`);

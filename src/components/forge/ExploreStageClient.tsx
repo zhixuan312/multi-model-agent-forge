@@ -165,46 +165,41 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     setError(null);
     try {
       await postJson(`/api/projects/${props.projectId}/explore/synthesize`, {});
-      // Poll until the artifact file is updated
-      const prevVersion = artifact?.version ?? 0;
-      const poll = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
-          if (!r.ok) return;
-          const a = (await r.json()) as ArtifactCacheEntry | null;
-          if (a && a.bodyMd) {
-            clearInterval(poll);
-            qc.setQueryData(explorationKeys.artifact(props.projectId), a);
-            setBusy(false);
-          }
-        } catch { /* retry next interval */ }
-      }, 3000);
-      // Safety timeout — stop polling after 5 minutes
-      setTimeout(() => { clearInterval(poll); setBusy(false); }, 300_000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Synthesis failed.');
       setBusy(false);
     }
   }
 
-  // SSE listener for propose completion (fan-out task proposal)
+  // SSE listener — immediate reaction to dispatch events
   useEffect(() => {
     if (typeof EventSource === 'undefined') return;
     const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    const onMessage = (e: MessageEvent) => {
+    es.onmessage = (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
+
         if (data.type === 'dispatch.done' && data.handler === 'explore-propose') {
           setBusy(false);
           refreshTasks();
         }
+
+        if (data.type === 'synthesis.updated') {
+          fetch(`/api/projects/${props.projectId}/explore/artifact`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((a) => {
+              if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry);
+              setBusy(false);
+            })
+            .catch(() => setBusy(false));
+        }
+
         if (data.type === 'dispatch.failed' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
           setBusy(false);
           setError(data.error ?? 'Task failed.');
         }
       } catch { /* ignore parse errors */ }
     };
-    es.onmessage = onMessage;
     return () => es.close();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.projectId]);

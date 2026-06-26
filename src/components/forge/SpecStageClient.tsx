@@ -252,11 +252,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'outline' || ((key === 'craft' || key === 'finalize') && components.length > 0)) {
+        if (key === 'outline' || key === 'craft' || key === 'finalize') {
           setPhase(key as SpecPhase);
         }
       }),
-    [components.length],
+    [],
   );
 
   const allApproved = components.length > 0 && components.every((c) => c.status === 'approved');
@@ -816,10 +816,13 @@ function CraftStage({
         authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
         body: m.bodyMd,
       }));
-      // Seed participants from DB only — participantIds (invited) + approvedBy
       const allPool = [currentMember, ...projectMembers];
-      const dbParticipants: Participant[] = [];
+      const meApprovedAt = c.approvedBy === currentMember.id ? new Date().toISOString() : null;
+      const dbParticipants: Participant[] = [
+        { member: currentMember, addedBy: null, approvedAt: meApprovedAt },
+      ];
       for (const pid of (c.participantIds ?? []) as string[]) {
+        if (pid === currentMember.id) continue;
         const m = allPool.find((p) => p.id === pid);
         if (m) {
           dbParticipants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
@@ -850,8 +853,12 @@ function CraftStage({
     setCollab((prev) => {
       const next = { ...prev };
       for (const c of components) {
-        const participants: Participant[] = [];
+        const meApproved = c.approvedBy === currentMember.id ? new Date().toISOString() : null;
+        const participants: Participant[] = [
+          { member: currentMember, addedBy: null, approvedAt: meApproved },
+        ];
         for (const pid of (c.participantIds ?? []) as string[]) {
+          if (pid === currentMember.id) continue;
           const m = allPool.find((p) => p.id === pid);
           if (m) participants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
         }

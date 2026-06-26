@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 
@@ -9,6 +10,9 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
  *
  * Engineers can edit these files outside Forge. As long as the markdown
  * format is correct, Forge will render them properly.
+ *
+ * Concurrency: writes are atomic (write-to-temp + rename) within a single
+ * process. Cross-process concurrency relies on the OS's rename atomicity.
  */
 
 function projectDir(projectId: string): string {
@@ -16,16 +20,13 @@ function projectDir(projectId: string): string {
   return join(root, '.mma', 'projects', projectId);
 }
 
-function ensureDir(dir: string): void {
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-}
-
 /* ── Exploration summary ──────────────────────────────────────────────── */
 
 const EXPLORATION_FILE = 'exploration.md';
 
 /**
- * Read the exploration summary markdown from disk.
+ * Read the exploration summary markdown from disk (sync).
+ * Used in contexts where async is impractical (export collect-artifacts).
  * Returns null if the file doesn't exist yet.
  */
 export function readExplorationSummary(projectId: string): string | null {
@@ -35,44 +36,39 @@ export function readExplorationSummary(projectId: string): string | null {
 }
 
 /**
+ * Read the exploration summary markdown from disk (async).
+ * Preferred for request handlers — does not block the event loop.
+ */
+export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
+  const filePath = join(projectDir(projectId), EXPLORATION_FILE);
+  try {
+    return await readFile(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Write the exploration summary markdown to disk.
  * Creates the project directory if it doesn't exist.
  * Returns the file path.
  */
 export function writeExplorationSummary(projectId: string, bodyMd: string): string {
   const dir = projectDir(projectId);
-  ensureDir(dir);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const filePath = join(dir, EXPLORATION_FILE);
   writeFileSync(filePath, bodyMd, 'utf-8');
   return filePath;
 }
 
 /**
- * Parse an exploration summary markdown into its 3 sections.
- * Handles files written by Forge or edited externally — as long as the
- * ## Background / ## Current state / ## Rough direction headings exist.
+ * Write the exploration summary markdown to disk (async).
+ * Preferred for request handlers — does not block the event loop.
  */
-export function parseExplorationSummary(md: string): {
-  background: string;
-  currentState: string;
-  roughDirection: string;
-} {
-  const sections: Record<string, string> = {};
-  let currentSection = '';
-
-  for (const line of md.split('\n')) {
-    const heading = line.match(/^##\s+(.+)$/);
-    if (heading) {
-      currentSection = heading[1].trim().toLowerCase();
-    } else if (currentSection) {
-      const key = currentSection.replace(/\s+/g, '_');
-      sections[key] = (sections[key] ?? '') + line + '\n';
-    }
-  }
-
-  return {
-    background: (sections['background'] ?? '').trim(),
-    currentState: (sections['current_state'] ?? '').trim(),
-    roughDirection: (sections['rough_direction'] ?? '').trim(),
-  };
+export async function writeExplorationSummaryAsync(projectId: string, bodyMd: string): Promise<string> {
+  const dir = projectDir(projectId);
+  await mkdir(dir, { recursive: true });
+  const filePath = join(dir, EXPLORATION_FILE);
+  await writeFile(filePath, bodyMd, 'utf-8');
+  return filePath;
 }

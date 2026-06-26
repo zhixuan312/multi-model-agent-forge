@@ -8,7 +8,7 @@ import { repo } from '@/db/schema/workspace';
 import { projectRepo } from '@/db/schema/projects';
 import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
-import { readExplorationSummary } from '@/projects/project-files';
+import { readExplorationSummaryAsync } from '@/projects/project-files';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
@@ -119,7 +119,7 @@ export async function latestExplorationArtifact(
   projectId: string,
   _db?: Db,
 ): Promise<ExploreArtifact | null> {
-  const bodyMd = readExplorationSummary(projectId);
+  const bodyMd = await readExplorationSummaryAsync(projectId);
   if (!bodyMd) return null;
   return { id: projectId, version: 1, bodyMd };
 }

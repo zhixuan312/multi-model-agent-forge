@@ -10,7 +10,7 @@ import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 import { SynthesisSchema, composeExplorationMarkdown, type Synthesis } from '@/exploration/schemas';
 import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
-import { writeExplorationSummary } from '@/projects/project-files';
+import { writeExplorationSummaryAsync } from '@/projects/project-files';
 
 /**
  * Synthesize exploration records into `exploration.md` on disk. Reads
@@ -210,7 +210,7 @@ export async function synthesize(
   }
   const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
-  const filePath = writeExplorationSummary(projectId, bodyMd);
+  const filePath = await writeExplorationSummaryAsync(projectId, bodyMd);
 
   await db.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
   if (actor) {

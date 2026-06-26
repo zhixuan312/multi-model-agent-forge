@@ -292,7 +292,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const noteEl = <ExplorationNote phase={phase} />;
   const hasAnalyzed = dispatched > 0 || drafts.length > 0;
-  const [railMode, setRailMode] = useState<'conversation' | 'status'>(hasAnalyzed ? 'status' : 'conversation');
+  const [briefView, setBriefView] = useState<'input' | 'tasks'>(hasAnalyzed ? 'tasks' : 'input');
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -305,93 +305,91 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         onStop={() => {}}
       />
 
-      {/* Brief phase: original layout — content left, brain-dump/status right */}
+      {/* Brief phase: brain-dump left, stats + advance right */}
       {(phase === 'idle' || phase === 'fanout') ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            {phase === 'idle' ? (
-              <IdleStage />
-            ) : (
-              <FanOutCard
-                className="min-h-0 flex-1"
-                projectId={props.projectId}
-                drafts={drafts}
-                allTasks={tasks}
-                repoOptions={props.repoOptions}
-                onChanged={refreshTasks}
-                onRun={run}
-                canRun={drafts.length > 0 && !busy && !locked}
-              />
-            )}
-          </div>
-          <aside className="flex min-h-0 flex-col gap-4">
-            {noteEl}
+        <StageFullWidth
+          note={noteEl}
+          sidebar={
             <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
-                <div className="flex items-center gap-2">
-                  <CardTitle>{railMode === 'conversation' ? 'Brain-dump' : 'Exploration'}</CardTitle>
-                  {dispatched > 0 ? (
-                    <Badge variant={allDone ? 'sage' : 'amber'} size="sm">
-                      {allDone ? 'complete' : `${recorded}/${dispatched}`}
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-1 rounded-full bg-surface-2 p-0.5">
-                  <button type="button" onClick={() => setRailMode('conversation')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', railMode === 'conversation' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
-                    Edit
-                  </button>
-                  <button type="button" onClick={() => hasAnalyzed && setRailMode('status')} disabled={!hasAnalyzed} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', !hasAnalyzed && 'opacity-40 cursor-not-allowed', railMode === 'status' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
-                    Status
-                  </button>
-                </div>
+                <CardTitle>Exploration</CardTitle>
+                {hasAnalyzed ? (
+                  <Badge variant="neutral" size="sm">{tasks.length} tasks</Badge>
+                ) : null}
               </CardHeader>
-
-              {railMode === 'conversation' ? (
-                <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
-                  <ConversationComposer
-                    value={brief}
-                    onChange={locked ? () => {} : setBrief}
-                    onSend={locked ? () => {} : () => { analyze(); setRailMode('status'); }}
-                    voice={props.voiceEnabled && !locked}
-                    attachments
-                    disabled={locked}
-                    loading={busy}
-                    placeholder="Tell Forge everything you know…"
-                    submitLabel={busy ? 'Thinking…' : 'Analyze sources'}
-                    rows={0}
-                    className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
-                  />
-                  {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
-                </CardContent>
-              ) : (
-                <>
-                  <CardContent className="min-h-0 flex-1 !py-4">
-                    <div className="space-y-0">
-                      <StatRow label="Total tasks" value={String(tasks.length)} />
-                      <StatRow label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
-                      <StatRow label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
-                      <StatRow label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex-col !items-stretch gap-2">
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        if (!hasAnalyzed) { analyze(); }
-                        setViewOverride('discover');
-                      }}
-                      disabled={locked || busy || !brief.trim()}
-                      loading={busy}
-                      leftIcon={<ArrowRight />}
-                    >
-                      {busy ? 'Analyzing…' : hasAnalyzed ? 'Continue to Discover' : 'Analyze & Discover'}
-                    </Button>
-                  </CardFooter>
-                </>
-              )}
+              <CardContent className="min-h-0 flex-1 !py-4">
+                <div className="space-y-0">
+                  <StatRow label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
+                  <StatRow label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
+                  <StatRow label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
+                </div>
+              </CardContent>
+              <CardFooter className="flex-col !items-stretch gap-2">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    if (!hasAnalyzed) { analyze(); }
+                    setViewOverride('discover');
+                  }}
+                  disabled={locked || busy || !brief.trim()}
+                  loading={busy}
+                  leftIcon={<ArrowRight />}
+                >
+                  {busy ? 'Analyzing…' : hasAnalyzed ? 'Continue to Discover' : 'Analyze & Discover'}
+                </Button>
+              </CardFooter>
             </Card>
-          </aside>
-        </div>
+          }
+        >
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader>
+              <CardTitle>{briefView === 'input' ? 'Brain-dump' : 'Exploration tasks'}</CardTitle>
+              {hasAnalyzed ? (
+                <div className="flex items-center gap-1 rounded-full bg-surface-2 p-0.5">
+                  <button type="button" onClick={() => setBriefView('input')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', briefView === 'input' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
+                    Brain-dump
+                  </button>
+                  <button type="button" onClick={() => setBriefView('tasks')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', briefView === 'tasks' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
+                    Tasks
+                  </button>
+                </div>
+              ) : (
+                <Micro className="!text-ink-faint">Text · voice · files</Micro>
+              )}
+            </CardHeader>
+
+            {briefView === 'input' ? (
+              <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
+                <ConversationComposer
+                  value={brief}
+                  onChange={locked ? () => {} : setBrief}
+                  onSend={locked ? () => {} : () => { analyze(); setBriefView('tasks'); }}
+                  voice={props.voiceEnabled && !locked}
+                  attachments
+                  disabled={locked || busy}
+                  placeholder="Tell Forge everything you know…"
+                  submitLabel="Analyze sources"
+                  rows={0}
+                  className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
+                />
+                {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
+              </CardContent>
+            ) : (
+              <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
+                <FanOutCard
+                  className="min-h-0"
+                  projectId={props.projectId}
+                  drafts={drafts}
+                  allTasks={tasks}
+                  repoOptions={props.repoOptions}
+                  onChanged={refreshTasks}
+                  onRun={run}
+                  canRun={drafts.length > 0 && !busy && !locked}
+                />
+              </CardContent>
+            )}
+          </Card>
+        </StageFullWidth>
 
       /* Discover phase: task list in rail, selected task detail in main */
       ) : phase === 'run' ? (
@@ -402,19 +400,19 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           onSelect={setSelectedTaskId}
           listTitle="Tasks"
           listProgress={`${recorded}/${dispatched}`}
-          listActions={allDone ? (
-            <Button onClick={locked ? () => {} : resynthesize} loading={busy} disabled={locked || busy} leftIcon={<Sparkles />} className="w-full">
-              {busy ? 'Synthesizing…' : 'Synthesize brief'}
-            </Button>
-          ) : undefined}
           footer={
-            <StageAdvance
-              href={`/projects/${props.projectId}/spec`}
-              label="Continue to Spec"
-              disabled={!bodyMd || !allDone}
-              projectId={props.projectId}
-              from="exploration"
-            />
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (allDone && !bodyMd) resynthesize();
+                setViewOverride('synthesize');
+              }}
+              disabled={!allDone || locked || busy}
+              loading={busy}
+              leftIcon={<ArrowRight />}
+            >
+              {busy ? 'Synthesizing…' : 'Continue to Synthesize'}
+            </Button>
           }
         >
           <CardHeader>
@@ -454,9 +452,37 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           </CardContent>
         </StageShell>
 
-      /* Synthesize phase: full-width summary */
+      /* Synthesize phase: synthesis doc left, stats + advance right */
       ) : (
-        <StageFullWidth note={noteEl}>
+        <StageFullWidth
+          note={noteEl}
+          sidebar={
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle>Synthesis</CardTitle>
+                <Badge variant={bodyMd ? 'sage' : 'amber'} size="sm">{bodyMd ? 'ready' : 'pending'}</Badge>
+              </CardHeader>
+              <CardContent className="!py-4">
+                <div className="space-y-0">
+                  <StatRow label="Tasks completed" value={`${recorded}/${dispatched}`} />
+                  <StatRow label="Brief" value={bodyMd ? `v${version}` : 'Not yet'} />
+                </div>
+              </CardContent>
+              <CardFooter className="flex-col !items-stretch gap-2">
+                <Button variant="ghost" className="w-full" onClick={locked ? () => {} : resynthesize} disabled={locked || busy} loading={busy} leftIcon={<RefreshCw />}>
+                  Re-synthesize
+                </Button>
+                <StageAdvance
+                  href={`/projects/${props.projectId}/spec`}
+                  label="Continue to Spec"
+                  disabled={!bodyMd}
+                  projectId={props.projectId}
+                  from="exploration"
+                />
+              </CardFooter>
+            </Card>
+          }
+        >
           <SummaryPane
             className="min-h-0 flex-1"
             bodyMd={bodyMd as string}

@@ -849,9 +849,11 @@ function CraftStage({
   // Re-seed participants when server data changes (approval, invite via SSE refresh)
   // Keep discussion intact — only update participants from DB.
   const prevComponentsRef = useRef(components);
+  const prevMessagesRef = useRef(initialMessages);
   useEffect(() => {
-    if (prevComponentsRef.current === components) return;
+    if (prevComponentsRef.current === components && prevMessagesRef.current === initialMessages) return;
     prevComponentsRef.current = components;
+    prevMessagesRef.current = initialMessages;
     const allPool = [currentMember, ...projectMembers];
     setCollab((prev) => {
       const next = { ...prev };
@@ -869,12 +871,18 @@ function CraftStage({
           const approver = allPool.find((m) => m.id === c.approvedBy);
           if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
         }
-        const old = prev[c.id];
-        next[c.id] = { participants, discussion: old?.discussion ?? [] };
+        // Reload discussion from DB (initialMessages) — always fresh
+        const dbMsgs = initialMessages[c.id] ?? [];
+        const discussion: DiscussionMsg[] = dbMsgs.map((m) => ({
+          id: m.id,
+          authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? currentMember.id),
+          body: m.bodyMd,
+        }));
+        next[c.id] = { participants, discussion };
       }
       return next;
     });
-  }, [components, currentMember, projectMembers]);
+  }, [components, currentMember, projectMembers, initialMessages]);
 
   const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);

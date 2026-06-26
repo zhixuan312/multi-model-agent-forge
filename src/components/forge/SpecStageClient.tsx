@@ -36,6 +36,7 @@ import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
+import { FindingsGrid, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Avatar,
@@ -1712,17 +1713,30 @@ function DocumentScreen({
                   ) : m.role === 'user' ? (
                     <AnswerBlock key={m.id} text={m.text} />
                   ) : (
-                    <AuditMsg
-                      key={m.id}
-                      passNo={m.passNo}
-                      verdict={m.verdict}
-                      findings={m.findings}
-                      readOnly={readOnly}
-                      applying={applying}
-                      applied={applied || (rounds.find((r) => r.passNo === m.passNo)?.applied ?? false)}
-                      applyProgress={applying ? { done: applyDone, total: applyTotal } : undefined}
-                      onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
-                    />
+                    <div key={m.id} className="flex gap-2.5">
+                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
+                        <Shield className="size-[18px]" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-ink">Audit</span>
+                          <span className="text-[11px] text-ink-faint">pass {m.passNo}</span>
+                          <Badge variant={m.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
+                            {m.verdict === 'clean' ? 'clean' : `${m.findings.length} finding${m.findings.length === 1 ? '' : 's'} → revised`}
+                          </Badge>
+                          {(applied || rounds.find((r) => r.passNo === m.passNo)?.applied) ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
+                        </div>
+                        <FindingsGrid
+                          findings={m.findings as Finding[]}
+                          selectable
+                          applying={applying}
+                          applied={applied || (rounds.find((r) => r.passNo === m.passNo)?.applied ?? false)}
+                          readOnly={readOnly}
+                          onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
+                          appliedLabel='All findings applied — press "Construct spec" to re-assemble.'
+                        />
+                      </div>
+                    </div>
                   ),
                 )
               )}
@@ -1825,13 +1839,13 @@ function DocumentScreen({
             ) : null}
             {(
               rounds.map((r) => (
-                <AuditRoundCard
+                <PatternAuditRoundCard
                   key={r.passNo}
                   passNo={r.passNo}
                   verdict={r.verdict}
-                  findings={r.findings}
+                  findings={r.findings as Finding[]}
                   applied={r.applied || applied}
-                  onReplay={() => replay(r.passNo)}
+                  onClick={() => replay(r.passNo)}
                 />
               ))
             )}
@@ -1891,242 +1905,7 @@ function SpecDraftCard({ version, md }: { version: number; md: string }) {
   );
 }
 
-const SEVERITY_ORDER: AuditFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
 
-/** A distinct tint per severity (critical = rose · high = amber · medium = steel · low = neutral). */
-const SEVERITY_STYLE: Record<AuditFinding['severity'], string> = {
-  critical: 'bg-rose-tint text-[var(--rose)]',
-  high: 'bg-amber-tint text-[var(--amber)]',
-  medium: 'bg-[var(--frost)] text-[var(--steel)]',
-  low: 'bg-surface-2 text-ink-soft',
-};
-
-/** Fixed-width severity tag so finding claims align in a clean column. */
-function SeverityTag({ s }: { s: AuditFinding['severity'] }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex w-[58px] shrink-0 items-center justify-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-        SEVERITY_STYLE[s],
-      )}
-    >
-      {s}
-    </span>
-  );
-}
-
-/** Tally findings by severity for the rail summary. */
-function severityCounts(findings: AuditFinding[]): Record<AuditFinding['severity'], number> {
-  const c = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of findings) c[f.severity] += 1;
-  return c;
-}
-
-/** A small severity-count chip used in the audit-rounds summary. */
-function CountChip({ s, n }: { s: AuditFinding['severity']; n: number }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-        SEVERITY_STYLE[s],
-      )}
-    >
-      <span className="font-semibold">{n}</span>
-      {s}
-    </span>
-  );
-}
-
-/** An audit pass in the thread — numbered, selectable findings + apply controls. */
-function AuditMsg({
-  passNo,
-  verdict,
-  findings,
-  readOnly,
-  applying,
-  applied,
-  applyProgress,
-  onApply,
-}: {
-  passNo: number;
-  verdict: 'clean' | 'revised';
-  findings: AuditFinding[];
-  readOnly: boolean;
-  applying?: boolean;
-  applied?: boolean;
-  applyProgress?: { done: number; total: number };
-  onApply: (indices: number[]) => void;
-}) {
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const toggle = (i: number) =>
-    setSel((s) => {
-      const n = new Set(s);
-      if (n.has(i)) n.delete(i);
-      else n.add(i);
-      return n;
-    });
-
-  return (
-    <div className="flex gap-2.5">
-      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
-        <Shield className="size-[18px]" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Audit</span>
-          <span className="text-[11px] text-ink-faint">pass {passNo}</span>
-          <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-            {verdict === 'clean'
-              ? 'clean'
-              : `${findings.length} finding${findings.length === 1 ? '' : 's'} → revised`}
-          </Badge>
-          {applied ? (
-            <Badge variant="sage" size="sm">applied</Badge>
-          ) : applying ? (
-            <Badge variant="neutral" size="sm">applying…</Badge>
-          ) : null}
-        </div>
-        <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
-          {findings.length > 0 ? (
-            <>
-              <div className="grid grid-cols-2 gap-px bg-line/70">
-                {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
-                  const origIdx = findings.indexOf(f);
-                  const on = sel.has(origIdx);
-                  const disabled = readOnly || applying || !!applied;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => !disabled && toggle(origIdx)}
-                      disabled={disabled}
-                      className={cn(
-                        'flex flex-col gap-1.5 p-3 text-left transition-colors',
-                        applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50',
-                        disabled && !applied && 'opacity-60',
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors',
-                            applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white' : on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint',
-                          )}
-                        >
-                          {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
-                        </span>
-                        <SeverityTag s={f.severity} />
-                      </div>
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
-                      <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
-                      {f.evidence ? <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p> : null}
-                      {f.suggestion ? <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p> : null}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                {applied ? (
-                  <div className="flex items-center gap-2">
-                    <Check className="size-3.5 text-[var(--sage-deep)]" />
-                    <span className="text-xs font-medium text-[var(--sage-deep)]">
-                      All findings applied — press "Construct spec" to re-assemble.
-                    </span>
-                  </div>
-                ) : applying ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-accent" />
-                    <span className="text-xs font-medium text-accent-deep">
-                      Revising {applyProgress ? `${applyProgress.done}/${applyProgress.total} sections` : '…'}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    <span className="text-[11px] text-ink-faint">
-                      Select findings to apply, or apply all at once.
-                    </span>
-                    <span className="flex-1" />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => onApply([...sel])}
-                      disabled={readOnly || sel.size === 0}
-                      leftIcon={<Check />}
-                    >
-                      Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => onApply(findings.map((_, i) => i))}
-                      disabled={readOnly}
-                      leftIcon={<Sparkles />}
-                    >
-                      Apply all {findings.length}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="px-4 py-3 text-sm leading-relaxed text-ink">
-              No critical or high findings — the specification is ready to freeze.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** One audit round in the right rail — a clickable severity summary. */
-function AuditRoundCard({
-  passNo,
-  verdict,
-  findings,
-  applied,
-  onReplay,
-}: {
-  passNo: number;
-  verdict: 'clean' | 'revised';
-  findings: AuditFinding[];
-  applied?: boolean;
-  onReplay: () => void;
-}) {
-  const counts = severityCounts(findings);
-  return (
-    <button
-      type="button"
-      onClick={onReplay}
-      className={cn(
-        'group w-full rounded-[var(--r-md)] border p-3 text-left transition-colors',
-        applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface hover:border-accent hover:bg-surface-2/40',
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
-        <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-          {verdict === 'clean' ? 'clean' : 'revised'}
-        </Badge>
-        {applied ? (
-          <Badge variant="sage" size="sm">applied</Badge>
-        ) : null}
-        <span className="ml-auto text-[11px] text-ink-faint">
-          {findings.length} finding{findings.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      {findings.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
-            <CountChip key={s} s={s} n={counts[s]} />
-          ))}
-        </div>
-      ) : null}
-      <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-ink-faint group-hover:text-accent">
-        <ArrowRight className="size-3" /> Re-post to chat
-      </span>
-    </button>
-  );
-}
 
 /* ── Audit panel (run audit → pass timeline → freeze CTA) ────────────────── */
 

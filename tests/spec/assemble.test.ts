@@ -1,10 +1,27 @@
 // @vitest-environment node
-import { and, eq } from 'drizzle-orm';
+import { vi } from 'vitest';
 import { component, componentSection } from '@/db/schema/spec';
-import { artifact } from '@/db/schema/artifacts';
 import { actionLog } from '@/db/schema/audit';
 import { assembleSpec, getLatestSpec, buildSpecMarkdown } from '@/spec/assemble';
 import { createMockDb, seq } from '../test-utils/mock-db';
+
+/* Mock file-based spec storage — assembleSpec now writes to file, not DB. */
+const writeSpecAsyncMock = vi.fn();
+const readSpecFileAsyncMock = vi.fn();
+
+vi.mock('@/projects/project-files', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/projects/project-files')>();
+  return {
+    ...orig,
+    writeSpecAsync: (...args: unknown[]) => writeSpecAsyncMock(...args),
+    readSpecFileAsync: (...args: unknown[]) => readSpecFileAsyncMock(...args),
+  };
+});
+
+beforeEach(() => {
+  writeSpecAsyncMock.mockReset();
+  readSpecFileAsyncMock.mockReset();
+});
 
 describe('buildSpecMarkdown (pure)', () => {
   it('emits ## label / ### draftHeading and preserves a ```mermaid fence verbatim', () => {
@@ -33,14 +50,17 @@ describe('assembleSpec', () => {
     const sectionId = 'sec-1';
     const ownerId = 'owner-1';
 
+    // No previous spec file on disk
+    readSpecFileAsyncMock.mockResolvedValue(null);
+    // writeSpecAsync returns the saved version
+    writeSpecAsyncMock.mockResolvedValue({ filePath: '/fake/spec.md', version: 1 });
+
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
       'select:project_component': [{ id: componentId, kind: 'context' }],
       'select:project_component_section': [
         { id: sectionId, componentId, key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body-background' },
       ],
-      'select:project_artifact': [{ m: 0 }],
-      'insert:project_artifact': [{ id: 'art-1', version: 1 }],
       'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'assemble', memberId: null }],
     });
 
@@ -49,7 +69,8 @@ describe('assembleSpec', () => {
     expect(res.bodyMd).toContain('## Context');
     expect(res.bodyMd).toContain('### Background');
     expect(res.bodyMd).toContain('body-background');
-    expect(mockDb._assertCalled('project_artifact', 'insert')).toBe(true);
+    // Spec is now written to file, not inserted into DB
+    expect(writeSpecAsyncMock).toHaveBeenCalledWith(projectId, expect.any(String));
     expect(mockDb._assertCalled('ops_action_log', 'insert')).toBe(true);
   });
 
@@ -58,14 +79,23 @@ describe('assembleSpec', () => {
     const specStageId = 'stage-2';
     const ownerId = 'owner-2';
 
+    // First assembleSpec call: no previous file
+    // Second assembleSpec call: file exists with version 1
+    // Third call (getLatestSpec): file exists with version 2
+    readSpecFileAsyncMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ version: 1, updatedAt: '', bodyMd: 'v1' })
+      .mockResolvedValueOnce({ version: 2, updatedAt: '', bodyMd: 'v2' });
+    writeSpecAsyncMock
+      .mockResolvedValueOnce({ filePath: '/fake/spec.md', version: 1 })
+      .mockResolvedValueOnce({ filePath: '/fake/spec.md', version: 2 });
+
     const mockDb = createMockDb({
       'select:project': [{ name: 'Proj', visibility: 'public' }],
       'select:project_component': [{ id: 'comp-1', kind: 'context' }],
       'select:project_component_section': [
         { id: 'sec-1', componentId: 'comp-1', key: 'background', label: 'Background', status: 'approved', aiSatisfied: true, humanSatisfied: true, draftMd: 'body' },
       ],
-      'select:project_artifact': seq([{ m: 0 }], [{ m: 1 }], [{ id: 'art-2', projectId, kind: 'spec', version: 2, bodyMd: 'v2' }]),
-      'insert:project_artifact': seq([{ id: 'art-1', version: 1 }], [{ id: 'art-2', version: 2 }]),
       'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'assemble' }, { id: 'log-2', projectId, action: 'assemble' }],
     });
 

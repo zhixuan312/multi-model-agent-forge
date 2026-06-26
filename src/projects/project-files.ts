@@ -6,13 +6,9 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
 /**
  * File-based project artifact storage. Each project gets a directory under
  * `.forge-workspace/.mma/projects/<project-id>/`. Artifacts are stored as
- * markdown files — the single source of truth for content.
+ * markdown files with YAML frontmatter — the single source of truth for content.
  *
- * Engineers can edit these files outside Forge. As long as the markdown
- * format is correct, Forge will render them properly.
- *
- * Concurrency: writes are direct (not atomic rename). Safe for single-process
- * use. Cross-process concurrent writes may interleave.
+ * Files: exploration.md, spec.md (more to come as stages migrate from DB).
  */
 
 function projectDir(projectId: string): string {
@@ -21,18 +17,17 @@ function projectDir(projectId: string): string {
   return join(root, '.mma', 'projects', projectId);
 }
 
-/* ── Exploration summary ──────────────────────────────────────────────── */
+/* ── Shared frontmatter ──────────────────────────────────────────────── */
 
-const EXPLORATION_FILE = 'exploration.md';
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n*/;
 
-export interface ExplorationFile {
+export interface ArtifactFile {
   version: number;
   updatedAt: string;
   bodyMd: string;
 }
 
-function parseFrontmatter(content: string): ExplorationFile {
+function parseFrontmatter(content: string): ArtifactFile {
   const m = content.match(FRONTMATTER_RE);
   if (m) {
     const meta = m[1];
@@ -52,67 +47,44 @@ function stampFrontmatter(bodyMd: string, version: number): string {
   return `---\nversion: ${version}\nupdated_at: ${now}\n---\n\n${bodyMd}`;
 }
 
-/**
- * Read the exploration summary from disk (sync).
- * Returns null if the file doesn't exist.
- */
-export function readExplorationSummary(projectId: string): string | null {
-  const filePath = join(projectDir(projectId), EXPLORATION_FILE);
+function readFileSync_(projectId: string, filename: string): string | null {
+  const filePath = join(projectDir(projectId), filename);
   if (!existsSync(filePath)) return null;
   return readFileSync(filePath, 'utf-8');
 }
 
-/**
- * Read the exploration summary with version (sync).
- */
-export function readExplorationFile(projectId: string): ExplorationFile | null {
-  const raw = readExplorationSummary(projectId);
-  if (!raw) return null;
-  return parseFrontmatter(raw);
-}
-
-/**
- * Read the exploration summary from disk (async).
- */
-export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
+async function readFileAsync_(projectId: string, filename: string): Promise<string | null> {
   try {
-    const filePath = join(projectDir(projectId), EXPLORATION_FILE);
-    return await readFile(filePath, 'utf-8');
-  } catch {
-    return null;
-  }
+    return await readFile(join(projectDir(projectId), filename), 'utf-8');
+  } catch { return null; }
 }
 
-/**
- * Read the exploration summary with version (async).
- */
-export async function readExplorationFileAsync(projectId: string): Promise<ExplorationFile | null> {
-  const raw = await readExplorationSummaryAsync(projectId);
+function readArtifact(projectId: string, filename: string): ArtifactFile | null {
+  const raw = readFileSync_(projectId, filename);
   if (!raw) return null;
   return parseFrontmatter(raw);
 }
 
-/**
- * Write the exploration summary to disk with version bump.
- * Reads the current version, increments, stamps the new file.
- */
-export function writeExplorationSummary(projectId: string, bodyMd: string): string {
+async function readArtifactAsync(projectId: string, filename: string): Promise<ArtifactFile | null> {
+  const raw = await readFileAsync_(projectId, filename);
+  if (!raw) return null;
+  return parseFrontmatter(raw);
+}
+
+function writeArtifact(projectId: string, filename: string, bodyMd: string): string {
   const dir = projectDir(projectId);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const filePath = join(dir, EXPLORATION_FILE);
+  const filePath = join(dir, filename);
   const prev = existsSync(filePath) ? parseFrontmatter(readFileSync(filePath, 'utf-8')) : null;
   const nextVersion = (prev?.version ?? 0) + 1;
   writeFileSync(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
   return filePath;
 }
 
-/**
- * Write the exploration summary to disk with version bump (async).
- */
-export async function writeExplorationSummaryAsync(projectId: string, bodyMd: string): Promise<string> {
+async function writeArtifactAsync(projectId: string, filename: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
   const dir = projectDir(projectId);
   await mkdir(dir, { recursive: true });
-  const filePath = join(dir, EXPLORATION_FILE);
+  const filePath = join(dir, filename);
   let prevVersion = 0;
   try {
     const raw = await readFile(filePath, 'utf-8');
@@ -120,5 +92,62 @@ export async function writeExplorationSummaryAsync(projectId: string, bodyMd: st
   } catch { /* file doesn't exist yet */ }
   const nextVersion = prevVersion + 1;
   await writeFile(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
+  return { filePath, version: nextVersion };
+}
+
+/* ── Exploration ─────────────────────────────────────────────────────── */
+
+const EXPLORATION_FILE = 'exploration.md';
+
+export type ExplorationFile = ArtifactFile;
+
+export function readExplorationSummary(projectId: string): string | null {
+  return readFileSync_(projectId, EXPLORATION_FILE);
+}
+
+export function readExplorationFile(projectId: string): ExplorationFile | null {
+  return readArtifact(projectId, EXPLORATION_FILE);
+}
+
+export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
+  return readFileAsync_(projectId, EXPLORATION_FILE);
+}
+
+export async function readExplorationFileAsync(projectId: string): Promise<ExplorationFile | null> {
+  return readArtifactAsync(projectId, EXPLORATION_FILE);
+}
+
+export function writeExplorationSummary(projectId: string, bodyMd: string): string {
+  return writeArtifact(projectId, EXPLORATION_FILE, bodyMd);
+}
+
+export async function writeExplorationSummaryAsync(projectId: string, bodyMd: string): Promise<string> {
+  const { filePath } = await writeArtifactAsync(projectId, EXPLORATION_FILE, bodyMd);
   return filePath;
+}
+
+/* ── Spec ────────────────────────────────────────────────────────────── */
+
+const SPEC_FILE = 'spec.md';
+
+export type SpecFile = ArtifactFile;
+
+export function readSpecFile(projectId: string): SpecFile | null {
+  return readArtifact(projectId, SPEC_FILE);
+}
+
+export async function readSpecFileAsync(projectId: string): Promise<SpecFile | null> {
+  return readArtifactAsync(projectId, SPEC_FILE);
+}
+
+export function readSpecSummary(projectId: string): string | null {
+  return readFileSync_(projectId, SPEC_FILE);
+}
+
+export async function readSpecSummaryAsync(projectId: string): Promise<string | null> {
+  return readFileAsync_(projectId, SPEC_FILE);
+}
+
+export async function writeSpecAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
+  return writeArtifactAsync(projectId, SPEC_FILE, bodyMd);
 }

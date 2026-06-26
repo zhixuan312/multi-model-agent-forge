@@ -1,11 +1,10 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, stage } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
 import { component, componentSection } from '@/db/schema/spec';
-import { artifact } from '@/db/schema/artifacts';
-import type { ArtifactRow } from '@/db/schema/artifacts';
 import { logAction } from '@/observability/action-log';
 import { templateForKind } from '@/spec/components';
+import { readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
 import type { ComponentKind } from '@/db/enums';
 
 /**
@@ -84,12 +83,8 @@ export async function assembleSpec(
     .where(eq(component.stageId, stageId))
     .orderBy(asc(component.orderIndex));
 
-  // Next version (max+1 for this project's spec artifacts).
-  const [verRow] = await dbi
-    .select({ m: sql<number>`coalesce(max(${artifact.version}), 0)` })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'spec')));
-  const version = (verRow?.m ?? 0) + 1;
+  const prev = await readSpecFileAsync(projectId);
+  const version = (prev?.version ?? 0) + 1;
 
   const componentViews = [];
   for (const comp of comps) {
@@ -107,27 +102,19 @@ export async function assembleSpec(
     componentViews,
   );
 
-  const [row] = await dbi
-    .insert(artifact)
-    .values({ projectId, kind: 'spec', bodyMd, version, createdBy: null })
-    .returning({ id: artifact.id, version: artifact.version });
+  const { version: savedVersion } = await writeSpecAsync(projectId, bodyMd);
 
   await logAction(
-    { projectId, memberId: actorId, action: 'assemble', target: `artifact:${row.id}` },
+    { projectId, memberId: actorId, action: 'assemble', target: `spec:v${savedVersion}` },
     dbi,
   );
 
-  return { id: row.id, version: row.version, bodyMd };
+  return { id: projectId, version: savedVersion, bodyMd };
 }
 
-/** The latest `artifact(kind='spec', version=max)` — the 4b seam input. */
-export async function getLatestSpec(db: Db, projectId: string): Promise<ArtifactRow | null> {
-  const dbi = db ?? getDb();
-  const [row] = await dbi
-    .select()
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'spec')))
-    .orderBy(sql`${artifact.version} desc`)
-    .limit(1);
-  return row ?? null;
+/** The latest spec from disk — file-based, not DB. */
+export async function getLatestSpec(_db: Db, projectId: string): Promise<{ version: number; bodyMd: string } | null> {
+  const file = await readSpecFileAsync(projectId);
+  if (!file) return null;
+  return { version: file.version, bodyMd: file.bodyMd };
 }

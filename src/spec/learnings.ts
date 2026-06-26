@@ -3,11 +3,11 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { learningCandidate } from '@/db/schema/artifacts';
 import type { LearningCandidateRow } from '@/db/schema/artifacts';
-import { artifact } from '@/db/schema/artifacts';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { stage } from '@/db/schema/projects';
 import type { LearningType } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
+import { readSpecFileAsync } from '@/projects/project-files';
 import { AnthropicClient } from '@/anthropic/client';
 import { ComposeLearningsSchema, type ComposeLearnings } from '@/spec/schemas';
 import { MmaClient } from '@/mma/client';
@@ -114,12 +114,8 @@ export async function buildLearningsPrompt(
     .where(eq(project.id, projectId))
     .limit(1);
 
-  const [spec] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'spec')))
-    .orderBy(sql`${artifact.version} desc`)
-    .limit(1);
+  const specFile = await readSpecFileAsync(projectId);
+  const spec = specFile ? { bodyMd: specFile.bodyMd } : null;
 
   // A compact transcript summary across the project's sections.
   const msgs = await db

@@ -30,20 +30,21 @@ const STAGE_LABEL: Record<StageKind, string> = {
 
 /**
  * Ensure the DB reflects that a stage has been reached. Called from the
- * project layout on every navigation — the SINGLE place stage state is
- * persisted.
+ * project layout on every navigation.
  *
- * - All stages before `viewingStage` are marked 'done' (if still active/pending)
- * - `viewingStage` itself is marked 'active' (if still pending)
- * - Stages already 'done' are never touched (going back doesn't undo them)
- * - The project's `currentStage` is set to the max of its current value
- *   and `viewingStage` (never moves backward)
+ * Design stages (Explore, Spec, Plan) are NOT auto-marked done when
+ * navigating forward — they stay active/pending until the stage itself
+ * completes. Users can freely navigate between design stages.
+ *
+ * Build stages (Execute, Review, Journal) auto-mark prior stages done
+ * when entered, since starting execution is the commitment gate.
  */
 export async function ensureStageReached(db: Db, projectId: string, viewingStage: StageKind): Promise<void> {
   const viewIdx = STAGE_ORDER.indexOf(viewingStage);
   if (viewIdx < 0) return;
 
   const now = new Date();
+  const DESIGN_BOUNDARY = 3; // execute is index 3
 
   const rows = await db
     .select({ kind: stage.kind, status: stage.status })
@@ -51,17 +52,21 @@ export async function ensureStageReached(db: Db, projectId: string, viewingStage
     .where(eq(stage.projectId, projectId));
   const statusByKind = new Map(rows.map((r) => [r.kind, r.status]));
 
-  for (let i = 0; i < viewIdx; i++) {
-    const kind = STAGE_ORDER[i];
-    const s = statusByKind.get(kind);
-    if (s !== 'done') {
-      await db
-        .update(stage)
-        .set({ status: 'done', completedAt: now, ...(s === 'pending' ? { startedAt: now } : {}) })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, kind)));
+  // Only auto-mark prior stages done when entering a build stage (execute+)
+  if (viewIdx >= DESIGN_BOUNDARY) {
+    for (let i = 0; i < viewIdx; i++) {
+      const kind = STAGE_ORDER[i];
+      const s = statusByKind.get(kind);
+      if (s !== 'done') {
+        await db
+          .update(stage)
+          .set({ status: 'done', completedAt: now, ...(s === 'pending' ? { startedAt: now } : {}) })
+          .where(and(eq(stage.projectId, projectId), eq(stage.kind, kind)));
+      }
     }
   }
 
+  // Mark the viewing stage as active if still pending
   const viewStatus = statusByKind.get(viewingStage);
   if (viewStatus === 'pending') {
     await db
@@ -70,6 +75,7 @@ export async function ensureStageReached(db: Db, projectId: string, viewingStage
       .where(and(eq(stage.projectId, projectId), eq(stage.kind, viewingStage)));
   }
 
+  // Track the furthest stage reached
   const [proj] = await db
     .select({ currentStage: project.currentStage })
     .from(project)

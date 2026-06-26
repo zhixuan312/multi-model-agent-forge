@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { vi } from 'vitest';
 import {
   collectMenu,
   collectArtifact,
@@ -15,6 +16,21 @@ import { join } from 'path';
 
 const SPEC_BODY = '## 01. Context\nbody one\n\n## 03. Technical design\nbody three';
 
+/* Mock readSpecFile (sync) — collect-artifacts uses the sync variant for spec. */
+const readSpecFileMock = vi.fn<(id: string) => import('@/projects/project-files').SpecFile | null>();
+
+vi.mock('@/projects/project-files', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/projects/project-files')>();
+  return {
+    ...orig,
+    readSpecFile: (...args: [string]) => readSpecFileMock(...args),
+  };
+});
+
+beforeEach(() => {
+  readSpecFileMock.mockReset();
+});
+
 afterAll(() => {
   for (const id of ['proj-1', 'test-export-ready']) {
     rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', id), { recursive: true, force: true });
@@ -25,13 +41,14 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
   it('spec present, review absent ⇒ spec ready, review pending', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [],
-      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': [],  // plan query — no plan artifact
       'select:ops_mma_batch': [],
     });
     const menu = await collectMenu(projectId, { id: ownerId }, { db });
@@ -46,6 +63,7 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
   it('a DONE review batch ⇒ review ready', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
+    readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
@@ -64,13 +82,14 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
   it('locked (build) phase + ≥1 clean spec audit ⇒ lockedAudited true', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'build' }],
         [{ ownerId, visibility: 'public', phase: 'build' }],
       ),
       'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': [],  // plan query
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
@@ -80,13 +99,14 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
   it('unlocked (design) project ⇒ lockedAudited false even with a clean audit', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': [],  // plan query
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
@@ -99,11 +119,13 @@ describe('collect-artifacts — visibility (F-visibility)', () => {
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const strangerId = 'stranger-1';
+    readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
       'select:project_member': [],
     });
     await expect(collectMenu(projectId, { id: strangerId }, { db })).rejects.toBeInstanceOf(ProjectAccessError);
+    readSpecFileMock.mockReturnValue(null);
     const db2 = createMockDb({
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
       'select:project_member': [],
@@ -119,6 +141,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
+    readSpecFileMock.mockReturnValue({ version: 2, updatedAt: '', bodyMd: SPEC_BODY });
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'build' }],
@@ -133,7 +156,6 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
         { status: 'approved', roles: [], orderIndex: 3 },
       ],
       'select:project_audit_pass': [{ id: 'audit-1' }, { id: 'audit-2' }],
-      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 2 }],
       'select:ops_mma_batch': [],
     });
     const collected = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
@@ -160,6 +182,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     const db = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
@@ -169,7 +192,6 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
       'select:project_stage': [{ id: specStageId }],
       'select:project_component': [],
       'select:project_audit_pass': [],
-      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
       'select:ops_mma_batch': [],
     });
     const c = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
@@ -181,6 +203,7 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
   it('collectArtifact on a pending kind throws ArtifactNotReadyError', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
+    readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project': [{ ownerId, visibility: 'public', phase: 'design' }],
       'select:project_artifact': [],
@@ -197,8 +220,15 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
     const specStageId = 'stage-1';
     const { writeExplorationSummary } = await import('@/projects/project-files');
     writeExplorationSummary(projectId, '## Background\n\nExploration content');
+    // No spec file on disk
+    readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project_member': [{ memberId: ownerId }],
+      // 7 select:project calls: 1 (collectReadyArtifacts assertProjectReadable)
+      //   + 1+1 (exploration collectArtifact assertProjectReadable + buildMeta)
+      //   + 1 (spec collectArtifact assertProjectReadable, then not-ready skip)
+      //   + 1+1 (plan collectArtifact assertProjectReadable + buildMeta)
+      //   + 1 (review collectArtifact assertProjectReadable, then not-ready skip)
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
@@ -206,15 +236,14 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
-      'select:team_member': [{ displayName: 'Owner' }],
-      'select:project_stage': [{ id: specStageId }],
+      'select:team_member': [{ displayName: 'Owner' }, { displayName: 'Owner' }],
+      'select:project_stage': [{ id: specStageId }, { id: specStageId }],
       'select:project_component': [],
       'select:project_audit_pass': [],
-      'select:project_artifact': seq(
-        [],
-        [{ id: 'plan-1', bodyMd: '## Plan\nx', version: 1 }],
-      ),
+      // Only plan queries the DB for artifacts now (spec reads from file)
+      'select:project_artifact': [{ id: 'plan-1', bodyMd: '## Plan\nx', version: 1 }],
       'select:ops_mma_batch': [],
     });
     const ready = await collectReadyArtifacts(projectId, { id: ownerId }, { db });
@@ -255,6 +284,7 @@ describe('md-export + review adapter (F19/F25)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
+    readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project_member': [{ memberId: ownerId }],
       'select:project': seq(

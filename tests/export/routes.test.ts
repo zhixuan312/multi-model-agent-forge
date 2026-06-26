@@ -104,7 +104,7 @@ describe('GET /export/artifacts (Key flow A)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [],
-      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
       'select:ops_mma_batch': [],
     });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {

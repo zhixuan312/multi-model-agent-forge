@@ -18,6 +18,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { artifact } from '@/db/schema/artifacts';
+import { readExplorationSummary as readExplorationSummarySync } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
 import { component } from '@/db/schema/spec';
 import { mmaBatch } from '@/db/schema/mma';
@@ -64,8 +65,7 @@ async function latestArtifact(
   kind: 'exploration' | 'spec' | 'plan',
 ): Promise<{ id: string; bodyMd: string; version: number } | null> {
   if (kind === 'exploration') {
-    const { readExplorationSummary } = await import('@/projects/project-files');
-    const bodyMd = readExplorationSummary(projectId);
+    const bodyMd = readExplorationSummarySync(projectId);
     return bodyMd ? { id: projectId, bodyMd, version: 1 } : null;
   }
   const [row] = await db

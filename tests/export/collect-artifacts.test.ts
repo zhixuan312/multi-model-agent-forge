@@ -10,7 +10,16 @@ import { reviewResultToMarkdown } from '@/export/review-adapter';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
+import { rmSync } from 'fs';
+import { join } from 'path';
+
 const SPEC_BODY = '## 01. Context\nbody one\n\n## 03. Technical design\nbody three';
+
+afterAll(() => {
+  for (const id of ['proj-1', 'test-export-ready']) {
+    rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', id), { recursive: true, force: true });
+  }
+});
 
 describe('collect-artifacts — ready/pending (Key flow A)', () => {
   it('spec present, review absent ⇒ spec ready, review pending', async () => {
@@ -22,7 +31,7 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [],
-      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
       'select:ops_mma_batch': [],
     });
     const menu = await collectMenu(projectId, { id: ownerId }, { db });
@@ -61,7 +70,7 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'build' }],
       ),
       'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
@@ -77,7 +86,7 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': seq([], [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
       'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
@@ -183,9 +192,11 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
   });
 
   it('collectReadyArtifacts returns ready ones in exploration→spec→plan→review order (F20)', async () => {
-    const projectId = 'proj-1';
+    const projectId = 'test-export-ready';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
+    const { writeExplorationSummary } = await import('@/projects/project-files');
+    writeExplorationSummary(projectId, '## Background\n\nExploration content');
     const db = createMockDb({
       'select:project_member': [{ memberId: ownerId }],
       'select:project': seq(
@@ -201,7 +212,6 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
       'select:project_component': [],
       'select:project_audit_pass': [],
       'select:project_artifact': seq(
-        [{ id: 'exp-1', bodyMd: '## Exploration\ny', version: 1 }],
         [],
         [{ id: 'plan-1', bodyMd: '## Plan\nx', version: 1 }],
       ),

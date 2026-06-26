@@ -170,17 +170,17 @@ export async function buildSectionRepaint(db: Db, sectionId: string): Promise<Se
 export async function loadAllMessages(
   db: Db,
   stageId: string,
-): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>> {
+): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>>> {
   const rows = await db
-    .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, seq: qaMessage.seq })
+    .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId, seq: qaMessage.seq })
     .from(qaMessage)
     .innerJoin(component, eq(qaMessage.componentId, component.id))
     .where(eq(component.stageId, stageId))
     .orderBy(qaMessage.seq);
-  const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> = {};
+  const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>> = {};
   for (const r of rows) {
     const list = result[r.componentId] ?? [];
-    list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd });
+    list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
     result[r.componentId] = list;
   }
   return result;

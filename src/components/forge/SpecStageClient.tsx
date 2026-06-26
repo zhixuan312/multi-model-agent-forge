@@ -112,7 +112,7 @@ interface SpecStageClientProps {
   /** Mock-only: per-component seeded participants + group-chat (by kind). */
   craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
   /** Persisted qa_messages per sectionId — loaded from DB on page render. */
-  initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   /** Whether OpenAI transcription key is configured — enables voice input. */
   voiceEnabled?: boolean;
   /** In-flight audit batch ID (from DB on page load). */
@@ -773,7 +773,7 @@ function CraftStage({
   currentMember: MemberRef;
   projectMembers: MemberRef[];
   craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
-  initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
+  initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   voiceEnabled: boolean;
   mma: MmaDispatchState;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
@@ -816,7 +816,7 @@ function CraftStage({
       const dbMessages = initialMessages[c.id] ?? [];
       const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
         id: m.id,
-        authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
+        authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? currentMember.id),
         body: m.bodyMd,
       }));
       const allPool = [currentMember, ...projectMembers];
@@ -1009,7 +1009,7 @@ function CraftStage({
     const text = input.trim();
     setInput('');
 
-    // Post message to the group chat
+    // Post message to the group chat — persist + update local state
     patchCollab((u) => ({
       ...u,
       discussion: [
@@ -1017,6 +1017,11 @@ function CraftStage({
         { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
       ],
     }));
+    fetch(`/api/projects/${projectId}/spec/components/${active.id}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bodyMd: text }),
+    }).catch(() => {});
 
     // @Forge triggers the AI to process and respond
     const forgeTagged = /@forge\b/i.test(text);

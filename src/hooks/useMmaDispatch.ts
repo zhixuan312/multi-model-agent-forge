@@ -3,23 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * useMmaDispatch — unified hook for all MMA dispatch calls.
+ * useMmaDispatch — centralised hook for ALL MMA dispatch calls.
  *
- * Handles the full lifecycle:
- * 1. POST dispatch (returns 202)
- * 2. SSE listener for completion/failure events
- * 3. Busy state per handler
- * 4. Error state with retry
- * 5. Success callback to update the right cache
+ * Self-recovering: on mount, fetches pending handlers from the server so the
+ * UI knows about in-flight batches even after a page refresh. The SSE
+ * connection then picks up dispatch.done/dispatch.failed when the PollManager
+ * resolves them.
  */
 
-export interface MmaDispatchHandler {
-  onDone: () => void | Promise<void>;
-  onFailed?: (error: string) => void;
-}
-
 export interface UseMmaDispatchOpts {
-  handlers: Record<string, MmaDispatchHandler>;
+  /** Handler names already in-flight (server-side, avoids the fetch). */
+  initialBusy?: string[];
   events?: Record<string, (data: Record<string, unknown>) => void | Promise<void>>;
 }
 
@@ -28,20 +22,24 @@ export interface MmaDispatchState {
   busyHandlers: Set<string>;
   error: string | null;
   dispatch: (url: string, handler: string, body?: unknown) => Promise<void>;
+  waitFor: (handler: string) => Promise<void>;
   clearError: () => void;
-  retry: () => Promise<void>;
 }
 
-export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): MmaDispatchState {
-  const [busyHandlers, setBusyHandlers] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const lastDispatch = useRef<{ url: string; handler: string; body?: unknown } | null>(null);
+interface PendingDispatch {
+  resolve: () => void;
+  reject: (err: string) => void;
+}
 
-  // Refs so the SSE listener always has the latest handlers without re-subscribing
-  const handlersRef = useRef(opts.handlers);
-  handlersRef.current = opts.handlers;
-  const eventsRef = useRef(opts.events);
-  eventsRef.current = opts.events;
+export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): MmaDispatchState {
+  const [busyHandlers, setBusyHandlers] = useState<Set<string>>(
+    () => new Set(opts?.initialBusy ?? []),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const eventsRef = useRef(opts?.events);
+  eventsRef.current = opts?.events;
+
+  const pendingRef = useRef<Map<string, PendingDispatch>>(new Map());
 
   const markBusy = useCallback((handler: string) => {
     setBusyHandlers((prev) => new Set(prev).add(handler));
@@ -55,6 +53,23 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
     });
   }, []);
 
+  // On mount: fetch pending handlers from the server so the UI shows busy
+  // state for in-flight batches dispatched before this page load.
+  // The endpoint probes MMA and auto-fails 404 batches before responding.
+  useEffect(() => {
+    if (!projectId || opts?.initialBusy) return;
+    fetch(`/api/projects/${projectId}/pending-handlers`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { handlers: string[] } | null) => {
+        if (data) {
+          setBusyHandlers(new Set(data.handlers));
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Single SSE connection per project
   useEffect(() => {
     if (!projectId || typeof EventSource === 'undefined') return;
     const es = new EventSource(`/api/projects/${projectId}/events`);
@@ -66,9 +81,11 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
 
         if (type === 'dispatch.done') {
           const handler = data.handler as string;
-          const h = handlersRef.current[handler];
-          if (h) {
-            void Promise.resolve(h.onDone()).finally(() => clearBusy(handler));
+          clearBusy(handler);
+          const pending = pendingRef.current.get(handler);
+          if (pending) {
+            pendingRef.current.delete(handler);
+            pending.resolve();
           }
         }
 
@@ -76,11 +93,11 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
           const handler = data.handler as string;
           const errorMsg = (data.error as string) ?? 'The operation failed.';
           clearBusy(handler);
-          const h = handlersRef.current[handler];
-          if (h?.onFailed) {
-            h.onFailed(errorMsg);
-          } else {
-            setError(errorMsg);
+          window.dispatchEvent(new CustomEvent('notification:refresh'));
+          const pending = pendingRef.current.get(handler);
+          if (pending) {
+            pendingRef.current.delete(handler);
+            pending.reject(errorMsg);
           }
         }
 
@@ -97,7 +114,6 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
   const dispatch = useCallback(async (url: string, handler: string, body?: unknown) => {
     setError(null);
     markBusy(handler);
-    lastDispatch.current = { url, handler, body };
 
     try {
       const res = await fetch(url, {
@@ -111,15 +127,22 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
       }
     } catch (e) {
       clearBusy(handler);
-      setError(e instanceof Error ? e.message : 'Dispatch failed.');
+      const msg = e instanceof Error ? e.message : 'Dispatch failed.';
+      setError(msg);
+      throw e;
     }
+
+    return new Promise<void>((resolve, reject) => {
+      pendingRef.current.set(handler, { resolve, reject });
+    });
   }, [markBusy, clearBusy]);
 
-  const retry = useCallback(async () => {
-    if (!lastDispatch.current) return;
-    const { url, handler, body } = lastDispatch.current;
-    await dispatch(url, handler, body);
-  }, [dispatch]);
+  const waitFor = useCallback((handler: string): Promise<void> => {
+    markBusy(handler);
+    return new Promise<void>((resolve, reject) => {
+      pendingRef.current.set(handler, { resolve, reject });
+    });
+  }, [markBusy]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -128,7 +151,7 @@ export function useMmaDispatch(projectId: string, opts: UseMmaDispatchOpts): Mma
     busyHandlers,
     error,
     dispatch,
+    waitFor,
     clearError,
-    retry,
   };
 }

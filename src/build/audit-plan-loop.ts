@@ -136,6 +136,7 @@ async function pollToTerminal(mma: MmaClient, batchId: string): Promise<unknown>
   for (;;) {
     const r = await mma.poll(batchId);
     if (r.state === 'terminal') return r.envelope;
+    if (r.state === 'not_found') throw new Error(`MMA task ${batchId} no longer exists (404) — server may have restarted.`);
     await new Promise((res) => setTimeout(res, 25));
   }
 }

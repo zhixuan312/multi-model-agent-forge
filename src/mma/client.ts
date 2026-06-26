@@ -46,7 +46,8 @@ export interface StatusResult {
 /** MMA poll result — pending returns structured JSON, terminal returns the result envelope. */
 export type BatchPollResult =
   | { state: 'pending'; headline: string; phase?: string; elapsedMs?: number; totalTasks?: number }
-  | { state: 'terminal'; envelope: unknown };
+  | { state: 'terminal'; envelope: unknown }
+  | { state: 'not_found' };
 
 /** The new MMA terminal response shape (v5.4+). */
 export interface MmaTerminalEnvelope {
@@ -188,6 +189,9 @@ export class MmaClient {
     if (res.status === 200) {
       const envelope = await res.json().catch(() => null);
       return { state: 'terminal', envelope };
+    }
+    if (res.status === 404) {
+      return { state: 'not_found' as const };
     }
     throw new Error(`MMA poll of task ${batchId} returned HTTP ${res.status}`);
   }
@@ -432,6 +436,9 @@ export class MmaClient {
     for (;;) {
       const r = await this.poll(batchId);
       if (r.state === 'terminal') return r.envelope;
+      if (r.state === 'not_found') {
+        throw new Error(`MMA task ${batchId} no longer exists (404) — the server may have restarted.`);
+      }
       if (Date.now() > deadline) {
         throw new Error(`MMA batch ${batchId} did not reach a terminal state before the wait timeout`);
       }

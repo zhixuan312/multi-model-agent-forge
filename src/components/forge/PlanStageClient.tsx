@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
   ArrowRight,
   Check,
@@ -138,17 +139,19 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
-  const [authoring, setAuthoring] = useState(!!props.pendingAuthor);
+
+  const mma = useMmaDispatch(props.projectId);
+  const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
 
   // Auto-trigger plan authoring if no plan exists yet
   const authorFired = useRef(false);
   useEffect(() => {
     if (authorFired.current || readOnly || allTasks.length > 0 || props.pendingAuthor) return;
     authorFired.current = true;
-    setAuthoring(true);
-    fetch(`/projects/${props.projectId}/build/author-plan`, { method: 'POST' })
-      .catch(() => setAuthoring(false));
-  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId]);
+    void mma.dispatch(`/projects/${props.projectId}/build/author-plan`, 'plan-author')
+      .then(() => router.refresh())
+      .catch(() => {});
+  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, router]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   useEffect(
@@ -172,52 +175,23 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
   const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
-  const [auditing, setAuditing] = useState(!!props.pendingAudit);
+  const auditing = !!props.pendingAudit || mma.busyHandlers.has('plan-audit');
   const auditingRef = useRef(false);
 
   function runAudit() {
     if (auditingRef.current) return;
     auditingRef.current = true;
-    setAuditing(true);
-    fetch(`/projects/${props.projectId}/build/run-audit`, { method: 'POST' })
-      .catch(() => { auditingRef.current = false; setAuditing(false); });
+    void mma.dispatch(`/projects/${props.projectId}/build/run-audit`, 'plan-audit')
+      .then(() => { auditingRef.current = false; router.refresh(); })
+      .catch(() => { auditingRef.current = false; });
   }
 
-  // SSE listener for plan dispatch events
-  useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    const onMessage = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'dispatch.done' && data.handler === 'plan-author') {
-          setAuthoring(false);
-          window.location.reload();
-        }
-        if (data.type === 'dispatch.done' && data.handler === 'plan-audit') {
-          auditingRef.current = false;
-          setAuditing(false);
-          window.location.reload();
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'plan-author') {
-          setAuthoring(false);
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'plan-audit') {
-          auditingRef.current = false;
-          setAuditing(false);
-        }
-        if (data.type === 'dispatch.done' && data.handler === 'plan-audit-apply') {
-          setApplying(false);
-          setApplied(true);
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'plan-audit-apply') {
-          setApplying(false);
-        }
-      } catch { /* ignore */ }
-    };
-    es.onmessage = onMessage;
-    return () => es.close();
-  }, [props.projectId]);
+  const applyFindings = useCallback((findings: PlanAuditFinding[]) => {
+    setApplying(true);
+    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings })
+      .then(() => { setApplying(false); setApplied(true); })
+      .catch(() => setApplying(false));
+  }, [mma, props.projectId]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
   // hands the wheel back mid-flight and Run resumes from exactly here.
@@ -308,8 +282,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           auditing={auditing}
           applying={applying}
           applied={applied}
-          setApplying={setApplying}
-          setApplied={setApplied}
+          onApplyFindings={applyFindings}
           rounds={rounds}
           locked={locked}
           auditClean={auditClean}
@@ -678,8 +651,7 @@ function ValidateStage({
   auditing,
   applying,
   applied,
-  setApplying,
-  setApplied,
+  onApplyFindings,
   rounds,
   locked,
   auditClean,
@@ -696,8 +668,7 @@ function ValidateStage({
   auditing?: boolean;
   applying: boolean;
   applied: boolean;
-  setApplying: (v: boolean) => void;
-  setApplied: (v: boolean) => void;
+  onApplyFindings: (findings: PlanAuditFinding[]) => void;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
   locked: boolean;
   auditClean: boolean;
@@ -750,12 +721,7 @@ function ValidateStage({
     const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
     const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
     setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Revising the plan to address ${label} from pass ${passNo}...` }]);
-    setApplying(true);
-    fetch(`/projects/${projectId}/plan/audit-apply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ findings: selectedFindings }),
-    }).catch(() => setApplying(false));
+    onApplyFindings(selectedFindings);
   }
   function replay(passNo: number) {
     const round = rounds.find((r) => r.passNo === passNo);

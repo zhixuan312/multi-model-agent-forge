@@ -74,6 +74,7 @@ interface ExploreStageClientProps {
   voiceEnabled: boolean;
   canMutate?: boolean;
   lockedReason?: string;
+  pendingHandlers?: string[];
   initialPhase?: 'brief' | 'discover' | 'synthesize';
 }
 
@@ -130,29 +131,17 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     void qc.invalidateQueries({ queryKey: explorationKeys.tasks(props.projectId) });
   }
 
+  async function refreshArtifact() {
+    const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
+    if (r.ok) {
+      const a = (await r.json()) as ArtifactCacheEntry;
+      qc.setQueryData(explorationKeys.artifact(props.projectId), a);
+    }
+  }
+
   const mma = useMmaDispatch(props.projectId, {
-    handlers: {
-      'explore-propose': {
-        onDone: () => refreshTasks(),
-      },
-      'explore-synthesize': {
-        onDone: async () => {
-          const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
-          if (r.ok) {
-            const a = (await r.json()) as ArtifactCacheEntry;
-            qc.setQueryData(explorationKeys.artifact(props.projectId), a);
-          }
-        },
-      },
-    },
     events: {
-      'synthesis.updated': async () => {
-        const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
-        if (r.ok) {
-          const a = (await r.json()) as ArtifactCacheEntry;
-          qc.setQueryData(explorationKeys.artifact(props.projectId), a);
-        }
-      },
+      'synthesis.updated': () => refreshArtifact(),
     },
   });
 
@@ -161,6 +150,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   async function analyze(): Promise<void> {
     await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
     await mma.dispatch(`/api/projects/${props.projectId}/explore/propose`, 'explore-propose');
+    refreshTasks();
   }
 
   async function run(): Promise<void> {
@@ -171,6 +161,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   async function resynthesize(): Promise<void> {
     await mma.dispatch(`/api/projects/${props.projectId}/explore/synthesize`, 'explore-synthesize');
+    await refreshArtifact();
   }
 
   async function addLink(): Promise<void> {
@@ -351,7 +342,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   rows={0}
                   className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
                 />
-                {error ? <Banner variant="danger" title={error} onDismiss={mma.clearError} action={<Button size="sm" variant="secondary" onClick={mma.retry}>Retry</Button>} className="mt-2" /> : null}
+                {null}
               </CardContent>
             </Card>
           ) : (

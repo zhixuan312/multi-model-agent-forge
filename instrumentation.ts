@@ -73,6 +73,17 @@ export async function register(): Promise<void> {
     console.warn(JSON.stringify({ event: 'diagnostics_sink_deferred', reason: e instanceof Error ? e.message : String(e) }));
   }
 
+  // Rehydrate in-flight MMA batches so the PollManager resumes polling after
+  // a server restart. Stale batches (MMA returned 404) will be failed on their
+  // first poll — this is the self-recovery path.
+  try {
+    const { getPollManager } = await import('@/sse/poll-manager');
+    const n = await getPollManager().rehydrate();
+    if (n > 0) console.log(JSON.stringify({ event: 'poll_manager_rehydrated', batches: n }));
+  } catch (e) {
+    console.warn(JSON.stringify({ event: 'poll_manager_rehydrate_deferred', reason: e instanceof Error ? e.message : String(e) }));
+  }
+
   // Sweep any project whose Exploration tasks all completed but whose synthesis
   // never ran (e.g. a restart between dispatch and synthesis). Non-fatal.
   try {

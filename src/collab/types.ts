@@ -26,7 +26,12 @@ export interface Participant {
   approvedAt: string | null;
 }
 
-export type NotificationKind = 'section_mention' | 'section_approved';
+export type NotificationKind = 'section_mention' | 'section_approved' | 'dispatch_failed';
+
+export interface NotificationMeta {
+  stage?: string;
+  phase?: string;
+}
 
 /** One entry in a member's notification feed (the bell / inbox). */
 export interface NotificationItem {
@@ -43,6 +48,7 @@ export interface NotificationItem {
   /** ISO timestamp. */
   createdAt: string;
   read: boolean;
+  meta?: NotificationMeta;
 }
 
 /**

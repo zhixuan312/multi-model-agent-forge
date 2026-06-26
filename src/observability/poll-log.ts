@@ -10,6 +10,7 @@ export type PollLogEvent =
   | 'dispatch.failure'
   | 'poll.retry'
   | 'poll.timeout'
+  | 'poll.not_found'
   | 'task.done'
   | 'task.failed'
   | 'rehydrate'

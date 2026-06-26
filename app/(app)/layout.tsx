@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
-import { listNotifications } from '@/collab/notifications-core';
+import { listNotifications } from '@/collab/notification-store';
 import { PhaseTheme } from '@/components/forge/PhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';

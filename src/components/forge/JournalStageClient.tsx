@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
   ArrowRight,
   Check,
@@ -119,15 +120,17 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const [threads, setThreads] = useState<Record<string, JournalMsg[]>>({});
   const [draftViews, setDraftViews] = useState<Set<string>>(new Set());
   const [input, setInput] = useState('');
-  const [harvesting, setHarvesting] = useState(props.harvesting);
-  const [recording, setRecording] = useState(props.recording);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const mma = useMmaDispatch(props.projectId);
+
+  const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest');
+  const recording = props.recording || mma.busyHandlers.has('journal-record');
 
   const active = props.learnings.find((l) => l.id === activeId);
   const approvedCount = props.learnings.filter((l) => l.status === 'kept' || l.status === 'recorded').length;
   const isDraftView = draftViews.has(activeId);
 
-  // Whether the user has started a conversation (typed something) for this learning
   const hasConversation = !!(threads[activeId]?.length);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [threads, activeId]);
@@ -139,22 +142,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // SSE listener
-  useEffect(() => {
-    if (!harvesting && !recording) return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    es.onmessage = (msg) => {
-      try {
-        const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if ((e.type === 'dispatch.done' || e.type === 'dispatch.failed') &&
-            (e.handler === 'journal-harvest' || e.handler === 'journal-record')) {
-          window.location.reload();
-        }
-      } catch {}
-    };
-    return () => es.close();
-  }, [harvesting, recording, props.projectId]);
 
   // URL sync
   function switchLearning(id: string) {
@@ -192,30 +179,27 @@ export function JournalStageClient(props: JournalStageClientProps) {
   }
 
   async function harvest() {
-    setHarvesting(true);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/journal/harvest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      if (!res.ok) setHarvesting(false);
-    } catch { setHarvesting(false); }
+    await mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {});
+    router.refresh();
   }
 
   async function approve() {
     if (!active) return;
     const draft = currentDraft();
-    await fetch(`/api/projects/${props.projectId}/journal/approve`, {
+    const res = await fetch(`/api/projects/${props.projectId}/journal/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ learningId: active.id, action: 'approve', text: draft }),
     });
-    window.location.reload();
+    if (res.ok) router.refresh();
   }
 
   async function revoke() {
     if (!active) return;
-    await fetch(`/api/projects/${props.projectId}/journal/approve`, {
+    const res = await fetch(`/api/projects/${props.projectId}/journal/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ learningId: active.id, action: 'revoke' }),
     });
-    window.location.reload();
+    if (res.ok) router.refresh();
   }
 
   async function addLearning() {
@@ -223,15 +207,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'New learning', category: 'knowledge', source: 'Manual' }),
     });
-    if (res.ok) window.location.reload();
+    if (res.ok) router.refresh();
   }
 
   async function record() {
-    setRecording(true);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/journal/record`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      if (!res.ok) setRecording(false);
-    } catch { setRecording(false); }
+    await mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {});
+    router.refresh();
   }
 
   const isApproved = active?.status === 'kept' || active?.status === 'recorded';

@@ -35,7 +35,6 @@ import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
-import { ReviewStageClient, type ReviewPassView as ReviewPassViewImport } from '@/components/forge/ReviewStageClient';
 import { RailNote } from '@/components/patterns/feature-rail';
 
 const EXECUTE_NOTE = `### How execution works
@@ -111,7 +110,6 @@ function progressPct(status: RepoJobStatus): number {
 export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
   const readOnly = props.phase === 'learn';
-  const hasReviewPasses = (props.reviewPasses?.length ?? 0) > 0;
   const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
@@ -616,26 +614,6 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
 
 /* ── Review Phase (inline within Execute) ─────────────────────────── */
 
-function ReviewPhaseInline({
-  projectId, passes, reviewRunning, applyRunning, readOnly,
-}: {
-  projectId: string;
-  passes: ReviewPassView[];
-  reviewRunning: boolean;
-  applyRunning: boolean;
-  readOnly: boolean;
-}) {
-  return (
-    <ReviewStageClient
-      projectId={projectId}
-      projectName=""
-      phase={readOnly ? 'learn' as any : 'build' as any}
-      passes={passes as ReviewPassViewImport[]}
-      reviewRunning={reviewRunning}
-      applyRunning={applyRunning}
-    />
-  );
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (

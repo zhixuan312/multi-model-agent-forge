@@ -184,7 +184,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           if (data.handler === 'explore-synthesize') {
             fetch(`/api/projects/${props.projectId}/explore/artifact`)
               .then((r) => r.ok ? r.json() : null)
-              .then((a) => { if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry); })
+              .then((a) => {
+                if (a) {
+                  qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry);
+                  window.location.reload();
+                }
+              })
               .catch(() => {});
           }
         }

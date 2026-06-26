@@ -225,6 +225,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
       'spec-auto-draft': refresh,
       'spec-refine': refresh,
     },
+    events: {
+      'spec.updated': refresh,
+    },
   });
 
   const needsAutoDraft = components.length > 0 && components.some(
@@ -813,19 +816,56 @@ function CraftStage({
         authorId: m.sender === 'forge' ? 'forge' : currentMember.id,
         body: m.bodyMd,
       }));
-      // If component is already approved, seed the current user as approver
-      const approvedParticipants: Participant[] = c.status === 'approved'
-        ? [{ member: currentMember, addedBy: null, approvedAt: new Date().toISOString() }]
-        : [];
+      // Seed participants from DB only — participantIds (invited) + approvedBy
+      const allPool = [currentMember, ...projectMembers];
+      const dbParticipants: Participant[] = [];
+      for (const pid of (c.participantIds ?? []) as string[]) {
+        const m = allPool.find((p) => p.id === pid);
+        if (m) {
+          dbParticipants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
+        }
+      }
+      if (c.approvedBy && !dbParticipants.some((p) => p.member.id === c.approvedBy)) {
+        const approver = allPool.find((m) => m.id === c.approvedBy);
+        if (approver) {
+          dbParticipants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+        }
+      }
       out[c.id] = seed
         ? {
-            participants: seed.participants.map((p) => ({ ...p })),
+            participants: [...seed.participants.map((p) => ({ ...p })), ...dbParticipants],
             discussion: [...seed.discussion.map((d) => ({ ...d })), ...dbDiscussion],
           }
-        : { participants: approvedParticipants, discussion: dbDiscussion };
+        : { participants: dbParticipants, discussion: dbDiscussion };
     }
     return out;
   });
+  // Re-seed participants when server data changes (approval, invite via SSE refresh)
+  // Keep discussion intact — only update participants from DB.
+  const prevComponentsRef = useRef(components);
+  useEffect(() => {
+    if (prevComponentsRef.current === components) return;
+    prevComponentsRef.current = components;
+    const allPool = [currentMember, ...projectMembers];
+    setCollab((prev) => {
+      const next = { ...prev };
+      for (const c of components) {
+        const participants: Participant[] = [];
+        for (const pid of (c.participantIds ?? []) as string[]) {
+          const m = allPool.find((p) => p.id === pid);
+          if (m) participants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
+        }
+        if (c.approvedBy && !participants.some((p) => p.member.id === c.approvedBy)) {
+          const approver = allPool.find((m) => m.id === c.approvedBy);
+          if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+        }
+        const old = prev[c.id];
+        next[c.id] = { participants, discussion: old?.discussion ?? [] };
+      }
+      return next;
+    });
+  }, [components, currentMember, projectMembers]);
+
   const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
@@ -841,23 +881,17 @@ function CraftStage({
     if (draftedNow) draftRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [draftedNow, activeId]);
 
-  // The dual gate: a drafted section auto-approves once ANY participant has
-  // nodded (so a teammate's approval alone is enough — §"≥1 is good to go").
-  useEffect(() => {
-    for (const c of components) {
-      if (c.status === 'drafted' && isHumanApproved(collab[c.id]?.participants ?? [])) {
-        onPatch(c.id, { status: 'approved' });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collab, components]);
+  // Approval is explicit — the user clicks Approve, which calls the nod endpoint.
+  // No client-side auto-approve from collab state.
 
   const active = components.find((c) => c.id === activeId) ?? null;
   const approvedCount = components.filter((c) => c.status === 'approved').length;
 
-  // Auto-show constructed draft for approved components when clicked
+  // Auto-show spec view for approved or ready (aiSatisfied) components when clicked.
+  // Needs-input components always show the conversation.
   useEffect(() => {
-    if (!active || active.status !== 'approved' || constructedDrafts[active.id] || forceConversation.has(active.id)) return;
+    const showSpec = active && (active.status === 'approved' || active.aiSatisfied) && !forceConversation.has(active.id);
+    if (!active || !showSpec || constructedDrafts[active.id]) return;
     const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
     if (md) {
       setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
@@ -940,10 +974,14 @@ function CraftStage({
   function invite(m: MemberRef): void {
     if (readOnly || !active) return;
     const already = activeCollab.participants.some((p) => p.member.id === m.id);
+    if (already) return;
     patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m, currentMember.id) }));
-    if (!already) {
-      scheduleReply(m.id, active.id, `Thanks for pulling me in — reading through ${active.label.toLowerCase()} now. Will weigh in shortly.`);
-    }
+    // Persist invite + send notification
+    fetch(`/api/projects/${projectId}/spec/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: m.id, componentId: active.id }),
+    }).catch(() => {});
   }
 
   function submit(): void {
@@ -962,15 +1000,8 @@ function CraftStage({
         ],
       }));
       setInput('');
-      const wantsApproval = /\b(approve|approval|sign[\s-]?off|lgtm)\b/i.test(text);
-      mentions.forEach((m, i) =>
-        scheduleReply(
-          m.id,
-          active.id,
-          wantsApproval ? 'Looks right to me — approving. 👍' : `On it — looking at ${active.label.toLowerCase()} now.`,
-          { approve: wantsApproval, delay: 1000 + i * 700 },
-        ),
-      );
+      // TODO: real-time notification to mentioned teammates — they approve on their own session
+      void 0;
       return;
     }
 
@@ -1075,6 +1106,7 @@ function CraftStage({
         ...u,
         participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
       }));
+      fetch(`/projects/${projectId}/spec/components/${active.id}/revoke`, { method: 'POST' }).catch(() => {});
     }
     setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -1107,20 +1139,19 @@ function CraftStage({
               <RoleChip key={r} role={r} />
             ))}
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            <Database className="size-3" /> grounded · live mma-investigate
-          </span>
         </CardHeader>
 
-        {/* Co-approval strip — who's on this section and who's approved. */}
-        <div className="shrink-0 border-b border-line px-5 py-2.5">
-          <ParticipantStrip
-            participants={activeCollab.participants}
-            pool={projectMembers}
-            onAdd={invite}
-            disabled={readOnly}
-          />
-        </div>
+        {/* Co-approval strip — only show when the section has a draft to review. */}
+        {drafted ? (
+          <div className="shrink-0 border-b border-line px-5 py-2.5">
+            <ParticipantStrip
+              participants={activeCollab.participants}
+              pool={projectMembers}
+              onAdd={invite}
+              disabled={readOnly}
+            />
+          </div>
+        ) : null}
 
         <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
           {autoDrafting && !drafted ? (
@@ -1355,7 +1386,7 @@ function ComponentRow({
           <Icon className="size-4 shrink-0 text-ink-faint" />
         )}
         <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
-        <ApproverCluster participants={participants} />
+        {participants.length > 0 ? <ApproverCluster participants={participants} /> : null}
       </div>
       <div className="mt-1.5 pl-6">
         <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', displayState.cls)}>

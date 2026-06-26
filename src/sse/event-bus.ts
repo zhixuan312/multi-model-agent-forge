@@ -53,7 +53,9 @@ export type ProjectEvent =
   // ── Universal dispatch events (handler-based, all routes) ────────────────
   | { type: 'dispatch.progress'; batchId: string; handler: string; phase: string; elapsedMs: number; totalTasks?: number; repoId?: string }
   | { type: 'dispatch.done'; batchId: string; handler: string; repoId?: string }
-  | { type: 'dispatch.failed'; batchId: string; handler: string; error: string; repoId?: string };
+  | { type: 'dispatch.failed'; batchId: string; handler: string; error: string; repoId?: string }
+  // ── Stage-level sync events (multi-user real-time) ────────────────────
+  | { type: 'spec.updated' };
 
 const EVENT = 'event';
 

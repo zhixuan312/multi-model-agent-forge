@@ -33,6 +33,8 @@ export const component = forge.table(
     humanSatisfied: boolean('human_satisfied').notNull().default(false),
     forced: boolean('forced').notNull().default(false),
     stale: boolean('stale').notNull().default(false),
+    approvedBy: uuid('approved_by').references(() => member.id),
+    participants: jsonb('participants').notNull().default([]),
     orderIndex: integer('order_index').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

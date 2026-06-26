@@ -79,6 +79,8 @@ export interface ComponentView {
   humanSatisfied: boolean;
   forced: boolean;
   stale: boolean;
+  approvedBy: string | null;
+  participantIds: string[];
   orderIndex: number;
   sections: SectionView[];
 }
@@ -109,6 +111,8 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
       humanSatisfied: c.humanSatisfied,
       forced: c.forced,
       stale: c.stale,
+      approvedBy: c.approvedBy,
+      participantIds: (c.participants as string[] | null) ?? [],
       orderIndex: c.orderIndex,
       sections: secs.map((s) => ({
         id: s.id,

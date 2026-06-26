@@ -72,14 +72,11 @@ export default async function SpecStagePage({
   const perms = await getStagePermissions(db, id);
 
   // Load project members for collaborative approval
-  const { projectMember } = await import('@/db/schema/projects');
   const { member } = await import('@/db/schema/identity');
-  const memberRows = await db
+  const allMembers = await db
     .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
-    .from(projectMember)
-    .innerJoin(member, eq(projectMember.memberId, member.id))
-    .where(eq(projectMember.projectId, id));
-  const projectMembers = memberRows
+    .from(member);
+  const projectMembers = allMembers
     .filter((m) => m.id !== me.id)
     .map((m) => ({ id: m.id, displayName: m.displayName, avatarTint: m.avatarTint }));
 
@@ -102,7 +99,8 @@ export default async function SpecStagePage({
       initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}
-      craftCollab={buildCraftCollab(projectMembers, me)}
+      craftCollab={{}}
+
       initialMessages={initialMessages}
       voiceEnabled={voiceEnabled}
       pendingAudit={pendingAudit}
@@ -116,35 +114,6 @@ export default async function SpecStagePage({
 type MemberRef = { id: string; displayName: string; avatarTint: string };
 type ComponentKind = 'context' | 'problem' | 'goals_requirements' | 'alternatives' | 'technical_design' | 'testing_plan' | 'risks' | 'stories_tasks';
 
-function buildCraftCollab(
-  members: MemberRef[],
-  me: { id: string; displayName: string; avatarTint: string },
-): Partial<Record<ComponentKind, { participants: Array<{ member: MemberRef; addedBy: null; approvedAt: string | null }>; discussion: [] }>> {
-  const byName = (name: string) => members.find((m) => m.displayName.toLowerCase().includes(name.toLowerCase()));
-  const business = byName('business');
-  const product = byName('product');
-  const xuan = byName('xuan') ?? { id: me.id, displayName: me.displayName, avatarTint: me.avatarTint };
-  const tester = byName('tester');
-
-  const toParticipant = (m: MemberRef | undefined) => m ? { member: m, addedBy: null, approvedAt: new Date().toISOString() } : null;
-
-  const boPm = [toParticipant(business), toParticipant(product)].filter(Boolean) as any[];
-  const xuanOnly = [toParticipant(xuan)].filter(Boolean) as any[];
-  const xuanTester = [toParticipant(xuan), toParticipant(tester)].filter(Boolean) as any[];
-  const pmTester = [toParticipant(product), toParticipant(tester)].filter(Boolean) as any[];
-  const all = [toParticipant(business), toParticipant(product), toParticipant(xuan), toParticipant(tester)].filter(Boolean) as any[];
-
-  return {
-    context: { participants: boPm, discussion: [] },
-    problem: { participants: boPm, discussion: [] },
-    goals_requirements: { participants: boPm, discussion: [] },
-    alternatives: { participants: xuanOnly, discussion: [] },
-    technical_design: { participants: xuanTester, discussion: [] },
-    testing_plan: { participants: pmTester, discussion: [] },
-    risks: { participants: all, discussion: [] },
-    stories_tasks: { participants: pmTester, discussion: [] },
-  };
-}
 
 /** True iff a usable MMA bearer is available — auto-resolved from the local
  *  mma token (`MMA_AUTH_TOKEN` env, else `~/.mma/auth-token`). */

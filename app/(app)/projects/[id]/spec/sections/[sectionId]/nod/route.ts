@@ -1,8 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { onHumanSatisfied } from '@/spec/orchestrator';
 import { buildSectionRepaint } from '@/spec/spec-core';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { getDb } from '@/db/client';
+import { projectEventBus } from '@/sse/event-bus';
+import { componentSection, component } from '@/db/schema/spec';
+import { currentMember } from '@/auth/current-member';
 
 type Ctx = { params: Promise<{ id: string; sectionId: string }> };
 
@@ -12,6 +16,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
 
+  const me = await currentMember();
+
   try {
     await onHumanSatisfied({}, sectionId);
   } catch (e) {
@@ -20,5 +26,16 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     }
     throw e;
   }
+
+  // Persist who approved
+  if (me) {
+    const db = getDb();
+    const [sec] = await db.select({ componentId: componentSection.componentId }).from(componentSection).where(eq(componentSection.id, sectionId)).limit(1);
+    if (sec) {
+      await db.update(component).set({ approvedBy: me.id }).where(eq(component.id, sec.componentId));
+    }
+  }
+
+  projectEventBus.publish(id, { type: 'spec.updated' });
   return NextResponse.json(await buildSectionRepaint(getDb(), sectionId));
 }

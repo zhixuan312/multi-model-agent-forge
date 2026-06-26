@@ -314,7 +314,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             <CardHeader>
               <CardTitle>Review rounds</CardTitle>
               {!reviewing && !applying && (
-                <Button size="sm" variant={props.passes.length === 0 ? 'primary' : 'secondary'} onClick={runReview} disabled={readOnly || reviewing || applying}>
+                <Button size="sm" variant="primary" onClick={runReview} disabled={readOnly || reviewing || applying}>
                   <ScanSearch className="size-3" />
                   {props.passes.length === 0 ? 'Run review' : 'Re-run'}
                 </Button>

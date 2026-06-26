@@ -147,19 +147,23 @@ function StageNode({ s, condensed }: { s: StepperStage; condensed: boolean }) {
 function SubPhaseTrack({
   steps,
   active,
+  furthest,
   onClick,
 }: {
   steps: { key: string; label: string }[];
   active?: string;
+  furthest?: string | null;
   onClick?: (key: string) => void;
 }) {
   const activeIdx = steps.findIndex((s) => s.key === active);
+  const furthestIdx = furthest ? steps.findIndex((s) => s.key === furthest) : -1;
+  const highIdx = Math.max(activeIdx, furthestIdx);
 
   return (
     <div className="inline-flex items-center gap-1.5">
       {steps.map((st, i) => {
         const isActive = st.key === active;
-        const isDone = activeIdx >= 0 && i < activeIdx;
+        const isDone = highIdx >= 0 && i <= highIdx && !isActive;
         const Tag = onClick ? 'button' : 'span';
         return (
           <Fragment key={st.key}>
@@ -244,7 +248,18 @@ export function StageStepper({
           className="flex justify-center overflow-visible"
           style={{ gridColumn: `${subCol}`, gridRow: 2, width: 0, justifySelf: 'center' }}
         >
-          <SubPhaseTrack steps={subSteps} active={activeSubPhase} onClick={onSubStepClick} />
+          <SubPhaseTrack
+            steps={subSteps}
+            active={activeSubPhase}
+            furthest={(() => {
+              const viewing = computed.find((s) => s.isCurrent);
+              if (viewing && (viewing.visual === 'done' || viewing.visual === 'locked')) {
+                return subSteps[subSteps.length - 1]?.key ?? null;
+              }
+              return currentStage ? lastPhaseByKind.get(currentStage) ?? null : null;
+            })()}
+            onClick={onSubStepClick}
+          />
         </div>
       ) : null}
     </nav>

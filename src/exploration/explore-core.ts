@@ -117,7 +117,6 @@ export interface ExploreArtifact {
 /** The latest synthesized exploration artifact (the summary pane). */
 export async function latestExplorationArtifact(
   projectId: string,
-  _db?: Db,
 ): Promise<ExploreArtifact | null> {
   const bodyMd = await readExplorationSummaryAsync(projectId);
   if (!bodyMd) return null;

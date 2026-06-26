@@ -52,7 +52,7 @@ export default async function ExploreStagePage({
     latestBrief(id, db),
     listAttachments(id, { db }),
     readRailTasks(id, db),
-    latestExplorationArtifact(id, db),
+    latestExplorationArtifact(id),
     readProjectRepoOptions(id, db),
   ]);
 

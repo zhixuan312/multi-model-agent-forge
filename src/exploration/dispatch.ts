@@ -1,5 +1,5 @@
 import { stat } from 'node:fs/promises';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
@@ -62,7 +62,7 @@ async function buildBody(
     .select({ bodyMd: artifact.bodyMd })
     .from(artifact)
     .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
-    .orderBy(artifact.version)
+    .orderBy(desc(artifact.version))
     .limit(1);
   const background =
     (brief?.bodyMd?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);

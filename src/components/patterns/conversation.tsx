@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
 import { Send, Mic, MicOff, Paperclip, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Button, Textarea } from '@/components/ui';
+import { Button, Textarea, Avatar } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
+import type { MemberRef } from '@/collab/types';
 
 export interface ConversationMessage {
   id: string;
@@ -84,6 +85,8 @@ export interface ConversationComposerProps {
   /** Controlled mode: supply value+onChange to manage state externally. */
   value?: string;
   onChange?: (v: string) => void;
+  /** Members available for @-mention autocomplete. */
+  mentionPool?: MemberRef[];
 }
 
 export function ConversationComposer({
@@ -100,6 +103,7 @@ export function ConversationComposer({
   rows: rowsProp,
   value: controlledValue,
   onChange: controlledOnChange,
+  mentionPool,
 }: ConversationComposerProps) {
   const rows = rowsProp ?? 2;
   const fillHeight = rows === 0;
@@ -166,18 +170,90 @@ export function ConversationComposer({
 
   const isVoiceBusy = recording || transcribing;
 
+  // @-mention autocomplete
+  const [caret, setCaret] = useState(0);
+  const [mentionActive, setMentionActive] = useState(0);
+  const mentionQuery = useMemo(() => {
+    if (!mentionPool?.length) return null;
+    const before = value.slice(0, caret);
+    const m = before.match(/(?:^|\s)@([\p{L}\d.'-]*)$/u);
+    return m ? m[1]! : null;
+  }, [value, caret, mentionPool]);
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery === null || !mentionPool) return [];
+    const q = mentionQuery.toLowerCase();
+    return mentionPool.filter((m) => m.displayName.toLowerCase().includes(q)).slice(0, 6);
+  }, [mentionQuery, mentionPool]);
+  const mentionOpen = mentionMatches.length > 0;
+
+  function syncCaret(): void {
+    const el = (textareaRef as React.RefObject<HTMLTextAreaElement>)?.current ?? internalRef.current;
+    setCaret(el?.selectionStart ?? value.length);
+  }
+  function chooseMention(m: MemberRef): void {
+    const before = value.slice(0, caret);
+    const after = value.slice(caret);
+    const replaced = before.replace(/@([\p{L}\d.'-]*)$/u, `@${m.displayName} `);
+    setVal(replaced + after);
+    setMentionActive(0);
+    requestAnimationFrame(() => {
+      const el = (textareaRef as React.RefObject<HTMLTextAreaElement>)?.current ?? internalRef.current;
+      if (!el) return;
+      el.focus();
+      const pos = replaced.length;
+      el.setSelectionRange(pos, pos);
+      setCaret(pos);
+    });
+  }
+
   return (
     <div className={cn('shrink-0 border-t border-line px-5 py-3', className)}>
-      <form onSubmit={submit} className={cn(fillHeight && 'flex min-h-0 flex-1 flex-col')}>
+      <form onSubmit={submit} className={cn('relative', fillHeight && 'flex min-h-0 flex-1 flex-col')}>
+        {mentionOpen ? (
+          <ul
+            role="listbox"
+            className="absolute bottom-full z-50 mb-1.5 max-h-56 w-64 overflow-y-auto rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--shadow-pop)]"
+          >
+            {mentionMatches.map((m, i) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === mentionActive}
+                  onMouseEnter={() => setMentionActive(i)}
+                  onMouseDown={(e) => { e.preventDefault(); chooseMention(m); }}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-left text-sm transition-colors',
+                    i === mentionActive ? 'bg-surface-2 text-ink' : 'text-ink-soft',
+                  )}
+                >
+                  <Avatar size="sm" name={m.displayName} tint={m.avatarTint} aria-hidden />
+                  <span className="truncate">{m.displayName}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <Textarea
           ref={textareaRef ?? internalRef}
           value={value}
-          onChange={(e) => setVal(e.target.value)}
+          onChange={(e) => { setVal(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
           disabled={disabled || transcribing}
           placeholder={placeholder ?? 'Type your message…'}
           rows={fillHeight ? undefined : rows}
           className={cn('resize-none', fillHeight && 'min-h-0 flex-1', recording && 'border-[var(--rose)] ring-1 ring-[var(--rose)]/30')}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          onKeyUp={syncCaret}
+          onClick={syncCaret}
+          onSelect={syncCaret}
+          onKeyDown={(e) => {
+            if (mentionOpen) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionActive((a) => (a + 1) % mentionMatches.length); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionActive((a) => (a - 1 + mentionMatches.length) % mentionMatches.length); return; }
+              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseMention(mentionMatches[mentionActive]!); return; }
+              if (e.key === 'Escape') { e.preventDefault(); setCaret(-1); return; }
+            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+          }}
         />
 
         {recording ? (

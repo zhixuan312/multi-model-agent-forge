@@ -335,6 +335,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           craftCollab={props.craftCollab ?? {}}
           initialMessages={props.initialMessages ?? {}}
           voiceEnabled={props.voiceEnabled ?? false}
+          mma={mma}
           onPatch={(id, patch) =>
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
@@ -758,6 +759,7 @@ function CraftStage({
   craftCollab,
   initialMessages,
   voiceEnabled,
+  mma,
   onPatch,
   onEditOutline,
   onConsolidate,
@@ -773,6 +775,7 @@ function CraftStage({
   craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
   initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>>;
   voiceEnabled: boolean;
+  mma: MmaDispatchState;
   onPatch: (id: string, patch: Partial<ComponentView>) => void;
   onEditOutline: () => void;
   onConsolidate: () => void;
@@ -936,10 +939,20 @@ function CraftStage({
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const showingDraft = constructedDrafts[active.id] ?? null;
+
+  // Spec/Conversation toggle: default to spec view when drafted, conversation when needs input
+  const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
+  const craftView = craftViewOverride[active.id] ?? (showingDraft ? 'spec' : 'conversation');
+  const setCraftView = (v: 'spec' | 'conversation') => setCraftViewOverride((prev) => ({ ...prev, [active.id]: v }));
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
-  // People already in this section's chat — the only ones you can @-mention.
-  const inChatMembers = activeCollab.participants.map((p) => p.member);
+  const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };
+  const inChatMembers = [
+    forgeMember,
+    ...activeCollab.participants
+      .filter((p) => p.member.id !== currentMember.id && p.member.id !== 'forge')
+      .map((p) => p.member),
+  ];
   // Live: does the current draft message address teammates (→ them, AI silent)?
   const liveMentions = parseMentions(input, inChatMembers);
 
@@ -994,63 +1007,42 @@ function CraftStage({
   function submit(): void {
     if (!input.trim() || readOnly || !active) return;
     const text = input.trim();
-    const mentions = parseMentions(text, inChatMembers);
+    setInput('');
 
-    // @-mentions a teammate in the chat → directed at them; the AI stays out and
-    // the mentioned people reply (approving when you ask them to).
-    if (mentions.length > 0) {
-      patchCollab((u) => ({
-        ...u,
-        discussion: [
-          ...u.discussion,
-          { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
-        ],
-      }));
-      setInput('');
-      // TODO: real-time notification to mentioned teammates — they approve on their own session
-      void 0;
-      return;
-    }
+    // Post message to the group chat
+    patchCollab((u) => ({
+      ...u,
+      discussion: [
+        ...u.discussion,
+        { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
+      ],
+    }));
 
-    // No @-mention → you're talking to Forge. Send to the refine route.
-    if (drafted) {
-      patchCollab((u) => ({
-        ...u,
-        discussion: [
-          ...u.discussion,
-          { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
-        ],
-      }));
-      setInput('');
+    // @Forge triggers the AI to process and respond
+    const forgeTagged = /@forge\b/i.test(text);
+    if (forgeTagged && drafted) {
       setRefining(true);
       const history = sectionHistory[active.id] ?? [];
-      const newHistory = [...history, { role: 'user' as const, text }];
-      setSectionHistory((prev) => ({ ...prev, [active.id]: newHistory }));
+      const cleanText = text.replace(/@forge\s*/gi, '').trim();
+      const newHistory = [...history, { role: 'user' as const, text: cleanText }];
+      const compId = active.id;
+      setSectionHistory((prev) => ({ ...prev, [compId]: newHistory }));
 
-      fetch(`/projects/${projectId}/spec/components/${active.id}/refine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userAnswer: text, history }),
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error('Refine failed');
-          // Route returns 202 — SSE dispatch.done handler (in parent) will reload the page
+      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: cleanText, history })
+        .then(() => {
+          setRefining(false);
         })
         .catch(() => {
+          setRefining(false);
           patchCollab((u) => ({
             ...u,
             discussion: [
               ...u.discussion,
-              { id: `f-${active.id}-${u.discussion.length}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
+              { id: `f-${compId}-${(u.discussion?.length ?? 0)}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
             ],
           }));
-        })
-        .finally(() => setRefining(false));
-      return;
+        });
     }
-    setInput('');
-    // User feedback on the draft — will be handled by the refine route in future
-    onPatch(active.id, { status: 'drafted' });
   }
 
   /** End the Q&A and let Forge construct the draft from what's gathered. */
@@ -1146,6 +1138,7 @@ function CraftStage({
               <RoleChip key={r} role={r} />
             ))}
           </div>
+          {showingDraft ? <CraftViewToggle active={craftView} onSwitch={setCraftView} /> : null}
         </CardHeader>
 
         {/* Co-approval strip — only show when the section has a draft to review. */}
@@ -1167,27 +1160,15 @@ function CraftStage({
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
               <p className="text-xs text-ink-soft">Each component is drafted using the exploration findings. This takes a moment.</p>
             </div>
-          ) : drafted ? (
-            constructedDrafts[active.id] ? (
-              /* Constructed: show the drafted content */
-              <div className="flex gap-2.5">
-                <ForgeMark className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-ink">Forge</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
-                      draft
-                    </span>
-                  </div>
-                  <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                    <ProseBlock>{showingDraft ?? ''}</ProseBlock>
-                  </div>
-                </div>
-              </div>
-            ) : null
           ) : null}
 
-          {!constructedDrafts[active.id] ? (
+          {/* Spec view: rendered markdown, like exploration summary */}
+          {craftView === 'spec' && showingDraft ? (
+            <ProseBlock>{showingDraft}</ProseBlock>
+          ) : null}
+
+          {/* Conversation view */}
+          {craftView === 'conversation' ? (
             <>
               <DiscussionThread
                 messages={activeCollab.discussion}
@@ -1195,64 +1176,47 @@ function CraftStage({
                 currentMemberId={currentMember.id}
                 mentionPool={inChatMembers}
               />
+              {refining ? (
+                <div className="flex gap-2.5">
+                  <ForgeMark className="mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1">
+                      <span className="text-xs font-semibold text-ink">Forge</span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+                      <Loader2 className="size-3.5 animate-spin text-accent" />
+                      <span className="text-sm text-ink-soft">Thinking…</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </>
-          ) : null}
-          {refining && !constructedDrafts[active.id] ? (
-            <div className="flex gap-2.5">
-              <ForgeMark className="mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="mb-1">
-                  <span className="text-xs font-semibold text-ink">Forge</span>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                  <Loader2 className="size-3.5 animate-spin text-accent" />
-                  <span className="text-sm text-ink-soft">Thinking…</span>
-                </div>
-              </div>
-            </div>
           ) : null}
           <div ref={bottomRef} />
         </CardContent>
 
-        {constructedDrafts[active.id] ? (
-          /* Draft view footer — matches Document phase layout */
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <div className="flex items-center gap-2.5">
-              <FileText className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{active.label}</p>
-                <p className="text-xs text-ink-faint">Review the draft, or go back to refine.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => { setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); setForceConversation((prev) => new Set(prev).add(active.id)); }} leftIcon={<ChevronLeft />}>
-                Back to conversation
-              </Button>
-              <Button
-                size="sm"
-                onClick={approved || iApproved ? backToEdit : approve}
-                disabled={readOnly}
-                variant={approved || iApproved ? 'secondary' : 'primary'}
-                leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
-              >
-                {approved || iApproved ? 'Revoke' : 'Approve'}
-              </Button>
-            </div>
+        {craftView === 'spec' && showingDraft ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button
+              size="sm"
+              onClick={approved || iApproved ? backToEdit : approve}
+              disabled={readOnly}
+              variant={approved || iApproved ? 'secondary' : 'primary'}
+              leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
+            >
+              {approved || iApproved ? 'Revoke' : 'Approve'}
+            </Button>
           </div>
-        ) : (
+        ) : craftView === 'conversation' ? (
           <ConversationComposer
             value={input}
             onChange={setInput}
             onSend={() => submit()}
             disabled={readOnly}
             voice={voiceEnabled}
-            secondaryActions={drafted ? (
-              <Button size="sm" variant="secondary" onClick={constructSection} leftIcon={<FileText />}>
-                View spec
-              </Button>
-            ) : undefined}
+            mentionPool={inChatMembers}
           />
-        )}
+        ) : null}
       </Card>
 
       {/* RIGHT — guidance + components + progress (1/3) */}
@@ -1359,6 +1323,26 @@ function AnswerBlock({ text }: { text: string }) {
           {text}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CraftViewToggle({ active, onSwitch }: { active: 'spec' | 'conversation'; onSwitch: (v: 'spec' | 'conversation') => void }) {
+  return (
+    <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
+      {(['spec', 'conversation'] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onSwitch(v)}
+          className={cn(
+            'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
+            active === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
+          )}
+        >
+          {v === 'spec' ? 'Spec' : 'Discussion'}
+        </button>
+      ))}
     </div>
   );
 }

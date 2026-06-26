@@ -140,6 +140,10 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   }
 
   const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'explore-propose': () => refreshTasks(),
+      'explore-synthesize': () => refreshArtifact(),
+    },
     events: {
       'synthesis.updated': () => refreshArtifact(),
     },
@@ -150,7 +154,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   async function analyze(): Promise<void> {
     await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
     await mma.dispatch(`/api/projects/${props.projectId}/explore/propose`, 'explore-propose');
-    refreshTasks();
   }
 
   async function run(): Promise<void> {
@@ -161,7 +164,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   async function resynthesize(): Promise<void> {
     await mma.dispatch(`/api/projects/${props.projectId}/explore/synthesize`, 'explore-synthesize');
-    await refreshArtifact();
   }
 
   async function addLink(): Promise<void> {

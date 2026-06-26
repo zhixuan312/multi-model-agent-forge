@@ -110,7 +110,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
     if (allApprovedInit) return 'validate';
     return 'refine';
   })();
-  const [phase, setPhaseRaw] = useState<PlanPhase>(props.initialPhase ?? derivedPhase);
+  const safeInitial = props.initialPhase === 'validate' && allTasks.length === 0 ? undefined : props.initialPhase;
+  const [phase, setPhaseRaw] = useState<PlanPhase>(safeInitial ?? derivedPhase);
 
   const setPhase = (p: PlanPhase) => {
     setPhaseRaw(p);
@@ -140,7 +141,13 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
 
-  const mma = useMmaDispatch(props.projectId);
+  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'plan-author': refresh,
+      'plan-audit': refresh,
+    },
+  });
   const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
 
   // Auto-trigger plan authoring if no plan exists yet
@@ -149,7 +156,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
     if (authorFired.current || readOnly || allTasks.length > 0 || props.pendingAuthor) return;
     authorFired.current = true;
     void mma.dispatch(`/projects/${props.projectId}/build/author-plan`, 'plan-author')
-      .then(() => router.refresh())
       .catch(() => {});
   }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, router]);
 
@@ -182,7 +188,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     if (auditingRef.current) return;
     auditingRef.current = true;
     void mma.dispatch(`/projects/${props.projectId}/build/run-audit`, 'plan-audit')
-      .then(() => { auditingRef.current = false; router.refresh(); })
+      .then(() => { auditingRef.current = false; })
       .catch(() => { auditingRef.current = false; });
   }
 

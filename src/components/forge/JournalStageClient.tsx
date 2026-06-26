@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
@@ -122,7 +122,13 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const mma = useMmaDispatch(props.projectId);
+  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'journal-harvest': refresh,
+      'journal-record': refresh,
+    },
+  });
 
   const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest');
   const recording = props.recording || mma.busyHandlers.has('journal-record');
@@ -180,7 +186,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   async function harvest() {
     await mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {});
-    router.refresh();
   }
 
   async function approve() {
@@ -212,7 +217,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   async function record() {
     await mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {});
-    router.refresh();
   }
 
   const isApproved = active?.status === 'kept' || active?.status === 'recorded';

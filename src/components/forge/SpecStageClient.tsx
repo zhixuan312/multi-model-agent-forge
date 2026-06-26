@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
+import { useServerState } from '@/hooks/useServerState';
 import { useMutation } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -188,8 +189,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 export function SpecStageClient(props: SpecStageClientProps) {
   const router = useRouter();
   const readOnly = props.phase !== 'design';
-  const [components, setComponents] = useState<ComponentView[]>(props.initialComponents);
-  const [spec, setSpec] = useState(props.initialSpec);
+  const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
+  const [spec, setSpec] = useServerState(props.initialSpec);
   const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -199,7 +200,14 @@ export function SpecStageClient(props: SpecStageClientProps) {
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );
   const derivedPhase: SpecPhase = components.length === 0 ? 'outline' : spec ? 'finalize' : 'craft';
-  const [phase, setPhaseRaw] = useState<SpecPhase>(props.initialPhase ?? derivedPhase);
+  const canReach = (p: SpecPhase): boolean => {
+    if (p === 'outline') return true;
+    if (p === 'craft') return components.length > 0;
+    if (p === 'finalize') return components.length > 0;
+    return false;
+  };
+  const safeInitial = props.initialPhase && canReach(props.initialPhase) ? props.initialPhase : undefined;
+  const [phase, setPhaseRaw] = useState<SpecPhase>(safeInitial ?? derivedPhase);
 
   const setPhase = (p: SpecPhase) => {
     setPhaseRaw(p);
@@ -211,7 +219,13 @@ export function SpecStageClient(props: SpecStageClientProps) {
       body: JSON.stringify({ stage: 'spec', phase: p }),
     }).catch(() => {});
   };
-  const mma = useMmaDispatch(props.projectId);
+  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  const mma = useMmaDispatch(props.projectId, {
+    onDone: {
+      'spec-auto-draft': refresh,
+      'spec-refine': refresh,
+    },
+  });
 
   const needsAutoDraft = components.length > 0 && components.some(
     (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
@@ -225,7 +239,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
     if (props.pendingAutoDraft) { autoDraftFired.current = true; return; }
     autoDraftFired.current = true;
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
-      .then(() => router.refresh())
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, needsAutoDraft]);
@@ -296,9 +309,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
           onConfirmed={(next) => {
             setComponents(next);
             setPicked(new Set(next.map((c) => c.kind)));
+            autoDraftFired.current = true;
             setPhase('craft');
             void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
-              .then(() => router.refresh())
               .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
           }}
           onError={setError}
@@ -490,15 +503,6 @@ function OutlineStage({
             <CardTitle>Spec outline</CardTitle>
             <Micro className="!text-ink-faint">Pick what this spec will cover</Micro>
           </div>
-          <Button
-            size="sm"
-            onClick={() => confirm.mutate()}
-            loading={confirm.isPending}
-            disabled={readOnly || !valid || confirm.isPending}
-            rightIcon={<ArrowRight />}
-          >
-            {confirm.isPending ? 'Confirming…' : 'Confirm outline'}
-          </Button>
         </CardHeader>
         <div className="shrink-0 space-y-2.5 border-b border-line px-5 py-3">
           <SearchField value={compQuery} onChange={setCompQuery} placeholder="Search components…" />
@@ -594,7 +598,15 @@ function OutlineStage({
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Template</CardTitle>
-            <Micro className="!text-ink-faint">Sets the components</Micro>
+            <Button
+              size="sm"
+              onClick={() => confirm.mutate()}
+              loading={confirm.isPending}
+              disabled={readOnly || !valid || confirm.isPending}
+              rightIcon={<ArrowRight />}
+            >
+              {confirm.isPending ? 'Confirming…' : 'Confirm outline'}
+            </Button>
           </CardHeader>
           <div className="shrink-0 border-b border-line px-5 py-3">
             <SearchField value={tplQuery} onChange={setTplQuery} placeholder="Search templates…" />

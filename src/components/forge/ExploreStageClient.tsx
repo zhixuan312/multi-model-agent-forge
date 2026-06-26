@@ -26,6 +26,7 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
   Badge,
+  Banner,
   Textarea,
   Select,
   SelectTrigger,
@@ -50,6 +51,7 @@ import {
 import { PROMPT_FLOORS } from '@/exploration/schemas';
 import type { AttachmentView } from '@/exploration/attachments';
 import { cn } from '@/lib/cn';
+import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 
 /** Per-route prompt floor — pulled from the client-safe schema constants. */
 const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
@@ -119,8 +121,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const [brief, setBrief] = useState(props.initialBrief);
   const [attachments, setAttachments] = useState<AttachmentView[]>(props.initialAttachments);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const [viewOverride, setViewOverride] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
 
   const drafts = tasks.filter((t) => t.status === 'draft');
@@ -129,80 +130,48 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     void qc.invalidateQueries({ queryKey: explorationKeys.tasks(props.projectId) });
   }
 
+  const mma = useMmaDispatch(props.projectId, {
+    handlers: {
+      'explore-propose': {
+        onDone: () => refreshTasks(),
+      },
+      'explore-synthesize': {
+        onDone: async () => {
+          const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
+          if (r.ok) {
+            const a = (await r.json()) as ArtifactCacheEntry;
+            qc.setQueryData(explorationKeys.artifact(props.projectId), a);
+          }
+        },
+      },
+    },
+    events: {
+      'synthesis.updated': async () => {
+        const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
+        if (r.ok) {
+          const a = (await r.json()) as ArtifactCacheEntry;
+          qc.setQueryData(explorationKeys.artifact(props.projectId), a);
+        }
+      },
+    },
+  });
+
+  const { busy, error } = mma;
+
   async function analyze(): Promise<void> {
-    setBusy(true);
-    setError(null);
-    try {
-      await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
-      await postJson<{ batchId: string }>(
-        `/api/projects/${props.projectId}/explore/propose`,
-        {},
-      );
-      // Route returns 202 — SSE dispatch.done will trigger refresh
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed.');
-      setBusy(false);
-    }
+    await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
+    await mma.dispatch(`/api/projects/${props.projectId}/explore/propose`, 'explore-propose');
   }
 
   async function run(): Promise<void> {
-    setBusy(true);
-    setError(null);
-    try {
-      await postJson(`/api/projects/${props.projectId}/explore/run`, {});
-      refreshTasks();
-      // Agents finish a beat after dispatch — re-poll so running → recorded shows.
-      setTimeout(refreshTasks, 2600);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Dispatch failed.');
-    } finally {
-      setBusy(false);
-    }
+    await postJson(`/api/projects/${props.projectId}/explore/run`, {});
+    refreshTasks();
+    setTimeout(refreshTasks, 2600);
   }
 
   async function resynthesize(): Promise<void> {
-    setBusy(true);
-    setError(null);
-    try {
-      await postJson(`/api/projects/${props.projectId}/explore/synthesize`, {});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Synthesis failed.');
-      setBusy(false);
-    }
+    await mma.dispatch(`/api/projects/${props.projectId}/explore/synthesize`, 'explore-synthesize');
   }
-
-  // SSE listener — immediate reaction to dispatch events
-  useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    es.onmessage = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-
-        if (data.type === 'dispatch.done' && data.handler === 'explore-propose') {
-          setBusy(false);
-          refreshTasks();
-        }
-
-        if (data.type === 'synthesis.updated') {
-          fetch(`/api/projects/${props.projectId}/explore/artifact`)
-            .then((r) => r.ok ? r.json() : null)
-            .then((a) => {
-              if (a) qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry);
-              setBusy(false);
-            })
-            .catch(() => setBusy(false));
-        }
-
-        if (data.type === 'dispatch.failed' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
-          setBusy(false);
-          setError(data.error ?? 'Task failed.');
-        }
-      } catch { /* ignore parse errors */ }
-    };
-    return () => es.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.projectId]);
 
   async function addLink(): Promise<void> {
     const url = window.prompt('Link URL (http/https):');
@@ -212,7 +181,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
       const v = await postJson<AttachmentView>(`/api/projects/${props.projectId}/explore/attachment`, { label, url });
       setAttachments((a) => [...a, v]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Attach failed.');
+      setAttachError(e instanceof Error ? e.message : 'Attach failed.');
     }
   }
 
@@ -228,7 +197,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
       const view = (await res.json()) as AttachmentView;
       setAttachments((a) => [...a, view]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Attach failed.');
+      setAttachError(e instanceof Error ? e.message : 'Attach failed.');
     }
   }
 
@@ -382,7 +351,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   rows={0}
                   className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
                 />
-                {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
+                {error ? <Banner variant="danger" title={error} onDismiss={mma.clearError} action={<Button size="sm" variant="secondary" onClick={mma.retry}>Retry</Button>} className="mt-2" /> : null}
               </CardContent>
             </Card>
           ) : (

@@ -9,6 +9,7 @@ import { AccountMenu } from '@/components/forge/AccountMenu';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { NotificationBell } from '@/components/forge/collab/NotificationBell';
 import { AppShell } from '@/components/ui/shell';
+import { Toaster } from '@/components/ui/toast';
 
 /**
  * Global shell (Spec 1 §Global shell). Auth-gated: `current-member.ts` performs
@@ -54,6 +55,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </AppShell>
+      <Toaster />
     </PhaseTheme>
   );
 }

@@ -127,17 +127,7 @@ export function ParticipantStrip({
       ) : (
         <span className="text-xs text-ink-faint">Just you — invite teammates to co-approve.</span>
       )}
-      {participants.length > 0 ? (
-        <span className="text-xs text-ink-soft">
-          <span className="font-medium text-[var(--sage-deep)]">{ok.length} approved</span>
-          {wait.length > 0 ? (
-            <>
-              {' · '}
-              <span className="text-[var(--amber)]">{wait.length} pending</span>
-            </>
-          ) : null}
-        </span>
-      ) : null}
+      {null}
       <span className="flex-1" />
       <InviteMenu pool={pool} participants={participants} onAdd={onAdd} disabled={disabled} />
     </div>

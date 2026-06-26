@@ -164,7 +164,9 @@ function SubPhaseTrack({
       {steps.map((st, i) => {
         const isActive = st.key === active;
         const isDone = highIdx >= 0 && i <= highIdx && !isActive;
-        const Tag = onClick ? 'button' : 'span';
+        const reachable = i <= highIdx || isActive;
+        const canClick = onClick && reachable && !isActive;
+        const Tag = canClick ? 'button' : 'span';
         return (
           <Fragment key={st.key}>
             {i > 0 ? (
@@ -179,7 +181,7 @@ function SubPhaseTrack({
                 isActive && 'bg-accent/10 text-accent-deep',
                 isDone && 'text-[var(--sage-deep)]',
                 !isActive && !isDone && 'text-ink-faint',
-                onClick && !isActive && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
+                canClick && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
               )}
             >
               <span aria-hidden="true" className={cn('size-1.5 rounded-full', isActive && 'bg-accent', isDone && 'bg-[var(--sage)]', !isActive && !isDone && 'bg-line-strong')} />

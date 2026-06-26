@@ -27,12 +27,15 @@ export async function POST(
     .limit(1);
   if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
-  // Add to participants array if not already there
+  // Add both the invitee and the inviter to participants
   const existing = (comp.participants as string[] | null) ?? [];
-  if (!existing.includes(memberId)) {
+  const updated = [...existing];
+  if (!updated.includes(me.id)) updated.push(me.id);
+  if (!updated.includes(memberId)) updated.push(memberId);
+  if (updated.length !== existing.length) {
     await db
       .update(component)
-      .set({ participants: [...existing, memberId] as unknown as object, updatedAt: new Date() })
+      .set({ participants: updated as unknown as object, updatedAt: new Date() })
       .where(eq(component.id, componentId));
   }
 

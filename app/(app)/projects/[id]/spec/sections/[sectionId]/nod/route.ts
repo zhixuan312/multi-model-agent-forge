@@ -27,12 +27,25 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     throw e;
   }
 
-  // Persist who approved
   if (me) {
     const db = getDb();
-    const [sec] = await db.select({ componentId: componentSection.componentId }).from(componentSection).where(eq(componentSection.id, sectionId)).limit(1);
+    const [sec] = await db
+      .select({ componentId: componentSection.componentId })
+      .from(componentSection)
+      .where(eq(componentSection.id, sectionId))
+      .limit(1);
     if (sec) {
-      await db.update(component).set({ approvedBy: me.id }).where(eq(component.id, sec.componentId));
+      const [comp] = await db
+        .select({ participants: component.participants })
+        .from(component)
+        .where(eq(component.id, sec.componentId))
+        .limit(1);
+      const existing = (comp?.participants as string[] | null) ?? [];
+      const updated = existing.includes(me.id) ? existing : [...existing, me.id];
+      await db
+        .update(component)
+        .set({ approvedBy: me.id, participants: updated as unknown as object })
+        .where(eq(component.id, sec.componentId));
     }
   }
 

@@ -17,7 +17,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ProseBlock } from '@/components/patterns/prose-block';
-import { RailStatus, type RailStatusItem } from '@/components/patterns/feature-rail';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell, StageFullWidth, type StageShellItem } from '@/components/patterns/stage-shell';
@@ -35,7 +34,6 @@ import {
   SelectItem,
   Micro,
   Eyebrow,
-  TextSm,
   Title,
   Card,
   CardHeader,
@@ -57,10 +55,10 @@ import { cn } from '@/lib/cn';
 const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
 
 /**
- * `ExploreStageClient` (Spec 5) — the exploration stage island. Brain-dump
- * composer (text · voice · attachments) → editable fan-out task list → Run →
- * live agent rail (via `useProjectEvents`) → synthesized summary. The DB is the
- * source of truth; SSE patches the TanStack cache for live updates.
+ * `ExploreStageClient` (Spec 5) — the exploration stage island. Three phases:
+ * Brief (brain-dump + task proposal) → Discover (task detail + findings) →
+ * Synthesize (file-based exploration brief). SSE patches the TanStack cache
+ * for live task status updates.
  */
 
 interface ExploreStageClientProps {
@@ -499,7 +497,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   );
 }
 
-/** Centre stage before any analysis — points the user at the brain-dump input. */
 function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSwitch: (v: any) => void; labels: string[]; values: string[] }) {
   return (
     <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
@@ -520,83 +517,6 @@ function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSw
   );
 }
 
-function IdleStage() {
-  return (
-    <Card className="flex min-h-0 flex-1 flex-col">
-      <CardContent className="grid min-h-0 flex-1 place-items-center px-6 text-center">
-        <div className="max-w-sm">
-          <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
-            <Sparkles className="size-6" />
-          </span>
-          <Title as="h3" className="mt-4 !text-lg">
-            Start with your context
-          </Title>
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-            Tell Forge everything you know in the brain-dump on the right, then press{' '}
-            <span className="font-medium text-ink">Run analysis</span>. Forge proposes an investigation · research ·
-            recall fan-out right here — you run it, then synthesize one grounded brief.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-const ROUTE_LABEL: Record<string, string> = {
-  investigate: 'Investigate',
-  research: 'Research',
-  journal: 'Journal recall',
-};
-
-function toStatusItems(tasks: RailTask[]): RailStatusItem[] {
-  return tasks.filter((t) => t.status !== 'draft').map((t) => {
-    let status: string;
-    let tone: RailStatusItem['tone'];
-    if (t.batchStatus === 'failed') { status = 'failed'; tone = 'fail'; }
-    else if (t.status === 'recorded' || t.batchStatus === 'done') { status = 'recorded'; tone = 'done'; }
-    else if (t.status === 'draft') { status = 'draft'; tone = 'idle'; }
-    else { status = 'running'; tone = 'run'; }
-    return { id: t.id, label: ROUTE_LABEL[t.kind] ?? t.kind, status, tone, detail: t.prompt, error: t.error?.message };
-  });
-}
-
-function RunStage(props: {
-  className?: string;
-  tasks: RailTask[];
-  dispatched: number;
-  recorded: number;
-  allDone: boolean;
-  synthesizing: boolean;
-  onSynthesize: () => void;
-  locked?: boolean;
-}) {
-  return (
-    <Card className={cn('flex flex-col', props.className)} aria-label="Agent run">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <CardTitle>{props.allDone ? 'Agents finished' : 'Agents at work'}</CardTitle>
-          <Badge variant={props.allDone ? 'sage' : 'amber'} size="sm">
-            {props.recorded}/{props.dispatched} done
-          </Badge>
-        </div>
-        {props.allDone ? (
-          <Button
-            size="sm"
-            onClick={props.onSynthesize}
-            loading={props.synthesizing}
-            disabled={props.synthesizing || !!props.locked}
-            leftIcon={<Sparkles />}
-          >
-            {props.synthesizing ? 'Synthesizing...' : 'Synthesize brief'}
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
-        <RailStatus items={toStatusItems(props.tasks)} live emptyText="No tasks dispatched yet." />
-      </CardContent>
-    </Card>
-  );
-}
 
 /** Standing guidance — the accent-tint note every page's rail carries. */
 const PHASE_NOTES: Record<string, string> = {

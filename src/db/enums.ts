@@ -71,9 +71,9 @@ export const QA_SENDER = ['forge', 'member'] as const;
 export type QaSender = (typeof QA_SENDER)[number];
 
 /**
- * artifact.kind (schema.md §6). Spec 4 only WRITES `spec`; READS `exploration`
- * (Spec 5 writes it). `exploration_brief`/`plan` are carried for later specs so
- * those can write without a migration.
+ * artifact.kind (schema.md §6). `exploration` kind exists in DB for legacy rows
+ * but new exploration summaries are file-based (.mma/projects/<id>/exploration.md).
+ * Active DB writes: `exploration_brief` (brain-dump), `spec`, `plan`.
  */
 export const ARTIFACT_KIND = ['exploration_brief', 'exploration', 'spec', 'plan'] as const;
 export type ArtifactKind = (typeof ARTIFACT_KIND)[number];

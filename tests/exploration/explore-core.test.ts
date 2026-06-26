@@ -1,9 +1,17 @@
 // @vitest-environment node
+import { rmSync } from 'fs';
+import { join } from 'path';
 import { and, eq } from 'drizzle-orm';
 import { artifact } from '@/db/schema/artifacts';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
 import { projectRepo } from '@/db/schema/projects';
+
+afterAll(() => {
+  for (const id of ['proj-3']) {
+    rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', id), { recursive: true, force: true });
+  }
+});
 import {
   saveBrief,
   latestBrief,

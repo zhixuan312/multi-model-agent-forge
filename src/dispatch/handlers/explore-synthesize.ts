@@ -1,11 +1,11 @@
-import { and, eq, max } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
 import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';
+import { writeExplorationSummary } from '@/projects/project-files';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -24,7 +24,6 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
     try {
       synthesis = SynthesisSchema.parse(JSON.parse(raw));
     } catch {
-      // MMA returned free-text markdown — extract sections by heading
       const text = raw;
       const bg = text.match(/\*\*Background\*\*[:\s]*\n?([\s\S]*?)(?=\*\*Current state\*\*|\*\*Rough direction\*\*|$)/i)?.[1]?.trim() ?? '';
       const cs = text.match(/\*\*Current state\*\*[:\s]*\n?([\s\S]*?)(?=\*\*Rough direction\*\*|$)/i)?.[1]?.trim() ?? '';
@@ -34,7 +33,6 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   }
   const request = ctx.request as { actorId: string };
 
-  // Get failure markers for gap injection
   const rows = await db
     .select({ route: mmaBatch.route, batchStatus: mmaBatch.status, repoName: repo.name })
     .from(explorationTask)
@@ -52,23 +50,14 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   }
   const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
-  const [{ v } = { v: null }] = await db
-    .select({ v: max(artifact.version) })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, ctx.projectId), eq(artifact.kind, 'exploration')));
-  const nextVersion = (v ?? 0) + 1;
-
-  const [a] = await db
-    .insert(artifact)
-    .values({ projectId: ctx.projectId, kind: 'exploration', bodyMd, version: nextVersion, createdBy: request.actorId || null })
-    .returning({ id: artifact.id });
+  const filePath = writeExplorationSummary(ctx.projectId, bodyMd);
 
   await logAction(
-    { projectId: ctx.projectId, memberId: request.actorId || 'system', action: 'synthesize', target: `artifact:${a.id}` },
+    { projectId: ctx.projectId, memberId: request.actorId || 'system', action: 'synthesize', target: `file:${filePath}` },
     db,
   );
 
-  projectEventBus.publish(ctx.projectId, { type: 'synthesis.updated', artifactId: a.id, version: nextVersion });
+  projectEventBus.publish(ctx.projectId, { type: 'synthesis.updated', artifactId: ctx.projectId, version: 1 });
 }
 
 registerHandler('explore-synthesize', handleExploreSynthesize);

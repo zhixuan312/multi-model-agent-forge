@@ -28,6 +28,8 @@ const draftedComponents: ComponentView[] = [
     humanSatisfied: false,
     forced: false,
     stale: false,
+    approvedBy: null,
+    participantIds: [],
     orderIndex: 0,
     sections: [
       { id: 's1', key: 'background', label: 'Background', draftMd: 'The demo uses PostgreSQL...', orderIndex: 0 },

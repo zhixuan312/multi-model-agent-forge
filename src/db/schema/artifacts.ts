@@ -19,10 +19,10 @@ import {
  */
 
 /**
- * `project_artifact` (schema.md §6) — a versioned stage output. Spec 4 INSERTs
- * `kind='spec'` (bumping `version` on re-assemble) and READs `kind='exploration'`
- * (Spec 5 writes it). `created_by` NULL = agent-generated. Component drafts live
- * on `component_section.draft_md`, NOT here.
+ * `project_artifact` (schema.md §6) — a versioned stage output. Active DB writes:
+ * `kind='exploration_brief'` (brain-dump), `kind='spec'`, `kind='plan'`.
+ * NOTE: `kind='exploration'` is file-based (.mma/projects/<id>/exploration.md) —
+ * legacy DB rows exist but no new writes. `created_by` NULL = agent-generated.
  */
 export const artifact = forge.table(
   'project_artifact',

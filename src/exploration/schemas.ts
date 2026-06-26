@@ -42,8 +42,7 @@ export const RepairedTaskSchema = z.object({
 export type RepairedTask = z.infer<typeof RepairedTaskSchema>;
 
 /**
- * The synthesis output — the three product sections (product.md §7.3). The
- * combined markdown is what lands in `artifact(kind='exploration')`.
+ * The synthesis output — the three sections written to exploration.md on disk.
  */
 export const SynthesisSchema = z.object({
   background: z.string(),

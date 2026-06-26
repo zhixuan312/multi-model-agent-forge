@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
-import { artifact } from '@/db/schema/artifacts';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import type { ComponentSectionRow, QaMessageRow, ComponentRow } from '@/db/schema/spec';
 import {
@@ -9,6 +8,7 @@ import {
   type ComponentStatus,
 } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
+import { readExplorationSummaryAsync } from '@/projects/project-files';
 import { AnthropicClient } from '@/anthropic/client';
 import {
   GenerateQuestionsSchema,
@@ -56,29 +56,24 @@ interface SectionContext {
 
 /* ── Grounding + prompt assembly ────────────────────────────────────────── */
 
-/** Resolve the project + latest exploration artifact body for grounding. */
+/** Resolve the project + latest exploration brief for grounding. */
 async function loadGrounding(db: Db, projectId: string): Promise<Grounding> {
   const [proj] = await db
     .select({ intentMd: project.intentMd })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
-  const exploration = await getLatestExploration(db, projectId);
-  return { intentMd: proj?.intentMd ?? null, explorationMd: exploration?.bodyMd ?? null };
+  const explorationMd = await readExplorationSummaryAsync(projectId);
+  return { intentMd: proj?.intentMd ?? null, explorationMd };
 }
 
-/** The latest `artifact(kind='exploration', version=max)` for grounding, or null (Spec 5 writes it). */
+/** Read the exploration brief from file for grounding. */
 export async function getLatestExploration(
-  db: Db,
+  _db: Db,
   projectId: string,
 ): Promise<{ bodyMd: string } | null> {
-  const [row] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration')))
-    .orderBy(sql`${artifact.version} desc`)
-    .limit(1);
-  return row ?? null;
+  const bodyMd = await readExplorationSummaryAsync(projectId);
+  return bodyMd ? { bodyMd } : null;
 }
 
 /** Approved sibling sections' drafts in the same project (for coherence). */

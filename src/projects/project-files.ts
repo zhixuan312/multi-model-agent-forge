@@ -40,8 +40,8 @@ export function readExplorationSummary(projectId: string): string | null {
  * Preferred for request handlers — does not block the event loop.
  */
 export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
-  const filePath = join(projectDir(projectId), EXPLORATION_FILE);
   try {
+    const filePath = join(projectDir(projectId), EXPLORATION_FILE);
     return await readFile(filePath, 'utf-8');
   } catch {
     return null;

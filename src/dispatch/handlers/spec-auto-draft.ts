@@ -63,17 +63,24 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
       .where(eq(component.id, compId));
   }
 
+  const { projectEventBus } = await import('@/sse/event-bus');
   for (const [compId, { questions }] of questionsByComponent) {
     await db.delete(qaMessage).where(eq(qaMessage.componentId, compId));
     const forgeBody = questions.length > 0
       ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
       : '✅ This looks complete. You can approve it, or tell me what to change.';
-    await db.insert(qaMessage).values({
+    const [msgRow] = await db.insert(qaMessage).values({
       componentId: compId,
       seq: 0,
       sender: 'forge',
       bodyMd: forgeBody,
       meta: { autoDraft: true, questions },
+    }).returning({ id: qaMessage.id });
+
+    projectEventBus.publish(ctx.projectId, {
+      type: 'chat.message',
+      componentId: compId,
+      message: { id: msgRow.id, sender: 'forge', authorId: 'forge', authorName: 'Forge', bodyMd: forgeBody },
     });
   }
 

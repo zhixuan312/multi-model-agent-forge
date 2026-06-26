@@ -55,7 +55,8 @@ export type ProjectEvent =
   | { type: 'dispatch.done'; batchId: string; handler: string; repoId?: string }
   | { type: 'dispatch.failed'; batchId: string; handler: string; error: string; repoId?: string }
   // ── Stage-level sync events (multi-user real-time) ────────────────────
-  | { type: 'spec.updated' };
+  | { type: 'spec.updated' }
+  | { type: 'chat.message'; componentId: string; message: { id: string; sender: 'forge' | 'member'; authorId: string; authorName: string; bodyMd: string } };
 
 const EVENT = 'event';
 

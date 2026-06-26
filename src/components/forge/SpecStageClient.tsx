@@ -228,6 +228,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
     },
     events: {
       'spec.updated': refresh,
+      'chat.message': (data) => {
+        window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
+      },
     },
   });
 
@@ -885,10 +888,37 @@ function CraftStage({
     });
   }, [components, currentMember, projectMembers, initialMessages]);
 
+  // Real-time chat: listen for chat.message SSE events and append to discussion
+  const seenMsgIds = useRef(new Set<string>(
+    Object.values(initialMessages).flatMap((msgs) => msgs.map((m) => m.id)),
+  ));
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { componentId: cid, message: msg } = (e as CustomEvent).detail as {
+        componentId: string;
+        message: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
+      };
+      if (seenMsgIds.current.has(msg.id)) return;
+      seenMsgIds.current.add(msg.id);
+      setCollab((prev) => {
+        const u = prev[cid] ?? { participants: [], discussion: [] };
+        if (u.discussion.some((d) => d.id === msg.id)) return prev;
+        return {
+          ...prev,
+          [cid]: {
+            ...u,
+            discussion: [...u.discussion, { id: msg.id, authorId: msg.authorId, body: msg.bodyMd }],
+          },
+        };
+      });
+    };
+    window.addEventListener('chat:message', handler);
+    return () => window.removeEventListener('chat:message', handler);
+  }, []);
+
   const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
-  // Auto-scroll the thread to the latest turn (messenger-style).
   useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, answers, collab]);
   // When a section gets drafted (Construct), bring the freshly-built draft into
   // view — otherwise it lands below the fold and the click feels like a no-op.
@@ -1018,19 +1048,33 @@ function CraftStage({
     const text = input.trim();
     setInput('');
 
-    // Post message to the group chat — persist + update local state
+    // Optimistic local append — sender sees immediately
+    const tempId = `tmp-${Date.now()}`;
     patchCollab((u) => ({
       ...u,
       discussion: [
         ...u.discussion,
-        { id: `y-${active.id}-${u.discussion.length}`, authorId: currentMember.id, body: text },
+        { id: tempId, authorId: currentMember.id, body: text },
       ],
     }));
+    // Persist to DB — SSE will deliver to other users
     fetch(`/api/projects/${projectId}/spec/components/${active.id}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bodyMd: text }),
-    }).catch(() => {});
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { id: string } | null) => {
+        if (data) {
+          // Replace temp ID with real DB ID + mark as seen so SSE echo is skipped
+          seenMsgIds.current.add(data.id);
+          patchCollab((u) => ({
+            ...u,
+            discussion: u.discussion.map((d) => d.id === tempId ? { ...d, id: data.id } : d),
+          }));
+        }
+      })
+      .catch(() => {});
 
     // @Forge triggers the AI to process and respond
     const forgeTagged = /@forge\b/i.test(text);

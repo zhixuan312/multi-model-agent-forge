@@ -33,6 +33,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     })
     .returning({ id: qaMessage.id });
 
-  projectEventBus.publish(id, { type: 'spec.updated' });
+  projectEventBus.publish(id, {
+    type: 'chat.message',
+    componentId,
+    message: {
+      id: row.id,
+      sender: 'member',
+      authorId: me.id,
+      authorName: me.displayName,
+      bodyMd: bodyMd.trim(),
+    },
+  });
+
   return NextResponse.json({ id: row.id });
 }

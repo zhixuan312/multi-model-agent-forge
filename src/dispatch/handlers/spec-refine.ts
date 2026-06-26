@@ -50,12 +50,26 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const forgeReply = aiSatisfied
     ? '✅ Updated the draft with your feedback. I\'m satisfied — press "View spec" to review, then approve.'
     : `❓ A few more things to clarify:\n\n${parsed.questions.map((q: string) => `• ${q}`).join('\n\n')}`;
-  await db.insert(qaMessage).values({
+  const [msgRow] = await db.insert(qaMessage).values({
     componentId,
     seq,
     sender: 'forge',
     bodyMd: forgeReply,
     meta: { questions: parsed.questions },
+  }).returning({ id: qaMessage.id });
+
+  // Publish chat message so all browsers see Forge's response in real-time
+  const { projectEventBus } = await import('@/sse/event-bus');
+  projectEventBus.publish(ctx.projectId, {
+    type: 'chat.message',
+    componentId,
+    message: {
+      id: msgRow.id,
+      sender: 'forge',
+      authorId: 'forge',
+      authorName: 'Forge',
+      bodyMd: forgeReply,
+    },
   });
 }
 

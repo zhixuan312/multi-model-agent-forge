@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
+import { stage } from '@/db/schema/projects';
 
 export interface StagePerm {
   canMutate: boolean;
@@ -17,54 +18,64 @@ export interface StagePermissions {
   journal: StagePerm;
 }
 
+/**
+ * Stage locking rules:
+ *
+ * Design phase (Explore, Spec, Plan) — freely editable until Execute starts.
+ * Users can bounce between them, add research while writing the spec, etc.
+ *
+ * Build phase — each stage locks when completed, cascading backward:
+ *   Execute done → locks Explore, Spec, Plan, Execute
+ *   Review done  → locks Explore, Spec, Plan, Execute, Review
+ *   Journal done → locks all
+ */
 export async function getStagePermissions(db: Db, projectId: string): Promise<StagePermissions> {
   const dbi = db ?? getDb();
 
-  const [counts] = await dbi
-    .select({
-      draftedComponents: sql<number>`(
-        SELECT count(*) FROM forge.project_component c
-        JOIN forge.project_stage s ON s.id = c.stage_id
-        WHERE s.project_id = ${projectId} AND c.status != 'gathering'
-      )`,
-      planTasks: sql<number>`(
-        SELECT count(*) FROM forge.project_plan_task WHERE project_id = ${projectId}
-      )`,
-      executingTasks: sql<number>`(
-        SELECT count(*) FROM forge.project_plan_task
-        WHERE project_id = ${projectId} AND status != 'queued'
-      )`,
-      totalTasks: sql<number>`(
-        SELECT count(*) FROM forge.project_plan_task WHERE project_id = ${projectId}
-      )`,
-    })
-    .from(project)
-    .where(eq(project.id, projectId));
+  const stageRows = await dbi
+    .select({ kind: stage.kind, status: stage.status })
+    .from(stage)
+    .where(eq(stage.projectId, projectId));
 
-  if (!counts) throw new Error(`Project ${projectId} not found`);
+  const statusOf = (kind: string) => stageRows.find((r) => r.kind === kind)?.status ?? 'pending';
 
-  const dc = Number(counts.draftedComponents);
-  const pt = Number(counts.planTasks);
-  const et = Number(counts.executingTasks);
+  const executeDone = statusOf('execute') === 'done';
+  const reviewDone = statusOf('review') === 'done';
+  const journalDone = statusOf('journal') === 'done';
+
+  const designLocked = executeDone;
+  const designReason = 'Locked — execution has completed.';
 
   return {
     explore: {
-      canMutate: dc === 0,
+      canMutate: !designLocked,
       canAdvance: true,
-      ...(dc > 0 && { reason: 'Exploration is locked — the spec has started drafting from your findings.' }),
+      ...(designLocked && { reason: designReason }),
     },
     spec: {
-      canMutate: pt === 0,
+      canMutate: !designLocked,
       canAdvance: true,
-      ...(pt > 0 && { reason: 'Spec is locked — the implementation plan has been authored.' }),
+      ...(designLocked && { reason: designReason }),
     },
     plan: {
-      canMutate: et === 0,
+      canMutate: !designLocked,
       canAdvance: true,
-      ...(et > 0 && { reason: 'Plan is locked — execution has started.' }),
+      ...(designLocked && { reason: designReason }),
     },
-    execute: { canMutate: true, canAdvance: true },
-    review: { canMutate: true, canAdvance: true },
-    journal: { canMutate: true, canAdvance: true },
+    execute: {
+      canMutate: !executeDone,
+      canAdvance: true,
+      ...(executeDone && { reason: 'Locked — execution is complete.' }),
+    },
+    review: {
+      canMutate: !reviewDone,
+      canAdvance: true,
+      ...(reviewDone && { reason: 'Locked — review is complete.' }),
+    },
+    journal: {
+      canMutate: !journalDone,
+      canAdvance: true,
+      ...(journalDone && { reason: 'Locked — journal is complete.' }),
+    },
   };
 }

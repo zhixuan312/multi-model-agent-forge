@@ -311,8 +311,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setPicked(new Set(next.map((c) => c.kind)));
             autoDraftFired.current = true;
             setPhase('craft');
-            void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
-              .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
+            const hasUndrafted = next.some((c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd));
+            if (hasUndrafted) {
+              void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
+                .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
+            }
           }}
           onError={setError}
         />
@@ -605,7 +608,7 @@ function OutlineStage({
               disabled={readOnly || !valid || confirm.isPending}
               rightIcon={<ArrowRight />}
             >
-              {confirm.isPending ? 'Confirming…' : 'Confirm outline'}
+              {confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
             </Button>
           </CardHeader>
           <div className="shrink-0 border-b border-line px-5 py-3">

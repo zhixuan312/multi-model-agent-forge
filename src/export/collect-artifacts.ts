@@ -18,7 +18,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { artifact } from '@/db/schema/artifacts';
-import { readExplorationSummary as readExplorationSummarySync } from '@/projects/project-files';
+import { readExplorationSummary as readExplorationSummarySync, readSpecFile } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
 import { component } from '@/db/schema/spec';
 import { mmaBatch } from '@/db/schema/mma';
@@ -58,7 +58,7 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** Latest artifact for a deliverable kind. Exploration reads from file; spec/plan from DB. */
+/** Latest artifact for a deliverable kind. Exploration and spec read from file; plan from DB. */
 async function latestArtifact(
   db: Db,
   projectId: string,
@@ -67,6 +67,10 @@ async function latestArtifact(
   if (kind === 'exploration') {
     const bodyMd = readExplorationSummarySync(projectId);
     return bodyMd ? { id: projectId, bodyMd, version: 1 } : null;
+  }
+  if (kind === 'spec') {
+    const file = readSpecFile(projectId);
+    return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
   const [row] = await db
     .select({ id: artifact.id, bodyMd: artifact.bodyMd, version: artifact.version })

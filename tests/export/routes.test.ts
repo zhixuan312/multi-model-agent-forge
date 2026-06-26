@@ -28,6 +28,17 @@ vi.mock('@/db/client', () => ({
   getSql: () => ({}),
 }));
 
+/* Mock file-based spec reads — collect-artifacts now uses readSpecFile for spec. */
+const readSpecFileMock = vi.fn<(id: string) => import('@/projects/project-files').SpecFile | null>();
+
+vi.mock('@/projects/project-files', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/projects/project-files')>();
+  return {
+    ...orig,
+    readSpecFile: (...args: [string]) => readSpecFileMock(...args),
+  };
+});
+
 const artifactsRoute = await import('../../app/api/projects/[id]/export/artifacts/route');
 const sectionsRoute = await import('../../app/api/projects/[id]/export/sections/route');
 const mdRoute = await import('../../app/api/projects/[id]/export/md/route');
@@ -39,6 +50,8 @@ function asMember(id: string): AuthedMember {
 beforeEach(() => {
   mockCaller = null;
   mockDb = createMockDb();
+  readSpecFileMock.mockReset();
+  readSpecFileMock.mockReturnValue(null);
 });
 
 const SPEC_BODY = '## 01. Context\nctx\n\n## 03. Technical design\ntech';
@@ -98,13 +111,14 @@ describe('GET /export/artifacts (Key flow A)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     mockDb = createMockDb({
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],
       ),
       'select:project_audit_pass': [],
-      'select:project_artifact': seq([{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }], []),
+      'select:project_artifact': [],  // plan query — no plan artifact
       'select:ops_mma_batch': [],
     });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
@@ -138,9 +152,9 @@ describe('GET /export/sections (F30)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     mockDb = createMockDb({
       'select:project': [{ ownerId, visibility: 'public' }],
-      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
     });
     const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),
@@ -180,6 +194,7 @@ describe('GET /export/md (Key flow B)', () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     mockCaller = asMember(ownerId);
+    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     mockDb = createMockDb({
       'select:project_member': [{ memberId: ownerId }],
       'select:project': seq(
@@ -190,7 +205,6 @@ describe('GET /export/md (Key flow B)', () => {
       'select:project_stage': [{ id: 'stage-1' }],
       'select:project_component': [],
       'select:project_audit_pass': [],
-      'select:project_artifact': [{ id: 'art-1', bodyMd: SPEC_BODY, version: 1 }],
       'select:ops_mma_batch': [],
       'insert:project_export': [{ id: 'exp-1' }],
       'insert:ops_action_log': [{ id: 'log-1' }],

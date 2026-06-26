@@ -5,7 +5,7 @@ import { mmaBatch } from '@/db/schema/mma';
 import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';
-import { writeExplorationSummary } from '@/projects/project-files';
+import { writeExplorationSummaryAsync } from '@/projects/project-files';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -50,7 +50,7 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   }
   const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
-  const filePath = writeExplorationSummary(ctx.projectId, bodyMd);
+  const filePath = await writeExplorationSummaryAsync(ctx.projectId, bodyMd);
 
   await logAction(
     { projectId: ctx.projectId, memberId: request.actorId || 'system', action: 'synthesize', target: `file:${filePath}` },

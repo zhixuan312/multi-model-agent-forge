@@ -350,14 +350,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               <CardHeader>
                 <CardTitle>Brain-dump</CardTitle>
                 {hasAnalyzed ? (
-                  <div className="flex items-center gap-1 rounded-full bg-surface-2 p-0.5">
-                    <button type="button" onClick={() => setBriefView('input')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', 'bg-surface text-ink shadow-sm')}>
-                      Brain-dump
-                    </button>
-                    <button type="button" onClick={() => setBriefView('tasks')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', 'text-ink-faint hover:text-ink')}>
-                      Tasks
-                    </button>
-                  </div>
+                  <ViewToggle active="input" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
                 ) : (
                   <Micro className="!text-ink-faint">Text · voice · files</Micro>
                 )}
@@ -389,14 +382,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               onRun={run}
               canRun={drafts.length > 0 && !busy && !locked}
               headerAction={
-                <div className="flex items-center gap-1 rounded-full bg-surface-2 p-0.5">
-                  <button type="button" onClick={() => setBriefView('input')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', 'text-ink-faint hover:text-ink')}>
-                    Brain-dump
-                  </button>
-                  <button type="button" onClick={() => setBriefView('tasks')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', 'bg-surface text-ink shadow-sm')}>
-                    Tasks
-                  </button>
-                </div>
+                <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               }
             />
           )}
@@ -506,6 +492,26 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 }
 
 /** Centre stage before any analysis — points the user at the brain-dump input. */
+function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSwitch: (v: any) => void; labels: string[]; values: string[] }) {
+  return (
+    <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
+      {values.map((v, i) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onSwitch(v)}
+          className={cn(
+            'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
+            active === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
+          )}
+        >
+          {labels[i]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function IdleStage() {
   return (
     <Card className="flex min-h-0 flex-1 flex-col">

@@ -90,4 +90,39 @@ describe('StageStepper (4-state track)', () => {
     expect(screen.getByLabelText('Explore — ongoing')).toBeInTheDocument();
     expect(screen.getByLabelText('Spec — not started')).toBeInTheDocument();
   });
+
+  it('sub-phases: all show done (green) when viewing a done stage and clicking back to first phase', () => {
+    const stages: { kind: StageKind; status: StageStatus }[] = [
+      { kind: 'exploration', status: 'done' },
+      { kind: 'spec', status: 'done' },
+      { kind: 'plan', status: 'active' },
+      { kind: 'execute', status: 'pending' },
+      { kind: 'review', status: 'pending' },
+      { kind: 'journal', status: 'pending' },
+    ];
+    const { container } = render(
+      <StageStepper
+        projectId="p1"
+        stages={stages}
+        currentStage="exploration"
+        phase="design"
+        subSteps={[
+          { key: 'brief', label: 'Brief' },
+          { key: 'discover', label: 'Discover' },
+          { key: 'synthesize', label: 'Synthesize' },
+        ]}
+        activeSubPhase="brief"
+      />,
+    );
+    const subSteps = container.querySelectorAll('[data-substep]');
+    expect(subSteps).toHaveLength(3);
+    const brief = container.querySelector('[data-substep="brief"]')!;
+    const discover = container.querySelector('[data-substep="discover"]')!;
+    const synthesize = container.querySelector('[data-substep="synthesize"]')!;
+    // Brief is active (accent)
+    expect(brief).toHaveAttribute('aria-current', 'step');
+    // Discover and Synthesize should be done (sage-colored) because the stage is done
+    expect(discover.className).toContain('sage');
+    expect(synthesize.className).toContain('sage');
+  });
 });

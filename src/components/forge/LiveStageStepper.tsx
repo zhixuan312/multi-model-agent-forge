@@ -23,7 +23,7 @@ export function LiveStageStepper({
   lockedStages,
 }: {
   projectId: string;
-  stages: { kind: StageKind; status: StageStatus }[];
+  stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   currentStage: StageKind | null;
   phase: ProjectPhase;
   lockedStages?: StageKind[];

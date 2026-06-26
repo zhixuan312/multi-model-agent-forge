@@ -256,13 +256,16 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   // Publish the sub-phase to the stepper + register the navigation handler.
   useEffect(() => {
-    if (viewOverride) {
-      stagePhaseStore.set(viewOverride);
-    } else {
-      const sub = phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
-      stagePhaseStore.set(sub);
-    }
-  }, [phase, viewOverride]);
+    const sub = viewOverride
+      ? viewOverride
+      : phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
+    stagePhaseStore.set(sub);
+    fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'exploration', phase: sub }),
+    }).catch(() => {});
+  }, [phase, viewOverride, props.projectId]);
 
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {

@@ -73,17 +73,13 @@ describe('rail + summary reads', () => {
     expect(rail[0]).toMatchObject({ batchStatus: 'failed', headline: 'oops', error: { code: 'e', message: 'boom' } });
   });
 
-  it('latestExplorationArtifact returns the highest version', async () => {
+  it('latestExplorationArtifact reads from file', async () => {
     const projectId = 'proj-3';
-    const mockDb = createMockDb({
-      'select:project_artifact': [
-        { id: 'art-2', projectId, kind: 'exploration', bodyMd: 'v2', version: 2, createdAt: new Date() },
-        { id: 'art-1', projectId, kind: 'exploration', bodyMd: 'v1', version: 1, createdAt: new Date() },
-      ],
-    });
-
-    const a = await latestExplorationArtifact(projectId, mockDb);
-    expect(a).toMatchObject({ version: 2, bodyMd: 'v2' });
+    const { writeExplorationSummary } = await import('@/projects/project-files');
+    writeExplorationSummary(projectId, '## Background\n\nTest content');
+    const a = await latestExplorationArtifact(projectId);
+    expect(a).not.toBeNull();
+    expect(a!.bodyMd).toContain('Test content');
   });
 });
 

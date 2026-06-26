@@ -600,43 +600,41 @@ function RunStage(props: {
 
 /** Standing guidance — the accent-tint note every page's rail carries. */
 const PHASE_NOTES: Record<string, string> = {
-  brief: `### Brief — describe the idea
+  brief: `### What to do here
 
-- **Brain-dump** — tell Forge everything you know about the problem
-- **Attach context** — screenshots, docs, data files, or paste links
-- **Analyze** — Forge proposes investigation, research, and journal recall tasks
+- Write everything you know about the problem in the left panel
+- Include goals, constraints, relevant repos, and any prior context
+- Press **Analyze sources** to generate exploration tasks
+- Switch to the **Tasks** tab to review what Forge proposed
 
-### Tips
+### Next step
 
-- More context = better research plan
-- You can always edit and re-analyze`,
+- Press **Continue to Discover** to run the tasks and see results`,
 
-  discover: `### Discover — agents at work
+  discover: `### What you're seeing
 
-- **Edit tasks** — add, remove, or refine before running
-- **Run** — agents investigate the codebase, research the web, and recall past decisions
-- **Live status** — each task shows its progress in the rail
+- Each task in the list ran an agent against a repo, the web, or the team journal
+- Select a task to read its **prompt** (what was asked) and **findings** (what was found)
+- Green = recorded, amber = running, red = failed
 
-### Task types
+### Next step
 
-- **Investigate** — deep-dive into a specific repo or codebase area
-- **Research** — web search for external context
-- **Journal recall** — surface relevant past learnings`,
+- Review the findings, then press **Continue to Synthesize** to build the brief`,
 
-  synthesize: `### Synthesize — build the brief
+  synthesize: `### What you're seeing
 
-- **Synthesize** — Forge consolidates all findings into one grounded brief
-- **Re-synthesize** — run again if you added more context
-- **Advance** — the brief carries forward into the Spec stage
+- The left panel shows the synthesized exploration brief
+- This brief consolidates all task findings into one document organized by theme
+- The file is stored at \`exploration.md\` — you can edit it in any text editor
 
-### What makes a good brief
+### Next step
 
-- Covers the problem, constraints, and known prior art
-- Grounded in evidence from investigation and research`,
+- Review the brief, press **Re-synthesize** if needed
+- Press **Continue to Spec** to carry this brief into the specification stage`,
 };
 
 function ExplorationNote({ phase }: { phase: string }) {
-  const key = phase === 'idle' ? 'brief' : phase === 'fanout' ? 'discover' : phase === 'run' ? 'discover' : 'synthesize';
+  const key = phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : phase === 'run' ? 'discover' : 'synthesize';
   return <RailNote icon={<Lightbulb />}>{PHASE_NOTES[key]}</RailNote>;
 }
 

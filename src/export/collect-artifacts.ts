@@ -57,12 +57,17 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** Latest artifact row for a stored kind (exploration/spec/plan). */
+/** Latest artifact for a deliverable kind. Exploration reads from file; spec/plan from DB. */
 async function latestArtifact(
   db: Db,
   projectId: string,
   kind: 'exploration' | 'spec' | 'plan',
 ): Promise<{ id: string; bodyMd: string; version: number } | null> {
+  if (kind === 'exploration') {
+    const { readExplorationSummary } = await import('@/projects/project-files');
+    const bodyMd = readExplorationSummary(projectId);
+    return bodyMd ? { id: projectId, bodyMd, version: 1 } : null;
+  }
   const [row] = await db
     .select({ id: artifact.id, bodyMd: artifact.bodyMd, version: artifact.version })
     .from(artifact)

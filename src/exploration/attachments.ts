@@ -1,5 +1,5 @@
 import { mkdir, writeFile, unlink, rm, realpath } from 'node:fs/promises';
-import { join, resolve, sep, extname } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';

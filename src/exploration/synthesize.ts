@@ -13,15 +13,12 @@ import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
 import { writeExplorationSummary } from '@/projects/project-files';
 
 /**
- * Synthesize the exploration records into `artifact(kind='exploration')` (Spec 5
- * flow E). A main-agent (Anthropic) call reads the aggregate of terminal records
- * (their structuredReport/headline/findings) and writes the three sections
- * Background · Current state · Rough direction. Re-synthesis bumps
- * `artifact.version` and emits `synthesis.updated`.
+ * Synthesize exploration records into `exploration.md` on disk. Reads
+ * terminal task results (output.summary), calls Anthropic to produce
+ * Background / Current state / Rough direction, and writes the file.
  *
- * A FAILED task is folded as an explicit gap marker in Current state naming the
- * failed task's route (+ repo for investigate). A synthesis call FAILURE retains
- * the prior version, suppresses `synthesis.updated`, and logs server-side.
+ * Failed tasks are folded as gap markers in Current state. A synthesis
+ * failure retains the prior file and logs server-side.
  */
 
 export interface SynthesizeDeps {

@@ -1,66 +1,40 @@
 // @vitest-environment node
 import { vi, afterEach } from 'vitest';
-import { and, eq } from 'drizzle-orm';
-import { artifact } from '@/db/schema/artifacts';
-import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/mma';
+import { existsSync, rmSync } from 'fs';
+import { join } from 'path';
 import { SynthesisScheduler } from '@/exploration/synthesis-scheduler';
 import { ProjectEventBus } from '@/sse/event-bus';
 import { mockAnthropic } from './mock-anthropic';
 import { createMockDb, seq } from '../test-utils/mock-db';
+import { writeExplorationSummary } from '@/projects/project-files';
 
 const synthOutput = { background: 'b', currentState: 'c', roughDirection: 'd' };
-const projectId = 'proj-1';
-const ownerId = 'owner-1';
+const projectId = 'test-sched-1';
+
+function explorationFile(): string {
+  return join(process.cwd(), '.forge-workspace', '.mma', 'projects', projectId, 'exploration.md');
+}
+
+function cleanup(): void {
+  rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', projectId), { recursive: true, force: true });
+}
 
 describe('SynthesisScheduler', () => {
   afterEach(() => {
     vi.useRealTimers();
+    cleanup();
   });
 
-  it('debounces: a burst of terminal events coalesces into ONE synthesis after the quiet window (F6)', async () => {
+  it('debounces: a burst of terminal events coalesces into ONE synthesis after the quiet window', async () => {
     const mockDb = createMockDb({
-      'select:project_exploration_task': seq(
-        [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
-        [
-          {
-            taskId: 'task-1',
-            projectId,
-            kind: 'research',
-            prompt: 'p',
-            route: 'research',
-            batchStatus: 'done',
-            result: { headline: 'ok' },
-            repoName: null,
-          },
-        ],
-      ),
-      'select:ops_mma_batch': [
+      'select:project_exploration_task': [
         {
-          id: 'batch-1',
-          projectId,
-          route: 'research',
-          cwd: '/work',
-          batchId: 'mma',
-          status: 'done',
-          request: {},
-          result: { headline: 'ok' },
-          terminalAt: new Date(),
+          taskId: 'task-1', kind: 'research', prompt: 'p', route: 'research',
+          batchStatus: 'done',
+          result: { output: { summary: { answer: 'found stuff' } }, error: null },
+          repoName: null,
         },
       ],
-      'insert:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
-      'select:project_artifact': seq(
-        [],
-        [
-          {
-            id: 'art-1',
-            projectId,
-            kind: 'exploration',
-            version: 1,
-            bodyMd: 'synthesis',
-          },
-        ],
-      ),
     });
 
     const bus = new ProjectEventBus();
@@ -75,102 +49,28 @@ describe('SynthesisScheduler', () => {
     bus.publish(projectId, { type: 'task.done', taskId: 't1', mmaBatchId: 'b', route: 'research', status: 'recorded' });
     expect(sched.isArmed(projectId)).toBe(true);
     bus.publish(projectId, { type: 'task.done', taskId: 't2', mmaBatchId: 'b', route: 'research', status: 'recorded' });
-    bus.publish(projectId, { type: 'task.failed', taskId: 't3', mmaBatchId: 'b', route: 'research', error: { code: 'x', message: 'y' } });
     expect(sched.isArmed(projectId)).toBe(true);
 
     await sched.flush(projectId);
     expect(sched.isArmed(projectId)).toBe(false);
     sched.shutdown();
 
-    const arts = await mockDb
-      .select({ version: artifact.version })
-      .from(artifact)
-      .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration')));
-    expect(arts).toHaveLength(1);
+    expect(existsSync(explorationFile())).toBe(true);
   });
 
-  it('fires synthesis automatically when the debounce window elapses', async () => {
+  it('boot reconciliation synthesizes a project with no exploration.md', async () => {
     const mockDb = createMockDb({
       'select:project_exploration_task': seq(
-        [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
+        [{ projectId, total: 1, recorded: 1 }],
         [
           {
-            taskId: 'task-1',
-            projectId,
-            kind: 'research',
-            prompt: 'p',
-            route: 'research',
+            taskId: 'task-1', kind: 'research', prompt: 'p', route: 'research',
             batchStatus: 'done',
-            result: { headline: 'ok' },
+            result: { output: { summary: { answer: 'data' } }, error: null },
             repoName: null,
           },
         ],
       ),
-      'select:ops_mma_batch': [
-        {
-          id: 'batch-1',
-          projectId,
-          route: 'research',
-          cwd: '/work',
-          batchId: 'mma',
-          status: 'done',
-          request: {},
-          result: { headline: 'ok' },
-          terminalAt: new Date(),
-        },
-      ],
-      'insert:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration', version: 1, bodyMd: 'synthesis' }],
-      'select:project_artifact': [
-        {
-          id: 'art-1',
-          projectId,
-          kind: 'exploration',
-          version: 1,
-          bodyMd: 'synthesis',
-        },
-      ],
-    });
-
-    const bus = new ProjectEventBus();
-    const sched = new SynthesisScheduler({
-      db: mockDb,
-      bus,
-      debounceMs: 20,
-      anthropic: mockAnthropic({ byCall: { synthesizeExploration: [synthOutput] } }),
-    });
-    sched.watch(projectId);
-    bus.publish(projectId, { type: 'task.done', taskId: 't1', mmaBatchId: 'b', route: 'research', status: 'recorded' });
-    await new Promise((r) => setTimeout(r, 80));
-    sched.shutdown();
-
-    const arts = await mockDb
-      .select()
-      .from(artifact)
-      .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration')));
-    expect(arts).toHaveLength(1);
-  });
-
-  it('boot reconciliation sweep synthesizes a project owed a final pass (F24)', async () => {
-    const mockDb = createMockDb({
-      'select:project_exploration_task': seq(
-        [{ projectId, total: 1, recorded: 1, latestTerminal: new Date() }],
-        [{ taskId: 'task-1', projectId, kind: 'research', prompt: 'p', route: 'research', batchStatus: 'done', result: { headline: 'ok' }, repoName: null }],
-      ),
-      'select:ops_mma_batch': [
-        {
-          id: 'batch-1',
-          projectId,
-          route: 'research',
-          cwd: '/work',
-          batchId: 'mma',
-          status: 'done',
-          request: {},
-          result: { headline: 'ok' },
-          terminalAt: new Date(),
-        },
-      ],
-      'select:project_artifact': seq([], [{ v: 0 }]),
-      'insert:project_artifact': [{ id: 'art-1' }],
     });
 
     const sched = new SynthesisScheduler({
@@ -182,57 +82,14 @@ describe('SynthesisScheduler', () => {
     sched.shutdown();
 
     expect(swept).toContain(projectId);
+    expect(existsSync(explorationFile())).toBe(true);
   });
 
-  it('leaves a project whose latest artifact already post-dates its tasks untouched (F24)', async () => {
-    const past = new Date(Date.now() - 60_000);
+  it('skips reconciliation when exploration.md already exists', async () => {
+    writeExplorationSummary(projectId, '## Background\n\nAlready done');
+
     const mockDb = createMockDb({
-      'select:project_exploration_task': [
-        {
-          id: 'task-1',
-          projectId,
-          kind: 'research',
-          prompt: 'p',
-          status: 'recorded',
-          mmaBatchId: 'batch-1',
-          createdBy: ownerId,
-        },
-      ],
-      'select:ops_mma_batch': [
-        {
-          id: 'batch-1',
-          projectId,
-          route: 'research',
-          cwd: '/work',
-          batchId: 'mma',
-          status: 'done',
-          request: {},
-          result: { headline: 'ok' },
-          terminalAt: past,
-        },
-      ],
-      'select:project_artifact': seq(
-        [
-          {
-            id: 'art-1',
-            projectId,
-            kind: 'exploration',
-            version: 1,
-            bodyMd: '## Background',
-            createdAt: new Date(),
-          },
-        ],
-        [
-          {
-            id: 'art-1',
-            projectId,
-            kind: 'exploration',
-            version: 1,
-            bodyMd: '## Background',
-            createdAt: new Date(),
-          },
-        ],
-      ),
+      'select:project_exploration_task': [{ projectId, total: 1, recorded: 1 }],
     });
 
     const sched = new SynthesisScheduler({

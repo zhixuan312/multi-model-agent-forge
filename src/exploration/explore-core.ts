@@ -8,7 +8,7 @@ import { repo } from '@/db/schema/workspace';
 import { projectRepo } from '@/db/schema/projects';
 import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
-import { readExplorationSummaryAsync } from '@/projects/project-files';
+import { readExplorationFileAsync } from '@/projects/project-files';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
@@ -117,9 +117,9 @@ export interface ExploreArtifact {
 export async function latestExplorationArtifact(
   projectId: string,
 ): Promise<ExploreArtifact | null> {
-  const bodyMd = await readExplorationSummaryAsync(projectId);
-  if (!bodyMd) return null;
-  return { id: projectId, version: 1, bodyMd };
+  const file = await readExplorationFileAsync(projectId);
+  if (!file) return null;
+  return { id: projectId, version: file.version, bodyMd: file.bodyMd };
 }
 
 /** Project repo subset (for the investigate target selector). */

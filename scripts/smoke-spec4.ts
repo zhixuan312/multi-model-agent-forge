@@ -82,6 +82,9 @@ async function main(): Promise<void> {
         terminal = r.envelope;
         break;
       }
+      if (r.state === 'not_found') {
+        break;
+      }
       lastHeadline = r.headline;
       if (Date.now() > deadline) break;
       await new Promise((res) => setTimeout(res, 1500));

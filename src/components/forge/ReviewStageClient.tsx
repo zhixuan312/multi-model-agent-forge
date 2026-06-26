@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
   ArrowRight,
   Check,
@@ -83,30 +85,18 @@ function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
 /* ── Main Component ──────────────────────────────────────────────── */
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
+  const router = useRouter();
   const readOnly = props.phase !== 'build' && props.phase !== 'learn';
 
   useEffect(() => { stagePhaseStore.set('review'); }, []);
 
-  const [reviewing, setReviewing] = useState(props.reviewRunning);
-  const [applying, setApplying] = useState(props.applyRunning);
   const [activePassNo, setActivePassNo] = useState(props.passes.length || 1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  // SSE listener
-  useEffect(() => {
-    if (!reviewing && !applying) return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    es.onmessage = (msg) => {
-      try {
-        const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if ((e.type === 'dispatch.done' || e.type === 'dispatch.failed') &&
-            (e.handler === 'code-review' || e.handler === 'review-apply')) {
-          window.location.reload();
-        }
-      } catch {}
-    };
-    return () => es.close();
-  }, [reviewing, applying, props.projectId]);
+  const mma = useMmaDispatch(props.projectId);
+
+  const reviewing = props.reviewRunning || mma.busyHandlers.has('code-review');
+  const applying = props.applyRunning || mma.busyHandlers.has('review-apply');
 
   const activePass = props.passes.find((p) => p.passNo === activePassNo);
   const lastPass = props.passes[props.passes.length - 1];
@@ -116,25 +106,18 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const allApplied = activePass ? activePass.appliedIndices.length > 0 : false;
 
   async function runReview() {
-    setReviewing(true);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/review/run`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-      });
-      if (!res.ok) setReviewing(false);
-    } catch { setReviewing(false); }
+    await mma.dispatch(`/api/projects/${props.projectId}/review/run`, 'code-review', {});
+    router.refresh();
   }
 
   async function applySelected() {
     if (!activePass || selected.size === 0) return;
-    setApplying(true);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/review/apply`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passNo: activePass.passNo, findingIndices: [...selected] }),
-      });
-      if (!res.ok) setApplying(false);
-    } catch { setApplying(false); }
+    await mma.dispatch(
+      `/api/projects/${props.projectId}/review/apply`,
+      'review-apply',
+      { passNo: activePass.passNo, findingIndices: [...selected] },
+    );
+    router.refresh();
   }
 
   function toggleSelect(idx: number) {

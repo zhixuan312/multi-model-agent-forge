@@ -119,6 +119,9 @@ async function pollReview(
       });
       continue;
     }
+    if (res.state === 'not_found') {
+      throw new Error('MMA task no longer exists — the server may have restarted.');
+    }
     const envelope = res.envelope as Record<string, unknown> | null;
     const task = (envelope?.task ?? {}) as Record<string, unknown>;
     const taskStatus = task.status as string | undefined;

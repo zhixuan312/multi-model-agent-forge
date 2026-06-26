@@ -142,6 +142,9 @@ async function pollApply(
       });
       continue;
     }
+    if (res.state === 'not_found') {
+      throw new Error('MMA task no longer exists — the server may have restarted.');
+    }
     const envelope = res.envelope as Record<string, unknown> | null;
     const isFlatError = envelope && typeof envelope.code === 'string' && !envelope.task;
     const error = isFlatError

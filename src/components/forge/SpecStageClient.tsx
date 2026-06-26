@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useMutation } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -210,56 +211,24 @@ export function SpecStageClient(props: SpecStageClientProps) {
       body: JSON.stringify({ stage: 'spec', phase: p }),
     }).catch(() => {});
   };
+  const mma = useMmaDispatch(props.projectId);
+
   const needsAutoDraft = components.length > 0 && components.some(
     (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
   );
-  const [autoDrafting, setAutoDrafting] = useState(
-    () => phase === 'craft' && needsAutoDraft,
-  );
+  const autoDrafting = !!props.pendingAutoDraft || mma.busyHandlers.has('spec-auto-draft');
   const autoDraftFired = useRef(false);
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
   useEffect(() => {
     if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
-    // If already pending from DB (navigated away and back), just show spinner
-    if (props.pendingAutoDraft) { setAutoDrafting(true); autoDraftFired.current = true; return; }
+    if (props.pendingAutoDraft) { autoDraftFired.current = true; return; }
     autoDraftFired.current = true;
-    setAutoDrafting(true);
-    fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-      .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); })
-      .catch((e) => { setError(e instanceof Error ? e.message : 'Auto-draft failed.'); setAutoDrafting(false); });
-    // SSE dispatch.done handler (below) triggers the reload
+    void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
+      .then(() => router.refresh())
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, needsAutoDraft]);
-
-  // SSE listener for auto-draft + refine completion
-  useEffect(() => {
-    if (!autoDrafting && phase !== 'craft') return;
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    const onMessage = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'dispatch.done' && data.handler === 'spec-auto-draft') {
-          setAutoDrafting(false);
-          window.location.reload();
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'spec-auto-draft') {
-          setAutoDrafting(false);
-          setError(data.error ?? 'Auto-draft failed.');
-        }
-        if (data.type === 'dispatch.done' && data.handler === 'spec-refine') {
-          window.location.reload();
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'spec-refine') {
-          setError(data.error ?? 'Refinement failed.');
-        }
-      } catch { /* ignore parse errors */ }
-    };
-    es.onmessage = onMessage;
-    return () => es.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoDrafting, phase, props.projectId]);
 
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
@@ -328,16 +297,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setComponents(next);
             setPicked(new Set(next.map((c) => c.kind)));
             setPhase('craft');
-            setAutoDrafting(true);
-            fetch(`/projects/${props.projectId}/spec/auto-draft`, { method: 'POST' })
-              .then((r) => { if (!r.ok) throw new Error(`Auto-draft failed (${r.status})`); return r.json(); })
-              .then((data: { error?: string }) => {
-                if (data.error) { setError(data.error); return; }
-                router.refresh();
-                window.location.reload();
-              })
-              .catch((e) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'))
-              .finally(() => setAutoDrafting(false));
+            void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
+              .then(() => router.refresh())
+              .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
           }}
           onError={setError}
         />
@@ -373,6 +335,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           voiceEnabled={props.voiceEnabled ?? false}
           pendingApply={props.pendingApply}
           driving={auto === 'running'}
+          mma={mma}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -1409,6 +1372,7 @@ function DocumentScreen({
   voiceEnabled,
   pendingApply,
   driving,
+  mma,
   onAdvance,
   onAssembled,
   onError,
@@ -1424,6 +1388,7 @@ function DocumentScreen({
   voiceEnabled: boolean;
   pendingApply?: string | null;
   driving: boolean;
+  mma: MmaDispatchState;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1492,62 +1457,40 @@ function DocumentScreen({
     }
   }
 
-  // Audit also runs as a plain fetch (same reason as assemble) so the automation
-  // driver below can fire it from an effect without the mutation observer sticking.
-  const [auditing, setAuditing] = useState(false);
+  const auditing = mma.busyHandlers.has('spec-audit');
   const auditingRef = useRef(false);
   async function runAudit(): Promise<void> {
     if (auditingRef.current) return;
     auditingRef.current = true;
-    setAuditing(true);
     try {
-      await postJson<{ batchId: string }>(`/projects/${projectId}/spec/audit`, {});
-      // PollManager handles polling server-side; SSE delivers dispatch.done
-    } catch (e) {
-      onError(e instanceof Error ? e.message : 'Audit failed.');
+      await mma.dispatch(`/projects/${projectId}/spec/audit`, 'spec-audit', {});
       auditingRef.current = false;
-      setAuditing(false);
+      // Fetch fresh audit data and append to the chat
+      const res = await fetch(`/projects/${projectId}/spec/audit-history`);
+      if (res.ok) {
+        const history = (await res.json()) as AuditPassView[];
+        const latest = history[history.length - 1];
+        const findings = latest?.findings ?? [];
+        if (findings.length > 0) {
+          setRounds((r) => [...r, { passNo: latest.passNo, verdict: latest.verdict, findings, applied: false }]);
+          setCanFreeze(false);
+          setMessages((m) => [
+            ...m,
+            { id: nid(), role: 'audit', passNo: latest.passNo, verdict: latest.verdict, findings },
+          ]);
+        } else {
+          setCanFreeze(true);
+          setMessages((m) => [
+            ...m,
+            { id: nid(), role: 'forge', text: 'Audit passed — no findings. The spec is ready to freeze.' },
+          ]);
+        }
+      }
+    } catch (e) {
+      auditingRef.current = false;
+      onError(e instanceof Error ? e.message : 'Audit failed.');
     }
   }
-
-  // SSE listener for all document-phase dispatch events (audit + apply)
-  useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${projectId}/events`);
-    const onMessage = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'dispatch.done' && data.handler === 'spec-audit') {
-          auditingRef.current = false;
-          setAuditing(false);
-          window.location.reload();
-        }
-        if (data.type === 'dispatch.failed' && data.handler === 'spec-audit') {
-          auditingRef.current = false;
-          setAuditing(false);
-          onError(data.error ?? 'Audit failed.');
-        }
-        if ((data.type === 'dispatch.done' || data.type === 'dispatch.failed') && data.handler === 'spec-audit-apply') {
-          setApplyDone((prev) => prev + 1);
-          // Check if all apply batches are terminal
-          fetch(`/projects/${projectId}/spec/audit-apply/status`)
-            .then((r) => r.json())
-            .then((s: { allDone: boolean; done: number; total: number }) => {
-              setApplyDone(s.done);
-              setApplyTotal(s.total);
-              applyTotalRef.current = s.total;
-              if (s.allDone) {
-                setApplying(false);
-                setApplied(true);
-              }
-            })
-            .catch(() => {});
-        }
-      } catch { /* ignore parse errors */ }
-    };
-    es.onmessage = onMessage;
-    return () => es.close();
-  }, [projectId, onError]);
 
   // Automated mode (Spec Document → end): run the audit passes until clean
   // (clearing critical/high), exactly like Plan's Validate, then hand to Plan.
@@ -1613,7 +1556,6 @@ function DocumentScreen({
   const applyTotalRef = useRef(0);
   const [applyDone, setApplyDone] = useState(0);
 
-  /** Apply a chosen subset (or all) of a pass's findings — dispatches per-section revisions. */
   function apply(passNo: number, indices: number[], total: number): void {
     if (readOnly || indices.length === 0 || applying) return;
     const round = rounds.find((r) => r.passNo === passNo);
@@ -1639,6 +1581,27 @@ function DocumentScreen({
       setApplying(false);
     });
   }
+
+  // Listen for spec-audit-apply completion — the mma hook's SSE receives these
+  // events (dispatch.done handler='spec-audit-apply') but since apply dispatches
+  // multiple per-section batches, we poll the status endpoint on each event.
+  useEffect(() => {
+    if (!applying) return;
+    // The parent's useMmaDispatch SSE already fires for this handler.
+    // Poll the status endpoint periodically while applying is true.
+    const interval = setInterval(() => {
+      fetch(`/projects/${projectId}/spec/audit-apply/status`)
+        .then((r) => r.json())
+        .then((s: { allDone: boolean; done: number; total: number }) => {
+          setApplyDone(s.done);
+          setApplyTotal(s.total);
+          applyTotalRef.current = s.total;
+          if (s.allDone) { setApplying(false); setApplied(true); }
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [applying, projectId]);
 
   /** Re-post a stored round's findings to the chat (rail card click). */
   function replay(passNo: number): void {

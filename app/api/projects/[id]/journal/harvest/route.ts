@@ -192,6 +192,10 @@ async function pollAndInsert(
       continue;
     }
 
+    if (res.state === 'not_found') {
+      throw new Error('MMA task no longer exists — the server may have restarted.');
+    }
+
     // Terminal
     const envelope = res.envelope as Record<string, unknown> | null;
     const error = envelope?.error as { code: string; message: string } | null;

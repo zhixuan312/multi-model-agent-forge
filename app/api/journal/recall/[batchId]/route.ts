@@ -40,6 +40,13 @@ export async function GET(
   try {
     const result = await client.poll(batchId);
 
+    if (result.state === 'not_found') {
+      return NextResponse.json(
+        { state: 'not_found', error: 'MMA task no longer exists — the server may have restarted.' },
+        { status: 404 },
+      );
+    }
+
     // When terminal, persist the envelope + usage columns on the ops_mma_batch row.
     if (result.state === 'terminal') {
       const db = getDb();

@@ -183,6 +183,10 @@ async function pollAndFinalize(
       continue;
     }
 
+    if (res.state === 'not_found') {
+      throw new Error('MMA task no longer exists — the server may have restarted.');
+    }
+
     const envelope = res.envelope as Record<string, unknown> | null;
     // MMA returns flat { code, message } on match errors (no task/output wrapper)
     const isFlatError = envelope && typeof envelope.code === 'string' && typeof envelope.message === 'string' && !envelope.task;

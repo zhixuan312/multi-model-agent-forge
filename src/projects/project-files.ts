@@ -24,11 +24,37 @@ function projectDir(projectId: string): string {
 /* ── Exploration summary ──────────────────────────────────────────────── */
 
 const EXPLORATION_FILE = 'exploration.md';
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n*/;
+
+export interface ExplorationFile {
+  version: number;
+  updatedAt: string;
+  bodyMd: string;
+}
+
+function parseFrontmatter(content: string): ExplorationFile {
+  const m = content.match(FRONTMATTER_RE);
+  if (m) {
+    const meta = m[1];
+    const versionMatch = meta.match(/^version:\s*(\d+)/m);
+    const updatedMatch = meta.match(/^updated_at:\s*(.+)/m);
+    return {
+      version: versionMatch ? Number(versionMatch[1]) : 1,
+      updatedAt: updatedMatch ? updatedMatch[1].trim() : '',
+      bodyMd: content.slice(m[0].length),
+    };
+  }
+  return { version: 1, updatedAt: '', bodyMd: content };
+}
+
+function stampFrontmatter(bodyMd: string, version: number): string {
+  const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace('T', ' ');
+  return `---\nversion: ${version}\nupdated_at: ${now}\n---\n\n${bodyMd}`;
+}
 
 /**
- * Read the exploration summary markdown from disk (sync).
- * Used in contexts where async is impractical (export collect-artifacts).
- * Returns null if the file doesn't exist yet.
+ * Read the exploration summary from disk (sync).
+ * Returns null if the file doesn't exist.
  */
 export function readExplorationSummary(projectId: string): string | null {
   const filePath = join(projectDir(projectId), EXPLORATION_FILE);
@@ -37,8 +63,16 @@ export function readExplorationSummary(projectId: string): string | null {
 }
 
 /**
- * Read the exploration summary markdown from disk (async).
- * Preferred for request handlers — does not block the event loop.
+ * Read the exploration summary with version (sync).
+ */
+export function readExplorationFile(projectId: string): ExplorationFile | null {
+  const raw = readExplorationSummary(projectId);
+  if (!raw) return null;
+  return parseFrontmatter(raw);
+}
+
+/**
+ * Read the exploration summary from disk (async).
  */
 export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
   try {
@@ -50,26 +84,41 @@ export async function readExplorationSummaryAsync(projectId: string): Promise<st
 }
 
 /**
- * Write the exploration summary markdown to disk.
- * Creates the project directory if it doesn't exist.
- * Returns the file path.
+ * Read the exploration summary with version (async).
+ */
+export async function readExplorationFileAsync(projectId: string): Promise<ExplorationFile | null> {
+  const raw = await readExplorationSummaryAsync(projectId);
+  if (!raw) return null;
+  return parseFrontmatter(raw);
+}
+
+/**
+ * Write the exploration summary to disk with version bump.
+ * Reads the current version, increments, stamps the new file.
  */
 export function writeExplorationSummary(projectId: string, bodyMd: string): string {
   const dir = projectDir(projectId);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const filePath = join(dir, EXPLORATION_FILE);
-  writeFileSync(filePath, bodyMd, 'utf-8');
+  const prev = existsSync(filePath) ? parseFrontmatter(readFileSync(filePath, 'utf-8')) : null;
+  const nextVersion = (prev?.version ?? 0) + 1;
+  writeFileSync(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
   return filePath;
 }
 
 /**
- * Write the exploration summary markdown to disk (async).
- * Preferred for request handlers — does not block the event loop.
+ * Write the exploration summary to disk with version bump (async).
  */
 export async function writeExplorationSummaryAsync(projectId: string, bodyMd: string): Promise<string> {
   const dir = projectDir(projectId);
   await mkdir(dir, { recursive: true });
   const filePath = join(dir, EXPLORATION_FILE);
-  await writeFile(filePath, bodyMd, 'utf-8');
+  let prevVersion = 0;
+  try {
+    const raw = await readFile(filePath, 'utf-8');
+    prevVersion = parseFrontmatter(raw).version;
+  } catch { /* file doesn't exist yet */ }
+  const nextVersion = prevVersion + 1;
+  await writeFile(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
   return filePath;
 }

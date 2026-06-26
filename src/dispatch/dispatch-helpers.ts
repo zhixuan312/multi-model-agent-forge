@@ -25,7 +25,7 @@ export async function findInflight(
   handler: string,
 ): Promise<string | null> {
   const [row] = await db
-    .select({ id: mmaBatch.id })
+    .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt })
     .from(mmaBatch)
     .where(
       and(
@@ -35,7 +35,62 @@ export async function findInflight(
       ),
     )
     .limit(1);
-  return row?.id ?? null;
+  if (!row) return null;
+
+  // Active health check: verify the MMA task still exists.
+  // If MMA restarted, the task is gone (404) — fail this batch immediately
+  // so the user can re-dispatch. This is the self-recovery path.
+  if (row.batchId) {
+    const pm = getPollManager();
+    if (!pm.isRegistered(row.id)) {
+      // PollManager lost track (server restart). Probe MMA directly.
+      try {
+        const { buildMmaClient } = await import('@/mma/server-client');
+        const mma = await buildMmaClient({ db });
+        const probe = await mma.poll(row.batchId);
+        if (probe.state === 'not_found') {
+          await db
+            .update(mmaBatch)
+            .set({ status: 'failed', result: { error: { code: 'task_not_found', message: 'MMA task no longer exists — server may have restarted.' } } as object, terminalAt: new Date() })
+            .where(eq(mmaBatch.id, row.id));
+          return null;
+        }
+        // Still alive — re-register with PollManager so it resumes polling
+        pm.register({
+          batchId: row.id,
+          mmaBatchId: row.batchId,
+          projectId,
+          route: 'orchestrate',
+          taskId: null,
+          handler,
+          createdAt: row.createdAt,
+        });
+      } catch {
+        // MMA unreachable — keep the batch as in-flight, PollManager will retry
+      }
+    }
+  }
+  return row.id;
+}
+
+/**
+ * Return all handler names with in-flight batches for a project.
+ * Used by server components to seed the client's busy state on page load.
+ */
+export async function findPendingHandlers(
+  db: Db,
+  projectId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ handler: mmaBatch.handler })
+    .from(mmaBatch)
+    .where(
+      and(
+        eq(mmaBatch.projectId, projectId),
+        inArray(mmaBatch.status, ['dispatched', 'running']),
+      ),
+    );
+  return rows.map((r) => r.handler).filter((h): h is string => !!h);
 }
 
 export interface LocalDispatchOpts {

@@ -86,6 +86,8 @@ export class PollManager {
     this.now = deps.now ?? Date.now;
     this.rand = deps.rand ?? Math.random;
     ensureHandlersRegistered();
+    // Auto-rehydrate is triggered by getPollManager(), not the constructor,
+    // so tests can create instances without side effects.
   }
 
   /** Suppress timer scheduling — tests drive `pollOnce` by hand. */
@@ -172,6 +174,11 @@ export class PollManager {
 
     // Successful poll → reset the backoff attempt counter.
     entry.attempt = 0;
+
+    if (res.state === 'not_found') {
+      await this.markNotFound(entry);
+      return { kind: 'terminal', state: { status: 'failed' as const, error: { code: 'task_not_found', message: `MMA task ${entry.mmaBatchId} no longer exists (404). The server may have restarted.` }, contextBlockId: null } };
+    }
 
     if (res.state === 'pending') {
       await this.markRunning(entry, res.headline);
@@ -303,6 +310,39 @@ export class PollManager {
     this.deregister(entry.batchId);
   }
 
+  /** MMA returned 404 — task no longer exists (server restarted). Fail immediately. */
+  private async markNotFound(entry: RegisteredBatch): Promise<void> {
+    const state: TerminalState = {
+      status: 'failed',
+      error: { code: 'task_not_found', message: `MMA task ${entry.mmaBatchId} no longer exists (404). The server may have restarted.` },
+      contextBlockId: null,
+    };
+    await this.db
+      .update(mmaBatch)
+      .set({
+        status: 'failed',
+        result: { error: state.error } as object,
+        terminalAt: new Date(),
+      })
+      .where(eq(mmaBatch.id, entry.batchId));
+    if (entry.taskId) {
+      await this.db
+        .update(explorationTask)
+        .set({ status: 'recorded' })
+        .where(eq(explorationTask.id, entry.taskId));
+    }
+    logPoll({
+      level: 'error',
+      event: 'poll.not_found',
+      projectId: entry.projectId,
+      batchId: entry.mmaBatchId,
+      taskId: entry.taskId ?? undefined,
+      detail: 'MMA returned 404 — task lost after server restart',
+    });
+    this.emitTerminal(entry, state);
+    this.deregister(entry.batchId);
+  }
+
   /** 15-min hard timeout → force status='failed' with the synthesized error. */
   private async markTimeout(entry: RegisteredBatch): Promise<void> {
     const state: TerminalState = {
@@ -364,6 +404,27 @@ export class PollManager {
         : { type: 'dispatch.done', batchId: entry.batchId, handler: entry.handler },
       );
     }
+    // Persist failure notifications to DB
+    if (state.status === 'failed' && entry.handler) {
+      void this.insertFailureNotification(entry).catch(() => {});
+    }
+  }
+
+  private async insertFailureNotification(entry: RegisteredBatch): Promise<void> {
+    const { pushDispatchFailure } = await import('@/collab/notification-store');
+    const { project } = await import('@/db/schema/projects');
+    const { eq } = await import('drizzle-orm');
+    const [proj] = await this.db
+      .select({ name: project.name })
+      .from(project)
+      .where(eq(project.id, entry.projectId))
+      .limit(1);
+    await pushDispatchFailure({
+      projectId: entry.projectId,
+      projectName: proj?.name ?? '',
+      handler: entry.handler!,
+      batchId: entry.batchId,
+    }, this.db);
   }
 
   /**
@@ -433,9 +494,12 @@ function errName(err: unknown): string {
   return 'Error';
 }
 
-/** Process-wide singleton (boot registers dispatches here). */
+/** Process-wide singleton — auto-rehydrates on first creation. */
 let singleton: PollManager | null = null;
 export function getPollManager(): PollManager {
-  if (!singleton) singleton = new PollManager();
+  if (!singleton) {
+    singleton = new PollManager();
+    void singleton.rehydrate().catch(() => {});
+  }
   return singleton;
 }

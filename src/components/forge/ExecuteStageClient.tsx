@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMmaDispatch } from '@/hooks/useMmaDispatch';
+import { showToast } from '@/components/ui/toast';
 import {
   ArrowRight,
   CheckCircle2,
@@ -166,6 +168,30 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     ),
   );
 
+  const refresh = useCallback(() => { router.refresh(); }, [router]);
+
+  const mma = useMmaDispatch(props.projectId, {
+    events: {
+      'dispatch.progress': (data: Record<string, unknown>) => {
+        if (data.handler !== 'execute-pipeline' || !data.repoId) return;
+        const rid = data.repoId as string;
+        setJobs((prev) => ({
+          ...prev,
+          [rid]: {
+            status: (data.phase as string) === 'reviewing' ? 'reviewing' : 'implementing',
+            elapsedMs: data.elapsedMs as number,
+            totalTasks: data.totalTasks as number,
+          },
+        }));
+      },
+      'dispatch.failed': (data: Record<string, unknown>) => {
+        if (data.handler !== 'execute-pipeline' || !data.repoId) return;
+        const rid = data.repoId as string;
+        setJobs((prev) => ({ ...prev, [rid]: { status: 'failed', error: (data.error as string) ?? 'Failed' } }));
+      },
+    },
+  });
+
   useEffect(() => stagePhaseStore.set(execPhase), [execPhase]);
   useEffect(
     () =>
@@ -174,35 +200,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       }),
     [],
   );
-
-  // SSE listener for monitor phase
-  useEffect(() => {
-    if (execPhase !== 'monitor') return;
-    if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(`/api/projects/${props.projectId}/events`);
-    es.onmessage = (msg) => {
-      try {
-        const e = JSON.parse(msg.data) as Record<string, unknown>;
-        if (e.handler !== 'execute-pipeline' || !e.repoId) return;
-        const rid = e.repoId as string;
-        if (e.type === 'dispatch.progress') {
-          setJobs((prev) => ({
-            ...prev,
-            [rid]: {
-              status: (e.phase as string) === 'reviewing' ? 'reviewing' : 'implementing',
-              elapsedMs: e.elapsedMs as number,
-              totalTasks: e.totalTasks as number,
-            },
-          }));
-        }
-        if (e.type === 'dispatch.done') window.location.reload();
-        if (e.type === 'dispatch.failed') {
-          setJobs((prev) => ({ ...prev, [rid]: { status: 'failed', error: (e.error as string) ?? 'Failed' } }));
-        }
-      } catch {}
-    };
-    return () => es.close();
-  }, [execPhase, props.projectId]);
 
   async function startExecution() {
     setDispatching(true);
@@ -218,8 +215,8 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       if (res.status === 202) {
         setDispatching(false);
         setExecPhase('monitor');
-        // Init all jobs to implementing
         setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
+        void mma.waitFor('execute-pipeline').then(() => refresh()).catch(() => {});
       } else {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         setDispatchError(json.error ?? `Dispatch failed (HTTP ${res.status})`);

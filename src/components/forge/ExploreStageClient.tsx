@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -267,6 +267,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     }).catch(() => {});
   }, [phase, viewOverride, props.projectId]);
 
+  const synthFired = useRef(false);
+  useEffect(() => {
+    if (phase === 'synthesis' && !bodyMd && !busy && !locked && !synthFired.current) {
+      synthFired.current = true;
+      resynthesize();
+    }
+  }, [phase, bodyMd, busy, locked]);
+
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
       setViewOverride(key as 'brief' | 'discover' | 'synthesize');
@@ -404,10 +412,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Button
               variant="primary"
               className="w-full"
-              onClick={() => {
-                if (allDone && !bodyMd) resynthesize();
-                setViewOverride('synthesize');
-              }}
+              onClick={() => setViewOverride('synthesize')}
               disabled={!allDone || locked || busy}
               loading={busy}
               leftIcon={<ArrowRight />}
@@ -461,8 +466,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Synthesis</CardTitle>
-                <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || busy} loading={busy} leftIcon={<RefreshCw />}>
-                  Re-synthesize
+                <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || busy} loading={busy} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
+                  {busy ? 'Synthesizing…' : bodyMd ? 'Re-synthesize' : 'Synthesize'}
                 </Button>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 !py-4">

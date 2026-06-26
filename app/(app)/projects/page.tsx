@@ -47,7 +47,7 @@ export default async function ProjectsPage() {
   );
 
   const primary = (
-    <Card className="flex min-h-0 flex-col">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <CardContent className="flex min-h-0 flex-1 flex-col">
         {projects.length > 0 ? (
           <ProjectFilterBar projects={projects} />

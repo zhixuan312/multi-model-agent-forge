@@ -191,6 +191,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const readOnly = props.phase !== 'design';
   const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
+  const [messages] = useServerState(props.initialMessages ?? {});
   const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -333,7 +334,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
           craftCollab={props.craftCollab ?? {}}
-          initialMessages={props.initialMessages ?? {}}
+          initialMessages={messages}
           voiceEnabled={props.voiceEnabled ?? false}
           mma={mma}
           onPatch={(id, patch) =>
@@ -816,7 +817,7 @@ function CraftStage({
       const dbMessages = initialMessages[c.id] ?? [];
       const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
         id: m.id,
-        authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? currentMember.id),
+        authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
         body: m.bodyMd,
       }));
       const allPool = [currentMember, ...projectMembers];
@@ -875,7 +876,7 @@ function CraftStage({
         const dbMsgs = initialMessages[c.id] ?? [];
         const discussion: DiscussionMsg[] = dbMsgs.map((m) => ({
           id: m.id,
-          authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? currentMember.id),
+          authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
           body: m.bodyMd,
         }));
         next[c.id] = { participants, discussion };
@@ -1033,10 +1034,10 @@ function CraftStage({
 
     // @Forge triggers the AI to process and respond
     const forgeTagged = /@forge\b/i.test(text);
-    if (forgeTagged && drafted) {
+    const cleanText = forgeTagged ? text.replace(/@forge\s*/gi, '').trim() : '';
+    if (forgeTagged && drafted && cleanText) {
       setRefining(true);
       const history = sectionHistory[active.id] ?? [];
-      const cleanText = text.replace(/@forge\s*/gi, '').trim();
       const newHistory = [...history, { role: 'user' as const, text: cleanText }];
       const compId = active.id;
       setSectionHistory((prev) => ({ ...prev, [compId]: newHistory }));

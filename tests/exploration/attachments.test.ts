@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { beforeEach } from 'vitest';
-import { mkdir, mkdtemp, readdir, stat, writeFile } from 'node:fs/promises';
+import { afterEach, beforeEach } from 'vitest';
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -18,6 +18,10 @@ let workspaceRoot: string;
 
 beforeEach(async () => {
   workspaceRoot = await mkdtemp(join(tmpdir(), 'forge-attach-'));
+});
+
+afterEach(async () => {
+  await rm(workspaceRoot, { recursive: true, force: true });
 });
 
 describe('attachments', () => {

@@ -12,11 +12,10 @@ import { readExplorationSummaryAsync } from '@/projects/project-files';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
- * Brief persistence + the explore rail/summary reads (Spec 5 flow A + D + E).
- * The brain-dump free text is saved as `artifact(kind='exploration_brief')`;
- * re-saving bumps its version. The rail joins exploration_task → mma_batch for
- * the live status/headline/error; the summary reads the latest exploration
- * artifact.
+ * Brief persistence + the explore rail/summary reads.
+ * Brain-dump text: `artifact(kind='exploration_brief')` in DB, versioned.
+ * Rail tasks: `exploration_task` joined to `mma_batch` for live status.
+ * Exploration summary: file-based at `.mma/projects/<id>/exploration.md`.
  */
 
 export const briefSchema = z.object({ text: z.string().max(100_000) });

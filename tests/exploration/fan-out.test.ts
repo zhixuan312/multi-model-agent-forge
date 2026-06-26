@@ -1,10 +1,7 @@
 // @vitest-environment node
-import { eq } from 'drizzle-orm';
-import { artifact } from '@/db/schema/artifacts';
-import { explorationTask } from '@/db/schema/exploration';
 import { proposeFanOut } from '@/exploration/fan-out';
 import { mockAnthropic } from './mock-anthropic';
-import { createMockDb, seq } from '../test-utils/mock-db';
+import { createMockDb } from '../test-utils/mock-db';
 
 describe('proposeFanOut', () => {
   it('proposes N investigate + M research + K journal draft rows', async () => {

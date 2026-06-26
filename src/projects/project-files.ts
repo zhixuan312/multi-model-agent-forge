@@ -16,6 +16,7 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
  */
 
 function projectDir(projectId: string): string {
+  if (!/^[a-z0-9-]+$/i.test(projectId)) throw new Error(`Invalid projectId: ${projectId}`);
   const root = resolveWorkspaceRoot();
   return join(root, '.mma', 'projects', projectId);
 }

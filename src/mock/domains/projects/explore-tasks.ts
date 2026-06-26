@@ -1,4 +1,4 @@
-import type { RailTask, ArtifactCacheEntry } from '@/hooks/useProjectEvents';
+import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
  * Stateful mock for the Exploration fan-out (Spec 5). "Analyze sources" calls
@@ -104,63 +104,6 @@ const RUNNING_HEADLINE: Record<string, string> = {
   research: 'Comparing implementer/reviewer tier patterns…',
   journal: 'Scanning past pipeline decisions…',
 };
-
-/* ── Synthesis artifact ───────────────────────────────────────────────────── */
-
-const ARTIFACT = new Map<string, ArtifactCacheEntry>();
-
-/** Build (or re-build, bumping version) the synthesized exploration brief. */
-export function synthesizeMock(projectId: string): ArtifactCacheEntry {
-  const prev = ARTIFACT.get(projectId);
-  const entry: ArtifactCacheEntry = {
-    id: `mock-artifact-${projectId}`,
-    version: (prev?.version ?? 0) + 1,
-    bodyMd: SYNTH_MD,
-  };
-  ARTIFACT.set(projectId, entry);
-  return entry;
-}
-
-export function getMockArtifact(projectId: string): ArtifactCacheEntry | null {
-  return ARTIFACT.get(projectId) ?? null;
-}
-
-const SYNTH_MD = `## Problem
-
-MMA runs **two** execution pipelines — a sequential criteria loop for read routes (audit, investigate, review, debug, research, journal) and a goal engine for write routes (delegate, execute_plan). Two engines violates Principle 7 ("rods are thin presets over one engine") and doubles the surface to maintain.
-
-## What the codebase shows
-
-- Per-route handlers each compile input via \`briefSlot()\` + per-tool \`tool-config.ts\` before dispatch — input shaping is duplicated.
-- The batch system (\`batch-registry.ts\`, \`batch-cache.ts\`, \`GET /batch/:id\`) exists only for server-side multi-task fan-out the caller could do with N calls.
-- \`ClaudeSession\` / \`CodexCliSession\` store session IDs privately — no getter to surface them for reuse.
-- Sandbox + worktree behavior keys off a read/write route flag rather than the task type.
-
-## External precedent
-
-- Two-tier **implementer → reviewer** with the reviewer on the *opposite* tier maximizes model diversity (different failure modes catch more).
-- A single **goal prompt** with the criteria encoded in a skill file replaces the per-criterion loop — simpler, at the cost of prefix caching.
-- **git worktrees** give cheap parallel isolation for write tasks; deterministic annotate (git diff + structured JSON) avoids an LLM judge.
-
-## Prior decisions (journal)
-
-- Review-as-default is constitutional (Principle 3) — self-review has structural blind spots.
-- Type-specific behavior should live in **skill files**, not pipeline branching.
-- Codex sessions can't resume cross-phase; durable reuse is Claude-only.
-
-## Recommended direction
-
-1. One \`POST /task\` endpoint → a unified **implementer → reviewer → deterministic annotate** pipeline.
-2. A flat **type registry** (default tier · worktree · sandbox) + per-type \`implement.md\` / \`review.md\` skill files.
-3. Collapse \`reviewPolicy\` to \`reviewed | none\`; expose session IDs for opt-in multi-turn reuse.
-4. Remove the batch system and the read/write engine split; worktree-isolate write types.
-
-## Open questions for Spec
-
-- Per-phase vs shared wall-clock budget (Phase 2 starvation).
-- Structured output format for the implementer (not just the reviewer).
-- The enrichment-hook contract for the 3 type-specific pre-dispatch functions.
-`;
 
 /** Remove one task (the card's × button). */
 export function removeMockTask(projectId: string, taskId: string): void {

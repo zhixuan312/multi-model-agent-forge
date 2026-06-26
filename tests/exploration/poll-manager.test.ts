@@ -1,7 +1,4 @@
 // @vitest-environment node
-import { eq } from 'drizzle-orm';
-import { mmaBatch } from '@/db/schema/mma';
-import { explorationTask } from '@/db/schema/exploration';
 import { MmaClient, type MmaClientConfig } from '@/mma/client';
 import { PollManager, backoffMs, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';

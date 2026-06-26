@@ -41,25 +41,21 @@ export interface FanOutResult {
   failed: boolean;
 }
 
-const PROPOSE_SYSTEM = `You are Forge's exploration planner. Given a brain-dump brief, its attachments, and the project's repository subset, propose a small, focused fan-out of read-only tasks.
+const PROPOSE_SYSTEM = `Role: You are a senior technical exploration planner.
 
-Each task spawns a real agent session (an LLM call that reads the codebase or searches the web), so be economical — propose only tasks that will surface information the spec author genuinely needs.
+Task: Analyze the user's brain-dump brief and propose a focused set of investigation, research, and journal recall tasks that will surface the information needed to write a specification.
 
-Task kinds:
-- investigate — one focused codebase question per task (e.g. "how is the DB connection managed", "where are the route handlers"). Each MUST name exactly one target_repo_id from the provided subset. Do NOT split closely related questions into separate tasks — combine them.
-- research — external web research for prior art, libraries, or approaches. Only when the brief references something outside the codebase. Most briefs need 0–1 research tasks.
-- journal — recall prior team decisions relevant to this work. Only when the brief touches an area the team has likely worked on before. Most briefs need 0–1 journal tasks.
+Context: Each task you propose spawns a real agent session — an LLM that reads a codebase, searches the web, or queries a team journal. The results feed into a synthesis brief that grounds the spec stage. Be economical — only propose tasks that surface information the spec author genuinely needs.
 
-Task budget per kind:
-- investigate: 2–5 tasks. This is the core of every exploration — understand the codebase area being changed and what depends on it. Combine related questions into one task ("how is the data layer structured, what schema does it use, and where is it called from" is ONE task, not three). Always propose at least 2.
-- research: 0–2 tasks. Only when the brief involves evaluating external technologies, libraries, or approaches the team hasn't used before. Skip entirely for internal refactors or well-known tech.
-- journal: 1–2 tasks. Always propose at least 1 — there may be prior decisions or learnings relevant to this work. A second only if the brief spans two distinct areas the team has worked on before.
-
-Hard constraints:
+Constraints:
 - Maximum 10 tasks total. Aim for 4–7.
-- Each prompt must meet its floor: research ≥20 chars, journal ≥10 chars.
+- investigate (2–5 tasks): one focused codebase question per task. Combine related questions. Each MUST name exactly one target_repo_id from the provided subset.
+- research (0–2 tasks): web search for external tech, libraries, or approaches. Skip for internal refactors.
+- journal (1–2 tasks): recall prior team decisions. Always propose at least 1.
+- Each prompt must meet its floor: investigate ≥20 chars, research ≥20 chars, journal ≥10 chars.
 - Do not propose tasks for information obvious from the brief itself.
-- Emit only conformant tasks.`;
+
+Output format: Return a JSON object with a "tasks" array. Each task has: kind, prompt, target_repo_id (required for investigate, null for others).`;
 
 /** Build the brief + attachments + repo-subset prompt the orchestrator reads. */
 function buildProposeUser(args: {
@@ -72,13 +68,16 @@ function buildProposeUser(args: {
     .map((a) => `- [${a.kind}] ${a.label}${urlOf(a.payload) ? ` <${urlOf(a.payload)}>` : ''}`)
     .join('\n');
   return [
-    '# Brief',
+    '# Input: Brain-dump brief',
+    '',
     args.brief || '(empty)',
     '',
-    '# Attachments',
+    '# Input: Attachments',
+    '',
     attLines || '(none)',
     '',
-    '# Project repositories (target_repo_id options for investigate)',
+    '# Input: Available repositories (use these IDs for target_repo_id)',
+    '',
     repoLines || '(none)',
   ].join('\n');
 }

@@ -36,17 +36,27 @@ export interface SynthesizeResult {
   version?: number;
 }
 
-const SYNTH_SYSTEM = `You are Forge's exploration synthesizer. You read the completed investigation, research, and journal recall results and produce a grounded brief that a spec author can work from in the next stage.
+const SYNTH_SYSTEM = `Role: You are a senior technical analyst synthesizing exploration findings into a grounded brief.
 
-Write three sections:
+Task: Read the completed investigation, research, and journal recall results below and produce a structured brief that a spec author can work from in the next stage.
 
-**Background** — what problem the team is solving and why. Ground this in the original brain-dump intent, not just the task results. One paragraph.
+Context: Multiple agents have independently investigated the codebase, researched external approaches, and recalled prior team decisions. Their raw outputs are provided as input. Your job is to consolidate, cross-reference, and synthesize — not summarize each task individually.
 
-**Current state** — what the agents actually discovered. Organize by theme, not by task. Be specific: name files, functions, patterns, libraries, and prior decisions. For each finding, note whether it came from codebase investigation, web research, or journal recall. If a task failed, state what was attempted and that findings are unavailable. Do not pad with generic knowledge — only include what the agents found.
+Constraints:
+- Ground every claim in a specific finding from the input — name files, functions, patterns, libraries, line numbers, and prior decisions
+- Organize by theme, not by task — cross-reference findings from different tasks
+- If a task failed, state what was attempted and that findings are unavailable
+- Do not pad with generic knowledge — only include what the agents actually found
+- Be specific and actionable — vague summaries waste the spec author's time
+- Pick ONE concrete approach in the direction section, not "consider options"
 
-**Rough direction** — a concrete proposed approach based on the findings. Not "consider options" — pick one approach and explain why the findings support it. Call out risks or open questions that the spec should address.
+Output format: Return three sections in this exact structure:
 
-Keep it concise but specific. The spec author will use this brief as their starting point — vague summaries waste their time.`;
+**background**: One paragraph — what problem the team is solving and why. Ground in the original intent.
+
+**currentState**: Multiple paragraphs organized by theme — what the agents discovered. Name specific files, functions, schemas, dependencies, patterns. Note the source (investigation/research/journal) for each finding.
+
+**roughDirection**: One concrete proposed approach supported by the findings. Call out risks, open questions, and dependencies the spec should address.`;
 
 /** Build the gap marker for one failed task. */
 export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', repoName: string | null): string {
@@ -86,24 +96,34 @@ export async function buildSynthesizeRequest(
       const env = (r.result ?? {}) as Record<string, unknown>;
       const output = (env.output ?? {}) as Record<string, unknown>;
       const summary = output.summary;
-      const summaryText = typeof summary === 'string' ? summary
-        : summary && typeof summary === 'object' ? JSON.stringify(summary)
-        : '';
-      return `## ${r.route} — ${r.prompt}\n${summaryText}`;
+      let answerText = '';
+      if (typeof summary === 'string') {
+        answerText = summary;
+      } else if (summary && typeof summary === 'object') {
+        const s = summary as Record<string, unknown>;
+        answerText = typeof s.answer === 'string' ? s.answer
+          : typeof s.summary === 'string' ? s.summary
+          : JSON.stringify(s, null, 2);
+      }
+      const kindLabel = r.route === 'investigate' ? 'Investigation' : r.route === 'research' ? 'Research' : 'Journal recall';
+      const repoTag = r.repoName ? ` (repo: ${r.repoName})` : '';
+      return `### ${kindLabel}${repoTag}\n**Question:** ${r.prompt}\n**Findings:**\n${answerText}`;
     })
-    .join('\n\n');
+    .join('\n\n---\n\n');
 
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
   return {
     system: SYNTH_SYSTEM,
     user: [
-      '# Records',
-      recordsBlock || '(no successful records yet)',
+      '# Input: Exploration task results',
       '',
-      '# Failed tasks (you MUST mention each verbatim in Findings)',
-      failureMarkers.join('\n') || '(none)',
-    ].join('\n'),
+      `${successes.length} tasks completed, ${failures.length} failed.`,
+      '',
+      recordsBlock || '(no successful records)',
+      '',
+      failures.length > 0 ? `# Failed tasks (mention each gap in Current state)\n${failureMarkers.join('\n')}` : '',
+    ].filter(Boolean).join('\n'),
   };
 }
 
@@ -141,12 +161,20 @@ export async function synthesize(
       const env = (r.result ?? {}) as Record<string, unknown>;
       const output = (env.output ?? {}) as Record<string, unknown>;
       const summary = output.summary;
-      const summaryText = typeof summary === 'string' ? summary
-        : summary && typeof summary === 'object' ? JSON.stringify(summary)
-        : '';
-      return `## ${r.route} — ${r.prompt}\n${summaryText}`;
+      let answerText = '';
+      if (typeof summary === 'string') {
+        answerText = summary;
+      } else if (summary && typeof summary === 'object') {
+        const s = summary as Record<string, unknown>;
+        answerText = typeof s.answer === 'string' ? s.answer
+          : typeof s.summary === 'string' ? s.summary
+          : JSON.stringify(s, null, 2);
+      }
+      const kindLabel = r.route === 'investigate' ? 'Investigation' : r.route === 'research' ? 'Research' : 'Journal recall';
+      const repoTag = r.repoName ? ` (repo: ${r.repoName})` : '';
+      return `### ${kindLabel}${repoTag}\n**Question:** ${r.prompt}\n**Findings:**\n${answerText}`;
     })
-    .join('\n\n');
+    .join('\n\n---\n\n');
 
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
@@ -156,12 +184,14 @@ export async function synthesize(
     const result = await anthropic.parseWithUsage(SynthesisSchema, {
       system: SYNTH_SYSTEM,
       user: [
-        '# Records',
-        recordsBlock || '(no successful records yet)',
+        '# Input: Exploration task results',
         '',
-        '# Failed tasks (you MUST mention each verbatim in Findings)',
-        failureMarkers.join('\n') || '(none)',
-      ].join('\n'),
+        `${successes.length} tasks completed, ${failures.length} failed.`,
+        '',
+        recordsBlock || '(no successful records)',
+        '',
+        failures.length > 0 ? `# Failed tasks (mention each gap in Current state)\n${failureMarkers.join('\n')}` : '',
+      ].filter(Boolean).join('\n'),
       call: 'synthesizeExploration',
       projectId,
     });

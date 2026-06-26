@@ -162,36 +162,41 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   async function resynthesize(): Promise<void> {
     setBusy(true);
+    setError(null);
     try {
       await postJson(`/api/projects/${props.projectId}/explore/synthesize`, {});
-      // Route returns 202 — SSE dispatch.done will trigger refresh
+      // Poll until the artifact file is updated
+      const prevVersion = artifact?.version ?? 0;
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/projects/${props.projectId}/explore/artifact`);
+          if (!r.ok) return;
+          const a = (await r.json()) as ArtifactCacheEntry | null;
+          if (a && a.bodyMd) {
+            clearInterval(poll);
+            qc.setQueryData(explorationKeys.artifact(props.projectId), a);
+            setBusy(false);
+          }
+        } catch { /* retry next interval */ }
+      }, 3000);
+      // Safety timeout — stop polling after 5 minutes
+      setTimeout(() => { clearInterval(poll); setBusy(false); }, 300_000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Synthesis failed.');
       setBusy(false);
     }
   }
 
-  // SSE listener for dispatch events (propose + synthesize completion)
+  // SSE listener for propose completion (fan-out task proposal)
   useEffect(() => {
     if (typeof EventSource === 'undefined') return;
     const es = new EventSource(`/api/projects/${props.projectId}/events`);
     const onMessage = (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'dispatch.done' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
+        if (data.type === 'dispatch.done' && data.handler === 'explore-propose') {
           setBusy(false);
           refreshTasks();
-          if (data.handler === 'explore-synthesize') {
-            fetch(`/api/projects/${props.projectId}/explore/artifact`)
-              .then((r) => r.ok ? r.json() : null)
-              .then((a) => {
-                if (a) {
-                  qc.setQueryData(explorationKeys.artifact(props.projectId), a as ArtifactCacheEntry);
-                  window.location.reload();
-                }
-              })
-              .catch(() => {});
-          }
         }
         if (data.type === 'dispatch.failed' && (data.handler === 'explore-propose' || data.handler === 'explore-synthesize')) {
           setBusy(false);

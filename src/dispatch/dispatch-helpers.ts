@@ -123,6 +123,7 @@ export async function dispatchAndRegister(opts: DispatchOpts): Promise<string> {
     mmaBatchId,
     projectId: opts.projectId,
     route: opts.route,
+    handler: opts.handler,
     taskId: null,
     createdAt: row.createdAt,
   });

@@ -23,6 +23,7 @@ import {
   Eyebrow,
 } from '@/components/ui';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import type { ProjectPhase } from '@/db/enums';
 
@@ -83,6 +84,8 @@ function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
   const readOnly = props.phase !== 'build' && props.phase !== 'learn';
+
+  useEffect(() => { stagePhaseStore.set('review'); }, []);
 
   const [reviewing, setReviewing] = useState(props.reviewRunning);
   const [applying, setApplying] = useState(props.applyRunning);

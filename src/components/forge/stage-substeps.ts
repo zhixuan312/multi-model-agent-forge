@@ -34,9 +34,7 @@ export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: str
     { key: 'review', label: 'Review' },
   ],
   journal: [
-    { key: 'harvest', label: 'Harvest' },
-    { key: 'curate', label: 'Curate' },
-    { key: 'record', label: 'Record' },
+    { key: 'journal', label: 'Journal' },
   ],
 };
 

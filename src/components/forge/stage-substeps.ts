@@ -12,30 +12,32 @@ import type { StageKind } from '@/db/enums';
 // Every stage marches the same three-beat rhythm — Frame → Work → Seal — and
 // every phase is a single imperative verb, harmonised across all six stages.
 export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: string }[]>> = {
-  // DESIGN
   exploration: [
-    { key: 'scope', label: 'Scope' },
+    { key: 'brief', label: 'Brief' },
     { key: 'discover', label: 'Discover' },
     { key: 'synthesize', label: 'Synthesize' },
   ],
   spec: [
     { key: 'outline', label: 'Outline' },
-    // The section-by-section Q&A authoring — the soul of the app.
     { key: 'craft', label: 'Craft' },
-    { key: 'document', label: 'Document' },
+    { key: 'finalize', label: 'Finalize' },
   ],
   plan: [
-    { key: 'detail', label: 'Detail' },
+    { key: 'refine', label: 'Refine' },
     { key: 'validate', label: 'Validate' },
   ],
-  // BUILD
   execute: [
     { key: 'configure', label: 'Configure' },
     { key: 'monitor', label: 'Monitor' },
+  ],
+  review: [
     { key: 'review', label: 'Review' },
   ],
-  // LEARN
-  journal: [],
+  journal: [
+    { key: 'harvest', label: 'Harvest' },
+    { key: 'curate', label: 'Curate' },
+    { key: 'record', label: 'Record' },
+  ],
 };
 
 let current = '';

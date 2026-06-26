@@ -2,7 +2,7 @@
 
 import { FileText } from 'lucide-react';
 import { Title, Eyebrow, Mono, Micro, TextSm } from '@/components/ui';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
 import { cn } from '@/lib/cn';
 import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
@@ -150,9 +150,9 @@ function KnowledgeSection({ label, body }: { label: string; body: string }) {
   return (
     <section>
       <Eyebrow as="h3" className="text-ink-faint">{label}</Eyebrow>
-      <Markdown className="mt-1.5 prose-p:my-2.5 prose-p:text-[15px] prose-p:leading-relaxed prose-p:text-ink-soft prose-li:text-[15px] prose-li:text-ink-soft prose-strong:text-ink">
+      <ProseBlock className="mt-1.5 prose-p:my-2.5 prose-p:text-[15px] prose-p:leading-relaxed prose-p:text-ink-soft prose-li:text-[15px] prose-li:text-ink-soft prose-strong:text-ink">
         {body || '_(none)_'}
-      </Markdown>
+      </ProseBlock>
     </section>
   );
 }

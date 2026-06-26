@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, Field, FieldGrid, Input, Button, Badge, TextStrong, Micro, Mono } from '@/components/ui';
 import { KeyRound, Pencil } from 'lucide-react';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
@@ -342,7 +342,7 @@ export function ConnectionsForm({
 
       {/* RAIL — one combined note */}
       <div className="flex flex-col gap-4">
-        <SettingsAccessNote body={CONNECTIONS_NOTE} icon={<KeyRound />} />
+        <RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>
       </div>
     </div>
   );

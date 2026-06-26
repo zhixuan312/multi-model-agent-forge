@@ -86,27 +86,29 @@ export function mockMma(opts: {
   });
 }
 
-/** A clean audit envelope (no critical/high → verdict 'clean'). */
+/** A v5.4 audit terminal envelope. */
 export function auditEnvelope(
   findings: Array<{ severity: string; category?: string; claim?: string }>,
   extra?: { headline?: string; contextBlockId?: string },
 ): unknown {
   return {
-    headline: extra?.headline ?? `audit: ${findings.length} finding(s)`,
-    results: [],
-    batchTimings: { kind: 'not_applicable' },
-    costSummary: { kind: 'not_applicable' },
-    structuredReport: {
-      summary: `${findings.length} finding(s)`,
-      findings: findings.map((f) => ({
-        severity: f.severity,
-        category: f.category ?? 'coherence',
-        claim: f.claim ?? 'a finding',
-      })),
-      findingsOutcome: findings.length > 0 ? 'found' : 'clean',
+    task: { type: 'audit', status: 'done', taskId: 'mock-audit' },
+    output: {
+      summary: {
+        findings: findings.map((f) => ({
+          severity: f.severity,
+          category: f.category ?? 'coherence',
+          claim: f.claim ?? 'a finding',
+        })),
+        findingsOutcome: findings.length > 0 ? 'found' : 'clean',
+      },
+      filesChanged: [],
+      contextBlockId: extra?.contextBlockId ?? null,
     },
-    ...(extra?.contextBlockId ? { contextBlockId: extra.contextBlockId } : {}),
-    error: { kind: 'not_applicable' },
+    execution: { sessions: { implementer: 'mock', reviewer: null }, worktree: null },
+    metrics: { totalCostUsd: 0, totalDurationMs: 0, totalUsage: { inputTokens: 0, outputTokens: 0 }, implementer: null, reviewer: null },
+    raw: { implementer: '', reviewer: null },
+    error: null,
   };
 }
 

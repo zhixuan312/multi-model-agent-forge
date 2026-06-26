@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { History } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { WriteLogView } from '@/components/forge/journal/WriteLogView';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { RailLayout } from '@/components/forge/journal/journal-shell';
 import type { LogEntry } from '@/journal/types';
 
@@ -30,7 +30,7 @@ export function LogTab({ log }: { log: LogEntry[] }) {
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
 
   return (
-    <RailLayout rail={<SettingsAccessNote body={LOG_NOTE} icon={<History />} />}>
+    <RailLayout rail={<RailNote icon={<History />}>{LOG_NOTE}</RailNote>}>
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
           <WriteLogView log={log} onNavigate={onNavigate} />

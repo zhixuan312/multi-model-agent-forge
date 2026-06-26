@@ -23,6 +23,7 @@ export default async function JournalStagePage({ params, searchParams }: { param
 
   const proj = await getProject(id);
   if (!proj) notFound();
+
   const db = getDb();
 
   const candidates = await db.select().from(learningCandidate)

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
@@ -11,16 +12,20 @@ import {
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { getStagePermissions } from '@/projects/stage-gate';
+import { ensureStageReached } from '@/projects/stage-lifecycle';
 import { getDb } from '@/db/client';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
+import type { StageKind } from '@/db/enums';
 
-/**
- * Project shell (Spec 3 flow 3). Guarded: `assertProjectReadable` throws for a
- * hidden private project → `notFound()` (404, anti-enumeration — never 403 on
- * the read path). Sets `data-phase` from `project.phase` (CSS swaps tokens; JS
- * never branches on phase). Renders the real ProjectTopbar + stage-driven
- * StageStepper across all stage routes.
- */
+const SEGMENT_TO_STAGE: Record<string, StageKind> = {
+  explore: 'exploration',
+  spec: 'spec',
+  plan: 'plan',
+  execute: 'execute',
+  review: 'review',
+  journal: 'journal',
+};
+
 export default async function ProjectLayout({
   children,
   params,
@@ -39,11 +44,24 @@ export default async function ProjectLayout({
     throw e;
   }
 
+  const db = getDb();
+
+  const h = await headers();
+  const pathname = h.get('x-pathname') ?? '';
+  const segments = pathname.split('/');
+  const idIdx = segments.indexOf(id);
+  const stageSegment = idIdx >= 0 ? segments[idIdx + 1] ?? '' : '';
+  const viewingStage = SEGMENT_TO_STAGE[stageSegment];
+
+  if (viewingStage) {
+    await ensureStageReached(db, id, viewingStage);
+  }
+
   const project = await getProject(id);
   if (!project) notFound();
   const [stages, perms] = await Promise.all([
     getProjectStages(id),
-    getStagePermissions(getDb(), id),
+    getStagePermissions(db, id),
   ]);
 
   const PERM_KEY: Record<string, keyof typeof perms> = {

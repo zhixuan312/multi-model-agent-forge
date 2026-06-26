@@ -4,7 +4,7 @@ import { readMmaTiers } from '@/mma/mma-config-reader';
 import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame, MetricCard } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { ModelsPanel } from './ModelsPanel';
 
 const MODELS_NOTE = `### Agent tiers
@@ -58,7 +58,7 @@ export default async function ModelsPage() {
             <ModelsPanel tiers={tiers} suggestions={suggestions} />
           </div>
           <div className="flex flex-col gap-4">
-            <SettingsAccessNote body={MODELS_NOTE} icon={<Cpu />} />
+            <RailNote icon={<Cpu />}>{MODELS_NOTE}</RailNote>
           </div>
         </div>
       </div>

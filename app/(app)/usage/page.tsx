@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
 import { DollarSign, TrendingUp, Clock, Cpu } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
-import { PageFrame, MetricCard } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { PageFrame } from '@/components/ui';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { usageOverview, routeAggForSource, type Period, type RouteAggRow } from '@/usage/usage-core';
 import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/format';
 import { UsageTabsNav } from './UsageTabsNav';
@@ -69,51 +70,44 @@ export default async function UsageOverviewPage({
         </Suspense>
       }
     >
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard
-            label="Spent"
-            value={formatCost(data.metrics.totalCost)}
-            sublabel={`${data.metrics.taskCount} tasks`}
-            icon={<DollarSign />}
-            iconTint="accent"
-            muted={data.metrics.taskCount === 0}
-          />
-          <MetricCard
-            label="Saved"
-            value={formatCost(data.metrics.totalSaved || null)}
-            sublabel={formatRoi(data.metrics.totalSaved, data.metrics.totalCost)}
-            icon={<TrendingUp />}
-            iconTint="sage"
-            muted={!data.metrics.totalSaved}
-          />
-          <MetricCard
-            label="Agent Hours"
-            value={formatDuration(data.metrics.totalDurationMs)}
-            sublabel="work done while you focused elsewhere"
-            icon={<Clock />}
-            iconTint="rose"
-            muted={data.metrics.totalDurationMs === 0}
-          />
-          <MetricCard
-            label="Tokens"
-            value={formatTokens(data.metrics.totalTokens)}
-            sublabel="input + output"
-            icon={<Cpu />}
-            iconTint="steel"
-            muted={data.metrics.totalTokens === 0}
-          />
-        </div>
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            <UsageBatchTable data={tableRows} detailBySource={detailBySource} />
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote body={NOTE} icon={<DollarSign />} />
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        metrics={[
+          {
+            label: 'Spent',
+            value: formatCost(data.metrics.totalCost),
+            sublabel: `${data.metrics.taskCount} tasks`,
+            icon: <DollarSign />,
+            iconTint: 'accent',
+            muted: data.metrics.taskCount === 0,
+          },
+          {
+            label: 'Saved',
+            value: formatCost(data.metrics.totalSaved || null),
+            sublabel: formatRoi(data.metrics.totalSaved, data.metrics.totalCost),
+            icon: <TrendingUp />,
+            iconTint: 'sage',
+            muted: !data.metrics.totalSaved,
+          },
+          {
+            label: 'Agent Hours',
+            value: formatDuration(data.metrics.totalDurationMs),
+            sublabel: 'work done while you focused elsewhere',
+            icon: <Clock />,
+            iconTint: 'rose',
+            muted: data.metrics.totalDurationMs === 0,
+          },
+          {
+            label: 'Tokens',
+            value: formatTokens(data.metrics.totalTokens),
+            sublabel: 'input + output',
+            icon: <Cpu />,
+            iconTint: 'steel',
+            muted: data.metrics.totalTokens === 0,
+          },
+        ]}
+        primary={<UsageBatchTable data={tableRows} detailBySource={detailBySource} />}
+        aside={<RailNote icon={<DollarSign />}>{NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

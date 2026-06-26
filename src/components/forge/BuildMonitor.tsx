@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { ProjectEvent } from '@/sse/event-bus';
 import type { BuildView, PlanTaskView } from '@/build/build-core';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Card, CardContent, Badge, Banner, Heading, Text, TextSm, Mono } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
@@ -161,7 +161,7 @@ export function BuildMonitor({ projectId, initial }: { projectId: string; initia
                 Plan v{initial.planVersion} (markdown)
               </summary>
               <div className="mt-2 max-h-80 overflow-auto rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
-                <Markdown>{initial.planMd}</Markdown>
+                <ProseBlock>{initial.planMd}</ProseBlock>
               </div>
             </details>
           ) : (

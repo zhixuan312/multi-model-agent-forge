@@ -28,13 +28,14 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { RoleChip } from '@/components/forge/RoleChip';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
-import { ForgeComposer } from '@/components/forge/ForgeComposer';
+import { ConversationComposer } from '@/components/patterns/conversation';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Avatar,
@@ -118,7 +119,7 @@ interface SpecStageClientProps {
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
   /** URL-persisted initial phase (outline/craft/document). */
-  initialPhase?: 'outline' | 'craft' | 'document';
+  initialPhase?: 'outline' | 'craft' | 'finalize';
 }
 
 /** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
@@ -127,7 +128,7 @@ interface CraftSeed {
   draftMd: string;
 }
 
-type SpecPhase = 'outline' | 'craft' | 'document';
+type SpecPhase = 'outline' | 'craft' | 'finalize';
 
 const KIND_ICON: Record<ComponentKind, LucideIcon> = {
   context: BookOpen,
@@ -195,7 +196,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [picked, setPicked] = useState<Set<ComponentKind>>(
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );
-  const derivedPhase: SpecPhase = components.length === 0 ? 'outline' : spec ? 'document' : 'craft';
+  const derivedPhase: SpecPhase = components.length === 0 ? 'outline' : spec ? 'finalize' : 'craft';
   const [phase, setPhaseRaw] = useState<SpecPhase>(props.initialPhase ?? derivedPhase);
 
   const setPhase = (p: SpecPhase) => {
@@ -265,7 +266,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'outline' || ((key === 'craft' || key === 'document') && components.length > 0)) {
+        if (key === 'outline' || ((key === 'craft' || key === 'finalize') && components.length > 0)) {
           setPhase(key as SpecPhase);
         }
       }),
@@ -295,9 +296,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
       <AutomationBar
         mode={auto}
         note={autoNote}
-        disabled={readOnly || phase !== 'document'}
+        disabled={readOnly || phase !== 'finalize'}
         idleHint={
-          phase === 'document'
+          phase === 'finalize'
             ? 'Spec is ready — let Forge finalize it and run Plan → Build → Journal to the end.'
             : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
         }
@@ -356,7 +357,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
           onEditOutline={() => setPhase('outline')}
-          onConsolidate={() => setPhase('document')}
+          onConsolidate={() => setPhase('finalize')}
         />
       ) : (
         <DocumentScreen
@@ -381,24 +382,45 @@ export function SpecStageClient(props: SpecStageClientProps) {
 }
 
 /** Flow navigation for the sections/document phases (not tabs — natural forward/back). */
-/** Standing guidance — the accent-tint note every stage's rail carries. */
-function SpecNote() {
-  return (
-    <div className="flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
-      <span aria-hidden className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
-        <Lightbulb className="size-5" />
-      </span>
-      <div className="min-w-0">
-        <Eyebrow as="h3" className="text-accent-deep">
-          How the spec works
-        </Eyebrow>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-          Pick the skeleton here, then Forge drafts each component{' '}
-          — in any order — and consolidates your answers into one specification document.
-        </p>
-      </div>
-    </div>
-  );
+const SPEC_PHASE_NOTES: Record<string, string> = {
+  outline: `### Outline — pick your components
+
+- **Select** which sections to include (context, goals, technical design, etc.)
+- **Templates** — presets for common project types
+- **Confirm** — locks the skeleton and starts AI-guided drafting
+
+### What happens next
+
+- Forge auto-drafts every section from the exploration brief
+- You refine each section through Q&A conversation`,
+
+  craft: `### Craft — shape each section
+
+- **Q&A** — Forge asks grounded questions; your answers shape the draft
+- **Approve** — mark a section done when it matches your intent
+- **Force** — skip AI questions and write your own draft
+
+### Approval gates
+
+- **AI satisfied** — Forge has enough context (no more questions)
+- **You approve** — the section matches your intent
+- All sections approved → Document phase unlocks`,
+
+  finalize: `### Finalize — assemble & audit
+
+- **Construct** — all approved sections assemble into one spec document
+- **Audit** — MMA checks for gaps, contradictions, and missing detail
+- **Apply fixes** — audit findings auto-revise the spec
+- **Freeze** — locks the spec and opens the Build phase
+
+### When to freeze
+
+- Audit must pass clean (no critical or high findings)
+- Freezing is irreversible — the spec becomes read-only`,
+};
+
+function SpecNote({ phase }: { phase: string }) {
+  return <RailNote icon={<Lightbulb />}>{SPEC_PHASE_NOTES[phase] ?? SPEC_PHASE_NOTES.outline}</RailNote>;
 }
 
 /* ── Outline screen ─────────────────────────────────────────────────────── */
@@ -604,7 +626,7 @@ function OutlineStage({
 
       {/* RIGHT — guidance note (pinned) + the template picker & confirm */}
       <aside className="flex min-h-0 flex-col gap-4">
-        <SpecNote />
+        <SpecNote phase="outline" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Template</CardTitle>
@@ -1141,7 +1163,7 @@ function CraftStage({
                     </span>
                   </div>
                   <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                    <Markdown>{showingDraft ?? ''}</Markdown>
+                    <ProseBlock>{showingDraft ?? ''}</ProseBlock>
                   </div>
                 </div>
               </div>
@@ -1201,13 +1223,13 @@ function CraftStage({
             </div>
           </div>
         ) : (
-          <ForgeComposer
+          <ConversationComposer
             value={input}
             onChange={setInput}
-            onSubmit={submit}
+            onSend={() => submit()}
             disabled={readOnly}
-            voiceEnabled={voiceEnabled}
-            secondaryAction={drafted ? (
+            voice={voiceEnabled}
+            secondaryActions={drafted ? (
               <Button size="sm" variant="secondary" onClick={constructSection} leftIcon={<FileText />}>
                 View spec
               </Button>
@@ -1216,8 +1238,9 @@ function CraftStage({
         )}
       </Card>
 
-      {/* RIGHT — all selected components + progress (1/3) */}
-      <aside className="flex min-h-0 flex-col">
+      {/* RIGHT — guidance + components + progress (1/3) */}
+      <aside className="flex min-h-0 flex-col gap-4">
+        <SpecNote phase="craft" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Components</CardTitle>
@@ -1662,7 +1685,7 @@ function DocumentScreen({
                   </span>
                 </div>
                 <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                  <Markdown>{spec.bodyMd}</Markdown>
+                  <ProseBlock>{spec.bodyMd}</ProseBlock>
                 </div>
               </div>
             </div>
@@ -1724,14 +1747,14 @@ function DocumentScreen({
           </div>
         ) : (
           /* Conversation mode footer — input + show spec / construct */
-          <ForgeComposer
+          <ConversationComposer
             value={input}
             onChange={setInput}
-            onSubmit={sendRefine}
+            onSend={() => sendRefine()}
             disabled={readOnly || !spec}
             placeholder="Tell Forge what to refine across the spec…"
-            voiceEnabled={voiceEnabled}
-            secondaryAction={
+            voice={voiceEnabled}
+            secondaryActions={
               <Button
                 size="sm"
                 variant="ghost"
@@ -1757,8 +1780,9 @@ function DocumentScreen({
         ) : null}
       </Card>
 
-      {/* RIGHT — every audit round + the freeze handoff (1/3) */}
-      <aside className="flex min-h-0 flex-col">
+      {/* RIGHT — guidance + audit rounds + freeze handoff (1/3) */}
+      <aside className="flex min-h-0 flex-col gap-4">
+        <SpecNote phase="finalize" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -1858,9 +1882,9 @@ function SpecDraftCard({ version, md }: { version: number; md: string }) {
           </Badge>
         </div>
         <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-          <Markdown className="max-w-none prose-headings:mb-2 prose-headings:mt-5 first:prose-headings:mt-0">
+          <ProseBlock className="max-w-none prose-headings:mb-2 prose-headings:mt-5 first:prose-headings:mt-0">
             {md}
-          </Markdown>
+          </ProseBlock>
         </div>
       </div>
     </div>

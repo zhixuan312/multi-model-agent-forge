@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
   Card,
@@ -18,7 +18,7 @@ import {
   Text,
   Micro,
 } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -31,7 +31,12 @@ const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E',
 const PROFILE_NOTE = `### Your account
 
 - **Username** — your login key; it can't be changed
-- **Display name & avatar** — yours to edit anytime`;
+- **Display name & avatar** — yours to edit anytime
+
+### Security
+
+- **Password** — changing it signs out all other sessions
+- **Sessions** — each browser/device gets its own; they expire after idle time`;
 
 /**
  * Profile client surface (Spec 1 §Profile). The Team-Settings shell: a 2/3 stack
@@ -289,7 +294,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
 
       {/* RAIL — note + sign out */}
       <div className="flex flex-col gap-4">
-        <SettingsAccessNote body={PROFILE_NOTE} />
+        <RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>
         <Card>
           <CardContent className="flex flex-col gap-3 py-5">
             <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>

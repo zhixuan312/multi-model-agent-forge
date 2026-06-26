@@ -4,9 +4,12 @@ import { stage } from '@/db/schema/projects';
 import type { StageKind } from '@/db/enums';
 
 const PHASE_ORDER: Record<string, string[]> = {
-  exploration: ['scope', 'discover', 'synthesize'],
-  spec: ['outline', 'craft', 'document'],
-  plan: ['detail', 'validate'],
+  exploration: ['brief', 'discover', 'synthesize'],
+  spec: ['outline', 'craft', 'finalize'],
+  plan: ['refine', 'validate'],
+  execute: ['configure', 'monitor'],
+  review: ['review'],
+  journal: ['harvest', 'curate', 'record'],
 };
 
 export async function getLastPhase(db: Db, projectId: string, stageKind: StageKind): Promise<string | null> {

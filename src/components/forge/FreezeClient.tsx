@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Snowflake } from 'lucide-react';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import {
   Button,
   Card,
@@ -205,7 +205,7 @@ export function FreezeClient({
                 )}
               </div>
               <div className="text-sm text-ink">
-                <Markdown>{c.bodyMd}</Markdown>
+                <ProseBlock>{c.bodyMd}</ProseBlock>
               </div>
             </li>
           ))}

@@ -23,7 +23,19 @@ import {
   Eyebrow,
 } from '@/components/ui';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { RailNote } from '@/components/patterns/feature-rail';
 import type { ProjectPhase } from '@/db/enums';
+
+const REVIEW_NOTE = `### How code review works
+
+- **10 categories** — correctness, security, performance, maintainability, testing, error handling, naming, documentation, complexity, style
+- **Findings** — each has a severity, file location, and fix suggestion
+- **Apply** — selected findings are delegated to a worker for automatic fixes
+
+### When to move on
+
+- **Clean pass** — no merge-blocking issues remain
+- **Re-review** — run again after applying fixes to verify`;
 
 /* ── Types ───────────────────────────────────────────────────────── */
 
@@ -291,35 +303,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           ) : null}
         </Card>
 
-        {/* RIGHT — rounds rail */}
+        {/* RIGHT — guidance + rounds rail */}
         <aside className="flex min-h-0 flex-col gap-4">
-          <div className={cn('flex items-start gap-3 rounded-[var(--r-lg)] border px-4 py-4',
-            lastPassClean ? 'border-[var(--sage-tint)] bg-[var(--sage-tint)]/40' : 'border-accent-tint bg-accent-tint/40',
-          )}>
-            <span className={cn('mt-0.5 grid size-9 shrink-0 place-items-center rounded-full',
-              lastPassClean ? 'bg-[var(--sage-tint)] text-[var(--sage)]' : 'bg-accent-tint text-accent',
-            )}>
-              {reviewing ? <Loader2 className="size-5 animate-spin" /> : lastPassClean ? <CheckCircle2 className="size-5" /> : <ScanSearch className="size-5" />}
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-ink">
-                {reviewing ? 'Reviewing…' : applying ? 'Applying fixes…' : lastPassClean ? 'Review clean' : props.passes.length === 0 ? 'Code review' : `${activePass?.findings.length ?? 0} findings`}
-              </h3>
-              {reviewing ? (
-                <p className="mt-1 text-xs leading-relaxed text-ink-soft">MMA sweeps all 10 categories. Findings appear when complete.</p>
-              ) : applying ? (
-                <p className="mt-1 text-xs leading-relaxed text-ink-soft">Delegate worker applying fixes in worktree.</p>
-              ) : lastPassClean ? (
-                <p className="mt-1 text-xs leading-relaxed text-ink-soft">All merge-blocking issues resolved. Ready to close the loop.</p>
-              ) : (
-                <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
-                  <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">10 categories: security, test gaps, cross-file ripple, performance…</li>
-                  <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Select findings to fix — dispatches a delegate worker</li>
-                  <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Re-run until clean or satisfied</li>
-                </ul>
-              )}
-            </div>
-          </div>
+          <RailNote icon={<ScanSearch />}>{REVIEW_NOTE}</RailNote>
 
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>

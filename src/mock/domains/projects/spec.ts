@@ -3,7 +3,7 @@ import { findMockProject } from '@/mock/domains/projects/dashboard';
 import { mockProjectMembers, mockCraftCollab } from '@/mock/domains/collab';
 import type { ComponentView, SectionView } from '@/spec/spec-core';
 import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
-import type { QaMessageView } from '@/components/forge/Composer';
+import type { ConversationMessage as QaMessageView } from '@/components/patterns/conversation';
 import type { AuditPassView, AuditFinding } from '@/components/forge/SpecStageClient';
 import type { MemberRef, UnitCollab } from '@/collab/types';
 

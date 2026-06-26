@@ -480,7 +480,7 @@ export async function advanceStage(
     // Derive phase from the next stage's group
     const nextPhase = (['exploration', 'spec', 'plan'] as const).includes(next as any) ? 'design' as const
       : (['execute', 'review'] as const).includes(next as any) ? 'build' as const
-      : next === 'journal' ? 'build' as const : undefined;
+      : next === 'journal' ? 'learn' as const : undefined;
     await tx
       .update(project)
       .set({ currentStage: next, ...(nextPhase && { phase: nextPhase }), updatedAt: new Date() })

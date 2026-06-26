@@ -11,8 +11,8 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
  * Engineers can edit these files outside Forge. As long as the markdown
  * format is correct, Forge will render them properly.
  *
- * Concurrency: writes are atomic (write-to-temp + rename) within a single
- * process. Cross-process concurrency relies on the OS's rename atomicity.
+ * Concurrency: writes are direct (not atomic rename). Safe for single-process
+ * use. Cross-process concurrent writes may interleave.
  */
 
 function projectDir(projectId: string): string {

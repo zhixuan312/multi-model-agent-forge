@@ -1,6 +1,5 @@
-import { and, eq, max } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
 import { project } from '@/db/schema/projects';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
@@ -11,6 +10,7 @@ import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 import { SynthesisSchema, composeExplorationMarkdown, type Synthesis } from '@/exploration/schemas';
 import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
+import { writeExplorationSummary } from '@/projects/project-files';
 
 /**
  * Synthesize the exploration records into `artifact(kind='exploration')` (Spec 5
@@ -213,36 +213,15 @@ export async function synthesize(
   }
   const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
-  // Bump version = max+1 for kind='exploration'.
-  const [{ v } = { v: null }] = await db
-    .select({ v: max(artifact.version) })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration')));
-  const nextVersion = (v ?? 0) + 1;
+  const filePath = writeExplorationSummary(projectId, bodyMd);
 
-  const artifactId = await db.transaction(async (tx) => {
-    const [a] = await tx
-      .insert(artifact)
-      .values({ projectId, kind: 'exploration', bodyMd, version: nextVersion, createdBy: actor?.id ?? null })
-      .returning({ id: artifact.id });
-    await tx.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
-    if (actor) {
-      await logAction(
-        {
-          projectId,
-          memberId: actor.id,
-          action: 'explore_synthesize',
-          target: `artifact:${a.id}`,
-          meta: { version: nextVersion },
-        },
-        tx as unknown as Db,
-      );
-    }
-    return a.id;
-  });
+  await db.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
+  if (actor) {
+    await logAction({ projectId, memberId: actor.id, action: 'explore_synthesize', target: `file:${filePath}` }, db);
+  }
 
-  bus.publish(projectId, { type: 'synthesis.updated', artifactId, version: nextVersion });
-  return { ok: true, artifactId, version: nextVersion };
+  bus.publish(projectId, { type: 'synthesis.updated', artifactId: projectId, version: 1 });
+  return { ok: true, artifactId: projectId, version: 1 };
 }
 
 function errName(err: unknown): string {

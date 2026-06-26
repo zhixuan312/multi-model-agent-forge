@@ -8,6 +8,7 @@ import { repo } from '@/db/schema/workspace';
 import { projectRepo } from '@/db/schema/projects';
 import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
+import { readExplorationSummary } from '@/projects/project-files';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
@@ -116,15 +117,11 @@ export interface ExploreArtifact {
 /** The latest synthesized exploration artifact (the summary pane). */
 export async function latestExplorationArtifact(
   projectId: string,
-  db: Db = getDb(),
+  _db?: Db,
 ): Promise<ExploreArtifact | null> {
-  const [row] = await db
-    .select({ id: artifact.id, version: artifact.version, bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
-  return row ?? null;
+  const bodyMd = readExplorationSummary(projectId);
+  if (!bodyMd) return null;
+  return { id: projectId, version: 1, bodyMd };
 }
 
 /** Project repo subset (for the investigate target selector). */

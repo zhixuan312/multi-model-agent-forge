@@ -20,6 +20,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailStatus, type RailStatusItem } from '@/components/patterns/feature-rail';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StageShell, StageFullWidth, type StageShellItem } from '@/components/patterns/stage-shell';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -33,6 +34,7 @@ import {
   SelectContent,
   SelectItem,
   Micro,
+  Eyebrow,
   TextSm,
   Title,
   Card,
@@ -72,7 +74,7 @@ interface ExploreStageClientProps {
   voiceEnabled: boolean;
   canMutate?: boolean;
   lockedReason?: string;
-  initialPhase?: 'synthesize';
+  initialPhase?: 'brief' | 'discover' | 'synthesize';
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -246,14 +248,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   // Brief = editable proposal (add/edit tasks). Fan-out = agent execution rail.
   const phase: 'idle' | 'fanout' | 'run' | 'synthesis' = (() => {
     if (!viewOverride) return dataPhase;
-    if (viewOverride === 'brief') return 'fanout';
+    if (viewOverride === 'brief') return dataPhase === 'idle' ? 'idle' : 'fanout';
     if (viewOverride === 'discover') return dispatched > 0 ? 'run' : 'fanout';
-    if (viewOverride === 'synthesize' && bodyMd) return 'synthesis';
+    if (viewOverride === 'synthesize') return 'synthesis';
     return dataPhase;
   })();
-
-  // Clear override when data phase advances past it.
-  useEffect(() => { setViewOverride(null); }, [dataPhase]);
 
   // Publish the sub-phase to the stepper + register the navigation handler.
   useEffect(() => {
@@ -268,12 +267,35 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
       setViewOverride(key as 'brief' | 'discover' | 'synthesize');
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('phase', key);
+        window.history.replaceState(null, '', url.pathname + url.search);
+      }
     });
   }, []);
 
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? null);
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+
+  const taskItems: StageShellItem[] = tasks
+    .filter((t) => t.status !== 'draft')
+    .map((t) => {
+      let status: string;
+      let statusVariant: StageShellItem['statusVariant'];
+      if (t.batchStatus === 'failed') { status = 'failed'; statusVariant = 'rose'; }
+      else if (t.status === 'recorded' || t.batchStatus === 'done') { status = 'recorded'; statusVariant = 'sage'; }
+      else { status = 'running'; statusVariant = 'amber'; }
+      const LABEL: Record<string, string> = { investigate: 'Investigate', research: 'Research', journal: 'Journal recall' };
+      return { id: t.id, label: LABEL[t.kind] ?? t.kind, description: t.prompt, status, statusVariant };
+    });
+
+  const noteEl = <ExplorationNote phase={phase} />;
+  const hasAnalyzed = dispatched > 0 || drafts.length > 0;
+  const [railMode, setRailMode] = useState<'conversation' | 'status'>(hasAnalyzed ? 'status' : 'conversation');
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      {/* Lock status is shown in the stage stepper — no in-page banner needed */}
       <AutomationBar
         mode="off"
         note=""
@@ -282,79 +304,170 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         onRun={() => {}}
         onStop={() => {}}
       />
-      {/* CENTRE action stage (2/3) ∣ Brain-dump input (1/3) */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        {/* CENTRE — one evolving stage: idle → fan-out → run → synthesis */}
-        <div className="flex min-h-0 flex-col lg:col-span-2">
-          {phase === 'idle' ? (
-            <IdleStage />
-          ) : phase === 'fanout' ? (
-            <FanOutCard
-              className="min-h-0 flex-1"
-              projectId={props.projectId}
-              drafts={drafts}
-              allTasks={tasks}
-              repoOptions={props.repoOptions}
-              onChanged={refreshTasks}
-              onRun={run}
-              canRun={drafts.length > 0 && !busy && !locked}
-            />
-          ) : phase === 'run' ? (
-            <RunStage
-              className="min-h-0 flex-1"
-              tasks={tasks}
-              dispatched={dispatched}
-              recorded={recorded}
-              allDone={allDone}
-              synthesizing={busy}
-              onSynthesize={locked ? () => {} : resynthesize}
-              locked={locked}
-            />
-          ) : (
-            <SummaryPane
-              className="min-h-0 flex-1"
-              bodyMd={bodyMd as string}
-              version={version}
-              busy={busy}
-              onResynthesize={locked ? () => {} : resynthesize}
-              locked={locked}
-              projectId={props.projectId}
-            />
-          )}
+
+      {/* Brief phase: original layout — content left, brain-dump/status right */}
+      {(phase === 'idle' || phase === 'fanout') ? (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="flex min-h-0 flex-col lg:col-span-2">
+            {phase === 'idle' ? (
+              <IdleStage />
+            ) : (
+              <FanOutCard
+                className="min-h-0 flex-1"
+                projectId={props.projectId}
+                drafts={drafts}
+                allTasks={tasks}
+                repoOptions={props.repoOptions}
+                onChanged={refreshTasks}
+                onRun={run}
+                canRun={drafts.length > 0 && !busy && !locked}
+              />
+            )}
+          </div>
+          <aside className="flex min-h-0 flex-col gap-4">
+            {noteEl}
+            <Card className="flex min-h-0 flex-1 flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CardTitle>{railMode === 'conversation' ? 'Brain-dump' : 'Exploration'}</CardTitle>
+                  {dispatched > 0 ? (
+                    <Badge variant={allDone ? 'sage' : 'amber'} size="sm">
+                      {allDone ? 'complete' : `${recorded}/${dispatched}`}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-1 rounded-full bg-surface-2 p-0.5">
+                  <button type="button" onClick={() => setRailMode('conversation')} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', railMode === 'conversation' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => hasAnalyzed && setRailMode('status')} disabled={!hasAnalyzed} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors', !hasAnalyzed && 'opacity-40 cursor-not-allowed', railMode === 'status' ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')}>
+                    Status
+                  </button>
+                </div>
+              </CardHeader>
+
+              {railMode === 'conversation' ? (
+                <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
+                  <ConversationComposer
+                    value={brief}
+                    onChange={locked ? () => {} : setBrief}
+                    onSend={locked ? () => {} : () => { analyze(); setRailMode('status'); }}
+                    voice={props.voiceEnabled && !locked}
+                    attachments
+                    disabled={locked}
+                    loading={busy}
+                    placeholder="Tell Forge everything you know…"
+                    submitLabel={busy ? 'Thinking…' : 'Analyze sources'}
+                    rows={0}
+                    className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
+                  />
+                  {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
+                </CardContent>
+              ) : (
+                <>
+                  <CardContent className="min-h-0 flex-1 !py-4">
+                    <div className="space-y-0">
+                      <StatRow label="Total tasks" value={String(tasks.length)} />
+                      <StatRow label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
+                      <StatRow label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
+                      <StatRow label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex-col !items-stretch gap-2">
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        if (!hasAnalyzed) { analyze(); }
+                        setViewOverride('discover');
+                      }}
+                      disabled={locked || busy || !brief.trim()}
+                      loading={busy}
+                      leftIcon={<ArrowRight />}
+                    >
+                      {busy ? 'Analyzing…' : hasAnalyzed ? 'Continue to Discover' : 'Analyze & Discover'}
+                    </Button>
+                  </CardFooter>
+                </>
+              )}
+            </Card>
+          </aside>
         </div>
 
-        {/* RIGHT — guidance note pinned on top, then the brain-dump input
-            (editable at every phase) filling the rest of the column. */}
-        <aside className="flex min-h-0 flex-col gap-4">
-          <ExplorationNote phase={phase} />
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader>
-              <CardTitle>Brain-dump</CardTitle>
-              {phase === 'idle' ? (
-                <Micro className="!text-ink-faint">Text · voice · files</Micro>
-              ) : (
-                <Micro className="!text-ink-faint">Edit &amp; re-analyze anytime</Micro>
-              )}
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
-              <ConversationComposer
-                value={brief}
-                onChange={locked ? () => {} : setBrief}
-                onSend={locked ? () => {} : () => analyze()}
-                voice={props.voiceEnabled && !locked}
-                attachments
-                disabled={locked}
-                loading={busy}
-                placeholder="Tell Forge everything you know…"
-                submitLabel={busy ? 'Thinking…' : 'Analyze sources'}
-                rows={0}
-                className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
-              />
-              {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+      /* Discover phase: task list in rail, selected task detail in main */
+      ) : phase === 'run' ? (
+        <StageShell
+          note={noteEl}
+          items={taskItems}
+          activeId={selectedTaskId}
+          onSelect={setSelectedTaskId}
+          listTitle="Tasks"
+          listProgress={`${recorded}/${dispatched}`}
+          listActions={allDone ? (
+            <Button onClick={locked ? () => {} : resynthesize} loading={busy} disabled={locked || busy} leftIcon={<Sparkles />} className="w-full">
+              {busy ? 'Synthesizing…' : 'Synthesize brief'}
+            </Button>
+          ) : undefined}
+          footer={
+            <StageAdvance
+              href={`/projects/${props.projectId}/spec`}
+              label="Continue to Spec"
+              disabled={!bodyMd || !allDone}
+              projectId={props.projectId}
+              from="exploration"
+            />
+          }
+        >
+          <CardHeader>
+            <CardTitle>{selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.label ?? '') : 'Select a task'}</CardTitle>
+          </CardHeader>
+          {selectedTask ? (
+            <div className="border-b border-line px-5 py-3">
+              <Eyebrow className="mb-1 !text-ink-faint">Prompt</Eyebrow>
+              <p className="text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
+            </div>
+          ) : null}
+          <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
+            {!selectedTask ? (
+              <div className="grid h-full place-items-center">
+                <p className="text-sm text-ink-faint">Select a task from the list to view its output.</p>
+              </div>
+            ) : selectedTask.batchStatus === 'failed' ? (
+              <div className="flex flex-col items-center gap-2 py-8">
+                <p className="text-sm font-medium text-[var(--rose)]">Task failed</p>
+                <p className="text-xs text-ink-soft">{selectedTask.error?.message ?? 'Unknown error.'}</p>
+              </div>
+            ) : selectedTask.status !== 'recorded' && selectedTask.batchStatus !== 'done' ? (
+              <div className="grid h-full place-items-center">
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="size-6 animate-spin text-accent" />
+                  <p className="text-sm text-ink-faint">{selectedTask.headline ?? 'Running…'}</p>
+                </div>
+              </div>
+            ) : selectedTask.outputMd ? (
+              <>
+                <Eyebrow className="mb-2 !text-ink-faint">Findings</Eyebrow>
+                <ProseBlock variant="document">{selectedTask.outputMd}</ProseBlock>
+              </>
+            ) : (
+              <p className="py-8 text-center text-sm text-ink-faint">No output available.</p>
+            )}
+          </CardContent>
+        </StageShell>
+
+      /* Synthesize phase: full-width summary */
+      ) : (
+        <StageFullWidth note={noteEl}>
+          <SummaryPane
+            className="min-h-0 flex-1"
+            bodyMd={bodyMd as string}
+            version={version}
+            busy={busy}
+            onResynthesize={locked ? () => {} : resynthesize}
+            locked={locked}
+            projectId={props.projectId}
+          />
+        </StageFullWidth>
+      )}
     </div>
   );
 }
@@ -478,6 +591,15 @@ const PHASE_NOTES: Record<string, string> = {
 function ExplorationNote({ phase }: { phase: string }) {
   const key = phase === 'idle' ? 'brief' : phase === 'fanout' ? 'discover' : phase === 'run' ? 'discover' : 'synthesize';
   return <RailNote icon={<Lightbulb />}>{PHASE_NOTES[key]}</RailNote>;
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-line py-2.5 last:border-b-0">
+      <span className="text-sm text-ink-soft">{label}</span>
+      <span className="text-sm font-semibold text-ink">{value}</span>
+    </div>
+  );
 }
 
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */

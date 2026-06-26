@@ -73,7 +73,7 @@ export default async function ExploreStagePage({
       voiceEnabled={voiceEnabled}
       canMutate={perms.explore.canMutate}
       lockedReason={perms.explore.reason}
-      initialPhase={phaseParam === 'synthesize' ? 'synthesize' : undefined}
+      initialPhase={phaseParam === 'brief' || phaseParam === 'discover' || phaseParam === 'synthesize' ? phaseParam : undefined}
     />
   );
 }

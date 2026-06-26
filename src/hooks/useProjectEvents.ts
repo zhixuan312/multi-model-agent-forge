@@ -33,6 +33,7 @@ export interface RailTask {
   batchStatus: string | null;
   headline: string | null;
   error: { code: string; message: string } | null;
+  outputMd: string | null;
 }
 
 export interface ArtifactCacheEntry {

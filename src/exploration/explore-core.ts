@@ -75,11 +75,23 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
     .orderBy(explorationTask.createdAt);
 
   return rows.map((r) => {
-    const env = (r.result ?? {}) as { headline?: string; error?: { code?: string; message?: string; kind?: string } };
+    const env = (r.result ?? {}) as Record<string, unknown>;
+    const errObj = env.error as { code?: string; message?: string; kind?: string } | undefined;
     const err =
-      env.error && env.error.kind !== 'not_applicable' && env.error.code
-        ? { code: env.error.code, message: env.error.message ?? 'The task failed.' }
+      errObj && errObj.kind !== 'not_applicable' && errObj.code
+        ? { code: errObj.code, message: errObj.message ?? 'The task failed.' }
         : null;
+    const output = (env.output ?? {}) as Record<string, unknown>;
+    const summary = output.summary;
+    let outputMd: string | null = null;
+    if (typeof summary === 'string') {
+      outputMd = summary;
+    } else if (summary && typeof summary === 'object') {
+      const s = summary as Record<string, unknown>;
+      outputMd = typeof s.answer === 'string' ? s.answer
+        : typeof s.summary === 'string' ? s.summary
+        : JSON.stringify(s, null, 2);
+    }
     return {
       id: r.id,
       kind: r.kind,
@@ -90,6 +102,7 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
       batchStatus: r.batchStatus ?? null,
       headline: typeof env.headline === 'string' ? env.headline : null,
       error: err,
+      outputMd,
     };
   });
 }

@@ -20,6 +20,7 @@ const baseTask = (id: string): RailTask => ({
   batchStatus: 'dispatched',
   headline: null,
   error: null,
+  outputMd: null,
 });
 
 describe('useProjectEvents cache patching (F8)', () => {

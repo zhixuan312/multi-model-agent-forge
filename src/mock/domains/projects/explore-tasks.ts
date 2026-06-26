@@ -46,6 +46,7 @@ function draft(projectId: string, kind: string, n: number, prompt: string): Rail
     batchStatus: null,
     headline: null,
     error: null,
+    outputMd: null,
   };
 }
 

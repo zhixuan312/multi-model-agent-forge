@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { FolderPlus } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
@@ -40,7 +40,7 @@ export default async function NewProjectPage() {
           <NewProjectForm repos={pickerRepos} />
         </div>
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-          <SettingsAccessNote icon={<FolderPlus />} body={NOTE} />
+          <RailNote icon={<FolderPlus />}>{NOTE}</RailNote>
         </div>
       </div>
     </PageFrame>

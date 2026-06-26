@@ -36,6 +36,18 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { ReviewStageClient, type ReviewPassView as ReviewPassViewImport } from '@/components/forge/ReviewStageClient';
+import { RailNote } from '@/components/patterns/feature-rail';
+
+const EXECUTE_NOTE = `### How execution works
+
+- **Isolated** — each repo runs in its own worktree, never touches your working tree
+- **Sequential** — tasks execute one at a time, then reviewed
+- **PR** — a pull request is created per repo when complete
+
+### What you control
+
+- **Target branch** — the base branch to fork from and PR into
+- **Start** — you decide when to dispatch; agents do the rest`;
 
 /* ── Props ───────────────────────────────────────────────────────────── */
 
@@ -100,7 +112,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   const router = useRouter();
   const readOnly = props.phase === 'learn';
   const hasReviewPasses = (props.reviewPasses?.length ?? 0) > 0;
-  const derivedPhase = inferExecutePhase(props.repoGroups, hasReviewPasses);
+  const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
   const setExecPhase = (p: ExecutePhase) => {
@@ -160,7 +172,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'configure' || key === 'monitor' || key === 'review') setExecPhase(key as ExecutePhase);
+        if (key === 'configure' || key === 'monitor') setExecPhase(key as ExecutePhase);
       }),
     [],
   );
@@ -256,7 +268,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           readOnly={readOnly}
           onStart={startExecution}
         />
-      ) : execPhase === 'monitor' ? (
+      ) : (
         <MonitorPhase
           projectId={props.projectId}
           projectName={props.projectName}
@@ -264,15 +276,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           jobs={jobs}
           buildPrs={props.buildPrs}
           allTerminal={allTerminal}
-          readOnly={readOnly}
-          onAdvanceToReview={() => setExecPhase('review')}
-        />
-      ) : (
-        <ReviewPhaseInline
-          projectId={props.projectId}
-          passes={props.reviewPasses ?? []}
-          reviewRunning={props.reviewRunning ?? false}
-          applyRunning={props.applyRunning ?? false}
           readOnly={readOnly}
         />
       )}
@@ -319,19 +322,7 @@ function ConfigurePhase({
 
       {/* RIGHT — note + card filling rest of column */}
       <aside className="flex min-h-0 flex-col gap-4">
-        <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
-          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
-            <Rocket className="size-5" />
-          </span>
-          <div>
-            <h3 className="text-sm font-semibold text-ink">Ready to execute</h3>
-            <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
-              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Each repo runs in its own isolated worktree session</li>
-              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">All tasks execute sequentially, then reviewed</li>
-              <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">A PR is created per repo when complete</li>
-            </ul>
-          </div>
-        </div>
+        <RailNote icon={<Rocket />}>{EXECUTE_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>{projectName}</CardTitle>
@@ -405,7 +396,7 @@ function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGr
 /* ── Monitor Phase ───────────────────────────────────────────────────── */
 
 function MonitorPhase({
-  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly, onAdvanceToReview,
+  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly,
 }: {
   projectId: string;
   projectName: string;
@@ -414,7 +405,6 @@ function MonitorPhase({
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   allTerminal: boolean;
   readOnly: boolean;
-  onAdvanceToReview: () => void;
 }) {
   const doneCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'done').length;
   const failedCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'failed').length;
@@ -511,9 +501,14 @@ function MonitorPhase({
             )}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            <Button className="w-full" onClick={onAdvanceToReview} disabled={!allTerminal || readOnly}>
-              Continue to Review <ArrowRight className="ml-1 size-4" />
-            </Button>
+            <StageAdvance
+              href={`/projects/${projectId}/review`}
+              label="Continue to Review"
+              disabled={!allTerminal || readOnly}
+              projectId={projectId}
+              from="execute"
+              testId="execute-continue-link"
+            />
             {!allTerminal && <TextSm className="text-center !text-ink-faint">Waiting for all repos to complete</TextSm>}
           </CardFooter>
         </Card>

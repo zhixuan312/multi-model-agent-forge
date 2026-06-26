@@ -7,8 +7,9 @@ import { loopRun } from '@/db/schema/loop';
 import { listLoops } from '@/loops/loops-core';
 import { latestRunPerLoop } from '@/loops/runs-query';
 import { nextRuns, LOOP_TIMEZONE } from '@/loops/cron';
-import { PageFrame, MetricCard } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { PageFrame } from '@/components/ui';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { LoopsTabsNav } from './LoopsTabsNav';
 import { LoopsClient } from './LoopsClient';
 import { statusLabel } from './run-format';
@@ -60,25 +61,16 @@ export default async function LoopsPage() {
 
   return (
     <PageFrame title="Loops" subnav={<LoopsTabsNav active="loops" />} width="full" fill>
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        {/* STATUS — four equal metric boxes (house style) */}
-        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Loops" value={loops.length} muted={loops.length === 0} sublabel="Configured" icon={<Repeat />} iconTint="accent" />
-          <MetricCard label="Enabled" value={enabled.length} muted={enabled.length === 0} sublabel="On schedule" icon={<Power />} iconTint="sage" />
-          <MetricCard label="Next run" value={nextRunLabel} muted={!nextRun} sublabel="Singapore time" icon={<Clock />} iconTint="steel" />
-          <MetricCard label="Last run" value={lastRun ? statusLabel(lastRun.status) : '—'} muted={!lastRun} sublabel="Most recent" icon={<CircleCheck />} iconTint="rose" />
-        </div>
-
-        {/* Table (2/3) ∣ note rail (1/3) — fills to the page bottom; the table scrolls. */}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            <LoopsClient initialLoops={loops} repoOptions={repoOptions} runningLoopIds={runningLoopIds} lastRunByLoop={lastRunByLoop} />
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote body={LOOPS_NOTE} icon={<Repeat />} />
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        metrics={[
+          { label: 'Loops', value: loops.length, muted: loops.length === 0, sublabel: 'Configured', icon: <Repeat />, iconTint: 'accent' },
+          { label: 'Enabled', value: enabled.length, muted: enabled.length === 0, sublabel: 'On schedule', icon: <Power />, iconTint: 'sage' },
+          { label: 'Next run', value: nextRunLabel, muted: !nextRun, sublabel: 'Singapore time', icon: <Clock />, iconTint: 'steel' },
+          { label: 'Last run', value: lastRun ? statusLabel(lastRun.status) : '—', muted: !lastRun, sublabel: 'Most recent', icon: <CircleCheck />, iconTint: 'rose' },
+        ]}
+        primary={<LoopsClient initialLoops={loops} repoOptions={repoOptions} runningLoopIds={runningLoopIds} lastRunByLoop={lastRunByLoop} />}
+        aside={<RailNote icon={<Repeat />}>{LOOPS_NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

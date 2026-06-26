@@ -44,12 +44,13 @@ describe('parseAuditEnvelope (pure)', () => {
     expect(r.hasCriticalOrHigh).toBe(false);
   });
 
-  it('missing structuredReport → missing_report (F20)', () => {
-    expect(parseAuditEnvelope({ headline: 'x' }).kind).toBe('missing_report');
-    expect(parseAuditEnvelope({ headline: 'x', structuredReport: { kind: 'not_applicable' } }).kind).toBe(
+  it('missing output.summary → missing_report (F20)', () => {
+    expect(parseAuditEnvelope({}).kind).toBe('missing_report');
+    expect(parseAuditEnvelope({ output: {} }).kind).toBe('missing_report');
+    expect(parseAuditEnvelope({ output: { summary: { kind: 'not_applicable' } } }).kind).toBe(
       'missing_report',
     );
-    expect(parseAuditEnvelope({ structuredReport: { findingsOutcome: 'not_applicable' } }).kind).toBe(
+    expect(parseAuditEnvelope({ output: { summary: { findingsOutcome: 'not_applicable' } } }).kind).toBe(
       'missing_report',
     );
   });
@@ -172,7 +173,7 @@ describe('runAuditPass (live DB + mock MMA)', () => {
       'insert:project_audit_pass': [],
     });
 
-    const mma = mockMma({ envelopes: { audit: [{ headline: 'auditor crashed' }] } });
+    const mma = mockMma({ envelopes: { audit: [{ output: {} }] } });
     await expect(
       runAuditPass({ db: mockDb, mma, workspaceRoot: WS_ROOT }, { projectId, specMd: '# spec', actorId: ownerId }),
     ).rejects.toBeInstanceOf(AuditIncompleteError);

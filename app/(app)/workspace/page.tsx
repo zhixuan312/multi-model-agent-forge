@@ -1,6 +1,7 @@
 import { GitBranch, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
-import { PageFrame, MetricCard } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { PageFrame } from '@/components/ui';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { currentMember } from '@/auth/current-member';
 import { listRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
@@ -46,25 +47,16 @@ export default async function WorkspacePage() {
 
   return (
     <PageFrame title="Workspace" width="full" fill>
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        {/* STATUS — four equal metric boxes */}
-        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Repositories" value={total} sublabel="On disk" icon={<GitBranch />} iconTint="accent" />
-          <MetricCard label="Cloned" value={cloned} muted={cloned === 0} sublabel="Ready to use" icon={<CheckCircle2 />} iconTint="sage" />
-          <MetricCard label="Pulling" value={pulling} muted={pulling === 0} sublabel="In progress" icon={<RefreshCw />} iconTint="amber" />
-          <MetricCard label="Errors" value={errored} muted={errored === 0} sublabel="Need attention" icon={<AlertTriangle />} iconTint="rose" />
-        </div>
-
-        {/* PRIMARY (2/3) ∣ RAIL (1/3) — fills to the page bottom; the table scrolls */}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            <WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote body={WORKSPACE_NOTE} icon={<GitBranch />} />
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        metrics={[
+          { label: 'Repositories', value: total, sublabel: 'On disk', icon: <GitBranch />, iconTint: 'accent' },
+          { label: 'Cloned', value: cloned, muted: cloned === 0, sublabel: 'Ready to use', icon: <CheckCircle2 />, iconTint: 'sage' },
+          { label: 'Pulling', value: pulling, muted: pulling === 0, sublabel: 'In progress', icon: <RefreshCw />, iconTint: 'amber' },
+          { label: 'Errors', value: errored, muted: errored === 0, sublabel: 'Need attention', icon: <AlertTriangle />, iconTint: 'rose' },
+        ]}
+        primary={<WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />}
+        aside={<RailNote icon={<GitBranch />}>{WORKSPACE_NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

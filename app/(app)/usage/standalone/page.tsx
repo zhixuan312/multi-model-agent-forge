@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import { Zap } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { usageStandalone, type Period } from '@/usage/usage-core';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
@@ -44,16 +45,11 @@ export default async function UsageStandalonePage({
         </Suspense>
       }
     >
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            <StandaloneUsageTable data={rows} />
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote body={NOTE} icon={<Zap />} />
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        metrics={[]}
+        primary={<StandaloneUsageTable data={rows} />}
+        aside={<RailNote icon={<Zap />}>{NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -16,10 +16,10 @@ import {
   Loader2,
   type LucideIcon,
 } from 'lucide-react';
-import { Markdown } from '@/components/forge/Markdown';
-import { AgentRail } from '@/components/forge/AgentRail';
-import { BrainDumpComposer, pickRecorderMime } from '@/components/forge/BrainDumpComposer';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { ProseBlock } from '@/components/patterns/prose-block';
+import { RailStatus, type RailStatusItem } from '@/components/patterns/feature-rail';
+import { ConversationComposer } from '@/components/patterns/conversation';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -121,12 +121,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [attachments, setAttachments] = useState<AttachmentView[]>(props.initialAttachments);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [viewOverride, setViewOverride] = useState<'scope' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const recStartRef = useRef<number>(0);
+  const [viewOverride, setViewOverride] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
 
   const drafts = tasks.filter((t) => t.status === 'draft');
 
@@ -237,45 +232,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     setAttachments((a) => a.filter((x) => x.id !== attachmentId));
   }
 
-  async function toggleRecord(): Promise<void> {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = pickRecorderMime();
-      const rec = new MediaRecorder(stream, { mimeType });
-      chunksRef.current = [];
-      recStartRef.current = Date.now();
-      rec.ondataavailable = (e) => chunksRef.current.push(e.data);
-      rec.onstop = async () => {
-        setRecording(false);
-        setTranscribing(true);
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        const form = new FormData();
-        form.append('file', blob, 'audio');
-        form.append('durationMs', String(Date.now() - recStartRef.current));
-        try {
-          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-          if (!res.ok) throw new Error('Transcription failed.');
-          const { text } = (await res.json()) as { text: string };
-          setBrief((prev) => (prev ? `${prev}\n${text}` : text));
-        } catch (e) {
-          setError(e instanceof Error ? e.message : 'Transcription failed.');
-        } finally {
-          setTranscribing(false);
-        }
-      };
-      recorderRef.current = rec;
-      rec.start();
-      setRecording(true);
-    } catch {
-      setError('Microphone unavailable.');
-    }
-  }
-
   const bodyMd = artifact?.bodyMd ?? props.initialArtifact?.bodyMd ?? null;
   const version = artifact?.version ?? props.initialArtifact?.version ?? null;
   const dispatched = tasks.filter((t) => t.status !== 'draft').length;
@@ -290,7 +246,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   // Brief = editable proposal (add/edit tasks). Fan-out = agent execution rail.
   const phase: 'idle' | 'fanout' | 'run' | 'synthesis' = (() => {
     if (!viewOverride) return dataPhase;
-    if (viewOverride === 'scope') return 'fanout';
+    if (viewOverride === 'brief') return 'fanout';
     if (viewOverride === 'discover') return dispatched > 0 ? 'run' : 'fanout';
     if (viewOverride === 'synthesize' && bodyMd) return 'synthesis';
     return dataPhase;
@@ -304,14 +260,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     if (viewOverride) {
       stagePhaseStore.set(viewOverride);
     } else {
-      const sub = phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'scope' : phase === 'fanout' ? 'scope' : 'discover';
+      const sub = phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
       stagePhaseStore.set(sub);
     }
   }, [phase, viewOverride]);
 
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
-      setViewOverride(key as 'scope' | 'discover' | 'synthesize');
+      setViewOverride(key as 'brief' | 'discover' | 'synthesize');
     });
   }, []);
 
@@ -370,7 +326,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         {/* RIGHT — guidance note pinned on top, then the brain-dump input
             (editable at every phase) filling the rest of the column. */}
         <aside className="flex min-h-0 flex-col gap-4">
-          <ExplorationNote />
+          <ExplorationNote phase={phase} />
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <CardTitle>Brain-dump</CardTitle>
@@ -381,21 +337,18 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               )}
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
-              <BrainDumpComposer
+              <ConversationComposer
                 value={brief}
                 onChange={locked ? () => {} : setBrief}
-                attachments={attachments}
-                voiceEnabled={props.voiceEnabled && !locked}
-                recording={recording}
-                transcribing={transcribing}
-                busy={busy}
-                locked={locked}
-                error={error}
-                onAnalyze={locked ? () => {} : analyze}
-                onToggleRecord={toggleRecord}
-                onAddFile={addFile}
-                onRemoveAttachment={removeAttachment}
+                onSend={locked ? () => {} : () => analyze()}
+                voice={props.voiceEnabled && !locked}
+                attachments
+                disabled={locked}
+                loading={busy}
+                placeholder="Tell Forge everything you know…"
+                submitLabel={busy ? 'Thinking…' : 'Analyze sources'}
               />
+              {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
             </CardContent>
           </Card>
         </aside>
@@ -427,7 +380,24 @@ function IdleStage() {
   );
 }
 
-/** Centre stage while/after the fan-out runs — the live agent rail + Synthesize. */
+const ROUTE_LABEL: Record<string, string> = {
+  investigate: 'Investigate',
+  research: 'Research',
+  journal: 'Journal recall',
+};
+
+function toStatusItems(tasks: RailTask[]): RailStatusItem[] {
+  return tasks.filter((t) => t.status !== 'draft').map((t) => {
+    let status: string;
+    let tone: RailStatusItem['tone'];
+    if (t.batchStatus === 'failed') { status = 'failed'; tone = 'fail'; }
+    else if (t.status === 'recorded' || t.batchStatus === 'done') { status = 'recorded'; tone = 'done'; }
+    else if (t.status === 'draft') { status = 'draft'; tone = 'idle'; }
+    else { status = 'running'; tone = 'run'; }
+    return { id: t.id, label: ROUTE_LABEL[t.kind] ?? t.kind, status, tone, detail: t.prompt, error: t.error?.message };
+  });
+}
+
 function RunStage(props: {
   className?: string;
   tasks: RailTask[];
@@ -460,29 +430,52 @@ function RunStage(props: {
         ) : null}
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
-        <AgentRail tasks={props.tasks} />
+        <RailStatus items={toStatusItems(props.tasks)} live emptyText="No tasks dispatched yet." />
       </CardContent>
     </Card>
   );
 }
 
 /** Standing guidance — the accent-tint note every page's rail carries. */
-const EXPLORE_NOTE = `### How exploration works
+const PHASE_NOTES: Record<string, string> = {
+  brief: `### Brief — describe the idea
 
-- **Brain-dump** — tell Forge everything you know in the text area
-- **Run analysis** — Forge proposes a fan-out of investigation, research, and journal recall tasks
+- **Brain-dump** — tell Forge everything you know about the problem
+- **Attach context** — screenshots, docs, data files, or paste links
+- **Analyze** — Forge proposes investigation, research, and journal recall tasks
+
+### Tips
+
+- More context = better research plan
+- You can always edit and re-analyze`,
+
+  discover: `### Discover — agents at work
+
+- **Edit tasks** — add, remove, or refine before running
 - **Run** — agents investigate the codebase, research the web, and recall past decisions
-- **Synthesize** — one grounded brief for the Spec stage
+- **Live status** — each task shows its progress in the rail
 
-### Attaching files
+### Task types
 
-- **Images** — PNG, JPEG, WebP, GIF (screenshots, diagrams, mockups)
-- **Documents** — PDF, plain text, Markdown
-- **Data** — CSV, JSON
-- Paste links directly in the text area`;
+- **Investigate** — deep-dive into a specific repo or codebase area
+- **Research** — web search for external context
+- **Journal recall** — surface relevant past learnings`,
 
-function ExplorationNote() {
-  return <SettingsAccessNote body={EXPLORE_NOTE} icon={<Lightbulb />} />;
+  synthesize: `### Synthesize — build the brief
+
+- **Synthesize** — Forge consolidates all findings into one grounded brief
+- **Re-synthesize** — run again if you added more context
+- **Advance** — the brief carries forward into the Spec stage
+
+### What makes a good brief
+
+- Covers the problem, constraints, and known prior art
+- Grounded in evidence from investigation and research`,
+};
+
+function ExplorationNote({ phase }: { phase: string }) {
+  const key = phase === 'idle' ? 'brief' : phase === 'fanout' ? 'discover' : phase === 'run' ? 'discover' : 'synthesize';
+  return <RailNote icon={<Lightbulb />}>{PHASE_NOTES[key]}</RailNote>;
 }
 
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */
@@ -834,9 +827,9 @@ function SummaryPane(props: {
       </CardHeader>
 
       <CardContent className="min-h-0 flex-1 overflow-y-auto !py-5">
-        <Markdown className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
+        <ProseBlock className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
           {props.bodyMd}
-        </Markdown>
+        </ProseBlock>
       </CardContent>
 
       <CardFooter className="flex-col !items-stretch gap-2">

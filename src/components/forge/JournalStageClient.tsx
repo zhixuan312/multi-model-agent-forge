@@ -12,6 +12,7 @@ import {
   NotebookPen,
   FileText,
   RotateCcw,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -25,8 +26,21 @@ import {
   Badge,
   TextSm,
 } from '@/components/ui';
-import { ForgeComposer } from '@/components/forge/ForgeComposer';
+import { ConversationComposer } from '@/components/patterns/conversation';
+import { RailNote } from '@/components/patterns/feature-rail';
 import type { ProjectPhase } from '@/db/enums';
+
+const JOURNAL_STAGE_NOTE = `### How journal capture works
+
+- **Harvest** — Forge extracts learnings from the entire project run
+- **Curate** — review each learning, refine with conversation, approve or remove
+- **Record** — approved learnings are written to the team journal
+
+### Learning types
+
+- **Challenge** — a problem the team faced and how it was resolved
+- **Insight** — a realization that changed the approach
+- **Decision** — a choice made and why`;
 import { LEARNING_CATEGORIES, type LearningCategory, type LearningSource } from '@/journal/types';
 
 /* ── Types ─────────────────────────────────────────────────────── */
@@ -331,13 +345,13 @@ export function JournalStageClient(props: JournalStageClientProps) {
                   </div>
                 )}
               </CardContent>
-              <ForgeComposer
+              <ConversationComposer
                 value={input}
                 onChange={setInput}
-                onSubmit={submit}
+                onSend={() => submit()}
                 disabled={readOnly || isApproved}
                 placeholder={isApproved ? 'Approved — revoke to edit' : 'Refine this learning…'}
-                secondaryAction={
+                secondaryActions={
                   <Button size="sm" variant="secondary" onClick={() => setDraftViews((s) => new Set(s).add(activeId))} leftIcon={<FileText />}>
                     View draft
                   </Button>
@@ -390,8 +404,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
           ) : null}
         </Card>
 
-        {/* RIGHT — learning list rail */}
-        <aside className="flex min-h-0 flex-col">
+        {/* RIGHT — guidance + learning list rail */}
+        <aside className="flex min-h-0 flex-col gap-4">
+          <RailNote icon={<BookOpen />}>{JOURNAL_STAGE_NOTE}</RailNote>
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <CardTitle>Learnings</CardTitle>

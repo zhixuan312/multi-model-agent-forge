@@ -131,7 +131,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       reviewPasses={reviewPasses}
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
-      initialPhase={urlPhase === 'monitor' ? 'monitor' : urlPhase === 'review' ? 'review' : undefined}
+      initialPhase={urlPhase === 'monitor' ? 'monitor' : undefined}
     />
   );
 }

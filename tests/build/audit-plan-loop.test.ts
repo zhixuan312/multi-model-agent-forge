@@ -4,7 +4,18 @@ import { createMockDb, seq } from '../test-utils/mock-db';
 import { RecordingBus, FakeMma } from './fixtures';
 
 function auditEnv(findings: Array<{ severity: string; claim: string }>) {
-  return { headline: 'audit complete', structuredReport: { findings, findingsOutcome: findings.length ? 'found' : 'clean' } };
+  return {
+    task: { type: 'audit', status: 'done', taskId: 'mock-audit' },
+    output: {
+      summary: { findings, findingsOutcome: findings.length ? 'found' : 'clean' },
+      filesChanged: [],
+      contextBlockId: null,
+    },
+    execution: { sessions: { implementer: 'mock', reviewer: null }, worktree: null },
+    metrics: { totalCostUsd: 0, totalDurationMs: 0, totalUsage: { inputTokens: 0, outputTokens: 0 }, implementer: null, reviewer: null },
+    raw: { implementer: '', reviewer: null },
+    error: null,
+  };
 }
 
 describe('runPlanAuditPass', () => {

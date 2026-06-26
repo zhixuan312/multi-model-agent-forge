@@ -11,7 +11,12 @@ import { USE_MOCK } from '@/mock/config';
  */
 export function middleware(req: NextRequest): NextResponse {
   // Mock harness: no real session exists, so skip the cookie pre-check entirely.
-  if (USE_MOCK) return NextResponse.next();
+  // Still set x-pathname so server components can read the current route.
+  if (USE_MOCK) {
+    const reqHeaders = new Headers(req.headers);
+    reqHeaders.set('x-pathname', req.nextUrl.pathname);
+    return NextResponse.next({ request: { headers: reqHeaders } });
+  }
   const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const decision = evaluateRequest({
     pathname: req.nextUrl.pathname,
@@ -19,8 +24,11 @@ export function middleware(req: NextRequest): NextResponse {
   });
 
   switch (decision.action) {
-    case 'next':
-      return NextResponse.next();
+    case 'next': {
+      const reqHeaders = new Headers(req.headers);
+      reqHeaders.set('x-pathname', req.nextUrl.pathname);
+      return NextResponse.next({ request: { headers: reqHeaders } });
+    }
     case 'unauthorized':
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     case 'redirect': {

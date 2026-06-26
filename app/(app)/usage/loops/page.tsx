@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import { Repeat } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { usageByLoop, routeAggForLoop, type Period, type RouteAggRow } from '@/usage/usage-core';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
@@ -49,16 +50,11 @@ export default async function UsageLoopsPage({
         </Suspense>
       }
     >
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-          <div className="flex min-h-0 flex-col lg:col-span-2">
-            <LoopUsageTable data={rows} detailByLoop={detailByLoop} />
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            <SettingsAccessNote body={NOTE} icon={<Repeat />} />
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        metrics={[]}
+        primary={<LoopUsageTable data={rows} detailByLoop={detailByLoop} />}
+        aside={<RailNote icon={<Repeat />}>{NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

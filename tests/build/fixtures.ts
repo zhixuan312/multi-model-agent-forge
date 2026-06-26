@@ -147,7 +147,7 @@ export class FakeMma {
   private register(route: string): { batchId: string } {
     if (this.failDispatch) throw new Error('MMA dispatch failed');
     const batchId = `batch-${++this.counter}`;
-    const env = (this.envelopeByRoute[route] ?? []).shift() ?? { headline: 'done', structuredReport: { findings: [] } };
+    const env = (this.envelopeByRoute[route] ?? []).shift() ?? { output: { summary: { findings: [] }, filesChanged: [], contextBlockId: null }, error: null };
     this.envByBatch.set(batchId, env);
     return { batchId };
   }

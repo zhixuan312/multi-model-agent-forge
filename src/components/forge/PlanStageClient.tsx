@@ -16,7 +16,7 @@ import {
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { cn } from '@/lib/cn';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import {
   Button,
@@ -32,12 +32,42 @@ import {
   Eyebrow,
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
-import { ForgeComposer } from '@/components/forge/ForgeComposer';
+import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/build/plan-types';
+import { FindingsGrid, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { RailNote } from '@/components/patterns/feature-rail';
 
-type PlanPhase = 'detail' | 'validate';
+const PLAN_PHASE_NOTES: Record<string, string> = {
+  refine: `### Refine — review the tasks
+
+- **Select** a task from the right to see its full breakdown
+- **Ask questions** — refine the approach through conversation
+- **Approve** each task to confirm the approach
+- **All approved** → unlocks the validation audit
+
+### What a task contains
+
+- The heading from the plan markdown
+- Implementation detail, file paths, test strategy
+- One repo target per task`,
+
+  validate: `### Validate — audit the plan
+
+- **Run audit** — MMA checks sequencing, coverage, and TDD gaps
+- **Select findings** — pick which to apply, or apply all at once
+- **Re-audit** — run again after fixes to verify
+- **Lock** — once audit is clean, lock the plan for execution
+
+### What the audit checks
+
+- Task ordering and dependencies
+- Missing test coverage
+- Gaps between spec requirements and plan tasks`,
+};
+
+type PlanPhase = 'refine' | 'validate';
 type TaskStatus = 'proposed' | 'detailed' | 'approved';
 
 type Msg =
@@ -59,16 +89,8 @@ export interface PlanStageClientProps {
   pendingAuthor?: string | null;
   pendingAudit?: string | null;
   pendingApply?: string | null;
-  initialPhase?: 'detail' | 'validate';
+  initialPhase?: 'refine' | 'validate';
 }
-
-const SEVERITY_ORDER: PlanAuditFinding['severity'][] = ['critical', 'high', 'medium', 'low'];
-const SEVERITY_STYLE: Record<PlanAuditFinding['severity'], string> = {
-  critical: 'bg-rose-tint text-[var(--rose)]',
-  high: 'bg-amber-tint text-[var(--amber)]',
-  medium: 'bg-[var(--frost)] text-[var(--steel)]',
-  low: 'bg-surface-2 text-ink-soft',
-};
 
 let _id = 0;
 const nid = () => `pm${_id++}`;
@@ -85,7 +107,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     if (props.auditRounds.length > 0) return 'validate';
     const allApprovedInit = allTasks.length > 0 && allTasks.every((t) => t.dbStatus === 'committed' || t.dbStatus === 'approved');
     if (allApprovedInit) return 'validate';
-    return 'detail';
+    return 'refine';
   })();
   const [phase, setPhaseRaw] = useState<PlanPhase>(props.initialPhase ?? derivedPhase);
 
@@ -132,7 +154,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'detail' || key === 'validate') setPhase(key as PlanPhase);
+        if (key === 'refine' || key === 'validate') setPhase(key as PlanPhase);
       }),
     [],
   );
@@ -204,7 +226,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     // into Execute, which still needs to run.
     if (auto !== 'running' || readOnly) return;
     const t = setTimeout(() => {
-      if (phase === 'detail') {
+      if (phase === 'refine') {
         const next = allTasks.find((tk) => status[tk.id] !== 'approved');
         if (next) {
           setAutoNote('Drafted & approved: ' + next.title);
@@ -261,7 +283,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
         }}
       />
 
-      {phase === 'detail' ? (
+      {phase === 'refine' ? (
         <DetailStage
           phases={props.phases}
           status={status}
@@ -353,7 +375,7 @@ function PlanDraftBubble({ md, version }: { md: string; version: number }) {
         </div>
         <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
           <div className="max-h-[44vh] overflow-y-auto pr-1">
-            <Markdown className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">{md}</Markdown>
+            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">{md}</ProseBlock>
           </div>
         </div>
       </div>
@@ -368,7 +390,7 @@ interface ComposerAction {
   disabled?: boolean;
 }
 
-function Composer({
+function PlanComposer({
   value,
   onChange,
   onSend,
@@ -386,14 +408,14 @@ function Composer({
   voiceEnabled?: boolean;
 }) {
   return (
-    <ForgeComposer
+    <ConversationComposer
       value={value}
       onChange={onChange}
-      onSubmit={onSend}
+      onSend={() => onSend()}
       disabled={disabled}
       placeholder={placeholder}
-      voiceEnabled={voiceEnabled ?? false}
-      secondaryAction={
+      voice={voiceEnabled ?? false}
+      secondaryActions={
         secondaries && secondaries.length > 0 ? (
           <div className="flex items-center gap-2">
             {secondaries.map((s, i) => (
@@ -562,9 +584,9 @@ function DetailStage({
                 <GitBranch className="size-2.5" /> {active.targetRepo}
               </span>
             </div>
-            <Markdown className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
+            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
               {active.body}
-            </Markdown>
+            </ProseBlock>
           </div>
           <div ref={bottomRef} />
         </CardContent>
@@ -582,7 +604,7 @@ function DetailStage({
             </Button>
           </CardFooter>
         ) : (
-          <Composer
+          <PlanComposer
             value={input}
             onChange={setInput}
             onSend={send}
@@ -594,8 +616,9 @@ function DetailStage({
         )}
       </Card>
 
-      {/* RIGHT -- every task grouped by phase + move-on (1/3) */}
-      <aside className="flex min-h-0 flex-col">
+      {/* RIGHT -- guidance + every task grouped by phase + move-on (1/3) */}
+      <aside className="flex min-h-0 flex-col gap-4">
+        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.detail}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Tasks</CardTitle>
@@ -787,7 +810,7 @@ function ValidateStage({
                   <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">plan . v{version}</span>
                 </div>
                 <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                  <Markdown>{md}</Markdown>
+                  <ProseBlock>{md}</ProseBlock>
                 </div>
               </div>
             </div>
@@ -820,7 +843,7 @@ function ValidateStage({
             </Button>
           </div>
         ) : (
-          <Composer
+          <PlanComposer
             value={input}
             onChange={setInput}
             onSend={send}
@@ -841,8 +864,9 @@ function ValidateStage({
         ) : null}
       </Card>
 
-      {/* RIGHT -- audit rounds + Lock the plan (1/3) */}
-      <aside className="flex min-h-0 flex-col">
+      {/* RIGHT -- guidance + audit rounds + Lock the plan (1/3) */}
+      <aside className="flex min-h-0 flex-col gap-4">
+        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.validate}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -879,7 +903,7 @@ function ValidateStage({
                 </p>
               </div>
             ) : null}
-            {rounds.map((r) => <AuditRoundCard key={r.passNo} round={r} applied={applied} onReplay={() => replay(r.passNo)} />)}
+            {rounds.map((r) => <PatternAuditRoundCard key={r.passNo} passNo={r.passNo} verdict={r.verdict} findings={r.findings as Finding[]} applied={applied} onClick={() => replay(r.passNo)} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <TextSm className="!text-ink-faint">
@@ -901,14 +925,7 @@ function ValidateStage({
   );
 }
 
-/* ── audit message: numbered, selectable findings + apply (shared w/ Spec) ──── */
-function SeverityTag({ s }: { s: PlanAuditFinding['severity'] }) {
-  return (
-    <span className={cn('inline-flex w-[58px] shrink-0 items-center justify-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', SEVERITY_STYLE[s])}>
-      {s}
-    </span>
-  );
-}
+/* ── audit message: uses FindingsGrid + AuditRoundCard from patterns ──── */
 
 function AuditChatMsg({
   passNo,
@@ -927,14 +944,6 @@ function AuditChatMsg({
   applied?: boolean;
   onApply: (indices: number[]) => void;
 }) {
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const toggle = (i: number) =>
-    setSel((s) => {
-      const n = new Set(s);
-      if (n.has(i)) n.delete(i);
-      else n.add(i);
-      return n;
-    });
   return (
     <div className="flex gap-2.5">
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
@@ -949,97 +958,16 @@ function AuditChatMsg({
           </Badge>
           {applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying...</Badge> : null}
         </div>
-        <div className="overflow-hidden rounded-2xl rounded-tl-md border border-line bg-surface shadow-sm">
-          {findings.length > 0 ? (
-            <>
-              <div className="grid grid-cols-2 gap-px bg-line/70">
-                {[...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)).map((f, i) => {
-                  const origIdx = findings.indexOf(f);
-                  const on = sel.has(origIdx);
-                  const disabled = readOnly || !!applying || !!applied;
-                  return (
-                    <button key={i} type="button" onClick={() => !disabled && toggle(origIdx)} disabled={disabled} className={cn('flex flex-col gap-1.5 p-3 text-left transition-colors', applied ? 'bg-sage-tint/30' : on ? 'bg-accent-tint/40' : 'bg-surface hover:bg-surface-2/50', disabled && !applied && 'opacity-60')}>
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn('grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors', applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white' : on ? 'border-accent bg-accent text-white' : 'border-line-strong text-ink-faint')}>
-                          {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
-                        </span>
-                        <SeverityTag s={f.severity} />
-                      </div>
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
-                      <p className="text-xs leading-relaxed text-ink">{f.claim}</p>
-                      {f.evidence ? <p className="text-[10px] leading-relaxed text-ink-soft"><span className="font-semibold">Evidence:</span> {f.evidence}</p> : null}
-                      {f.suggestion ? <p className="text-[10px] leading-relaxed text-accent-deep"><span className="font-semibold">Fix:</span> {f.suggestion}</p> : null}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                {applied ? (
-                  <div className="flex items-center gap-2">
-                    <Check className="size-3.5 text-[var(--sage-deep)]" />
-                    <span className="text-xs font-medium text-[var(--sage-deep)]">All findings applied -- press "Construct plan" to re-assemble.</span>
-                  </div>
-                ) : applying ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-accent" />
-                    <span className="text-xs font-medium text-accent-deep">Revising plan...</span>
-                  </div>
-                ) : (
-                  <>
-                    <span className="text-[11px] text-ink-faint">Select findings to apply, or apply all at once.</span>
-                    <span className="flex-1" />
-                    <Button size="sm" variant="secondary" onClick={() => onApply([...sel])} disabled={readOnly || sel.size === 0} leftIcon={<Check />}>
-                      Apply selected{sel.size > 0 ? ` (${sel.size})` : ''}
-                    </Button>
-                    <Button size="sm" onClick={() => onApply(findings.map((_, i) => i))} disabled={readOnly} leftIcon={<Sparkles />}>
-                      Apply all {findings.length}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : null}
-        </div>
+        <FindingsGrid
+          findings={findings as Finding[]}
+          selectable
+          applying={applying}
+          applied={applied}
+          readOnly={readOnly}
+          onApply={onApply}
+          appliedLabel='All findings applied -- press "Construct plan" to re-assemble.'
+        />
       </div>
     </div>
-  );
-}
-
-function AuditRoundCard({ round, applied, onReplay }: { round: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }; applied?: boolean; onReplay?: () => void }) {
-  const counts: Record<PlanAuditFinding['severity'], number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of round.findings) counts[f.severity] += 1;
-  return (
-    <button
-      type="button"
-      onClick={onReplay}
-      className={cn(
-        'group w-full rounded-[var(--r-md)] border p-3 text-left transition-colors',
-        applied ? 'border-[var(--sage-deep)]/30 bg-sage-tint/30' : 'border-line bg-surface hover:border-accent hover:bg-surface-2/40',
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-ink">Pass {round.passNo}</span>
-        <Badge variant={round.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-          {round.verdict}
-        </Badge>
-        {applied ? <Badge variant="sage" size="sm">applied</Badge> : null}
-        <span className="ml-auto text-[11px] text-ink-faint">
-          {round.findings.length} finding{round.findings.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      {round.findings.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
-            <span key={s} className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium', SEVERITY_STYLE[s])}>
-              <span className="font-semibold">{counts[s]}</span>
-              {s}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-ink-faint group-hover:text-accent">
-        <ArrowRight className="size-3" /> Re-post to chat
-      </span>
-    </button>
   );
 }

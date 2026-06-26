@@ -1,5 +1,5 @@
 import { BookText } from 'lucide-react';
-import { SettingsAccessNote } from '@/components/forge/SettingsAccessNote';
+import { RailNote } from '@/components/patterns/feature-rail';
 
 /**
  * JournalNote — the rail note for the Journal page. Uses the shared
@@ -23,5 +23,5 @@ const JOURNAL_NOTE = `### Decision graph
 - **Recorded by MMA** — written at project freeze, never edited here`;
 
 export function JournalNote() {
-  return <SettingsAccessNote body={JOURNAL_NOTE} icon={<BookText />} />;
+  return <RailNote icon={<BookText />}>{JOURNAL_NOTE}</RailNote>;
 }

@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import { StageStepper } from '@/components/forge/StageStepper';
 import type { StageKind, StageStatus } from '@/db/enums';
 
-// A freshly-created project: exploration active, the rest pending, phase=design.
 const freshStages: { kind: StageKind; status: StageStatus }[] = [
   { kind: 'exploration', status: 'active' },
   { kind: 'spec', status: 'pending' },
@@ -18,31 +17,32 @@ function renderFresh() {
   );
 }
 
-describe('StageStepper (stage-driven)', () => {
-  it('renders the three groups Design / Build / Learn', () => {
-    const { container } = renderFresh();
-    const headings = Array.from(container.querySelectorAll('span.uppercase')).map((el) => el.textContent);
-    expect(headings).toEqual(['Design', 'Build', 'Learn']);
+describe('StageStepper (4-state track)', () => {
+  it('renders all 6 stage labels', () => {
+    renderFresh();
+    expect(screen.getByText('Explore')).toBeInTheDocument();
+    expect(screen.getByText('Spec')).toBeInTheDocument();
+    expect(screen.getByText('Plan')).toBeInTheDocument();
+    expect(screen.getByText('Execute')).toBeInTheDocument();
+    expect(screen.getByText('Review')).toBeInTheDocument();
+    expect(screen.getByText('Journal')).toBeInTheDocument();
   });
 
-  it('Plan is reachable under design; Build + Learn stages lock', () => {
+  it('marks exploration as ongoing (current)', () => {
     const { container } = renderFresh();
     const exploration = container.querySelector('[data-stage="exploration"]')!;
-    expect(exploration).toHaveAttribute('data-state', 'active');
+    expect(exploration).toHaveAttribute('data-state', 'ongoing');
     expect(exploration).toHaveAttribute('aria-current', 'step');
-
-    // plan is a DESIGN stage now — pending but NOT locked.
-    const plan = container.querySelector('[data-stage="plan"]')!;
-    expect(plan).toHaveAttribute('data-state', 'pending');
-
-    for (const kind of ['execute', 'journal']) {
-      const el = container.querySelector(`[data-stage="${kind}"]`)!;
-      expect(el).toHaveAttribute('data-state', 'locked');
-      expect(el).toHaveAttribute('aria-disabled', 'true');
-    }
   });
 
-  it('done glyph is exactly ● (F3)', () => {
+  it('pending stages are not_started', () => {
+    const { container } = renderFresh();
+    const spec = container.querySelector('[data-stage="spec"]')!;
+    expect(spec).toHaveAttribute('data-state', 'not_started');
+    expect(spec).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('done stages show as done (without lockedStages)', () => {
     const stages: { kind: StageKind; status: StageStatus }[] = [
       { kind: 'exploration', status: 'done' },
       { kind: 'spec', status: 'active' },
@@ -55,32 +55,39 @@ describe('StageStepper (stage-driven)', () => {
       <StageStepper projectId="p1" stages={stages} currentStage="spec" phase="design" />,
     );
     const done = container.querySelector('[data-stage="exploration"]')!;
-    expect(done.textContent).toContain('●');
-    expect(done.textContent).not.toContain('✓');
+    expect(done).toHaveAttribute('data-state', 'done');
   });
 
-  it('navigation: a reachable (active) stage is a link; pending + locked stages are inert', () => {
+  it('done stages show as locked when in lockedStages', () => {
+    const stages: { kind: StageKind; status: StageStatus }[] = [
+      { kind: 'exploration', status: 'done' },
+      { kind: 'spec', status: 'active' },
+      { kind: 'plan', status: 'pending' },
+      { kind: 'execute', status: 'pending' },
+      { kind: 'review', status: 'pending' },
+      { kind: 'journal', status: 'pending' },
+    ];
+    const { container } = render(
+      <StageStepper projectId="p1" stages={stages} currentStage="spec" phase="design" lockedStages={['exploration']} />,
+    );
+    const locked = container.querySelector('[data-stage="exploration"]')!;
+    expect(locked).toHaveAttribute('data-state', 'locked');
+  });
+
+  it('navigation: reachable (active/done) stages are links; pending stages are inert', () => {
     const { container } = renderFresh();
-    // exploration (active) → focusable link to its stageRoute
     const exploration = container.querySelector('[data-stage="exploration"]')!;
     expect(exploration.tagName).toBe('A');
     expect(exploration).toHaveAttribute('href', '/projects/p1/explore');
 
-    // spec (pending, not locked) → inert span, no href, aria-disabled
     const spec = container.querySelector('[data-stage="spec"]')!;
     expect(spec.tagName).toBe('SPAN');
     expect(spec).toHaveAttribute('aria-disabled', 'true');
-
-    // execute (locked) → inert span
-    const execute = container.querySelector('[data-stage="execute"]')!;
-    expect(execute.tagName).toBe('SPAN');
   });
 
-  it('a11y: each stage accessible name includes its status; locked stages say "locked"', () => {
+  it('a11y: accessible names include visual state', () => {
     renderFresh();
-    expect(screen.getByLabelText('Explore — active')).toBeInTheDocument();
-    expect(screen.getByLabelText('Spec — pending')).toBeInTheDocument();
-    expect(screen.getByLabelText('Plan — pending')).toBeInTheDocument();
-    expect(screen.getByLabelText('Execute — locked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Explore — ongoing')).toBeInTheDocument();
+    expect(screen.getByLabelText('Spec — not started')).toBeInTheDocument();
   });
 });

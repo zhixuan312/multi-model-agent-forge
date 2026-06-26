@@ -3,7 +3,7 @@
 import { Fragment } from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Markdown } from '@/components/forge/Markdown';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Avatar } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
@@ -102,7 +102,7 @@ function Bubble({
             mine ? 'rounded-tr-md border-accent/20 bg-accent-tint' : 'rounded-tl-md border-line bg-surface',
           )}
         >
-          {mine ? renderBody(msg.body, mentionPool) : <Markdown>{msg.body}</Markdown>}
+          {mine ? renderBody(msg.body, mentionPool) : <ProseBlock>{msg.body}</ProseBlock>}
         </div>
       </div>
     </div>

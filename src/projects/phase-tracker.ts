@@ -9,7 +9,7 @@ const PHASE_ORDER: Record<string, string[]> = {
   plan: ['refine', 'validate'],
   execute: ['configure', 'monitor'],
   review: ['review'],
-  journal: ['harvest', 'curate', 'record'],
+  journal: ['journal'],
 };
 
 export async function getLastPhase(db: Db, projectId: string, stageKind: StageKind): Promise<string | null> {

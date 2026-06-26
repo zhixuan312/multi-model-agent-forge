@@ -79,6 +79,8 @@ export interface ConversationComposerProps {
   secondaryActions?: ReactNode;
   textareaRef?: React.Ref<HTMLTextAreaElement>;
   className?: string;
+  /** Number of visible text rows (default 2). Set 0 for fill-height. */
+  rows?: number;
   /** Controlled mode: supply value+onChange to manage state externally. */
   value?: string;
   onChange?: (v: string) => void;
@@ -95,9 +97,12 @@ export function ConversationComposer({
   secondaryActions,
   textareaRef,
   className,
+  rows: rowsProp,
   value: controlledValue,
   onChange: controlledOnChange,
 }: ConversationComposerProps) {
+  const rows = rowsProp ?? 2;
+  const fillHeight = rows === 0;
   const [internalValue, setInternalValue] = useState('');
   const controlled = controlledValue !== undefined;
   const value = controlled ? controlledValue : internalValue;
@@ -163,15 +168,15 @@ export function ConversationComposer({
 
   return (
     <div className={cn('shrink-0 border-t border-line px-5 py-3', className)}>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} className={cn(fillHeight && 'flex min-h-0 flex-1 flex-col')}>
         <Textarea
           ref={textareaRef ?? internalRef}
           value={value}
           onChange={(e) => setVal(e.target.value)}
           disabled={disabled || transcribing}
           placeholder={placeholder ?? 'Type your message…'}
-          rows={2}
-          className={cn('resize-none', recording && 'border-[var(--rose)] ring-1 ring-[var(--rose)]/30')}
+          rows={fillHeight ? undefined : rows}
+          className={cn('resize-none', fillHeight && 'min-h-0 flex-1', recording && 'border-[var(--rose)] ring-1 ring-[var(--rose)]/30')}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
         />
 
@@ -187,19 +192,13 @@ export function ConversationComposer({
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            {voice ? (
-              <Button size="sm" variant={recording ? 'danger' : 'ghost'} onClick={toggleRecord} disabled={disabled || transcribing} leftIcon={recording ? <MicOff /> : <Mic />} type="button">
-                {recording ? 'Stop' : 'Voice'}
-              </Button>
-            ) : null}
-            {attachments ? (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => fileInput.current?.click()} disabled={disabled} leftIcon={<Paperclip />} type="button">
-                  File
-                </Button>
-                <input ref={fileInput} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
-              </>
-            ) : null}
+            <Button size="sm" variant={recording ? 'danger' : 'ghost'} onClick={toggleRecord} disabled={disabled || transcribing || !voice} leftIcon={recording ? <MicOff /> : <Mic />} type="button">
+              {recording ? 'Stop' : 'Voice'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => fileInput.current?.click()} disabled={disabled || !attachments} leftIcon={<Paperclip />} type="button">
+              File
+            </Button>
+            <input ref={fileInput} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
           </div>
           <div className="flex items-center gap-2">
             {secondaryActions}

@@ -28,6 +28,7 @@ import {
 } from '@/components/ui';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 
 const JOURNAL_STAGE_NOTE = `### How journal capture works
@@ -111,6 +112,8 @@ function frameLearning(raw: string): string {
 export function JournalStageClient(props: JournalStageClientProps) {
   const router = useRouter();
   const readOnly = props.phase !== 'build' && props.phase !== 'learn';
+
+  useEffect(() => { stagePhaseStore.set('journal'); }, []);
 
   const [activeId, setActiveId] = useState<string>(props.activeLearningId ?? props.learnings[0]?.id ?? '');
   const [threads, setThreads] = useState<Record<string, JournalMsg[]>>({});

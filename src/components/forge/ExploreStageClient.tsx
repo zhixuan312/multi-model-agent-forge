@@ -347,6 +347,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 loading={busy}
                 placeholder="Tell Forge everything you know…"
                 submitLabel={busy ? 'Thinking…' : 'Analyze sources'}
+                rows={0}
+                className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
               />
               {error ? <p className="mt-2 text-sm text-[var(--rose)]">{error}</p> : null}
             </CardContent>

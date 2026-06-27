@@ -5,13 +5,14 @@ import { qaMessage } from '@/db/schema/spec';
 import { repo } from '@/db/schema/workspace';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
 import { readPlanFileAsync } from '@/projects/project-files';
+import { parsePlanSections } from '@/plan/plan-file-ops';
 
 /**
- * Plan-core — loads plan data for the plan stage RSC. Tasks from DB,
- * plan markdown from the physical `plan.md` file. Mirrors spec-core's role.
+ * Plan-core — loads plan data for the plan stage RSC. Task content comes
+ * from the physical `plan.md` file (source of truth). DB `plan_task` rows
+ * provide metadata only (approval status, participants, execution state).
  */
 
-/** Client-safe plan task view (matches PlanTaskSeed shape for PlanStageClient compat). */
 export interface PlanTaskView {
   id: string;
   num: number;
@@ -26,14 +27,12 @@ export interface PlanTaskView {
   participantIds?: string[];
 }
 
-/** Client-safe plan phase (group of tasks). */
 export interface PlanPhaseView {
   id: string;
   title: string;
   tasks: PlanTaskView[];
 }
 
-/** Full plan view for the RSC. */
 export interface PlanView {
   phases: PlanPhaseView[];
   planMd: string | null;
@@ -54,47 +53,13 @@ function extractFiles(detail: string): string[] {
   return files;
 }
 
-/** Extract task number from title like "Task 5: Implement handler" → 5. */
-function extractNum(title: string): number {
-  const m = title.match(/Task\s+(\d+)/i);
+/** Extract task number from heading like "### Task 5: Title" → 5. */
+function extractNum(heading: string): number {
+  const m = heading.match(/Task\s+(\d+)/i);
   return m ? Number(m[1]) : 0;
 }
 
-/** Map a DB plan_task row to a client-safe view. */
-export function planTaskToView(
-  row: {
-    id: string;
-    title: string;
-    detail: string | null;
-    targetRepoId: string;
-    dependsOn: string[] | null;
-    orderIndex: number;
-    reviewPolicy: string;
-    status: string;
-    phase?: string | null;
-    approvedBy?: unknown;
-    participants?: unknown;
-  },
-  repoName: string,
-  titleById?: Map<string, string>,
-): PlanTaskView {
-  const body = row.detail ?? '';
-  return {
-    id: row.id,
-    num: extractNum(row.title) || (row.orderIndex + 1),
-    title: row.title,
-    body,
-    files: extractFiles(body),
-    dependsOn: (row.dependsOn ?? []).map((id) => titleById?.get(id) ?? id),
-    targetRepo: repoName,
-    dbStatus: row.status,
-    phase: row.phase ?? undefined,
-    approvedBy: (row.approvedBy as string[] | null) ?? [],
-    participantIds: (row.participants as string[] | null) ?? [],
-  };
-}
-
-/** Group flat task list into phases by the task's `phase` field. Falls back to a single group if no phases set. */
+/** Group flat task list into phases by the `phase` field. */
 export function groupTasksIntoPhases(tasks: PlanTaskView[]): PlanPhaseView[] {
   if (tasks.length === 0) return [];
   const hasPhases = tasks.some((t) => t.phase);
@@ -113,43 +78,61 @@ export function groupTasksIntoPhases(tasks: PlanTaskView[]): PlanPhaseView[] {
   }));
 }
 
-/** Load the full plan view for a project. */
+/** Load the full plan view for a project — tasks from plan.md, metadata from DB. */
 export async function loadPlanView(db: Db, projectId: string): Promise<PlanView> {
   const dbi = db ?? getDb();
 
-  // Load plan tasks + repo names
-  const rows = await dbi
-    .select({
-      id: planTask.id,
-      title: planTask.title,
-      detail: planTask.detail,
-      targetRepoId: planTask.targetRepoId,
-      dependsOn: planTask.dependsOn,
-      orderIndex: planTask.orderIndex,
-      reviewPolicy: planTask.reviewPolicy,
-      status: planTask.status,
-      phase: planTask.phase,
-      approvedBy: planTask.approvedBy,
-      participants: planTask.participants,
-      repoName: repo.name,
-    })
-    .from(planTask)
-    .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
-    .where(eq(planTask.projectId, projectId))
-    .orderBy(asc(planTask.orderIndex));
-
-  // Build title lookup for dependsOn resolution
-  const titleById = new Map(rows.map((r) => [r.id, r.title]));
-  const tasks = rows.map((r) => planTaskToView(r, r.repoName ?? '', titleById));
-  const phases = groupTasksIntoPhases(tasks);
-
-  // Load plan from physical file
   const planFile = await readPlanFileAsync(projectId);
+  const planMd = planFile?.bodyMd ?? null;
 
+  // Parse tasks from the physical plan.md file
+  let tasks: PlanTaskView[] = [];
+  if (planMd) {
+    const sections = parsePlanSections(planMd);
+    // Load DB metadata (approvals, status, participants) keyed by title
+    const dbRows = await dbi
+      .select({
+        id: planTask.id,
+        title: planTask.title,
+        status: planTask.status,
+        phase: planTask.phase,
+        approvedBy: planTask.approvedBy,
+        participants: planTask.participants,
+        targetRepoId: planTask.targetRepoId,
+        dependsOn: planTask.dependsOn,
+        repoName: repo.name,
+      })
+      .from(planTask)
+      .leftJoin(repo, eq(planTask.targetRepoId, repo.id))
+      .where(eq(planTask.projectId, projectId))
+      .orderBy(asc(planTask.orderIndex));
+
+    const metaByTitle = new Map(dbRows.map((r) => [r.title, r]));
+
+    tasks = sections.map((s, i) => {
+      const title = s.heading.replace(/^###\s*/, '').trim();
+      const meta = metaByTitle.get(title);
+      return {
+        id: meta?.id ?? `file-task-${i}`,
+        num: extractNum(s.heading) || (i + 1),
+        title,
+        body: s.body,
+        files: extractFiles(s.body),
+        dependsOn: [],
+        targetRepo: meta?.repoName ?? '',
+        dbStatus: meta?.status,
+        phase: meta?.phase ?? undefined,
+        approvedBy: (meta?.approvedBy as string[] | null) ?? [],
+        participantIds: (meta?.participants as string[] | null) ?? [],
+      };
+    });
+  }
+
+  const phases = groupTasksIntoPhases(tasks);
   const planHistory = await auditPassHistory(dbi, projectId, 'plan');
 
   // Load discussion messages for all plan tasks (keyed by taskId)
-  const taskIds = tasks.map((t) => t.id);
+  const taskIds = tasks.map((t) => t.id).filter((id) => !id.startsWith('file-task-'));
   const messages: PlanView['messages'] = {};
   if (taskIds.length > 0) {
     const { inArray } = await import('drizzle-orm');
@@ -166,10 +149,5 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     }
   }
 
-  return {
-    phases,
-    planMd: planFile?.bodyMd ?? null,
-    auditHistory: planHistory,
-    messages,
-  };
+  return { phases, planMd, auditHistory: planHistory, messages };
 }

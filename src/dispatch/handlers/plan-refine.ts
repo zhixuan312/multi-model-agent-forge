@@ -4,7 +4,7 @@ import { planTask } from '@/db/schema/build';
 import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parsePlanRefineResponse } from '@/plan/plan-refine-prompt';
-import { reassemblePlan } from '@/build/plan-author';
+import { replaceTaskSection } from '@/plan/plan-file-ops';
 
 async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -12,12 +12,20 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const request = ctx.request as { taskId: string };
 
   if (result.updatedTaskBody) {
+    const [task] = await db
+      .select({ title: planTask.title })
+      .from(planTask)
+      .where(eq(planTask.id, request.taskId))
+      .limit(1);
+
+    if (task) {
+      await replaceTaskSection(ctx.projectId, task.title, result.updatedTaskBody);
+    }
+
     await db
       .update(planTask)
       .set({ detail: result.updatedTaskBody, updatedAt: new Date() })
       .where(eq(planTask.id, request.taskId));
-
-    await reassemblePlan(db, ctx.projectId);
   }
 
   const forgeReply = result.chatReply || 'Updated the task.';

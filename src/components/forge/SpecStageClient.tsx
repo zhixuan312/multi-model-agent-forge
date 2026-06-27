@@ -193,7 +193,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
   const [messages] = useServerState(props.initialMessages ?? {});
-  const [specApprovers] = useServerState(props.specApprovers ?? []);
+  const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -367,6 +367,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           projectMembers={props.projectMembers ?? []}
           components={components}
           specApprovers={specApprovers}
+          setSpecApprovers={setSpecApprovers}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -1426,6 +1427,7 @@ function DocumentScreen({
   projectMembers,
   components,
   specApprovers,
+  setSpecApprovers,
   onAdvance,
   onAssembled,
   onError,
@@ -1446,6 +1448,7 @@ function DocumentScreen({
   projectMembers: MemberRef[];
   components: ComponentView[];
   specApprovers: string[];
+  setSpecApprovers: (v: string[]) => void;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1786,7 +1789,11 @@ function DocumentScreen({
             <Button
               size="sm"
               onClick={() => {
-                const action = specApprovers.includes(currentMember.id) ? 'revoke' : 'approve';
+                const isApproved = specApprovers.includes(currentMember.id);
+                const action = isApproved ? 'revoke' : 'approve';
+                setSpecApprovers(isApproved
+                  ? specApprovers.filter((a: string) => a !== currentMember.id)
+                  : [...specApprovers, currentMember.id]);
                 fetch(`/projects/${projectId}/spec/approve`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -1888,11 +1895,13 @@ function DocumentScreen({
                 ? 'Clean audit — the spec is ready for planning.'
                 : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
-            <StageAdvance
-              href={`/projects/${projectId}/plan`}
-              label="Continue to Plan"
-              testId="spec-continue-link"
-            />
+            {specApprovers.length > 0 ? (
+              <StageAdvance
+                href={`/projects/${projectId}/plan`}
+                label="Continue to Plan"
+                testId="spec-continue-link"
+              />
+            ) : null}
           </CardFooter>
         </Card>
       </aside>

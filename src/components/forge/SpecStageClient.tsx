@@ -229,7 +229,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
       'spec-refine': refresh,
     },
     events: {
-      'spec.updated': refresh,
+      'spec.updated': () => { console.log('[SSE] spec.updated received — refreshing'); refresh(); },
       'chat.message': (data) => {
         window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
       },
@@ -1794,7 +1794,7 @@ function DocumentScreen({
                 setSpecApprovers(isApproved
                   ? specApprovers.filter((a: string) => a !== currentMember.id)
                   : [...specApprovers, currentMember.id]);
-                fetch(`/api/projects/${projectId}/spec/approve`, {
+                fetch(`/projects/${projectId}/spec/approve`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ action }),

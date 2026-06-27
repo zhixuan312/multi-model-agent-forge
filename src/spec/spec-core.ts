@@ -181,11 +181,25 @@ export async function loadAllMessages(
     .orderBy(qaMessage.seq);
   const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>> = {};
   for (const r of rows) {
+    if (!r.componentId) continue;
     const list = result[r.componentId] ?? [];
     list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
     result[r.componentId] = list;
   }
   return result;
+}
+
+export async function loadFinalizeMessages(
+  db: Db,
+  stageId: string,
+): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>> {
+  const { isNull } = await import('drizzle-orm');
+  const rows = await db
+    .select({ id: qaMessage.id, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
+    .from(qaMessage)
+    .where(and(eq(qaMessage.stageId, stageId), isNull(qaMessage.componentId)))
+    .orderBy(qaMessage.seq);
+  return rows.map((r) => ({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId }));
 }
 
 export async function loadComponentMessages(

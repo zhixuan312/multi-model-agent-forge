@@ -236,7 +236,7 @@ export function AuditRoundCard({ passNo, verdict, findings, applied, active, onC
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
-          <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">{verdict}</Badge>
+          <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">{verdict === 'clean' ? 'clean' : 'has findings'}</Badge>
           {applied ? <Badge variant="sage" size="sm">applied</Badge> : null}
         </div>
         <span className="text-xs text-ink-faint">{findings.length} findings</span>

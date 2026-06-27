@@ -1729,38 +1729,27 @@ function DocumentScreen({
         <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
           {docView === 'document' && spec ? (
             <ProseBlock>{spec.bodyMd}</ProseBlock>
+          ) : rounds.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="max-w-xs text-center">
+                <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                  <Shield className="size-7 text-[var(--steel)]" />
+                </span>
+                <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                  Run an audit from the right panel to check for gaps, contradictions, and missing detail.
+                </p>
+              </div>
+            </div>
+          ) : activeRound ? (
+            <FindingsGrid
+              findings={activeRound.findings as Finding[]}
+            />
           ) : (
-            <div className={rounds.length === 0 ? 'flex h-full items-center justify-center' : 'space-y-5'}>
-              {rounds.length === 0 ? (
-                <div className="px-6 text-center">
-                  <div className="max-w-xs">
-                    <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
-                      <Shield className="size-7 text-[var(--steel)]" />
-                    </span>
-                    <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
-                    <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-                      The specification is assembled. Run an audit from the right panel to check for gaps, contradictions, and missing detail.
-                    </p>
-                  </div>
-                </div>
-              ) : activeRound ? (
-                <FindingsGrid
-                  findings={activeRound.findings as Finding[]}
-                  selectable
-                  applying={applying}
-                  applied={activeRound.applied}
-                  readOnly={readOnly}
-                  onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
-                  appliedLabel="All findings applied."
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-center">
-                  <p className="text-xs text-ink-faint">Select a pass from the right panel to view its findings.</p>
-                </div>
-              )}
+            <div className="flex h-full items-center justify-center">
+              <p className="text-xs text-ink-faint">Select a pass from the right panel to view its findings.</p>
             </div>
           )}
-          <div ref={bottomRef} />
         </CardContent>
 
         {docView === 'document' && spec ? (
@@ -1784,6 +1773,18 @@ function DocumentScreen({
               disabled={readOnly}
             >
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
+            </Button>
+          </div>
+        ) : activeRound && !activeRound.applied ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => apply(activeRound.passNo, activeRound.findings.map((_, i) => i), activeRound.findings.length)}
+              disabled={readOnly || applying}
+              loading={applying}
+            >
+              Apply all findings
             </Button>
           </div>
         ) : null}

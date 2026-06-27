@@ -877,11 +877,14 @@ function CraftStage({
         }
         // Reload discussion from DB (initialMessages) — always fresh
         const dbMsgs = initialMessages[c.id] ?? [];
-        const discussion: DiscussionMsg[] = dbMsgs.map((m) => ({
-          id: m.id,
-          authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
-          body: m.bodyMd,
-        }));
+        const discussion: DiscussionMsg[] = dbMsgs.map((m) => {
+          seenMsgIds.current.add(m.id);
+          return {
+            id: m.id,
+            authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
+            body: m.bodyMd,
+          };
+        });
         next[c.id] = { participants, discussion };
       }
       return next;

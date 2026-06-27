@@ -45,12 +45,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
   await db.update(stage).set({ status: 'active' }).where(and(deq(stage.projectId, id), deq(stage.kind, 'plan'), deq(stage.status, 'pending')));
   await db.update(project).set({ currentStage: 'plan' }).where(eq(project.id, id));
 
-  let planView = await loadPlanView(db, id);
-  if (!planView.planMd && planView.phases.flatMap((p) => p.tasks).length > 0) {
-    const { reassemblePlan } = await import('@/build/plan-author');
-    await reassemblePlan(db, id);
-    planView = await loadPlanView(db, id);
-  }
+  const planView = await loadPlanView(db, id);
   const mmaReady = readMmaBearer() !== null;
   const voiceEnabled = await isVoiceEnabled({ db });
   const pendingAuthor = await findInflight(db, id, 'plan-author');

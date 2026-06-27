@@ -1,7 +1,6 @@
 /**
- * Client-safe Plan-stage view types. Kept separate from `plan-fs.ts` (which reads
- * + parses the plan markdown with `node:fs`) so the client island can `import
- * type` these without pulling `fs` into the browser bundle.
+ * Client-safe Plan-stage view types. Kept separate from file-system modules
+ * so the client island can `import type` without pulling `fs` into the bundle.
  */
 
 export interface PlanTaskSeed {

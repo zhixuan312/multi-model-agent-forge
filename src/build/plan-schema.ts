@@ -1,13 +1,9 @@
 import { z } from 'zod';
 
 /**
- * The structured-output schema the orchestrator (Anthropic main model) returns
- * when authoring the build plan from the locked spec (Spec 7 §Plan authoring).
- *
- * Each task targets EXACTLY ONE repo (`targetRepoId`); a unit spanning two repos
- * is two tasks wired by `dependsOn`. `reviewPolicy` defaults to `full`; the model
- * sets `none` ONLY for a task the plan explicitly marks "downstream errors
- * expected, fixed by a later task".
+ * Structured-output schema for plan authoring. Each task targets ONE repo;
+ * cross-repo work is two tasks wired by `dependsOn`. `reviewPolicy` is
+ * `reviewed` by default; `none` only for intentionally-incomplete tasks.
  */
 export const PlanTaskDraftSchema = z.object({
   title: z.string().min(1).describe('The task heading text (becomes the verbatim ATX heading / taskDescriptor). NO git commit/add/push steps.'),

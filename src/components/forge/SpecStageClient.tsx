@@ -1794,7 +1794,7 @@ function DocumentScreen({
                 setSpecApprovers(isApproved
                   ? specApprovers.filter((a: string) => a !== currentMember.id)
                   : [...specApprovers, currentMember.id]);
-                fetch(`/projects/${projectId}/spec/approve`, {
+                fetch(`/api/projects/${projectId}/spec/approve`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ action }),

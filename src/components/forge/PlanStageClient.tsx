@@ -515,6 +515,22 @@ function DetailStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  const [refining, setRefining] = useState(false);
+
+  useEffect(() => {
+    function onPlanUpdated(e: Event) {
+      const detail = (e as CustomEvent).detail as { taskId?: string; chatReply?: string } | undefined;
+      if (!detail?.taskId || !detail?.chatReply) return;
+      setRefining(false);
+      setThreads((th) => ({
+        ...th,
+        [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }],
+      }));
+    }
+    window.addEventListener('plan:updated', onPlanUpdated);
+    return () => window.removeEventListener('plan:updated', onPlanUpdated);
+  }, []);
+
   if (authoring && allTasks.length === 0) {
     return (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -578,22 +594,6 @@ function DetailStage({
   }
   const approved = status[active.id] === 'approved';
   const msgs = threads[active.id] ?? [];
-
-  const [refining, setRefining] = useState(false);
-
-  useEffect(() => {
-    function onPlanUpdated(e: Event) {
-      const detail = (e as CustomEvent).detail as { taskId?: string; chatReply?: string } | undefined;
-      if (!detail?.taskId || !detail?.chatReply) return;
-      setRefining(false);
-      setThreads((th) => ({
-        ...th,
-        [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }],
-      }));
-    }
-    window.addEventListener('plan:updated', onPlanUpdated);
-    return () => window.removeEventListener('plan:updated', onPlanUpdated);
-  }, []);
 
   function send() {
     const text = input.trim();

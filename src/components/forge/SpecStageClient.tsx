@@ -1895,13 +1895,12 @@ function DocumentScreen({
                 ? 'Clean audit — the spec is ready for planning.'
                 : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
-            {specApprovers.includes(currentMember.id) ? (
-              <StageAdvance
-                href={`/projects/${projectId}/plan`}
-                label="Continue to Plan"
-                testId="spec-continue-link"
-              />
-            ) : null}
+            <StageAdvance
+              href={specApprovers.includes(currentMember.id) ? `/projects/${projectId}/plan` : '#'}
+              label="Continue to Plan"
+              testId="spec-continue-link"
+              disabled={!specApprovers.includes(currentMember.id)}
+            />
           </CardFooter>
         </Card>
       </aside>

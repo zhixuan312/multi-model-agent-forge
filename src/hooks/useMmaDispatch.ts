@@ -82,8 +82,10 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
   useEffect(() => {
     if (!projectId || typeof EventSource === 'undefined') return;
     const es = new EventSource(`/api/projects/${projectId}/events`);
+    console.log('[SSE] connection opened for', projectId);
 
     es.onmessage = (e: MessageEvent) => {
+      console.log('[SSE] event received:', e.data.slice(0, 80));
       try {
         const data = JSON.parse(e.data) as Record<string, unknown>;
         const type = data.type as string;

@@ -116,103 +116,64 @@ describe('chat.message event structure validation', () => {
 });
 
 describe('client-side chat lifecycle simulation', () => {
-  it('full scenario: two users + Forge', () => {
-    // Simulate the full client-side lifecycle
+  it('full scenario: two users + Forge with SSE echo race', () => {
     type Msg = { id: string; authorId: string; body: string };
     const xuanDiscussion: Msg[] = [];
     const bnDiscussion: Msg[] = [];
-    const xuanSeen = new Set<string>();
-    const bnSeen = new Set<string>();
 
-    function appendIfNew(discussion: Msg[], seen: Set<string>, msg: Msg) {
-      if (seen.has(msg.id)) return;
-      seen.add(msg.id);
+    // SSE handler: skip own messages, append others
+    function onSseMessage(discussion: Msg[], myId: string, msg: Msg) {
+      if (msg.authorId === myId) return; // skip own messages — already optimistically appended
+      if (discussion.some((d) => d.id === msg.id)) return; // dedup
       discussion.push(msg);
     }
 
     // 1. Page load — both seed from DB
-    const initialMsgs = [
-      { id: 'db-1', authorId: 'forge', body: '✅ This looks complete.' },
-    ];
-    for (const m of initialMsgs) {
-      appendIfNew(xuanDiscussion, xuanSeen, m);
-      appendIfNew(bnDiscussion, bnSeen, m);
-    }
-    expect(xuanDiscussion).toHaveLength(1);
-    expect(bnDiscussion).toHaveLength(1);
+    const initial = { id: 'db-1', authorId: 'forge', body: '✅ This looks complete.' };
+    xuanDiscussion.push(initial);
+    bnDiscussion.push(initial);
 
-    // 2. Xuan sends a message — optimistic append
-    const xuanTempId = 'tmp-xuan-1';
-    xuanDiscussion.push({ id: xuanTempId, authorId: 'xuan-id', body: 'hello team' });
+    // 2. Xuan sends — optimistic append
+    xuanDiscussion.push({ id: 'tmp-1', authorId: 'xuan-id', body: 'hello team' });
 
-    // 3. POST returns real ID — replace temp + mark seen
-    const xuanRealId = 'db-2';
-    xuanSeen.add(xuanRealId);
-    const idx = xuanDiscussion.findIndex((d) => d.id === xuanTempId);
-    xuanDiscussion[idx] = { ...xuanDiscussion[idx], id: xuanRealId };
+    // 3. SSE echo arrives BEFORE POST response (race condition!)
+    onSseMessage(xuanDiscussion, 'xuan-id', { id: 'db-2', authorId: 'xuan-id', body: 'hello team' });
+    // ↑ Skipped because authorId === myId. No duplicate!
+    expect(xuanDiscussion).toHaveLength(2); // initial + optimistic (no dupe)
 
-    // 4. SSE delivers chat.message to BOTH browsers
-    // Xuan's browser: skips (already in seen)
-    appendIfNew(xuanDiscussion, xuanSeen, { id: xuanRealId, authorId: 'xuan-id', body: 'hello team' });
-    // BN's browser: appends (not in seen)
-    appendIfNew(bnDiscussion, bnSeen, { id: xuanRealId, authorId: 'xuan-id', body: 'hello team' });
+    // 4. POST response arrives — replace temp ID
+    const idx = xuanDiscussion.findIndex((d) => d.id === 'tmp-1');
+    xuanDiscussion[idx] = { ...xuanDiscussion[idx], id: 'db-2' };
 
-    expect(xuanDiscussion).toHaveLength(2); // initial + xuan's msg (no duplicate)
-    expect(bnDiscussion).toHaveLength(2); // initial + xuan's msg via SSE
+    // 5. SSE delivers to BN (different user — appends)
+    onSseMessage(bnDiscussion, 'bn-id', { id: 'db-2', authorId: 'xuan-id', body: 'hello team' });
+    expect(bnDiscussion).toHaveLength(2);
 
-    // 5. BN sends a message
-    const bnTempId = 'tmp-bn-1';
-    bnDiscussion.push({ id: bnTempId, authorId: 'bn-id', body: 'i agree' });
-    const bnRealId = 'db-3';
-    bnSeen.add(bnRealId);
-    const bnIdx = bnDiscussion.findIndex((d) => d.id === bnTempId);
-    bnDiscussion[bnIdx] = { ...bnDiscussion[bnIdx], id: bnRealId };
+    // 6. BN sends — same flow
+    bnDiscussion.push({ id: 'tmp-2', authorId: 'bn-id', body: 'i agree' });
+    onSseMessage(bnDiscussion, 'bn-id', { id: 'db-3', authorId: 'bn-id', body: 'i agree' });
+    expect(bnDiscussion).toHaveLength(3); // no dupe
+    const bnIdx = bnDiscussion.findIndex((d) => d.id === 'tmp-2');
+    bnDiscussion[bnIdx] = { ...bnDiscussion[bnIdx], id: 'db-3' };
 
-    // SSE delivers to both
-    appendIfNew(xuanDiscussion, xuanSeen, { id: bnRealId, authorId: 'bn-id', body: 'i agree' });
-    appendIfNew(bnDiscussion, bnSeen, { id: bnRealId, authorId: 'bn-id', body: 'i agree' });
+    // SSE delivers to Xuan
+    onSseMessage(xuanDiscussion, 'xuan-id', { id: 'db-3', authorId: 'bn-id', body: 'i agree' });
+    expect(xuanDiscussion).toHaveLength(3);
 
-    expect(xuanDiscussion).toHaveLength(3); // initial + xuan + bn
-    expect(bnDiscussion).toHaveLength(3);
+    // 7. Forge responds via SSE — both users receive (authorId='forge')
+    const forgeMsg = { id: 'db-4', authorId: 'forge', body: '✅ Updated.' };
+    onSseMessage(xuanDiscussion, 'xuan-id', forgeMsg);
+    onSseMessage(bnDiscussion, 'bn-id', forgeMsg);
+    expect(xuanDiscussion).toHaveLength(4);
+    expect(bnDiscussion).toHaveLength(4);
 
-    // 6. Xuan @Forge — triggers refine, Forge responds
-    const forgeTempId = 'tmp-xuan-2';
-    xuanDiscussion.push({ id: forgeTempId, authorId: 'xuan-id', body: '@Forge update the context' });
-    const forgeHumanRealId = 'db-4';
-    xuanSeen.add(forgeHumanRealId);
-    const forgeIdx = xuanDiscussion.findIndex((d) => d.id === forgeTempId);
-    xuanDiscussion[forgeIdx] = { ...xuanDiscussion[forgeIdx], id: forgeHumanRealId };
+    // 8. No duplicates anywhere
+    expect(new Set(xuanDiscussion.map((d) => d.id)).size).toBe(4);
+    expect(new Set(bnDiscussion.map((d) => d.id)).size).toBe(4);
 
-    // SSE delivers human message to BN
-    appendIfNew(bnDiscussion, bnSeen, { id: forgeHumanRealId, authorId: 'xuan-id', body: '@Forge update the context' });
-
-    // Forge responds (SSE chat.message from spec-refine handler)
-    const forgeReplyId = 'db-5';
-    appendIfNew(xuanDiscussion, xuanSeen, { id: forgeReplyId, authorId: 'forge', body: '✅ Updated.' });
-    appendIfNew(bnDiscussion, bnSeen, { id: forgeReplyId, authorId: 'forge', body: '✅ Updated.' });
-
-    expect(xuanDiscussion).toHaveLength(5); // initial + 2 xuan + 1 bn + 1 forge
-    expect(bnDiscussion).toHaveLength(5);
-
-    // 7. Verify correct author attribution
-    expect(xuanDiscussion[0].authorId).toBe('forge');
-    expect(xuanDiscussion[1].authorId).toBe('xuan-id');
-    expect(xuanDiscussion[2].authorId).toBe('bn-id');
-    expect(xuanDiscussion[3].authorId).toBe('xuan-id');
-    expect(xuanDiscussion[4].authorId).toBe('forge');
-
-    // BN sees the same messages with correct attribution
-    expect(bnDiscussion[0].authorId).toBe('forge');
-    expect(bnDiscussion[1].authorId).toBe('xuan-id'); // NOT 'bn-id'
-    expect(bnDiscussion[2].authorId).toBe('bn-id');
-    expect(bnDiscussion[3].authorId).toBe('xuan-id');
-    expect(bnDiscussion[4].authorId).toBe('forge');
-
-    // 8. No duplicates
-    const xuanIds = xuanDiscussion.map((d) => d.id);
-    expect(new Set(xuanIds).size).toBe(xuanIds.length);
-    const bnIds = bnDiscussion.map((d) => d.id);
-    expect(new Set(bnIds).size).toBe(bnIds.length);
+    // 9. Correct attribution
+    expect(xuanDiscussion.map((d) => d.authorId)).toEqual(['forge', 'xuan-id', 'bn-id', 'forge']);
+    expect(bnDiscussion.map((d) => d.authorId)).toEqual(['forge', 'xuan-id', 'bn-id', 'forge']);
   });
 
   it('page refresh loads full history — no data loss', () => {

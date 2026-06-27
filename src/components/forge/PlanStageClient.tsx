@@ -40,6 +40,8 @@ import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/build/plan-types';
 import { FindingsGrid, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { ParticipantStrip } from '@/components/forge/collab/Participants';
+import type { Participant } from '@/collab/types';
 
 const PLAN_PHASE_NOTES: Record<string, string> = {
   refine: `### Refine — review the tasks
@@ -83,6 +85,8 @@ export interface PlanStageClientProps {
   intentMd: string;
   phase: ProjectPhase;
   mmaReady: boolean;
+  currentMember?: { id: string; displayName: string; avatarTint: string };
+  projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   phases: PlanPhaseSeed[];
   planMd: string;
   auditRounds: PlanAuditFinding[][];
@@ -294,6 +298,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           approvedCount={approvedCount}
           allApproved={allApproved}
           mma={mma}
+          projectMembers={props.projectMembers ?? []}
           onToggleApprove={(id) => { const next = status[id] === 'approved' ? 'proposed' : 'approved'; setStatus((s) => ({ ...s, [id]: next as TaskStatus })); fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, { method: next === 'approved' ? 'POST' : 'DELETE' }).catch(() => {}); }}
           onValidate={() => setPhase('validate')}
         />
@@ -463,6 +468,7 @@ function DetailStage({
   approvedCount,
   allApproved,
   mma,
+  projectMembers,
   onToggleApprove,
   onValidate,
 }: {
@@ -476,6 +482,7 @@ function DetailStage({
   approvedCount: number;
   allApproved: boolean;
   mma: ReturnType<typeof useMmaDispatch>;
+  projectMembers: { id: string; displayName: string; avatarTint: string }[];
   onToggleApprove: (id: string) => void;
   onValidate: () => void;
 }) {
@@ -502,6 +509,8 @@ function DetailStage({
 
   const [refining, setRefining] = useState(false);
   const [taskView, setTaskView] = useState<'plan' | 'discussion'>('plan');
+  const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>({});
+  const taskParticipants: Participant[] = taskApprovers[active?.id ?? ''] ?? [];
 
   useEffect(() => {
     function onPlanUpdated(e: Event) {
@@ -630,6 +639,20 @@ function DetailStage({
             ))}
           </div>
         </CardHeader>
+        <div className="shrink-0 border-b border-line px-5 py-2.5">
+          <ParticipantStrip
+            participants={taskParticipants}
+            pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
+            onAdd={(m) => {
+              setTaskApprovers((prev) => {
+                const existing = prev[active.id] ?? [];
+                if (existing.some((p) => p.member.id === m.id)) return prev;
+                return { ...prev, [active.id]: [...existing, { member: m, addedBy: null, approvedAt: null }] };
+              });
+            }}
+            disabled={readOnly}
+          />
+        </div>
         <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
           {taskView === 'plan' ? (
             <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">

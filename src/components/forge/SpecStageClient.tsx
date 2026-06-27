@@ -795,10 +795,7 @@ function CraftStage({
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
   const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
-  // Tracks components where user explicitly clicked "Back to conversation"
-  const [forceConversation, setForceConversation] = useState<Set<string>>(new Set());
   const [refining, setRefining] = useState(false);
-  const [sectionHistory, setSectionHistory] = useState<Record<string, { role: 'forge' | 'user'; text: string }[]>>({});
 
   // Auto-fetch drafts for all drafted components on first load
   const initialFetchDone = useRef(false);
@@ -918,11 +915,10 @@ function CraftStage({
             discussion: [...u.discussion, { id: msg.id, authorId: msg.authorId, body: msg.bodyMd }],
           },
         };
-      // Forge message arrived — clear thinking indicator
+      });
       if (msg.authorId === 'forge') {
         setRefining(false);
       }
-      });
     };
     const typingHandler = (e: Event) => {
       const { componentId: cid, typing } = (e as CustomEvent).detail as { componentId: string; typing: boolean };
@@ -962,7 +958,7 @@ function CraftStage({
   // Auto-show spec view for approved or ready (aiSatisfied) components when clicked.
   // Needs-input components always show the conversation.
   useEffect(() => {
-    const showSpec = active && (active.status === 'approved' || active.aiSatisfied) && !forceConversation.has(active.id);
+    const showSpec = active && (active.status === 'approved' || active.aiSatisfied);
     if (!active || !showSpec || constructedDrafts[active.id]) return;
     const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
     if (md) {
@@ -1024,35 +1020,7 @@ function CraftStage({
     setCollab((prev) => ({ ...prev, [id]: updater(prev[id] ?? { participants: [], discussion: [] }) }));
   }
 
-  /** Mock: append a reply into a section's thread after a short beat. A mentioned
-   *  teammate responds (and approves when asked); `'forge'` acknowledges. */
-  function scheduleReply(
-    authorId: string,
-    sectionId: string,
-    body: string,
-    opts: { approve?: boolean; delay?: number } = {},
-  ): void {
-    setTimeout(() => {
-      setCollab((prev) => {
-        const u = prev[sectionId] ?? { participants: [], discussion: [] };
-        let participants = u.participants;
-        if (opts.approve) {
-          const m = participants.find((p) => p.member.id === authorId)?.member;
-          if (m) participants = recordApproval(participants, m, new Date().toISOString());
-        }
-        const msg: DiscussionMsg = {
-          id: `r-${sectionId}-${u.discussion.length}`,
-          authorId,
-          body,
-          approval: opts.approve,
-        };
-        return { ...prev, [sectionId]: { ...u, participants, discussion: [...u.discussion, msg] } };
-      });
-    }, opts.delay ?? 1100);
-  }
-
-  /** Pull a teammate in from the top "Invite" picker — the one place to add an
-   *  approver. They join the section and say a quick hello in the thread. */
+  /** Pull a teammate in from the top "Invite" picker. */
   function invite(m: MemberRef): void {
     if (readOnly || !active) return;
     const already = activeCollab.participants.some((p) => p.member.id === m.id);
@@ -1106,12 +1074,9 @@ function CraftStage({
     if (forgeTagged && drafted) {
       setRefining(true);
       setCraftView('conversation');
-      const history = sectionHistory[active.id] ?? [];
-      const newHistory = [...history, { role: 'user' as const, text: userInput }];
       const compId = active.id;
-      setSectionHistory((prev) => ({ ...prev, [compId]: newHistory }));
 
-      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: userInput, history })
+      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: userInput })
         .then(() => {
           setRefining(false);
         })
@@ -1126,23 +1091,6 @@ function CraftStage({
           }));
         });
     }
-  }
-
-  /** End the Q&A and let Forge construct the draft from what's gathered. */
-  function construct(): void {
-    if (readOnly || !active) return;
-    if (input.trim()) setInput('');
-    setInput('');
-    // A freshly constructed draft supersedes any prior sign-offs — they approved
-    // an EARLIER version. Reset approvals so the author reviews the new draft and
-    // approvers re-sign it. Without this, a stale approval (e.g. the seeded "Bo
-    // already approved" on technical_design) trips the auto-approve gate the instant
-    // the section is drafted, skipping review and showing "approved" immediately.
-    patchCollab((u) => ({
-      ...u,
-      participants: u.participants.map((p) => (p.approvedAt ? { ...p, approvedAt: null } : p)),
-    }));
-    onPatch(active.id, { status: 'drafted' });
   }
 
   function approve(): void {
@@ -1161,23 +1109,6 @@ function CraftStage({
       setActiveId(nextOpen.id);
       setInput('');
     }
-  }
-
-  /** Reopen a drafted/approved section to keep editing the conversation. */
-  function constructSection(): void {
-    if (!active) return;
-    setForceConversation((prev) => { const next = new Set(prev); next.delete(active.id); return next; });
-    // Fetch the latest draft from DB
-    fetch(`/projects/${projectId}/spec/outline`)
-      .then((r) => r.json())
-      .then((data: { components?: ComponentView[] }) => {
-        const fresh = data.components?.find((c) => c.id === active.id);
-        if (fresh) {
-          const md = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
-          if (md) setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
-        }
-      })
-      .catch(() => {});
   }
 
   function backToEdit(): void {

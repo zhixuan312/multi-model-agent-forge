@@ -1674,28 +1674,17 @@ function DocumentScreen({
               </Badge>
             ) : null}
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            <Sparkles className="size-3" /> whole-spec review
-          </span>
+          {spec ? (
+            <CraftViewToggle
+              active={docView === 'document' ? 'spec' : 'conversation'}
+              onSwitch={(v) => setDocView(v === 'spec' ? 'document' : 'conversation')}
+            />
+          ) : null}
         </CardHeader>
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
           {docView === 'document' && spec ? (
-            /* Document mode — full rendered spec */
-            <div className="flex gap-2.5">
-              <ForgeMark className="mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-ink">Forge</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">
-                    specification · v{spec.version}
-                  </span>
-                </div>
-                <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                  <ProseBlock>{spec.bodyMd}</ProseBlock>
-                </div>
-              </div>
-            </div>
+            <ProseBlock>{spec.bodyMd}</ProseBlock>
           ) : (
             /* Conversation mode — chat thread */
             <div className="space-y-5">
@@ -1752,40 +1741,26 @@ function DocumentScreen({
         </CardContent>
 
         {docView === 'document' ? (
-          /* Document mode footer — back to conversation */
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <div className="flex items-center gap-2.5">
-              <FileText className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Specification v{spec?.version ?? 1}</p>
-                <p className="text-xs text-ink-faint">Review the assembled spec, or go back to refine.</p>
-              </div>
-            </div>
-            <Button size="sm" variant="secondary" onClick={() => setDocView('conversation')} leftIcon={<ChevronLeft />}>
-              Back to conversation
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => { void runAssemble(); }}
+              loading={assembling}
+              disabled={(!readOnly && !allApproved) || assembling}
+              leftIcon={<Sparkles />}
+            >
+              Re-assemble
             </Button>
           </div>
         ) : (
-          /* Conversation mode footer — input + show spec / construct */
           <ConversationComposer
             value={input}
             onChange={setInput}
             onSend={() => sendRefine()}
-            disabled={readOnly || !spec}
-            placeholder="Tell Forge what to refine across the spec…"
+            disabled={readOnly || !spec || auditing}
+            placeholder="Discuss the spec or @Forge to refine…"
             voice={voiceEnabled}
-            secondaryActions={
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => { if (readOnly && spec) { setDocView('document'); } else { void runAssemble(); setDocView('document'); } }}
-                loading={assembling}
-                disabled={(!readOnly && !allApproved) || assembling || (readOnly && !spec)}
-                leftIcon={<Sparkles />}
-              >
-                {readOnly ? 'View spec' : 'Construct spec'}
-              </Button>
-            }
           />
         )}
         {!mmaReady ? (

@@ -147,7 +147,7 @@ export function FindingsGrid({ findings, selectable, applying, applied, readOnly
   const disabled = readOnly || !!applying || !!applied;
 
   return (
-    <div className="overflow-hidden rounded-[var(--r-md)] border border-line bg-surface shadow-sm">
+    <div>
       {findings.length > 0 ? (
         <>
           <div className="divide-y divide-line/50">

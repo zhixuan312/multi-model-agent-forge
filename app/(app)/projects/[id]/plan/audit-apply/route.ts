@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { guardBuildWrite } from '@/build/guard';
-import { artifact } from '@/db/schema/artifacts';
+import { readPlanFileAsync } from '@/projects/project-files';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
@@ -59,16 +58,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const [planArt] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, id), eq(artifact.kind, 'plan')))
-    .orderBy(artifact.version)
-    .limit(1);
-
-  if (!planArt) {
-    return NextResponse.json({ error: 'No plan artifact found.' }, { status: 409 });
+  const planFile = await readPlanFileAsync(id);
+  if (!planFile) {
+    return NextResponse.json({ error: 'No plan file found.' }, { status: 409 });
   }
+  const planArt = { bodyMd: planFile.bodyMd };
 
   const findings = parsed.data.findings;
   const findingsBlock = findings

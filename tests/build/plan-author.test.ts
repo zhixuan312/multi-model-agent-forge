@@ -7,18 +7,28 @@ import { RecordingBus, FakePlanFs } from './fixtures';
 import type { PlanDraft } from '@/build/plan-schema';
 
 const readSpecFileAsyncMock = vi.fn();
+const writePlanAsyncMock = vi.fn();
+const readPlanFileAsyncMock = vi.fn();
+let planVersion = 0;
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/projects/project-files')>();
   return {
     ...orig,
     readSpecFileAsync: (...args: unknown[]) => readSpecFileAsyncMock(...args),
+    writePlanAsync: (...args: unknown[]) => writePlanAsyncMock(...args),
+    readPlanFileAsync: (...args: unknown[]) => readPlanFileAsyncMock(...args),
   };
 });
 
 beforeEach(() => {
   readSpecFileAsyncMock.mockReset();
+  writePlanAsyncMock.mockReset();
+  readPlanFileAsyncMock.mockReset();
+  planVersion = 0;
   readSpecFileAsyncMock.mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '# Spec' });
+  writePlanAsyncMock.mockImplementation(() => { planVersion++; return Promise.resolve({ filePath: '/fake/plan.md', version: planVersion }); });
+  readPlanFileAsyncMock.mockResolvedValue(null);
 });
 
 function draft(tasks: PlanDraft['tasks']): PlanDraft {
@@ -32,12 +42,11 @@ describe('authorPlan', () => {
         { id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
         { id: 'repo-b', projectId: 'proj-1', name: 'repo-b', pathOnDisk: '/work/b', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
       ],
-      'select:project_artifact': [{ m: 0 }],  // nextPlanVersion (plan kind)
       'insert:project_plan_task': [
         { id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Task 1: Cache', detail: 'add caching to A', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
         { id: 'task-2', projectId: 'proj-1', targetRepoId: 'repo-b', title: 'Task 2: Read-only? no, write B', detail: 'wire B', orderIndex: 1, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: ['task-1'], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() },
       ],
-      'insert:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      
     });
     const fs = new FakePlanFs();
     const bus = new RecordingBus();
@@ -68,8 +77,8 @@ describe('authorPlan', () => {
     // project_plan_task rows persisted (queued)
     expect(db._assertCalled('project_plan_task', 'insert')).toBe(true);
 
-    // Combined plan artifact persisted.
-    expect(db._assertCalled('project_artifact', 'insert')).toBe(true);
+    // Combined plan written to file.
+    expect(writePlanAsyncMock).toHaveBeenCalled();
 
     // plan.authored emitted.
     expect(bus.ofType('plan.authored')).toHaveLength(1);
@@ -81,9 +90,8 @@ describe('authorPlan', () => {
         { id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
         { id: 'repo-metrics', projectId: 'proj-1', name: 'metrics', pathOnDisk: '/work/metrics', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() },
       ],
-      'select:project_artifact': [{ m: 0 }],  // nextPlanVersion (plan kind)
       'insert:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'Only A', detail: 'do', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'insert:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
+      
     });
     const res = await authorPlan(
       { db, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'Only A', detail: 'do', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
@@ -99,12 +107,9 @@ describe('authorPlan', () => {
     const db = createMockDb({
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
       // nextPlanVersion: first call → max 0, second call → max 1
-      'select:project_artifact': seq(
-        [{ m: 0 }],
-        [{ m: 1 }],
-      ),
+      
       'insert:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-a', title: 'A', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'reviewed', dependsOn: [], commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'insert:project_artifact': [{ id: 'art-2', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan v2', version: 2, createdAt: new Date(), updatedAt: new Date() }],
+      
     });
     const mk = () =>
       authorPlan(

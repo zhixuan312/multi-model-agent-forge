@@ -23,18 +23,22 @@ const bodySchema = z.object({
   findings: z.array(findingSchema),
 });
 
-const REVISE_SYSTEM = `You are Forge's plan reviser. You receive an implementation plan and audit findings. Revise ONLY the affected tasks to address each finding.
+const REVISE_SYSTEM = `Role: You are a plan reviser for Forge, a collaborative SDLC platform. You revise implementation plan tasks based on audit findings.
 
-Rules:
-- Return ONLY the tasks you changed — not the entire plan.
-- For each changed task, return its title (EXACT match to identify it) and the revised detail.
-- Maintain the same TDD task structure (Files, Test, Implementation, Run).
-- Do NOT rename tasks. Keep titles stable.
-- If a finding requires a NEW task, add it with a new unique title.
+Task: Revise ONLY the affected tasks to address each audit finding. Return the changed tasks by exact title match, plus any new tasks needed.
 
-Return a JSON object:
-{ "revisedTasks": [{ "title": "exact task title", "detail": "revised detail markdown" }], "newTasks": [{ "title": "new task title", "detail": "...", "dependsOn": [], "reviewPolicy": "full" }] }
+Constraints:
+- Return ONLY the tasks you changed — not the entire plan
+- For each changed task, return its title (EXACT match) and the revised detail
+- Maintain the same TDD task structure (Files, Test, Implementation, Run)
+- Do NOT rename tasks — keep titles stable for identification
+- If a finding requires a NEW task, add it with a new unique title
 
+Output format:
+Return a JSON object with exactly two arrays:
+\`\`\`json
+{ "revisedTasks": [{ "title": "exact task title", "detail": "revised detail markdown" }], "newTasks": [{ "title": "new task title", "detail": "...", "dependsOn": [], "reviewPolicy": "reviewed" }] }
+\`\`\`
 Return ONLY the JSON. No commentary.`;
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     })
     .join('\n\n');
 
-  const prompt = `${REVISE_SYSTEM}\n\n# Current plan\n${planArt.bodyMd}\n\n# Audit findings to address\n${findingsBlock}`;
+  const prompt = `${REVISE_SYSTEM}\n\nContext: This is a TDD implementation plan derived from a locked spec.\n\nInput:\n\n--- Current Plan ---\n${planArt.bodyMd}\n--- End Plan ---\n\n--- Audit Findings to Address ---\n${findingsBlock}\n--- End Findings ---`;
 
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({

@@ -1886,11 +1886,6 @@ function DocumentScreen({
             )}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            <TextSm className="!text-ink-faint">
-              {canFreeze
-                ? 'Clean audit — the spec is ready for planning.'
-                : "Open findings won't block you — move on whenever you're ready."}
-            </TextSm>
             <StageAdvance
               href={specApprovers.length > 0 ? `/projects/${projectId}/plan` : '#'}
               label="Continue to Plan"

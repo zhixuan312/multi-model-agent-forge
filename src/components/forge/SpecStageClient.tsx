@@ -361,6 +361,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
           pendingApply={props.pendingApply}
           driving={auto === 'running'}
           mma={mma}
+          currentMember={props.currentMember}
+          projectMembers={props.projectMembers ?? []}
+          components={components}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -1416,6 +1419,9 @@ function DocumentScreen({
   pendingApply,
   driving,
   mma,
+  currentMember,
+  projectMembers,
+  components,
   onAdvance,
   onAssembled,
   onError,
@@ -1432,6 +1438,9 @@ function DocumentScreen({
   pendingApply?: string | null;
   driving: boolean;
   mma: MmaDispatchState;
+  currentMember: MemberRef;
+  projectMembers: MemberRef[];
+  components: ComponentView[];
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1682,11 +1691,34 @@ function DocumentScreen({
           ) : null}
         </CardHeader>
 
+        {/* Participants strip — unique members from all spec section participants */}
+        {(() => {
+          const allPool = [currentMember, ...projectMembers];
+          const involvedIds = new Set<string>([currentMember.id]);
+          for (const c of components) {
+            for (const pid of (c.participantIds ?? []) as string[]) involvedIds.add(pid);
+            for (const aid of c.approvedBy as string[]) involvedIds.add(aid);
+          }
+          const involved: Participant[] = [...involvedIds]
+            .map((id) => allPool.find((m) => m.id === id))
+            .filter(Boolean)
+            .map((m) => ({ member: m!, addedBy: null, approvedAt: null }));
+          return (
+            <div className="shrink-0 border-b border-line px-5 py-2.5">
+              <ParticipantStrip
+                participants={involved}
+                pool={projectMembers}
+                onAdd={() => {}}
+                disabled={readOnly}
+              />
+            </div>
+          );
+        })()}
+
         <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
           {docView === 'document' && spec ? (
             <ProseBlock>{spec.bodyMd}</ProseBlock>
           ) : (
-            /* Conversation mode — chat thread */
             <div className="space-y-5">
               {messages.length === 0 ? (
                 <div className="grid h-full place-items-center px-6 text-center">
@@ -1740,20 +1772,7 @@ function DocumentScreen({
           <div ref={bottomRef} />
         </CardContent>
 
-        {docView === 'document' ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => { void runAssemble(); }}
-              loading={assembling}
-              disabled={(!readOnly && !allApproved) || assembling}
-              leftIcon={<Sparkles />}
-            >
-              Re-assemble
-            </Button>
-          </div>
-        ) : (
+        {docView === 'document' ? null : (
           <ConversationComposer
             value={input}
             onChange={setInput}
@@ -1761,6 +1780,10 @@ function DocumentScreen({
             disabled={readOnly || !spec || auditing}
             placeholder="Discuss the spec or @Forge to refine…"
             voice={voiceEnabled}
+            mentionPool={[
+              { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' },
+              ...projectMembers.filter((m) => m.id !== currentMember.id),
+            ]}
           />
         )}
         {!mmaReady ? (

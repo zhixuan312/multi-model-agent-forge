@@ -32,21 +32,21 @@ export interface AutoDraftDeps {
 /* ── Full-spec draft (one call) ──────────────────────────────────────────── */
 
 function buildFullDraftSystem(): string {
-  return `You are Forge's spec drafter. You receive a project intent, an exploration brief, and a spec outline (components + sections). Draft EVERY section and attach follow-up questions where the exploration brief leaves gaps.
+  return `Role: You are a specification drafter for Forge, a collaborative SDLC platform.
 
-For each section:
-- Do NOT add headings — they are added automatically.
-- Stay strictly within the section's stated scope. A component may have multiple sections (e.g. "Driving factors", "Options", "Comparison") — each covers ONLY what its prompt describes. Never duplicate content that belongs in a sibling section.
-- Attach 0-N questions: ask when the exploration brief leaves genuine gaps. Ask ALL your questions at once — do not hold back. If you have 3 concerns, ask all 3. If the brief already covers the section fully, return an empty questions array.
-- Ground your draft in the exploration findings, but ADAPT THE LANGUAGE TO THE AUDIENCE.
+Task: Draft EVERY section of the spec outline and attach follow-up questions where the exploration brief leaves gaps. Each section should be a complete, audience-appropriate draft ready for team review.
 
-Audience rules — each section lists its primary roles:
-- **BO (Business Owner) / PM (Product Manager)**: Write in plain business language. NO code references, file paths, line numbers, SQL syntax, or engineering jargon. Describe WHAT the system does and WHY, not HOW it's implemented. A non-technical stakeholder must be able to read and approve it.
-- **SWE (Software Engineer)**: Technical detail is expected. Name files, functions, libraries, patterns, and architecture decisions. Reference the exploration findings directly.
-- **Mixed roles (e.g. PM + SWE)**: Lead with the business context in plain language, then add a technical details subsection for engineers.
+Constraints:
+- Do NOT add headings — they are added automatically
+- Stay strictly within each section's stated scope — never duplicate content from sibling sections
+- Attach 0-N questions per section: ask when the exploration brief leaves genuine gaps. Ask ALL questions at once — do not hold back
+- Ground your draft in the exploration findings, but adapt language to the audience
+- Audience rules per section (listed in the outline):
+  - BO / PM: Plain business language. NO code references, file paths, or engineering jargon. Describe WHAT and WHY, not HOW
+  - SWE: Technical detail expected. Name files, functions, libraries, patterns
+  - Mixed roles: Lead with business context, then add a technical details subsection
 
-Return ALL sections in the spec outline, in order.
-
+Output format:
 Return a JSON object with this EXACT structure:
 \`\`\`json
 {
@@ -60,8 +60,9 @@ Return a JSON object with this EXACT structure:
   ]
 }
 \`\`\`
-
-IMPORTANT: The content field MUST be named "draftMd" — not "draft", "body", "content", or "text".`;
+- Return ALL sections in the spec outline, in order
+- The content field MUST be named "draftMd"
+- If the brief fully covers a section, return an empty questions array`;
 }
 
 function buildFullDraftUser(
@@ -70,9 +71,9 @@ function buildFullDraftUser(
   outline: { componentKind: string; componentLabel: string; sectionKey: string; sectionLabel: string; prompt: string; roles: string[] }[],
 ): string {
   const parts: string[] = [];
-  parts.push(`# Project intent\n${intentMd ?? '(no intent captured)'}`);
+  parts.push(`Context:\n\n# Project intent\n${intentMd ?? '(no intent captured)'}`);
   if (explorationMd) parts.push(`\n# Exploration brief\n${explorationMd}`);
-  parts.push('\n# Spec outline — draft each section');
+  parts.push('\nInput: Spec outline — draft each section below');
   for (const s of outline) {
     parts.push(`\n## ${s.componentLabel} > ${s.sectionLabel}`);
     parts.push(`componentKind: ${s.componentKind}`);

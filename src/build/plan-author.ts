@@ -317,44 +317,6 @@ export async function getLatestPlanArtifact(_db: unknown, projectId: string) {
   return { bodyMd: file.bodyMd, version: file.version };
 }
 
-/** Re-render the combined plan from DB tasks and write to the physical plan.md file. */
-export async function reassemblePlan(db: Db, projectId: string): Promise<void> {
-  const tasks = await loadPlanTasks(db, projectId);
-  if (tasks.length === 0) return;
-  const byRepo = new Map<string, typeof tasks>();
-  for (const t of tasks) {
-    const arr = byRepo.get(t.repoName ?? '') ?? [];
-    arr.push(t);
-    byRepo.set(t.repoName ?? '', arr);
-  }
-  const groups = [...byRepo.entries()].map(([repoName, repoTasks]) => ({
-    repoName,
-    tasks: repoTasks.map((t) => ({
-      title: t.title,
-      detail: t.detail ?? '',
-      targetRepoId: t.targetRepoId,
-      dependsOnTitles: [] as string[],
-      reviewPolicy: t.reviewPolicy as 'reviewed' | 'none',
-      orderIndex: t.orderIndex,
-    })),
-  }));
-  const { project: projectTable } = await import('@/db/schema/projects');
-  const [proj] = await db.select({ name: projectTable.name }).from(projectTable).where(eq(projectTable.id, projectId)).limit(1);
-  const repoNames = [...byRepo.keys()].filter(Boolean);
-  const header = [
-    `# ${proj?.name ?? 'Project'} — Implementation Plan`,
-    '',
-    `**Goal:** Implement the locked specification across ${repoNames.length} repo${repoNames.length === 1 ? '' : 's'} in ${tasks.length} tasks.`,
-    '',
-    `**Repos:** ${repoNames.join(', ')}`,
-    '',
-    '---',
-    '',
-  ].join('\n');
-  const combinedMd = header + renderCombinedPlan(groups);
-  await writePlanAsync(projectId, combinedMd);
-}
-
 /** All plan_task rows for a project (ordered), joined with repo name for the UI. */
 export async function loadPlanTasks(db: Db, projectId: string) {
   const dbi = db ?? getDb();

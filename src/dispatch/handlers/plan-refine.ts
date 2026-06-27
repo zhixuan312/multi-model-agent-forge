@@ -3,6 +3,7 @@ import type { Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parsePlanRefineResponse } from '@/plan/plan-refine-prompt';
+import { reassemblePlan } from '@/build/plan-author';
 
 async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -14,6 +15,8 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
       .update(planTask)
       .set({ detail: result.updatedTaskBody, updatedAt: new Date() })
       .where(eq(planTask.id, request.taskId));
+
+    await reassemblePlan(db, ctx.projectId);
   }
 
   const { projectEventBus } = await import('@/sse/event-bus');

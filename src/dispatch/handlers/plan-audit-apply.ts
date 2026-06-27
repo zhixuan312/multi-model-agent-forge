@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { reassemblePlan } from '@/build/plan-author';
 
 interface RevisedTask {
   title: string;
@@ -18,8 +19,8 @@ interface NewTask {
 async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
   const parsed = JSON.parse(raw) as { revisedTasks?: RevisedTask[]; newTasks?: NewTask[] };
+  let changed = false;
 
-  // Update existing tasks by matching title
   if (parsed.revisedTasks && parsed.revisedTasks.length > 0) {
     const allTasks = await db
       .select({ id: planTask.id, title: planTask.title })
@@ -31,11 +32,11 @@ async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown)
       const taskId = idByTitle.get(rt.title);
       if (taskId) {
         await db.update(planTask).set({ detail: rt.detail, updatedAt: new Date() }).where(eq(planTask.id, taskId));
+        changed = true;
       }
     }
   }
 
-  // Insert new tasks if any
   if (parsed.newTasks && parsed.newTasks.length > 0) {
     const maxOrder = await db
       .select({ id: planTask.id })
@@ -53,7 +54,12 @@ async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown)
         reviewPolicy: (nt.reviewPolicy === 'none' ? 'none' : 'reviewed') as 'reviewed' | 'none',
         status: 'queued',
       });
+      changed = true;
     }
+  }
+
+  if (changed) {
+    await reassemblePlan(db, ctx.projectId);
   }
 }
 

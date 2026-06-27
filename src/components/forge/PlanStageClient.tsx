@@ -982,7 +982,7 @@ function ValidateStage({
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
               onClick={onLock}
-              label={locked ? 'Opening Build...' : 'Lock the plan & start Build'}
+              label="Continue to Execute"
               disabled={readOnly || locked}
               gate
               testId="plan-lock-button"

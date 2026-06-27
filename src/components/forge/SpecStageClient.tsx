@@ -1079,14 +1079,15 @@ function CraftStage({
     // @Forge triggers the AI to process and respond
     const forgeTagged = /@forge\b/i.test(text);
     const cleanText = forgeTagged ? text.replace(/@forge\s*/gi, '').trim() : '';
-    if (forgeTagged && drafted && cleanText) {
+    const userInput = cleanText || 'Update and refine based on the conversation so far.';
+    if (forgeTagged && drafted) {
       setRefining(true);
       const history = sectionHistory[active.id] ?? [];
-      const newHistory = [...history, { role: 'user' as const, text: cleanText }];
+      const newHistory = [...history, { role: 'user' as const, text: userInput }];
       const compId = active.id;
       setSectionHistory((prev) => ({ ...prev, [compId]: newHistory }));
 
-      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: cleanText, history })
+      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: userInput, history })
         .then(() => {
           setRefining(false);
         })

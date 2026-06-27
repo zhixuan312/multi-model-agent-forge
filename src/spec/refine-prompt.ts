@@ -52,9 +52,10 @@ Task: Process the team's discussion and do three things:
 
 Constraints:
 - Keep the section's existing structure unless the team explicitly asks to change it
-- Your chatReply should be concise — confirm what you changed, then ask any follow-up questions
+- Your chatReply should be concise — confirm what you changed
 - Do NOT guess if the feedback is ambiguous — ask instead
 - Preserve all existing content that wasn't discussed — only modify what the team addressed
+- Write in proper markdown: use ### subheadings, **bold** for key terms, bullet lists, \`code\` for technical names, tables for comparisons. The output renders as a professional document
 - Questions should be specific and actionable, not generic
 
 Output format:

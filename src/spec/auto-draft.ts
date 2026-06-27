@@ -37,10 +37,11 @@ function buildFullDraftSystem(): string {
 Task: Draft EVERY section of the spec outline and attach follow-up questions where the exploration brief leaves gaps. Each section should be a complete, audience-appropriate draft ready for team review.
 
 Constraints:
-- Do NOT add headings — they are added automatically
+- Do NOT add the component heading (e.g. ## Context) — it is added automatically. Use ### subheadings within the section freely
 - Stay strictly within each section's stated scope — never duplicate content from sibling sections
-- Attach 0-N questions per section: ask when the exploration brief leaves genuine gaps. Ask ALL questions at once — do not hold back
+- Attach 0-N questions per section: ask when the exploration brief leaves genuine gaps. Ask ALL questions at once
 - Ground your draft in the exploration findings, but adapt language to the audience
+- Write in proper markdown: use ### subheadings, **bold** for key terms, bullet lists for requirements/criteria, \`code\` for technical names, tables for comparisons, > blockquotes for callouts. The output renders as a professional document, not a wall of text
 - Audience rules per section (listed in the outline):
   - BO / PM: Plain business language. NO code references, file paths, or engineering jargon. Describe WHAT and WHY, not HOW
   - SWE: Technical detail expected. Name files, functions, libraries, patterns

@@ -8,11 +8,10 @@ import { readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
 import type { ComponentKind } from '@/db/enums';
 
 /**
- * Assemble (Spec 4 / Key flow 4) — the 4a output. Concatenate approved sections,
- * in `(component.order_index, section.order_index)` order, each component's
- * `## <label>` + each section's `### <draftHeading>` + `draft_md`, prepend the
- * document header, and write `artifact(kind='spec', version=prevMax+1,
- * created_by=null)`. This single versioned spec artifact is the 4b seam input.
+ * Assemble — concatenate component sections into a single spec markdown file.
+ * Ordered by `(component.order_index, section.order_index)`, each component's
+ * `## <label>` + each section's `### <draftHeading>` + `draft_md`. Written to
+ * the physical `spec.md` file with YAML frontmatter (version + timestamp).
  */
 
 export interface AssembleResult {
@@ -113,7 +112,7 @@ export async function assembleSpec(
 }
 
 /** The latest spec from disk — file-based, not DB. */
-export async function getLatestSpec(_db: Db, projectId: string): Promise<{ version: number; bodyMd: string } | null> {
+export async function getLatestSpec(_db: unknown, projectId: string): Promise<{ version: number; bodyMd: string } | null> {
   const file = await readSpecFileAsync(projectId);
   if (!file) return null;
   return { version: file.version, bodyMd: file.bodyMd };

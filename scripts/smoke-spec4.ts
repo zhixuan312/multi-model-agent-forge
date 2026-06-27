@@ -99,11 +99,11 @@ async function main(): Promise<void> {
         report(
           'parseAuditEnvelope',
           true,
-          `kind=report findings=${parsed.findings.length} severities=[${sev}] hasCriticalOrHigh=${parsed.hasCriticalOrHigh} headline="${parsed.headline}"`,
+          `kind=report findings=${parsed.findings.length} severities=[${sev}] hasCriticalOrHigh=${parsed.hasCriticalOrHigh}`,
         );
       } else {
         // A real auditor returning no structured report is a soft outcome — note it.
-        report('parseAuditEnvelope', false, `kind=missing_report headline="${parsed.headline}"`);
+        report('parseAuditEnvelope', false, 'kind=missing_report');
       }
     }
   } catch (e) {

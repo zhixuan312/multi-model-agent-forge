@@ -5,15 +5,9 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
-import {
-  AnthropicClient,
-  AnthropicConfigError,
-  AnthropicParseError,
-} from '@/anthropic/client';
 
 /**
- * Shared guard for every Spec-4 write handler (F20/F31): CSRF → auth → membership
- * (public OR project_member; else 403) → phase guard (post-lock writes 409).
+ * Shared guard for spec write handlers: CSRF → auth → membership → phase guard.
  * Returns either an error `NextResponse` or the resolved `{ memberId }`.
  */
 export interface GuardedActor {
@@ -55,39 +49,4 @@ export async function guardSpecWrite(
   }
 
   return { memberId: me.id };
-}
-
-/** Map an orchestrator/Anthropic error to the documented neutral surface (never the key). */
-export function anthropicErrorResponse(err: unknown): NextResponse {
-  if (err instanceof AnthropicConfigError) {
-    return NextResponse.json({ error: err.message, retryable: false }, { status: 503 });
-  }
-  if (err instanceof AnthropicParseError) {
-    if (err.stopReason === 'refusal') {
-      return NextResponse.json(
-        { error: 'The assistant declined — rephrase the section context.', retryable: true },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json(
-      { error: "Couldn't structure the response — try again or Force advance.", retryable: true },
-      { status: 502 },
-    );
-  }
-  // SDK AuthenticationError (401) → not retried (re-keying is a Team-Settings action, F31).
-  if (err && typeof err === 'object' && 'status' in err && (err as { status: unknown }).status === 401) {
-    return NextResponse.json(
-      { error: 'The main-tier credentials were rejected — check Team Settings.', retryable: false },
-      { status: 502 },
-    );
-  }
-  return NextResponse.json(
-    { error: 'The request could not be completed — try again or Force advance.', retryable: true },
-    { status: 502 },
-  );
-}
-
-/** Construct the orchestrator's AnthropicClient (resolves the main-tier key). */
-export async function buildAnthropic(): Promise<AnthropicClient> {
-  return AnthropicClient.fromMainTier();
 }

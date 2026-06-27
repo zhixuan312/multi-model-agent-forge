@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { readMmaBearer } from '@/mma/client-config';
-import { ensureSpecStage, loadOutline, loadAllMessages, loadFinalizeMessages } from '@/spec/spec-core';
+import { ensureSpecStage, loadOutline, loadAllMessages } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
@@ -60,13 +60,10 @@ export default async function SpecStagePage({
   const latestSpec = await getLatestSpec(db, id);
   const specApprovers = (stageRow.approvers as string[] | null) ?? [];
   const initialMessages = await loadAllMessages(db, stageRow.id);
-  const finalizeMessages = await loadFinalizeMessages(db, stageRow.id);
-
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.
-  const mainTierReady = await isMainTierReady(db);
-  // Audit/freeze precondition (F27): a configured MMA token.
-  const mmaReady = await isMmaReady(db);
+  const mainTierReady = hasMmaToken();
+  const mmaReady = hasMmaToken();
   const auditHistory = await auditPassHistory(db, id);
   const freezeReady = await canFreeze(db, id);
   const voiceEnabled = await isVoiceEnabled({ db });
@@ -101,30 +98,17 @@ export default async function SpecStagePage({
       initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}
-      craftCollab={{}}
-
       initialMessages={initialMessages}
       voiceEnabled={voiceEnabled}
       pendingAudit={pendingAudit}
       pendingAutoDraft={pendingAutoDraft}
       pendingApply={pendingApply}
       specApprovers={specApprovers}
-      finalizeMessages={finalizeMessages}
       initialPhase={initialPhase}
     />
   );
 }
 
-type MemberRef = { id: string; displayName: string; avatarTint: string };
-type ComponentKind = 'context' | 'problem' | 'goals_requirements' | 'alternatives' | 'technical_design' | 'testing_plan' | 'risks' | 'stories_tasks';
-
-
-/** True iff a usable MMA bearer is available — auto-resolved from the local
- *  mma token (`MMA_AUTH_TOKEN` env, else `~/.mma/auth-token`). */
-async function isMmaReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
-  return readMmaBearer() !== null;
-}
-
-async function isMainTierReady(_db: ReturnType<typeof getDb>): Promise<boolean> {
+function hasMmaToken(): boolean {
   return readMmaBearer() !== null;
 }

@@ -135,18 +135,20 @@ export interface FindingsGridProps {
   readOnly?: boolean;
   onApply?: (selectedIndices: number[]) => void;
   onSelectionChange?: (selectedIndices: number[]) => void;
+  selectedIndices?: number[];
   appliedLabel?: string;
   hideApplyBar?: boolean;
 }
 
-export function FindingsGrid({ findings, selectable, applying, applied, readOnly, onApply, onSelectionChange, appliedLabel, hideApplyBar }: FindingsGridProps) {
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const toggle = (i: number) =>
-    setSel((s) => {
-      const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i);
-      onSelectionChange?.([...n]);
-      return n;
-    });
+export function FindingsGrid({ findings, selectable, applying, applied, readOnly, onApply, onSelectionChange, selectedIndices, appliedLabel, hideApplyBar }: FindingsGridProps) {
+  const controlled = selectedIndices !== undefined;
+  const [internal, setInternal] = useState<Set<number>>(new Set());
+  const sel = controlled ? new Set(selectedIndices) : internal;
+  const toggle = (i: number) => {
+    const n = new Set(sel); if (n.has(i)) n.delete(i); else n.add(i);
+    if (!controlled) setInternal(n);
+    onSelectionChange?.([...n]);
+  };
 
   const sorted = [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const disabled = readOnly || !!applying || !!applied;
@@ -190,7 +192,7 @@ export function FindingsGrid({ findings, selectable, applying, applied, readOnly
                   {sel.size > 0 ? (
                     <span className="mr-auto flex items-center gap-2 text-xs text-ink-faint">
                       {sel.size} selected
-                      <button type="button" onClick={() => setSel(new Set())} className="text-accent hover:text-accent-deep">Clear</button>
+                      <button type="button" onClick={() => { if (!controlled) setInternal(new Set()); onSelectionChange?.([]); }} className="text-accent hover:text-accent-deep">Clear</button>
                     </span>
                   ) : null}
                   <Button size="sm" variant="secondary" onClick={() => onApply(findings.map((_, i) => i))} disabled={disabled} loading={applying}>
@@ -220,13 +222,17 @@ export interface AuditRoundCardProps {
   verdict: 'clean' | 'revised';
   findings: Finding[];
   applied?: boolean;
+  active?: boolean;
   onClick?: () => void;
 }
 
-export function AuditRoundCard({ passNo, verdict, findings, applied, onClick }: AuditRoundCardProps) {
+export function AuditRoundCard({ passNo, verdict, findings, applied, active, onClick }: AuditRoundCardProps) {
   const counts = SEVERITY_ORDER.map((s) => ({ severity: s, count: findings.filter((f) => f.severity === s).length })).filter((c) => c.count > 0);
   return (
-    <button type="button" onClick={onClick} className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3 text-left transition-colors hover:bg-surface-2/50">
+    <button type="button" onClick={onClick} className={cn(
+      'w-full rounded-[var(--r-md)] border p-3 text-left transition-colors hover:bg-surface-2/50',
+      active ? 'border-accent bg-accent-tint/20' : 'border-line bg-surface',
+    )}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink">Pass {passNo}</span>

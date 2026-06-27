@@ -167,42 +167,36 @@ export function FindingsGrid({ findings, selectable, applying, applied, readOnly
             })}
           </div>
           {selectable && onApply ? (
-            <div className="flex items-center justify-between border-t border-line px-4 py-3">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
               {applied ? (
                 <span className="text-xs font-medium text-[var(--sage-deep)]">{appliedLabel ?? 'Applied.'}</span>
               ) : (
                 <>
-                  <div className="flex items-center gap-2">
-                    {sel.size > 0 ? (
-                      <span className="text-xs text-ink-faint">{sel.size} selected</span>
-                    ) : (
-                      <span className="text-xs text-ink-faint">Select findings to apply, or apply all</span>
-                    )}
-                    {sel.size > 0 ? (
-                      <button type="button" onClick={() => setSel(new Set())} className="text-xs text-accent hover:text-accent-deep">
-                        Clear
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => onApply(findings.map((_, i) => i))}
-                      disabled={disabled}
-                      loading={applying}
-                    >
-                      Apply all
-                    </Button>
+                  {sel.size > 0 ? (
+                    <span className="mr-auto flex items-center gap-2 text-xs text-ink-faint">
+                      {sel.size} selected
+                      <button type="button" onClick={() => setSel(new Set())} className="text-accent hover:text-accent-deep">Clear</button>
+                    </span>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onApply(findings.map((_, i) => i))}
+                    disabled={disabled}
+                    loading={applying}
+                  >
+                    Apply all
+                  </Button>
+                  {sel.size > 0 ? (
                     <Button
                       size="sm"
                       onClick={() => onApply([...sel])}
-                      disabled={disabled || sel.size === 0}
+                      disabled={disabled}
                       loading={applying}
                     >
-                      Apply {sel.size > 0 ? `(${sel.size})` : 'selected'}
+                      Apply ({sel.size})
                     </Button>
-                  </div>
+                  ) : null}
                 </>
               )}
             </div>

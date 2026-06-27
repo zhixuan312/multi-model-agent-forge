@@ -73,8 +73,9 @@ export const qaMessage = forge.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     componentId: uuid('component_id')
-      .notNull()
       .references(() => component.id, { onDelete: 'cascade' }),
+    stageId: uuid('stage_id')
+      .references(() => stage.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     sender: text('sender', { enum: QA_SENDER }).notNull(),
     bodyMd: text('body_md').notNull(),

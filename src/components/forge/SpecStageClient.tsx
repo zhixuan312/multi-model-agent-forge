@@ -122,6 +122,7 @@ interface SpecStageClientProps {
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
   specApprovers?: string[];
+  finalizeMessages?: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>;
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
 }
@@ -368,6 +369,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           specApprovers={specApprovers}
           setSpecApprovers={setSpecApprovers}
+          finalizeMessages={props.finalizeMessages ?? []}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -1427,6 +1429,7 @@ function DocumentScreen({
   components,
   specApprovers,
   setSpecApprovers,
+  finalizeMessages,
   onAdvance,
   onAssembled,
   onError,
@@ -1448,6 +1451,7 @@ function DocumentScreen({
   components: ComponentView[];
   specApprovers: string[];
   setSpecApprovers: (v: string[]) => void;
+  finalizeMessages: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1683,7 +1687,7 @@ function DocumentScreen({
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} — finalize specification</CardTitle>
+            <CardTitle>{projectName} — specification</CardTitle>
             {spec ? (
               <Badge variant="sage" size="sm">
                 v{spec.version}
@@ -1691,10 +1695,21 @@ function DocumentScreen({
             ) : null}
           </div>
           {spec ? (
-            <CraftViewToggle
-              active={docView === 'document' ? 'spec' : 'conversation'}
-              onSwitch={(v) => setDocView(v === 'spec' ? 'document' : 'conversation')}
-            />
+            <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
+              {(['document', 'conversation'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setDocView(v)}
+                  className={cn(
+                    'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
+                    docView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
+                  )}
+                >
+                  {v === 'document' ? 'Spec' : 'Audit'}
+                </button>
+              ))}
+            </div>
           ) : null}
         </CardHeader>
 
@@ -1806,29 +1821,6 @@ function DocumentScreen({
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
             </Button>
           </div>
-        ) : docView !== 'document' ? (
-          <ConversationComposer
-            value={input}
-            onChange={setInput}
-            onSend={() => sendRefine()}
-            disabled={readOnly || !spec || auditing}
-            placeholder="Discuss the spec or @Forge to refine…"
-            voice={voiceEnabled}
-            mentionPool={(() => {
-              const involvedIds = new Set<string>();
-              for (const c of components) {
-                for (const pid of (c.participantIds ?? []) as string[]) involvedIds.add(pid);
-                for (const aid of c.approvedBy as string[]) involvedIds.add(aid);
-              }
-              const allPool = [currentMember, ...projectMembers];
-              const involved = [...involvedIds]
-                .filter((id) => id !== currentMember.id)
-                .map((id) => allPool.find((m) => m.id === id))
-                .filter(Boolean) as MemberRef[];
-              involved.sort((a, b) => a.displayName.localeCompare(b.displayName));
-              return [{ id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' }, ...involved];
-            })()}
-          />
         ) : null}
         {!mmaReady ? (
           <div className="shrink-0 border-t border-line px-5 py-2">

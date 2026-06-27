@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { readMmaBearer } from '@/mma/client-config';
-import { ensureSpecStage, loadOutline, loadAllMessages } from '@/spec/spec-core';
+import { ensureSpecStage, loadOutline, loadAllMessages, loadFinalizeMessages } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
 import { canFreeze } from '@/spec/freeze';
@@ -60,6 +60,7 @@ export default async function SpecStagePage({
   const latestSpec = await getLatestSpec(db, id);
   const specApprovers = (stageRow.approvers as string[] | null) ?? [];
   const initialMessages = await loadAllMessages(db, stageRow.id);
+  const finalizeMessages = await loadFinalizeMessages(db, stageRow.id);
 
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.
@@ -108,6 +109,7 @@ export default async function SpecStagePage({
       pendingAutoDraft={pendingAutoDraft}
       pendingApply={pendingApply}
       specApprovers={specApprovers}
+      finalizeMessages={finalizeMessages}
       initialPhase={initialPhase}
     />
   );

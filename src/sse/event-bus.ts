@@ -124,7 +124,7 @@ export class ProjectEventBus {
 
 /** Process-wide singleton bus — force new instance to pick up method changes. */
 const g = globalThis as unknown as { __forgeEventBus?: ProjectEventBus; __forgeEventBusV?: number };
-const BUS_VERSION = 2;
+const BUS_VERSION = 3;
 if (!g.__forgeEventBus || g.__forgeEventBusV !== BUS_VERSION) {
   g.__forgeEventBus = new ProjectEventBus();
   g.__forgeEventBusV = BUS_VERSION;

@@ -120,15 +120,15 @@ function assertNoCycle(tasks: ResolvedTask[]): void {
 }
 
 /**
- * Render ONE repo's plan markdown: every task as a numbered `## Task N: <title>`
- * heading (sans `#` = the verbatim `title` / taskDescriptor) followed by its
- * detail prose. One heading level for task headings (sub-steps must be `###`+).
+ * Render ONE repo's plan markdown: every task as a `### Task N: <title>`
+ * heading followed by its detail prose. Uses `###` (h3) so repo grouping
+ * can use `##` and the plan title uses `#` — matching superpowers plan format.
  */
 export function renderRepoPlan(tasks: ResolvedTask[]): string {
   const lines: string[] = [];
   tasks.forEach((t, i) => {
     if (i > 0) lines.push('');
-    lines.push(`## ${t.title}`);
+    lines.push(`### ${t.title}`);
     lines.push('');
     lines.push(t.detail.trim());
   });
@@ -136,8 +136,9 @@ export function renderRepoPlan(tasks: ResolvedTask[]): string {
 }
 
 /**
- * Render the COMBINED plan artifact (all repos), used for export/visibility. Tasks
- * are grouped under a `# <repo-name>` heading per write target.
+ * Render the COMBINED plan (all repos). Tasks grouped under `## <repo-name>`.
+ * Heading hierarchy: `# Plan Title` → `## Repo` → `### Task` — matching
+ * the superpowers writing-plans format.
  */
 export function renderCombinedPlan(
   groups: Array<{ repoName: string; tasks: ResolvedTask[] }>,
@@ -145,8 +146,10 @@ export function renderCombinedPlan(
   const out: string[] = [];
   groups.forEach((g, gi) => {
     if (gi > 0) out.push('');
-    out.push(`# ${g.repoName}`);
-    out.push('');
+    if (groups.length > 1) {
+      out.push(`## ${g.repoName}`);
+      out.push('');
+    }
     out.push(renderRepoPlan(g.tasks).trimEnd());
   });
   return out.join('\n') + '\n';

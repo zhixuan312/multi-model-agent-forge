@@ -3,11 +3,12 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { currentMember } from '@/auth/current-member';
+import { projectEventBus } from '@/sse/event-bus';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
 
 export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const { taskId } = await ctx.params;
+  const { id, taskId } = await ctx.params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -26,11 +27,12 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     updatedAt: new Date(),
   }).where(eq(planTask.id, taskId));
 
+  projectEventBus.publish(id, { type: 'plan.updated', taskId, chatReply: `${me.displayName} approved this task.`, updated: true });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const { taskId } = await ctx.params;
+  const { id, taskId } = await ctx.params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -45,5 +47,6 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse>
     updatedAt: new Date(),
   }).where(eq(planTask.id, taskId));
 
+  projectEventBus.publish(id, { type: 'plan.updated', taskId, chatReply: `${me.displayName} revoked approval.`, updated: true });
   return NextResponse.json({ ok: true });
 }

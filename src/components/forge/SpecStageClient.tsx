@@ -853,11 +853,9 @@ function CraftStage({
   // Re-seed participants when server data changes (approval, invite via SSE refresh)
   // Keep discussion intact — only update participants from DB.
   const prevComponentsRef = useRef(components);
-  const prevMessagesRef = useRef(initialMessages);
   useEffect(() => {
-    if (prevComponentsRef.current === components && prevMessagesRef.current === initialMessages) return;
+    if (prevComponentsRef.current === components) return;
     prevComponentsRef.current = components;
-    prevMessagesRef.current = initialMessages;
     const allPool = [currentMember, ...projectMembers];
     setCollab((prev) => {
       const next = { ...prev };
@@ -875,26 +873,25 @@ function CraftStage({
           const approver = allPool.find((m) => m.id === c.approvedBy);
           if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
         }
-        // Reload discussion from DB (initialMessages) — always fresh
-        const dbMsgs = initialMessages[c.id] ?? [];
-        const discussion: DiscussionMsg[] = dbMsgs.map((m) => {
-          seenMsgIds.current.add(m.id);
-          return {
-            id: m.id,
-            authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
-            body: m.bodyMd,
-          };
-        });
-        next[c.id] = { participants, discussion };
+        const old = prev[c.id];
+        next[c.id] = { participants, discussion: old?.discussion ?? [] };
       }
       return next;
     });
-  }, [components, currentMember, projectMembers, initialMessages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [components]);
 
   // Real-time chat: listen for chat.message SSE events and append to discussion
-  const seenMsgIds = useRef(new Set<string>(
-    Object.values(initialMessages).flatMap((msgs) => msgs.map((m) => m.id)),
-  ));
+  // Seed from initial messages AND from current collab state (covers re-renders)
+  const seenMsgIds = useRef(new Set<string>());
+  if (seenMsgIds.current.size === 0) {
+    for (const msgs of Object.values(initialMessages)) {
+      for (const m of msgs) seenMsgIds.current.add(m.id);
+    }
+    for (const u of Object.values(collab)) {
+      for (const d of u.discussion) seenMsgIds.current.add(d.id);
+    }
+  }
   useEffect(() => {
     const handler = (e: Event) => {
       const { componentId: cid, message: msg } = (e as CustomEvent).detail as {
@@ -1275,7 +1272,7 @@ function CraftStage({
             value={input}
             onChange={setInput}
             onSend={() => submit()}
-            disabled={readOnly}
+            disabled={readOnly || refining}
             voice={voiceEnabled}
             mentionPool={inChatMembers}
           />

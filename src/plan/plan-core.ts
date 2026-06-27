@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
+import { qaMessage } from '@/db/schema/spec';
 import { repo } from '@/db/schema/workspace';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
 import { readPlanFileAsync } from '@/projects/project-files';
@@ -36,6 +37,7 @@ export interface PlanView {
   phases: PlanPhaseView[];
   planMd: string | null;
   auditHistory: AuditPassView[];
+  messages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>>;
 }
 
 /** Extract file paths from the task detail's `**Files:**` preamble. */
@@ -129,9 +131,28 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
 
   const planHistory = await auditPassHistory(dbi, projectId, 'plan');
 
+  // Load discussion messages for all plan tasks (keyed by taskId)
+  const taskIds = tasks.map((t) => t.id);
+  const messages: PlanView['messages'] = {};
+  if (taskIds.length > 0) {
+    const { inArray } = await import('drizzle-orm');
+    const rows = await dbi
+      .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
+      .from(qaMessage)
+      .where(inArray(qaMessage.componentId, taskIds))
+      .orderBy(asc(qaMessage.seq));
+    for (const r of rows) {
+      if (!r.componentId) continue;
+      const list = messages[r.componentId] ?? [];
+      list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
+      messages[r.componentId] = list;
+    }
+  }
+
   return {
     phases,
     planMd: planFile?.bodyMd ?? null,
     auditHistory: planHistory,
+    messages,
   };
 }

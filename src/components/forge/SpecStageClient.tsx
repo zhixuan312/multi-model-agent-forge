@@ -1815,10 +1815,19 @@ function DocumentScreen({
             disabled={readOnly || !spec || auditing}
             placeholder="Discuss the spec or @Forge to refine…"
             voice={voiceEnabled}
-            mentionPool={[
-              { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' },
-              ...projectMembers.filter((m) => m.id !== currentMember.id),
-            ]}
+            mentionPool={(() => {
+              const involvedIds = new Set<string>();
+              for (const c of components) {
+                for (const pid of (c.participantIds ?? []) as string[]) involvedIds.add(pid);
+                for (const aid of c.approvedBy as string[]) involvedIds.add(aid);
+              }
+              const allPool = [currentMember, ...projectMembers];
+              const involved = [...involvedIds]
+                .filter((id) => id !== currentMember.id)
+                .map((id) => allPool.find((m) => m.id === id))
+                .filter(Boolean) as MemberRef[];
+              return [{ id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' }, ...involved];
+            })()}
           />
         ) : null}
         {!mmaReady ? (

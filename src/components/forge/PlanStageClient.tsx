@@ -981,11 +981,6 @@ function ValidateStage({
             ))}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            <TextSm className="!text-ink-faint">
-              {auditClean
-                ? 'Clean audit -- locking opens Build and runs the plan task-by-task.'
-                : 'Locking opens Build and starts Execution. Open findings will not block it.'}
-            </TextSm>
             <StageAdvance
               onClick={onLock}
               label={locked ? 'Opening Build...' : 'Lock the plan & start Build'}

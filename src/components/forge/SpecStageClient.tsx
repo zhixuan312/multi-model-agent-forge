@@ -1085,6 +1085,7 @@ function CraftStage({
     const userInput = cleanText || 'Update and refine based on the conversation so far.';
     if (forgeTagged && drafted) {
       setRefining(true);
+      setCraftView('conversation');
       const history = sectionHistory[active.id] ?? [];
       const newHistory = [...history, { role: 'user' as const, text: userInput }];
       const compId = active.id;

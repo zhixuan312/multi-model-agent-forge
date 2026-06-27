@@ -1087,7 +1087,10 @@ function CraftStage({
     for (const s of active.sections) {
       fetch(`/projects/${projectId}/spec/sections/${s.id}/nod`, { method: 'POST' }).catch(() => {});
     }
-    const nextOpen = components.find((c) => c.id !== active.id && c.status !== 'approved');
+    const currentIdx = components.findIndex((c) => c.id === active.id);
+    const after = components.slice(currentIdx + 1).find((c) => c.status !== 'approved');
+    const before = components.slice(0, currentIdx).find((c) => c.status !== 'approved');
+    const nextOpen = after ?? before;
     if (nextOpen) {
       setActiveId(nextOpen.id);
       setInput('');

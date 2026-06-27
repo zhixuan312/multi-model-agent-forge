@@ -310,7 +310,7 @@ export async function onMemberAnswer(
 export async function onHumanSatisfied(deps: OrchestratorDeps, sectionId: string): Promise<void> {
   const db = deps.db ?? getDb();
   const ctx = await loadSectionContext(db, sectionId);
-  const nextStatus: ComponentStatus = ctx.component.aiSatisfied ? 'approved' : ctx.component.status as ComponentStatus;
+  const nextStatus: ComponentStatus = 'approved';
   await db
     .update(component)
     .set({ humanSatisfied: true, status: nextStatus, updatedAt: new Date() })

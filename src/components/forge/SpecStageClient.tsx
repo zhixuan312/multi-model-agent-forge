@@ -336,10 +336,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
           readOnly={readOnly}
           autoDrafting={autoDrafting}
           allApproved={allApproved}
-          craftContent={props.craftContent}
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
-          craftCollab={props.craftCollab ?? {}}
           initialMessages={messages}
           voiceEnabled={props.voiceEnabled ?? false}
           mma={mma}
@@ -760,10 +758,8 @@ function CraftStage({
   readOnly,
   allApproved,
   autoDrafting,
-  craftContent,
   currentMember,
   projectMembers,
-  craftCollab,
   initialMessages,
   voiceEnabled,
   mma,
@@ -776,10 +772,8 @@ function CraftStage({
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
-  craftContent?: Record<string, CraftSeed>;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
-  craftCollab: Partial<Record<ComponentKind, UnitCollab>>;
   initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   voiceEnabled: boolean;
   mma: MmaDispatchState;
@@ -791,7 +785,6 @@ function CraftStage({
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
-  const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
   const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
@@ -804,10 +797,8 @@ function CraftStage({
     const draftedComponents = components.filter((c) => c.status === 'drafted' || c.status === 'approved');
     if (draftedComponents.length === 0) return;
     initialFetchDone.current = true;
-    // Only auto-construct Ready (aiSatisfied) or Approved — Needs input shows conversation
     const drafts: Record<string, string> = {};
     for (const c of draftedComponents) {
-      if (!c.aiSatisfied && c.status !== 'approved') continue;
       const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
       if (md) drafts[c.id] = md;
     }
@@ -816,39 +807,28 @@ function CraftStage({
   // Collaborative state per component (participants + group chat), seeded by kind.
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
+    const allPool = [currentMember, ...projectMembers];
     for (const c of components) {
-      const seed = craftCollab[c.kind];
-      // Load persisted messages from DB (keyed by component id)
       const dbMessages = initialMessages[c.id] ?? [];
       const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
         id: m.id,
         authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
         body: m.bodyMd,
       }));
-      const allPool = [currentMember, ...projectMembers];
       const meApprovedAt = c.approvedBy === currentMember.id ? new Date().toISOString() : null;
-      const dbParticipants: Participant[] = [
+      const participants: Participant[] = [
         { member: currentMember, addedBy: null, approvedAt: meApprovedAt },
       ];
       for (const pid of (c.participantIds ?? []) as string[]) {
         if (pid === currentMember.id) continue;
         const m = allPool.find((p) => p.id === pid);
-        if (m) {
-          dbParticipants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
-        }
+        if (m) participants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
       }
-      if (c.approvedBy && !dbParticipants.some((p) => p.member.id === c.approvedBy)) {
+      if (c.approvedBy && !participants.some((p) => p.member.id === c.approvedBy)) {
         const approver = allPool.find((m) => m.id === c.approvedBy);
-        if (approver) {
-          dbParticipants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
-        }
+        if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
       }
-      out[c.id] = seed
-        ? {
-            participants: [...seed.participants.map((p) => ({ ...p })), ...dbParticipants],
-            discussion: [...seed.discussion.map((d) => ({ ...d })), ...dbDiscussion],
-          }
-        : { participants: dbParticipants, discussion: dbDiscussion };
+      out[c.id] = { participants, discussion: dbDiscussion };
     }
     return out;
   });
@@ -938,7 +918,7 @@ function CraftStage({
   const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, answers, collab]);
+  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, collab]);
   // When a section gets drafted (Construct), bring the freshly-built draft into
   // view — otherwise it lands below the fold and the click feels like a no-op.
   const draftedNow = activeId
@@ -955,11 +935,12 @@ function CraftStage({
   const active = components.find((c) => c.id === activeId) ?? null;
   const approvedCount = components.filter((c) => c.status === 'approved').length;
 
-  // Auto-show spec view for approved or ready (aiSatisfied) components when clicked.
-  // Needs-input components always show the conversation.
+  // Auto-construct the draft for any component that has sections with content.
+  // The toggle lets users switch between Spec and Discussion views.
   useEffect(() => {
-    const showSpec = active && (active.status === 'approved' || active.aiSatisfied);
-    if (!active || !showSpec || constructedDrafts[active.id]) return;
+    if (!active || constructedDrafts[active.id]) return;
+    const hasDraft = active.sections.some((s) => s.draftMd);
+    if (!hasDraft) return;
     const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
     if (md) {
       setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
@@ -998,10 +979,12 @@ function CraftStage({
   const Icon = KIND_ICON[active.kind];
   const showingDraft = constructedDrafts[active.id] ?? null;
 
-  // Spec/Conversation toggle: default to spec view when drafted, conversation when needs input
+  // Spec/Discussion toggle: default to spec view when drafted, discussion when needs input
   const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
   const craftView = craftViewOverride[active.id] ?? (showingDraft ? 'spec' : 'conversation');
-  const setCraftView = (v: 'spec' | 'conversation') => setCraftViewOverride((prev) => ({ ...prev, [active.id]: v }));
+  const setCraftView = useCallback((v: 'spec' | 'conversation') => {
+    setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
+  }, []);
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };

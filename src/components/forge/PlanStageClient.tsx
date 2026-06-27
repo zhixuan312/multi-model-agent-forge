@@ -667,8 +667,8 @@ function DetailStage({
               {approvedCount}/{allTasks.length}
             </span>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
+            <div className="h-1 overflow-hidden rounded-full bg-surface-2">
               <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${allTasks.length ? (approvedCount / allTasks.length) * 100 : 0}%` }} />
             </div>
             {phases.map((p) => (

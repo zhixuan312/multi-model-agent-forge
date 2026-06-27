@@ -20,6 +20,8 @@ export interface PlanTaskView {
   dependsOn: string[];
   targetRepo: string;
   dbStatus?: string;
+  approvedBy?: string[];
+  participantIds?: string[];
 }
 
 /** Client-safe plan phase (group of tasks). */
@@ -66,6 +68,8 @@ export function planTaskToView(
     orderIndex: number;
     reviewPolicy: string;
     status: string;
+    approvedBy?: unknown;
+    participants?: unknown;
   },
   repoName: string,
   titleById?: Map<string, string>,
@@ -80,6 +84,8 @@ export function planTaskToView(
     dependsOn: (row.dependsOn ?? []).map((id) => titleById?.get(id) ?? id),
     targetRepo: repoName,
     dbStatus: row.status,
+    approvedBy: (row.approvedBy as string[] | null) ?? [],
+    participantIds: (row.participants as string[] | null) ?? [],
   };
 }
 
@@ -104,6 +110,8 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
       orderIndex: planTask.orderIndex,
       reviewPolicy: planTask.reviewPolicy,
       status: planTask.status,
+      approvedBy: planTask.approvedBy,
+      participants: planTask.participants,
       repoName: repo.name,
     })
     .from(planTask)

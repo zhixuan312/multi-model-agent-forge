@@ -31,6 +31,8 @@ function createTask(projectId: string, repoId: string, overrides: Partial<{ titl
     meta: null,
     mmaBatchId: null,
     dependsOn: [],
+    approvedBy: [],
+    participants: [],
     branch: null,
     targetBranch: null,
     createdAt: new Date(),

@@ -672,27 +672,36 @@ function DetailStage({
               <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${allTasks.length ? (approvedCount / allTasks.length) * 100 : 0}%` }} />
             </div>
             {phases.map((p) => (
-              <div key={p.id} className="space-y-1.5">
-                <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
-                {p.tasks.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setActiveId(t.id)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-[var(--r-md)] border px-3 py-2 text-left transition-colors',
-                      t.id === active.id ? 'border-accent bg-surface shadow-sm' : 'border-transparent hover:bg-surface-2/50',
-                    )}
-                  >
-                    {status[t.id] === 'approved' ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-                    ) : (
-                      <span className="size-4 shrink-0 rounded-full border border-line-strong" />
-                    )}
-                    <span className="shrink-0 font-mono text-[11px] text-ink-faint">{t.num || 0}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.title}</span>
-                  </button>
-                ))}
+              <div key={p.id}>
+                <Micro className="mb-1 block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
+                <div className="divide-y divide-line/50 rounded-[var(--r-md)] border border-line bg-surface">
+                  {p.tasks.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      title={t.title}
+                      onClick={() => setActiveId(t.id)}
+                      className={cn(
+                        'flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors first:rounded-t-[var(--r-md)] last:rounded-b-[var(--r-md)]',
+                        t.id === active?.id ? 'bg-accent-tint/30' : 'hover:bg-surface-2/50',
+                      )}
+                    >
+                      {status[t.id] === 'approved' ? (
+                        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-[var(--sage-deep)] bg-[var(--sage-deep)] text-[10px] font-semibold text-white">
+                          <Check className="size-3" />
+                        </span>
+                      ) : (
+                        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-line-strong text-[10px] font-semibold text-ink-faint">
+                          {t.num || 0}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{t.title}</span>
+                      {t.files.length > 0 ? (
+                        <span className="shrink-0 text-[10px] text-ink-faint">{t.files.length}f</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </CardContent>

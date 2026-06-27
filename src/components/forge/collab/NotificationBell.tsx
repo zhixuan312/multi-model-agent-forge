@@ -20,8 +20,9 @@ function shortDate(iso: string): string {
   return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
 }
 
-function shortTime(d: Date): string {
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
+function shortTime(d: Date | string): string {
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
 }
 
 export function NotificationBell({ items: serverItems }: { items: NotificationRow[] }) {

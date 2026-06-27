@@ -55,10 +55,11 @@ export default async function SpecStagePage({
     .limit(1);
   if (!proj) notFound();
 
-  const stage = await ensureSpecStage(db, id);
-  const components = await loadOutline(db, stage.id);
+  const stageRow = await ensureSpecStage(db, id);
+  const components = await loadOutline(db, stageRow.id);
   const latestSpec = await getLatestSpec(db, id);
-  const initialMessages = await loadAllMessages(db, stage.id);
+  const specApprovers = (stageRow.approvers as string[] | null) ?? [];
+  const initialMessages = await loadAllMessages(db, stageRow.id);
 
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.
@@ -106,6 +107,7 @@ export default async function SpecStagePage({
       pendingAudit={pendingAudit}
       pendingAutoDraft={pendingAutoDraft}
       pendingApply={pendingApply}
+      specApprovers={specApprovers}
       initialPhase={initialPhase}
     />
   );

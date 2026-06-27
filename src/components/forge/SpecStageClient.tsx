@@ -121,6 +121,7 @@ interface SpecStageClientProps {
   pendingAutoDraft?: string | null;
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
+  specApprovers?: string[];
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
 }
@@ -192,6 +193,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
   const [messages] = useServerState(props.initialMessages ?? {});
+  const [specApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -364,6 +366,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
           components={components}
+          specApprovers={specApprovers}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -1422,6 +1425,7 @@ function DocumentScreen({
   currentMember,
   projectMembers,
   components,
+  specApprovers,
   onAdvance,
   onAssembled,
   onError,
@@ -1441,6 +1445,7 @@ function DocumentScreen({
   currentMember: MemberRef;
   projectMembers: MemberRef[];
   components: ComponentView[];
+  specApprovers: string[];
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1691,7 +1696,7 @@ function DocumentScreen({
           ) : null}
         </CardHeader>
 
-        {/* Participants strip — unique members from all spec section participants */}
+        {/* Participants strip — unique members from spec with approval state */}
         {(() => {
           const allPool = [currentMember, ...projectMembers];
           const involvedIds = new Set<string>([currentMember.id]);
@@ -1702,7 +1707,11 @@ function DocumentScreen({
           const involved: Participant[] = [...involvedIds]
             .map((id) => allPool.find((m) => m.id === id))
             .filter(Boolean)
-            .map((m) => ({ member: m!, addedBy: null, approvedAt: null }));
+            .map((m) => ({
+              member: m!,
+              addedBy: null,
+              approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null,
+            }));
           return (
             <div className="shrink-0 border-b border-line px-5 py-2.5">
               <ParticipantStrip
@@ -1772,7 +1781,26 @@ function DocumentScreen({
           <div ref={bottomRef} />
         </CardContent>
 
-        {docView === 'document' ? null : (
+        {docView === 'document' && spec ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                const action = specApprovers.includes(currentMember.id) ? 'revoke' : 'approve';
+                fetch(`/projects/${projectId}/spec/approve`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action }),
+                }).catch(() => {});
+              }}
+              variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
+              leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}
+              disabled={readOnly}
+            >
+              {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
+            </Button>
+          </div>
+        ) : docView !== 'document' ? (
           <ConversationComposer
             value={input}
             onChange={setInput}
@@ -1785,7 +1813,7 @@ function DocumentScreen({
               ...projectMembers.filter((m) => m.id !== currentMember.id),
             ]}
           />
-        )}
+        ) : null}
         {!mmaReady ? (
           <div className="shrink-0 border-t border-line px-5 py-2">
             <TextSm className="!text-[var(--amber)]">

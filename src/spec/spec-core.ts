@@ -16,10 +16,10 @@ import type { ComponentKind } from '@/db/enums';
  */
 
 /** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation (F10). */
-export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string }> {
+export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: unknown }> {
   const dbi = db ?? getDb();
   const [existing] = await dbi
-    .select({ id: stage.id, status: stage.status })
+    .select({ id: stage.id, status: stage.status, approvers: stage.approvers })
     .from(stage)
     .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')))
     .limit(1);
@@ -29,7 +29,7 @@ export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: 
         .update(stage)
         .set({ status: 'active', startedAt: new Date() })
         .where(eq(stage.id, existing.id));
-      return { id: existing.id, status: 'active' };
+      return { id: existing.id, status: 'active', approvers: existing.approvers };
     }
     return existing;
   }
@@ -37,7 +37,7 @@ export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: 
   const [row] = await dbi
     .insert(stage)
     .values({ projectId, kind: 'spec', status: 'active', startedAt: new Date() })
-    .returning({ id: stage.id, status: stage.status });
+    .returning({ id: stage.id, status: stage.status, approvers: stage.approvers });
   return row;
 }
 

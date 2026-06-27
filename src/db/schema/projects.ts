@@ -96,6 +96,7 @@ export const stage = forge.table(
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastPhase: text('last_phase'),
+    approvers: jsonb('approvers').notNull().default([]),
   },
   (t) => [unique('stage_project_kind_uniq').on(t.projectId, t.kind)],
 );

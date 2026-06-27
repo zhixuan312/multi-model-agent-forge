@@ -238,7 +238,19 @@ export async function authorPlan(
     repoName: reposById.get(id)!.name,
     tasks: [...byRepo.get(id)!].sort((a, b) => a.orderIndex - b.orderIndex),
   }));
-  const combinedMd = renderCombinedPlan(combinedGroups);
+  const { project: projectTable } = await import('@/db/schema/projects');
+  const [proj] = await db.select({ name: projectTable.name }).from(projectTable).where(eq(projectTable.id, projectId)).limit(1);
+  const planHeader = [
+    `# ${proj?.name ?? 'Project'} — Implementation Plan`,
+    '',
+    `**Goal:** Implement the locked specification across ${writeTargets.length} repo${writeTargets.length === 1 ? '' : 's'} in ${resolved.length} tasks.`,
+    '',
+    `**Repos:** ${writeTargets.join(', ')}`,
+    '',
+    '---',
+    '',
+  ].join('\n');
+  const combinedMd = planHeader + renderCombinedPlan(combinedGroups);
   const { version } = await writePlanAsync(projectId, combinedMd);
 
   // 6. Persist plan_task rows.
@@ -326,7 +338,20 @@ export async function reassemblePlan(db: Db, projectId: string): Promise<void> {
       orderIndex: t.orderIndex,
     })),
   }));
-  const combinedMd = renderCombinedPlan(groups);
+  const { project: projectTable } = await import('@/db/schema/projects');
+  const [proj] = await db.select({ name: projectTable.name }).from(projectTable).where(eq(projectTable.id, projectId)).limit(1);
+  const repoNames = [...byRepo.keys()].filter(Boolean);
+  const header = [
+    `# ${proj?.name ?? 'Project'} — Implementation Plan`,
+    '',
+    `**Goal:** Implement the locked specification across ${repoNames.length} repo${repoNames.length === 1 ? '' : 's'} in ${tasks.length} tasks.`,
+    '',
+    `**Repos:** ${repoNames.join(', ')}`,
+    '',
+    '---',
+    '',
+  ].join('\n');
+  const combinedMd = header + renderCombinedPlan(groups);
   await writePlanAsync(projectId, combinedMd);
 }
 

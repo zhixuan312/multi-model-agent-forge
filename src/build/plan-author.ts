@@ -287,6 +287,31 @@ export async function getLatestPlanArtifact(_db: unknown, projectId: string) {
   return { bodyMd: file.bodyMd, version: file.version };
 }
 
+/** Re-render the combined plan from DB tasks and write to the physical plan.md file. */
+export async function reassemblePlan(db: Db, projectId: string): Promise<void> {
+  const tasks = await loadPlanTasks(db, projectId);
+  if (tasks.length === 0) return;
+  const byRepo = new Map<string, typeof tasks>();
+  for (const t of tasks) {
+    const arr = byRepo.get(t.repoName ?? '') ?? [];
+    arr.push(t);
+    byRepo.set(t.repoName ?? '', arr);
+  }
+  const groups = [...byRepo.entries()].map(([repoName, repoTasks]) => ({
+    repoName,
+    tasks: repoTasks.map((t) => ({
+      title: t.title,
+      detail: t.detail ?? '',
+      targetRepoId: t.targetRepoId,
+      dependsOnTitles: [] as string[],
+      reviewPolicy: t.reviewPolicy as 'reviewed' | 'none',
+      orderIndex: t.orderIndex,
+    })),
+  }));
+  const combinedMd = renderCombinedPlan(groups);
+  await writePlanAsync(projectId, combinedMd);
+}
+
 /** All plan_task rows for a project (ordered), joined with repo name for the UI. */
 export async function loadPlanTasks(db: Db, projectId: string) {
   const dbi = db ?? getDb();

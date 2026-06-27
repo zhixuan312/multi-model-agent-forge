@@ -82,10 +82,9 @@ describe('plan-render: renderRepoPlan', () => {
       new Set([REPO_A]),
     );
     const md = renderRepoPlan(resolved);
-    expect(md).toContain('## Task 1: Add cache');
-    expect(md).toContain('## Task 2: Wire it');
-    // The heading text (sans `## `) === project_plan_task.title byte-for-byte.
-    const headings = md.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3));
+    expect(md).toContain('### Task 1: Add cache');
+    expect(md).toContain('### Task 2: Wire it');
+    const headings = md.split('\n').filter((l) => l.startsWith('### ')).map((l) => l.slice(4));
     expect(headings).toEqual(['Task 1: Add cache', 'Task 2: Wire it']);
     // No git-commit tokens leaked into the rendered plan.
     expect(md).not.toMatch(/git (commit|add|push)/);

@@ -544,7 +544,35 @@ function DetailStage({
     );
   }
 
-  if (!active) return null;
+  if (!active) {
+    return (
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        <Card className="flex min-h-0 flex-col lg:col-span-2">
+          <CardHeader><CardTitle>Plan tasks</CardTitle></CardHeader>
+          <CardContent className="min-h-0 flex-1">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <ListTree className="size-8 text-ink-faint" />
+              <p className="text-sm font-medium text-ink">No plan yet</p>
+              <p className="text-xs text-ink-soft">The plan is authored from the locked spec. Make sure a repo is linked to the project.</p>
+              <Button
+                size="sm"
+                onClick={() => {
+                  void mma.dispatch(`/projects/${projectId}/build/author-plan`, 'plan-author').catch(() => {});
+                }}
+                disabled={readOnly}
+                leftIcon={<Sparkles />}
+              >
+                Author plan
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <aside className="flex min-h-0 flex-col">
+          <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
+        </aside>
+      </div>
+    );
+  }
   const approved = status[active.id] === 'approved';
   const msgs = threads[active.id] ?? [];
 

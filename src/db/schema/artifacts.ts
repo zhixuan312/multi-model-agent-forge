@@ -58,7 +58,8 @@ export const auditPass = forge.table(
     passNo: integer('pass_no').notNull(),
     findingsCount: integer('findings_count').notNull(),
     verdict: text('verdict', { enum: AUDIT_VERDICT }).notNull(),
-    mmaBatchId: uuid('mma_batch_id'), // nullable; no FK (mma_batch is Spec 5)
+    mmaBatchId: uuid('mma_batch_id'),
+    contextBlockId: text('context_block_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('audit_pass_project_idx').on(t.projectId, t.passNo)],

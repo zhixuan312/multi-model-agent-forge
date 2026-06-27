@@ -67,27 +67,30 @@ function matchFindingsToTasks(
   const result = new Map<number, Finding[]>();
 
   for (const f of findings) {
-    const evidence = (f.evidence ?? '').replace(/^"/, '').replace(/"$/, '');
-    if (evidence.length < 20) continue;
     const matched = new Set<number>();
+    const evidence = f.evidence ?? '';
+    const claim = f.claim ?? '';
+    const suggestion = f.suggestion ?? '';
+    const allText = `${claim}\n${evidence}\n${suggestion}`;
 
+    // Primary: match by task title appearing in claim/evidence/suggestion
     for (let ti = 0; ti < tasks.length; ti++) {
-      const text = tasks[ti].body;
-      for (let start = 0; start < Math.min(evidence.length, 300); start += 30) {
-        const frag = evidence.slice(start, start + 40);
-        if (frag.length > 15 && text.includes(frag)) {
-          matched.add(ti);
-          break;
-        }
+      const title = tasks[ti].heading.replace(/^###\s*/, '').trim();
+      if (allText.includes(title)) {
+        matched.add(ti);
       }
     }
 
-    // If no evidence match, try matching by task title in the claim
-    if (matched.size === 0) {
+    // Fallback: match by evidence text fragments in task body
+    if (matched.size === 0 && evidence.length >= 20) {
       for (let ti = 0; ti < tasks.length; ti++) {
-        const title = tasks[ti].heading.replace(/^###\s*/, '');
-        if (f.claim.includes(title) || (f.evidence && f.evidence.includes(title))) {
-          matched.add(ti);
+        const text = tasks[ti].body;
+        for (let start = 0; start < Math.min(evidence.length, 300); start += 30) {
+          const frag = evidence.slice(start, start + 40);
+          if (frag.length > 15 && text.includes(frag)) {
+            matched.add(ti);
+            break;
+          }
         }
       }
     }

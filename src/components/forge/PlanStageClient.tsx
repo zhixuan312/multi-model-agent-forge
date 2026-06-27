@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
+import { useServerState } from '@/hooks/useServerState';
 import {
   ArrowRight,
   Check,
@@ -128,15 +129,20 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const [status, setStatus] = useState<Record<string, TaskStatus>>(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
   );
-  const [rounds, setRounds] = useState<{ passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[]>(
+  const initialRounds = useMemo(
     () => props.auditRounds.map((findings, i) => {
       const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
       return { passNo: i + 1, verdict: hasCritHigh ? 'revised' as const : 'clean' as const, findings };
     }),
+    [props.auditRounds],
   );
+  const [rounds] = useServerState(initialRounds);
   const [locked, setLocked] = useState(false);
   const [applying, setApplying] = useState(!!props.pendingApply);
-  const [applied, setApplied] = useState(() => (props.auditApplied ?? []).some(Boolean));
+  const [applyingPass, setApplyingPass] = useState<number | null>(null);
+  const [appliedPasses, setAppliedPasses] = useState<Set<number>>(
+    () => new Set((props.auditApplied ?? []).flatMap((v, i) => v ? [i + 1] : [])),
+  );
 
   const [auto, setAuto] = useState<AutoMode>('off');
   const [autoNote, setAutoNote] = useState('');
@@ -146,6 +152,11 @@ export function PlanStageClient(props: PlanStageClientProps) {
     onDone: {
       'plan-author': refresh,
       'plan-audit': refresh,
+      'plan-audit-apply': refresh,
+      'plan-refine': refresh,
+    },
+    events: {
+      'plan.updated': refresh,
     },
   });
   const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
@@ -192,11 +203,16 @@ export function PlanStageClient(props: PlanStageClientProps) {
       .catch(() => { auditingRef.current = false; });
   }
 
-  const applyFindings = useCallback((findings: PlanAuditFinding[]) => {
+  const applyFindings = useCallback((findings: PlanAuditFinding[], passNo?: number) => {
     setApplying(true);
+    if (passNo) setApplyingPass(passNo);
     void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings })
-      .then(() => { setApplying(false); setApplied(true); })
-      .catch(() => setApplying(false));
+      .then(() => {
+        setApplying(false);
+        if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
+        setApplyingPass(null);
+      })
+      .catch(() => { setApplying(false); setApplyingPass(null); });
   }, [mma, props.projectId]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
@@ -265,6 +281,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
       {phase === 'refine' ? (
         <DetailStage
+          projectId={props.projectId}
           phases={props.phases}
           status={status}
           readOnly={readOnly}
@@ -273,6 +290,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           voiceEnabled={props.voiceEnabled}
           approvedCount={approvedCount}
           allApproved={allApproved}
+          mma={mma}
           onToggleApprove={(id) => { const next = status[id] === 'approved' ? 'proposed' : 'approved'; setStatus((s) => ({ ...s, [id]: next as TaskStatus })); fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, { method: next === 'approved' ? 'POST' : 'DELETE' }).catch(() => {}); }}
           onValidate={() => setPhase('validate')}
         />
@@ -287,7 +305,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           voiceEnabled={props.voiceEnabled}
           auditing={auditing}
           applying={applying}
-          applied={applied}
+          appliedPasses={appliedPasses}
           onApplyFindings={applyFindings}
           rounds={rounds}
           locked={locked}
@@ -432,6 +450,7 @@ function TaskRow({ task, index }: { task: PlanTaskSeed; index: number }) {
 
 /* ── Detail -- per-task dialogue (like Craft) ────────────────────────────────── */
 function DetailStage({
+  projectId,
   phases,
   status,
   readOnly,
@@ -440,9 +459,11 @@ function DetailStage({
   voiceEnabled,
   approvedCount,
   allApproved,
+  mma,
   onToggleApprove,
   onValidate,
 }: {
+  projectId: string;
   phases: PlanPhaseSeed[];
   status: Record<string, TaskStatus>;
   readOnly: boolean;
@@ -451,6 +472,7 @@ function DetailStage({
   voiceEnabled?: boolean;
   approvedCount: number;
   allApproved: boolean;
+  mma: ReturnType<typeof useMmaDispatch>;
   onToggleApprove: (id: string) => void;
   onValidate: () => void;
 }) {
@@ -526,18 +548,34 @@ function DetailStage({
   const approved = status[active.id] === 'approved';
   const msgs = threads[active.id] ?? [];
 
+  const [refining, setRefining] = useState(false);
+
   function send() {
     const text = input.trim();
-    if (!text) return;
+    if (!text || refining) return;
     setInput('');
     setThreads((th) => ({
       ...th,
-      [active.id]: [
-        ...(th[active.id] ?? []),
-        { id: nid(), role: 'user', text },
-        { id: nid(), role: 'forge', text: 'Good call -- I will fold that into the task below. Approve when it reads right.' },
-      ],
+      [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'user', text }],
     }));
+    setRefining(true);
+    void mma.dispatch(
+      `/projects/${projectId}/plan/tasks/${active.id}/refine`,
+      'plan-refine',
+      { message: text },
+    ).then(() => {
+      setRefining(false);
+      setThreads((th) => ({
+        ...th,
+        [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'Updated the task with your feedback. Review the changes below.' }],
+      }));
+    }).catch(() => {
+      setRefining(false);
+      setThreads((th) => ({
+        ...th,
+        [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }],
+      }));
+    });
   }
 
   return (
@@ -597,7 +635,7 @@ function DetailStage({
 
       {/* RIGHT -- guidance + every task grouped by phase + move-on (1/3) */}
       <aside className="flex min-h-0 flex-col gap-4">
-        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.detail}</RailNote>
+        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Tasks</CardTitle>
@@ -656,7 +694,7 @@ function ValidateStage({
   voiceEnabled,
   auditing,
   applying,
-  applied,
+  appliedPasses,
   onApplyFindings,
   rounds,
   locked,
@@ -673,8 +711,8 @@ function ValidateStage({
   voiceEnabled?: boolean;
   auditing?: boolean;
   applying: boolean;
-  applied: boolean;
-  onApplyFindings: (findings: PlanAuditFinding[]) => void;
+  appliedPasses: Set<number>;
+  onApplyFindings: (findings: PlanAuditFinding[], passNo?: number) => void;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
   locked: boolean;
   auditClean: boolean;
@@ -727,7 +765,7 @@ function ValidateStage({
     const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
     const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
     setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Revising the plan to address ${label} from pass ${passNo}...` }]);
-    onApplyFindings(selectedFindings);
+    onApplyFindings(selectedFindings, passNo);
   }
   function replay(passNo: number) {
     const round = rounds.find((r) => r.passNo === passNo);
@@ -792,7 +830,7 @@ function ValidateStage({
                 m.role === 'user' ? (
                   <ChatUser key={m.id} text={m.text} />
                 ) : m.role === 'audit' ? (
-                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} applying={applying} applied={applied} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
+                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} applying={applying} applied={appliedPasses.has(m.passNo)} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
                 ) : (
                   <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>
                 ),
@@ -875,7 +913,7 @@ function ValidateStage({
                 </p>
               </div>
             ) : null}
-            {rounds.map((r) => <PatternAuditRoundCard key={r.passNo} passNo={r.passNo} verdict={r.verdict} findings={r.findings as Finding[]} applied={applied} onClick={() => replay(r.passNo)} />)}
+            {[...rounds].reverse().map((r) => <PatternAuditRoundCard key={r.passNo} passNo={r.passNo} verdict={r.verdict} findings={r.findings as Finding[]} applied={appliedPasses.has(r.passNo)} onClick={() => replay(r.passNo)} />)}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <TextSm className="!text-ink-faint">

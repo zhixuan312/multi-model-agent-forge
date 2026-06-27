@@ -6,7 +6,6 @@ import { useServerState } from '@/hooks/useServerState';
 import {
   ArrowRight,
   Check,
-  CheckCircle2,
   Lock,
   Shield,
   Sparkles,

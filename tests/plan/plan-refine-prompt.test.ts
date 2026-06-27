@@ -63,4 +63,51 @@ describe('parsePlanRefineResponse', () => {
     expect(result.chatReply).toBe('I updated the task.');
     expect(result.updatedTaskBody).toBeNull();
   });
+
+  it('handles snake_case keys (chat_reply, updated_task_body)', () => {
+    const raw = JSON.stringify({ chat_reply: 'Done.', updated_task_body: '# Revised' });
+    const result = parsePlanRefineResponse(raw);
+    expect(result.chatReply).toBe('Done.');
+    expect(result.updatedTaskBody).toBe('# Revised');
+  });
+
+  it('returns null updatedTaskBody when field is missing', () => {
+    const raw = JSON.stringify({ chatReply: 'No changes needed.' });
+    const result = parsePlanRefineResponse(raw);
+    expect(result.chatReply).toBe('No changes needed.');
+    expect(result.updatedTaskBody).toBeNull();
+  });
+
+  it('trims whitespace from raw text fallback', () => {
+    const result = parsePlanRefineResponse('  whitespace response  ');
+    expect(result.chatReply).toBe('whitespace response');
+  });
+
+  it('handles empty string input', () => {
+    const result = parsePlanRefineResponse('');
+    expect(result.chatReply).toBe('');
+    expect(result.updatedTaskBody).toBeNull();
+  });
+});
+
+describe('buildPlanRefinePrompt edge cases', () => {
+  it('works without specMd (no Context block)', () => {
+    const { user } = buildPlanRefinePrompt({
+      taskTitle: 'Task 1',
+      taskBody: 'body',
+      userMessage: 'feedback',
+    });
+    expect(user).not.toContain('Specification');
+    expect(user).toContain('Task 1');
+    expect(user).toContain('feedback');
+  });
+
+  it('includes TDD constraint in system prompt', () => {
+    const { system } = buildPlanRefinePrompt({
+      taskTitle: 'Task 1',
+      taskBody: 'body',
+      userMessage: 'feedback',
+    });
+    expect(system).toContain('TDD');
+  });
 });

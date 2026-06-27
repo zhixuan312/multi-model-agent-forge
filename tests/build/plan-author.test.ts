@@ -2,12 +2,10 @@
 import { vi } from 'vitest';
 import { createMockDb, seq } from '../test-utils/mock-db';
 import { authorPlan, getLatestPlanArtifact } from '@/build/plan-author';
-import { AnthropicClient } from '@/anthropic/client';
 import { planFilePath } from '@/build/plan-fs';
 import { RecordingBus, FakePlanFs } from './fixtures';
 import type { PlanDraft } from '@/build/plan-schema';
 
-/* Mock file-based spec reads — getLatestSpec now reads from file, not DB. */
 const readSpecFileAsyncMock = vi.fn();
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
@@ -20,11 +18,8 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
 
 beforeEach(() => {
   readSpecFileAsyncMock.mockReset();
-  // Default: spec exists (most tests need it)
   readSpecFileAsyncMock.mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '# Spec' });
 });
-
-const anthropicStub = {} as unknown as AnthropicClient; // never called (draftOverride bypasses it)
 
 function draft(tasks: PlanDraft['tasks']): PlanDraft {
   return { tasks };
@@ -50,7 +45,6 @@ describe('authorPlan', () => {
     const res = await authorPlan(
       {
         db,
-        anthropic: anthropicStub,
         fs,
         bus,
         draftOverride: draft([
@@ -92,7 +86,7 @@ describe('authorPlan', () => {
       'insert:project_artifact': [{ id: 'art-1', projectId: 'proj-1', kind: 'plan', bodyMd: '# Plan', version: 1, createdAt: new Date(), updatedAt: new Date() }],
     });
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'Only A', detail: 'do', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
+      { db, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'Only A', detail: 'do', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(true);
@@ -114,7 +108,7 @@ describe('authorPlan', () => {
     });
     const mk = () =>
       authorPlan(
-        { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
+        { db, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
         { projectId: 'proj-1', actorId: 'member-1' },
       );
     await mk();
@@ -129,7 +123,7 @@ describe('authorPlan', () => {
     });
     const bus = new RecordingBus();
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus, draftOverride: draft([{ title: 'X', detail: 'd', targetRepoId: 'unknown-repo', dependsOn: [], reviewPolicy: 'reviewed' }]) },
+      { db, fs: new FakePlanFs(), bus, draftOverride: draft([{ title: 'X', detail: 'd', targetRepoId: 'unknown-repo', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);
@@ -142,7 +136,7 @@ describe('authorPlan', () => {
       'select:project_repo': [{ id: 'repo-a', projectId: 'proj-1', name: 'repo-a', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
     });
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'X', detail: 'then git commit -m done', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
+      { db, fs: new FakePlanFs(), bus: new RecordingBus(), draftOverride: draft([{ title: 'X', detail: 'then git commit -m done', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);
@@ -156,7 +150,7 @@ describe('authorPlan', () => {
     const fs = new FakePlanFs();
     fs.failWriteOn = '.forge';
     const res = await authorPlan(
-      { db, anthropic: anthropicStub, fs, bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
+      { db, fs, bus: new RecordingBus(), draftOverride: draft([{ title: 'A', detail: 'd', targetRepoId: 'repo-a', dependsOn: [], reviewPolicy: 'reviewed' }]) },
       { projectId: 'proj-1', actorId: 'member-1' },
     );
     expect(res.ok).toBe(false);

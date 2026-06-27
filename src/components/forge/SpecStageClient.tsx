@@ -1746,52 +1746,43 @@ function DocumentScreen({
             <ProseBlock>{spec.bodyMd}</ProseBlock>
           ) : (
             <div className="space-y-5">
-              {messages.length === 0 ? (
+              {rounds.length === 0 ? (
                 <div className="grid h-full place-items-center px-6 text-center">
                   <div className="max-w-sm">
-                    <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-tint text-accent">
-                      <FileText className="size-6" />
+                    <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
+                      <Shield className="size-6" />
                     </span>
-                    <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-                      {allApproved
-                        ? 'Assembling the specification…'
-                        : 'Approve every component before finalizing the document.'}
-                    </p>
+                    <p className="mt-4 text-sm font-medium text-ink">No audit runs yet</p>
+                    <p className="mt-1 text-xs text-ink-faint">Run an audit from the right panel to check for gaps, contradictions, and missing detail.</p>
                   </div>
                 </div>
               ) : (
-                messages.filter((m) => m.role !== 'draft').map((m) =>
-                  m.role === 'forge' ? (
-                    <ForgeSays key={m.id} text={m.text} />
-                  ) : m.role === 'user' ? (
-                    <AnswerBlock key={m.id} text={m.text} />
-                  ) : (
-                    <div key={m.id} className="flex gap-2.5">
+                rounds.map((r) => (
+                    <div key={r.passNo} className="flex gap-2.5">
                       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
                         <Shield className="size-[18px]" />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex flex-wrap items-center gap-2">
                           <span className="text-xs font-semibold text-ink">Audit</span>
-                          <span className="text-[11px] text-ink-faint">pass {m.passNo}</span>
-                          <Badge variant={m.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-                            {m.verdict === 'clean' ? 'clean' : `${m.findings.length} finding${m.findings.length === 1 ? '' : 's'} → revised`}
+                          <span className="text-[11px] text-ink-faint">pass {r.passNo}</span>
+                          <Badge variant={r.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
+                            {r.verdict === 'clean' ? 'clean' : `${r.findings.length} finding${r.findings.length === 1 ? '' : 's'}`}
                           </Badge>
-                          {(applied || rounds.find((r) => r.passNo === m.passNo)?.applied) ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
+                          {r.applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
                         </div>
                         <FindingsGrid
-                          findings={m.findings as Finding[]}
+                          findings={r.findings as Finding[]}
                           selectable
                           applying={applying}
-                          applied={applied || (rounds.find((r) => r.passNo === m.passNo)?.applied ?? false)}
+                          applied={r.applied}
                           readOnly={readOnly}
-                          onApply={(indices) => apply(m.passNo, indices, m.findings.length)}
-                          appliedLabel='All findings applied — press "Construct spec" to re-assemble.'
+                          onApply={(indices) => apply(r.passNo, indices, r.findings.length)}
+                          appliedLabel="All findings applied."
                         />
                       </div>
                     </div>
-                  ),
-                )
+                ))
               )}
             </div>
           )}

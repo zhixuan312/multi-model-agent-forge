@@ -118,5 +118,6 @@ export class ProjectEventBus {
   }
 }
 
-/** Process-wide singleton bus (the poll loop + synthesis publish here). */
-export const projectEventBus = new ProjectEventBus();
+/** Process-wide singleton bus — globalThis ensures one instance across all Turbopack bundles. */
+const g = globalThis as unknown as { __forgeEventBus?: ProjectEventBus };
+export const projectEventBus = (g.__forgeEventBus ??= new ProjectEventBus());

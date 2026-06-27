@@ -158,9 +158,7 @@ export function ApproverCluster({ participants }: { participants: Participant[] 
           </span>
         ) : null}
       </span>
-      {wait > 0 ? (
-        <span className="text-[10px] font-medium text-[var(--amber)]">{wait} pending</span>
-      ) : null}
+      {null}
     </span>
   );
 }

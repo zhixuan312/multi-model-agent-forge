@@ -815,18 +815,21 @@ function CraftStage({
         authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
         body: m.bodyMd,
       }));
-      const meApprovedAt = c.approvedBy === currentMember.id ? new Date().toISOString() : null;
+      const approvers = c.approvedBy as string[];
+      const meApprovedAt = approvers.includes(currentMember.id) ? new Date().toISOString() : null;
       const participants: Participant[] = [
         { member: currentMember, addedBy: null, approvedAt: meApprovedAt },
       ];
       for (const pid of (c.participantIds ?? []) as string[]) {
         if (pid === currentMember.id) continue;
         const m = allPool.find((p) => p.id === pid);
-        if (m) participants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
+        if (m) participants.push({ member: m, addedBy: null, approvedAt: approvers.includes(pid) ? new Date().toISOString() : null });
       }
-      if (c.approvedBy && !participants.some((p) => p.member.id === c.approvedBy)) {
-        const approver = allPool.find((m) => m.id === c.approvedBy);
-        if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+      for (const aid of approvers) {
+        if (!participants.some((p) => p.member.id === aid)) {
+          const approver = allPool.find((m) => m.id === aid);
+          if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+        }
       }
       out[c.id] = { participants, discussion: dbDiscussion };
     }
@@ -842,18 +845,21 @@ function CraftStage({
     setCollab((prev) => {
       const next = { ...prev };
       for (const c of components) {
-        const meApproved = c.approvedBy === currentMember.id ? new Date().toISOString() : null;
+        const approverList = c.approvedBy as string[];
+        const meApproved = approverList.includes(currentMember.id) ? new Date().toISOString() : null;
         const participants: Participant[] = [
           { member: currentMember, addedBy: null, approvedAt: meApproved },
         ];
         for (const pid of (c.participantIds ?? []) as string[]) {
           if (pid === currentMember.id) continue;
           const m = allPool.find((p) => p.id === pid);
-          if (m) participants.push({ member: m, addedBy: null, approvedAt: c.approvedBy === pid ? new Date().toISOString() : null });
+          if (m) participants.push({ member: m, addedBy: null, approvedAt: approverList.includes(pid) ? new Date().toISOString() : null });
         }
-        if (c.approvedBy && !participants.some((p) => p.member.id === c.approvedBy)) {
-          const approver = allPool.find((m) => m.id === c.approvedBy);
-          if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+        for (const aid of approverList) {
+          if (!participants.some((p) => p.member.id === aid)) {
+            const approver = allPool.find((m) => m.id === aid);
+            if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+          }
         }
         const old = prev[c.id];
         next[c.id] = { participants, discussion: old?.discussion ?? [] };
@@ -1199,12 +1205,12 @@ function CraftStage({
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
               size="sm"
-              onClick={approved || iApproved ? backToEdit : approve}
+              onClick={iApproved ? backToEdit : approve}
               disabled={readOnly}
-              variant={approved || iApproved ? 'secondary' : 'primary'}
-              leftIcon={approved || iApproved ? <RotateCcw /> : <Check />}
+              variant={iApproved ? 'secondary' : 'primary'}
+              leftIcon={iApproved ? <RotateCcw /> : <Check />}
             >
-              {approved || iApproved ? 'Revoke' : 'Approve'}
+              {iApproved ? 'Revoke' : 'Approve'}
             </Button>
           </div>
         ) : craftView === 'conversation' ? (

@@ -36,15 +36,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       .limit(1);
     if (sec) {
       const [comp] = await db
-        .select({ participants: component.participants })
+        .select({ participants: component.participants, approvedBy: component.approvedBy })
         .from(component)
         .where(eq(component.id, sec.componentId))
         .limit(1);
-      const existing = (comp?.participants as string[] | null) ?? [];
-      const updated = existing.includes(me.id) ? existing : [...existing, me.id];
+      const existingParts = (comp?.participants as string[] | null) ?? [];
+      const updatedParts = existingParts.includes(me.id) ? existingParts : [...existingParts, me.id];
+      const existingApprovers = (comp?.approvedBy as string[] | null) ?? [];
+      const updatedApprovers = existingApprovers.includes(me.id) ? existingApprovers : [...existingApprovers, me.id];
       await db
         .update(component)
-        .set({ approvedBy: me.id, participants: updated as unknown as object })
+        .set({ approvedBy: updatedApprovers as unknown as object, participants: updatedParts as unknown as object })
         .where(eq(component.id, sec.componentId));
     }
   }

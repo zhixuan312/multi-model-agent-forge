@@ -1745,12 +1745,6 @@ function DocumentScreen({
                 </div>
               ) : activeRound ? (
                 <div>
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ink">Pass {activeRound.passNo}</span>
-                    <Badge variant={activeRound.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">{activeRound.verdict}</Badge>
-                    <span className="text-xs text-ink-faint">{activeRound.findings.length} findings</span>
-                    {activeRound.applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
-                  </div>
                   <FindingsGrid
                     findings={activeRound.findings as Finding[]}
                     selectable

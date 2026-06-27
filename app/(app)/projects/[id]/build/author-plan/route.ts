@@ -54,7 +54,7 @@ export async function POST(
     handler: 'plan-author',
     cwd: resolveWorkspaceRoot(),
     body: {
-      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nLocked spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
+      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nContext: The following specification has been locked and approved.\n\nInput:\n\n--- Locked Specification ---\n${spec.bodyMd}\n--- End Specification ---\n\n--- Repos in Scope ---\n${repoList}\n--- End Repos ---`,
       reviewPolicy: 'none',
     },
     actorId: guard.memberId,

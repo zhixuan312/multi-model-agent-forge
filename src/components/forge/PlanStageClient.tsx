@@ -156,7 +156,10 @@ export function PlanStageClient(props: PlanStageClientProps) {
       'plan-refine': refresh,
     },
     events: {
-      'plan.updated': refresh,
+      'plan.updated': (data) => {
+        window.dispatchEvent(new CustomEvent('plan:updated', { detail: data }));
+        refresh();
+      },
     },
   });
   const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
@@ -578,6 +581,20 @@ function DetailStage({
 
   const [refining, setRefining] = useState(false);
 
+  useEffect(() => {
+    function onPlanUpdated(e: Event) {
+      const detail = (e as CustomEvent).detail as { taskId?: string; chatReply?: string } | undefined;
+      if (!detail?.taskId || !detail?.chatReply) return;
+      setRefining(false);
+      setThreads((th) => ({
+        ...th,
+        [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }],
+      }));
+    }
+    window.addEventListener('plan:updated', onPlanUpdated);
+    return () => window.removeEventListener('plan:updated', onPlanUpdated);
+  }, []);
+
   function send() {
     const text = input.trim();
     if (!text || refining) return;
@@ -591,13 +608,7 @@ function DetailStage({
       `/projects/${projectId}/plan/tasks/${active.id}/refine`,
       'plan-refine',
       { message: text },
-    ).then(() => {
-      setRefining(false);
-      setThreads((th) => ({
-        ...th,
-        [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'Updated the task with your feedback. Review the changes below.' }],
-      }));
-    }).catch(() => {
+    ).catch(() => {
       setRefining(false);
       setThreads((th) => ({
         ...th,

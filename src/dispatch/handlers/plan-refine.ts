@@ -15,6 +15,14 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
       .set({ detail: result.updatedTaskBody, updatedAt: new Date() })
       .where(eq(planTask.id, request.taskId));
   }
+
+  const { projectEventBus } = await import('@/sse/event-bus');
+  projectEventBus.publish(ctx.projectId, {
+    type: 'plan.updated',
+    taskId: request.taskId,
+    chatReply: result.chatReply,
+    updated: !!result.updatedTaskBody,
+  });
 }
 
 registerHandler('plan-refine', handlePlanRefine);

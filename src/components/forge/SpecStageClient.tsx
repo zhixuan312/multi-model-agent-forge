@@ -1265,7 +1265,7 @@ function CraftStage({
               </div>
             ) : null}
             <Button className="w-full" onClick={consolidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
-              {nudge && pendingTotal > 0 ? 'Proceed to Document' : 'Proceed to Document'}
+              Continue to Finalize
             </Button>
           </CardFooter>
         </Card>

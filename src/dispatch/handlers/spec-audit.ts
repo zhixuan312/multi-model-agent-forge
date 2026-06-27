@@ -1,3 +1,4 @@
+import { desc, and, eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { auditPass } from '@/db/schema/artifacts';
 import { parseAuditEnvelope, nextPassNo } from '@/spec/audit-loop';
@@ -21,6 +22,7 @@ async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pro
     findingsCount: parsed.findings.length,
     verdict,
     mmaBatchId: ctx.batchRowId,
+    contextBlockId: parsed.contextBlockId,
   });
 
   if (ctx.actorId) {

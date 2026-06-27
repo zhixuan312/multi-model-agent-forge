@@ -1,29 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
+import { and, eq, desc } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { getLatestSpec } from '@/spec/assemble';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { auditPass } from '@/db/schema/artifacts';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string }> };
-
-const bodySchema = z.object({
-  contextBlockIds: z.array(z.string()).optional(),
-});
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
-
-  const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid body.' }, { status: 400 });
-  }
 
   const db = getDb();
 
@@ -40,6 +32,20 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     );
   }
 
+  // Delta mode: get contextBlockId from the latest audit pass (if any)
+  const [lastPass] = await db
+    .select({ contextBlockId: auditPass.contextBlockId })
+    .from(auditPass)
+    .where(and(eq(auditPass.projectId, id), eq(auditPass.scope, 'spec')))
+    .orderBy(desc(auditPass.passNo))
+    .limit(1);
+
+  const contextBlockIds = lastPass?.contextBlockId ? [lastPass.contextBlockId] : undefined;
+
+  // Use file path for the spec (physical file at .mma/projects/<id>/spec.md)
+  const workspaceRoot = resolveWorkspaceRoot();
+  const specPath = `.mma/projects/${id}/spec.md`;
+
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({
     db,
@@ -47,11 +53,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     projectId: id,
     route: 'audit',
     handler: 'spec-audit',
-    cwd: resolveWorkspaceRoot(),
+    cwd: workspaceRoot,
     body: {
       subtype: 'spec',
-      target: { inline: spec.bodyMd },
-      ...(parsed.data.contextBlockIds?.length ? { contextBlockIds: parsed.data.contextBlockIds } : {}),
+      target: { paths: [specPath] },
+      ...(contextBlockIds ? { contextBlockIds } : {}),
     },
     actorId: guard.memberId,
   });

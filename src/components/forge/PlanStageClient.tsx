@@ -501,6 +501,7 @@ function DetailStage({
   }, [status]);
 
   const [refining, setRefining] = useState(false);
+  const [taskView, setTaskView] = useState<'plan' | 'discussion'>('plan');
 
   useEffect(() => {
     function onPlanUpdated(e: Event) {
@@ -577,8 +578,8 @@ function DetailStage({
       </div>
     );
   }
-  const approved = status[active.id] === 'approved';
-  const msgs = threads[active.id] ?? [];
+  const approved = status[active?.id ?? ''] === 'approved';
+  const msgs = threads[active?.id ?? ''] ?? [];
 
   function send() {
     const text = input.trim();
@@ -604,7 +605,7 @@ function DetailStage({
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE -- the per-task conversation + TDD draft (2/3) */}
+      {/* CENTRE -- plan view / discussion toggle (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
@@ -613,45 +614,63 @@ function DetailStage({
             </Badge>
             <CardTitle>{active?.title ?? ''}</CardTitle>
           </div>
-          {phaseOf ? <Micro className="!text-ink-faint">{phaseOf.title}</Micro> : null}
+          <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
+            {(['plan', 'discussion'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setTaskView(v)}
+                className={cn(
+                  'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
+                  taskView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
+                )}
+              >
+                {v === 'plan' ? 'Plan' : 'Discussion'}
+              </button>
+            ))}
+          </div>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
-          {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
-          {/* The FULL task -- exactly as the plan writes it (Files, TDD steps, code, commit). */}
-          <div className="rounded-[var(--r-md)] border border-line bg-surface px-4 py-3.5">
-            <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-line pb-2">
-              <Micro className="!font-semibold !uppercase !tracking-wide !text-ink-faint">Task {active.num || 0} · full plan</Micro>
-              <span className="inline-flex items-center gap-1 text-[11px] text-ink-faint">
-                <GitBranch className="size-2.5" /> {active.targetRepo}
-              </span>
-            </div>
+        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+          {taskView === 'plan' ? (
             <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
               {active.body}
             </ProseBlock>
-          </div>
-          <div ref={bottomRef} />
-        </CardContent>
-        {approved ? (
-          <CardFooter>
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="size-5 shrink-0 text-[var(--sage)]" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Task approved</p>
-                <p className="text-xs text-ink-faint">Re-open to revoke and keep discussing, or pick another task.</p>
-              </div>
+          ) : (
+            <div className="space-y-5">
+              {msgs.length === 0 ? (
+                <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — send a message to refine this task.</p>
+              ) : null}
+              {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
+              {refining ? (
+                <ChatForge>
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin text-accent" /> Thinking…
+                  </span>
+                </ChatForge>
+              ) : null}
+              <div ref={bottomRef} />
             </div>
-            <Button variant="secondary" onClick={() => onToggleApprove(active.id)} disabled={readOnly} leftIcon={<RotateCcw />}>
-              Re-open to edit
+          )}
+        </CardContent>
+        {taskView === 'plan' ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button
+              size="sm"
+              onClick={() => onToggleApprove(active.id)}
+              disabled={readOnly}
+              variant={approved ? 'secondary' : 'primary'}
+              leftIcon={approved ? <RotateCcw /> : <Check />}
+            >
+              {approved ? 'Revoke' : 'Approve'}
             </Button>
-          </CardFooter>
+          </div>
         ) : (
           <PlanComposer
             value={input}
             onChange={setInput}
             onSend={send}
-            secondaries={[{ label: 'Approve task', icon: <Check />, onClick: () => onToggleApprove(active.id), disabled: readOnly }]}
             placeholder="Discuss the approach..."
-            disabled={readOnly || driving}
+            disabled={readOnly || driving || refining}
             voiceEnabled={voiceEnabled}
           />
         )}

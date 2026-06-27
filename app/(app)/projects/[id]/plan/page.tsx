@@ -55,6 +55,14 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
+  const { member } = await import('@/db/schema/identity');
+  const allMembers = await db
+    .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member);
+  const projectMembers = allMembers
+    .filter((m) => m.id !== me.id)
+    .map((m) => ({ id: m.id, displayName: m.displayName, avatarTint: m.avatarTint }));
+
   return (
     <PlanStageClient
       projectId={id}
@@ -62,6 +70,8 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       intentMd={proj.intentMd ?? ''}
       phase={proj.phase}
       mmaReady={mmaReady}
+      currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      projectMembers={projectMembers}
       phases={planView.phases}
       planMd={planView.planMd ?? ''}
       auditRounds={planView.auditHistory.map((h) => h.findings.map((f) => ({

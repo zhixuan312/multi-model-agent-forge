@@ -1744,17 +1744,15 @@ function DocumentScreen({
                   </div>
                 </div>
               ) : activeRound ? (
-                <div>
-                  <FindingsGrid
-                    findings={activeRound.findings as Finding[]}
-                    selectable
-                    applying={applying}
-                    applied={activeRound.applied}
-                    readOnly={readOnly}
-                    onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
-                    appliedLabel="All findings applied."
-                  />
-                </div>
+                <FindingsGrid
+                  findings={activeRound.findings as Finding[]}
+                  selectable
+                  applying={applying}
+                  applied={activeRound.applied}
+                  readOnly={readOnly}
+                  onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
+                  appliedLabel="All findings applied."
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-center">
                   <p className="text-xs text-ink-faint">Select a pass from the right panel to view its findings.</p>

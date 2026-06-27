@@ -1483,7 +1483,12 @@ function DocumentScreen({
   const [canFreeze] = useServerState(initialCanFreeze);
   const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
-  const [selectedPass, setSelectedPass] = useState<number | null>(null);
+  const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
+  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
+  // Auto-select latest pass when new audit completes
+  useEffect(() => {
+    if (rounds.length > 0) setSelectedPass(rounds[rounds.length - 1].passNo);
+  }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
   const idc = useRef(0);
   const nid = () => `dm${idc.current++}`;
@@ -1745,11 +1750,10 @@ function DocumentScreen({
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
               selectable
-              applying={applying}
               applied={activeRound.applied}
               readOnly={readOnly}
-              onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
-              appliedLabel="All findings applied."
+              hideApplyBar
+              onSelectionChange={(indices) => setSelectedFindings(indices)}
             />
           ) : (
             <div className="flex h-full items-center justify-center">
@@ -1779,6 +1783,35 @@ function DocumentScreen({
               disabled={readOnly}
             >
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
+            </Button>
+          </div>
+        ) : activeRound && !activeRound.applied && docView !== 'document' ? (
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line px-5 py-3">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedFindings(activeRound.findings.map((_: unknown, i: number) => i))}
+                disabled={readOnly || applying}
+              >
+                Select all
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedFindings([])}
+                disabled={readOnly || applying || selectedFindings.length === 0}
+              >
+                Unselect all
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => apply(activeRound.passNo, selectedFindings.length > 0 ? selectedFindings : activeRound.findings.map((_: unknown, i: number) => i), activeRound.findings.length)}
+              disabled={readOnly || applying}
+              loading={applying}
+            >
+              {selectedFindings.length > 0 ? `Apply (${selectedFindings.length})` : 'Apply all'}
             </Button>
           </div>
         ) : null}

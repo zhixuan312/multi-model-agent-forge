@@ -26,12 +26,18 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     }
   }
 
+  const aiSatisfied = result.questions.length === 0;
   await db
     .update(component)
-    .set({ aiSatisfied: true, status: 'drafted', updatedAt: new Date() })
+    .set({ aiSatisfied, status: 'drafted', updatedAt: new Date() })
     .where(eq(component.id, componentId));
 
-  // Save Forge's chat reply as a message
+  // Build the chat message — include questions if any
+  let forgeReply = result.chatReply;
+  if (result.questions.length > 0) {
+    forgeReply += `\n\n❓ A few things to clarify:\n\n${result.questions.map((q) => `• ${q}`).join('\n\n')}`;
+  }
+
   const [{ maxSeq }] = await db
     .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
     .from(qaMessage)
@@ -41,8 +47,8 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     componentId,
     seq: (maxSeq ?? -1) + 1,
     sender: 'forge',
-    bodyMd: result.chatReply,
-    meta: result.updatedSectionMd ? { sectionUpdated: true } : { sectionUpdated: false },
+    bodyMd: forgeReply,
+    meta: { sectionUpdated: !!result.updatedSectionMd, questions: result.questions },
   }).returning({ id: qaMessage.id });
 
   const { projectEventBus } = await import('@/sse/event-bus');
@@ -54,7 +60,7 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
       sender: 'forge',
       authorId: 'forge',
       authorName: 'Forge',
-      bodyMd: result.chatReply,
+      bodyMd: forgeReply,
     },
   });
 }

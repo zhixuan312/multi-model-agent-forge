@@ -91,29 +91,43 @@ describe('buildRefinePrompt', () => {
     expect(system).toContain('Context');
   });
 
-  it('specifies JSON output format with chatReply and updatedSectionMd', () => {
+  it('specifies JSON output format with chatReply, updatedSectionMd, and questions', () => {
     const { system } = buildRefinePrompt(baseInput);
     expect(system).toContain('chatReply');
     expect(system).toContain('updatedSectionMd');
+    expect(system).toContain('questions');
   });
 });
 
 describe('parseRefineResponse', () => {
-  it('parses valid JSON response', () => {
+  it('parses valid JSON response with questions', () => {
     const raw = JSON.stringify({
       chatReply: 'Updated the audience to CPFB officers.',
       updatedSectionMd: '# Context\nThe demo targets CPFB officers.',
+      questions: ['Which CPFB division?'],
     });
     const result = parseRefineResponse(raw);
     expect(result.chatReply).toBe('Updated the audience to CPFB officers.');
     expect(result.updatedSectionMd).toBe('# Context\nThe demo targets CPFB officers.');
+    expect(result.questions).toEqual(['Which CPFB division?']);
+  });
+
+  it('parses response with no questions', () => {
+    const raw = JSON.stringify({
+      chatReply: 'Done.',
+      updatedSectionMd: '# Updated',
+      questions: [],
+    });
+    const result = parseRefineResponse(raw);
+    expect(result.questions).toEqual([]);
   });
 
   it('handles response wrapped in markdown code block', () => {
-    const raw = '```json\n{"chatReply":"Done.","updatedSectionMd":"# Updated"}\n```';
+    const raw = '```json\n{"chatReply":"Done.","updatedSectionMd":"# Updated","questions":[]}\n```';
     const result = parseRefineResponse(raw);
     expect(result.chatReply).toBe('Done.');
     expect(result.updatedSectionMd).toBe('# Updated');
+    expect(result.questions).toEqual([]);
   });
 
   it('falls back to full text as chatReply when JSON parsing fails', () => {
@@ -121,6 +135,7 @@ describe('parseRefineResponse', () => {
     const result = parseRefineResponse(raw);
     expect(result.chatReply).toBe(raw);
     expect(result.updatedSectionMd).toBeNull();
+    expect(result.questions).toEqual([]);
   });
 
   it('handles camelCase and snake_case keys', () => {
@@ -131,5 +146,16 @@ describe('parseRefineResponse', () => {
     const result = parseRefineResponse(raw);
     expect(result.chatReply).toBe('Done.');
     expect(result.updatedSectionMd).toBe('# New content');
+    expect(result.questions).toEqual([]);
+  });
+
+  it('filters empty strings from questions array', () => {
+    const raw = JSON.stringify({
+      chatReply: 'Updated.',
+      updatedSectionMd: '# Content',
+      questions: ['Valid question?', '', '  ', 'Another?'],
+    });
+    const result = parseRefineResponse(raw);
+    expect(result.questions).toEqual(['Valid question?', 'Another?']);
   });
 });

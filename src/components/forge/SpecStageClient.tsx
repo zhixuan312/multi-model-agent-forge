@@ -1475,9 +1475,11 @@ function DocumentScreen({
     return msgs;
   });
   const [input, setInput] = useState('');
-  const [rounds] = useServerState(
+  const initialRounds = useMemo(() =>
     initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })),
+    [initialAuditHistory],
   );
+  const [rounds] = useServerState(initialRounds);
   const [canFreeze] = useServerState(initialCanFreeze);
   const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');

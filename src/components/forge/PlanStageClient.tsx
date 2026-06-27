@@ -135,7 +135,12 @@ export function PlanStageClient(props: PlanStageClientProps) {
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
     [allTasks],
   );
+  const prevServerRef = useRef(serverStatus);
   const [localOverrides, setLocalOverrides] = useState<Record<string, TaskStatus>>({});
+  if (prevServerRef.current !== serverStatus) {
+    prevServerRef.current = serverStatus;
+    if (Object.keys(localOverrides).length > 0) setLocalOverrides({});
+  }
   const status: Record<string, TaskStatus> = { ...serverStatus, ...localOverrides };
   const setStatus = (updater: (prev: Record<string, TaskStatus>) => Record<string, TaskStatus>) => {
     setLocalOverrides((prev) => {

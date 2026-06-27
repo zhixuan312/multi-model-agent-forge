@@ -345,7 +345,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
           readOnly={readOnly}
           mmaReady={props.mmaReady}
           driving={auto === 'running'}
-          voiceEnabled={props.voiceEnabled}
           auditing={auditing}
           applying={applying}
           appliedPasses={appliedPasses}
@@ -398,96 +397,6 @@ function ChatUser({ text }: { text: string }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** A (re)constructed plan posted into the conversation as a versioned artifact. */
-function PlanDraftBubble({ md, version }: { md: string; version: number }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Forge</span>
-          <Badge variant="sage" size="sm">
-            plan · v{version}
-          </Badge>
-        </div>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-          <div className="max-h-[44vh] overflow-y-auto pr-1">
-            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">{md}</ProseBlock>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface ComposerAction {
-  label: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}
-
-function PlanComposer({
-  value,
-  onChange,
-  onSend,
-  secondaries,
-  placeholder,
-  disabled,
-  voiceEnabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  secondaries?: ComposerAction[];
-  placeholder: string;
-  disabled: boolean;
-  voiceEnabled?: boolean;
-}) {
-  return (
-    <ConversationComposer
-      value={value}
-      onChange={onChange}
-      onSend={() => onSend()}
-      disabled={disabled}
-      placeholder={placeholder}
-      voice={voiceEnabled ?? false}
-      secondaryActions={
-        secondaries && secondaries.length > 0 ? (
-          <div className="flex items-center gap-2">
-            {secondaries.map((s, i) => (
-              <Button key={i} size="sm" variant="ghost" onClick={s.onClick} disabled={disabled || s.disabled} leftIcon={s.icon}>
-                {s.label}
-              </Button>
-            ))}
-          </div>
-        ) : undefined
-      }
-    />
-  );
-}
-function TaskRow({ task, index }: { task: PlanTaskSeed; index: number }) {
-  const num = task.num || index + 1;
-  return (
-    <li className="px-3 py-2.5">
-      <div className="flex items-start gap-2">
-        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[6px] bg-accent-tint font-mono text-[10px] font-semibold text-accent">
-          {num}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium leading-snug text-ink">{task.title}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-ink-faint">
-            <span className="inline-flex items-center gap-1">
-              <GitBranch className="size-2.5" /> {task.targetRepo}
-            </span>
-            {task.dependsOn.length > 0 ? <span>· deps {task.dependsOn.join(', ')}</span> : null}
-          </div>
-        </div>
-      </div>
-    </li>
   );
 }
 
@@ -905,7 +814,6 @@ function ValidateStage({
   readOnly,
   mmaReady,
   driving,
-  voiceEnabled,
   auditing,
   applying,
   appliedPasses,
@@ -922,7 +830,6 @@ function ValidateStage({
   readOnly: boolean;
   mmaReady: boolean;
   driving: boolean;
-  voiceEnabled?: boolean;
   auditing?: boolean;
   applying: boolean;
   appliedPasses: Set<number>;
@@ -933,152 +840,86 @@ function ValidateStage({
   onRunAudit: () => void;
   onLock: () => void;
 }) {
-  const md = planMd;
-  const [version, setVersion] = useState(1);
-  const [docView, setDocView] = useState<'conversation' | 'document'>(planMd ? 'document' : 'conversation');
-  const [msgs, setMsgs] = useState<Msg[]>(() => {
-    const initial: Msg[] = [
-      { id: nid(), role: 'forge', text: "The plan is ready. Run an audit to check sequencing, coverage and TDD gaps; discuss changes; then lock it." },
-    ];
-    for (let i = 0; i < rounds.length; i++) {
-      const r = rounds[i];
-      if (r.findings.length > 0) {
-        initial.push({ id: nid(), role: 'audit', passNo: r.passNo, verdict: r.verdict, findings: r.findings });
-      }
-    }
-    return initial;
-  });
-  const [input, setInput] = useState('');
-  const seen = useRef(0);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [msgs]);
+  const [docView, setDocView] = useState<'document' | 'audit'>(planMd ? 'document' : 'audit');
+  const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
+  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
+  const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
 
-  // Post each new audit round into the conversation.
   useEffect(() => {
-    if (rounds.length <= seen.current) return;
-    const fresh = rounds.slice(seen.current);
-    seen.current = rounds.length;
-    setMsgs((m) => [
-      ...m,
-      ...fresh.flatMap((r) => [
-        { id: nid(), role: 'audit', passNo: r.passNo, verdict: r.verdict, findings: r.findings } as Msg,
-        {
-          id: nid(),
-          role: 'forge',
-          text: r.verdict === 'clean' ? 'Clean pass -- no critical or high. You can lock the plan.' : 'Pick the findings to apply, or tell me by number -- I will revise the plan and you re-run.',
-        } as Msg,
-      ]),
-    ]);
-  }, [rounds]);
-
+    if (rounds.length > 0) { setSelectedPass(rounds[rounds.length - 1].passNo); setDocView('audit'); }
+  }, [rounds.length]);
 
   function apply(passNo: number, indices: number[], total: number) {
     if (readOnly || indices.length === 0 || applying) return;
     const round = rounds.find((r) => r.passNo === passNo);
     if (!round) return;
-    const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
-    const label = indices.length === total ? `all ${total} findings` : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
-    setMsgs((m) => [...m, { id: nid(), role: 'forge', text: `Revising the plan to address ${label} from pass ${passNo}...` }]);
-    onApplyFindings(selectedFindings, passNo);
-  }
-  function replay(passNo: number) {
-    const round = rounds.find((r) => r.passNo === passNo);
-    if (!round) return;
-    setDocView('conversation');
-    setMsgs((m) => [
-      ...m,
-      { id: nid(), role: 'forge', text: `Here are the pass ${passNo} findings again -- select the ones to apply.` },
-      { id: nid(), role: 'audit', passNo: round.passNo, verdict: round.verdict, findings: round.findings },
-    ]);
-  }
-  function send() {
-    const text = input.trim();
-    if (!text) return;
-    setInput('');
-    setMsgs((m) => [...m, { id: nid(), role: 'user', text }, { id: nid(), role: 'forge', text: 'Noted -- hit Construct plan to regenerate it, or re-run the audit.' }]);
-  }
-  function reconstruct() {
-    if (readOnly) return;
-    const v = version + 1;
-    setVersion(v);
-    setMsgs((m) => [
-      ...m,
-      { id: nid(), role: 'forge', text: `Re-constructed the plan from our discussion -- v${v}.` },
-    ]);
+    const selected = indices.map((i) => round.findings[i]).filter(Boolean);
+    onApplyFindings(selected, passNo);
   }
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE -- finalize the plan in dialogue (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} -- validate the plan</CardTitle>
-            {locked ? (
-              <Badge variant="sage" size="sm">
-                <Lock className="mr-1 size-3" /> locked
-              </Badge>
-            ) : null}
+            <CardTitle>{projectName} — plan</CardTitle>
+            {locked ? <Badge variant="sage" size="sm"><Lock className="mr-1 size-3" /> locked</Badge> : null}
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--frost)] px-2.5 py-1 text-[11px] font-medium text-[var(--steel)]">
-            TDD · engineer-facing
-          </span>
+          <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
+            {(['document', 'audit'] as const).map((v) => (
+              <button key={v} type="button" onClick={() => setDocView(v)} className={cn(
+                'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
+                docView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
+              )}>
+                {v === 'document' ? 'Plan' : 'Audit'}
+              </button>
+            ))}
+          </div>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
-          {docView === 'document' && md ? (
-            <div className="flex gap-2.5">
-              <ForgeMark className="mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-ink">Forge</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-medium text-accent-deep">plan . v{version}</span>
-                </div>
-                <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                  <ProseBlock>{md}</ProseBlock>
-                </div>
-              </div>
+
+        <CardContent className="min-h-0 flex-1 overflow-y-auto !py-5">
+          {docView === 'document' && planMd ? (
+            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">{planMd}</ProseBlock>
+          ) : !activeRound ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
+              <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                <Shield className="size-7 text-[var(--steel)]" />
+              </span>
+              <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
+              <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                Run an audit from the right panel to check sequencing, coverage, and TDD gaps.
+              </p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {msgs.filter((m) => m.role !== 'draft').map((m) =>
-                m.role === 'user' ? (
-                  <ChatUser key={m.id} text={m.text} />
-                ) : m.role === 'audit' ? (
-                  <AuditChatMsg key={m.id} passNo={m.passNo} verdict={m.verdict} findings={m.findings} readOnly={readOnly} applying={applying} applied={appliedPasses.has(m.passNo)} onApply={(idx) => apply(m.passNo, idx, m.findings.length)} />
-                ) : (
-                  <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>
-                ),
-              )}
-            </div>
+            <FindingsGrid
+              findings={activeRound.findings as Finding[]}
+              selectable
+              applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
+              readOnly={readOnly}
+              hideApplyBar
+              selectedIndices={selectedFindings}
+              onSelectionChange={(indices) => setSelectedFindings(indices)}
+            />
           )}
-          <div ref={bottomRef} />
         </CardContent>
-        {docView === 'document' ? (
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
-            <div className="flex items-center gap-2.5">
-              <ListTree className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Plan v{version}</p>
-                <p className="text-xs text-ink-faint">Review the plan, or go back to refine.</p>
-              </div>
-            </div>
-            <Button size="sm" variant="secondary" onClick={() => setDocView('conversation')}>
-              Back to conversation
+
+        {docView === 'document' ? null
+          : activeRound && !appliedPasses.has(activeRound.passNo) ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <Button size="sm" variant="ghost" onClick={() => setSelectedFindings(
+              selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_: unknown, i: number) => i),
+            )} disabled={readOnly || applying}>
+              {selectedFindings.length === activeRound.findings.length ? 'Unselect all' : 'Select all'}
+            </Button>
+            <Button size="sm"
+              onClick={() => apply(activeRound.passNo, selectedFindings.length > 0 ? selectedFindings : activeRound.findings.map((_: unknown, i: number) => i), activeRound.findings.length)}
+              disabled={readOnly || applying || selectedFindings.length === 0}
+              loading={applying}>
+              Apply ({selectedFindings.length || 'all'})
             </Button>
           </div>
-        ) : (
-          <PlanComposer
-            value={input}
-            onChange={setInput}
-            onSend={send}
-            secondaries={[
-              { label: version > 1 ? 'Re-construct plan' : 'Construct plan', icon: <Sparkles />, onClick: () => { reconstruct(); setDocView('document'); }, disabled: readOnly || locked },
-            ]}
-            placeholder="Discuss the plan..."
-            disabled={readOnly || driving}
-            voiceEnabled={voiceEnabled}
-          />
-        )}
+        ) : null}
+
         {!mmaReady ? (
           <div className="shrink-0 border-t border-line px-5 py-2">
             <TextSm className="!text-[var(--amber)]">
@@ -1127,7 +968,17 @@ function ValidateStage({
                 </p>
               </div>
             ) : null}
-            {[...rounds].reverse().map((r) => <PatternAuditRoundCard key={r.passNo} passNo={r.passNo} verdict={r.verdict} findings={r.findings as Finding[]} applied={appliedPasses.has(r.passNo)} onClick={() => replay(r.passNo)} />)}
+            {[...rounds].reverse().map((r) => (
+              <PatternAuditRoundCard
+                key={r.passNo}
+                passNo={r.passNo}
+                verdict={r.verdict}
+                findings={r.findings as Finding[]}
+                applied={appliedPasses.has(r.passNo)}
+                active={selectedPass === r.passNo && docView === 'audit'}
+                onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('audit'); }}
+              />
+            ))}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <TextSm className="!text-ink-faint">
@@ -1149,49 +1000,3 @@ function ValidateStage({
   );
 }
 
-/* ── audit message: uses FindingsGrid + AuditRoundCard from patterns ──── */
-
-function AuditChatMsg({
-  passNo,
-  verdict,
-  findings,
-  readOnly,
-  applying,
-  applied,
-  onApply,
-}: {
-  passNo: number;
-  verdict: 'clean' | 'revised';
-  findings: PlanAuditFinding[];
-  readOnly: boolean;
-  applying?: boolean;
-  applied?: boolean;
-  onApply: (indices: number[]) => void;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
-        <Shield className="size-[18px]" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Audit</span>
-          <span className="text-[11px] text-ink-faint">pass {passNo}</span>
-          <Badge variant={verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-            {verdict === 'clean' ? 'clean' : `${findings.length} finding${findings.length === 1 ? '' : 's'} → revised`}
-          </Badge>
-          {applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying...</Badge> : null}
-        </div>
-        <FindingsGrid
-          findings={findings as Finding[]}
-          selectable
-          applying={applying}
-          applied={applied}
-          readOnly={readOnly}
-          onApply={onApply}
-          appliedLabel='All findings applied -- press "Construct plan" to re-assemble.'
-        />
-      </div>
-    </div>
-  );
-}

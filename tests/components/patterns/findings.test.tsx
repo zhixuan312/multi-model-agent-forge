@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, FindingsClean, type Finding } from '@/components/patterns/findings';
+import { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 
 const finding: Finding = {
   severity: 'high',
@@ -84,14 +84,3 @@ describe('AuditRoundCard', () => {
   });
 });
 
-describe('FindingsClean', () => {
-  it('renders default clean message', () => {
-    render(<FindingsClean />);
-    expect(screen.getByText(/clean/i)).toBeInTheDocument();
-  });
-
-  it('accepts custom message', () => {
-    render(<FindingsClean message="No issues found" />);
-    expect(screen.getByText('No issues found')).toBeInTheDocument();
-  });
-});

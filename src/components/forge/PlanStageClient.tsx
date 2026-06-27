@@ -641,6 +641,11 @@ function DetailStage({
   const approved = status[active?.id ?? ''] === 'approved';
   const msgs = threads[active?.id ?? ''] ?? [];
 
+  const forgeMentionPool = useMemo(() => {
+    const forge = { id: 'forge', displayName: 'Forge', avatarTint: '#8B6914' };
+    return [forge, ...projectMembers];
+  }, [projectMembers]);
+
   function send() {
     const text = input.trim();
     if (!text || refining) return;
@@ -649,18 +654,24 @@ function DetailStage({
       ...th,
       [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'user', text }],
     }));
-    setRefining(true);
-    void mma.dispatch(
-      `/projects/${projectId}/plan/tasks/${active.id}/refine`,
-      'plan-refine',
-      { message: text },
-    ).catch(() => {
-      setRefining(false);
-      setThreads((th) => ({
-        ...th,
-        [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }],
-      }));
-    });
+
+    const forgeTagged = /@forge\b/i.test(text);
+    if (forgeTagged) {
+      const cleanText = text.replace(/@forge\s*/gi, '').trim() || 'Refine this task based on the discussion.';
+      setRefining(true);
+      setTaskView('discussion');
+      void mma.dispatch(
+        `/projects/${projectId}/plan/tasks/${active.id}/refine`,
+        'plan-refine',
+        { message: cleanText },
+      ).catch(() => {
+        setRefining(false);
+        setThreads((th) => ({
+          ...th,
+          [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }],
+        }));
+      });
+    }
   }
 
   return (
@@ -744,13 +755,14 @@ function DetailStage({
             </Button>
           </div>
         ) : (
-          <PlanComposer
+          <ConversationComposer
             value={input}
             onChange={setInput}
             onSend={send}
-            placeholder="Discuss the approach..."
+            placeholder="@Forge to refine this task..."
             disabled={readOnly || driving || refining}
-            voiceEnabled={voiceEnabled}
+            voice={voiceEnabled ?? false}
+            mentionPool={forgeMentionPool}
           />
         )}
       </Card>

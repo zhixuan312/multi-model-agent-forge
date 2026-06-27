@@ -1895,7 +1895,7 @@ function DocumentScreen({
                 ? 'Clean audit — the spec is ready for planning.'
                 : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
-            {specApprovers.length > 0 ? (
+            {specApprovers.includes(currentMember.id) ? (
               <StageAdvance
                 href={`/projects/${projectId}/plan`}
                 label="Continue to Plan"

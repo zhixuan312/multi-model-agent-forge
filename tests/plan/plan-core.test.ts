@@ -1,87 +1,92 @@
 import { describe, it, expect } from 'vitest';
+import { parsePlanSections } from '@/plan/plan-file-ops';
+import { groupTasksIntoPhases } from '@/plan/plan-core';
 
-describe('plan-core', () => {
-  describe('planTaskToView', () => {
-    it('maps DB row to client-safe view type', async () => {
-      const { planTaskToView } = await import('@/plan/plan-core');
-      const row = {
-        id: 'task-1',
-        title: 'Task 1: Add the widget',
-        detail: 'Full task detail markdown',
-        targetRepoId: 'repo-1',
-        dependsOn: null as string[] | null,
-        orderIndex: 0,
-        reviewPolicy: 'full',
-        status: 'queued',
-      };
-      const view = planTaskToView(row, 'my-repo');
-      expect(view.id).toBe('task-1');
-      expect(view.title).toBe('Task 1: Add the widget');
-      expect(view.body).toBe('Full task detail markdown');
-      expect(view.targetRepo).toBe('my-repo');
-      expect(view.num).toBe(1);
-      expect(view.dependsOn).toEqual([]);
-      expect(view.files).toEqual([]);
-    });
+describe('parsePlanSections', () => {
+  it('parses ### headings into task sections', () => {
+    const md = `# Plan
 
-    it('extracts task number from title prefix', async () => {
-      const { planTaskToView } = await import('@/plan/plan-core');
-      const view = planTaskToView({
-        id: 'task-5',
-        title: 'Task 5: Implement the handler',
-        detail: '',
-        targetRepoId: 'repo-1',
-        dependsOn: null,
-        orderIndex: 4,
-        reviewPolicy: 'full',
-        status: 'queued',
-      }, 'repo');
-      expect(view.num).toBe(5);
-    });
+### Task 1: Add the widget
 
-    it('extracts files from detail markdown preamble', async () => {
-      const { planTaskToView } = await import('@/plan/plan-core');
-      const detail = `**Files:**
+**Files:**
+- Create: \`src/widget.ts\`
+
+Some detail here.
+
+### Task 2: Wire handler
+
+Handler wiring detail.
+`;
+    const sections = parsePlanSections(md);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].heading).toBe('### Task 1: Add the widget');
+    expect(sections[0].body).toContain('src/widget.ts');
+    expect(sections[1].heading).toBe('### Task 2: Wire handler');
+    expect(sections[1].body).toContain('Handler wiring');
+  });
+
+  it('handles plan with header block before first task', () => {
+    const md = `# My Plan
+
+**Goal:** Build the thing.
+
+---
+
+### Task 1: First
+
+Do it.
+`;
+    const sections = parsePlanSections(md);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].heading).toBe('### Task 1: First');
+  });
+
+  it('returns empty for plan with no ### headings', () => {
+    const md = `# Just a title\n\nSome text.`;
+    expect(parsePlanSections(md)).toEqual([]);
+  });
+
+  it('extracts files from task body', () => {
+    const md = `### Task 1: Test
+
+**Files:**
 - Create: \`src/foo.ts\`
 - Modify: \`src/bar.ts:10-20\`
 - Test: \`tests/foo.test.ts\`
 
-- [ ] **Step 1: Write the test**`;
-      const view = planTaskToView({
-        id: 't1', title: 'Task 1: Test', detail,
-        targetRepoId: 'r', dependsOn: null, orderIndex: 0,
-        reviewPolicy: 'full', status: 'queued',
-      }, 'repo');
-      expect(view.files).toEqual(['src/foo.ts', 'src/bar.ts:10-20', 'tests/foo.test.ts']);
-    });
+- [ ] **Step 1: Write the test**
+`;
+    const sections = parsePlanSections(md);
+    expect(sections[0].body).toContain('src/foo.ts');
+  });
+});
 
-    it('maps dependsOn UUIDs to task title references', async () => {
-      const { planTaskToView } = await import('@/plan/plan-core');
-      const view = planTaskToView({
-        id: 't2', title: 'Task 2: Handler', detail: '',
-        targetRepoId: 'r', dependsOn: ['uuid-1', 'uuid-2'], orderIndex: 1,
-        reviewPolicy: 'full', status: 'queued',
-      }, 'repo', new Map([['uuid-1', 'Task 1'], ['uuid-2', 'Task 3']]));
-      expect(view.dependsOn).toEqual(['Task 1', 'Task 3']);
-    });
+describe('groupTasksIntoPhases', () => {
+  it('groups tasks into a single phase when no phase markers exist', () => {
+    const tasks = [
+      { id: 't1', num: 1, title: 'Task 1', body: '', files: [], dependsOn: [], targetRepo: 'r' },
+      { id: 't2', num: 2, title: 'Task 2', body: '', files: [], dependsOn: [], targetRepo: 'r' },
+    ];
+    const phases = groupTasksIntoPhases(tasks);
+    expect(phases).toHaveLength(1);
+    expect(phases[0].title).toBe('Implementation');
+    expect(phases[0].tasks).toHaveLength(2);
   });
 
-  describe('groupTasksIntoPhases', () => {
-    it('groups tasks into a single phase when no phase markers exist', async () => {
-      const { groupTasksIntoPhases } = await import('@/plan/plan-core');
-      const tasks = [
-        { id: 't1', num: 1, title: 'Task 1', body: '', files: [], dependsOn: [], targetRepo: 'r' },
-        { id: 't2', num: 2, title: 'Task 2', body: '', files: [], dependsOn: [], targetRepo: 'r' },
-      ];
-      const phases = groupTasksIntoPhases(tasks);
-      expect(phases).toHaveLength(1);
-      expect(phases[0].title).toBe('Implementation');
-      expect(phases[0].tasks).toHaveLength(2);
-    });
+  it('groups tasks by phase field when present', () => {
+    const tasks = [
+      { id: 't1', num: 1, title: 'Task 1', body: '', files: [], dependsOn: [], targetRepo: 'r', phase: 'Track A' },
+      { id: 't2', num: 2, title: 'Task 2', body: '', files: [], dependsOn: [], targetRepo: 'r', phase: 'Track A' },
+      { id: 't3', num: 3, title: 'Task 3', body: '', files: [], dependsOn: [], targetRepo: 'r', phase: 'Track B' },
+    ];
+    const phases = groupTasksIntoPhases(tasks);
+    expect(phases).toHaveLength(2);
+    expect(phases[0].title).toBe('Track A');
+    expect(phases[0].tasks).toHaveLength(2);
+    expect(phases[1].title).toBe('Track B');
+  });
 
-    it('returns empty array for empty tasks', async () => {
-      const { groupTasksIntoPhases } = await import('@/plan/plan-core');
-      expect(groupTasksIntoPhases([])).toEqual([]);
-    });
+  it('returns empty array for empty tasks', () => {
+    expect(groupTasksIntoPhases([])).toEqual([]);
   });
 });

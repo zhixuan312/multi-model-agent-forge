@@ -8,6 +8,7 @@ import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
 import { getLatestSpec } from '@/spec/assemble';
 import { buildPlanRefinePrompt } from '@/plan/plan-refine-prompt';
+import { readTaskSection } from '@/plan/plan-file-ops';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
@@ -26,11 +27,14 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   }
 
   const [task] = await db
-    .select({ title: planTask.title, detail: planTask.detail })
+    .select({ title: planTask.title })
     .from(planTask)
     .where(eq(planTask.id, taskId))
     .limit(1);
   if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+
+  const section = await readTaskSection(id, task.title);
+  const taskBody = section?.body ?? '';
 
   const body = (await req.json().catch(() => ({}))) as { message?: string };
   const userMessage = body.message ?? '';
@@ -39,7 +43,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const spec = await getLatestSpec(db, id);
   const { system, user } = buildPlanRefinePrompt({
     taskTitle: task.title,
-    taskBody: task.detail ?? '',
+    taskBody,
     userMessage,
     specMd: spec?.bodyMd,
   });

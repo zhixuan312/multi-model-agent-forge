@@ -39,10 +39,11 @@ Constraints:
 - Use checkbox syntax (\`- [ ]\`) for steps
 
 Output format:
-Return a JSON object with exactly one field:
+Return ONLY a JSON object with exactly one field — no commentary, no explanation, no preamble:
 \`\`\`json
 { "draftMd": "<the full revised task body markdown>" }
-\`\`\``;
+\`\`\`
+CRITICAL: Your entire response must be valid JSON. Do NOT write any text before or after the JSON. Do NOT explain your changes.`;
 
   const user = `Context: This is the "${taskTitle}" task from an implementation plan. An audit pass flagged findings that affect this task.
 

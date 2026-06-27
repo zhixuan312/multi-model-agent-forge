@@ -34,6 +34,7 @@ export const component = forge.table(
     forced: boolean('forced').notNull().default(false),
     stale: boolean('stale').notNull().default(false),
     approvedBy: uuid('approved_by').references(() => member.id),
+    mmaSessionId: text('mma_session_id'),
     participants: jsonb('participants').notNull().default([]),
     orderIndex: integer('order_index').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

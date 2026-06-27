@@ -1001,12 +1001,11 @@ function CraftStage({
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };
-  const inChatMembers = [
-    forgeMember,
-    ...activeCollab.participants
-      .filter((p) => p.member.id !== currentMember.id && p.member.id !== 'forge')
-      .map((p) => p.member),
-  ];
+  const otherMembers = activeCollab.participants
+    .filter((p) => p.member.id !== currentMember.id && p.member.id !== 'forge')
+    .map((p) => p.member)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const inChatMembers = [forgeMember, ...otherMembers];
   // Live: does the current draft message address teammates (→ them, AI silent)?
   const liveMentions = parseMentions(input, inChatMembers);
 
@@ -1826,6 +1825,7 @@ function DocumentScreen({
                 .filter((id) => id !== currentMember.id)
                 .map((id) => allPool.find((m) => m.id === id))
                 .filter(Boolean) as MemberRef[];
+              involved.sort((a, b) => a.displayName.localeCompare(b.displayName));
               return [{ id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' }, ...involved];
             })()}
           />

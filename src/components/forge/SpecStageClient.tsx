@@ -1786,7 +1786,7 @@ function DocumentScreen({
             </Button>
           </div>
         ) : activeRound && !activeRound.applied && docView !== 'document' ? (
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line px-5 py-3">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
               size="sm"
               variant="ghost"
@@ -1800,10 +1800,10 @@ function DocumentScreen({
             <Button
               size="sm"
               onClick={() => apply(activeRound.passNo, selectedFindings.length > 0 ? selectedFindings : activeRound.findings.map((_: unknown, i: number) => i), activeRound.findings.length)}
-              disabled={readOnly || applying}
+              disabled={readOnly || applying || selectedFindings.length === 0}
               loading={applying}
             >
-              {selectedFindings.length > 0 ? `Apply (${selectedFindings.length})` : 'Apply all'}
+              Apply ({selectedFindings.length || 'all'})
             </Button>
           </div>
         ) : null}

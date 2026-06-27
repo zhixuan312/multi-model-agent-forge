@@ -512,7 +512,20 @@ function DetailStage({
 
   const [refining, setRefining] = useState(false);
   const [taskView, setTaskView] = useState<'plan' | 'discussion'>('plan');
-  const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>({});
+  const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>(() => {
+    const out: Record<string, Participant[]> = {};
+    for (const t of allTasks) {
+      const ids = t.participantIds ?? [];
+      if (ids.length > 0 && projectMembers.length > 0) {
+        const memberById = new Map(projectMembers.map((m) => [m.id, m]));
+        out[t.id] = ids
+          .map((id) => memberById.get(id))
+          .filter(Boolean)
+          .map((m) => ({ member: m!, addedBy: null, approvedAt: (t.approvedBy ?? []).includes(m!.id) ? new Date().toISOString() : null }));
+      }
+    }
+    return out;
+  });
   const meParticipant: Participant | null = currentMember
     ? { member: currentMember, addedBy: null, approvedAt: status[active?.id ?? ''] === 'approved' ? new Date().toISOString() : null }
     : null;
@@ -658,6 +671,11 @@ function DetailStage({
                 if (existing.some((p) => p.member.id === m.id)) return prev;
                 return { ...prev, [active.id]: [...existing, { member: m, addedBy: null, approvedAt: null }] };
               });
+              fetch(`/api/projects/${projectId}/plan/tasks/${active.id}/invite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ memberId: m.id }),
+              }).catch(() => {});
             }}
             disabled={readOnly}
           />

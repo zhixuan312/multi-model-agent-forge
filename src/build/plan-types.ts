@@ -14,6 +14,10 @@ export interface PlanTaskSeed {
   targetRepo: string;
   /** DB status — used to initialize approval state on page load. */
   dbStatus?: string;
+  /** Member IDs who approved this task. */
+  approvedBy?: string[];
+  /** Member IDs invited to review this task. */
+  participantIds?: string[];
 }
 
 export interface PlanPhaseSeed {

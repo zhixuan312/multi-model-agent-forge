@@ -45,6 +45,8 @@ export const planTask = forge.table(
     targetBranch: text('target_branch'), // user-selected base branch for build + PR target
     commitSha: text('commit_sha'), // the MMA worker commit SHA (envelope.structuredReport.commitSha)
     fixNote: text('fix_note'), // the main-agent inline fix description, if any
+    approvedBy: jsonb('approved_by_list').notNull().default([]), // member id[] who approved this task
+    participants: jsonb('participants').notNull().default([]), // member id[] invited to review
     meta: jsonb('meta'), // { buildCmd?, testCmd?, fixCommitSha? } — display/audit only
     mmaBatchId: uuid('mma_batch_id').references(() => mmaBatch.id), // the execute_plan call
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

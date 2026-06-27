@@ -9,6 +9,7 @@ import { projectEventBus } from '@/sse/event-bus';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { buildRefinePrompt, getMessagesSinceLastForge } from '@/spec/refine-prompt';
 import { getLatestSpec } from '@/spec/assemble';
+import { readSpecSection } from '@/spec/spec-file-ops';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
@@ -35,12 +36,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
   const sections = await db
-    .select({ draftMd: componentSection.draftMd, label: componentSection.label })
+    .select({ label: componentSection.label, draftMd: componentSection.draftMd })
     .from(componentSection)
     .where(eq(componentSection.componentId, componentId))
     .orderBy(asc(componentSection.orderIndex));
-  const sectionDraftMd = sections.map((s) => s.draftMd ?? '').join('\n\n');
   const sectionLabel = sections[0]?.label ?? comp.kind;
+
+  // Read section content from spec.md (source of truth), fall back to DB
+  const fileSection = await readSpecSection(id, sectionLabel);
+  const sectionDraftMd = fileSection?.body ?? sections.map((s) => s.draftMd ?? '').join('\n\n');
 
   const allMessages = await db
     .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })

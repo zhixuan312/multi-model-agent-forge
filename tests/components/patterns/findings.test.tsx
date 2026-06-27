@@ -67,10 +67,10 @@ describe('FindingsGrid', () => {
 });
 
 describe('AuditRoundCard', () => {
-  it('renders pass number and verdict', () => {
+  it('renders pass number and severity pills (no verdict badge for non-clean)', () => {
     render(<AuditRoundCard passNo={1} verdict="revised" findings={[finding]} />);
     expect(screen.getByText('Pass 1')).toBeInTheDocument();
-    expect(screen.getByText('revised')).toBeInTheDocument();
+    expect(screen.getByText(/high/)).toBeInTheDocument();
   });
 
   it('shows severity breakdown pills', () => {

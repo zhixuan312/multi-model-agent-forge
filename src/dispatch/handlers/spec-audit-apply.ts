@@ -3,8 +3,8 @@ import type { Db } from '@/db/client';
 import { component, componentSection } from '@/db/schema/spec';
 import { mmaBatch } from '@/db/schema/mma';
 import { stage } from '@/db/schema/projects';
-import { assembleSpec } from '@/spec/assemble';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { replaceSpecSection } from '@/spec/spec-file-ops';
 
 
 async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
@@ -33,13 +33,23 @@ async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown)
     .limit(1);
   if (!comp) return;
 
+  const [sec] = await db
+    .select({ label: componentSection.label })
+    .from(componentSection)
+    .where(and(eq(componentSection.componentId, comp.id), eq(componentSection.key, request.sectionKey)));
+
+  // Write to DB (keeps metadata in sync)
   await db
     .update(componentSection)
     .set({ draftMd: parsed.draftMd, updatedAt: new Date() })
     .where(and(eq(componentSection.componentId, comp.id), eq(componentSection.key, request.sectionKey)));
 
+  // Write directly to spec.md (source of truth)
+  if (sec) {
+    await replaceSpecSection(ctx.projectId, sec.label, parsed.draftMd);
+  }
+
   // Check if all sibling audit-apply batches for this project are done.
-  // If this is the last one, re-assemble the spec.
   const pending = await db
     .select({ id: mmaBatch.id })
     .from(mmaBatch)
@@ -51,10 +61,8 @@ async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown)
       ),
     );
 
-  // Current batch is still 'running' in the DB (handler runs inside the transaction
-  // before status flips to 'done'). So pending count of 1 means this is the last one.
   if (pending.length <= 1) {
-    await assembleSpec(db, ctx.projectId, specStage.id, request.actorId ?? 'system');
+    // Last section done — no need to reassemble, spec.md was updated in-place
   }
 }
 

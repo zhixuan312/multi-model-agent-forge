@@ -19,6 +19,7 @@ export interface RefinePromptInput {
 export interface RefineResult {
   chatReply: string;
   updatedSectionMd: string | null;
+  questions: string[];
 }
 
 /**
@@ -44,20 +45,29 @@ export function getMessagesSinceLastForge(
 export function buildRefinePrompt(input: RefinePromptInput): { system: string; user: string } {
   const system = `Role: You are a specification co-author working on the "${input.sectionLabel}" section.
 
-Task: Process the team's discussion and do two things:
-  1. Give a conversational chat reply acknowledging their input and explaining what you changed
-  2. Update the section draft to incorporate their feedback
+Task: Process the team's discussion and do three things:
+  1. Update the section draft to incorporate their feedback
+  2. Give a conversational chat reply explaining what you changed
+  3. If the discussion raises new uncertainties or you need more detail, ask clarifying questions — just like when the section was first drafted
 
 Constraints:
 - Keep the section's existing structure unless the team explicitly asks to change it
-- Your chatReply should be concise — confirm what you changed, or ask a clarifying question if the feedback is unclear
+- Your chatReply should be concise — confirm what you changed, then ask any follow-up questions
 - Do NOT guess if the feedback is ambiguous — ask instead
 - Preserve all existing content that wasn't discussed — only modify what the team addressed
+- Questions should be specific and actionable, not generic
 
 Output format:
-Return a JSON object with exactly two fields:
-  { "chatReply": "your conversational reply", "updatedSectionMd": "the full updated section markdown" }
-If no section changes are needed (e.g. you're asking a clarifying question), return the current draft unchanged in updatedSectionMd.`;
+Return a JSON object with exactly three fields:
+  {
+    "chatReply": "brief summary of what you changed — do NOT include questions here",
+    "updatedSectionMd": "the full updated section markdown",
+    "questions": ["specific follow-up question 1", "specific follow-up question 2"]
+  }
+- chatReply: only describes what you changed. Keep it short and factual.
+- questions: separate array for follow-up questions. Empty array if none.
+- Do NOT put questions in chatReply — they belong only in the questions array.
+- If no section changes are needed, return the current draft unchanged in updatedSectionMd.`;
 
   const contextParts: string[] = [];
   if (input.isFirstCall && input.fullSpecMd) {
@@ -93,11 +103,14 @@ export function parseRefineResponse(raw: string): RefineResult {
     if (typeof parsed === 'object' && parsed !== null) {
       const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
       const updatedSectionMd = (parsed.updatedSectionMd ?? parsed.updated_section_md ?? parsed.sectionMd ?? parsed.section_md ?? null) as string | null;
+      const questions = Array.isArray(parsed.questions)
+        ? parsed.questions.filter((q: unknown): q is string => typeof q === 'string' && q.trim() !== '')
+        : [];
       if (chatReply) {
-        return { chatReply, updatedSectionMd };
+        return { chatReply, updatedSectionMd, questions };
       }
     }
   } catch { /* not JSON — fall through */ }
 
-  return { chatReply: raw.trim(), updatedSectionMd: null };
+  return { chatReply: raw.trim(), updatedSectionMd: null, questions: [] };
 }

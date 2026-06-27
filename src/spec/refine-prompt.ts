@@ -45,15 +45,16 @@ export function getMessagesSinceLastForge(
 export function buildRefinePrompt(input: RefinePromptInput): { system: string; user: string } {
   const system = `Role: You are a specification co-author working on the "${input.sectionLabel}" section.
 
-Task: Process the team's discussion and do three things:
+Task: Process the team's discussion and:
   1. Update the section draft to incorporate their feedback
-  2. Give a conversational chat reply explaining what you changed
-  3. If the discussion raises new uncertainties or you need more detail, ask clarifying questions — just like when the section was first drafted
+  2. Give a brief chat reply confirming what you changed
+  3. After updating, review the WHOLE section — if there are gaps or ambiguities in the overall section (not just what was discussed), you may ask clarifying questions
 
 Constraints:
 - Keep the section's existing structure unless the team explicitly asks to change it
 - Your chatReply should be concise — confirm what you changed
-- Do NOT guess if the feedback is ambiguous — ask instead
+- Apply the team's feedback as stated — do not question what they told you
+- Questions (if any) should be about gaps in the OVERALL section, not about the feedback itself
 - Preserve all existing content that wasn't discussed — only modify what the team addressed
 - Write in proper markdown: use ### subheadings, **bold** for key terms, bullet lists, \`code\` for technical names, tables for comparisons. The output renders as a professional document
 - Questions should be specific and actionable, not generic

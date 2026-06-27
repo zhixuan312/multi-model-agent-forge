@@ -1453,6 +1453,19 @@ function DocumentScreen({
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
+  // Poll for approval changes every 5s — SSE event bus is isolated in Turbopack dev
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetch(`/api/projects/${projectId}/spec/approvers`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data: { approvers: string[] } | null) => {
+          if (data) setSpecApprovers(data.approvers);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [projectId, setSpecApprovers]);
+
   // Seed chat from persisted audit history so findings survive page refresh
   const [messages, setMessages] = useState<DocMsg[]>(() => {
     const msgs: DocMsg[] = [];

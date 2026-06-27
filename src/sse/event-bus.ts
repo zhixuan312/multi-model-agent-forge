@@ -116,8 +116,18 @@ export class ProjectEventBus {
   hasChannel(projectId: string): boolean {
     return this.channels.has(projectId);
   }
+
+  channelCount(): number {
+    return this.channels.size;
+  }
 }
 
 /** Process-wide singleton bus — globalThis ensures one instance across all Turbopack bundles. */
 const g = globalThis as unknown as { __forgeEventBus?: ProjectEventBus };
-export const projectEventBus = (g.__forgeEventBus ??= new ProjectEventBus());
+if (!g.__forgeEventBus) {
+  g.__forgeEventBus = new ProjectEventBus();
+  console.log('[EventBus] CREATED new instance');
+} else {
+  console.log('[EventBus] REUSED existing instance, channels:', g.__forgeEventBus.channelCount());
+}
+export const projectEventBus = g.__forgeEventBus;

@@ -672,36 +672,50 @@ function DetailStage({
               <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${allTasks.length ? (approvedCount / allTasks.length) * 100 : 0}%` }} />
             </div>
             {phases.map((p) => (
-              <div key={p.id}>
-                <Micro className="mb-1 block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
-                <div className="divide-y divide-line/50 rounded-[var(--r-md)] border border-line bg-surface">
-                  {p.tasks.map((t) => (
+              <div key={p.id} className="space-y-2">
+                <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
+                {p.tasks.map((t) => {
+                  const isActive = t.id === active?.id;
+                  const isApproved = status[t.id] === 'approved';
+                  return (
                     <button
                       key={t.id}
                       type="button"
-                      title={t.title}
                       onClick={() => setActiveId(t.id)}
                       className={cn(
-                        'flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors first:rounded-t-[var(--r-md)] last:rounded-b-[var(--r-md)]',
-                        t.id === active?.id ? 'bg-accent-tint/30' : 'hover:bg-surface-2/50',
+                        'flex w-full gap-2.5 rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
+                        isActive
+                          ? 'border-accent bg-accent-tint/25 shadow-sm'
+                          : isApproved
+                            ? 'border-[var(--sage-deep)]/30 bg-sage-tint/20 hover:bg-sage-tint/40'
+                            : 'border-line bg-surface hover:border-line-strong',
                       )}
                     >
-                      {status[t.id] === 'approved' ? (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-[var(--sage-deep)] bg-[var(--sage-deep)] text-[10px] font-semibold text-white">
-                          <Check className="size-3" />
-                        </span>
-                      ) : (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-line-strong text-[10px] font-semibold text-ink-faint">
-                          {t.num || 0}
-                        </span>
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{t.title}</span>
-                      {t.files.length > 0 ? (
-                        <span className="shrink-0 text-[10px] text-ink-faint">{t.files.length}f</span>
-                      ) : null}
+                      <span
+                        className={cn(
+                          'mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold transition-colors',
+                          isApproved
+                            ? 'bg-[var(--sage-deep)] text-white'
+                            : isActive
+                              ? 'bg-accent text-white'
+                              : 'bg-surface-2 text-ink-faint',
+                        )}
+                      >
+                        {isApproved ? <Check className="size-3.5" /> : (t.num || 0)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium leading-snug text-ink">{t.title}</p>
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
+                          <span className="inline-flex items-center gap-0.5">
+                            <GitBranch className="size-2.5" /> {t.targetRepo}
+                          </span>
+                          {t.files.length > 0 ? <span>{t.files.length} files</span> : null}
+                          {t.dependsOn.length > 0 ? <span>· deps {t.dependsOn.length}</span> : null}
+                        </div>
+                      </div>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             ))}
           </CardContent>

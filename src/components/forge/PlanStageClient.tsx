@@ -673,7 +673,9 @@ function DetailStage({
             </div>
             {phases.map((p) => (
               <div key={p.id} className="space-y-2">
-                <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
+                {phases.length > 1 ? (
+                  <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
+                ) : null}
                 {p.tasks.map((t) => {
                   const isActive = t.id === active?.id;
                   const isApproved = status[t.id] === 'approved';

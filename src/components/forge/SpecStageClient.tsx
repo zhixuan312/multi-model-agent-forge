@@ -1748,12 +1748,14 @@ function DocumentScreen({
             <div className={rounds.length === 0 ? 'flex h-full items-center justify-center' : 'space-y-5'}>
               {rounds.length === 0 ? (
                 <div className="px-6 text-center">
-                  <div className="max-w-sm">
-                    <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
-                      <Shield className="size-6" />
+                  <div className="max-w-xs">
+                    <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                      <Shield className="size-7 text-[var(--steel)]" />
                     </span>
-                    <p className="mt-4 text-sm font-medium text-ink">No audit runs yet</p>
-                    <p className="mt-1 text-xs text-ink-faint">Run an audit from the right panel to check for gaps, contradictions, and missing detail.</p>
+                    <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
+                    <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                      The specification is assembled. Run an audit from the right panel to check for gaps, contradictions, and missing detail.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -1861,10 +1863,12 @@ function DocumentScreen({
                 </div>
               </div>
             ) : rounds.length === 0 ? (
-              <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
-                <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
-                <p className="text-xs leading-relaxed text-ink-soft">
-                  Run an audit to check for gaps and issues. Each round lands here with its verdict and findings.
+              <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+                <span className="grid size-10 place-items-center rounded-full bg-surface-2">
+                  <Shield className="size-5 text-ink-faint" />
+                </span>
+                <p className="mt-3 text-xs leading-relaxed text-ink-faint">
+                  Each audit round lands here<br />with its verdict and findings.
                 </p>
               </div>
             ) : null}

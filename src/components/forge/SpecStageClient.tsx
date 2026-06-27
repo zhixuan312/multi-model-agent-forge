@@ -1745,9 +1745,9 @@ function DocumentScreen({
           {docView === 'document' && spec ? (
             <ProseBlock>{spec.bodyMd}</ProseBlock>
           ) : (
-            <div className="space-y-5">
+            <div className={rounds.length === 0 ? 'flex h-full items-center justify-center' : 'space-y-5'}>
               {rounds.length === 0 ? (
-                <div className="grid h-full place-items-center px-6 text-center">
+                <div className="px-6 text-center">
                   <div className="max-w-sm">
                     <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
                       <Shield className="size-6" />

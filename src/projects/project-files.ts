@@ -151,3 +151,21 @@ export async function readSpecSummaryAsync(projectId: string): Promise<string | 
 export async function writeSpecAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
   return writeArtifactAsync(projectId, SPEC_FILE, bodyMd);
 }
+
+/* ── Plan ───────────────────────────────────────────────────────────── */
+
+const PLAN_FILE = 'plan.md';
+
+export type PlanFile = ArtifactFile;
+
+export function readPlanFile(projectId: string): PlanFile | null {
+  return readArtifact(projectId, PLAN_FILE);
+}
+
+export async function readPlanFileAsync(projectId: string): Promise<PlanFile | null> {
+  return readArtifactAsync(projectId, PLAN_FILE);
+}
+
+export async function writePlanAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
+  return writeArtifactAsync(projectId, PLAN_FILE, bodyMd);
+}

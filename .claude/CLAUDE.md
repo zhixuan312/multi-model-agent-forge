@@ -50,7 +50,7 @@ Exploration summary stored as markdown on disk — NOT in the DB artifact table.
 - Read: `readExplorationSummary()` — sync for export pipeline and scheduler
 - Engineers can edit the file externally; Forge picks up changes on next load
 - Spec artifact stored as `spec.md` in the same directory (via `readSpecFileAsync`/`writeSpecAsync`)
-- Plan artifacts still use the DB `project_artifact` table (migration pending)
+- Plan artifact stored as `plan.md` in the same directory (via `readPlanFileAsync`/`writePlanAsync`)
 
 ### Prompt Engineering
 

@@ -1,13 +1,13 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
-import { artifact } from '@/db/schema/artifacts';
 import { repo } from '@/db/schema/workspace';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
+import { readPlanFileAsync } from '@/projects/project-files';
 
 /**
- * Plan-core — loads plan data from DB for the plan stage RSC.
- * Mirrors spec-core's role: DB → client-safe view types.
+ * Plan-core — loads plan data for the plan stage RSC. Tasks from DB,
+ * plan markdown from the physical `plan.md` file. Mirrors spec-core's role.
  */
 
 /** Client-safe plan task view (matches PlanTaskSeed shape for PlanStageClient compat). */
@@ -116,19 +116,14 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   const tasks = rows.map((r) => planTaskToView(r, r.repoName ?? '', titleById));
   const phases = groupTasksIntoPhases(tasks);
 
-  // Load plan artifact
-  const [planArt] = await dbi
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'plan')))
-    .orderBy(artifact.version)
-    .limit(1);
+  // Load plan from physical file
+  const planFile = await readPlanFileAsync(projectId);
 
   const planHistory = await auditPassHistory(dbi, projectId, 'plan');
 
   return {
     phases,
-    planMd: planArt?.bodyMd ?? null,
+    planMd: planFile?.bodyMd ?? null,
     auditHistory: planHistory,
   };
 }

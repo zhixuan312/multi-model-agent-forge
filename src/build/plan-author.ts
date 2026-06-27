@@ -1,12 +1,12 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
 import { planTask } from '@/db/schema/build';
 import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { logAction } from '@/observability/action-log';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { getLatestSpec } from '@/spec/assemble';
+import { writePlanAsync, readPlanFileAsync } from '@/projects/project-files';
 import type { PlanDraft } from '@/build/plan-schema';
 import {
   validateAndResolve,
@@ -19,8 +19,8 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
 
 /**
  * Plan authoring — validates a structured plan draft (from the MMA dispatch
- * handler), writes per-repo plan files, persists `plan_task` rows, and creates
- * the combined `artifact(kind='plan')`. The LLM call happens in MMA via
+ * handler), writes per-repo plan files + the combined `plan.md` physical file,
+ * and persists `plan_task` rows. The LLM call happens in MMA via
  * `dispatchAndRegister` → `plan-author` handler; this module owns validation
  * and persistence only.
  */
@@ -154,14 +154,6 @@ async function loadProjectRepos(db: Db, projectId: string): Promise<RepoInfo[]> 
     .where(eq(projectRepo.projectId, projectId));
 }
 
-/** The next plan-artifact version (max existing + 1). */
-async function nextPlanVersion(db: Db, projectId: string): Promise<number> {
-  const [row] = await db
-    .select({ m: sql<number>`coalesce(max(${artifact.version}), 0)` })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'plan')));
-  return (row?.m ?? 0) + 1;
-}
 
 /**
  * Author the build plan. Returns `{ok:true,...}` on success or `{ok:false,reason}`
@@ -224,21 +216,16 @@ export async function authorPlan(
     return fail(bus, projectId, 'Failed to write a plan file to a repo — build halted before dispatch.');
   }
 
-  // 5. Persist plan_task rows + the combined plan artifact, atomically.
+  // 5. Write the combined plan to the physical plan.md file.
   const combinedGroups = writeTargetIds.map((id) => ({
     repoName: reposById.get(id)!.name,
     tasks: [...byRepo.get(id)!].sort((a, b) => a.orderIndex - b.orderIndex),
   }));
   const combinedMd = renderCombinedPlan(combinedGroups);
-  const version = await nextPlanVersion(db, projectId);
+  const { version } = await writePlanAsync(projectId, combinedMd);
 
-  const { artifactId, tasks } = await db.transaction(async (tx) => {
-    const [art] = await tx
-      .insert(artifact)
-      .values({ projectId, kind: 'plan', bodyMd: combinedMd, version, createdBy: null })
-      .returning({ id: artifact.id });
-
-    // Insert tasks; dependsOn (titles) → resolved to ids after all rows exist.
+  // 6. Persist plan_task rows.
+  const tasks = await db.transaction(async (tx) => {
     const titleToId = new Map<string, string>();
     const inserted: Array<{ id: string; title: string; repoId: string; reviewPolicy: string }> = [];
     for (const t of resolved) {
@@ -258,7 +245,6 @@ export async function authorPlan(
       titleToId.set(t.title, row.id);
       inserted.push({ id: row.id, title: t.title, repoId: t.targetRepoId, reviewPolicy: t.reviewPolicy });
     }
-    // Second pass: wire depends_on (title → id).
     for (const t of resolved) {
       if (t.dependsOnTitles.length === 0) continue;
       const ids = t.dependsOnTitles.map((d) => titleToId.get(d)!).filter(Boolean);
@@ -266,10 +252,10 @@ export async function authorPlan(
     }
 
     await logAction(
-      { projectId, memberId: actorId, action: 'author_plan', target: `artifact:${art.id}` },
+      { projectId, memberId: actorId, action: 'author_plan', target: `plan:v${version}` },
       tx as unknown as Db,
     );
-    return { artifactId: art.id, tasks: inserted };
+    return inserted;
   });
 
   bus.publish(projectId, {
@@ -284,7 +270,7 @@ export async function authorPlan(
     readOnly,
   });
 
-  return { ok: true, artifactId, version, taskCount: resolved.length, writeTargets, readOnly };
+  return { ok: true, artifactId: projectId, version, taskCount: resolved.length, writeTargets, readOnly };
 }
 
 function fail(bus: ProjectEventBus, projectId: string, reason: string): PlanAuthorFailure {
@@ -294,16 +280,11 @@ function fail(bus: ProjectEventBus, projectId: string, reason: string): PlanAuth
 
 /* ── Reads for the Plan pane ─────────────────────────────────────────────── */
 
-/** The latest plan artifact (combined plan md) for a project, or null. */
-export async function getLatestPlanArtifact(db: Db, projectId: string) {
-  const dbi = db ?? getDb();
-  const [row] = await dbi
-    .select()
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'plan')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
-  return row ?? null;
+/** The latest plan from disk — file-based, not DB. */
+export async function getLatestPlanArtifact(_db: unknown, projectId: string) {
+  const file = await readPlanFileAsync(projectId);
+  if (!file) return null;
+  return { bodyMd: file.bodyMd, version: file.version };
 }
 
 /** All plan_task rows for a project (ordered), joined with repo name for the UI. */

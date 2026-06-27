@@ -228,6 +228,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     onDone: {
       'spec-auto-draft': refresh,
       'spec-refine': refresh,
+      'spec-audit': refresh,
     },
     events: {
       'spec.updated': refresh,
@@ -1474,10 +1475,10 @@ function DocumentScreen({
     return msgs;
   });
   const [input, setInput] = useState('');
-  const [rounds, setRounds] = useState<
-    { passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[]; applied: boolean }[]
-  >(() => initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })));
-  const [canFreeze, setCanFreeze] = useState(initialCanFreeze);
+  const [rounds] = useServerState(
+    initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })),
+  );
+  const [canFreeze] = useServerState(initialCanFreeze);
   const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const idc = useRef(0);
@@ -1528,27 +1529,7 @@ function DocumentScreen({
     try {
       await mma.dispatch(`/projects/${projectId}/spec/audit`, 'spec-audit', {});
       auditingRef.current = false;
-      // Fetch fresh audit data and append to the chat
-      const res = await fetch(`/projects/${projectId}/spec/audit-history`);
-      if (res.ok) {
-        const history = (await res.json()) as AuditPassView[];
-        const latest = history[history.length - 1];
-        const findings = latest?.findings ?? [];
-        if (findings.length > 0) {
-          setRounds((r) => [...r, { passNo: latest.passNo, verdict: latest.verdict, findings, applied: false }]);
-          setCanFreeze(false);
-          setMessages((m) => [
-            ...m,
-            { id: nid(), role: 'audit', passNo: latest.passNo, verdict: latest.verdict, findings },
-          ]);
-        } else {
-          setCanFreeze(true);
-          setMessages((m) => [
-            ...m,
-            { id: nid(), role: 'forge', text: 'Audit passed — no findings. The spec is ready to freeze.' },
-          ]);
-        }
-      }
+      // onDone handler calls router.refresh() → useServerState updates rounds
     } catch (e) {
       auditingRef.current = false;
       onError(e instanceof Error ? e.message : 'Audit failed.');

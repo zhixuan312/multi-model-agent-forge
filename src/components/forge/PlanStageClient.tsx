@@ -320,7 +320,16 @@ export function PlanStageClient(props: PlanStageClientProps) {
           mma={mma}
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
-          onToggleApprove={(id) => { const next = status[id] === 'approved' ? 'proposed' : 'approved'; setStatus((s) => ({ ...s, [id]: next as TaskStatus })); fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, { method: next === 'approved' ? 'POST' : 'DELETE' }).catch(() => {}); }}
+          onToggleApprove={(id) => {
+            const next = status[id] === 'approved' ? 'proposed' : 'approved';
+            setStatus((s) => ({ ...s, [id]: next as TaskStatus }));
+            fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, {
+              method: next === 'approved' ? 'POST' : 'DELETE',
+            }).then(() => {
+              setLocalOverrides({});
+              router.refresh();
+            }).catch(() => {});
+          }}
           onValidate={() => setPhase('validate')}
         />
       ) : (

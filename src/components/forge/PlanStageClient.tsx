@@ -489,21 +489,6 @@ function DetailStage({
   const active = allTasks.find((t) => t.id === activeId) ?? allTasks[0];
   const phaseOf = phases.find((p) => p.tasks.some((t) => t.id === active?.id));
 
-  // Seed the active task's conversation with Forge's opener.
-  useEffect(() => {
-    if (!active || threads[active.id]) return;
-    const dep = active.dependsOn.length ? ` It depends on ${active.dependsOn.join(', ')}.` : ' It has no dependencies.';
-    setThreads((th) => ({
-      ...th,
-      [active.id]: [
-        {
-          id: nid(),
-          role: 'forge',
-          text: `Here's Task ${active.num} -- ${active.title} -- in full below: the failing test, the implementation, the run commands, and the commit.${dep} Want a different approach, a different sequencing, or extra edge-case tests?`,
-        },
-      ],
-    }));
-  }, [active, threads]);
   useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [threads, activeId]);
 
   // Follow the AI as it auto-approves.

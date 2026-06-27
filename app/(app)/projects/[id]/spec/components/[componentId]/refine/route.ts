@@ -1,34 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
+import { eq, asc } from 'drizzle-orm';
 import { guardSpecWrite } from '@/spec/handler-guard';
-import { buildRefineRequest } from '@/spec/auto-draft';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
+import { component, componentSection, qaMessage } from '@/db/schema/spec';
+import { buildRefinePrompt, getMessagesSinceLastForge } from '@/spec/refine-prompt';
+import { getLatestSpec } from '@/spec/assemble';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
-
-const bodySchema = z.object({
-  userAnswer: z.string().trim().min(1, 'An answer is required.'),
-  history: z.array(z.object({
-    role: z.enum(['forge', 'user']),
-    text: z.string(),
-  })).default([]),
-});
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, componentId } = await ctx.params;
 
   const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
-
-  const body = await req.json().catch(() => null);
-  const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid body.' }, { status: 400 });
-  }
 
   const db = getDb();
 
@@ -37,15 +25,45 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const request = await buildRefineRequest({
-    db,
-    componentId,
-    userAnswer: parsed.data.userAnswer,
-    history: parsed.data.history,
-  });
-  if ('error' in request) {
-    return NextResponse.json({ error: request.error }, { status: 409 });
+  // Load component + section draft + messages
+  const [comp] = await db
+    .select({ mmaSessionId: component.mmaSessionId, kind: component.kind })
+    .from(component)
+    .where(eq(component.id, componentId))
+    .limit(1);
+  if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
+
+  const sections = await db
+    .select({ draftMd: componentSection.draftMd, label: componentSection.label })
+    .from(componentSection)
+    .where(eq(componentSection.componentId, componentId))
+    .orderBy(asc(componentSection.orderIndex));
+  const sectionDraftMd = sections.map((s) => s.draftMd ?? '').join('\n\n');
+  const sectionLabel = sections[0]?.label ?? comp.kind;
+
+  const allMessages = await db
+    .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
+    .from(qaMessage)
+    .where(eq(qaMessage.componentId, componentId))
+    .orderBy(asc(qaMessage.seq));
+
+  const isFirstCall = comp.mmaSessionId === null;
+  const delta = getMessagesSinceLastForge(allMessages);
+
+  // Build prompt
+  let fullSpecMd: string | undefined;
+  if (isFirstCall) {
+    const spec = await getLatestSpec(db, id);
+    fullSpecMd = spec?.bodyMd;
   }
+
+  const { system, user } = buildRefinePrompt({
+    sectionLabel,
+    sectionDraftMd,
+    messagesSinceLastForge: delta,
+    isFirstCall,
+    fullSpecMd,
+  });
 
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({
@@ -56,12 +74,20 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     handler: 'spec-refine',
     cwd: resolveWorkspaceRoot(),
     body: {
-      prompt: `${request.system}\n\n${request.user}`,
+      prompt: `${system}\n\n${user}`,
       reviewPolicy: 'none',
     },
     actorId: guard.memberId,
     meta: { componentId },
   });
+
+  // Store session ID on first call (for future continuation)
+  if (isFirstCall) {
+    await db
+      .update(component)
+      .set({ mmaSessionId: batchRowId })
+      .where(eq(component.id, componentId));
+  }
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

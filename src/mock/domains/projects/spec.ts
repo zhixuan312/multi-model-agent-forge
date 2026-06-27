@@ -207,6 +207,7 @@ function buildComponents(kinds: ComponentKind[]): ComponentView[] {
       forced: false,
       stale: false,
       approvedBy: null,
+      mmaSessionId: null,
       participantIds: [],
       orderIndex: ci,
       sections,

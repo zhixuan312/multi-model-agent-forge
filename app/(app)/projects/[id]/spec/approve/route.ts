@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     }
   }
 
+  console.log('[Approve] publishing spec.updated, bus channels:', projectEventBus.channelCount(), 'listeners for project:', projectEventBus.listenerCount(id));
   projectEventBus.publish(id, { type: 'spec.updated' });
   return NextResponse.json({ ok: true });
 }

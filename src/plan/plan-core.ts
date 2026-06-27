@@ -121,7 +121,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
         dependsOn: [],
         targetRepo: meta?.repoName ?? '',
         dbStatus: meta?.status,
-        phase: meta?.phase ?? undefined,
+        phase: s.phase ?? meta?.phase ?? undefined,
         approvedBy: (meta?.approvedBy as string[] | null) ?? [],
         participantIds: (meta?.participants as string[] | null) ?? [],
       };

@@ -7,31 +7,47 @@
 import { readPlanFileAsync, writePlanAsync } from '@/projects/project-files';
 
 const TASK_HEADING_RE = /^### .+/;
+const PHASE_HEADING_RE = /^## .+/;
 
 export interface PlanTaskSection {
   heading: string;
   body: string;
+  phase?: string;
   startLine: number;
   endLine: number;
 }
 
-/** Parse plan.md into task sections by splitting on ### headings. */
+/** Parse plan.md into task sections by splitting on ### headings, with ## headings as phase markers. */
 export function parsePlanSections(planMd: string): PlanTaskSection[] {
   const lines = planMd.split('\n');
   const sections: PlanTaskSection[] = [];
-  let current: { heading: string; startLine: number; bodyLines: string[] } | null = null;
+  let currentPhase: string | undefined;
+  let current: { heading: string; phase?: string; startLine: number; bodyLines: string[] } | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    if (TASK_HEADING_RE.test(lines[i])) {
+    if (PHASE_HEADING_RE.test(lines[i]) && !TASK_HEADING_RE.test(lines[i])) {
       if (current) {
         sections.push({
           heading: current.heading,
           body: current.bodyLines.join('\n').trim(),
+          phase: current.phase,
+          startLine: current.startLine,
+          endLine: i - 1,
+        });
+        current = null;
+      }
+      currentPhase = lines[i].replace(/^##\s*/, '').trim();
+    } else if (TASK_HEADING_RE.test(lines[i])) {
+      if (current) {
+        sections.push({
+          heading: current.heading,
+          body: current.bodyLines.join('\n').trim(),
+          phase: current.phase,
           startLine: current.startLine,
           endLine: i - 1,
         });
       }
-      current = { heading: lines[i], startLine: i, bodyLines: [] };
+      current = { heading: lines[i], phase: currentPhase, startLine: i, bodyLines: [] };
     } else if (current) {
       current.bodyLines.push(lines[i]);
     }
@@ -40,6 +56,7 @@ export function parsePlanSections(planMd: string): PlanTaskSection[] {
     sections.push({
       heading: current.heading,
       body: current.bodyLines.join('\n').trim(),
+      phase: current.phase,
       startLine: current.startLine,
       endLine: lines.length - 1,
     });

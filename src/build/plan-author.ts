@@ -105,6 +105,7 @@ Each task object has:
   git add tests/path/test.ts src/path/file.ts
   \`\`\`
 
+- phase: the track/phase this task belongs to (e.g. "Track A — Data layer", "Track B — API"). Group related tasks under the same phase. Use 2-4 phases for a typical plan.
 - targetRepoId: the ONE repo (from the provided set)
 - dependsOn: array of sibling task titles (exact match) that must complete first. Empty if none.
 - reviewPolicy: "reviewed" normally. "none" ONLY when intentionally incomplete (downstream task fixes errors).
@@ -121,7 +122,7 @@ Return ONLY a JSON array inside a markdown code fence. No wrapper object. No com
 
 \`\`\`json
 [
-  { "title": "...", "detail": "...", "targetRepoId": "...", "dependsOn": [], "reviewPolicy": "reviewed" }
+  { "title": "...", "detail": "...", "phase": "Track A — ...", "targetRepoId": "...", "dependsOn": [], "reviewPolicy": "reviewed" }
 ]
 \`\`\``;
 
@@ -251,6 +252,7 @@ export async function authorPlan(
           projectId,
           title: t.title,
           detail: t.detail,
+          phase: t.phase ?? null,
           targetRepoId: t.targetRepoId,
           isWrite: true,
           orderIndex: t.orderIndex,

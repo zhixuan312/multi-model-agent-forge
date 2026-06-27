@@ -31,6 +31,7 @@ export class PlanAuthorError extends Error {
 export interface ResolvedTask {
   title: string;
   detail: string;
+  phase?: string;
   targetRepoId: string;
   dependsOnTitles: string[];
   reviewPolicy: 'reviewed' | 'none';
@@ -88,6 +89,7 @@ export function validateAndResolve(
   const resolved: ResolvedTask[] = draft.tasks.map((t, i) => ({
     title: t.title.trim(),
     detail: t.detail,
+    phase: t.phase?.trim() || undefined,
     targetRepoId: t.targetRepoId,
     dependsOnTitles: t.dependsOn.map((d) => d.trim()),
     reviewPolicy: t.reviewPolicy,

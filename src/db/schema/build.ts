@@ -33,6 +33,7 @@ export const planTask = forge.table(
       .references(() => project.id, { onDelete: 'cascade' }),
     title: text('title').notNull(), // verbatim ATX heading text = the taskDescriptor
     detail: text('detail'), // optional UI summary
+    phase: text('phase'), // track/phase grouping (e.g. "Track G — Guard fixes")
     targetRepoId: uuid('target_repo_id')
       .notNull()
       .references(() => repo.id), // the ONE repo (one-repo-per-task)

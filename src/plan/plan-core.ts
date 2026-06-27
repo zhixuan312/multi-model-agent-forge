@@ -21,6 +21,7 @@ export interface PlanTaskView {
   dependsOn: string[];
   targetRepo: string;
   dbStatus?: string;
+  phase?: string;
   approvedBy?: string[];
   participantIds?: string[];
 }
@@ -70,6 +71,7 @@ export function planTaskToView(
     orderIndex: number;
     reviewPolicy: string;
     status: string;
+    phase?: string | null;
     approvedBy?: unknown;
     participants?: unknown;
   },
@@ -86,15 +88,29 @@ export function planTaskToView(
     dependsOn: (row.dependsOn ?? []).map((id) => titleById?.get(id) ?? id),
     targetRepo: repoName,
     dbStatus: row.status,
+    phase: row.phase ?? undefined,
     approvedBy: (row.approvedBy as string[] | null) ?? [],
     participantIds: (row.participants as string[] | null) ?? [],
   };
 }
 
-/** Group flat task list into phases. For now: single "Implementation" phase. */
+/** Group flat task list into phases by the task's `phase` field. Falls back to a single group if no phases set. */
 export function groupTasksIntoPhases(tasks: PlanTaskView[]): PlanPhaseView[] {
   if (tasks.length === 0) return [];
-  return [{ id: 'phase-1', title: 'Implementation', tasks }];
+  const hasPhases = tasks.some((t) => t.phase);
+  if (!hasPhases) return [{ id: 'phase-1', title: 'Implementation', tasks }];
+  const groups = new Map<string, PlanTaskView[]>();
+  for (const t of tasks) {
+    const key = t.phase || 'Other';
+    const list = groups.get(key) ?? [];
+    list.push(t);
+    groups.set(key, list);
+  }
+  return [...groups.entries()].map(([title, phaseTasks], i) => ({
+    id: `phase-${i + 1}`,
+    title,
+    tasks: phaseTasks,
+  }));
 }
 
 /** Load the full plan view for a project. */
@@ -112,6 +128,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
       orderIndex: planTask.orderIndex,
       reviewPolicy: planTask.reviewPolicy,
       status: planTask.status,
+      phase: planTask.phase,
       approvedBy: planTask.approvedBy,
       participants: planTask.participants,
       repoName: repo.name,

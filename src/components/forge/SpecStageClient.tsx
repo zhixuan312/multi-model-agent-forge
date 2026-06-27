@@ -1896,10 +1896,10 @@ function DocumentScreen({
                 : "Open findings won't block you — move on whenever you're ready."}
             </TextSm>
             <StageAdvance
-              href={specApprovers.includes(currentMember.id) ? `/projects/${projectId}/plan` : '#'}
+              href={specApprovers.length > 0 ? `/projects/${projectId}/plan` : '#'}
               label="Continue to Plan"
               testId="spec-continue-link"
-              disabled={!specApprovers.includes(currentMember.id)}
+              disabled={specApprovers.length === 0}
             />
           </CardFooter>
         </Card>

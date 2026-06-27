@@ -1483,6 +1483,8 @@ function DocumentScreen({
   const [canFreeze] = useServerState(initialCanFreeze);
   const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
+  const [selectedPass, setSelectedPass] = useState<number | null>(null);
+  const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
   const idc = useRef(0);
   const nid = () => `dm${idc.current++}`;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1741,33 +1743,28 @@ function DocumentScreen({
                     </p>
                   </div>
                 </div>
+              ) : activeRound ? (
+                <div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-sm font-semibold text-ink">Pass {activeRound.passNo}</span>
+                    <Badge variant={activeRound.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">{activeRound.verdict}</Badge>
+                    <span className="text-xs text-ink-faint">{activeRound.findings.length} findings</span>
+                    {activeRound.applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
+                  </div>
+                  <FindingsGrid
+                    findings={activeRound.findings as Finding[]}
+                    selectable
+                    applying={applying}
+                    applied={activeRound.applied}
+                    readOnly={readOnly}
+                    onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
+                    appliedLabel="All findings applied."
+                  />
+                </div>
               ) : (
-                rounds.map((r) => (
-                    <div key={r.passNo} className="flex gap-2.5">
-                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--frost)] text-[var(--steel)]">
-                        <Shield className="size-[18px]" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-semibold text-ink">Audit</span>
-                          <span className="text-[11px] text-ink-faint">pass {r.passNo}</span>
-                          <Badge variant={r.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-                            {r.verdict === 'clean' ? 'clean' : `${r.findings.length} finding${r.findings.length === 1 ? '' : 's'}`}
-                          </Badge>
-                          {r.applied ? <Badge variant="sage" size="sm">applied</Badge> : applying ? <Badge variant="neutral" size="sm">applying…</Badge> : null}
-                        </div>
-                        <FindingsGrid
-                          findings={r.findings as Finding[]}
-                          selectable
-                          applying={applying}
-                          applied={r.applied}
-                          readOnly={readOnly}
-                          onApply={(indices) => apply(r.passNo, indices, r.findings.length)}
-                          appliedLabel="All findings applied."
-                        />
-                      </div>
-                    </div>
-                ))
+                <div className="flex h-full items-center justify-center text-center">
+                  <p className="text-xs text-ink-faint">Select a pass from the right panel to view its findings.</p>
+                </div>
               )}
             </div>
           )}
@@ -1863,7 +1860,7 @@ function DocumentScreen({
                   verdict={r.verdict}
                   findings={r.findings as Finding[]}
                   applied={r.applied || applied}
-                  onClick={() => replay(r.passNo)}
+                  onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
                 />
               ))
             )}

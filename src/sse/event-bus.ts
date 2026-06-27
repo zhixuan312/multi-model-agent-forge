@@ -122,12 +122,11 @@ export class ProjectEventBus {
   }
 }
 
-/** Process-wide singleton bus — globalThis ensures one instance across all Turbopack bundles. */
-const g = globalThis as unknown as { __forgeEventBus?: ProjectEventBus };
-if (!g.__forgeEventBus) {
+/** Process-wide singleton bus — force new instance to pick up method changes. */
+const g = globalThis as unknown as { __forgeEventBus?: ProjectEventBus; __forgeEventBusV?: number };
+const BUS_VERSION = 2;
+if (!g.__forgeEventBus || g.__forgeEventBusV !== BUS_VERSION) {
   g.__forgeEventBus = new ProjectEventBus();
-  console.log('[EventBus] CREATED new instance');
-} else {
-  console.log('[EventBus] REUSED existing instance, channels:', g.__forgeEventBus.channelCount());
+  g.__forgeEventBusV = BUS_VERSION;
 }
 export const projectEventBus = g.__forgeEventBus;

@@ -28,7 +28,7 @@ const draftedComponents: ComponentView[] = [
     humanSatisfied: false,
     forced: false,
     stale: false,
-    approvedBy: null,
+    approvedBy: [],
     mmaSessionId: null,
     participantIds: [],
     orderIndex: 0,

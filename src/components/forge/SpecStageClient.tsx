@@ -898,6 +898,9 @@ function CraftStage({
         componentId: string;
         message: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
       };
+      // Skip own messages — sender already has them from optimistic append.
+      // This eliminates the race between SSE echo and POST response.
+      if (msg.authorId === currentMember.id) return;
       if (seenMsgIds.current.has(msg.id)) return;
       seenMsgIds.current.add(msg.id);
       setCollab((prev) => {

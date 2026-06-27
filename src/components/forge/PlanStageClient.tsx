@@ -87,6 +87,7 @@ export interface PlanStageClientProps {
   mmaReady: boolean;
   currentMember?: { id: string; displayName: string; avatarTint: string };
   projectMembers?: { id: string; displayName: string; avatarTint: string }[];
+  initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   phases: PlanPhaseSeed[];
   planMd: string;
   auditRounds: PlanAuditFinding[][];
@@ -183,6 +184,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
       'plan.updated': (data) => {
         window.dispatchEvent(new CustomEvent('plan:updated', { detail: data }));
         refresh();
+      },
+      'chat.message': (data) => {
+        window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
       },
     },
   });
@@ -320,6 +324,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           mma={mma}
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
+          initialMessages={props.initialMessages ?? {}}
           onToggleApprove={(id) => {
             const next = status[id] === 'approved' ? 'proposed' : 'approved';
             setStatus((s) => ({ ...s, [id]: next as TaskStatus }));
@@ -500,6 +505,7 @@ function DetailStage({
   mma,
   currentMember,
   projectMembers,
+  initialMessages,
   onToggleApprove,
   onValidate,
 }: {
@@ -515,13 +521,20 @@ function DetailStage({
   mma: ReturnType<typeof useMmaDispatch>;
   currentMember?: { id: string; displayName: string; avatarTint: string };
   projectMembers: { id: string; displayName: string; avatarTint: string }[];
+  initialMessages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   onToggleApprove: (id: string) => void;
   onValidate: () => void;
 }) {
   const allTasks = phases.flatMap((p) => p.tasks);
   const firstOpen = allTasks.find((t) => status[t.id] !== 'approved') ?? allTasks[0];
   const [activeId, setActiveId] = useState<string>(firstOpen?.id ?? '');
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
+  const [threads, setThreads] = useState<Record<string, Msg[]>>(() => {
+    const out: Record<string, Msg[]> = {};
+    for (const [taskId, msgs] of Object.entries(initialMessages)) {
+      out[taskId] = msgs.map((m) => ({ id: m.id, role: m.sender === 'forge' ? 'forge' as const : 'user' as const, text: m.bodyMd }));
+    }
+    return out;
+  });
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -646,14 +659,56 @@ function DetailStage({
     return [forge, ...projectMembers];
   }, [projectMembers]);
 
+  const seenMsgIds = useRef(new Set(
+    Object.values(initialMessages).flatMap((msgs) => msgs.map((m) => m.id)),
+  ));
+
+  useEffect(() => {
+    function onChatMessage(e: Event) {
+      const detail = (e as CustomEvent).detail as { componentId?: string; message?: { id: string; sender: string; authorId: string; bodyMd: string } } | undefined;
+      if (!detail?.componentId || !detail?.message) return;
+      if (detail.message.authorId === currentMember?.id) return;
+      if (seenMsgIds.current.has(detail.message.id)) return;
+      seenMsgIds.current.add(detail.message.id);
+      setThreads((th) => ({
+        ...th,
+        [detail.componentId!]: [
+          ...(th[detail.componentId!] ?? []),
+          { id: detail.message!.id, role: detail.message!.sender === 'forge' ? 'forge' as const : 'user' as const, text: detail.message!.bodyMd },
+        ],
+      }));
+    }
+    window.addEventListener('chat:message', onChatMessage);
+    return () => window.removeEventListener('chat:message', onChatMessage);
+  }, [currentMember?.id]);
+
   function send() {
     const text = input.trim();
     if (!text || refining) return;
     setInput('');
+
+    const tempId = `tmp-${Date.now()}`;
     setThreads((th) => ({
       ...th,
-      [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'user', text }],
+      [active.id]: [...(th[active.id] ?? []), { id: tempId, role: 'user', text }],
     }));
+
+    fetch(`/api/projects/${projectId}/plan/tasks/${active.id}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bodyMd: text }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { id: string } | null) => {
+        if (data) {
+          seenMsgIds.current.add(data.id);
+          setThreads((th) => ({
+            ...th,
+            [active.id]: (th[active.id] ?? []).map((m) => m.id === tempId ? { ...m, id: data.id } : m),
+          }));
+        }
+      })
+      .catch(() => {});
 
     const forgeTagged = /@forge\b/i.test(text);
     if (forgeTagged) {

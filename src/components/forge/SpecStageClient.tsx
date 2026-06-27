@@ -1744,6 +1744,12 @@ function DocumentScreen({
           ) : activeRound ? (
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
+              selectable
+              applying={applying}
+              applied={activeRound.applied}
+              readOnly={readOnly}
+              onApply={(indices) => apply(activeRound.passNo, indices, activeRound.findings.length)}
+              appliedLabel="All findings applied."
             />
           ) : (
             <div className="flex h-full items-center justify-center">
@@ -1773,18 +1779,6 @@ function DocumentScreen({
               disabled={readOnly}
             >
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
-            </Button>
-          </div>
-        ) : activeRound && !activeRound.applied ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => apply(activeRound.passNo, activeRound.findings.map((_, i) => i), activeRound.findings.length)}
-              disabled={readOnly || applying}
-              loading={applying}
-            >
-              Apply all findings
             </Button>
           </div>
         ) : null}

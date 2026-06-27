@@ -35,12 +35,6 @@ export const ProposalSchema = z.object({
 });
 export type Proposal = z.infer<typeof ProposalSchema>;
 
-/** A single re-asked task (the one constrained repair pass for a sub-floor prompt). */
-export const RepairedTaskSchema = z.object({
-  prompt: z.string(),
-});
-export type RepairedTask = z.infer<typeof RepairedTaskSchema>;
-
 /**
  * The synthesis output — the three sections written to exploration.md on disk.
  */

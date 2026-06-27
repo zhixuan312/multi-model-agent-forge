@@ -8,30 +8,15 @@ import { stage } from '@/db/schema/projects';
 import type { LearningType } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import { readSpecFileAsync } from '@/projects/project-files';
-import { AnthropicClient } from '@/anthropic/client';
-import { ComposeLearningsSchema, type ComposeLearnings } from '@/spec/schemas';
 import { MmaClient } from '@/mma/client';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 
 /**
- * Learnings curation → journal-record (Spec 4 Part B / Key flow 7) — the only
- * write path into the team journal.
+ * Learnings curation + journal-record — the write path into the team journal.
  *
- * At spec-lock, `proposeLearnings` runs the orchestrator's fourth opus call
- * (`composeLearningCandidates`) over the locked spec + Q&A session to stage
- * `learning_candidate` rows. The user keeps/edits/removes them; on Save,
- * `commitLearnings` dispatches `journal-record` at `cwd`=WORKSPACE ROOT (the team
- * journal lives at `.mma/journal/`, never per-project) and stamps each kept
- * candidate `recorded` with its node id.
- *
- * SCHEMA SOURCE OF TRUTH (F28). The journal-record request body
- * (`{ learnings: string[], tagHints?: string[] }`) and the node-id extraction
- * (`structuredReport.recorded[].ids[]`) are derived from the MMA-side schema
- * (`multi-model-agent` `core/src/tools/journal/record/schema.ts` `inputSchema`
- * + `core/src/reporting/report-parser-slots/journal-report.ts`
- * `JournalStructuredReport.recorded[]`). NOTE the spec's hand-authored per-
- * candidate `{body,type}` body and `structuredReport.nodeId` field do NOT match
- * production — corrected here against the real schema.
+ * `buildLearningsPrompt` builds the prompt dispatched via `spec-learnings` handler
+ * to propose candidate learnings. `commitLearnings` writes kept candidates to the
+ * journal via `journal-record` at `cwd`=workspace root.
  */
 
 /** A candidate as surfaced to the curation UI. */
@@ -51,56 +36,6 @@ function toView(row: LearningCandidateRow): LearningCandidateView {
     status: row.status,
     recordedNodeId: row.recordedNodeId,
   };
-}
-
-export interface ProposeLearningsDeps {
-  db?: Db;
-  anthropic: AnthropicClient;
-}
-
-/**
- * Propose learnings for a locked project. IDEMPOTENT: if any `learning_candidate`
- * rows already exist, returns them without re-proposing (a re-load of /freeze
- * never duplicates). Otherwise runs `composeLearningCandidates` and inserts
- * `proposed`/`origin='spec'` rows.
- */
-export async function proposeLearnings(
-  deps: ProposeLearningsDeps,
-  projectId: string,
-): Promise<LearningCandidateView[]> {
-  const db = deps.db ?? getDb();
-
-  const existing = await db
-    .select()
-    .from(learningCandidate)
-    .where(eq(learningCandidate.projectId, projectId))
-    .orderBy(asc(learningCandidate.createdAt));
-  if (existing.length > 0) return existing.map(toView);
-
-  const { system, user } = await buildLearningsPrompt(db, projectId);
-  const out: ComposeLearnings = await deps.anthropic.parse(ComposeLearningsSchema, {
-    system,
-    user,
-    call: 'composeLearningCandidates',
-    projectId,
-  });
-
-  if (out.candidates.length === 0) return [];
-
-  const inserted = await db
-    .insert(learningCandidate)
-    .values(
-      out.candidates.map((c) => ({
-        projectId,
-        bodyMd: c.bodyMd,
-        type: c.type,
-        origin: 'spec' as const,
-        status: 'proposed' as const,
-        createdBy: null,
-      })),
-    )
-    .returning();
-  return inserted.map(toView);
 }
 
 /** Build the `composeLearningCandidates` prompt from intent + locked spec + Q&A session. */

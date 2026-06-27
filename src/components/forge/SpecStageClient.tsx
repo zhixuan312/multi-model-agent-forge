@@ -5,17 +5,13 @@ import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Sparkles,
-  Snowflake,
   Check,
   CheckCircle2,
   ArrowRight,
-  ChevronLeft,
   Lightbulb,
   Pencil,
   Plus,
   Search,
-  FileText,
   BookOpen,
   Target,
   Flag,
@@ -25,7 +21,6 @@ import {
   FlaskConical,
   ListTodo,
   Loader2,
-  Database,
   Shield,
   RotateCcw,
   type LucideIcon,
@@ -66,7 +61,6 @@ import {
   addParticipant,
   recordApproval,
   parseMentions,
-  isHumanApproved,
   hasApproved,
   pending as pendingParticipants,
 } from '@/collab/section-approval';
@@ -75,11 +69,9 @@ import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab
 import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
 
 /**
- * `SpecStageClient` (Spec 4 Part A) — the interview/document client island. Three
- * screens: outline (pick components + intent), interview (per-section Q&A
- * chatbox + satisfaction indicators + force-advance), document (assembled spec).
- * Drives the orchestrator through the `projects/[id]/spec/**` route handlers via
- * TanStack Query; patches local state from each repaint payload.
+ * `SpecStageClient` — the spec stage client island. Three phases:
+ * outline (pick components + intent), craft (auto-draft + collaborative Q&A
+ * per component), finalize (assemble spec + audit + apply fixes + freeze).
  */
 
 /** One row in the audit-pass timeline ("pass 1: 2 findings → revised"). */
@@ -103,14 +95,10 @@ interface SpecStageClientProps {
   initialSpec: { version: number; bodyMd: string } | null;
   initialAuditHistory: AuditPassView[];
   initialCanFreeze: boolean;
-  /** Mock-only: realistic per-component questions + drafts for the Craft conversation. */
-  craftContent?: Record<string, CraftSeed>;
   /** The signed-in member — drives "you" attribution and approvals. */
   currentMember: MemberRef;
   /** Teammates who can be @-mentioned into a section for co-approval. */
   projectMembers?: MemberRef[];
-  /** Mock-only: per-component seeded participants + group-chat (by kind). */
-  craftCollab?: Partial<Record<ComponentKind, UnitCollab>>;
   /** Persisted qa_messages per sectionId — loaded from DB on page render. */
   initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   /** Whether OpenAI transcription key is configured — enables voice input. */
@@ -122,15 +110,8 @@ interface SpecStageClientProps {
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
   specApprovers?: string[];
-  finalizeMessages?: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>;
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
-}
-
-/** Pre-authored Craft content (mock) — question rounds + the constructed draft per component. */
-interface CraftSeed {
-  questions: string[][];
-  draftMd: string;
 }
 
 type SpecPhase = 'outline' | 'craft' | 'finalize';
@@ -370,7 +351,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           specApprovers={specApprovers}
           setSpecApprovers={setSpecApprovers}
-          finalizeMessages={props.finalizeMessages ?? []}
           onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
@@ -468,7 +448,6 @@ function OutlineStage({
   onConfirmed: (next: ComponentView[]) => void;
   onError: (m: string | null) => void;
 }) {
-  const existingKinds = useMemo(() => new Set(existing.map((c) => c.kind)), [existing]);
   const active = matchTemplate(picked, templates);
 
   const confirm = useMutation({
@@ -740,26 +719,6 @@ function componentDisplayState(c: ComponentView): DisplayState {
       : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
   }
   return { label: 'Drafting...', cls: 'bg-surface-2 text-ink-soft' };
-}
-
-/** Group a component's section prompts into Forge "ask" rounds (2 questions each). */
-function roundsFor(c: ComponentView): { questions: string[]; source: string; missing: string[] }[] {
-  const prompts = templateForKind(c.kind).sections.map((s) => s.prompt);
-  const out: { questions: string[]; source: string; missing: string[] }[] = [];
-  for (let i = 0; i < prompts.length; i += 2) {
-    out.push({
-      questions: prompts.slice(i, i + 2),
-      source: i === 0 ? 'mma-investigate · codebase scan' : 'mma-investigate · follow-up',
-      missing: i === 0 ? [] : ['edge cases', 'constraints'],
-    });
-  }
-  return out.length ? out : [{ questions: ['Tell Forge about this component.'], source: 'mma-investigate', missing: [] }];
-}
-
-function buildDraft(c: ComponentView, answers: string[]): string {
-  return templateForKind(c.kind)
-    .sections.map((s, i) => `### ${s.draftHeading}\n\n${answers[Math.floor(i / 2)] ?? '_(captured from the conversation)_'}`)
-    .join('\n\n');
 }
 
 function CraftStage({
@@ -1289,59 +1248,6 @@ function CraftStage({
   );
 }
 
-/** Assistant message — Forge avatar + left-aligned bubble (chat-app style). */
-function ForgeAsks({ round, questions, source, missing }: { round: number; questions: string[]; source: string; missing: string[] }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Forge</span>
-          <span className="text-[11px] text-ink-faint">round {round}</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--frost)] px-2 py-0.5 text-[10px] font-medium text-[var(--steel)]">
-            <Database className="size-2.5" /> {source}
-          </span>
-        </div>
-        <div className="space-y-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-          {missing.length ? (
-            <p className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-ink-faint">still missing:</span>
-              {missing.map((m) => (
-                <span key={m} className="rounded-full bg-amber-tint px-2 py-0.5 text-[11px] font-medium text-[var(--amber)]">
-                  {m}
-                </span>
-              ))}
-            </p>
-          ) : null}
-          {questions.map((q, i) => (
-            <p key={i} className="text-sm leading-relaxed text-ink">
-              <span className="mr-1.5 font-semibold text-accent">Q{i + 1}</span>
-              {q}
-            </p>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Member message — right-aligned accent bubble + avatar. */
-function AnswerBlock({ text }: { text: string }) {
-  return (
-    <div className="flex flex-row-reverse gap-2.5">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-        AD
-      </span>
-      <div className="flex min-w-0 max-w-[88%] flex-col items-end">
-        <span className="mb-1 text-[11px] text-ink-faint">You</span>
-        <div className="rounded-2xl rounded-tr-md border border-accent/20 bg-accent-tint px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CraftViewToggle({ active, onSwitch }: { active: 'spec' | 'conversation'; onSwitch: (v: 'spec' | 'conversation') => void }) {
   return (
     <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
@@ -1430,7 +1336,6 @@ function DocumentScreen({
   components,
   specApprovers,
   setSpecApprovers,
-  finalizeMessages,
   onAdvance,
   onAssembled,
   onError,
@@ -1452,7 +1357,6 @@ function DocumentScreen({
   components: ComponentView[];
   specApprovers: string[];
   setSpecApprovers: (v: string[]) => void;
-  finalizeMessages: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>;
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
@@ -1604,7 +1508,8 @@ function DocumentScreen({
   }
 
   const [applying, setApplying] = useState(!!pendingApply);
-  const [applied, setApplied] = useState(false);
+  const [applyingPass, setApplyingPass] = useState<number | null>(null);
+  const [appliedPasses, setAppliedPasses] = useState<Set<number>>(new Set());
   const [applyTotal, setApplyTotal] = useState(0);
   const applyTotalRef = useRef(0);
   const [applyDone, setApplyDone] = useState(0);
@@ -1623,9 +1528,11 @@ function DocumentScreen({
       { id: nid(), role: 'forge', text: `Revising the spec to address ${label} from pass ${passNo}…` },
     ]);
     setApplying(true);
+    setApplyingPass(passNo);
     setApplyDone(0);
     postJson<{ batchIds: string[]; sectionsToRevise: number }>(`/projects/${projectId}/spec/audit-apply`, {
       findings: selectedFindings,
+      passNo,
     }).then((res) => {
       applyTotalRef.current = res.sectionsToRevise;
       setApplyTotal(res.sectionsToRevise);
@@ -1643,13 +1550,17 @@ function DocumentScreen({
     // The parent's useMmaDispatch SSE already fires for this handler.
     // Poll the status endpoint periodically while applying is true.
     const interval = setInterval(() => {
-      fetch(`/projects/${projectId}/spec/audit-apply/status`)
+      fetch(`/projects/${projectId}/spec/audit-apply/status${applyingPass !== null ? `?passNo=${applyingPass}` : ''}`)
         .then((r) => r.json())
         .then((s: { allDone: boolean; done: number; total: number }) => {
           setApplyDone(s.done);
           setApplyTotal(s.total);
           applyTotalRef.current = s.total;
-          if (s.allDone) { setApplying(false); setApplied(true); }
+          if (s.allDone) {
+                    setApplying(false);
+                    if (applyingPass !== null) setAppliedPasses((prev) => new Set(prev).add(applyingPass));
+                    setApplyingPass(null);
+                  }
         })
         .catch(() => {});
     }, 2000);
@@ -1750,9 +1661,10 @@ function DocumentScreen({
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
               selectable
-              applied={activeRound.applied}
+              applied={activeRound.applied || appliedPasses.has(activeRound.passNo)}
               readOnly={readOnly}
               hideApplyBar
+              selectedIndices={selectedFindings}
               onSelectionChange={(indices) => setSelectedFindings(indices)}
             />
           ) : (
@@ -1785,7 +1697,7 @@ function DocumentScreen({
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
             </Button>
           </div>
-        ) : activeRound && !activeRound.applied && docView !== 'document' ? (
+        ) : activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && docView !== 'document' ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
               size="sm"
@@ -1841,6 +1753,16 @@ function DocumentScreen({
             </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
+            {!auditing && rounds.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+                <span className="grid size-10 place-items-center rounded-full bg-surface-2">
+                  <Shield className="size-5 text-ink-faint" />
+                </span>
+                <p className="mt-3 text-xs leading-relaxed text-ink-faint">
+                  Each audit round lands here<br />with its verdict and findings.
+                </p>
+              </div>
+            ) : null}
             {auditing ? (
               <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
                 <div className="flex items-center gap-2">
@@ -1854,28 +1776,27 @@ function DocumentScreen({
                   </span>
                 </div>
               </div>
-            ) : rounds.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
-                <span className="grid size-10 place-items-center rounded-full bg-surface-2">
-                  <Shield className="size-5 text-ink-faint" />
-                </span>
-                <p className="mt-3 text-xs leading-relaxed text-ink-faint">
-                  Each audit round lands here<br />with its verdict and findings.
-                </p>
-              </div>
             ) : null}
-            {(
-              rounds.map((r) => (
+            {[...rounds].reverse().map((r) => (
+              <div key={r.passNo} className="relative">
                 <PatternAuditRoundCard
-                  key={r.passNo}
                   passNo={r.passNo}
                   verdict={r.verdict}
                   findings={r.findings as Finding[]}
-                  applied={r.applied || applied}
-                  onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
+                  applied={r.applied || appliedPasses.has(r.passNo)}
+                  active={selectedPass === r.passNo && docView === 'conversation'}
+                  onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('conversation'); }}
                 />
-              ))
-            )}
+                {applying && applyingPass === r.passNo ? (
+                  <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">
+                      Applying {applyDone}/{applyTotal || '…'} sections
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
@@ -1891,46 +1812,8 @@ function DocumentScreen({
   );
 }
 
-/** Forge message — avatar + left-aligned bubble (chat-app style). */
-function ForgeSays({ text }: { text: string }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-xs font-semibold text-ink">Forge</span>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** The assembled spec, presented as a wide Forge-side artifact in the thread. */
-function SpecDraftCard({ version, md }: { version: number; md: string }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-ink">Forge</span>
-          <Badge variant="sage" size="sm">
-            specification · v{version}
-          </Badge>
-        </div>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-          <ProseBlock className="max-w-none prose-headings:mb-2 prose-headings:mt-5 first:prose-headings:mt-0">
-            {md}
-          </ProseBlock>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
-
-/* ── Audit panel (run audit → pass timeline → freeze CTA) ────────────────── */
 
 export interface AuditFinding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -1938,156 +1821,5 @@ export interface AuditFinding {
   claim: string;
   evidence?: string;
   suggestion?: string;
-}
-
-export function AuditPanel({
-  className,
-  projectId,
-  readOnly,
-  mmaReady,
-  initialHistory,
-  initialCanFreeze,
-  onError,
-}: {
-  className?: string;
-  projectId: string;
-  readOnly: boolean;
-  mmaReady: boolean;
-  initialHistory: AuditPassView[];
-  initialCanFreeze: boolean;
-  onError: (m: string | null) => void;
-}) {
-  const [history, setHistory] = useState<AuditPassView[]>(initialHistory);
-  const [findings, setFindings] = useState<AuditFinding[]>([]);
-  const [canFreeze, setCanFreeze] = useState(initialCanFreeze);
-  const [contextBlockId, setContextBlockId] = useState<string | null>(null);
-  const capReached = history.length >= 4 && !canFreeze;
-
-  const audit = useMutation({
-    mutationFn: () =>
-      postJson<{
-        pass: { passNo: number; verdict: 'clean' | 'revised'; findingsCount: number; findings: AuditFinding[] };
-        contextBlockId: string | null;
-        history: AuditPassView[];
-        canFreeze: boolean;
-      }>(`/projects/${projectId}/spec/audit`, contextBlockId ? { contextBlockIds: [contextBlockId] } : {}),
-    onSuccess: (data) => {
-      onError(null);
-      setHistory(data.history);
-      setFindings(data.pass.findings);
-      setCanFreeze(data.canFreeze);
-      if (data.contextBlockId) setContextBlockId(data.contextBlockId);
-    },
-    onError: (e: Error) => onError(e.message),
-  });
-
-  const override = useMutation({
-    mutationFn: () => postJson<{ canFreeze: boolean }>(`/projects/${projectId}/spec/audit-override`, {}),
-    onSuccess: (data) => {
-      onError(null);
-      setCanFreeze(data.canFreeze);
-    },
-    onError: (e: Error) => onError(e.message),
-  });
-
-  return (
-    <Card className={cn('flex flex-col', className)} data-testid="audit-panel">
-      <CardHeader>
-        <CardTitle>Audit</CardTitle>
-        <Button
-          size="sm"
-          onClick={() => audit.mutate()}
-          loading={audit.isPending}
-          disabled={readOnly || !mmaReady || audit.isPending}
-        >
-          {audit.isPending ? 'Auditing…' : history.length > 0 ? 'Re-run audit' : 'Run audit'}
-        </Button>
-      </CardHeader>
-      <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4">
-        {!mmaReady ? (
-          <TextSm className="!text-[var(--amber)]">
-            <a href="/settings/connections" className="underline">
-              Configure the MMA token
-            </a>{' '}
-            to audit.
-          </TextSm>
-        ) : null}
-
-        {history.length > 0 ? (
-          <ol className="flex flex-wrap items-center gap-2" data-testid="audit-timeline">
-            {history.map((p) => (
-              <li key={p.passNo}>
-                <Badge variant={p.verdict === 'clean' ? 'sage' : 'neutral'} size="sm">
-                  pass {p.passNo}:{' '}
-                  {p.verdict === 'clean'
-                    ? 'clean'
-                    : `${p.findingsCount} finding${p.findingsCount === 1 ? '' : 's'} → revised`}
-                </Badge>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <TextSm className="!text-ink-faint">
-            Run the audit to check the spec for critical / high findings.
-          </TextSm>
-        )}
-
-        {findings.length > 0 ? (
-          <ul className="flex flex-col gap-1.5" data-testid="audit-findings">
-            {findings.map((f, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs">
-                <Badge
-                  size="sm"
-                  variant={f.severity === 'critical' || f.severity === 'high' ? 'rose' : 'neutral'}
-                  className="shrink-0 uppercase"
-                >
-                  {f.severity}
-                </Badge>
-                <span className="text-ink">{f.claim}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {capReached ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <TextSm className="!text-ink-soft">
-              The audit still reports critical/high findings. You can keep fixing, or accept and override.
-            </TextSm>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => override.mutate()}
-              loading={override.isPending}
-              disabled={readOnly || override.isPending}
-              className="!border-[var(--amber)] !text-[var(--amber)]"
-            >
-              Accept findings &amp; override
-            </Button>
-          </div>
-        ) : null}
-
-      </CardContent>
-      <CardFooter className="gap-2">
-        <TextSm className="!text-ink-faint">
-          {canFreeze ? 'Ready — irreversible.' : 'Unlocks after a clean audit.'}
-        </TextSm>
-        <a
-          href={canFreeze && !readOnly ? `/projects/${projectId}/freeze` : undefined}
-          aria-disabled={!canFreeze || readOnly}
-          data-testid="freeze-link"
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 rounded-[var(--r)] px-4 py-1.5 text-sm font-medium transition-colors',
-            canFreeze && !readOnly
-              ? 'bg-ink text-white hover:bg-ink/90'
-              : 'pointer-events-none cursor-not-allowed bg-surface-2 text-ink-faint',
-          )}
-        >
-          <Snowflake aria-hidden="true" className="size-4" />
-          Freeze the spec
-        </a>
-      </CardFooter>
-    </Card>
-  );
 }
 

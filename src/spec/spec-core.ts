@@ -9,10 +9,9 @@ import { templateForKind } from '@/spec/components';
 import type { ComponentKind } from '@/db/enums';
 
 /**
- * Spec-stage core (Spec 4 Part A) — the project-membership-gated, RSC-facing
- * reads + the lazy stage lifecycle + intent capture. The per-section Q&A
- * transitions live in `orchestrator.ts`; assemble in `assemble.ts`. Membership is
- * enforced by the route/page caller via `assertProjectReadable` (Spec 3).
+ * Spec-stage core — RSC-facing reads, lazy stage lifecycle, and intent capture.
+ * Component lifecycle in `orchestrator.ts`; assemble in `assemble.ts`. Membership
+ * enforced by the route/page caller via `assertProjectReadable`.
  */
 
 /** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation (F10). */
@@ -167,7 +166,6 @@ export async function buildSectionRepaint(db: Db, sectionId: string): Promise<Se
   };
 }
 
-/** Load a single section's qa_message transcript (UI-shaped), in seq order. */
 /** Load all qa_messages for every component in a stage, keyed by componentId. */
 export async function loadAllMessages(
   db: Db,
@@ -187,19 +185,6 @@ export async function loadAllMessages(
     result[r.componentId] = list;
   }
   return result;
-}
-
-export async function loadFinalizeMessages(
-  db: Db,
-  stageId: string,
-): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>> {
-  const { isNull } = await import('drizzle-orm');
-  const rows = await db
-    .select({ id: qaMessage.id, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
-    .from(qaMessage)
-    .where(and(eq(qaMessage.stageId, stageId), isNull(qaMessage.componentId)))
-    .orderBy(qaMessage.seq);
-  return rows.map((r) => ({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId }));
 }
 
 export async function loadComponentMessages(

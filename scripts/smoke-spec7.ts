@@ -77,10 +77,10 @@ async function main(): Promise<void> {
 
     const parsed = parseAuditEnvelope(envelope);
     if (parsed.kind === 'missing_report') {
-      console.log(`OK (no structured report): headline="${parsed.headline}"`);
+      console.log('OK (no structured report)');
     } else {
       console.log(
-        `OK: headline="${parsed.headline}" findings=${parsed.findings.length} hasCriticalOrHigh=${parsed.hasCriticalOrHigh}`,
+        `OK: findings=${parsed.findings.length} hasCriticalOrHigh=${parsed.hasCriticalOrHigh}`,
       );
     }
     console.log('NOTE: execute-plan + review were NOT run (destructive — out of scope for this smoke).');

@@ -27,26 +27,26 @@ describe('SeverityBadge', () => {
 });
 
 describe('FindingCard', () => {
-  it('renders claim, evidence, and suggestion', () => {
+  it('renders claim and severity badge', () => {
     render(<FindingCard finding={finding} />);
     expect(screen.getByText('SQL injection in user input')).toBeInTheDocument();
-    expect(screen.getByText(/parameterized queries/)).toBeInTheDocument();
-  });
-
-  it('renders severity badge', () => {
-    render(<FindingCard finding={finding} />);
     expect(screen.getByText('high')).toBeInTheDocument();
   });
 
-  it('calls onSelect when clicked', () => {
-    const onSelect = vi.fn();
-    render(<FindingCard finding={finding} onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole('button'));
-    expect(onSelect).toHaveBeenCalled();
+  it('renders category label', () => {
+    render(<FindingCard finding={finding} />);
+    expect(screen.getByText('security')).toBeInTheDocument();
   });
 
-  it('shows index number when provided', () => {
-    render(<FindingCard finding={finding} index={0} />);
+  it('shows evidence after expanding', () => {
+    render(<FindingCard finding={finding} />);
+    const expandBtn = screen.getByRole('button', { name: '' });
+    fireEvent.click(expandBtn);
+    expect(screen.getByText(/parameterized queries/)).toBeInTheDocument();
+  });
+
+  it('shows index number when provided and not selected', () => {
+    render(<FindingCard finding={finding} index={0} onSelect={() => {}} />);
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 });
@@ -75,12 +75,16 @@ describe('AuditRoundCard', () => {
 
   it('shows severity breakdown pills', () => {
     render(<AuditRoundCard passNo={1} verdict="revised" findings={[finding]} />);
-    expect(screen.getByText('high')).toBeInTheDocument();
+    expect(screen.getByText(/high/)).toBeInTheDocument();
   });
 
   it('shows clean verdict badge', () => {
     render(<AuditRoundCard passNo={2} verdict="clean" findings={[]} />);
     expect(screen.getByText('clean')).toBeInTheDocument();
   });
-});
 
+  it('shows active styling when active prop is true', () => {
+    const { container } = render(<AuditRoundCard passNo={1} verdict="revised" findings={[finding]} active />);
+    expect(container.innerHTML).toContain('accent');
+  });
+});

@@ -22,20 +22,46 @@ const findingSchema = z.object({
 
 const bodySchema = z.object({
   findings: z.array(findingSchema),
+  passNo: z.number().int().positive().optional(),
 });
 
 type Finding = z.infer<typeof findingSchema>;
 
-const REVISE_SYSTEM = `You are Forge's spec reviser. You receive ONE section of a specification and audit findings that affect it. Revise the section to address every finding.
+function buildRevisePrompt(sectionLabel: string, sectionKind: string, findingsBlock: string, sectionDraft: string): { system: string; user: string } {
+  const system = `Role: You are a specification reviser for Forge, a collaborative SDLC platform. You specialize in addressing audit findings by making precise, targeted edits to specification sections.
 
-Rules:
-- Return the FULL revised section content (not a diff).
-- Address each finding's claim using the evidence and suggested fix as guidance.
-- Maintain the original tone, format, and level of detail.
-- Do NOT add unrelated changes beyond what the findings require.
-- Do NOT add section headings — they are managed externally.
+Task: Revise the given section to address every audit finding listed. For each finding, incorporate the suggested fix using the cited evidence to locate the relevant passage. Return the FULL revised section — not a diff, not a summary.
 
-Return a JSON object: { "draftMd": "..." }`;
+Constraints:
+- Address each finding's claim — use the evidence to find the exact passage and the suggestion as guidance for the fix
+- Maintain the original tone, format, and level of detail — the revision should read as if the section was always written this way
+- Do NOT add unrelated improvements, rewrites, or content beyond what the findings require
+- Do NOT add section headings (## or #) — headings are managed externally
+- Preserve all content that is not touched by a finding — only modify what a finding targets
+- Write in proper markdown: ### subheadings, **bold** for key terms, bullet lists, \`code\` for technical names, tables for comparisons
+
+Output format:
+Return a JSON object with exactly one field:
+\`\`\`json
+{ "draftMd": "<the full revised section markdown>" }
+\`\`\`
+- draftMd contains the COMPLETE section content after all findings are applied
+- Do NOT wrap the JSON in markdown code fences`;
+
+  const user = `Context: This is the "${sectionLabel}" section (${sectionKind}) of a project specification. An audit pass flagged the findings below. Your job is to revise this section so the findings no longer apply.
+
+Input:
+
+--- Current Section Draft ---
+${sectionDraft}
+--- End Section Draft ---
+
+--- Audit Findings to Address ---
+${findingsBlock}
+--- End Findings ---`;
+
+  return { system, user };
+}
 
 function matchFindingsToSections(
   findings: Finding[],
@@ -126,16 +152,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       })
       .join('\n\n');
 
-    const userPrompt = [
-      `# Section: ${section.label} (componentKind: ${kind}, sectionKey: ${key})`,
-      '',
-      section.draftMd ?? '(empty)',
-      '',
-      '# Findings to address',
-      findingsBlock,
-    ].join('\n');
+    const { system, user } = buildRevisePrompt(section.label, `${kind}/${key}`, findingsBlock, section.draftMd ?? '(empty)');
 
-    const handlerKey = `spec-audit-apply:${kind}/${key}`;
     const batchRowId = await dispatchAndRegister({
       db,
       mma,
@@ -144,11 +162,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       handler: 'spec-audit-apply',
       cwd,
       body: {
-        prompt: `${REVISE_SYSTEM}\n\n${userPrompt}`,
+        prompt: `${system}\n\n${user}`,
         reviewPolicy: 'none',
       },
       actorId: guard.memberId,
-      meta: { componentKind: kind, sectionKey: key, actorId: guard.memberId, totalSections: sectionFindings.size },
+      meta: { componentKind: kind, sectionKey: key, actorId: guard.memberId, totalSections: sectionFindings.size, passNo: parsed.data.passNo },
     });
     batchIds.push(batchRowId);
   }

@@ -10,7 +10,11 @@ import {
   type AnthropicLike,
   type AnthropicCallDiagnostics,
 } from '@/anthropic/client';
-import { DraftSectionSchema, AssessAnswersSchema } from '@/spec/schemas';
+import { z } from 'zod';
+import { FullSpecDraftSchema } from '@/spec/schemas';
+
+const TestSchema = z.object({ aiSatisfied: z.boolean(), missingInfo: z.array(z.string()), followUpQuestions: z.array(z.string()) });
+const DraftSchema = z.object({ draftMd: z.string() });
 
 const USAGE = { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 
@@ -30,7 +34,7 @@ describe('AnthropicClient.parse', () => {
 
   it('returns parsed_output on success', async () => {
     const c = new AnthropicClient(sdkReturning({ aiSatisfied: true, missingInfo: [], followUpQuestions: [] }), 'm');
-    const out = await c.parse(AssessAnswersSchema, ctx);
+    const out = await c.parse(TestSchema, ctx);
     expect(out.aiSatisfied).toBe(true);
   });
 
@@ -39,7 +43,7 @@ describe('AnthropicClient.parse', () => {
       messages: { async parse() { return { parsed_output: null, stop_reason: 'refusal', usage: USAGE }; } },
     };
     const c = new AnthropicClient(sdk, 'm');
-    await expect(c.parse(AssessAnswersSchema, ctx)).rejects.toMatchObject({
+    await expect(c.parse(TestSchema, ctx)).rejects.toMatchObject({
       name: 'AnthropicParseError',
       stopReason: 'refusal',
     });
@@ -51,7 +55,7 @@ describe('AnthropicClient.parse', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: { async parse(p: any) { seen = p.max_tokens; return { parsed_output: { draftMd: 'x' }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
-    await new AnthropicClient(sdk, 'm').parse(DraftSectionSchema, { ...ctx, call: 'draftSection' });
+    await new AnthropicClient(sdk, 'm').parse(DraftSchema, { ...ctx, call: 'draftSection' });
     expect(seen).toBe(BASE_MAX_TOKENS);
   });
 
@@ -75,7 +79,7 @@ describe('AnthropicClient.parse', () => {
       },
     };
     const c = new AnthropicClient(sdk, 'm');
-    const out = await c.parse(DraftSectionSchema, { ...ctx, call: 'draftSection' }, { retryOnMaxTokens: true });
+    const out = await c.parse(DraftSchema, { ...ctx, call: 'draftSection' }, { retryOnMaxTokens: true });
     expect(out.draftMd).toBe('streamed');
     expect(maxTokensSeen).toEqual([BASE_MAX_TOKENS, DRAFT_RETRY_MAX_TOKENS]);
     expect(DRAFT_RETRY_MAX_TOKENS).toBe(32000);
@@ -87,7 +91,7 @@ describe('AnthropicClient.parse', () => {
     const sdk: AnthropicLike = {
       messages: { async parse() { calls += 1; return { parsed_output: null, stop_reason: 'max_tokens', usage: USAGE }; } },
     };
-    await expect(new AnthropicClient(sdk, 'm').parse(AssessAnswersSchema, ctx)).rejects.toBeInstanceOf(AnthropicParseError);
+    await expect(new AnthropicClient(sdk, 'm').parse(TestSchema, ctx)).rejects.toBeInstanceOf(AnthropicParseError);
     expect(calls).toBe(1);
   });
 
@@ -96,13 +100,13 @@ describe('AnthropicClient.parse', () => {
     const restore = setAnthropicDiagnosticsSink((r) => records.push(r));
     try {
       await new AnthropicClient(sdkReturning({ aiSatisfied: true, missingInfo: [], followUpQuestions: [] }), 'm').parse(
-        AssessAnswersSchema,
+        TestSchema,
         ctx,
       );
       const errSdk: AnthropicLike = {
         messages: { async parse() { return { parsed_output: null, stop_reason: 'refusal', usage: USAGE }; } },
       };
-      await new AnthropicClient(errSdk, 'm').parse(AssessAnswersSchema, ctx).catch(() => {});
+      await new AnthropicClient(errSdk, 'm').parse(TestSchema, ctx).catch(() => {});
     } finally {
       restore();
     }
@@ -176,7 +180,7 @@ describe('AnthropicClient — server Claude Code OAuth', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
-    await new AnthropicClient(sdk, 'm', true).parse(AssessAnswersSchema, ctx);
+    await new AnthropicClient(sdk, 'm', true).parse(TestSchema, ctx);
     expect(Array.isArray(seen)).toBe(true);
     expect(seen[0]).toEqual({ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." });
     expect(seen[1]).toEqual({ type: 'text', text: 'real-system' });
@@ -189,7 +193,7 @@ describe('AnthropicClient — server Claude Code OAuth', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
-    await new AnthropicClient(sdk, 'm', false).parse(AssessAnswersSchema, ctx);
+    await new AnthropicClient(sdk, 'm', false).parse(TestSchema, ctx);
     expect(seen).toBe('real-system');
   });
 });

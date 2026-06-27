@@ -1,15 +1,10 @@
 import type { ComponentKind } from '@/db/enums';
 
 /**
- * `COMPONENT_TEMPLATES` (Spec 4 / product.md §8.1) — the canonical component +
- * section structure of a spec. Each template drives BOTH the Q&A section set per
- * component AND the assembled-document heading structure (`draftHeading`).
- *
- * Mapped from product.md §8.1 "contains" + the `spec-sample.html` heading tree.
- * The five `default: true` components are pre-checked at `/spec/outline`; `nfr`
- * and `assumptions` default off. EVERY selected component AND every one of its
- * sections goes through Q&A — depth is guaranteed by the template, not the
- * conversation.
+ * Spec component templates — the canonical component + section structure. Each
+ * template drives the Outline picker, the Craft auto-draft prompt, and the
+ * assembled-document heading structure (`draftHeading`). All 8 components are
+ * default-checked; the user can toggle them off in the Outline phase.
  */
 
 /** One sub-section of a component: drives Q&A and the drafted heading. */

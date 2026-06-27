@@ -2,8 +2,14 @@
 // subscription OAuth (no provider key configured). Verifies structured outputs
 // work end-to-end with the subscription token.
 import 'dotenv/config';
+import { z } from 'zod';
 import { AnthropicClient } from '@/anthropic/client';
-import { AssessAnswersSchema } from '@/spec/schemas';
+
+const SmokeSchema = z.object({
+  aiSatisfied: z.boolean(),
+  missingInfo: z.array(z.string()),
+  followUpQuestions: z.array(z.string()),
+});
 
 async function main() {
   const cfg = await AnthropicClient.resolveMainTier();
@@ -11,7 +17,7 @@ async function main() {
   if (cfg.auth.mode !== 'oauth') console.log('  (note: not using OAuth — a provider key or env key is set)');
 
   const client = await AnthropicClient.fromMainTier();
-  const out = await client.parse(AssessAnswersSchema, {
+  const out = await client.parse(SmokeSchema, {
     system: 'You assess whether enough information has been gathered to draft a spec section. Be terse.',
     user: 'Section: "Problem statement". The user said only: "We need faster CI." Are you satisfied, or do you need follow-up questions? Return the structured assessment.',
     call: 'assessAnswers',

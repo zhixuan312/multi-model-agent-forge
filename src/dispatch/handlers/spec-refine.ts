@@ -3,6 +3,7 @@ import type { Db } from '@/db/client';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
+import { replaceSpecSection } from '@/spec/spec-file-ops';
 
 async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -10,10 +11,9 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const request = ctx.request as { componentId: string };
   const componentId = request.componentId;
 
-  // Update the section draft if Forge provided an updated version
   if (result.updatedSectionMd) {
     const [firstSection] = await db
-      .select({ id: componentSection.id })
+      .select({ id: componentSection.id, label: componentSection.label })
       .from(componentSection)
       .where(eq(componentSection.componentId, componentId))
       .orderBy(asc(componentSection.orderIndex))
@@ -23,6 +23,8 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
         .update(componentSection)
         .set({ draftMd: result.updatedSectionMd, updatedAt: new Date() })
         .where(eq(componentSection.id, firstSection.id));
+
+      await replaceSpecSection(ctx.projectId, firstSection.label, result.updatedSectionMd);
     }
   }
 
@@ -32,7 +34,6 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     .set({ aiSatisfied, status: 'drafted', updatedAt: new Date() })
     .where(eq(component.id, componentId));
 
-  // Build the chat message — include questions if any
   let forgeReply = result.chatReply;
   if (result.questions.length > 0) {
     forgeReply += `\n\n❓ A few things to clarify:\n\n${result.questions.map((q) => `• ${q}`).join('\n\n')}`;

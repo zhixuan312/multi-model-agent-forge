@@ -8,6 +8,8 @@ import { stage } from '@/db/schema/projects';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { parseSpecSections } from '@/spec/spec-file-ops';
+import { readSpecFileAsync } from '@/projects/project-files';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -123,8 +125,14 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   }
 
   const components = await loadOutline(db, specStage.id);
+
+  // Read section content from spec.md (source of truth), overlay onto DB metadata
+  const specFile = await readSpecFileAsync(id);
+  const fileSections = specFile ? parseSpecSections(specFile.bodyMd) : [];
+  const fileByLabel = new Map(fileSections.map((s) => [s.heading.replace(/^###\s*/, '').trim(), s.body]));
+
   const allSections = components.flatMap((c) =>
-    c.sections.map((s) => ({ kind: c.kind, key: s.key, label: s.label, draftMd: s.draftMd })),
+    c.sections.map((s) => ({ kind: c.kind, key: s.key, label: s.label, draftMd: fileByLabel.get(s.label) ?? s.draftMd })),
   );
 
   const sectionFindings = matchFindingsToSections(parsed.data.findings, allSections);

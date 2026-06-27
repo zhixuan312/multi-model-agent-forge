@@ -4,11 +4,10 @@ import { artifact } from '@/db/schema/artifacts';
 import { planTask } from '@/db/schema/build';
 import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { AnthropicClient } from '@/anthropic/client';
 import { logAction } from '@/observability/action-log';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { getLatestSpec } from '@/spec/assemble';
-import { PlanDraftSchema, type PlanDraft } from '@/build/plan-schema';
+import type { PlanDraft } from '@/build/plan-schema';
 import {
   validateAndResolve,
   renderRepoPlan,
@@ -19,20 +18,11 @@ import {
 import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
 
 /**
- * Plan authoring orchestrator (Spec 7 §Plan authoring; the 7a producer).
- *
- * Triggered when `project.phase` reaches `build`. Reads the locked
- * `artifact(kind='spec')` + the project's repos, has the Anthropic main model
- * decompose a per-repo plan (one `targetRepoId` per task), validates atomically
- * (known repos, no dep cycle, no git-commit steps), writes each write-target
- * repo's plan markdown to `<repo>/.forge/plan-<id>.md`, persists `plan_task` rows
- * (queued) + a combined `artifact(kind='plan')`, and emits `plan.authored`.
- *
- * ATOMICITY (F30): the structured output is fully validated BEFORE any insert; a
- * validation/Anthropic failure emits `plan.failed` and inserts NO partial rows.
- * The plan files are written only after validation passes; a plan-file write
- * failure halts (no rows persisted) so execute never dispatches against a missing
- * file (F12).
+ * Plan authoring — validates a structured plan draft (from the MMA dispatch
+ * handler), writes per-repo plan files, persists `plan_task` rows, and creates
+ * the combined `artifact(kind='plan')`. The LLM call happens in MMA via
+ * `dispatchAndRegister` → `plan-author` handler; this module owns validation
+ * and persistence only.
  */
 
 export const PLAN_AUTHOR_SYSTEM_PROMPT = `Role: You are the build-plan author for Forge, a software delivery harness.
@@ -121,11 +111,10 @@ Return ONLY a JSON array inside a markdown code fence. No wrapper object. No com
 
 export interface PlanAuthorDeps {
   db?: Db;
-  anthropic?: AnthropicClient;
   fs?: PlanFs;
   bus?: ProjectEventBus;
-  /** Inject a pre-built draft to bypass the LLM (tests + dispatch handler). */
-  draftOverride?: PlanDraft;
+  /** The structured plan draft (from MMA dispatch handler or test fixture). */
+  draftOverride: PlanDraft;
 }
 
 export interface PlanAuthorResult {
@@ -199,26 +188,7 @@ export async function authorPlan(
     return fail(bus, projectId, 'No locked spec artifact to plan from.');
   }
 
-  // 1. Author the structured plan (Anthropic main model) — or use the injected draft.
-  let rawDraft: PlanDraft;
-  try {
-    if (deps.draftOverride) {
-      rawDraft = deps.draftOverride;
-    } else {
-      const repoList = repos
-        .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
-        .join('\n');
-      if (!deps.anthropic) return fail(bus, projectId, 'No Anthropic client and no draft override.');
-      rawDraft = await deps.anthropic.parse(PlanDraftSchema, {
-        call: 'authorPlan',
-        projectId,
-        system: PLAN_AUTHOR_SYSTEM_PROMPT,
-        user: `Locked spec:\n\n${spec.bodyMd}\n\nRepos in scope:\n${repoList}`,
-      });
-    }
-  } catch {
-    return fail(bus, projectId, 'The plan author (Anthropic) failed to produce a plan.');
-  }
+  const rawDraft = deps.draftOverride;
 
   // 2. Validate atomically (known repos, no cycle, no commit steps) BEFORE any write.
   let resolved: ResolvedTask[];

@@ -23,8 +23,11 @@ export function parsePlanSections(planMd: string): PlanTaskSection[] {
   const sections: PlanTaskSection[] = [];
   let currentPhase: string | undefined;
   let current: { heading: string; phase?: string; startLine: number; bodyLines: string[] } | null = null;
+  let inCodeFence = false;
 
   for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('```')) { inCodeFence = !inCodeFence; if (current) current.bodyLines.push(lines[i]); continue; }
+    if (inCodeFence) { if (current) current.bodyLines.push(lines[i]); continue; }
     if (PHASE_HEADING_RE.test(lines[i]) && !TASK_HEADING_RE.test(lines[i])) {
       if (current) {
         sections.push({

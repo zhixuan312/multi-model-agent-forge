@@ -298,6 +298,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
           approvedCount={approvedCount}
           allApproved={allApproved}
           mma={mma}
+          currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
           onToggleApprove={(id) => { const next = status[id] === 'approved' ? 'proposed' : 'approved'; setStatus((s) => ({ ...s, [id]: next as TaskStatus })); fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, { method: next === 'approved' ? 'POST' : 'DELETE' }).catch(() => {}); }}
           onValidate={() => setPhase('validate')}
@@ -468,6 +469,7 @@ function DetailStage({
   approvedCount,
   allApproved,
   mma,
+  currentMember,
   projectMembers,
   onToggleApprove,
   onValidate,
@@ -482,6 +484,7 @@ function DetailStage({
   approvedCount: number;
   allApproved: boolean;
   mma: ReturnType<typeof useMmaDispatch>;
+  currentMember?: { id: string; displayName: string; avatarTint: string };
   projectMembers: { id: string; displayName: string; avatarTint: string }[];
   onToggleApprove: (id: string) => void;
   onValidate: () => void;
@@ -510,7 +513,13 @@ function DetailStage({
   const [refining, setRefining] = useState(false);
   const [taskView, setTaskView] = useState<'plan' | 'discussion'>('plan');
   const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>({});
-  const taskParticipants: Participant[] = taskApprovers[active?.id ?? ''] ?? [];
+  const meParticipant: Participant | null = currentMember
+    ? { member: currentMember, addedBy: null, approvedAt: status[active?.id ?? ''] === 'approved' ? new Date().toISOString() : null }
+    : null;
+  const stored = taskApprovers[active?.id ?? ''] ?? [];
+  const taskParticipants: Participant[] = meParticipant
+    ? [meParticipant, ...stored.filter((p) => p.member.id !== meParticipant.member.id)]
+    : stored;
 
   useEffect(() => {
     function onPlanUpdated(e: Event) {

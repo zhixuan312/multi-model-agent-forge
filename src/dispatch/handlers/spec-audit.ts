@@ -7,6 +7,13 @@ import { logAction } from '@/observability/action-log';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
 async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
+  const [existing] = await db
+    .select({ id: auditPass.id })
+    .from(auditPass)
+    .where(eq(auditPass.mmaBatchId, ctx.batchRowId))
+    .limit(1);
+  if (existing) return;
+
   const parsed = parseAuditEnvelope(envelope);
   if (parsed.kind === 'missing_report') {
     throw new Error('Audit returned no structured report');

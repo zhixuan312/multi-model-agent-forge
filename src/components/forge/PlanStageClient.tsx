@@ -107,7 +107,8 @@ const taskNum = (id: string) => Number(id.replace(/\D/g, '')) || 0;
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
   const readOnly = props.phase !== 'design';
-  const allTasks = useMemo(() => props.phases.flatMap((p) => p.tasks), [props.phases]);
+  const [phases] = useServerState(props.phases);
+  const allTasks = useMemo(() => phases.flatMap((p) => p.tasks), [phases]);
 
   const derivedPhase: PlanPhase = (() => {
     if (props.auditRounds.length > 0) return 'validate';
@@ -130,9 +131,23 @@ export function PlanStageClient(props: PlanStageClientProps) {
       }).catch(() => {});
     }
   };
-  const [status, setStatus] = useState<Record<string, TaskStatus>>(
+  const serverStatus = useMemo(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
+    [allTasks],
   );
+  const [localOverrides, setLocalOverrides] = useState<Record<string, TaskStatus>>({});
+  const status: Record<string, TaskStatus> = { ...serverStatus, ...localOverrides };
+  const setStatus = (updater: (prev: Record<string, TaskStatus>) => Record<string, TaskStatus>) => {
+    setLocalOverrides((prev) => {
+      const merged = { ...serverStatus, ...prev };
+      const next = updater(merged);
+      const overrides: Record<string, TaskStatus> = {};
+      for (const [k, v] of Object.entries(next)) {
+        if (v !== serverStatus[k]) overrides[k] = v;
+      }
+      return overrides;
+    });
+  };
   const initialRounds = useMemo(
     () => props.auditRounds.map((findings, i) => {
       const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
@@ -289,7 +304,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
       {phase === 'refine' ? (
         <DetailStage
           projectId={props.projectId}
-          phases={props.phases}
+          phases={phases}
           status={status}
           readOnly={readOnly}
           driving={auto === 'running'}

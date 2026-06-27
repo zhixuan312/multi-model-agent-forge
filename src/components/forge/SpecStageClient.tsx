@@ -231,6 +231,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
       'chat.message': (data) => {
         window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
       },
+      'chat.typing': (data) => {
+        window.dispatchEvent(new CustomEvent('chat:typing', { detail: data }));
+      },
     },
   });
 
@@ -786,6 +789,8 @@ function CraftStage({
 }) {
   const firstOpen = components.find((c) => c.status !== 'approved') ?? components[0];
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
@@ -913,10 +918,25 @@ function CraftStage({
             discussion: [...u.discussion, { id: msg.id, authorId: msg.authorId, body: msg.bodyMd }],
           },
         };
+      // Forge message arrived — clear thinking indicator
+      if (msg.authorId === 'forge') {
+        setRefining(false);
+      }
       });
     };
+    const typingHandler = (e: Event) => {
+      const { componentId: cid, typing } = (e as CustomEvent).detail as { componentId: string; typing: boolean };
+      if (cid === activeIdRef.current) {
+        setRefining(typing);
+        if (typing) setCraftView('conversation');
+      }
+    };
     window.addEventListener('chat:message', handler);
-    return () => window.removeEventListener('chat:message', handler);
+    window.addEventListener('chat:typing', typingHandler);
+    return () => {
+      window.removeEventListener('chat:message', handler);
+      window.removeEventListener('chat:typing', typingHandler);
+    };
   }, []);
 
   const [nudge, setNudge] = useState(false);

@@ -5,6 +5,7 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
+import { projectEventBus } from '@/sse/event-bus';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { buildRefinePrompt, getMessagesSinceLastForge } from '@/spec/refine-prompt';
 import { getLatestSpec } from '@/spec/assemble';
@@ -81,13 +82,14 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     meta: { componentId },
   });
 
-  // Store session ID on first call (for future continuation)
   if (isFirstCall) {
     await db
       .update(component)
       .set({ mmaSessionId: batchRowId })
       .where(eq(component.id, componentId));
   }
+
+  projectEventBus.publish(id, { type: 'chat.typing', componentId, typing: true });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });
 }

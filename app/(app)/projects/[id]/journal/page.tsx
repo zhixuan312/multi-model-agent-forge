@@ -26,6 +26,12 @@ export default async function JournalStagePage({ params, searchParams }: { param
 
   const db = getDb();
 
+  // Activate the journal stage on visit
+  const { stage, project: projectTable } = await import('@/db/schema/projects');
+  const { and: deq2, eq: deq } = await import('drizzle-orm');
+  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'journal'), deq(stage.status, 'pending')));
+  await db.update(projectTable).set({ currentStage: 'journal' }).where(eq(projectTable.id, id));
+
   const candidates = await db.select().from(learningCandidate)
     .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
 

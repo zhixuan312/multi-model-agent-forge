@@ -597,15 +597,6 @@ function OutlineStage({
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Template</CardTitle>
-            <Button
-              size="sm"
-              onClick={() => confirm.mutate()}
-              loading={confirm.isPending}
-              disabled={readOnly || !valid || confirm.isPending}
-              rightIcon={<ArrowRight />}
-            >
-              {confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
-            </Button>
           </CardHeader>
           <div className="shrink-0 border-b border-line px-5 py-3">
             <SearchField value={tplQuery} onChange={setTplQuery} placeholder="Search templates…" />
@@ -651,6 +642,14 @@ function OutlineStage({
               )}
             </div>
           </CardContent>
+          <CardFooter>
+            <StageAdvance
+              onClick={() => confirm.mutate()}
+              label={confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
+              disabled={readOnly || !valid || confirm.isPending}
+              testId="outline-continue"
+            />
+          </CardFooter>
         </Card>
       </aside>
     </div>

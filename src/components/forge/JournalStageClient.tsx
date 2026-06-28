@@ -280,7 +280,8 @@ export function JournalStageClient(props: JournalStageClientProps) {
               <Button
                 size="sm"
                 onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {})}
-                disabled={readOnly}
+                disabled={readOnly || harvesting}
+                loading={harvesting}
                 leftIcon={<NotebookPen />}
               >
                 Harvest learnings
@@ -440,25 +441,19 @@ export function JournalStageClient(props: JournalStageClientProps) {
             ))}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {recording ? (
-              <div className="flex items-center justify-center gap-2 py-2">
-                <Loader2 className="size-4 animate-spin text-accent" />
-                <span className="text-xs font-medium text-accent-deep">Writing {approvedCount} learnings to journal...</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {})}
-                disabled={approvedCount === 0 || readOnly || recording}
-                className={cn(
-                  'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                  approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
-                )}
-              >
-                Record {approvedCount} learning{approvedCount !== 1 ? 's' : ''}
-                <ArrowRight className="size-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {})}
+              disabled={approvedCount === 0 || readOnly || recording}
+              className={cn(
+                'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
+                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
+              )}
+            >
+              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
+              {recording ? 'Recording...' : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
+              {!recording ? <ArrowRight className="size-4" /> : null}
+            </button>
           </CardFooter>
         </Card>
       </aside>

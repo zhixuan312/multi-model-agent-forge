@@ -165,7 +165,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
               <FindingsGrid
                 findings={activePass.findings.map(toFinding)}
-                selectable={!isViewingPast && !allApplied}
+                selectable
                 applying={applying}
                 applied={allApplied}
                 readOnly={readOnly}

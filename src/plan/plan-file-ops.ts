@@ -6,6 +6,16 @@
 
 import { readPlanFileAsync, writePlanAsync } from '@/projects/project-files';
 
+const writeLocks = new Map<string, Promise<unknown>>();
+async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeLocks.get(projectId) ?? Promise.resolve();
+  const next = prev.then(fn, fn);
+  writeLocks.set(projectId, next);
+  try { return await next; } finally {
+    if (writeLocks.get(projectId) === next) writeLocks.delete(projectId);
+  }
+}
+
 const TASK_HEADING_RE = /^### .+/;
 const PHASE_HEADING_RE = /^## .+/;
 
@@ -79,25 +89,27 @@ export async function readTaskSection(
   return match ? { heading: match.heading, body: match.body } : null;
 }
 
-/** Replace a task section in plan.md by matching its heading, writing back the file. */
+/** Replace a task section in plan.md by matching its heading, writing back the file. Serialized per-project to prevent concurrent-write races. */
 export async function replaceTaskSection(
   projectId: string,
   taskTitle: string,
   newBody: string,
 ): Promise<boolean> {
-  const file = await readPlanFileAsync(projectId);
-  if (!file) return false;
+  return withFileLock(projectId, async () => {
+    const file = await readPlanFileAsync(projectId);
+    if (!file) return false;
 
-  const lines = file.bodyMd.split('\n');
-  const sections = parsePlanSections(file.bodyMd);
-  const match = sections.find((s) => s.heading.includes(taskTitle));
-  if (!match) return false;
+    const lines = file.bodyMd.split('\n');
+    const sections = parsePlanSections(file.bodyMd);
+    const match = sections.find((s) => s.heading.includes(taskTitle));
+    if (!match) return false;
 
-  const before = lines.slice(0, match.startLine);
-  const after = lines.slice(match.endLine + 1);
-  const replacement = [match.heading, '', newBody.trim(), ''];
+    const before = lines.slice(0, match.startLine);
+    const after = lines.slice(match.endLine + 1);
+    const replacement = [match.heading, '', newBody.trim(), ''];
 
-  const updated = [...before, ...replacement, ...after].join('\n');
-  await writePlanAsync(projectId, updated);
-  return true;
+    const updated = [...before, ...replacement, ...after].join('\n');
+    await writePlanAsync(projectId, updated);
+    return true;
+  });
 }

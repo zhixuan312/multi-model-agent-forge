@@ -28,6 +28,9 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
 
   const db = getDb();
 
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
+
   // Activate the execute stage + update current_stage on visit
   const { stage } = await import('@/db/schema/projects');
   const { project } = await import('@/db/schema/projects');
@@ -148,7 +151,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
       initialPhase={initialPhase}
-      readOnly={false}
+      readOnly={!perms.execute.canMutate}
     />
   );
 }

@@ -30,6 +30,9 @@ export default async function ReviewStagePage({ params, searchParams }: { params
   await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'review'), deq(stage.status, 'pending')));
   await db.update(projectTable).set({ currentStage: 'review' }).where(eq(projectTable.id, id));
 
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
+
   // Load review batches → passes
   const reviewBatches = await db
     .select({ id: mmaBatch.id, result: mmaBatch.result, status: mmaBatch.status })
@@ -106,7 +109,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       applyRunning={!!runningApply}
       applyCount={applyCount}
       buildPrs={buildPrs}
-      readOnly={false}
+      readOnly={!perms.review.canMutate}
     />
   );
 }

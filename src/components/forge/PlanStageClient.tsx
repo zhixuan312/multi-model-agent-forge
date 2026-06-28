@@ -519,17 +519,7 @@ function DetailStage({
           </CardContent>
         </Card>
         <aside className="flex min-h-0 flex-col">
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader><CardTitle>Task list</CardTitle></CardHeader>
-            <CardContent className="min-h-0 flex-1">
-              <div className="grid h-full place-items-center">
-                <div className="flex flex-col items-center gap-2 text-ink-faint">
-                  <Loader2 className="size-5 animate-spin text-accent" />
-                  <span className="text-xs">Authoring plan...</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
         </aside>
       </div>
     );
@@ -969,18 +959,7 @@ function ValidateStage({
             </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {auditing ? (
-              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">Pass {rounds.length + 1}</span>
-                  <Badge variant="neutral" size="sm">running</Badge>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Loader2 className="size-3.5 animate-spin text-accent" />
-                  <span className="text-xs text-ink-soft">Auditing plan...</span>
-                </div>
-              </div>
-            ) : rounds.length === 0 ? (
+            {rounds.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">

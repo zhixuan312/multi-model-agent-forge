@@ -251,17 +251,8 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col gap-4">
+        <aside className="flex min-h-0 flex-col">
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
-            <CardContent className="min-h-0 flex-1">
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-faint">
-                <Loader2 className="size-5 animate-spin text-accent" />
-                <span className="text-xs">Harvesting...</span>
-              </div>
-            </CardContent>
-          </Card>
         </aside>
       </div>
     );

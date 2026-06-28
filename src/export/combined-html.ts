@@ -25,7 +25,7 @@ import type { CollectedArtifact } from '@/export/collect-artifacts';
 import type { RenderJob, PageLike, BrowserLike } from '@/export/pdf/render';
 import type { TocRanges, ExportKind } from '@/export/types';
 
-const ORDER: ExportKind[] = ['exploration', 'spec', 'plan', 'review'];
+const ORDER: ExportKind[] = ['exploration', 'spec', 'plan', 'journal'];
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -41,7 +41,7 @@ function dividerPage(a: CollectedArtifact, projectName: string): string {
   return `<section class="divider">
   <div class="kick">${esc(coverKicker(a.kind))}</div>
   <h1>${esc(projectName)}</h1>
-  <p class="lede">${esc(a.kind === 'spec' ? 'Specification' : a.kind === 'plan' ? 'Plan' : a.kind === 'review' ? 'Review report' : 'Exploration summary')}</p>
+  <p class="lede">${esc(a.kind === 'spec' ? 'Specification' : a.kind === 'plan' ? 'Plan' : a.kind === 'journal' ? 'Journal' : 'Exploration')}</p>
 </section>`;
 }
 

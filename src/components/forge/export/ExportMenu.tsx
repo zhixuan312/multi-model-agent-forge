@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Download, ChevronDown, Search, FileText, ClipboardList, ScanEye, Boxes, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Download, ChevronDown, Search, FileText, ClipboardList, BookOpen, Boxes, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
@@ -36,7 +36,7 @@ const ICON: Record<ExportKind, LucideIcon> = {
   exploration: Search,
   spec: FileText,
   plan: ClipboardList,
-  review: ScanEye,
+  journal: BookOpen,
 };
 
 async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtifact[]> {
@@ -50,6 +50,19 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   const [open, setOpen] = useState(false);
   const [artifacts, setArtifacts] = useState<ExportMenuArtifact[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +113,7 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   }
 
   return (
-    <div className="relative" data-testid="export-menu-root">
+    <div ref={menuRef} className="relative" data-testid="export-menu-root">
       <Button
         variant="secondary"
         size="sm"

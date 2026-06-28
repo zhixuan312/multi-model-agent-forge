@@ -25,7 +25,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 
-export type ParseArtifactKind = 'exploration' | 'spec' | 'plan' | 'review';
+export type ParseArtifactKind = 'exploration' | 'spec' | 'plan' | 'journal';
 
 /** Thrown when a `spec` body yields zero `## NN.` sections (F21, fail-loud). */
 export class SpecHeadingContractError extends Error {

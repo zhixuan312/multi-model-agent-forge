@@ -18,25 +18,23 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { artifact } from '@/db/schema/artifacts';
-import { readExplorationSummary as readExplorationSummarySync, readSpecFile } from '@/projects/project-files';
+import { readExplorationSummary as readExplorationSummarySync, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
 import { component } from '@/db/schema/spec';
-import { mmaBatch } from '@/db/schema/mma';
 import { project, stage } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
-import { reviewResultToMarkdown } from '@/export/review-adapter';
 import type { CoverMeta, ExportKind, SectionHeaderMap } from '@/export/types';
 
 export type { ExportKind };
 
-const DELIVERABLE_KINDS: ExportKind[] = ['exploration', 'spec', 'plan', 'review'];
+const DELIVERABLE_KINDS: ExportKind[] = ['exploration', 'spec', 'plan', 'journal'];
 
 const KIND_LABEL: Record<ExportKind, string> = {
-  exploration: 'Exploration summary',
+  exploration: 'Exploration',
   spec: 'Specification',
   plan: 'Plan',
-  review: 'Review report',
+  journal: 'Journal',
 };
 
 /** One row in the `Export ▾` menu model (Key flow A). */
@@ -58,12 +56,11 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** Latest artifact for a deliverable kind. Exploration and spec read from file; plan from DB. */
-async function latestArtifact(
-  db: Db,
+/** Latest artifact for a deliverable kind. All read from physical files. */
+function latestArtifact(
   projectId: string,
-  kind: 'exploration' | 'spec' | 'plan',
-): Promise<{ id: string; bodyMd: string; version: number } | null> {
+  kind: 'exploration' | 'spec' | 'plan' | 'journal',
+): { id: string; bodyMd: string; version: number } | null {
   if (kind === 'exploration') {
     const bodyMd = readExplorationSummarySync(projectId);
     return bodyMd ? { id: projectId, bodyMd, version: 1 } : null;
@@ -72,25 +69,18 @@ async function latestArtifact(
     const file = readSpecFile(projectId);
     return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
-  const [row] = await db
-    .select({ id: artifact.id, bodyMd: artifact.bodyMd, version: artifact.version })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, kind)))
-    .orderBy(desc(artifact.version))
-    .limit(1);
-  return row ?? null;
+  if (kind === 'plan') {
+    const file = readPlanFile(projectId);
+    return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
+  }
+  if (kind === 'journal') {
+    const file = readJournalFile(projectId);
+    return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
+  }
+  return null;
 }
 
-/** The latest DONE review batch result for a project (Spec 7 exposure). */
-async function latestReviewResult(db: Db, projectId: string): Promise<unknown | null> {
-  const [row] = await db
-    .select({ result: mmaBatch.result })
-    .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.route, 'review'), eq(mmaBatch.status, 'done')))
-    .orderBy(desc(mmaBatch.createdAt))
-    .limit(1);
-  return row?.result ?? null;
-}
+
 
 /** Count `audit_pass{scope='spec', verdict='clean'}` for a project. */
 async function countCleanSpecAudits(db: Db, projectId: string): Promise<number> {
@@ -192,12 +182,7 @@ export async function collectMenu(
 
   const items: ArtifactMenuItem[] = [];
   for (const kind of DELIVERABLE_KINDS) {
-    if (kind === 'review') {
-      const result = await latestReviewResult(db, projectId);
-      items.push({ kind, label: KIND_LABEL[kind], ready: result != null, version: null, lockedAudited: false });
-      continue;
-    }
-    const art = await latestArtifact(db, projectId, kind);
+    const art = latestArtifact(projectId, kind);
     const lockedAudited = kind === 'spec' && lockedPhase && cleanSpecAudits >= 1;
     items.push({
       kind,
@@ -242,17 +227,7 @@ export async function collectArtifact(
   const db = deps.db ?? getDb();
   await assertProjectReadable(projectId, actor, { db });
 
-  if (kind === 'review') {
-    const result = await latestReviewResult(db, projectId);
-    if (result == null) throw new ArtifactNotReadyError('review');
-    const bodyMd = reviewResultToMarkdown(result);
-    // Review has no artifact version; meta version reads the latest artifact present
-    // for the project's locked suffix — but with no stored artifact, default to v1.
-    const { meta, sectionHeaders } = await buildMeta(db, projectId, 1);
-    return { kind, bodyMd, version: null, meta, sectionHeaders };
-  }
-
-  const art = await latestArtifact(db, projectId, kind);
+  const art = latestArtifact(projectId, kind);
   if (!art) throw new ArtifactNotReadyError(kind);
   const { meta, sectionHeaders } = await buildMeta(db, projectId, art.version);
   return { kind, bodyMd: art.bodyMd, version: art.version, meta, sectionHeaders };

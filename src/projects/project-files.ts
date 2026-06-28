@@ -188,6 +188,10 @@ export function journalFilePath(projectId: string): string {
 
 export type JournalFile = ArtifactFile;
 
+export function readJournalFile(projectId: string): JournalFile | null {
+  return readArtifact(projectId, JOURNAL_FILE);
+}
+
 export async function readJournalFileAsync(projectId: string): Promise<JournalFile | null> {
   return readArtifactAsync(projectId, JOURNAL_FILE);
 }

@@ -94,6 +94,8 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     ? ((runningApply.request as Record<string, unknown> | null)?.findingsCount as number ?? 0)
     : 0;
 
+  const buildPrs = (proj.buildPrs ?? {}) as Record<string, { url: string; branch: string; targetBranch: string }>;
+
   return (
     <ReviewStageClient
       projectId={id}
@@ -103,6 +105,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
       applyCount={applyCount}
+      buildPrs={buildPrs}
     />
   );
 }

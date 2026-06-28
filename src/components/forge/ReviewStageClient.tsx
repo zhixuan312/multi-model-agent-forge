@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
-import { Loader2, ScanSearch, Shield } from 'lucide-react';
+import { ExternalLink, GitBranch, Loader2, ScanSearch } from 'lucide-react';
 import {
   Button,
   Card,
@@ -57,6 +57,7 @@ export interface ReviewStageClientProps {
   reviewRunning: boolean;
   applyRunning: boolean;
   applyCount?: number;
+  buildPrs?: Record<string, { url: string; branch: string; targetBranch: string }>;
 }
 
 function toFinding(f: ReviewFindingView): Finding {
@@ -261,6 +262,23 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               );
             })}
           </CardContent>
+          {Object.keys(props.buildPrs ?? {}).length > 0 && (
+            <div className="border-t border-line px-5 py-3">
+              {Object.entries(props.buildPrs!).map(([rid, pr]) => (
+                <a
+                  key={rid}
+                  href={pr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2 text-sm text-accent transition-colors hover:bg-surface-2"
+                >
+                  <GitBranch className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{pr.branch} → {pr.targetBranch}</span>
+                  <ExternalLink className="size-3.5 shrink-0 text-ink-faint" />
+                </a>
+              ))}
+            </div>
+          )}
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
               href={`/projects/${props.projectId}/journal`}

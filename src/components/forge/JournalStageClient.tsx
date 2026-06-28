@@ -443,7 +443,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
               )}
             >
-              {readOnly ? <Lock className="size-4" /> : recording ? <Loader2 className="size-4 animate-spin" /> : null}
+              {recording ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
               {recording ? 'Recording...' : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
               {!recording && !readOnly ? <ArrowRight className="size-4" /> : null}
             </button>

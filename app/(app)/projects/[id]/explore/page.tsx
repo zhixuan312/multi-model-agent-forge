@@ -63,6 +63,13 @@ export default async function ExploreStagePage({
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
+  const { getLastPhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getLastPhase(db, id, 'exploration') as 'brief' | 'discover' | 'synthesize' | null;
+  const validPhases = ['brief', 'discover', 'synthesize'] as const;
+  const initialPhase = validPhases.includes(phaseParam as any)
+    ? (phaseParam as typeof validPhases[number])
+    : lastPhase ?? undefined;
+
   return (
     <ExploreStageClient
       projectId={id}
@@ -76,7 +83,7 @@ export default async function ExploreStagePage({
       canMutate={perms.explore.canMutate}
       lockedReason={perms.explore.reason}
       pendingHandlers={pendingHandlers}
-      initialPhase={phaseParam === 'brief' || phaseParam === 'discover' || phaseParam === 'synthesize' ? phaseParam : undefined}
+      initialPhase={initialPhase}
     />
   );
 }

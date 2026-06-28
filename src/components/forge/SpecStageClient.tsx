@@ -1731,20 +1731,6 @@ function DocumentScreen({
                 </p>
               </div>
             ) : null}
-            {auditing ? (
-              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">Pass {rounds.length + 1}</span>
-                  <Badge variant="neutral" size="sm">running</Badge>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Loader2 className="size-3.5 animate-spin text-accent" />
-                  <span className="text-xs text-ink-soft">
-                    Auditing specification…
-                  </span>
-                </div>
-              </div>
-            ) : null}
             {[...rounds].reverse().map((r) => (
               <div key={r.passNo} className="relative">
                 <PatternAuditRoundCard

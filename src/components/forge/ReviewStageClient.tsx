@@ -219,18 +219,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             </a>
           ))}
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {reviewing ? (
-              <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">Pass {props.passes.length + 1}</span>
-                  <Badge variant="neutral" size="sm">running</Badge>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Loader2 className="size-3.5 animate-spin text-accent" />
-                  <span className="text-xs text-ink-soft">Reviewing changes...</span>
-                </div>
-              </div>
-            ) : props.passes.length === 0 ? (
+            {props.passes.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <ScanSearch className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">

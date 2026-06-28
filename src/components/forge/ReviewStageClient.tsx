@@ -19,16 +19,17 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import type { ProjectPhase } from '@/db/enums';
 
-const REVIEW_NOTE = `### How code review works
+const REVIEW_NOTE = `### Review — check the code changes
 
-- **10 categories** — correctness, security, performance, maintainability, testing, error handling, naming, documentation, complexity, style
+- **Run review** — MMA checks 10 categories: correctness, security, performance, testing, and more
 - **Findings** — each has a severity, file location, and fix suggestion
-- **Apply** — selected findings are delegated to a worker for automatic fixes
+- **Apply** — selected findings are fixed by an agent and committed to the PR branch
 
-### When to move on
+### When to advance
 
 - **Clean pass** — no merge-blocking issues remain
-- **Re-review** — run again after applying fixes to verify`;
+- **Re-run** — run again after applying fixes to verify
+- The PR is automatically updated when fixes are pushed`;
 
 /* ── Types ───────────────────────────────────────────────────────── */
 

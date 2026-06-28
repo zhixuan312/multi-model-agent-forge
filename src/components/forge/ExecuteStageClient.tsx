@@ -39,16 +39,28 @@ import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
 
-const EXECUTE_NOTE = `### How execution works
+const CONFIGURE_NOTE = `### Configure — set up for execution
 
-- **Isolated** — each repo runs in its own worktree, never touches your working tree
-- **Sequential** — tasks execute one at a time, then reviewed
-- **PR** — a pull request is created per repo when complete
+- **Target branch** — pick the base branch to fork from and PR into
+- **Review tasks** — see the full plan grouped by phase
+- **Continue** — dispatches all tasks to MMA agents
 
-### What you control
+### What happens next
 
-- **Target branch** — the base branch to fork from and PR into
-- **Start** — you decide when to dispatch; agents do the rest`;
+- A forge branch is created from your target
+- Each task runs sequentially in an isolated worktree
+- A pull request is created per repo when complete`;
+
+const IMPLEMENT_NOTE = `### Implement — watching execution
+
+- **Progress** — each repo shows implementing → reviewing → PR
+- **Isolated** — agents work in a worktree, never touch your working tree
+- **Sequential** — tasks run one at a time, reviewed after each
+
+### When to advance
+
+- All repos must complete (done or failed)
+- Continue to Review to check the code changes`;
 
 /* ── Props ───────────────────────────────────────────────────────────── */
 
@@ -321,7 +333,7 @@ function ConfigurePhase({
 
       {/* RIGHT — note + card filling rest of column */}
       <aside className="flex min-h-0 flex-col gap-4">
-        <RailNote icon={<Rocket />}>{EXECUTE_NOTE}</RailNote>
+        <RailNote icon={<Rocket />}>{CONFIGURE_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>{projectName}</CardTitle>

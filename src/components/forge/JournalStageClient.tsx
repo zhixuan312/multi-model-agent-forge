@@ -31,17 +31,22 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { LEARNING_CATEGORIES, type LearningCategory, type LearningSource } from '@/journal/types';
 
-const JOURNAL_NOTE = `### How journal capture works
+const JOURNAL_NOTE = `### Journal — capture team knowledge
 
-- **Harvest** — Forge extracts learnings from the entire project run
-- **Curate** — review each learning, refine with conversation, approve or remove
+- **Harvest** — Forge extracts learnings from all stages, discussions, and audit findings
+- **Curate** — review each learning, refine through discussion, approve or remove
 - **Record** — approved learnings are written to the team journal
 
-### What a learning contains
+### Two tiers of learning
 
-- A concrete, reusable principle from this project
-- Category (decision, design, process, knowledge, etc.)
-- Source stage (Exploration, Spec, Plan, Execute, Review)`;
+- **Domain-specific** — tied to the project's technology, APIs, and problem space
+- **Generic** — universal team principles any project can apply
+
+### What each learning contains
+
+- Principle, evidence, risk if ignored, confidence level
+- Category (decision, design, behavior, process, knowledge, style)
+- Source stage and searchable tags`;
 
 /* ── Types ─────────────────────────────────────────────────────── */
 

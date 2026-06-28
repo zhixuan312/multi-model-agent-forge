@@ -15,13 +15,10 @@ import { logPoll } from '@/observability/poll-log';
 import type { MmaRoute } from '@/db/enums';
 
 /**
- * Dispatch selected `draft` tasks (Spec 5 flow C). One `mma_batch` per task on
- * the standard tier (selected by MMA config, not per-call): investigate → the
- * one repo's `path_on_disk`; research / journal → the workspace root. The
- * insert + task-link + status-flip is ONE transaction per task — a dispatch
- * (POST) failure rolls it all back (task stays `draft`, no `mma_batch` row). The
- * cwd is `fs.stat`-verified before dispatch; a missing path leaves the task
- * `draft` with an error rather than 400-ing at MMA's cwd-confinement.
+ * Dispatch selected `draft` exploration tasks. One `mma_batch` per task:
+ * investigate → repo's `path_on_disk`; research/journal → workspace root.
+ * Insert + task-link + status-flip is ONE transaction per task — a dispatch
+ * failure rolls it all back (task stays `draft`, no `mma_batch` row).
  */
 
 const ROUTE_BY_KIND: Record<'investigate' | 'research' | 'journal', MmaRoute> = {

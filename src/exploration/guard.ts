@@ -4,9 +4,8 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 
 /**
- * Shared guard for every Spec-5 explore write handler: CSRF → auth → membership
- * (public OR project_member; else 403). Returns either an error `NextResponse`
- * or the resolved `{ memberId }`. Mirrors `guardSpecWrite` (Spec 4).
+ * Shared guard for explore write handlers: CSRF → auth → membership.
+ * Returns either an error `NextResponse` or the resolved `{ memberId }`.
  */
 export interface GuardedActor {
   memberId: string;

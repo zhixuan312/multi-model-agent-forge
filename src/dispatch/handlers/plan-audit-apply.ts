@@ -5,13 +5,31 @@ import { replaceTaskSection } from '@/plan/plan-file-ops';
 function parseDraftMd(raw: string): string | null {
   let cleaned = raw.trim();
   if (!cleaned) return null;
+  // Try top-level code fence
   const codeBlock = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
   if (codeBlock) cleaned = codeBlock[1].trim();
+  // Try direct JSON parse
   try {
     const parsed = JSON.parse(cleaned);
     if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
   } catch { /* not JSON */ }
-  // Accept any non-trivial content as the revised task body
+  // Try to find { "draftMd": "..." } embedded anywhere in the response
+  const embedded = cleaned.match(/\{\s*"draftMd"\s*:\s*"([\s\S]*?)"\s*\}\s*$/);
+  if (embedded) {
+    try {
+      const parsed = JSON.parse(embedded[0]);
+      if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
+    } catch { /* malformed */ }
+  }
+  // Try code-fenced JSON anywhere in the response
+  const fencedJson = cleaned.match(/```json\s*\n([\s\S]*?)\n```/);
+  if (fencedJson) {
+    try {
+      const parsed = JSON.parse(fencedJson[1].trim());
+      if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
+    } catch { /* malformed */ }
+  }
+  // Fallback: accept any non-trivial content
   if (cleaned.length > 20) return cleaned;
   return null;
 }

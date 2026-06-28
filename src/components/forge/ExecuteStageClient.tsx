@@ -487,6 +487,17 @@ function MonitorPhase({
             <CardTitle>Execution</CardTitle>
             <Badge variant={allTerminal ? 'sage' : 'accent'} size="sm">{allTerminal ? 'complete' : 'running'}</Badge>
           </CardHeader>
+          {Object.keys(buildPrs).length > 0 && (
+            <div className="space-y-1.5 border-b border-line px-5 py-2.5">
+              <Eyebrow className="!text-ink-faint">Pull request</Eyebrow>
+              {Object.entries(buildPrs).map(([rid, pr]) => (
+                <a key={rid} href={pr.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2 text-sm text-accent transition-colors hover:bg-surface-2">
+                  <GitBranch className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{pr.branch} → {pr.targetBranch}</span>
+                </a>
+              ))}
+            </div>
+          )}
           <CardContent className="min-h-0 flex-1 space-y-2.5 !py-4">
             <Stat label="Repos" value={`${doneCount} / ${repoGroups.length} done`} />
             <Stat label="Phases" value={`${new Set(repoGroups.flatMap((g) => g.tasks.map((t) => t.phase).filter(Boolean))).size}`} />
@@ -504,16 +515,6 @@ function MonitorPhase({
                 </>
               );
             })()}
-            {Object.keys(buildPrs).length > 0 && (
-              <div className="mt-2">
-                <Eyebrow className="mb-1.5 !text-ink-faint">Pull requests</Eyebrow>
-                {Object.entries(buildPrs).map(([rid, pr]) => (
-                  <a key={rid} href={pr.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-accent underline">
-                    {pr.branch} → {pr.targetBranch}
-                  </a>
-                ))}
-              </div>
-            )}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance

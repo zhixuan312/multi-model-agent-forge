@@ -36,6 +36,8 @@ export interface StageShellProps {
   listTitle: string;
   /** Progress indicator next to the list title (e.g. "3/5"). */
   listProgress?: string;
+  /** Progress bar percentage (0-100). Shows a bar above the list when set. */
+  progressPct?: number;
   /** The main content area — renders detail for the selected item. */
   children: ReactNode;
   /** Footer content in the rail (e.g. StageAdvance button). */
@@ -53,6 +55,7 @@ export function StageShell({
   onSelect,
   listTitle,
   listProgress,
+  progressPct,
   children,
   footer,
   listActions,
@@ -70,11 +73,21 @@ export function StageShell({
         {note}
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>{listTitle}</CardTitle>
-            {listProgress ? (
-              <span className="text-sm font-medium text-ink-faint">{listProgress}</span>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <CardTitle>{listTitle}</CardTitle>
+              {listProgress && progressPct === undefined ? (
+                <span className="text-sm font-medium text-ink-faint">{listProgress}</span>
+              ) : null}
+            </div>
           </CardHeader>
+          {progressPct !== undefined ? (
+            <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${progressPct}%` }} />
+              </div>
+              {listProgress ? <span className="shrink-0 text-xs font-medium text-ink-faint">{listProgress}</span> : null}
+            </div>
+          ) : null}
           <CardContent className="min-h-0 flex-1 space-y-1.5 overflow-y-auto !py-4">
             {items.map((item) => {
               const isActive = item.id === activeId;

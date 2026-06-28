@@ -41,8 +41,29 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const fileSections = journalFile ? parseJournalSections(journalFile.bodyMd) : [];
 
   // Load DB learning candidates (metadata: status, approvals)
-  const candidates = await db.select().from(learningCandidate)
+  let candidates = await db.select().from(learningCandidate)
     .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
+
+  // Seed DB from journal.md if file exists but no DB rows (e.g., after data cleanup)
+  if (candidates.length === 0 && fileSections.length > 0) {
+    const TYPE_MAP: Record<string, 'challenge' | 'insight' | 'decision'> = {
+      decision: 'decision', design: 'decision', process: 'insight',
+      behavior: 'insight', knowledge: 'insight', style: 'insight', challenge: 'challenge',
+    };
+    for (const s of fileSections) {
+      const title = s.heading.replace(/^###\s*/, '').trim();
+      const cat = s.category?.toLowerCase() ?? 'knowledge';
+      await db.insert(learningCandidate).values({
+        projectId: id,
+        bodyMd: `[category:${cat}][source:${s.category ?? 'Manual'}] ${title}`,
+        type: TYPE_MAP[cat] ?? 'insight',
+        origin: 'spec',
+        status: 'proposed',
+      });
+    }
+    candidates = await db.select().from(learningCandidate)
+      .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
+  }
 
   const TYPE_TO_CATEGORY: Record<string, LearningCategory> = {
     decision: 'decision', insight: 'knowledge', challenge: 'process',
@@ -54,12 +75,15 @@ export default async function JournalStagePage({ params, searchParams }: { param
   // Build learnings from DB rows, with body from journal.md sections if available
   const learnings: JournalLearningView[] = candidates.map((c, i) => {
     const { category: tagCat, source: tagSrc, text } = parseTags(c.bodyMd);
-    // Try to find matching section in journal.md by title
-    const section = fileSections.find((s) => s.heading.replace(/^###\s*/, '').trim() === text.slice(0, 80));
+    // Match section in journal.md by title (starts-with for truncated DB titles)
+    const section = fileSections.find((s) => {
+      const heading = s.heading.replace(/^###\s*/, '').trim();
+      return heading === text || heading.startsWith(text) || text.startsWith(heading);
+    });
     return {
       id: c.id,
       num: i + 1,
-      title: text.slice(0, 80),
+      title: section ? section.heading.replace(/^###\s*/, '').trim() : text,
       body: section?.body ?? text,
       category: (tagCat ?? TYPE_TO_CATEGORY[c.type] ?? 'knowledge') as LearningCategory,
       source: (tagSrc ?? ORIGIN_TO_SOURCE[c.origin] ?? 'Manual') as LearningSource,

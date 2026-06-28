@@ -375,6 +375,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           onSelect={setSelectedTaskId}
           listTitle="Tasks"
           listProgress={`${recorded}/${dispatched}`}
+          progressPct={dispatched ? (recorded / dispatched) * 100 : 0}
           footer={
             <Button
               variant="primary"

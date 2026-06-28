@@ -191,11 +191,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   function toggleApprove() {
     if (!active) return;
-    const next = isApproved ? 'proposed' : 'kept';
+    const approving = !isApproved;
+    const next = approving ? 'kept' : 'proposed';
     setLocalOverrides((o) => ({ ...o, [active.id]: next }));
+    // Auto-advance to next unapproved learning
+    if (approving) {
+      const nextStatus = { ...status, [active.id]: 'kept' as const };
+      const nextUnapproved = props.learnings.find((l) => nextStatus[l.id] !== 'kept' && nextStatus[l.id] !== 'recorded');
+      if (nextUnapproved) setActiveId(nextUnapproved.id);
+    }
     fetch(`/api/projects/${props.projectId}/journal/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ learningId: active.id, action: isApproved ? 'revoke' : 'approve', text: active.body }),
+      body: JSON.stringify({ learningId: active.id, action: approving ? 'approve' : 'revoke' }),
     }).then(() => { setLocalOverrides({}); router.refresh(); }).catch(() => {});
   }
 
@@ -239,8 +246,17 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col">
+        <aside className="flex min-h-0 flex-col gap-4">
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
+            <CardContent className="min-h-0 flex-1">
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-faint">
+                <Loader2 className="size-5 animate-spin text-accent" />
+                <span className="text-xs">Harvesting...</span>
+              </div>
+            </CardContent>
+          </Card>
         </aside>
       </div>
     );
@@ -350,13 +366,36 @@ export function JournalStageClient(props: JournalStageClientProps) {
         <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>Learnings</CardTitle>
-            <span className="text-sm font-medium text-ink-faint">{approvedCount}/{props.learnings.length}</span>
+            <div className="flex items-center gap-2">
+              <CardTitle>Learnings</CardTitle>
+              {props.learnings.length > 0 ? <span className="text-sm font-medium text-ink-faint">{props.learnings.length}</span> : null}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                const allKept = approvedCount === props.learnings.length;
+                for (const l of props.learnings) {
+                  setLocalOverrides((o) => ({ ...o, [l.id]: allKept ? 'proposed' : 'kept' }));
+                  fetch(`/api/projects/${props.projectId}/journal/approve`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ learningId: l.id, action: allKept ? 'revoke' : 'approve' }),
+                  }).catch(() => {});
+                }
+                setTimeout(() => { setLocalOverrides({}); router.refresh(); }, 300);
+              }}
+              disabled={readOnly || props.learnings.length === 0}
+              leftIcon={approvedCount === props.learnings.length ? <RotateCcw /> : <Check />}
+            >
+              {approvedCount === props.learnings.length ? 'Revoke all' : 'Approve all'}
+            </Button>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
-            <div className="h-1 overflow-hidden rounded-full bg-surface-2">
+          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
               <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${props.learnings.length ? (approvedCount / props.learnings.length) * 100 : 0}%` }} />
             </div>
+            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{props.learnings.length}</span>
+          </div>
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
             {categories.map(([cat, items]) => (
               <div key={cat} className="space-y-2">
                 <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{cat}</Micro>
@@ -411,7 +450,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 disabled={!allApproved || readOnly || recording}
                 rightIcon={<ArrowRight />}
               >
-                {allApproved ? `Write ${approvedCount} to journal` : `Approve all to continue`}
+                {allApproved ? `Record ${approvedCount} learnings` : `Approve all to continue`}
               </Button>
             )}
           </CardFooter>

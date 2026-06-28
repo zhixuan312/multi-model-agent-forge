@@ -21,6 +21,7 @@ const findingSchema = z.object({
 
 const bodySchema = z.object({
   findings: z.array(findingSchema),
+  passNo: z.number().int().positive().optional(),
 });
 
 type Finding = z.infer<typeof findingSchema>;
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         reviewPolicy: 'none',
       },
       actorId: guard.memberId,
-      meta: { taskTitle: title, taskIdx },
+      meta: { taskTitle: title, taskIdx, passNo: parsed.data.passNo },
     });
     batchIds.push(batchRowId);
   }

@@ -24,6 +24,12 @@ export default async function ReviewStagePage({ params, searchParams }: { params
 
   const db = getDb();
 
+  // Activate the review stage on visit
+  const { stage, project: projectTable } = await import('@/db/schema/projects');
+  const { and: deq2, eq: deq } = await import('drizzle-orm');
+  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'review'), deq(stage.status, 'pending')));
+  await db.update(projectTable).set({ currentStage: 'review' }).where(eq(projectTable.id, id));
+
   // Load review batches → passes
   const reviewBatches = await db
     .select({ id: mmaBatch.id, result: mmaBatch.result, status: mmaBatch.status })
@@ -35,7 +41,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
   const applyBatches = await db
     .select({ request: mmaBatch.request, status: mmaBatch.status })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
     .orderBy(mmaBatch.createdAt);
 
   const passes: ReviewPassView[] = reviewBatches.map((b, i) => {
@@ -81,7 +87,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
   const [runningApply] = await db
     .select({ id: mmaBatch.id })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running')))
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running')))
     .limit(1);
 
   return (

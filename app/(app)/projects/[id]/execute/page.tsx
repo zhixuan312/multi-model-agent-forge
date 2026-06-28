@@ -38,7 +38,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     .select({
       id: planTask.id, title: planTask.title, orderIndex: planTask.orderIndex,
       targetRepoId: planTask.targetRepoId, status: planTask.status,
-      branch: planTask.branch, commitSha: planTask.commitSha,
+      phase: planTask.phase, branch: planTask.branch, commitSha: planTask.commitSha,
       repoName: repo.name, repoPath: repo.pathOnDisk, defaultBranch: repo.defaultBranch,
     })
     .from(planTask)
@@ -93,7 +93,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   const applyBatches = await db
     .select({ request: mmaBatch.request, status: mmaBatch.status })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'done')))
     .orderBy(mmaBatch.createdAt);
 
   const reviewPasses = reviewBatches.map((b, i) => {
@@ -123,7 +123,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   });
 
   // Resolve initial phase from URL > last saved > derived
-  const validPhases = ['configure', 'monitor'] as const;
+  const validPhases = ['configure', 'implement'] as const;
   type ExecPhase = typeof validPhases[number];
   const { getLastPhase } = await import('@/projects/phase-tracker');
   const lastPhase = await getLastPhase(db, id, 'execute') as ExecPhase | null;
@@ -134,7 +134,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   const [runningReview] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running'))).limit(1);
   const [runningApply] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'delegate'), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running'))).limit(1);
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running'))).limit(1);
 
   return (
     <ExecuteStageClient

@@ -86,7 +86,7 @@ function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
   const router = useRouter();
-  const readOnly = props.phase !== 'build' && props.phase !== 'learn';
+  const readOnly = false;
 
   useEffect(() => { stagePhaseStore.set('review'); }, []);
 

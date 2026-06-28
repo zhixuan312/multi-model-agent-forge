@@ -187,12 +187,18 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'configure' || key === 'monitor') setExecPhase(key as ExecutePhase);
+        if (key === 'configure' || key === 'implement') setExecPhase(key as ExecutePhase);
       }),
     [],
   );
 
+  const anyDone = props.repoGroups.some((g) => jobs[g.repoId]?.status === 'done');
+
   async function startExecution() {
+    if (mma.busyRef.current.has('execute-pipeline') || anyDone) {
+      setExecPhase('implement');
+      return;
+    }
     setDispatching(true);
     setDispatchError(null);
     try {
@@ -203,13 +209,15 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           repos: props.repoGroups.map((g) => ({ repoId: g.repoId, targetBranch: branches[g.repoId] })),
         }),
       });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; status?: string };
       if (res.status === 202) {
         setDispatching(false);
-        setExecPhase('monitor');
-        setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
+        setExecPhase('implement');
+        if (json.status !== 'already_running') {
+          setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
+        }
         void mma.waitFor('execute-pipeline').catch(() => {});
       } else {
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
         setDispatchError(json.error ?? `Dispatch failed (HTTP ${res.status})`);
         setDispatching(false);
       }
@@ -223,6 +231,14 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     const j = jobs[g.repoId];
     return j?.status === 'done' || j?.status === 'failed';
   });
+  const allFailed = props.repoGroups.length > 0 && props.repoGroups.every((g) => jobs[g.repoId]?.status === 'failed');
+
+  // Auto-retry on page load if all repos failed and no execution is in-flight
+  useEffect(() => {
+    if (!allFailed || readOnly || mma.busyRef.current.has('execute-pipeline')) return;
+    void startExecution();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">
@@ -295,9 +311,6 @@ function ConfigurePhase({
             <CardTitle>Execution plan</CardTitle>
             <Badge variant="neutral" size="sm">{totalTasks} tasks · {repoGroups.length} repo{repoGroups.length > 1 ? 's' : ''}</Badge>
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent-tint px-2.5 py-1 text-[11px] font-medium text-accent-deep">
-            <Rocket className="size-3" /> MMA execute-plan
-          </span>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto !py-4">
           {repoGroups.map((g) => (
@@ -316,6 +329,7 @@ function ConfigurePhase({
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 !py-4">
             <Stat label="Repos" value={`${repoGroups.length}`} />
+            <Stat label="Phases" value={`${new Set(repoGroups.flatMap((g) => g.tasks.map((t) => t.phase).filter(Boolean))).size}`} />
             <Stat label="Tasks" value={`${totalTasks}`} />
             <Stat label="PRs" value={`${repoGroups.length}`} />
             <div className="mt-2">
@@ -331,7 +345,7 @@ function ConfigurePhase({
           <CardFooter className="flex-col !items-stretch gap-2">
             {dispatchError && <p className="text-sm text-[var(--rose)]">{dispatchError}</p>}
             <Button className="w-full" onClick={onStart} disabled={readOnly || dispatching} loading={dispatching} leftIcon={<Rocket />}>
-              {dispatching ? 'Dispatching…' : repoGroups.length > 1 ? `Start execution (${repoGroups.length} repos)` : 'Start execution'}
+              {dispatching ? 'Dispatching…' : 'Continue to Implement'}
             </Button>
           </CardFooter>
         </Card>
@@ -364,12 +378,26 @@ function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGr
         </div>
       </div>
       <div className="space-y-1.5 px-4 py-3">
-        {group.tasks.map((t, i) => (
-          <div key={t.id} className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
-            <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{i + 1}</span>
-            <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.title}</span>
-          </div>
-        ))}
+        {(() => {
+          let lastPhase: string | null = null;
+          return group.tasks.map((t, i) => {
+            const phaseChanged = t.phase && t.phase !== lastPhase;
+            if (t.phase) lastPhase = t.phase;
+            return (
+              <div key={t.id}>
+                {phaseChanged && (
+                  <div className="mb-1 mt-3 first:mt-0">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{t.phase}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+                  <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-2 font-mono text-[10px] font-semibold text-ink-soft">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.title}</span>
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
       <div className="flex items-center gap-1.5 border-t border-line px-4 py-2 text-[11px] text-ink-faint">
         <GitBranch className="size-3" />
@@ -461,6 +489,7 @@ function MonitorPhase({
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 !py-4">
             <Stat label="Repos" value={`${doneCount} / ${repoGroups.length} done`} />
+            <Stat label="Phases" value={`${new Set(repoGroups.flatMap((g) => g.tasks.map((t) => t.phase).filter(Boolean))).size}`} />
             {failedCount > 0 && <Stat label="Failed" value={`${failedCount}`} />}
             <Stat label="Tasks" value={`${totalTasks}`} />
             {(() => {

@@ -139,19 +139,33 @@ Constraints:
 - Mark each learning as domain-specific or generic
 
 Output format:
-Write the ENTIRE learning set to \`${journalPath}\` using this exact markdown structure:
+Write the ENTIRE learning set to \`${journalPath}\` using this exact markdown structure. Every learning MUST follow the standardized 6-field entry format:
 
 ## Category (e.g. "Decision")
 
-### Learning title (actionable statement)
+### When [situation], [action] because [reason]
 
-The learning body — 1-3 sentences framed as "When [situation], do [action] because [reason]."
+**Principle:** One-sentence actionable rule that a team member or AI agent can apply without reading the evidence.
+
+**Evidence:** What happened in THIS project — the specific event, audit finding, review comment, or conversation that surfaced this. Be concrete: name the file, the error, the discussion point.
+
+**Risk if ignored:** What goes wrong if a future team skips this — the cost of not knowing. Be specific: "silent data loss", "wasted audit cycle", "PR rejected by reviewer".
+
+**Confidence:** One of:
+- First signal — observed once in this project, plausible but unproven
+- Recurring pattern — seen across multiple stages or confirmed by audit
+- Hard-won lesson — caused a real failure, rollback, or significant rework
 
 **Tier:** Domain-specific OR Generic
-**Source:** Stage name (Exploration, Spec, Plan, Execute, Review)
+**Source:** Exploration | Spec | Plan | Execute | Review
 **Tags:** keyword1, keyword2
 
-Group learnings under ## category headings. Use ### for each learning.
+Rules for the structure:
+- Group learnings under ## category headings (Decision, Design, Behavior, Process, Knowledge, Style)
+- Use ### for each learning — the heading IS the principle in "When X, do Y because Z" form
+- Every field is MANDATORY — no empty fields, no "N/A"
+- Evidence must reference this project specifically, not generic advice
+- Risk must be a concrete consequence, not "things might go wrong"
 Write the file to \`${journalPath}\`. This is MANDATORY — the harness reads learnings from that file.`;
 
   const mma = await buildMmaClient({ db });

@@ -39,10 +39,9 @@ export async function POST(
   const { learningId, action, text } = parsed.data;
 
   const db = getDb();
-  const update: { status: 'kept' | 'proposed'; bodyMd?: string } = {
-    status: action === 'approve' ? 'kept' : 'proposed',
+  const update = {
+    status: action === 'approve' ? 'kept' as const : 'proposed' as const,
   };
-  if (action === 'approve' && text !== undefined) update.bodyMd = text;
 
   await db
     .update(learningCandidate)

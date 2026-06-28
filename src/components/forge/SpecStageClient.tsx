@@ -1196,17 +1196,17 @@ function CraftStage({
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Components</CardTitle>
-            <span className="text-sm font-medium text-ink-faint">
-              {approvedCount}/{components.length}
-            </span>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
+          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
               <div
                 className="h-full rounded-full bg-[var(--sage)] transition-all"
                 style={{ width: `${components.length ? (approvedCount / components.length) * 100 : 0}%` }}
               />
             </div>
+            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{components.length}</span>
+          </div>
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
             {components.map((c) => (
               <ComponentRow
                 key={c.id}

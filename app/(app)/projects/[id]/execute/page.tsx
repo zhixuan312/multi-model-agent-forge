@@ -128,11 +128,12 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   // Resolve initial phase from URL > last saved > derived
   const validPhases = ['configure', 'implement'] as const;
   type ExecPhase = typeof validPhases[number];
-  const { getLastPhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getLastPhase(db, id, 'execute') as ExecPhase | null;
+  // Use inferExecutePhase as ground truth — lastPhase can be stale
+  const { inferExecutePhase } = await import('@/build/execute-types');
+  const derivedPhase = inferExecutePhase(groups);
   const initialPhase: ExecPhase | undefined = validPhases.includes(urlPhase as any)
     ? (urlPhase as ExecPhase)
-    : lastPhase ?? undefined;
+    : derivedPhase;
 
   const [runningReview] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running'))).limit(1);

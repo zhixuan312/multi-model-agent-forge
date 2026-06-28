@@ -27,6 +27,13 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   if (!proj) notFound();
 
   const db = getDb();
+
+  // Activate the execute stage + update current_stage on visit
+  const { stage } = await import('@/db/schema/projects');
+  const { project } = await import('@/db/schema/projects');
+  const { and: deq2, eq: deq } = await import('drizzle-orm');
+  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'execute'), deq(stage.status, 'pending')));
+  await db.update(project).set({ currentStage: 'execute' }).where(eq(project.id, id));
   const tasks = await db
     .select({
       id: planTask.id, title: planTask.title, orderIndex: planTask.orderIndex,
@@ -115,6 +122,15 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     };
   });
 
+  // Resolve initial phase from URL > last saved > derived
+  const validPhases = ['configure', 'monitor'] as const;
+  type ExecPhase = typeof validPhases[number];
+  const { getLastPhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getLastPhase(db, id, 'execute') as ExecPhase | null;
+  const initialPhase: ExecPhase | undefined = validPhases.includes(urlPhase as any)
+    ? (urlPhase as ExecPhase)
+    : lastPhase ?? undefined;
+
   const [runningReview] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running'))).limit(1);
   const [runningApply] = await db.select({ id: mmaBatch.id }).from(mmaBatch)
@@ -131,7 +147,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       reviewPasses={reviewPasses}
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
-      initialPhase={urlPhase === 'monitor' ? 'monitor' : undefined}
+      initialPhase={initialPhase}
     />
   );
 }

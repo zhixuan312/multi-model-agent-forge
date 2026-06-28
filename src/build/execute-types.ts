@@ -24,10 +24,15 @@ export interface RepoGroup {
 
 export type ExecutePhase = 'configure' | 'monitor';
 
-export function inferExecutePhase(groups: Array<{ tasks: Array<{ status: string }> }>): ExecutePhase {
+const EXECUTION_STATUSES = new Set(['executing', 'verifying', 'fixing', 'failed', 'skipped']);
+
+export function inferExecutePhase(groups: Array<{ tasks: Array<{ status: string; branch?: string | null }> }>): ExecutePhase {
   const allTasks = groups.flatMap((g) => g.tasks);
   if (allTasks.length === 0) return 'configure';
-  const hasStarted = allTasks.some((t) => t.status !== 'queued');
-  if (!hasStarted) return 'configure';
-  return 'monitor';
+  // A task is "executing" when it's in an execution status OR committed WITH a branch
+  // (committed without a branch = plan-approved, not yet executed)
+  const hasStarted = allTasks.some((t) =>
+    EXECUTION_STATUSES.has(t.status) || (t.status === 'committed' && !!t.branch),
+  );
+  return hasStarted ? 'monitor' : 'configure';
 }

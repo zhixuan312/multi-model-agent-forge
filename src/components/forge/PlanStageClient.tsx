@@ -233,17 +233,39 @@ export function PlanStageClient(props: PlanStageClientProps) {
       .catch(() => { auditingRef.current = false; });
   }
 
+  const [applyDone, setApplyDone] = useState(0);
+  const [applyTotal, setApplyTotal] = useState(0);
+
   const applyFindings = useCallback((findings: PlanAuditFinding[], passNo?: number) => {
     setApplying(true);
+    setApplyDone(0);
+    setApplyTotal(findings.length);
     if (passNo) setApplyingPass(passNo);
-    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings, passNo })
-      .then(() => {
-        setApplying(false);
-        if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
-        setApplyingPass(null);
-      })
-      .catch(() => { setApplying(false); setApplyingPass(null); });
-  }, [mma, props.projectId]);
+    fetch(`/projects/${props.projectId}/plan/audit-apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ findings, passNo }),
+    }).catch(() => { setApplying(false); setApplyingPass(null); });
+  }, [props.projectId]);
+
+  useEffect(() => {
+    if (!applying) return;
+    const interval = setInterval(() => {
+      fetch(`/projects/${props.projectId}/plan/audit-apply/status${applyingPass !== null ? `?passNo=${applyingPass}` : ''}`)
+        .then((r) => r.json())
+        .then((s: { allDone: boolean; done: number; total: number }) => {
+          setApplyDone(s.done);
+          setApplyTotal(s.total);
+          if (s.allDone) {
+            setApplying(false);
+            if (applyingPass !== null) setAppliedPasses((prev) => new Set(prev).add(applyingPass));
+            setApplyingPass(null);
+          }
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [applying, applyingPass, props.projectId]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
   // hands the wheel back mid-flight and Run resumes from exactly here.
@@ -346,6 +368,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
           driving={auto === 'running'}
           auditing={auditing}
           applying={applying}
+          applyingPass={applyingPass}
+          applyDone={applyDone}
+          applyTotal={applyTotal}
           appliedPasses={appliedPasses}
           onApplyFindings={applyFindings}
           rounds={rounds}
@@ -815,6 +840,9 @@ function ValidateStage({
   driving,
   auditing,
   applying,
+  applyingPass,
+  applyDone,
+  applyTotal,
   appliedPasses,
   onApplyFindings,
   rounds,
@@ -831,6 +859,9 @@ function ValidateStage({
   driving: boolean;
   auditing?: boolean;
   applying: boolean;
+  applyingPass: number | null;
+  applyDone: number;
+  applyTotal: number;
   appliedPasses: Set<number>;
   onApplyFindings: (findings: PlanAuditFinding[], passNo?: number) => void;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
@@ -968,15 +999,24 @@ function ValidateStage({
               </div>
             ) : null}
             {[...rounds].reverse().map((r) => (
-              <PatternAuditRoundCard
-                key={r.passNo}
-                passNo={r.passNo}
-                verdict={r.verdict}
-                findings={r.findings as Finding[]}
-                applied={appliedPasses.has(r.passNo)}
-                active={selectedPass === r.passNo && docView === 'audit'}
-                onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('audit'); }}
-              />
+              <div key={r.passNo} className="relative">
+                <PatternAuditRoundCard
+                  passNo={r.passNo}
+                  verdict={r.verdict}
+                  findings={r.findings as Finding[]}
+                  applied={appliedPasses.has(r.passNo)}
+                  active={selectedPass === r.passNo && docView === 'audit'}
+                  onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('audit'); }}
+                />
+                {applying && applyingPass === r.passNo ? (
+                  <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">
+                      Applying {applyDone}/{applyTotal || '…'} tasks
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">

@@ -5,7 +5,7 @@
  */
 import type { ParsedSection } from '@/export/sections';
 
-export type ExportKind = 'exploration' | 'spec' | 'plan' | 'review';
+export type ExportKind = 'exploration' | 'spec' | 'plan' | 'journal';
 
 /** Cover meta-row (§1a). Computed by collect-artifacts, rendered by template. */
 export interface CoverMeta {

@@ -13,7 +13,7 @@
  * specification.md, plan.md, review.md) — not the project slug. The project slug
  * is only the combined PDF (`<slug>.pdf`) + bundle zip (`<slug>.zip`).
  */
-export type ExportArtifactKind = 'exploration' | 'spec' | 'plan' | 'review';
+export type ExportArtifactKind = 'exploration' | 'spec' | 'plan' | 'journal';
 
 const SLUG_MAX = 60;
 
@@ -34,7 +34,7 @@ const KIND_NOUN: Record<ExportArtifactKind, string> = {
   exploration: 'exploration',
   spec: 'specification',
   plan: 'plan',
-  review: 'review',
+  journal: 'journal',
 };
 
 /** The fixed noun for a kind (e.g. `spec` → `specification`). */

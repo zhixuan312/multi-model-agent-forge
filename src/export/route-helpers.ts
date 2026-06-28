@@ -17,7 +17,7 @@ import { ExportPathError } from '@/export/export-root';
 import { NoComponentsSelectedError, NothingToExportError } from '@/export/service';
 import type { ExportKind } from '@/export/types';
 
-const KINDS: ExportKind[] = ['exploration', 'spec', 'plan', 'review'];
+const KINDS: ExportKind[] = ['exploration', 'spec', 'plan', 'journal'];
 
 /** Validate a caller-supplied artifact kind (F27). `exploration_brief` is rejected. */
 export function parseExportKind(raw: unknown): ExportKind | null {

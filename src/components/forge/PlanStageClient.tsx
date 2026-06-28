@@ -957,7 +957,6 @@ function ValidateStage({
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Audit rounds</CardTitle>
-              {rounds.length > 0 ? <span className="text-sm font-medium text-ink-faint">{rounds.length}</span> : null}
             </div>
             <Button
               size="sm"

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
-import { ExternalLink, GitBranch, Loader2, ScanSearch } from 'lucide-react';
+import { Loader2, ScanSearch } from 'lucide-react';
 import {
   Button,
   Card,
@@ -205,7 +205,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Review rounds</CardTitle>
-              {props.passes.length > 0 ? <span className="text-sm font-medium text-ink-faint">{props.passes.length}</span> : null}
             </div>
             <Button
               size="sm"
@@ -217,24 +216,12 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               {reviewing ? 'Reviewing...' : props.passes.length > 0 ? 'Re-run' : 'Run review'}
             </Button>
           </CardHeader>
-          {Object.keys(props.buildPrs ?? {}).length > 0 && (
-            <div className="space-y-1.5 border-b border-line px-5 py-2.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Pull request</span>
-              {Object.entries(props.buildPrs!).map(([rid, pr]) => (
-                <a
-                  key={rid}
-                  href={pr.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2 text-sm text-accent transition-colors hover:bg-surface-2"
-                >
-                  <GitBranch className="size-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{pr.branch} → {pr.targetBranch}</span>
-                  <ExternalLink className="size-3.5 shrink-0 text-ink-faint" />
-                </a>
-              ))}
-            </div>
-          )}
+          {Object.entries(props.buildPrs ?? {}).map(([rid, pr]) => (
+            <a key={rid} href={pr.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between border-b border-line px-5 py-2.5 transition-colors hover:opacity-80">
+              <span className="text-xs text-ink-faint">Pull request</span>
+              <span className="text-sm font-semibold text-accent">{pr.branch} → {pr.targetBranch}</span>
+            </a>
+          ))}
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
             {reviewing ? (
               <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">

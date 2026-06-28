@@ -7,6 +7,7 @@ export interface TaskForGrouping {
   repoPath: string;
   defaultBranch: string;
   status: string;
+  phase?: string | null;
   branch?: string | null;
   commitSha?: string | null;
 }
@@ -22,7 +23,7 @@ export interface RepoGroup {
   forgeBranch: string;
 }
 
-export type ExecutePhase = 'configure' | 'monitor';
+export type ExecutePhase = 'configure' | 'implement';
 
 const EXECUTION_STATUSES = new Set(['executing', 'verifying', 'fixing', 'failed', 'skipped']);
 
@@ -34,5 +35,5 @@ export function inferExecutePhase(groups: Array<{ tasks: Array<{ status: string;
   const hasStarted = allTasks.some((t) =>
     EXECUTION_STATUSES.has(t.status) || (t.status === 'committed' && !!t.branch),
   );
-  return hasStarted ? 'monitor' : 'configure';
+  return hasStarted ? 'implement' : 'configure';
 }

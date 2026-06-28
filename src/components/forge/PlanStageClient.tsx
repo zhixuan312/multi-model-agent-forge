@@ -801,7 +801,7 @@ function DetailStage({
           </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={onValidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
-              Validate the plan
+              Continue to Validate
             </Button>
           </CardFooter>
         </Card>

@@ -39,12 +39,14 @@ export async function getStagePermissions(db: Db, projectId: string): Promise<St
 
   const statusOf = (kind: string) => stageRows.find((r) => r.kind === kind)?.status ?? 'pending';
 
-  const executeDone = statusOf('execute') === 'done';
+  const executeStatus = statusOf('execute');
+  const executeStarted = executeStatus === 'active' || executeStatus === 'done';
+  const executeDone = executeStatus === 'done';
   const reviewDone = statusOf('review') === 'done';
   const journalDone = statusOf('journal') === 'done';
 
-  const designLocked = executeDone;
-  const designReason = 'Locked — execution has completed.';
+  const designLocked = executeStarted;
+  const designReason = executeDone ? 'Locked — execution has completed.' : 'Locked — execution is in progress.';
 
   return {
     explore: {

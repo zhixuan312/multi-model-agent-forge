@@ -1,17 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/mma';
-import { projectRepo } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
 import { buildMmaClient } from '@/mma/server-client';
-import { projectEventBus } from '@/sse/event-bus';
-import { extractUsageFields } from '@/usage/extract-usage-fields';
-import { execFileSync } from 'node:child_process';
+import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +16,29 @@ const bodySchema = z.object({
   passNo: z.number().int().positive(),
   findingIndices: z.array(z.number().int().nonnegative()).min(1),
 });
+
+function buildFixPrompt(findings: Array<Record<string, unknown>>): string {
+  return `Role: You are a code fixer for Forge, a software delivery harness.
+
+Task: Apply the following code review fixes to the codebase. Each fix targets a specific file and line. Make the changes, then verify the code compiles and tests pass.
+
+Constraints:
+- Apply EVERY fix listed below
+- Each fix targets a specific file — use the evidence to locate the exact code
+- Make minimal, targeted changes — do not refactor beyond what the fix requires
+- After all fixes, run the test suite to verify nothing broke
+- Commit all changes with a descriptive message
+
+Fixes to apply:
+
+${findings.map((f, i) => {
+    const parts = [`${i + 1}. [${f.weight ?? 'medium'}] ${f.file ?? ''}${f.line ? ':' + f.line : ''}`];
+    if (f.claim) parts.push(`   Claim: ${f.claim}`);
+    if (f.evidence) parts.push(`   Evidence: ${f.evidence}`);
+    if (f.suggestion) parts.push(`   Fix: ${f.suggestion}`);
+    return parts.join('\n');
+  }).join('\n\n')}`;
+}
 
 export async function POST(
   _req: NextRequest,
@@ -43,6 +63,11 @@ export async function POST(
 
   const db = getDb();
 
+  const existing = await findInflight(db, id, 'review-apply');
+  if (existing) {
+    return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
+  }
+
   // Find the review batch for this pass
   const reviewBatches = await db
     .select({ id: mmaBatch.id, result: mmaBatch.result, targetRepoId: mmaBatch.targetRepoId, cwd: mmaBatch.cwd })
@@ -63,121 +88,27 @@ export async function POST(
   const allFindings = (summary as Record<string, unknown>)?.findings;
   if (!Array.isArray(allFindings)) return NextResponse.json({ error: 'No findings in pass result' }, { status: 400 });
 
-  // Build the prompt with selected findings
   const selected = findingIndices.map((i) => allFindings[i]).filter(Boolean) as Array<Record<string, unknown>>;
   if (selected.length === 0) return NextResponse.json({ error: 'No valid findings selected' }, { status: 400 });
 
-  const prompt = [
-    'Apply the following code review fixes. Each fix is independent but some may touch the same file — resolve coherently.',
-    '',
-    ...selected.map((f, i) => {
-      const parts = [`${i + 1}. [${f.weight}] ${f.file ?? ''}${f.line ? ':' + f.line : ''}`];
-      if (f.claim) parts.push(`   Claim: ${f.claim}`);
-      if (f.suggestion) parts.push(`   Fix: ${f.suggestion}`);
-      return parts.join('\n');
-    }),
-    '',
-    'After applying all fixes, verify the code compiles and tests pass.',
-  ].join('\n');
-
-  // Dispatch delegate with complex tier
-  const mma = await buildMmaClient();
   const cwd = passBatch.cwd;
+  const prompt = buildFixPrompt(selected);
 
-  let batchId: string;
-  try {
-    ({ batchId } = await mma.dispatch('delegate', {
-      cwd,
-      body: {
-        type: 'delegate',
-        prompt,
-        agentTier: 'complex',
-        reviewPolicy: 'none',
-      },
-    }));
-  } catch (err) {
-    return NextResponse.json({ error: `MMA dispatch failed: ${(err as Error).message}` }, { status: 502 });
-  }
-
-  const [batchRow] = await db
-    .insert(mmaBatch)
-    .values({
-      projectId: id,
-      route: 'delegate',
-      handler: 'review-apply',
-      cwd,
-      batchId,
-      status: 'dispatched',
-      targetRepoId: passBatch.targetRepoId,
-      request: { passNo, findingIndices, findingsCount: selected.length },
-      dispatchedBy: me.id,
-    })
-    .returning({ id: mmaBatch.id });
-
-  // Background poll
-  pollApply(mma, db, batchId, batchRow.id, id, passBatch.targetRepoId ?? '', cwd).catch((err) => {
-    projectEventBus.publish(id, { type: 'dispatch.failed', batchId: batchRow.id, handler: 'review-apply', error: (err as Error).message });
+  const mma = await buildMmaClient({ db });
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'review-apply',
+    cwd: cwd!,
+    body: {
+      prompt,
+      reviewPolicy: 'none',
+    },
+    actorId: me.id,
+    meta: { passNo, findingIndices, findingsCount: selected.length, repoId: passBatch.targetRepoId, cwd },
   });
 
-  return NextResponse.json({ batchId: batchRow.id }, { status: 202 });
-}
-
-async function pollApply(
-  mma: Awaited<ReturnType<typeof buildMmaClient>>,
-  db: ReturnType<typeof getDb>,
-  mmaBatchId: string,
-  batchRowId: string,
-  projectId: string,
-  repoId: string,
-  cwd: string,
-): Promise<void> {
-  for (;;) {
-    await new Promise((r) => setTimeout(r, 3_000));
-    const res = await mma.poll(mmaBatchId);
-    if (res.state === 'pending') {
-      await db.update(mmaBatch).set({ status: 'running' }).where(eq(mmaBatch.id, batchRowId));
-      projectEventBus.publish(projectId, {
-        type: 'dispatch.progress', batchId: batchRowId, handler: 'review-apply',
-        phase: res.phase ?? 'running', elapsedMs: res.elapsedMs ?? 0,
-      });
-      continue;
-    }
-    if (res.state === 'not_found') {
-      throw new Error('MMA task no longer exists — the server may have restarted.');
-    }
-    const envelope = res.envelope as Record<string, unknown> | null;
-    const isFlatError = envelope && typeof envelope.code === 'string' && !envelope.task;
-    const error = isFlatError
-      ? { code: envelope.code as string, message: envelope.message as string }
-      : (envelope?.error as { code: string; message: string } | null);
-    const usage = extractUsageFields(envelope);
-
-    await db.update(mmaBatch).set({
-      status: error ? 'failed' : 'done',
-      result: envelope as object,
-      terminalAt: new Date(),
-      ...(usage.costUsd && { costUsd: usage.costUsd }),
-      ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-    }).where(eq(mmaBatch.id, batchRowId));
-
-    // Push forge branch after successful fix
-    if (!error) {
-      try {
-        const branch = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
-        if (branch.startsWith('forge/')) {
-          execFileSync('git', ['-C', cwd, 'push', 'origin', branch, '--force'], { timeout: 60_000 });
-        }
-      } catch (pushErr) {
-        console.error(`[forge] push after review-apply failed:`, pushErr);
-      }
-    }
-
-    projectEventBus.publish(projectId, {
-      type: error ? 'dispatch.failed' : 'dispatch.done',
-      batchId: batchRowId,
-      handler: 'review-apply',
-      ...(error ? { error: error.message } : {}),
-    } as any);
-    break;
-  }
+  return NextResponse.json({ batchId: batchRowId, findingsCount: selected.length }, { status: 202 });
 }

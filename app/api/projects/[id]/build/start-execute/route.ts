@@ -10,9 +10,9 @@ import { project } from '@/db/schema/projects';
 import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { getLatestPlanArtifact } from '@/build/plan-author';
-import { writePlanFile, nodePlanFs } from '@/build/plan-fs';
+import { planFilePath } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
-import { projectShortId, planFileName } from '@/build/slug';
+import { projectShortId } from '@/build/slug';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { execFileSync } from 'node:child_process';
@@ -64,11 +64,13 @@ export async function POST(
   const planArtifact = await getLatestPlanArtifact(db, id);
   if (!planArtifact?.bodyMd) return NextResponse.json({ error: 'No plan artifact.' }, { status: 400 });
 
+  // Absolute path to plan.md — MMA reads are unrestricted, no need to copy into the repo
+  const planPath = planFilePath(id);
+
   const mma = await buildMmaClient({ db });
   const shortId = projectShortId(id);
   const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, id));
   const forgeBranch = buildForgeBranch(proj?.name ?? id, shortId);
-  const planFile = `.forge/${planFileName(id)}`;
 
   const dispatched: Array<{ repoId: string; batchId: string }> = [];
   const errors: Array<{ repoId: string; error: string }> = [];
@@ -95,15 +97,8 @@ export async function POST(
       continue;
     }
 
-    // 2. Write plan file on the forge branch
-    try {
-      await writePlanFile(nodePlanFs, repoRow.pathOnDisk, id, planArtifact.bodyMd);
-    } catch (err) {
-      errors.push({ repoId, error: `Plan write: ${(err as Error).message}` });
-      continue;
-    }
-
-    // 3. Dispatch via centralized PollManager + handler registry
+    // 2. Dispatch via centralized PollManager + handler registry
+    // Plan file is at an absolute path (.mma/projects/<id>/plan.md) — MMA reads it directly
     try {
       const batchRowId = await dispatchAndRegister({
         db,
@@ -114,7 +109,7 @@ export async function POST(
         cwd: repoRow.pathOnDisk,
         body: {
           type: 'execute_plan',
-          target: { paths: [planFile] },
+          target: { paths: [planPath] },
           tasks: [],
           reviewPolicy: 'reviewed',
         },
@@ -141,5 +136,12 @@ export async function POST(
   }
 
   if (dispatched.length === 0) return NextResponse.json({ error: 'All repos failed', errors }, { status: 502 });
+
+  // Persist the phase transition so the stepper knows 'implement' was reached
+  const { stage } = await import('@/db/schema/projects');
+  await db.update(stage)
+    .set({ lastPhase: 'implement' })
+    .where(and(eq(stage.projectId, id), eq(stage.kind, 'execute')));
+
   return NextResponse.json({ dispatched, ...(errors.length > 0 ? { errors } : {}) }, { status: 202 });
 }

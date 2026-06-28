@@ -85,4 +85,6 @@ export function ensureHandlersRegistered(): void {
   import('./handlers/plan-audit-apply').catch(() => {});
   import('./handlers/plan-refine').catch(() => {});
   import('./handlers/execute-pipeline').catch(() => {});
+  import('./handlers/code-review').catch(() => {});
+  import('./handlers/review-apply').catch(() => {});
 }

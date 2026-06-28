@@ -28,7 +28,7 @@ export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: str
   ],
   execute: [
     { key: 'configure', label: 'Configure' },
-    { key: 'monitor', label: 'Monitor' },
+    { key: 'implement', label: 'Implement' },
   ],
   review: [
     { key: 'review', label: 'Review' },

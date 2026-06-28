@@ -149,7 +149,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     },
   });
 
-  const busy = mma.busyHandlers.has('explore-propose') || mma.busyHandlers.has('explore-synthesize');
+  const proposing = mma.busyHandlers.has('explore-propose');
+  const synthesizing = mma.busyHandlers.has('explore-synthesize');
   const { error } = mma;
 
   async function analyze(): Promise<void> {
@@ -235,11 +236,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const synthFired = useRef(false);
   useEffect(() => {
-    if (phase === 'synthesis' && !bodyMd && !busy && !locked && !synthFired.current) {
+    if (phase === 'synthesis' && !bodyMd && !synthesizing && !locked && !synthFired.current) {
       synthFired.current = true;
       resynthesize();
     }
-  }, [phase, bodyMd, busy, locked]);
+  }, [phase, bodyMd, synthesizing, locked]);
 
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
@@ -312,11 +313,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                     else if (drafts.length > 0) { run(); }
                     setViewOverride('discover');
                   }}
-                  disabled={locked || busy || tasks.length === 0}
-                  loading={busy}
+                  disabled={locked || proposing || tasks.length === 0}
+                  loading={proposing}
                   leftIcon={<ArrowRight />}
                 >
-                  {busy ? 'Analyzing…' : 'Continue to Discover'}
+                  {proposing ? 'Analyzing…' : 'Continue to Discover'}
                 </Button>
               </CardFooter>
             </Card>
@@ -339,7 +340,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   onSend={locked ? () => {} : () => { analyze(); setBriefView('tasks'); }}
                   voice={props.voiceEnabled && !locked}
                   attachments
-                  disabled={locked || busy}
+                  disabled={locked || proposing}
                   placeholder="Tell Forge everything you know…"
                   submitLabel={hasAnalyzed ? 'Re-analyze' : 'Analyze sources'}
                   rows={0}
@@ -357,7 +358,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               repoOptions={props.repoOptions}
               onChanged={refreshTasks}
               onRun={run}
-              canRun={drafts.length > 0 && !busy && !locked}
+              canRun={drafts.length > 0 && !proposing && !locked}
               headerAction={
                 <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               }
@@ -379,11 +380,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               variant="primary"
               className="w-full"
               onClick={() => setViewOverride('synthesize')}
-              disabled={!allDone || locked || busy}
-              loading={busy}
+              disabled={!allDone || locked || synthesizing}
+              loading={synthesizing}
               leftIcon={<ArrowRight />}
             >
-              {busy ? 'Synthesizing…' : 'Continue to Synthesize'}
+              {synthesizing ? 'Synthesizing…' : 'Continue to Synthesize'}
             </Button>
           }
         >
@@ -432,8 +433,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Synthesis</CardTitle>
-                <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || busy} loading={busy} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
-                  {busy ? 'Synthesizing…' : bodyMd ? 'Re-synthesize' : 'Synthesize'}
+                <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || synthesizing} loading={synthesizing} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
+                  {synthesizing ? 'Synthesizing…' : bodyMd ? 'Re-synthesize' : 'Synthesize'}
                 </Button>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 !py-4">

@@ -9,6 +9,7 @@ import { mmaBatch } from '@/db/schema/mma';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { journalFilePath } from '@/projects/project-files';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -74,9 +75,11 @@ export async function POST(
     sections.push(`## Review findings\n${summary.slice(0, 4000)}`);
   }
 
+  const journalPath = journalFilePath(id);
+
   const prompt = `Role: You are the learning harvester for Forge, a software delivery harness.
 
-Task: Given the project's full lifecycle artifacts below, extract 8-15 distinct learnings that another team could reuse.
+Task: Given the project's full lifecycle artifacts below, extract 8-15 distinct learnings that another team could reuse. Write them to \`${journalPath}\`.
 
 Context: This project has completed all 5 stages: Exploration, Spec, Plan, Execute, Review. The artifacts below summarize what happened at each stage.
 
@@ -91,14 +94,19 @@ Constraints:
 - Deduplicate: if two stages surfaced the same insight, merge into one learning
 
 Output format:
-Return a JSON array:
-\`\`\`json
-[
-  { "text": "...", "category": "decision", "source": "Spec", "tags": ["architecture", "trade-off"] }
-]
-\`\`\`
-Categories: decision, design, behavior, process, knowledge, style
-Sources: Exploration, Spec, Plan, Execute, Review`;
+Write the ENTIRE learning set to \`${journalPath}\` using this markdown structure:
+
+## Category Name (e.g. "Decision", "Process", "Knowledge")
+
+### Learning title (clear, actionable statement)
+
+The learning body — 1-3 sentences explaining what was learned, why it matters, and when to apply it.
+
+**Source:** Which stage it came from (Exploration, Spec, Plan, Execute, Review)
+**Tags:** keyword1, keyword2
+
+Group learnings under ## category headings. Use ### for each learning. Categories: Decision, Design, Behavior, Process, Knowledge, Style.
+Write the file to \`${journalPath}\`. This is MANDATORY.`;
 
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({

@@ -84,6 +84,7 @@ export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
   phase?: ProjectPhase;
+  readOnly?: boolean;
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   terminalResults?: Record<string, RepoTerminalResult>;
@@ -123,7 +124,7 @@ function progressPct(status: RepoJobStatus): number {
 
 export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
-  const readOnly = false;
+  const readOnly = props.readOnly ?? false;
   const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 

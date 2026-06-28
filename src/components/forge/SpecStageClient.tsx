@@ -112,6 +112,7 @@ interface SpecStageClientProps {
   specApprovers?: string[];
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
+  readOnly?: boolean;
 }
 
 type SpecPhase = 'outline' | 'craft' | 'finalize';
@@ -171,7 +172,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export function SpecStageClient(props: SpecStageClientProps) {
   const router = useRouter();
-  const readOnly = false;
+  const readOnly = props.readOnly ?? false;
   const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
   const [messages] = useServerState(props.initialMessages ?? {});

@@ -148,6 +148,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
       initialPhase={initialPhase}
+      readOnly={false}
     />
   );
 }

@@ -59,6 +59,7 @@ export interface ReviewStageClientProps {
   applyRunning: boolean;
   applyCount?: number;
   buildPrs?: Record<string, { url: string; branch: string; targetBranch: string }>;
+  readOnly?: boolean;
 }
 
 function toFinding(f: ReviewFindingView): Finding {
@@ -69,7 +70,7 @@ function toFinding(f: ReviewFindingView): Finding {
 
 export function ReviewStageClient(props: ReviewStageClientProps) {
   const router = useRouter();
-  const readOnly = false;
+  const readOnly = props.readOnly ?? false;
 
   useEffect(() => { stagePhaseStore.set('review'); }, []);
 

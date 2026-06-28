@@ -105,6 +105,7 @@ export default async function SpecStagePage({
       pendingApply={pendingApply}
       specApprovers={specApprovers}
       initialPhase={initialPhase}
+      readOnly={!perms.spec.canMutate}
     />
   );
 }

@@ -82,7 +82,7 @@ export interface PlanStageClientProps {
   projectId: string;
   projectName: string;
   intentMd: string;
-  phase: ProjectPhase;
+  phase?: ProjectPhase;
   mmaReady: boolean;
   currentMember?: { id: string; displayName: string; avatarTint: string };
   projectMembers?: { id: string; displayName: string; avatarTint: string }[];
@@ -106,7 +106,7 @@ const taskNum = (id: string) => Number(id.replace(/\D/g, '')) || 0;
 
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
-  const readOnly = props.phase !== 'design';
+  const readOnly = false;
   const [phases] = useServerState(props.phases);
   const allTasks = useMemo(() => phases.flatMap((p) => p.tasks), [phases]);
 
@@ -191,14 +191,15 @@ export function PlanStageClient(props: PlanStageClientProps) {
   });
   const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
 
-  // Auto-trigger plan authoring if no plan exists yet
-  const authorFired = useRef(false);
+  // Auto-trigger plan authoring if no plan exists yet.
+  // Uses busyRef (synchronous) instead of busyHandlers (state, batched) to
+  // survive React strict mode double-mount — the first dispatch sets busyRef
+  // immediately, so the second mount's effect sees it and bails.
   useEffect(() => {
-    if (authorFired.current || readOnly || allTasks.length > 0 || props.pendingAuthor) return;
-    authorFired.current = true;
+    if (readOnly || allTasks.length > 0 || props.pendingAuthor || mma.busyRef.current.has('plan-author')) return;
     void mma.dispatch(`/projects/${props.projectId}/build/author-plan`, 'plan-author')
       .catch(() => {});
-  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, router]);
+  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   useEffect(
@@ -233,39 +234,19 @@ export function PlanStageClient(props: PlanStageClientProps) {
       .catch(() => { auditingRef.current = false; });
   }
 
-  const [applyDone, setApplyDone] = useState(0);
-  const [applyTotal, setApplyTotal] = useState(0);
-
+  const [applyCount, setApplyCount] = useState(0);
   const applyFindings = useCallback((findings: PlanAuditFinding[], passNo?: number) => {
     setApplying(true);
-    setApplyDone(0);
-    setApplyTotal(findings.length);
+    setApplyCount(findings.length);
     if (passNo) setApplyingPass(passNo);
-    fetch(`/projects/${props.projectId}/plan/audit-apply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ findings, passNo }),
-    }).catch(() => { setApplying(false); setApplyingPass(null); });
-  }, [props.projectId]);
-
-  useEffect(() => {
-    if (!applying) return;
-    const interval = setInterval(() => {
-      fetch(`/projects/${props.projectId}/plan/audit-apply/status${applyingPass !== null ? `?passNo=${applyingPass}` : ''}`)
-        .then((r) => r.json())
-        .then((s: { allDone: boolean; done: number; total: number }) => {
-          setApplyDone(s.done);
-          setApplyTotal(s.total);
-          if (s.allDone) {
-            setApplying(false);
-            if (applyingPass !== null) setAppliedPasses((prev) => new Set(prev).add(applyingPass));
-            setApplyingPass(null);
-          }
-        })
-        .catch(() => {});
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [applying, applyingPass, props.projectId]);
+    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings, passNo })
+      .then(() => {
+        setApplying(false);
+        if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
+        setApplyingPass(null);
+      })
+      .catch(() => { setApplying(false); setApplyingPass(null); });
+  }, [props.projectId, mma]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
   // hands the wheel back mid-flight and Run resumes from exactly here.
@@ -369,9 +350,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
           auditing={auditing}
           applying={applying}
           applyingPass={applyingPass}
-          applyDone={applyDone}
-          applyTotal={applyTotal}
           appliedPasses={appliedPasses}
+          applyCount={applyCount}
           onApplyFindings={applyFindings}
           rounds={rounds}
           locked={locked}
@@ -530,8 +510,8 @@ function DetailStage({
           <CardHeader>
             <CardTitle>Plan tasks</CardTitle>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1">
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+          <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
               <p className="text-sm font-medium text-ink">Authoring plan from locked spec...</p>
               <p className="text-xs text-ink-soft">Forge writes the implementation plan from the locked spec. This takes a moment.</p>
@@ -560,8 +540,8 @@ function DetailStage({
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
         <Card className="flex min-h-0 flex-col lg:col-span-2">
           <CardHeader><CardTitle>Plan tasks</CardTitle></CardHeader>
-          <CardContent className="min-h-0 flex-1">
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+          <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center">
               <ListTree className="size-8 text-ink-faint" />
               <p className="text-sm font-medium text-ink">No plan yet</p>
               <p className="text-xs text-ink-soft">The plan is authored from the locked spec. Make sure a repo is linked to the project.</p>
@@ -841,9 +821,8 @@ function ValidateStage({
   auditing,
   applying,
   applyingPass,
-  applyDone,
-  applyTotal,
   appliedPasses,
+  applyCount,
   onApplyFindings,
   rounds,
   locked,
@@ -860,9 +839,8 @@ function ValidateStage({
   auditing?: boolean;
   applying: boolean;
   applyingPass: number | null;
-  applyDone: number;
-  applyTotal: number;
   appliedPasses: Set<number>;
+  applyCount: number;
   onApplyFindings: (findings: PlanAuditFinding[], passNo?: number) => void;
   rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
   locked: boolean;
@@ -1012,7 +990,7 @@ function ValidateStage({
                   <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
                     <Loader2 className="size-3.5 animate-spin text-accent" />
                     <span className="text-xs font-medium text-accent-deep">
-                      Applying {applyDone}/{applyTotal || '…'} tasks
+                      Applying {applyCount} finding{applyCount !== 1 ? 's' : ''}...
                     </span>
                   </div>
                 ) : null}

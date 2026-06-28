@@ -6,7 +6,7 @@ import { planTask } from '@/db/schema/build';
 import { repo } from '@/db/schema/workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
-import { planFilePath } from '@/build/plan-fs';
+import { planFilePath } from '@/projects/project-files';
 import '@/dispatch/handler-registry';
 
 export async function POST(
@@ -36,7 +36,7 @@ export async function POST(
 
   const r = rows[0];
   const mma = await buildMmaClient({ db });
-  const filePath = planFilePath(r.path, id);
+  const filePath = planFilePath(id);
 
   const batchRowId = await dispatchAndRegister({
     db,

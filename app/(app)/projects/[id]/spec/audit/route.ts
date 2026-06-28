@@ -6,6 +6,7 @@ import { getLatestSpec } from '@/spec/assemble';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { specFilePath } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
 import '@/dispatch/handler-registry';
 
@@ -42,9 +43,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const contextBlockIds = lastPass?.contextBlockId ? [lastPass.contextBlockId] : undefined;
 
-  // Use file path for the spec (physical file at .mma/projects/<id>/spec.md)
   const workspaceRoot = resolveWorkspaceRoot();
-  const specPath = `.mma/projects/${id}/spec.md`;
+  const specPath = specFilePath(id);
 
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({

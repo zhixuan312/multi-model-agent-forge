@@ -24,14 +24,14 @@ import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registr
  * Concrete, testable behaviors:
  *  - base poll interval 2s; transient errors back off `min(2s·2^n, 30s)` ±20% jitter,
  *    resetting on a successful poll. Transient errors NEVER fail a batch.
- *  - a batch with no terminal envelope >15min after `created_at` is force-failed
+ *  - a batch with no terminal envelope >1h after `created_at` is force-failed
  *    (`forge_poll_timeout`) — the only non-MMA-originated failure transition.
  *  - rehydrates in-flight batches (`status IN ('dispatched','running')`) on boot.
  */
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;
-export const POLL_HARD_TIMEOUT_MS = 30 * 60_000;
+export const POLL_HARD_TIMEOUT_MS = 60 * 60_000;
 const JITTER = 0.2;
 
 /** Pure backoff for a transient-error attempt (0-indexed): min(2s·2^n, 30s)±20%. */
@@ -111,7 +111,7 @@ export class PollManager {
 
   /**
    * Register a freshly-dispatched (or rehydrated) batch. `createdAt` anchors the
-   * 15-min hard timeout. Schedules the first poll on the base interval.
+   * 1-hour hard timeout. Schedules the first poll on the base interval.
    */
   register(b: {
     batchId: string;
@@ -152,7 +152,7 @@ export class PollManager {
     const entry = this.inFlight.get(batchRowId);
     if (!entry) return { kind: 'gone' };
 
-    // Hard timeout precedes the poll: a batch already past 15min is force-failed.
+    // Hard timeout precedes the poll: a batch already past 1h is force-failed.
     if (this.now() - entry.createdAt.getTime() > POLL_HARD_TIMEOUT_MS) {
       await this.markTimeout(entry);
       return { kind: 'timeout' };
@@ -343,7 +343,7 @@ export class PollManager {
     this.deregister(entry.batchId);
   }
 
-  /** 15-min hard timeout → force status='failed' with the synthesized error. */
+  /** 1-hour hard timeout → force status='failed' with the synthesized error. */
   private async markTimeout(entry: RegisteredBatch): Promise<void> {
     const state: TerminalState = {
       status: 'failed',
@@ -429,7 +429,7 @@ export class PollManager {
 
   /**
    * Rehydrate in-flight batches from the DB on server boot (`status IN
-   * ('dispatched','running')`). A batch already past the 15-min deadline is
+   * ('dispatched','running')`). A batch already past the 1-hour deadline is
    * failed on its first poll (timeout is measured from `created_at`).
    */
   async rehydrate(): Promise<number> {

@@ -5,6 +5,7 @@ import { PLAN_AUTHOR_SYSTEM_PROMPT } from '@/build/plan-author';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { planFilePath } from '@/projects/project-files';
 import { getDb } from '@/db/client';
 import { getLatestSpec } from '@/spec/assemble';
 import { projectRepo } from '@/db/schema/projects';
@@ -45,6 +46,11 @@ export async function POST(
     .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
     .join('\n');
 
+  const cwd = resolveWorkspaceRoot();
+  const planPath = planFilePath(id);
+  const prompt = PLAN_AUTHOR_SYSTEM_PROMPT.replace('PLAN_FILE_PATH', planPath)
+    + `\n\nContext: The following specification has been locked and approved.\n\nInput:\n\n--- Locked Specification ---\n${spec.bodyMd}\n--- End Specification ---\n\n--- Repos in Scope ---\n${repoList}\n--- End Repos ---`;
+
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({
     db,
@@ -52,13 +58,13 @@ export async function POST(
     projectId: id,
     route: 'orchestrate',
     handler: 'plan-author',
-    cwd: resolveWorkspaceRoot(),
+    cwd,
     body: {
-      prompt: `${PLAN_AUTHOR_SYSTEM_PROMPT}\n\nContext: The following specification has been locked and approved.\n\nInput:\n\n--- Locked Specification ---\n${spec.bodyMd}\n--- End Specification ---\n\n--- Repos in Scope ---\n${repoList}\n--- End Repos ---`,
+      prompt,
       reviewPolicy: 'none',
     },
     actorId: guard.memberId,
-    meta: { actorId: guard.memberId },
+    meta: { actorId: guard.memberId, cwd },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

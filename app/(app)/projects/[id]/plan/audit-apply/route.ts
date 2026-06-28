@@ -2,8 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getDb } from '@/db/client';
 import { guardBuildWrite } from '@/build/guard';
-import { readPlanFileAsync } from '@/projects/project-files';
-import { parsePlanSections } from '@/plan/plan-file-ops';
+import { planFilePath } from '@/projects/project-files';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
@@ -24,86 +23,23 @@ const bodySchema = z.object({
   passNo: z.number().int().positive().optional(),
 });
 
-type Finding = z.infer<typeof findingSchema>;
+function buildRevisePrompt(planPath: string, findingsBlock: string): string {
+  return `Role: You are a plan reviser for Forge, a software delivery harness.
 
-function buildRevisePrompt(taskTitle: string, findingsBlock: string, taskBody: string): { system: string; user: string } {
-  const system = `Role: You are a plan task reviser for Forge, a collaborative SDLC platform. You revise individual implementation tasks based on audit findings.
-
-Task: Revise the given plan task to address every audit finding listed. For each finding, incorporate the suggested fix using the cited evidence to locate the relevant passage. Return the FULL revised task body — not a diff.
+Task: Read the implementation plan at \`${planPath}\`, apply every audit finding listed below, and write the revised plan back to the SAME file.
 
 Constraints:
-- Address each finding's claim — use the evidence to find the exact passage and the suggestion as guidance
-- Maintain the task's TDD structure (Files, Steps, test code, implementation code, run commands)
-- Do NOT add unrelated changes beyond what the findings require
-- Do NOT add task headings (### or ##) — headings are managed externally
+- Address EVERY finding — use the evidence to locate the exact passage and the suggestion as guidance
+- Preserve the plan structure: # title, ## phase headings, ### task headings, - [ ] checkbox steps, \`\`\` code fences
+- Do NOT add or remove ### task sections — only revise content within existing sections
+- Do NOT rename ### task headings — they are stable keys used by the harness
+- Do NOT add git commit/push steps — the harness owns commits
 - Preserve all content not touched by a finding
-- Use checkbox syntax (\`- [ ]\`) for steps
+- Write the FULL revised plan back to \`${planPath}\` — not a diff, the complete file
 
-Output format:
-Return ONLY a JSON object with exactly one field — no commentary, no explanation, no preamble:
-\`\`\`json
-{ "draftMd": "<the full revised task body markdown>" }
-\`\`\`
-CRITICAL: Your entire response must be valid JSON. Do NOT write any text before or after the JSON. Do NOT explain your changes.`;
+Findings to address:
 
-  const user = `Context: This is the "${taskTitle}" task from an implementation plan. An audit pass flagged findings that affect this task.
-
-Input:
-
---- Current Task Body ---
-${taskBody}
---- End Task Body ---
-
---- Audit Findings to Address ---
-${findingsBlock}
---- End Findings ---`;
-
-  return { system, user };
-}
-
-function matchFindingsToTasks(
-  findings: Finding[],
-  tasks: Array<{ heading: string; body: string }>,
-): Map<number, Finding[]> {
-  const result = new Map<number, Finding[]>();
-
-  for (const f of findings) {
-    const matched = new Set<number>();
-    const evidence = f.evidence ?? '';
-    const claim = f.claim ?? '';
-    const suggestion = f.suggestion ?? '';
-    const allText = `${claim}\n${evidence}\n${suggestion}`;
-
-    // Primary: match by task title appearing in claim/evidence/suggestion
-    for (let ti = 0; ti < tasks.length; ti++) {
-      const title = tasks[ti].heading.replace(/^###\s*/, '').trim();
-      if (allText.includes(title)) {
-        matched.add(ti);
-      }
-    }
-
-    // Fallback: match by evidence text fragments in task body
-    if (matched.size === 0 && evidence.length >= 20) {
-      for (let ti = 0; ti < tasks.length; ti++) {
-        const text = tasks[ti].body;
-        for (let start = 0; start < Math.min(evidence.length, 300); start += 30) {
-          const frag = evidence.slice(start, start + 40);
-          if (frag.length > 15 && text.includes(frag)) {
-            matched.add(ti);
-            break;
-          }
-        }
-      }
-    }
-
-    for (const idx of matched) {
-      const list = result.get(idx) ?? [];
-      list.push(f);
-      result.set(idx, list);
-    }
-  }
-
-  return result;
+${findingsBlock}`;
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -124,53 +60,39 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const planFile = await readPlanFileAsync(id);
-  if (!planFile) {
-    return NextResponse.json({ error: 'No plan.md found.' }, { status: 409 });
+  const { findings, passNo } = parsed.data;
+  if (findings.length === 0) {
+    return NextResponse.json({ error: 'No findings to apply.' }, { status: 422 });
   }
 
-  const tasks = parsePlanSections(planFile.bodyMd);
-  const taskFindings = matchFindingsToTasks(parsed.data.findings, tasks);
+  const findingsBlock = findings
+    .map((f, i) => {
+      let line = `${i + 1}. [${f.severity.toUpperCase()}] ${f.category}: ${f.claim}`;
+      if (f.evidence) line += `\n   Evidence: ${f.evidence}`;
+      if (f.suggestion) line += `\n   Suggested fix: ${f.suggestion}`;
+      return line;
+    })
+    .join('\n\n');
 
-  if (taskFindings.size === 0) {
-    return NextResponse.json({ error: 'No findings matched any task.' }, { status: 422 });
-  }
+  const cwd = resolveWorkspaceRoot();
+  const planPath = planFilePath(id);
+  const prompt = buildRevisePrompt(planPath, findingsBlock);
 
   const mma = await buildMmaClient({ db });
-  const cwd = resolveWorkspaceRoot();
-  const batchIds: string[] = [];
+  const batchRowId = await dispatchAndRegister({
+    db,
+    mma,
+    projectId: id,
+    route: 'orchestrate',
+    handler: 'plan-audit-apply',
+    cwd,
+    body: {
+      prompt,
+      reviewPolicy: 'none',
+    },
+    actorId: guard.memberId,
+    meta: { passNo, findingsCount: findings.length },
+  });
 
-  for (const [taskIdx, findings] of taskFindings) {
-    const task = tasks[taskIdx];
-    const title = task.heading.replace(/^###\s*/, '').trim();
-
-    const findingsBlock = findings
-      .map((f, i) => {
-        let line = `${i + 1}. [${f.severity.toUpperCase()}] ${f.category}: ${f.claim}`;
-        if (f.evidence) line += `\n   Evidence: ${f.evidence}`;
-        if (f.suggestion) line += `\n   Suggested fix: ${f.suggestion}`;
-        return line;
-      })
-      .join('\n\n');
-
-    const { system, user } = buildRevisePrompt(title, findingsBlock, task.body);
-
-    const batchRowId = await dispatchAndRegister({
-      db,
-      mma,
-      projectId: id,
-      route: 'orchestrate',
-      handler: 'plan-audit-apply',
-      cwd,
-      body: {
-        prompt: `${system}\n\n${user}`,
-        reviewPolicy: 'none',
-      },
-      actorId: guard.memberId,
-      meta: { taskTitle: title, taskIdx, passNo: parsed.data.passNo },
-    });
-    batchIds.push(batchRowId);
-  }
-
-  return NextResponse.json({ batchIds, tasksToRevise: taskFindings.size }, { status: 202 });
+  return NextResponse.json({ batchId: batchRowId, findingsCount: findings.length }, { status: 202 });
 }

@@ -171,7 +171,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export function SpecStageClient(props: SpecStageClientProps) {
   const router = useRouter();
-  const readOnly = props.phase !== 'design';
+  const readOnly = false;
   const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
   const [messages] = useServerState(props.initialMessages ?? {});
@@ -1507,9 +1507,7 @@ function DocumentScreen({
   const [applying, setApplying] = useState(!!pendingApply);
   const [applyingPass, setApplyingPass] = useState<number | null>(null);
   const [appliedPasses, setAppliedPasses] = useState<Set<number>>(new Set());
-  const [applyTotal, setApplyTotal] = useState(0);
-  const applyTotalRef = useRef(0);
-  const [applyDone, setApplyDone] = useState(0);
+  const [applyCount, setApplyCount] = useState(0);
 
   function apply(passNo: number, indices: number[], total: number): void {
     if (readOnly || indices.length === 0 || applying) return;
@@ -1526,43 +1524,18 @@ function DocumentScreen({
     ]);
     setApplying(true);
     setApplyingPass(passNo);
-    setApplyDone(0);
-    postJson<{ batchIds: string[]; sectionsToRevise: number }>(`/projects/${projectId}/spec/audit-apply`, {
+    setApplyCount(selectedFindings.length);
+    void mma.dispatch(`/projects/${projectId}/spec/audit-apply`, 'spec-audit-apply', {
       findings: selectedFindings,
       passNo,
-    }).then((res) => {
-      applyTotalRef.current = res.sectionsToRevise;
-      setApplyTotal(res.sectionsToRevise);
-    }).catch((e) => {
-      onError(e instanceof Error ? e.message : 'Apply failed.');
-      setApplying(false);
-    });
+    })
+      .then(() => {
+        setApplying(false);
+        if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
+        setApplyingPass(null);
+      })
+      .catch(() => { setApplying(false); setApplyingPass(null); });
   }
-
-  // Listen for spec-audit-apply completion — the mma hook's SSE receives these
-  // events (dispatch.done handler='spec-audit-apply') but since apply dispatches
-  // multiple per-section batches, we poll the status endpoint on each event.
-  useEffect(() => {
-    if (!applying) return;
-    // The parent's useMmaDispatch SSE already fires for this handler.
-    // Poll the status endpoint periodically while applying is true.
-    const interval = setInterval(() => {
-      fetch(`/projects/${projectId}/spec/audit-apply/status${applyingPass !== null ? `?passNo=${applyingPass}` : ''}`)
-        .then((r) => r.json())
-        .then((s: { allDone: boolean; done: number; total: number }) => {
-          setApplyDone(s.done);
-          setApplyTotal(s.total);
-          applyTotalRef.current = s.total;
-          if (s.allDone) {
-                    setApplying(false);
-                    if (applyingPass !== null) setAppliedPasses((prev) => new Set(prev).add(applyingPass));
-                    setApplyingPass(null);
-                  }
-        })
-        .catch(() => {});
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [applying, projectId]);
 
   /** Re-post a stored round's findings to the chat (rail card click). */
   function replay(passNo: number): void {
@@ -1788,7 +1761,7 @@ function DocumentScreen({
                   <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
                     <Loader2 className="size-3.5 animate-spin text-accent" />
                     <span className="text-xs font-medium text-accent-deep">
-                      Applying {applyDone}/{applyTotal || '…'} sections
+                      Applying {applyCount} finding{applyCount !== 1 ? 's' : ''}...
                     </span>
                   </div>
                 ) : null}

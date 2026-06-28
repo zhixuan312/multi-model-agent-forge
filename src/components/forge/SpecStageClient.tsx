@@ -1235,7 +1235,7 @@ function CraftStage({
                 yet. One nod per section is enough — you can proceed anyway.
               </div>
             ) : null}
-            <Button className="w-full" onClick={consolidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
+            <Button className="w-full" onClick={consolidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
               Continue to Finalize
             </Button>
           </CardFooter>
@@ -1758,7 +1758,7 @@ function DocumentScreen({
               href={specApprovers.length > 0 ? `/projects/${projectId}/plan` : '#'}
               label="Continue to Plan"
               testId="spec-continue-link"
-              disabled={specApprovers.length === 0}
+              disabled={specApprovers.length === 0 || readOnly}
             />
           </CardFooter>
         </Card>

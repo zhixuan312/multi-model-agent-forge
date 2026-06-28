@@ -62,12 +62,8 @@ export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', 
   return `(${label}${repoPart}: failed — findings unavailable)`;
 }
 
-export async function buildSynthesizeRequest(
-  projectId: string,
-  deps: { db?: Db } = {},
-): Promise<{ system: string; user: string } | { error: string }> {
-  const db = deps.db ?? getDb();
-
+/** Load recorded task results and build the prompt parts. Shared by both paths. */
+async function loadRecordsAndBuildPrompt(db: Db, projectId: string): Promise<{ system: string; user: string; failureMarkers: string[] } | null> {
   const rows = await db
     .select({
       taskId: explorationTask.id,
@@ -83,7 +79,7 @@ export async function buildSynthesizeRequest(
     .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
     .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'recorded')));
 
-  if (rows.length === 0) return { error: 'No recorded tasks to synthesize.' };
+  if (rows.length === 0) return null;
 
   const successes = rows.filter((r) => r.batchStatus === 'done');
   const failures = rows.filter((r) => r.batchStatus === 'failed');
@@ -121,7 +117,17 @@ export async function buildSynthesizeRequest(
       '',
       failures.length > 0 ? `# Failed tasks (mention each gap in Current state)\n${failureMarkers.join('\n')}` : '',
     ].filter(Boolean).join('\n'),
+    failureMarkers,
   };
+}
+
+export async function buildSynthesizeRequest(
+  projectId: string,
+  deps: { db?: Db } = {},
+): Promise<{ system: string; user: string } | { error: string }> {
+  const result = await loadRecordsAndBuildPrompt(deps.db ?? getDb(), projectId);
+  if (!result) return { error: 'No recorded tasks to synthesize.' };
+  return { system: result.system, user: result.user };
 }
 
 export async function synthesize(
@@ -132,78 +138,27 @@ export async function synthesize(
   const db = deps.db ?? getDb();
   const bus = deps.bus ?? projectEventBus;
 
-  // Gather terminal records joined to their tasks (+ repo names for markers).
-  const rows = await db
-    .select({
-      taskId: explorationTask.id,
-      kind: explorationTask.kind,
-      prompt: explorationTask.prompt,
-      route: mmaBatch.route,
-      batchStatus: mmaBatch.status,
-      result: mmaBatch.result,
-      repoName: repo.name,
-    })
-    .from(explorationTask)
-    .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
-    .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
-    .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'recorded')));
-
-  if (rows.length === 0) return { ok: false };
-
-  const successes = rows.filter((r) => r.batchStatus === 'done');
-  const failures = rows.filter((r) => r.batchStatus === 'failed');
-
-  const recordsBlock = successes
-    .map((r) => {
-      const env = (r.result ?? {}) as Record<string, unknown>;
-      const output = (env.output ?? {}) as Record<string, unknown>;
-      const summary = output.summary;
-      let answerText = '';
-      if (typeof summary === 'string') {
-        answerText = summary;
-      } else if (summary && typeof summary === 'object') {
-        const s = summary as Record<string, unknown>;
-        answerText = typeof s.answer === 'string' ? s.answer
-          : typeof s.summary === 'string' ? s.summary
-          : JSON.stringify(s, null, 2);
-      }
-      const kindLabel = r.route === 'investigate' ? 'Investigation' : r.route === 'research' ? 'Research' : 'Journal recall';
-      const repoTag = r.repoName ? ` (repo: ${r.repoName})` : '';
-      return `### ${kindLabel}${repoTag}\n**Question:** ${r.prompt}\n**Findings:**\n${answerText}`;
-    })
-    .join('\n\n---\n\n');
-
-  const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
+  const prompt = await loadRecordsAndBuildPrompt(db, projectId);
+  if (!prompt) return { ok: false };
 
   const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
   let synthesis: Synthesis;
   try {
     const result = await anthropic.parseWithUsage(SynthesisSchema, {
-      system: SYNTH_SYSTEM,
-      user: [
-        '# Input: Exploration task results',
-        '',
-        `${successes.length} tasks completed, ${failures.length} failed.`,
-        '',
-        recordsBlock || '(no successful records)',
-        '',
-        failures.length > 0 ? `# Failed tasks (mention each gap in Current state)\n${failureMarkers.join('\n')}` : '',
-      ].filter(Boolean).join('\n'),
+      system: prompt.system,
+      user: prompt.user,
       call: 'synthesizeExploration',
       projectId,
     });
     synthesis = result.data;
     await recordOrchestratorUsage(projectId, 'synthesizeExploration', result.usage, { db }).catch(() => {});
   } catch (err) {
-    // Retain the prior version; suppress synthesis.updated; log server-side.
     logPoll({ level: 'error', event: 'synthesize.failure', projectId, detail: errName(err) });
     return { ok: false };
   }
 
-  // Deterministically guarantee every failed task's marker is present in
-  // Current state (the assertable observable), regardless of model output.
   let currentState = synthesis.currentState;
-  for (const marker of failureMarkers) {
+  for (const marker of prompt.failureMarkers) {
     if (!currentState.includes(marker)) {
       currentState = `${currentState.trim()}\n\n${marker}`;
     }

@@ -30,6 +30,8 @@ export interface UseMmaDispatchOpts {
 export interface MmaDispatchState {
   busy: boolean;
   busyHandlers: Set<string>;
+  /** Synchronous ref — readable immediately after dispatch(), before React re-renders. */
+  busyRef: React.RefObject<Set<string>>;
   error: string | null;
   dispatch: (url: string, handler: string, body?: unknown) => Promise<void>;
   waitFor: (handler: string) => Promise<void>;
@@ -52,12 +54,15 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
   onDoneRef.current = opts?.onDone;
 
   const pendingRef = useRef<Map<string, PendingDispatch>>(new Map());
+  const busyRef = useRef<Set<string>>(new Set(opts?.initialBusy ?? []));
 
   const markBusy = useCallback((handler: string) => {
+    busyRef.current.add(handler);
     setBusyHandlers((prev) => new Set(prev).add(handler));
   }, []);
 
   const clearBusy = useCallback((handler: string) => {
+    busyRef.current.delete(handler);
     setBusyHandlers((prev) => {
       const next = new Set(prev);
       next.delete(handler);
@@ -164,6 +169,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
   return {
     busy: busyHandlers.size > 0,
     busyHandlers,
+    busyRef,
     error,
     dispatch,
     waitFor,

@@ -130,6 +130,10 @@ export async function writeExplorationSummaryAsync(projectId: string, bodyMd: st
 
 const SPEC_FILE = 'spec.md';
 
+export function specFilePath(projectId: string): string {
+  return join(projectDir(projectId), SPEC_FILE);
+}
+
 export type SpecFile = ArtifactFile;
 
 export function readSpecFile(projectId: string): SpecFile | null {
@@ -155,6 +159,10 @@ export async function writeSpecAsync(projectId: string, bodyMd: string): Promise
 /* ── Plan ───────────────────────────────────────────────────────────── */
 
 const PLAN_FILE = 'plan.md';
+
+export function planFilePath(projectId: string): string {
+  return join(projectDir(projectId), PLAN_FILE);
+}
 
 export type PlanFile = ArtifactFile;
 

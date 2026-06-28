@@ -67,64 +67,49 @@ Constraints:
    - Non-functional requirements (fail-fast, observability, config defaults) each have a task
    If a spec requirement has no task, add one.
 
-Output format (JSON array):
-Each task object has:
-- title: unique, descriptive (e.g. "Define ClaimsRepository port and ClaimRow type")
-- detail: full task body in markdown following this exact structure:
+Output format:
+Write the ENTIRE plan to a file at \`PLAN_FILE_PATH\` (this placeholder will be replaced with the actual path). Use this exact markdown structure:
 
-  **Files:**
-  - Create: \`exact/path/to/file.ts\`
-  - Modify: \`exact/path/to/existing.ts:10-25\`
-  - Test: \`tests/exact/path/to/test.ts\`
+## Phase Name (e.g. "Track A — Data layer")
 
-  - [ ] **Step 1: Write the failing test**
+### Task Title (unique, descriptive)
 
-  \`\`\`typescript
-  // the actual test code the engineer writes
-  \`\`\`
+**Files:**
+- Create: \`exact/path/to/file.ts\`
+- Modify: \`exact/path/to/existing.ts:10-25\`
+- Test: \`tests/exact/path/to/test.ts\`
 
-  - [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 1: Write the failing test**
 
-  Run: \`npm test -- tests/path/test.ts\`
-  Expected: FAIL with "function not defined"
+\`\`\`typescript
+// the actual test code the engineer writes
+\`\`\`
 
-  - [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 2: Run test to verify it fails**
 
-  \`\`\`typescript
-  // the actual code that makes the test pass
-  \`\`\`
+Run: \`npm test -- tests/path/test.ts\`
+Expected: FAIL with "function not defined"
 
-  - [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 3: Write minimal implementation**
 
-  Run: \`npm test -- tests/path/test.ts\`
-  Expected: PASS
+\`\`\`typescript
+// the actual code that makes the test pass
+\`\`\`
 
-  - [ ] **Step 5: Commit**
+- [ ] **Step 4: Run test to verify it passes**
 
-  \`\`\`bash
-  git add tests/path/test.ts src/path/file.ts
-  \`\`\`
+Run: \`npm test -- tests/path/test.ts\`
+Expected: PASS
 
-- phase: the track/phase this task belongs to (e.g. "Track A — Data layer", "Track B — API"). Group related tasks under the same phase. Use 2-4 phases for a typical plan.
-- targetRepoId: the ONE repo (from the provided set)
-- dependsOn: array of sibling task titles (exact match) that must complete first. Empty if none.
-- reviewPolicy: "reviewed" normally. "none" ONLY when intentionally incomplete (downstream task fixes errors).
+Group related tasks under the same ## phase heading. Use 2-4 phases. Aim for 8-20 tasks total.
 
 Hard rules:
-- Each task targets EXACTLY ONE repo. Cross-repo work = separate tasks wired with dependsOn.
-- NEVER include git add / commit / push steps in the plan as actionable work — the harness owns commits. The Step 5 commit line is a LABEL only (tells the harness what to stage).
-- Order by dependency: a task's dependsOn titles must appear earlier in the list.
-- Aim for 8-20 tasks. Each independently testable.
-- Include actual TypeScript/JavaScript code in the detail — not pseudocode or descriptions.
-- Use checkbox syntax (\`- [ ]\`) for every step — this enables progress tracking.
-
-Return ONLY a JSON array inside a markdown code fence. No wrapper object. No commentary before or after.
-
-\`\`\`json
-[
-  { "title": "...", "detail": "...", "phase": "Track A — ...", "targetRepoId": "...", "dependsOn": [], "reviewPolicy": "reviewed" }
-]
-\`\`\``;
+- NEVER include git add / commit / push steps — the harness owns commits.
+- Order by dependency: later tasks may depend on earlier ones.
+- Each task is independently testable.
+- Include actual TypeScript/JavaScript code — not pseudocode or descriptions.
+- Use checkbox syntax (\`- [ ]\`) for every step.
+- Write the file to the path specified above. This is MANDATORY — the harness reads the plan from that file.`;
 
 export interface PlanAuthorDeps {
   db?: Db;

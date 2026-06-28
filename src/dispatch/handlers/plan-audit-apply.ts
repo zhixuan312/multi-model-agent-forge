@@ -1,48 +1,34 @@
+import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-import { replaceTaskSection } from '@/plan/plan-file-ops';
+import { planTask } from '@/db/schema/build';
+import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { readPlanFileAsync } from '@/projects/project-files';
+import { parsePlanSections } from '@/plan/plan-file-ops';
 
-function parseDraftMd(raw: string): string | null {
-  let cleaned = raw.trim();
-  if (!cleaned) return null;
-  // Try top-level code fence
-  const codeBlock = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  if (codeBlock) cleaned = codeBlock[1].trim();
-  // Try direct JSON parse
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
-  } catch { /* not JSON */ }
-  // Try to find { "draftMd": "..." } embedded anywhere in the response
-  const embedded = cleaned.match(/\{\s*"draftMd"\s*:\s*"([\s\S]*?)"\s*\}\s*$/);
-  if (embedded) {
-    try {
-      const parsed = JSON.parse(embedded[0]);
-      if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
-    } catch { /* malformed */ }
+async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
+  const planFile = await readPlanFileAsync(ctx.projectId);
+  if (!planFile) {
+    throw new Error('plan.md not found after audit-apply — MMA may have failed to write it.');
   }
-  // Try code-fenced JSON anywhere in the response
-  const fencedJson = cleaned.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (fencedJson) {
-    try {
-      const parsed = JSON.parse(fencedJson[1].trim());
-      if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
-    } catch { /* malformed */ }
+
+  // Sync DB plan_task titles with the updated plan.md headings.
+  // MMA may have renamed headings despite being told not to.
+  const sections = parsePlanSections(planFile.bodyMd);
+  const dbTasks = await db
+    .select({ id: planTask.id, title: planTask.title, orderIndex: planTask.orderIndex })
+    .from(planTask)
+    .where(eq(planTask.projectId, ctx.projectId));
+
+  for (const dbTask of dbTasks) {
+    const section = sections[dbTask.orderIndex];
+    if (!section) continue;
+    const fileTitle = section.heading.replace(/^###\s*/, '').trim();
+    if (fileTitle !== dbTask.title) {
+      await db.update(planTask)
+        .set({ title: fileTitle, updatedAt: new Date() })
+        .where(eq(planTask.id, dbTask.id));
+    }
   }
-  // Fallback: accept any non-trivial content
-  if (cleaned.length > 20) return cleaned;
-  return null;
-}
-
-async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractJsonFromEnvelope(envelope);
-  const draftMd = parseDraftMd(raw);
-  if (!draftMd) throw new Error('Response missing draftMd — could not parse revised task body');
-
-  const request = ctx.request as { taskTitle?: string };
-  if (!request.taskTitle) throw new Error('No taskTitle in request meta');
-
-  await replaceTaskSection(ctx.projectId, request.taskTitle, draftMd);
 }
 
 registerHandler('plan-audit-apply', handlePlanAuditApply);

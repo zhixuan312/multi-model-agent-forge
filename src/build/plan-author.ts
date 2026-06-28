@@ -222,7 +222,7 @@ export async function authorPlan(
   const readOnly = repos.filter((r) => !byRepo.has(r.id)).map((r) => r.name);
 
   // 4. Write each write-target repo's plan file (under its cwd). A write failure
-  //    halts BEFORE any DB insert / dispatch (F12).
+  //    halts BEFORE any DB insert / dispatch.
   try {
     for (const [repoId, tasks] of byRepo) {
       const r = reposById.get(repoId)!;

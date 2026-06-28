@@ -6,12 +6,9 @@ import type { AuditVerdict } from '@/db/enums';
 import { mmaBatch } from '@/db/schema/mma';
 
 /**
- * Spec-stage audit (Spec 4 Part B / Key flow 5). Parsing, pass history, and
- * verdict queries for spec audits. The dispatch path is async via
- * `dispatchAndRegister` → `spec-audit` handler.
- *
- * `parseAuditEnvelope` + `nextPassNo` are shared by both the spec-audit and
- * plan-audit handlers. `auditPassHistory` + `latestAuditPass` serve the UI.
+ * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
+ * + `nextPassNo` are used by both handlers. `auditPassHistory` + `latestAuditPass`
+ * serve the UI. Dispatch is async via `dispatchAndRegister`.
  */
 
 /** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */
@@ -37,7 +34,7 @@ export type AuditParseResult =
       contextBlockId: string | null;
     }
   | {
-      /** A dispatch that returned NO structured report — a failed/incomplete audit, NOT a clean pass (F20). */
+      /** A dispatch that returned NO structured report — a failed/incomplete audit, NOT a clean pass. */
       kind: 'missing_report';
     };
 
@@ -46,7 +43,7 @@ const VALID_SEVERITY = new Set<FindingSeverity>(['critical', 'high', 'medium', '
 /**
  * Parse the MMA `audit` terminal envelope. PURE — no DB, no network. Returns the
  * findings + the critical/high gate, OR a `missing_report` outcome when the
- * envelope carries no parseable `structuredReport.findings` (F20).
+ * envelope carries no parseable `structuredReport.findings`.
  */
 export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
   const env = (envelope ?? {}) as Record<string, unknown>;

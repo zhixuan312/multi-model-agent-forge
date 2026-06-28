@@ -4,9 +4,9 @@ import { getLatestPlanArtifact, loadPlanTasks } from '@/build/plan-author';
 import { planAuditHistory } from '@/build/audit-plan-loop';
 
 /**
- * Build-monitor read DTOs (Spec 7 §UI). The RSC first-paint loads the plan
- * artifact + plan_task rows + plan audit-pass ledger; the client `BuildMonitor`
- * island subscribes to SSE and patches the cache thereafter.
+ * Build-monitor read DTOs. The RSC first-paint loads the plan from file +
+ * plan_task rows + plan audit-pass ledger; the client island subscribes to
+ * SSE and patches the cache thereafter.
  */
 
 export interface PlanTaskView {

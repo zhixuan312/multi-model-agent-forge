@@ -4,15 +4,15 @@ import { replaceTaskSection } from '@/plan/plan-file-ops';
 
 function parseDraftMd(raw: string): string | null {
   let cleaned = raw.trim();
+  if (!cleaned) return null;
   const codeBlock = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
   if (codeBlock) cleaned = codeBlock[1].trim();
   try {
     const parsed = JSON.parse(cleaned);
     if (typeof parsed?.draftMd === 'string') return parsed.draftMd;
   } catch { /* not JSON */ }
-  if (cleaned.startsWith('#') || cleaned.startsWith('**Files:**') || cleaned.startsWith('- [')) {
-    return cleaned;
-  }
+  // Accept any non-trivial content as the revised task body
+  if (cleaned.length > 20) return cleaned;
   return null;
 }
 

@@ -14,7 +14,7 @@ import type { ComponentKind } from '@/db/enums';
  * enforced by the route/page caller via `assertProjectReadable`.
  */
 
-/** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation (F10). */
+/** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation. */
 export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: unknown }> {
   const dbi = db ?? getDb();
   const [existing] = await dbi
@@ -32,7 +32,7 @@ export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: 
     }
     return existing;
   }
-  // No spec stage yet (defensive — Spec 3 seeds all five): create it active.
+  // No spec stage yet (defensive — project creation seeds all stages): create it active.
   const [row] = await dbi
     .insert(stage)
     .values({ projectId, kind: 'spec', status: 'active', startedAt: new Date() })
@@ -127,7 +127,7 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
   return views;
 }
 
-/** The repaint payload returned by the answer/force/nod handlers (F29). */
+/** The repaint payload returned by the nod handler. */
 export interface SectionRepaint {
   component: {
     status: ComponentStatus;

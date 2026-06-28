@@ -1,9 +1,8 @@
 import type { PlanDraft, PlanTaskDraft } from '@/build/plan-schema';
 
 /**
- * Pure plan-rendering + validation (Spec 7 §Plan authoring). No DB, no fs, no
- * LLM. Renders the per-repo plan markdown (verbatim ATX headings = task
- * descriptors), enforces the no-git-commit-steps lint, validates the structured
+ * Pure plan-rendering + validation. No DB, no fs, no LLM. Renders the per-repo
+ * plan markdown, enforces the no-git-commit-steps lint, validates the structured
  * output (known repos, no dep cycle), and computes the write/read split.
  */
 

@@ -1,10 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Structured-output schemas (Zod 4) for the exploration orchestrator calls
- * (Spec 5 flows B + E). `ProposalSchema` constrains the propose main-agent call;
- * `SynthesisSchema` constrains the synthesis call. Passed to
- * `AnthropicClient.parse` via `zodOutputFormat`.
+ * Structured-output schemas for exploration MMA calls. `ProposalSchema`
+ * constrains the propose output; `SynthesisSchema` constrains the synthesis.
  */
 
 /** Per-route prompt floors (mirror the MMA min-lengths). */

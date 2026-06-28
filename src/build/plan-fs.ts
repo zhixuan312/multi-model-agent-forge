@@ -3,16 +3,10 @@ import { join } from 'node:path';
 import { planFileName } from '@/build/slug';
 
 /**
- * Plan-file-on-disk writer + `.forge/` git hygiene (Spec 7 §Plan authoring,
- * Resolved decisions §2; F10/F12).
- *
- * The plan markdown is written to `<repo.path_on_disk>/.forge/plan-<id>.md` (under
- * the cwd so `extractPlanSection`'s realpath/sandbox check passes), and `.forge/`
- * is added to the repo's `.git/info/exclude` so the scratch file never appears in
- * a teammate's `git status` and is never a commit candidate.
- *
- * The fs surface is injected so tests use temp dirs / a fake; a write failure
- * propagates so the orchestrator halts BEFORE any dispatch (F12).
+ * Per-repo plan file writer + `.forge/` git hygiene. Writes the plan markdown
+ * to `<repo>/.forge/plan-<id>.md` for MMA execution, and adds `.forge/` to
+ * `.git/info/exclude` so scratch files are invisible to `git status`.
+ * Injectable fs seam for testability.
  */
 
 /** Injectable fs seam (tests pass an in-memory fake or a temp-dir-backed impl). */

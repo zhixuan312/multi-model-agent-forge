@@ -1,8 +1,8 @@
 /**
- * `deriveSummary` (Spec 4 / Key flow 1) — derive `project.summary` from
+ * `deriveSummary` — derive `project.summary` from
  * `project.intent_md` by DETERMINISTIC truncation. NO LLM call (F1). The 120-char
  * boundary is sized to the single-line summary budget in `ProjectTopbar`/sidebar
- * (schema.md `project.summary`) — do not change without re-checking that UI (F24).
+ * (schema.md `project.summary`) — do not change without re-checking that UI.
  *
  * 1. Normalize: collapse internal whitespace runs to single spaces and trim.
  * 2. Short (≤120): store verbatim, no ellipsis.

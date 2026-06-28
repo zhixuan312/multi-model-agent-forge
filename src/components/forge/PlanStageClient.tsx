@@ -804,7 +804,7 @@ function DetailStage({
             ))}
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={onValidate} disabled={!allApproved} rightIcon={<ArrowRight />}>
+            <Button className="w-full" onClick={onValidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
               Continue to Validate
             </Button>
           </CardFooter>

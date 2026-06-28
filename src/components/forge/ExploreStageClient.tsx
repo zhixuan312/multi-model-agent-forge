@@ -448,7 +448,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <StageAdvance
                   href={`/projects/${props.projectId}/spec`}
                   label="Continue to Spec"
-                  disabled={!bodyMd}
+                  disabled={!bodyMd || locked}
                   projectId={props.projectId}
                   from="exploration"
                 />

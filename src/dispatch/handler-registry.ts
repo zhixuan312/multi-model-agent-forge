@@ -87,4 +87,6 @@ export function ensureHandlersRegistered(): void {
   import('./handlers/execute-pipeline').catch(() => {});
   import('./handlers/code-review').catch(() => {});
   import('./handlers/review-apply').catch(() => {});
+  import('./handlers/journal-harvest').catch(() => {});
+  import('./handlers/journal-record').catch(() => {});
 }

@@ -68,7 +68,7 @@ export interface JournalLearningView {
 export interface JournalStageClientProps {
   projectId: string;
   projectName: string;
-  phase: ProjectPhase;
+  phase?: ProjectPhase;
   learnings: JournalLearningView[];
   harvesting: boolean;
   recording: boolean;
@@ -112,7 +112,7 @@ function frameLearning(raw: string): string {
 
 export function JournalStageClient(props: JournalStageClientProps) {
   const router = useRouter();
-  const readOnly = props.phase !== 'build' && props.phase !== 'learn';
+  const readOnly = false;
 
   useEffect(() => { stagePhaseStore.set('journal'); }, []);
 
@@ -141,10 +141,11 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [threads, activeId]);
 
-  // Auto-harvest on first visit (no learnings, not already harvesting)
+  // Auto-harvest on first visit (no learnings, not already harvesting).
+  // Uses busyRef (synchronous) to survive React strict mode double-mount.
   useEffect(() => {
-    if (props.learnings.length === 0 && !harvesting && !readOnly) {
-      harvest();
+    if (props.learnings.length === 0 && !props.harvesting && !mma.busyRef.current.has('journal-harvest')) {
+      void mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {}).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -182,10 +183,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
         { id: nid(), role: 'forge', text: reframed, isDraft: true },
       ],
     }));
-  }
-
-  async function harvest() {
-    await mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {});
   }
 
   async function approve() {
@@ -486,7 +483,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </CardContent>
             <CardFooter className="flex-col !items-stretch gap-2">
               {props.learnings.length === 0 ? (
-                <Button className="w-full" onClick={harvest} disabled={readOnly || harvesting} loading={harvesting} leftIcon={<NotebookPen />}>
+                <Button className="w-full" onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {})} disabled={readOnly || harvesting} loading={harvesting} leftIcon={<NotebookPen />}>
                   {harvesting ? 'Harvesting…' : 'Harvest learnings'}
                 </Button>
               ) : (

@@ -106,6 +106,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       applyRunning={!!runningApply}
       applyCount={applyCount}
       buildPrs={buildPrs}
+      readOnly={false}
     />
   );
 }

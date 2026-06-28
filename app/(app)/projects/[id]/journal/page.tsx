@@ -107,6 +107,7 @@ export default async function JournalStagePage({ params, searchParams }: { param
       recording={!!pendingRecord}
       activeLearningId={activeLearningId}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      readOnly={false}
     />
   );
 }

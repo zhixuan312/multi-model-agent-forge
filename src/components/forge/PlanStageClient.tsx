@@ -96,6 +96,7 @@ export interface PlanStageClientProps {
   pendingAudit?: string | null;
   pendingApply?: string | null;
   initialPhase?: 'refine' | 'validate';
+  readOnly?: boolean;
 }
 
 let _id = 0;
@@ -106,7 +107,7 @@ const taskNum = (id: string) => Number(id.replace(/\D/g, '')) || 0;
 
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
-  const readOnly = false;
+  const readOnly = props.readOnly ?? false;
   const [phases] = useServerState(props.phases);
   const allTasks = useMemo(() => phases.flatMap((p) => p.tasks), [phases]);
 

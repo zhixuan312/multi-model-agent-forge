@@ -72,6 +72,7 @@ export interface JournalStageClientProps {
   recording: boolean;
   activeLearningId?: string;
   currentMember?: { id: string; displayName: string; avatarTint: string };
+  readOnly?: boolean;
 }
 
 type LearningStatus = 'proposed' | 'kept' | 'recorded';
@@ -122,7 +123,7 @@ function ChatUser({ text }: { text: string }) {
 
 export function JournalStageClient(props: JournalStageClientProps) {
   const router = useRouter();
-  const readOnly = false;
+  const readOnly = props.readOnly ?? false;
 
   useEffect(() => { stagePhaseStore.set('journal'); }, []);
 

@@ -9,8 +9,16 @@ import { replaceSpecSection } from '@/spec/spec-file-ops';
 
 async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
-  const parsed = JSON.parse(raw) as { draftMd: string };
-  if (typeof parsed.draftMd !== 'string') throw new Error('Response missing draftMd');
+  let draftMd: string | null = null;
+  let cleaned = raw.trim();
+  const codeBlock = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+  if (codeBlock) cleaned = codeBlock[1].trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed?.draftMd === 'string') draftMd = parsed.draftMd;
+  } catch { /* not JSON */ }
+  if (!draftMd && cleaned.length > 20) draftMd = cleaned;
+  if (!draftMd) throw new Error('Response missing draftMd');
 
   const request = ctx.request as {
     componentKind: string;
@@ -41,12 +49,12 @@ async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, envelope: unknown)
   // Write to DB (keeps metadata in sync)
   await db
     .update(componentSection)
-    .set({ draftMd: parsed.draftMd, updatedAt: new Date() })
+    .set({ draftMd: draftMd, updatedAt: new Date() })
     .where(and(eq(componentSection.componentId, comp.id), eq(componentSection.key, request.sectionKey)));
 
   // Write directly to spec.md (source of truth)
   if (sec) {
-    await replaceSpecSection(ctx.projectId, sec.label, parsed.draftMd);
+    await replaceSpecSection(ctx.projectId, sec.label, draftMd);
   }
 
   // Check if all sibling audit-apply batches for this project are done.

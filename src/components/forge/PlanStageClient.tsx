@@ -58,10 +58,10 @@ const PLAN_PHASE_NOTES: Record<string, string> = {
 
   validate: `### Validate — audit the plan
 
+- **Plan/Audit** toggle to view the full plan or audit findings
 - **Run audit** — MMA checks sequencing, coverage, and TDD gaps
 - **Select findings** — pick which to apply, or apply all at once
 - **Re-audit** — run again after fixes to verify
-- **Lock** — once audit is clean, lock the plan for execution
 
 ### What the audit checks
 

@@ -375,27 +375,25 @@ const SPEC_PHASE_NOTES: Record<string, string> = {
 
   craft: `### Craft — shape each section
 
-- **Q&A** — Forge asks grounded questions; your answers shape the draft
-- **Approve** — mark a section done when it matches your intent
-- **Force** — skip AI questions and write your own draft
+- **Spec/Discussion** toggle to view the draft or discuss with the team
+- **@Forge** in the discussion to refine the section with AI
+- **Approve** each section when the draft matches your intent
+- **Invite** teammates to review and co-approve
 
-### Approval gates
+### Approval flow
 
-- **AI satisfied** — Forge has enough context (no more questions)
-- **You approve** — the section matches your intent
-- All sections approved → Document phase unlocks`,
+- All sections approved → Finalize phase unlocks`,
 
   finalize: `### Finalize — assemble & audit
 
 - **Construct** — all approved sections assemble into one spec document
 - **Audit** — MMA checks for gaps, contradictions, and missing detail
-- **Apply fixes** — audit findings auto-revise the spec
-- **Freeze** — locks the spec and opens the Build phase
+- **Apply fixes** — audit findings auto-revise the spec section by section
 
-### When to freeze
+### When to advance
 
 - Audit must pass clean (no critical or high findings)
-- Freezing is irreversible — the spec becomes read-only`,
+- All approvers confirmed → Continue to Plan unlocks`,
 };
 
 function SpecNote({ phase }: { phase: string }) {

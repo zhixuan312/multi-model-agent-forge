@@ -145,12 +145,13 @@ export function JournalStageClient(props: JournalStageClientProps) {
     },
   });
 
-  const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest');
+  const shouldAutoHarvest = !props.hasJournalFile && props.learnings.length === 0 && !props.harvesting;
+  const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest') || shouldAutoHarvest;
   const recording = props.recording || mma.busyHandlers.has('journal-record');
 
   // Auto-trigger harvest when no journal.md exists (like plan auto-triggers author-plan)
   useEffect(() => {
-    if (props.hasJournalFile || props.learnings.length > 0 || props.harvesting || mma.busyRef.current.has('journal-harvest')) return;
+    if (!shouldAutoHarvest || mma.busyRef.current.has('journal-harvest')) return;
     void mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {}).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

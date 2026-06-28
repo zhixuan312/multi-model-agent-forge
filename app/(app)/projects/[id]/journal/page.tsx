@@ -29,6 +29,9 @@ export default async function JournalStagePage({ params, searchParams }: { param
 
   const db = getDb();
 
+  const { getStagePermissions } = await import('@/projects/stage-gate');
+  const perms = await getStagePermissions(db, id);
+
   // Activate the journal stage on visit
   const { stage, project: projectTable } = await import('@/db/schema/projects');
   const { and: deq2, eq: deq } = await import('drizzle-orm');
@@ -107,7 +110,7 @@ export default async function JournalStagePage({ params, searchParams }: { param
       recording={!!pendingRecord}
       activeLearningId={activeLearningId}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
-      readOnly={false}
+      readOnly={!perms.journal.canMutate}
     />
   );
 }

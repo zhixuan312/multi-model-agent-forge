@@ -71,7 +71,7 @@ export interface ReviewPassView {
 export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
-  phase: ProjectPhase;
+  phase?: ProjectPhase;
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   terminalResults?: Record<string, RepoTerminalResult>;
@@ -111,7 +111,7 @@ function progressPct(status: RepoJobStatus): number {
 
 export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
-  const readOnly = props.phase === 'learn';
+  const readOnly = false;
   const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
@@ -158,11 +158,12 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
             error: 'Execution failed',
           }];
         }
-        const allCommitted = g.tasks.every((t) => t.status === 'committed');
-        if (allCommitted) return [g.repoId, { status: 'done' as const, prUrl: pr?.url ?? null }];
+        // committed WITH a branch = execution completed; committed without = plan-approved only
+        const allExecuted = g.tasks.every((t) => t.status === 'committed' && t.branch);
+        if (allExecuted) return [g.repoId, { status: 'done' as const, prUrl: pr?.url ?? null }];
         const anyFailed = g.tasks.some((t) => t.status === 'failed');
         if (anyFailed) return [g.repoId, { status: 'failed' as const, error: 'Execution failed' }];
-        const anyRunning = g.tasks.some((t) => t.status === 'executing');
+        const anyRunning = g.tasks.some((t) => t.status === 'executing' || t.status === 'verifying' || t.status === 'fixing');
         return [g.repoId, { status: anyRunning ? ('implementing' as const) : ('queued' as const) }];
       }),
     ),
@@ -175,22 +176,9 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       'execute-pipeline': refresh,
     },
     events: {
-      'dispatch.progress': (data: Record<string, unknown>) => {
-        if (data.handler !== 'execute-pipeline' || !data.repoId) return;
-        const rid = data.repoId as string;
-        setJobs((prev) => ({
-          ...prev,
-          [rid]: {
-            status: (data.phase as string) === 'reviewing' ? 'reviewing' : 'implementing',
-            elapsedMs: data.elapsedMs as number,
-            totalTasks: data.totalTasks as number,
-          },
-        }));
-      },
       'dispatch.failed': (data: Record<string, unknown>) => {
-        if (data.handler !== 'execute-pipeline' || !data.repoId) return;
-        const rid = data.repoId as string;
-        setJobs((prev) => ({ ...prev, [rid]: { status: 'failed', error: (data.error as string) ?? 'Failed' } }));
+        if (data.handler !== 'execute-pipeline') return;
+        refresh();
       },
     },
   });

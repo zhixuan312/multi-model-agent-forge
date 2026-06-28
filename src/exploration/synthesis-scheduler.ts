@@ -3,19 +3,23 @@ import { getDb, type Db } from '@/db/client';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
 import { ProjectEventBus, projectEventBus, type ProjectEvent } from '@/sse/event-bus';
-import { synthesize, type SynthesizeDeps } from '@/exploration/synthesize';
+import { buildSynthesizeRequest } from '@/exploration/synthesize';
+import { buildMmaClient } from '@/mma/server-client';
+import { dispatchAndRegister } from '@/dispatch/dispatch-helpers';
+import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readExplorationSummary } from '@/projects/project-files';
+import '@/dispatch/handler-registry';
 
 /**
  * `SynthesisScheduler` — watches terminal task events and debounces
- * re-synthesis. After a 5s quiet window with no new terminal record,
- * invokes synthesis. Boot reconciliation catches projects that crashed
- * mid-synthesis.
+ * re-synthesis via MMA dispatch. After a 5s quiet window with no new
+ * terminal record, dispatches synthesis through the standard async path.
  */
 
 export const SYNTHESIS_DEBOUNCE_MS = 5_000;
 
-export interface SchedulerDeps extends SynthesizeDeps {
+export interface SchedulerDeps {
+  db?: Db;
   bus?: ProjectEventBus;
   debounceMs?: number;
 }
@@ -24,16 +28,13 @@ export class SynthesisScheduler {
   private readonly db: Db;
   private readonly bus: ProjectEventBus;
   private readonly debounceMs: number;
-  private readonly synthDeps: SynthesizeDeps;
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
-  private unsub: (() => void) | null = null;
   private readonly subscribed = new Set<string>();
 
   constructor(deps: SchedulerDeps = {}) {
     this.db = deps.db ?? getDb();
     this.bus = deps.bus ?? projectEventBus;
     this.debounceMs = deps.debounceMs ?? SYNTHESIS_DEBOUNCE_MS;
-    this.synthDeps = { db: this.db, anthropic: deps.anthropic, bus: this.bus };
   }
 
   watch(projectId: string): void {
@@ -51,7 +52,7 @@ export class SynthesisScheduler {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       this.timers.delete(projectId);
-      void synthesize(projectId, null, this.synthDeps);
+      void this.dispatchSynthesis(projectId);
     }, this.debounceMs);
     if (typeof timer.unref === 'function') timer.unref();
     this.timers.set(projectId, timer);
@@ -65,13 +66,9 @@ export class SynthesisScheduler {
     const existing = this.timers.get(projectId);
     if (existing) clearTimeout(existing);
     this.timers.delete(projectId);
-    await synthesize(projectId, null, this.synthDeps);
+    await this.dispatchSynthesis(projectId);
   }
 
-  /**
-   * Boot reconciliation: for projects with all tasks terminal but no
-   * exploration.md file on disk, run one synthesis pass.
-   */
   async reconcileOnBoot(): Promise<string[]> {
     const taskAgg = await this.db
       .select({
@@ -90,17 +87,40 @@ export class SynthesisScheduler {
     for (const c of candidates) {
       const existing = readExplorationSummary(c.projectId);
       if (!existing) {
-        await synthesize(c.projectId, null, this.synthDeps);
+        await this.dispatchSynthesis(c.projectId);
         swept.push(c.projectId);
       }
     }
     return swept;
   }
 
+  private async dispatchSynthesis(projectId: string): Promise<void> {
+    const request = await buildSynthesizeRequest(projectId, { db: this.db });
+    if ('error' in request) return;
+
+    try {
+      const mma = await buildMmaClient({ db: this.db });
+      await dispatchAndRegister({
+        db: this.db,
+        mma,
+        projectId,
+        route: 'orchestrate',
+        handler: 'explore-synthesize',
+        cwd: resolveWorkspaceRoot(),
+        body: {
+          prompt: `${request.system}\n\n${request.user}`,
+          reviewPolicy: 'none',
+        },
+        actorId: 'system',
+      });
+    } catch {
+      // Synthesis dispatch failed — will retry on next bump or boot reconciliation
+    }
+  }
+
   shutdown(): void {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
-    if (this.unsub) this.unsub();
   }
 }
 

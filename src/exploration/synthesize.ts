@@ -1,37 +1,14 @@
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project } from '@/db/schema/projects';
 import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/mma';
 import { repo } from '@/db/schema/workspace';
-import { AnthropicClient } from '@/anthropic/client';
-import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
-import { logAction } from '@/observability/action-log';
-import { logPoll } from '@/observability/poll-log';
-import { SynthesisSchema, composeExplorationMarkdown, type Synthesis } from '@/exploration/schemas';
-import { recordOrchestratorUsage } from '@/usage/record-orchestrator';
-import { writeExplorationSummaryAsync } from '@/projects/project-files';
 
 /**
- * Synthesize exploration records into `exploration.md` on disk. Reads
- * terminal task results (output.summary), calls Anthropic to produce
- * Background / Current state / Rough direction, and writes the file.
- *
- * Failed tasks are folded as gap markers in Current state. A synthesis
- * failure retains the prior file and logs server-side.
+ * Synthesis prompt builder + gap markers. Builds the prompt for async MMA
+ * dispatch (`dispatchAndRegister` → `explore-synthesize` handler). The
+ * handler parses the response and writes exploration.md.
  */
-
-export interface SynthesizeDeps {
-  db?: Db;
-  anthropic?: Pick<AnthropicClient, 'parse' | 'parseWithUsage'>;
-  bus?: ProjectEventBus;
-}
-
-export interface SynthesizeResult {
-  ok: boolean;
-  artifactId?: string;
-  version?: number;
-}
 
 const SYNTH_SYSTEM = `Role: You are a senior technical analyst synthesizing exploration findings into a grounded brief.
 
@@ -130,55 +107,3 @@ export async function buildSynthesizeRequest(
   return { system: result.system, user: result.user };
 }
 
-export async function synthesize(
-  projectId: string,
-  actor: { id: string } | null,
-  deps: SynthesizeDeps = {},
-): Promise<SynthesizeResult> {
-  const db = deps.db ?? getDb();
-  const bus = deps.bus ?? projectEventBus;
-
-  const prompt = await loadRecordsAndBuildPrompt(db, projectId);
-  if (!prompt) return { ok: false };
-
-  const anthropic = deps.anthropic ?? (await AnthropicClient.fromMainTier());
-  let synthesis: Synthesis;
-  try {
-    const result = await anthropic.parseWithUsage(SynthesisSchema, {
-      system: prompt.system,
-      user: prompt.user,
-      call: 'synthesizeExploration',
-      projectId,
-    });
-    synthesis = result.data;
-    await recordOrchestratorUsage(projectId, 'synthesizeExploration', result.usage, { db }).catch(() => {});
-  } catch (err) {
-    logPoll({ level: 'error', event: 'synthesize.failure', projectId, detail: errName(err) });
-    return { ok: false };
-  }
-
-  let currentState = synthesis.currentState;
-  for (const marker of prompt.failureMarkers) {
-    if (!currentState.includes(marker)) {
-      currentState = `${currentState.trim()}\n\n${marker}`;
-    }
-  }
-  const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
-
-  const filePath = await writeExplorationSummaryAsync(projectId, bodyMd);
-
-  await db.update(project).set({ updatedAt: new Date() }).where(eq(project.id, projectId));
-  if (actor) {
-    await logAction({ projectId, memberId: actor.id, action: 'explore_synthesize', target: `file:${filePath}` }, db);
-  }
-
-  bus.publish(projectId, { type: 'synthesis.updated', artifactId: projectId, version: 1 });
-  return { ok: true, artifactId: projectId, version: 1 };
-}
-
-function errName(err: unknown): string {
-  if (err && typeof err === 'object' && 'name' in err && typeof (err as { name: unknown }).name === 'string') {
-    return (err as { name: string }).name;
-  }
-  return 'Error';
-}

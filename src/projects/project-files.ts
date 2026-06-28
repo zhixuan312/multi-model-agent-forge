@@ -177,3 +177,21 @@ export async function readPlanFileAsync(projectId: string): Promise<PlanFile | n
 export async function writePlanAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
   return writeArtifactAsync(projectId, PLAN_FILE, bodyMd);
 }
+
+/* ── Journal ─────────────────────────────────────────────────────── */
+
+const JOURNAL_FILE = 'journal.md';
+
+export function journalFilePath(projectId: string): string {
+  return join(projectDir(projectId), JOURNAL_FILE);
+}
+
+export type JournalFile = ArtifactFile;
+
+export async function readJournalFileAsync(projectId: string): Promise<JournalFile | null> {
+  return readArtifactAsync(projectId, JOURNAL_FILE);
+}
+
+export async function writeJournalAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
+  return writeArtifactAsync(projectId, JOURNAL_FILE, bodyMd);
+}

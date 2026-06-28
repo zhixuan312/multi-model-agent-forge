@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Check,
   Loader2,
+  Lock,
   NotebookPen,
   Plus,
   RotateCcw,
@@ -442,9 +443,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
               )}
             >
-              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
+              {readOnly ? <Lock className="size-4" /> : recording ? <Loader2 className="size-4 animate-spin" /> : null}
               {recording ? 'Recording...' : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
-              {!recording ? <ArrowRight className="size-4" /> : null}
+              {!recording && !readOnly ? <ArrowRight className="size-4" /> : null}
             </button>
           </CardFooter>
         </Card>

@@ -315,7 +315,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   }}
                   disabled={locked || proposing || tasks.length === 0}
                   loading={proposing}
-                  leftIcon={<ArrowRight />}
+                  rightIcon={<ArrowRight />}
                 >
                   {proposing ? 'Analyzing…' : 'Continue to Discover'}
                 </Button>
@@ -383,7 +383,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               onClick={() => setViewOverride('synthesize')}
               disabled={!allDone || locked || synthesizing}
               loading={synthesizing}
-              leftIcon={<ArrowRight />}
+              rightIcon={<ArrowRight />}
             >
               {synthesizing ? 'Synthesizing…' : 'Continue to Synthesize'}
             </Button>
@@ -670,7 +670,6 @@ function FanOutCard(props: {
                           'group/task flex flex-col rounded-[var(--r-md)] border bg-surface p-3.5 shadow-sm transition-colors',
                           subFloor ? 'border-[var(--rose)]/60' : 'border-line',
                           isDraft && 'hover:border-line-strong',
-                          !isDraft && 'opacity-75',
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -722,7 +721,7 @@ function FanOutCard(props: {
                             ) : null}
                           </>
                         ) : (
-                          <p className="mt-2.5 text-sm leading-relaxed text-ink-soft">{t.prompt}</p>
+                          <p className="mt-2.5 text-sm leading-relaxed text-ink">{t.prompt}</p>
                         )}
                       </div>
                     );

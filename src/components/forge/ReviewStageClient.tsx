@@ -259,6 +259,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               href={`/projects/${props.projectId}/journal`}
               label="Continue to Journal"
               disabled={readOnly}
+              gate
               projectId={props.projectId}
               from="review"
               testId="review-continue-link"

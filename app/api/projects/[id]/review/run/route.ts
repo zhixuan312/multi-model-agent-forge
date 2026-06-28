@@ -74,8 +74,7 @@ export async function POST(
         handler: 'code-review',
         cwd: repoRow.pathOnDisk,
         body: {
-          subtype: 'code',
-          ...(changedFiles.length > 0 ? { target: { paths: changedFiles } } : {}),
+          target: { paths: changedFiles.length > 0 ? changedFiles : ['.'] },
           prompt: 'Review all changed files for correctness, security, performance, cross-file ripple, test gaps, and style issues.',
         },
         actorId: me.id,

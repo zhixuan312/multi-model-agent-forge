@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import {
   ArrowRight,
-  Check,
   CheckCircle2,
   Loader2,
   ScanSearch,
@@ -27,6 +26,7 @@ import {
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import type { ProjectPhase } from '@/db/enums';
 
 const REVIEW_NOTE = `### How code review works
@@ -68,19 +68,6 @@ export interface ReviewStageClientProps {
   applyRunning: boolean;
 }
 
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
-const SEV_STYLE: Record<string, string> = {
-  critical: 'bg-rose-tint text-[var(--rose)]',
-  high: 'bg-amber-tint text-[var(--amber)]',
-  medium: 'bg-[var(--frost)] text-[var(--steel)]',
-  low: 'bg-surface-2 text-ink-soft',
-};
-
-function sevCounts(findings: ReviewFindingView[]): Record<string, number> {
-  const c: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of findings) if (f.weight in c) c[f.weight]++;
-  return c;
-}
 
 /* ── Main Component ──────────────────────────────────────────────── */
 
@@ -115,27 +102,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     await mma.dispatch(`/api/projects/${props.projectId}/review/run`, 'code-review', {});
   }
 
-  async function applySelected() {
-    if (!activePass || selected.size === 0) return;
-    await mma.dispatch(
-      `/api/projects/${props.projectId}/review/apply`,
-      'review-apply',
-      { passNo: activePass.passNo, findingIndices: [...selected] },
-    );
-  }
-
-  function toggleSelect(idx: number) {
-    setSelected((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; });
-  }
-
-  function toggleSelectAll() {
-    if (!activePass) return;
-    const selectable = activePass.findings.map((_, i) => i).filter((i) => !isApplied(i));
-    const allSelected = selectable.every((i) => selected.has(i));
-    setSelected(allSelected ? new Set() : new Set(selectable));
-  }
-  const allSelectable = activePass ? activePass.findings.map((_, i) => i).filter((i) => !isApplied(i)) : [];
-  const allSelected = allSelectable.length > 0 && allSelectable.every((i) => selected.has(i));
 
   return (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -193,102 +159,56 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
                   </Badge>
                   {allApplied && <Badge variant="sage" size="sm">applied</Badge>}
                 </div>
-                {!isViewingPast && !allApplied && activePass.findings.length > 0 && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={toggleSelectAll}>{allSelected ? 'Unselect all' : 'Select all'}</Button>
-                    <Button size="sm" onClick={applySelected} disabled={selected.size === 0 || applying}>
-                      Apply {selected.size} selected
-                    </Button>
-                  </div>
-                )}
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
-                <div className="grid grid-cols-1 gap-px bg-line/50">
-                  {[...activePass.findings]
-                    .map((f, origIdx) => ({ f, origIdx }))
-                    .sort((a, b) => SEVERITY_ORDER.indexOf(a.f.weight) - SEVERITY_ORDER.indexOf(b.f.weight))
-                    .map(({ f, origIdx }) => {
-                      const applied = isApplied(origIdx);
-                      const on = selected.has(origIdx);
-                      const disabled = readOnly || isViewingPast || allApplied || applied || applying;
-                      return (
-                        <button
-                          key={origIdx}
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => !disabled && toggleSelect(origIdx)}
-                          className={cn(
-                            'flex gap-3 rounded-[var(--r-md)] border p-4 text-left transition-colors',
-                            applied ? 'border-[var(--sage-tint)] bg-sage-tint/20' : on ? 'border-accent bg-accent-tint/30' : 'border-line bg-surface hover:bg-surface-2/50',
-                            disabled && !applied && 'opacity-50',
-                          )}
-                        >
-                          {/* Checkbox */}
-                          <span className={cn(
-                            'mt-0.5 grid size-5 shrink-0 place-items-center rounded-[6px] border text-[10px] font-semibold transition-colors',
-                            applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white'
-                              : on ? 'border-accent bg-accent text-white'
-                              : 'border-line-strong text-ink-faint',
-                          )}>
-                            {applied ? <Check className="size-3" /> : on ? <Check className="size-3" /> : origIdx + 1}
-                          </span>
-
-                          {/* Content */}
-                          <div className="min-w-0 flex-1 space-y-2">
-                            {/* Top row: severity + category */}
-                            <div className="flex items-center gap-2">
-                              <span className={cn('inline-flex shrink-0 items-center justify-center rounded-[5px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', SEV_STYLE[f.weight] ?? SEV_STYLE.medium)}>
-                                {f.weight}
-                              </span>
-                              <span className="text-xs font-medium text-ink-faint">{f.category.replace(/-/g, ' ')}</span>
-                              {f.file && (
-                                <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-faint">{f.file}{f.line > 0 ? `:${f.line}` : ''}</span>
-                              )}
-                            </div>
-
-                            {/* Claim */}
-                            <p className="text-sm leading-relaxed text-ink">{f.claim}</p>
-
-                            {/* Evidence */}
-                            {f.evidence && (
-                              <div className="rounded-[var(--r-sm)] bg-surface-2 px-3 py-2">
-                                <code className="whitespace-pre-wrap text-xs leading-relaxed text-ink-soft">{f.evidence}</code>
-                              </div>
-                            )}
-
-                            {/* Suggestion */}
-                            {f.suggestion && (
-                              <p className="text-xs leading-relaxed text-accent-deep">
-                                <span className="font-semibold">Fix:</span> {f.suggestion}
-                              </p>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-                {!isViewingPast && !allApplied && activePass.findings.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-3.5 py-2.5">
-                    <span className="text-xs text-ink-faint">{selected.size} of {activePass.findings.length} selected</span>
-                    <span className="flex-1" />
-                    <Button size="sm" variant="secondary" onClick={() => {
-                      setSelected(new Set(activePass.findings.map((_, i) => i)));
-                      void applySelected();
-                    }}>Apply all {activePass.findings.length}</Button>
-                    <Button size="sm" onClick={applySelected} disabled={selected.size === 0 || applying}>
-                      Apply {selected.size} selected
-                    </Button>
-                  </div>
-                )}
-                {allApplied && (
-                  <div className="flex items-center gap-2 border-t border-line bg-sage-tint/20 px-3.5 py-2.5">
-                    <Check className="size-3.5 text-[var(--sage-deep)]" />
-                    <span className="text-xs font-medium text-[var(--sage-deep)]">
-                      {activePass.appliedIndices.length} finding{activePass.appliedIndices.length !== 1 ? 's' : ''} applied — re-run review to verify.
-                    </span>
-                  </div>
-                )}
+                <FindingsGrid
+                  findings={activePass.findings.map((f) => ({
+                    severity: f.weight as Finding['severity'],
+                    category: f.category,
+                    claim: f.claim,
+                    evidence: f.evidence,
+                    suggestion: f.suggestion,
+                  }))}
+                  selectable={!isViewingPast && !allApplied}
+                  applying={applying}
+                  applied={allApplied}
+                  readOnly={readOnly}
+                  selectedIndices={[...selected]}
+                  onSelectionChange={(indices) => setSelected(new Set(indices))}
+                  onApply={(indices) => {
+                    setSelected(new Set(indices));
+                    void mma.dispatch(
+                      `/api/projects/${props.projectId}/review/apply`,
+                      'review-apply',
+                      { passNo: activePass.passNo, findingIndices: indices },
+                    );
+                  }}
+                  appliedLabel={`${activePass.appliedIndices.length} finding${activePass.appliedIndices.length !== 1 ? 's' : ''} applied — re-run review to verify.`}
+                  hideApplyBar
+                />
               </CardContent>
+              {!isViewingPast && !allApplied && activePass.findings.length > 0 && (
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    const all = activePass.findings.map((_, i) => i);
+                    setSelected((s) => s.size === activePass.findings.length ? new Set() : new Set(all));
+                  }}>
+                    {selected.size === activePass.findings.length ? 'Unselect all' : 'Select all'}
+                  </Button>
+                  <Button size="sm" onClick={() => {
+                    const indices = [...selected];
+                    void mma.dispatch(`/api/projects/${props.projectId}/review/apply`, 'review-apply', { passNo: activePass.passNo, findingIndices: indices });
+                  }} disabled={selected.size === 0 || applying} loading={applying}>
+                    Apply ({selected.size || 'all'})
+                  </Button>
+                </div>
+              )}
+              {applying && (
+                <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-xs font-medium text-accent-deep">Applying {selected.size} finding{selected.size !== 1 ? 's' : ''}...</span>
+                </div>
+              )}
             </>
           ) : null}
         </Card>
@@ -308,58 +228,43 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               )}
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-              {(reviewing || applying) && (
-                <div className="w-full rounded-[var(--r-md)] border border-line bg-surface p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ink">
-                      {applying ? 'Applying fixes' : `Pass ${props.passes.length + 1}`}
-                    </span>
-                    <Badge variant="neutral" size="sm">running</Badge>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-accent" />
-                    <span className="text-xs text-ink-soft">
-                      {applying ? 'Delegate worker applying fixes…' : 'Reviewing changes…'}
-                    </span>
-                  </div>
+              {reviewing && (
+                <div className="flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-2">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="text-xs font-medium text-accent-deep">
+                    Running pass {props.passes.length + 1}...
+                  </span>
                 </div>
               )}
               {[...props.passes].reverse().map((p) => {
                 const isActive = p.passNo === activePassNo && !reviewing;
-                const counts = sevCounts(p.findings);
                 const hasApplied = p.appliedIndices.length > 0;
+                const hasCritHigh = p.findings.some((f) => f.weight === 'critical' || f.weight === 'high');
                 return (
-                  <button
-                    key={p.passNo}
-                    type="button"
-                    onClick={() => setActivePassNo(p.passNo)}
-                    className={cn(
-                      'w-full rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
-                      isActive ? 'border-accent bg-accent-tint' : hasApplied ? 'border-[var(--sage-tint)] hover:bg-sage-tint/10' : 'border-line hover:bg-surface-2',
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        {hasApplied && <span className="text-[var(--sage)]">✓</span>}
-                        <span className="text-xs font-semibold">Pass {p.passNo}</span>
+                  <div key={p.passNo}>
+                    <AuditRoundCard
+                      passNo={p.passNo}
+                      verdict={p.findings.length === 0 ? 'clean' : hasCritHigh ? 'revised' : 'clean'}
+                      findings={p.findings.map((f) => ({
+                        severity: f.weight as Finding['severity'],
+                        category: f.category,
+                        claim: f.claim,
+                        evidence: f.evidence,
+                        suggestion: f.suggestion,
+                      }))}
+                      applied={hasApplied}
+                      active={isActive}
+                      onClick={() => setActivePassNo(p.passNo)}
+                    />
+                    {applying && isActive ? (
+                      <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
+                        <Loader2 className="size-3.5 animate-spin text-accent" />
+                        <span className="text-xs font-medium text-accent-deep">
+                          Applying {selected.size} finding{selected.size !== 1 ? 's' : ''}...
+                        </span>
                       </div>
-                      <Badge variant={p.findings.length === 0 ? 'sage' : hasApplied ? 'sage' : 'neutral'} size="sm">
-                        {p.findings.length === 0 ? 'clean' : hasApplied ? `${p.appliedIndices.length} fixed` : `${p.findings.length} findings`}
-                      </Badge>
-                    </div>
-                    {p.findings.length > 0 && !hasApplied && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
-                          <span key={s} className={cn('rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold uppercase', SEV_STYLE[s])}>
-                            {counts[s]} {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {hasApplied && p.findings.length - p.appliedIndices.length > 0 && (
-                      <p className="mt-1 text-[10px] text-ink-faint">{p.findings.length - p.appliedIndices.length} accepted</p>
-                    )}
-                  </button>
+                    ) : null}
+                  </div>
                 );
               })}
               {props.passes.length === 0 && !reviewing && (

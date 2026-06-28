@@ -184,25 +184,24 @@ export function FindingsGrid({ findings, selectable, applying, applied, readOnly
             </tbody>
           </table>
           {selectable && onApply && !hideApplyBar ? (
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <div className="sticky bottom-0 flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3">
               {applied ? (
                 <span className="text-xs font-medium text-[var(--sage-deep)]">{appliedLabel ?? 'Applied.'}</span>
               ) : (
                 <>
-                  {sel.size > 0 ? (
-                    <span className="mr-auto flex items-center gap-2 text-xs text-ink-faint">
-                      {sel.size} selected
-                      <button type="button" onClick={() => { if (!controlled) setInternal(new Set()); onSelectionChange?.([]); }} className="text-accent hover:text-accent-deep">Clear</button>
-                    </span>
-                  ) : null}
-                  <Button size="sm" variant="secondary" onClick={() => onApply(findings.map((_, i) => i))} disabled={disabled} loading={applying}>
-                    Apply all
+                  <span className="mr-auto text-xs text-ink-faint">{sel.size} of {findings.length} selected</span>
+                  <Button size="sm" variant="secondary" onClick={() => {
+                    const allIndices = findings.map((_, i) => i);
+                    const allSelected = sel.size === findings.length;
+                    const next = allSelected ? [] : allIndices;
+                    if (!controlled) setInternal(new Set(next));
+                    onSelectionChange?.(next);
+                  }} disabled={disabled}>
+                    {sel.size === findings.length ? 'Unselect all' : 'Select all'}
                   </Button>
-                  {sel.size > 0 ? (
-                    <Button size="sm" onClick={() => onApply([...sel])} disabled={disabled} loading={applying}>
-                      Apply ({sel.size})
-                    </Button>
-                  ) : null}
+                  <Button size="sm" onClick={() => onApply([...sel])} disabled={disabled || sel.size === 0} loading={applying}>
+                    Apply {sel.size || 0} selected
+                  </Button>
                 </>
               )}
             </div>

@@ -18,26 +18,35 @@ const bodySchema = z.object({
 });
 
 function buildFixPrompt(findings: Array<Record<string, unknown>>): string {
-  return `Role: You are a code fixer for Forge, a software delivery harness.
+  const findingsBlock = findings.map((f, i) => {
+    const parts = [`${i + 1}. [${(f.weight as string)?.toUpperCase() ?? 'MEDIUM'}] ${f.category ?? ''}: ${f.claim ?? ''}`];
+    if (f.file) parts.push(`   File: ${f.file}${f.line ? ':' + f.line : ''}`);
+    if (f.evidence) parts.push(`   Evidence: ${f.evidence}`);
+    if (f.suggestion) parts.push(`   Suggested fix: ${f.suggestion}`);
+    return parts.join('\n');
+  }).join('\n\n');
 
-Task: Apply the following code review fixes to the codebase. Each fix targets a specific file and line. Make the changes, then verify the code compiles and tests pass.
+  return `Role: You are a code review fix applicator for Forge, a software delivery harness. You apply targeted code fixes from review findings to the working codebase.
+
+Task: Read each code review finding below, locate the cited file and line, apply the suggested fix, then verify the codebase still compiles and tests pass. Commit all changes when done.
+
+Context: A code review pass flagged the findings listed below. Each finding cites a specific file, line, claim (what is wrong), evidence (how the reviewer found it), and a suggested fix. You are working on the forge branch of the PR — your changes will update the pull request automatically.
+
+Input:
+
+--- Code Review Findings to Fix ---
+${findingsBlock}
+--- End Findings ---
 
 Constraints:
-- Apply EVERY fix listed below
-- Each fix targets a specific file — use the evidence to locate the exact code
-- Make minimal, targeted changes — do not refactor beyond what the fix requires
-- After all fixes, run the test suite to verify nothing broke
-- Commit all changes with a descriptive message
+- Address EVERY finding — use the file path and line to locate the exact code
+- Make minimal, targeted changes — do not refactor, restructure, or "improve" beyond what the finding requires
+- Preserve all code not touched by a finding
+- After all fixes, run the project's test suite to verify nothing broke
+- Commit all changes with a message summarising which findings were addressed
 
-Fixes to apply:
-
-${findings.map((f, i) => {
-    const parts = [`${i + 1}. [${f.weight ?? 'medium'}] ${f.file ?? ''}${f.line ? ':' + f.line : ''}`];
-    if (f.claim) parts.push(`   Claim: ${f.claim}`);
-    if (f.evidence) parts.push(`   Evidence: ${f.evidence}`);
-    if (f.suggestion) parts.push(`   Fix: ${f.suggestion}`);
-    return parts.join('\n');
-  }).join('\n\n')}`;
+Output format:
+Commit your changes to the current branch. No other output is required — the harness reads the git diff.`;
 }
 
 export async function POST(

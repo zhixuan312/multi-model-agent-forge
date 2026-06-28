@@ -10,11 +10,10 @@ import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 
 /**
- * Attachment upload safety + on-disk lifecycle (Spec 5 §Upload safety). For
- * image/file the storage path is ALWAYS server-generated under the
- * traversal/symlink-checked workspace attachment area — never client-supplied.
- * An explicit MIME/extension allow-list rejects anything else before insert.
- * link payloads store only a validated {url}. Bytes are never sent to MMA.
+ * Attachment upload safety + on-disk lifecycle. For image/file the storage
+ * path is ALWAYS server-generated under the traversal/symlink-checked
+ * workspace attachment area — never client-supplied. MIME/extension allow-list
+ * rejects anything else. link payloads store only a validated {url}.
  */
 
 export const MAX_ATTACHMENTS_PER_PROJECT = 20;

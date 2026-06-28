@@ -16,7 +16,7 @@ import { findPendingHandlers } from '@/dispatch/dispatch-helpers';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
 
 /**
- * Exploration stage (Spec 5) — brain-dump → editable fan-out → live agent rail →
+ * Exploration stage — brain-dump → editable fan-out → live agent rail →
  * synthesized summary. RSC first paint hydrates the composer/attachments/tasks/
  * artifact; the client island drives propose/run/synthesize + voice/attachments
  * and patches live from `useProjectEvents` (opened by the project layout).

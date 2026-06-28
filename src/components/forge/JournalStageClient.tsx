@@ -371,10 +371,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
         <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>Learnings</CardTitle>
-              {props.learnings.length > 0 ? <span className="text-sm font-medium text-ink-faint">{props.learnings.length}</span> : null}
-            </div>
+            <CardTitle>Learnings</CardTitle>
             <Button
               size="sm"
               onClick={() => {
@@ -449,14 +446,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 <span className="text-xs font-medium text-accent-deep">Writing {approvedCount} learnings to journal...</span>
               </div>
             ) : (
-              <Button
-                className="w-full"
+              <button
+                type="button"
                 onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {})}
-                disabled={!allApproved || readOnly || recording}
-                rightIcon={<ArrowRight />}
+                disabled={approvedCount === 0 || readOnly || recording}
+                className={cn(
+                  'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
+                  approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
+                )}
               >
-                {allApproved ? `Record ${approvedCount} learnings` : `Approve all to continue`}
-              </Button>
+                Record {approvedCount} learning{approvedCount !== 1 ? 's' : ''}
+                <ArrowRight className="size-4" />
+              </button>
             )}
           </CardFooter>
         </Card>

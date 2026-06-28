@@ -1284,24 +1284,26 @@ function ComponentRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full rounded-[var(--r-md)] border px-3 py-2.5 text-left transition-colors',
+        'flex w-full items-center gap-3 rounded-[var(--r-md)] border px-3 py-2.5 text-left transition-colors',
         active ? 'border-accent bg-surface shadow-sm' : 'border-transparent hover:bg-surface-2/50',
       )}
     >
-      <div className="flex items-center gap-2">
-        {c.status === 'approved' ? (
-          <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-        ) : (
-          <Icon className="size-4 shrink-0 text-ink-faint" />
-        )}
-        <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
-        {participants.length > 0 ? <ApproverCluster participants={participants} /> : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {c.status === 'approved' ? (
+            <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
+          ) : (
+            <Icon className="size-4 shrink-0 text-ink-faint" />
+          )}
+          <span className="min-w-0 flex-1 truncate font-semibold text-ink">{c.label}</span>
+        </div>
+        <div className="mt-1 pl-6">
+          <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', displayState.cls)}>
+            {displayState.label}
+          </span>
+        </div>
       </div>
-      <div className="mt-1.5 pl-6">
-        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', displayState.cls)}>
-          {displayState.label}
-        </span>
-      </div>
+      {participants.length > 0 ? <ApproverCluster participants={participants} /> : null}
     </button>
   );
 }
@@ -1708,9 +1710,6 @@ function DocumentScreen({
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Audit rounds</CardTitle>
-              {rounds.length > 0 ? (
-                <span className="text-sm font-medium text-ink-faint">{rounds.length}</span>
-              ) : null}
             </div>
             <Button
               size="sm"

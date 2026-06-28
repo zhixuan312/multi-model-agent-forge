@@ -229,26 +229,26 @@ export function AuditRoundCard({ passNo, verdict, findings, applied, active, onC
   const counts = SEVERITY_ORDER.map((s) => ({ severity: s, count: findings.filter((f) => f.severity === s).length })).filter((c) => c.count > 0);
   return (
     <button type="button" onClick={onClick} className={cn(
-      'w-full rounded-[var(--r-md)] border p-3 text-left transition-colors hover:bg-surface-2/50',
+      'flex w-full items-center gap-3 rounded-[var(--r-md)] border p-3 text-left transition-colors hover:bg-surface-2/50',
       active ? 'border-accent bg-accent-tint/20' : 'border-line bg-surface',
     )}>
-      <div className="flex items-center justify-between">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
           {verdict === 'clean' ? <Badge variant="sage" size="sm">clean</Badge> : null}
           {applied ? <Badge variant="sage" size="sm">applied</Badge> : null}
         </div>
-        <span className="text-xs text-ink-faint">{findings.length} findings</span>
+        {counts.length > 0 ? (
+          <div className="mt-1.5 flex gap-1.5">
+            {counts.map((c) => (
+              <span key={c.severity} className={cn('inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold', SEVERITY_STYLE_MAP[c.severity])}>
+                {c.count} {c.severity}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {counts.length > 0 ? (
-        <div className="mt-2 flex gap-1.5">
-          {counts.map((c) => (
-            <span key={c.severity} className={cn('inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold', SEVERITY_STYLE_MAP[c.severity])}>
-              {c.count} {c.severity}
-            </span>
-          ))}
-        </div>
-      ) : null}
+      <span className="shrink-0 text-xs text-ink-faint">{findings.length} findings</span>
     </button>
   );
 }

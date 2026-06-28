@@ -158,11 +158,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           <>
             <CardHeader>
               <div className="flex min-w-0 items-center gap-2">
-                <ScanSearch className="size-4 shrink-0 text-accent" />
-                <CardTitle>Pass {activePassNo}</CardTitle>
-                <Badge variant={activePass.findings.length > 0 ? 'amber' : 'sage'} size="sm">
-                  {activePass.findings.length > 0 ? `${activePass.findings.length} findings` : 'clean'}
-                </Badge>
+                <CardTitle>{props.projectName} — review</CardTitle>
                 {allApplied && <Badge variant="sage" size="sm">applied</Badge>}
               </div>
             </CardHeader>

@@ -627,12 +627,7 @@ function FanOutCard(props: {
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Proposed fan-out">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <CardTitle>{recorded.length > 0 && props.drafts.length === 0 ? 'Exploration tasks' : 'Proposed fan-out'}</CardTitle>
-          <Badge variant="neutral" size="sm">
-            {totalCount}
-          </Badge>
-        </div>
+        <CardTitle>{recorded.length > 0 && props.drafts.length === 0 ? 'Exploration tasks' : 'Proposed fan-out'}</CardTitle>
         {props.headerAction ?? null}
       </CardHeader>
 

@@ -321,7 +321,6 @@ function ConfigurePhase({
           <div className="flex min-w-0 items-center gap-2">
             <GitBranch className="size-4 shrink-0 text-accent" />
             <CardTitle>Execution plan</CardTitle>
-            <Badge variant="neutral" size="sm">{totalTasks} tasks · {repoGroups.length} repo{repoGroups.length > 1 ? 's' : ''}</Badge>
           </div>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto !py-4">
@@ -449,9 +448,6 @@ function MonitorPhase({
               : <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
             }
             <CardTitle>{allTerminal ? 'Execution complete' : 'Executing…'}</CardTitle>
-            <Badge variant={allTerminal ? 'sage' : 'accent'} size="sm">
-              {allTerminal ? `${doneCount} done` : `${doneCount}/${repoGroups.length}`}
-            </Badge>
           </div>
           {maxElapsed > 0 && (
             <span className="inline-flex items-center gap-1.5 text-xs text-ink-faint font-mono">

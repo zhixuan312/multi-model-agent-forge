@@ -500,7 +500,6 @@ function OutlineStage({
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle>Spec outline</CardTitle>
-            <Micro className="!text-ink-faint">Pick what this spec will cover</Micro>
           </div>
         </CardHeader>
         <div className="shrink-0 space-y-2.5 border-b border-line px-5 py-3">

@@ -149,7 +149,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     },
   });
 
-  const { busy, error } = mma;
+  const busy = mma.busyHandlers.has('explore-propose') || mma.busyHandlers.has('explore-synthesize');
+  const { error } = mma;
 
   async function analyze(): Promise<void> {
     await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });

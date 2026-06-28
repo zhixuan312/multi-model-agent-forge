@@ -236,7 +236,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const applyFindings = useCallback((findings: PlanAuditFinding[], passNo?: number) => {
     setApplying(true);
     if (passNo) setApplyingPass(passNo);
-    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings })
+    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings, passNo })
       .then(() => {
         setApplying(false);
         if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));

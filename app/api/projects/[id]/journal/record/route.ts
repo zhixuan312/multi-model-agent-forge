@@ -49,23 +49,25 @@ export async function POST(
     return `- id=${l.id} | category=${category ?? 'insight'} | source=${source ?? 'Manual'} | ${text}`;
   });
 
-  const prompt = `Role: You are the journal recorder for Forge, a software delivery harness.
+  const prompt = `Role: You are the journal recorder for Forge, a software delivery harness. You write team learnings as durable journal nodes.
 
-Task: Record the following approved learnings to the team journal at .mma/journal/.
+Task: Record each learning below as a separate node in the team journal at .mma/journal/. Each node must follow the standardized structure.
 
-Context: These learnings were harvested from a completed project run and curated by the team. Each learning has a category, source stage, and text.
+Context: These learnings were curated by the team from a completed project run. Each has been approved — record them faithfully without editorializing.
 
 Input:
 
 ${lines.join('\n')}
 
 Constraints:
-- Record each learning as a separate journal entry
-- Preserve the category and source metadata
-- Use the journal's native format
+- Record each learning as a separate journal node
+- Preserve the category and source metadata exactly as given
+- Frame the title as "When [situation], [action] because [reason]" when possible
+- Include Context (what happened) and Consequences (what to do differently) sections
+- Link related nodes when the learning references prior decisions
 
 Output format:
-Write each learning to .mma/journal/ using the journal_record tool.`;
+Write each node to .mma/journal/ using the journal_record tool. Each node must have frontmatter (id, title, category, status: adopted, tags, date) and body (## Context + ## Consequences).`;
 
   const mma = await buildMmaClient({ db });
   const batchRowId = await dispatchAndRegister({

@@ -144,7 +144,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
     },
     mainSession: async ({ cwd, prompt, outputFormat, sessionId, loopRunId }) => {
       const mma = await buildMmaClient({ db });
-      const body: Record<string, unknown> = { prompt, reviewPolicy: 'none' };
+      const body: Record<string, unknown> = { type: 'orchestrate', prompt, reviewPolicy: 'none' };
       if (outputFormat) body.outputFormat = outputFormat;
       const env = await mma.dispatchAndWait('orchestrate', { cwd, body });
       const usage = extractUsageFields(env);
@@ -248,7 +248,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`
         : prompt;
-      const body = { prompt: fullPrompt, reviewPolicy: 'reviewed' };
+      const body = { type: 'delegate' as const, prompt: fullPrompt, reviewPolicy: 'reviewed' };
       const env = await mma.dispatchAndWait('delegate', { cwd, body });
       const usage = extractUsageFields(env);
       const [batch] = await db
@@ -342,7 +342,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
         const workspaceRoot = resolveWorkspaceRoot();
-        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { prompt: `Record the following learnings to the team journal:\n\n${text}` } });
+        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { type: 'journal_record', prompt: `Record the following learnings to the team journal:\n\n${text}` } });
         const usage = extractUsageFields(env);
         await db
           .insert(mmaBatch)

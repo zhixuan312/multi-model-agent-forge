@@ -144,9 +144,8 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
     },
     mainSession: async ({ cwd, prompt, outputFormat, sessionId, loopRunId }) => {
       const mma = await buildMmaClient({ db });
-      const body: Record<string, unknown> = { prompt };
+      const body: Record<string, unknown> = { prompt, reviewPolicy: 'none' };
       if (outputFormat) body.outputFormat = outputFormat;
-      if (sessionId) body.sessionIds = { implementer: sessionId };
       const env = await mma.dispatchAndWait('orchestrate', { cwd, body });
       const usage = extractUsageFields(env);
       await db
@@ -170,13 +169,15 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
           ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
         })
         .catch(() => {});
+      // v5.4+ envelope: output.summary holds the response text
       const e = (env ?? {}) as Record<string, unknown>;
-      const raw = (e.raw ?? {}) as Record<string, unknown>;
-      const execution = (e.execution ?? {}) as Record<string, unknown>;
-      const sessions = (execution.sessions ?? {}) as Record<string, unknown>;
+      const output = (e.output ?? {}) as Record<string, unknown>;
+      const summaryRaw = output.summary;
+      const text = typeof summaryRaw === 'string' ? summaryRaw
+        : (summaryRaw && typeof summaryRaw === 'object') ? JSON.stringify(summaryRaw) : '';
       return {
-        output: typeof raw.implementer === 'string' ? raw.implementer : '',
-        sessionId: typeof sessions.implementer === 'string' ? sessions.implementer : null,
+        output: text,
+        sessionId: null, // session resume removed in unified task API
       };
     },
     recall: async (_repo, query, loopRunId) => {
@@ -210,8 +211,10 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
           ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
           })
           .catch(() => {});
-        const e = (env ?? {}) as { headline?: string };
-        return e.headline ?? '';
+        const e = (env ?? {}) as Record<string, unknown>;
+        const recallOutput = (e.output ?? {}) as Record<string, unknown>;
+        const recallSummary = recallOutput.summary;
+        return typeof recallSummary === 'string' ? recallSummary : '';
       } catch {
         return '';
       }
@@ -245,7 +248,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`
         : prompt;
-      const body = { tasks: [{ prompt: fullPrompt, agentType: workerTier }], reviewPolicy: 'reviewed' };
+      const body = { prompt: fullPrompt, reviewPolicy: 'reviewed' };
       const env = await mma.dispatchAndWait('delegate', { cwd, body });
       const usage = extractUsageFields(env);
       const [batch] = await db
@@ -339,7 +342,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
         const workspaceRoot = resolveWorkspaceRoot();
-        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { learnings: text } });
+        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { prompt: `Record the following learnings to the team journal:\n\n${text}` } });
         const usage = extractUsageFields(env);
         await db
           .insert(mmaBatch)

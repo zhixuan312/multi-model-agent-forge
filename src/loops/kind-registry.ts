@@ -28,16 +28,28 @@ const maintenance: LoopKindDef = {
   configSchema: maintenanceConfigSchema,
   buildPrompt: (config) => {
     const { goalMd } = maintenanceConfigSchema.parse(config);
-    return [
-      'You are a maintenance worker running on a schedule against this repository.',
-      'Work toward the goal below: make the changes it requires, then run the repo tests/build.',
-      'Leave all changes in the working tree (do NOT commit or push) — the loop runner commits + opens a PR.',
-      'If the goal is already satisfied, make no changes.',
-      '',
-      '## Goal',
-      '',
-      goalMd,
-    ].join('\n');
+    return `Role: You are a maintenance worker for a Forge scheduled loop. You fix, clean, or improve a repository toward a specific goal.
+
+Task: Investigate the repository, understand its structure and test framework, make the changes required by the goal, then verify your changes pass the build and tests BEFORE declaring done.
+
+Context: You are running in an isolated worktree of the repository. The loop runner will commit your changes and open a PR — do NOT commit or push yourself. If the goal is already satisfied (tests already pass, code already clean), make no changes.
+
+Input:
+
+--- Goal ---
+${goalMd}
+--- End Goal ---
+
+Constraints:
+- INVESTIGATE FIRST — read package.json / Makefile / pyproject.toml to find the test/build command
+- Find and read the ACTUAL failing tests before editing anything — understand WHY they fail
+- After making changes, RUN the test/build command yourself and verify it passes
+- If tests still fail after your changes, read the error output and fix it — do not declare done while tests fail
+- Leave all changes in the working tree — the loop runner handles commit + PR
+- If the goal is already satisfied, make no changes
+
+Output format:
+Make your changes directly to the files. Run the verification command. Report what you changed and whether verification passed.`;
   },
 };
 

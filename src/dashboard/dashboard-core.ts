@@ -177,9 +177,15 @@ export async function dashboardProjects(
     collabByP.set(r.projectId, list);
   }
 
+  // Stages where audit/human-gate signals are still actionable
+  const DESIGN_STAGES = new Set(['exploration', 'spec', 'plan']);
+
   return base.map((p) => {
-    const awaitingHuman = awaitingByP.get(p.id) ?? 0;
-    const openAuditIssues = auditByP.get(p.id) ?? 0;
+    // Only show awaiting-human and audit issues if the project is still in a design stage.
+    // Once execution starts (Execute/Review/Journal), design-stage findings are historical.
+    const inDesign = DESIGN_STAGES.has(p.currentStage ?? '');
+    const awaitingHuman = inDesign ? (awaitingByP.get(p.id) ?? 0) : 0;
+    const openAuditIssues = inDesign ? (auditByP.get(p.id) ?? 0) : 0;
     return {
       ...p,
       awaitingHuman,

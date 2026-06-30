@@ -18,17 +18,20 @@ const SPEC_BODY = '## 01. Context\nbody one\n\n## 03. Technical design\nbody thr
 
 /* Mock readSpecFile (sync) — collect-artifacts uses the sync variant for spec. */
 const readSpecFileMock = vi.fn<(id: string) => import('@/projects/project-files').SpecFile | null>();
+const readJournalFileMock = vi.fn<(id: string) => import('@/projects/project-files').JournalFile | null>();
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/projects/project-files')>();
   return {
     ...orig,
     readSpecFile: (...args: [string]) => readSpecFileMock(...args),
+    readJournalFile: (...args: [string]) => readJournalFileMock(...args),
   };
 });
 
 beforeEach(() => {
   readSpecFileMock.mockReset();
+  readJournalFileMock.mockReset();
 });
 
 afterAll(() => {
@@ -55,26 +58,26 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
     const byKind = Object.fromEntries(menu.map((m) => [m.kind, m]));
     expect(byKind.spec.ready).toBe(true);
     expect(byKind.spec.version).toBe(1);
-    expect(byKind.review.ready).toBe(false);
+    expect(byKind.journal.ready).toBe(false);
     expect(byKind.exploration.ready).toBe(false);
     expect(byKind.plan.ready).toBe(false);
   });
 
-  it('a DONE review batch ⇒ review ready', async () => {
+  it('journal file present ⇒ journal ready', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     readSpecFileMock.mockReturnValue(null);
+    readJournalFileMock.mockReturnValue({ bodyMd: '# Journal', version: 1, updatedAt: '' });
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'learn' }],
+        [{ ownerId, visibility: 'public', phase: 'learn' }],
       ),
       'select:project_audit_pass': [],
-      'select:project_artifact': [],
-      'select:ops_mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
+      'select:project_participant': [],
     });
     const menu = await collectMenu(projectId, { id: ownerId }, { db });
-    expect(menu.find((m) => m.kind === 'review')!.ready).toBe(true);
+    expect(menu.find((m) => m.kind === 'journal')!.ready).toBe(true);
   });
 });
 
@@ -122,13 +125,13 @@ describe('collect-artifacts — visibility (F-visibility)', () => {
     readSpecFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
-      'select:project_member': [],
+      'select:project_participant': [],
     });
     await expect(collectMenu(projectId, { id: strangerId }, { db })).rejects.toBeInstanceOf(ProjectAccessError);
     readSpecFileMock.mockReturnValue(null);
     const db2 = createMockDb({
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
-      'select:project_member': [],
+      'select:project_participant': [],
     });
     await expect(collectArtifact(projectId, 'spec', { id: strangerId }, { db: db2 })).rejects.toBeInstanceOf(
       ProjectAccessError,
@@ -214,40 +217,26 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
     );
   });
 
-  it('collectReadyArtifacts returns ready ones in exploration→spec→plan→review order (F20)', async () => {
+  it('collectReadyArtifacts returns ready ones in exploration→spec→plan→journal order (F20)', async () => {
     const projectId = 'test-export-ready';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
     const { writeExplorationSummary } = await import('@/projects/project-files');
     writeExplorationSummary(projectId, '## Background\n\nExploration content');
-    // No spec file on disk
     readSpecFileMock.mockReturnValue(null);
+    readJournalFileMock.mockReturnValue(null);
     const db = createMockDb({
-      'select:project_member': [{ memberId: ownerId }],
-      // 7 select:project calls: 1 (collectReadyArtifacts assertProjectReadable)
-      //   + 1+1 (exploration collectArtifact assertProjectReadable + buildMeta)
-      //   + 1 (spec collectArtifact assertProjectReadable, then not-ready skip)
-      //   + 1+1 (plan collectArtifact assertProjectReadable + buildMeta)
-      //   + 1 (review collectArtifact assertProjectReadable, then not-ready skip)
+      'select:project_participant': [{ memberId: ownerId }],
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
+        ...(Array(10).fill([{ ownerId, visibility: 'public', phase: 'design' }]) as Array<Array<unknown>>),
       ),
-      'select:team_member': [{ displayName: 'Owner' }, { displayName: 'Owner' }],
-      'select:project_stage': [{ id: specStageId }, { id: specStageId }],
+      'select:team_member': [{ displayName: 'Owner' }],
+      'select:project_stage': [{ id: specStageId }],
       'select:project_component': [],
       'select:project_audit_pass': [],
-      // Only plan queries the DB for artifacts now (spec reads from file)
-      'select:project_artifact': [{ id: 'plan-1', bodyMd: '## Plan\nx', version: 1 }],
-      'select:ops_mma_batch': [],
     });
     const ready = await collectReadyArtifacts(projectId, { id: ownerId }, { db });
-    expect(ready.map((a) => a.kind)).toEqual(['exploration', 'plan']);
+    expect(ready.map((a) => a.kind)).toEqual(['exploration']);
   });
 });
 
@@ -272,7 +261,7 @@ describe('md-export + review adapter (F19/F25)', () => {
     expect(md1).toContain('# Review report');
     expect(md1).toContain('Null deref');
     expect(md1).toContain('high');
-    expect(buildMdExport('review', md1).body).toBe(md1);
+    expect(buildMdExport('journal', md1).body).toBe(md1);
   });
 
   it('review adapter prefers a ready-made markdown body', () => {
@@ -280,25 +269,23 @@ describe('md-export + review adapter (F19/F25)', () => {
     expect(md.startsWith('# Custom report')).toBe(true);
   });
 
-  it('collectArtifact(review) returns adapter markdown', async () => {
+  it('collectArtifact(journal) returns journal file content', async () => {
     const projectId = 'proj-1';
     const ownerId = 'member-1';
-    const specStageId = 'stage-1';
     readSpecFileMock.mockReturnValue(null);
+    readJournalFileMock.mockReturnValue({ bodyMd: '# Journal\n\nTeam learnings', version: 1, updatedAt: '' });
     const db = createMockDb({
-      'select:project_member': [{ memberId: ownerId }],
+      'select:project_participant': [{ memberId: ownerId }],
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'learn' }],
+        [{ ownerId, visibility: 'public', phase: 'learn' }],
       ),
       'select:team_member': [{ displayName: 'Owner' }],
-      'select:project_stage': [{ id: specStageId }],
+      'select:project_stage': [{ id: 'stage-1' }],
       'select:project_component': [],
       'select:project_audit_pass': [],
-      'select:ops_mma_batch': [{ result: { structuredReport: { findingsOutcome: 'clean', findings: [] } } }],
     });
-    const c = await collectArtifact(projectId, 'review', { id: ownerId }, { db });
-    expect(c.bodyMd).toContain('# Review report');
-    expect(c.bodyMd).toContain('No findings reported.');
+    const c = await collectArtifact(projectId, 'journal', { id: ownerId }, { db });
+    expect(c.bodyMd).toContain('Journal');
   });
 });

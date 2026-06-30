@@ -9,7 +9,7 @@
  * tab) — defaulted when unconfigured so dispatches never 400 `main_model_required`.
  */
 import { getDb, type Db } from '@/db/client';
-import { connectionSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/identity';
 import { MmaClient } from '@/mma/client';
 import { resolveMmaClientConfig } from '@/mma/client-config';
 import { readMmaTiers, type MmaTiers } from '@/mma/mma-config-reader';

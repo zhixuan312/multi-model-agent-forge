@@ -58,10 +58,11 @@ describe('FindingsGrid', () => {
     expect(screen.getByText('Minor issue')).toBeInTheDocument();
   });
 
-  it('calls onApply with all indices when Apply all clicked', () => {
+  it('calls onApply with all indices when Select all then Apply clicked', () => {
     const onApply = vi.fn();
     render(<FindingsGrid findings={[finding]} selectable onApply={onApply} />);
-    fireEvent.click(screen.getByRole('button', { name: /apply all/i }));
+    fireEvent.click(screen.getByRole('button', { name: /select all/i }));
+    fireEvent.click(screen.getByRole('button', { name: /apply 1 selected/i }));
     expect(onApply).toHaveBeenCalledWith([0]);
   });
 });

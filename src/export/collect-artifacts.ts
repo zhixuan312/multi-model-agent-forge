@@ -17,7 +17,6 @@
  */
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
 import { readExplorationSummary as readExplorationSummarySync, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
 import { component } from '@/db/schema/spec';

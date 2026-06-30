@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, CircleAlert, CheckCircle2, Loader2, Lightbulb } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
-import { PageFrame, buttonVariants, Card, CardContent, TextStrong } from '@/components/ui';
+import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { RailCard, RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
@@ -52,15 +52,11 @@ export default async function ProjectsPage() {
         {projects.length > 0 ? (
           <ProjectFilterBar projects={projects} />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-            <span className="grid size-10 place-items-center rounded-full bg-accent-tint text-accent">
-              <LayoutGrid className="size-5" />
-            </span>
-            <p className="text-sm font-medium text-ink">No projects yet</p>
-            <p className="max-w-xs text-xs leading-relaxed text-ink-soft">
-              Create your first project to start the flow — Forge takes it from idea through exploration, spec, freeze, and an autonomous build.
-            </p>
-          </div>
+          <EmptyState
+            icon={<LayoutGrid />}
+            title="No projects yet"
+            description="Create your first project to start the flow — Forge takes it from idea through exploration, spec, freeze, and an autonomous build."
+          />
         )}
       </CardContent>
     </Card>
@@ -68,10 +64,10 @@ export default async function ProjectsPage() {
 
   const aside = (
     <>
-      <RailCard title="Needs your attention" badge={attention.length}>
-        <ul className="flex flex-col">
-          {attention.length > 0 ? (
-            attention.map((p) => (
+      {attention.length > 0 ? (
+        <RailCard title="Needs your attention" badge={attention.length}>
+          <ul className="flex flex-col">
+            {attention.map((p) => (
               <li key={p.id}>
                 <a
                   href={`/projects/${p.id}`}
@@ -83,15 +79,10 @@ export default async function ProjectsPage() {
                   </span>
                 </a>
               </li>
-            ))
-          ) : (
-            <li className="flex gap-2.5 pt-1 text-sm text-ink-soft">
-              <CheckCircle2 className="mt-px size-[15px] shrink-0 text-sage" aria-hidden />
-              <span>You&rsquo;re all caught up.</span>
-            </li>
-          )}
-        </ul>
-      </RailCard>
+            ))}
+          </ul>
+        </RailCard>
+      ) : null}
       {totalAgents > 0 ? (
         <RailCard title="Agent activity">
           <div className="flex items-center gap-2.5 text-sm text-ink-soft">

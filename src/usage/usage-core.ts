@@ -4,7 +4,7 @@
  */
 import { sql, and, eq, isNotNull, gte, inArray, not } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { loop, loopRun } from '@/db/schema/loop';
 

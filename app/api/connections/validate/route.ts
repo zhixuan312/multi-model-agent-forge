@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { getDb } from '@/db/client';
-import { connectionSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/identity';
 import { PostgresSecretStore } from '@/secrets/secret-store';
 import { buildMmaClient } from '@/mma/server-client';
 import { probeGit, probeOpenai } from '@/config/connections-probe';

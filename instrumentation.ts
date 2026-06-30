@@ -31,7 +31,7 @@ export async function register(): Promise<void> {
   try {
     const { setAnthropicDiagnosticsSink } = await import('@/anthropic/client');
     const { getDb } = await import('@/db/client');
-    const { mmaBatch } = await import('@/db/schema/mma');
+    const { mmaBatch } = await import('@/db/schema/ops');
     const { resolveWorkspaceRoot } = await import('@/git/workspace-root');
 
     const workspaceRoot = resolveWorkspaceRoot();

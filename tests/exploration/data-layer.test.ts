@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createMockDb } from '../test-utils/mock-db';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 
 describe('Exploration data layer', () => {
   it('ops_mma_batch round-trips one-repo-per-task; research/journal-recall store null repo but NON-NULL cwd', async () => {

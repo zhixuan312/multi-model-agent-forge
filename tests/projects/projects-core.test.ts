@@ -26,7 +26,7 @@ describe('createProject — seeding + validation', () => {
         { id: 'stage-4', projectId, kind: 'execute', status: 'pending' },
         { id: 'stage-5', projectId, kind: 'review', status: 'pending' },
       ],
-      'insert:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
+      'insert:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
       'insert:project_repo': [
         { projectId, repoId: repo1 },
         { projectId, repoId: repo2 },
@@ -49,7 +49,7 @@ describe('createProject — seeding + validation', () => {
     const mockDb = createMockDb({
       'insert:project': [{ id: projectId, phase: 'design', currentStage: 'exploration', ownerId, summary: null, intentMd: null }],
       'insert:project_stage': [],
-      'insert:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
+      'insert:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
       'insert:project_repo': [{ projectId, repoId: repo1 }],
       'insert:ops_action_log': [{ projectId, action: 'create_project' }],
     });
@@ -93,7 +93,7 @@ describe('createProject — seeding + validation', () => {
     const mockDb = createMockDb({
       'insert:project': [{ id: 'p-1' }, { id: 'p-2' }],
       'insert:project_stage': [],
-      'insert:project_member': [],
+      'insert:project_participant': [],
       'insert:project_repo': [],
       'insert:ops_action_log': [],
     });
@@ -123,7 +123,7 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
         [{ id: projectId, visibility: 'public', ownerId }],
         [{ id: projectId, visibility: 'public', ownerId }],
       ),
-      'select:project_member': [],
+      'select:project_participant': [],
     });
 
     const visible = await visibleProjects({ id: strangerId }, { db: mockDb });
@@ -137,7 +137,7 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
     const strangerId = 'stranger-2';
     const mockDb = createMockDb({
       'select:project': seq([], [{ id: projectId, visibility: 'private', ownerId }]),
-      'select:project_member': [],
+      'select:project_participant': [],
     });
 
     const visible = await visibleProjects({ id: strangerId }, { db: mockDb });
@@ -154,7 +154,7 @@ describe('mutation authorization', () => {
     const ownerId = 'owner-8';
     const mockDb = createMockDb({
       'select:project': [{ id: projectId, visibility: 'public', ownerId }],
-      'select:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
+      'select:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
       'update:project': [{ id: projectId, visibility: 'private' }],
       'insert:ops_action_log': [{ projectId, action: 'change_visibility', memberId: ownerId }],
     });
@@ -168,7 +168,7 @@ describe('mutation authorization', () => {
     const ownerId = 'owner-9';
     const mockDb = createMockDb({
       'select:project': [{ id: projectId, ownerId }],
-      'select:project_member': [{ projectId, memberId: ownerId, role: 'owner' }],
+      'select:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
       'select:project_repo': [{ projectId, repoId: 'repo-1' }],
       'delete:project_repo': [],
       'insert:project_repo': [{ projectId, repoId: 'repo-2' }],

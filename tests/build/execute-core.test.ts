@@ -43,14 +43,19 @@ describe('inferExecutePhase', () => {
     expect(inferExecutePhase(groups)).toBe('configure');
   });
 
-  it('returns monitor when any executing', () => {
+  it('returns implement when any executing', () => {
     const groups = [{ tasks: [{ status: 'queued' }, { status: 'executing' }] }];
-    expect(inferExecutePhase(groups)).toBe('monitor');
+    expect(inferExecutePhase(groups)).toBe('implement');
   });
 
-  it('returns monitor when all committed (user navigates to Review stage)', () => {
+  it('returns implement when committed with a branch (executed)', () => {
+    const groups = [{ tasks: [{ status: 'committed', branch: 'forge/test-abc123' }] }];
+    expect(inferExecutePhase(groups)).toBe('implement');
+  });
+
+  it('returns configure when committed without a branch (plan-approved, not yet executed)', () => {
     const groups = [{ tasks: [{ status: 'committed' }] }];
-    expect(inferExecutePhase(groups)).toBe('monitor');
+    expect(inferExecutePhase(groups)).toBe('configure');
   });
 
   it('returns configure when empty', () => {

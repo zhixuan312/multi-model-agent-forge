@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';

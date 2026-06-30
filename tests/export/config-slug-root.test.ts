@@ -71,9 +71,9 @@ describe('slug (F4)', () => {
     expect(kindNoun('spec')).toBe('specification');
     expect(kindNoun('exploration')).toBe('exploration');
     expect(kindNoun('plan')).toBe('plan');
-    expect(kindNoun('review')).toBe('review');
+    expect(kindNoun('journal')).toBe('journal');
     expect(mdFileName('spec')).toBe('specification.md');
-    expect(mdFileName('review')).toBe('review.md');
+    expect(mdFileName('journal')).toBe('journal.md');
   });
 });
 

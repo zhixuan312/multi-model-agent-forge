@@ -40,8 +40,8 @@ describe('prompts', () => {
   });
   it('journal prompt forbids "done"-style entries and shows the verify outcome', () => {
     const p = journalPrompt({ goalMd: 'g', workerSummary: 's', filesChanged: ['a.ts'], verify: { command: 'npm test', passed: false, detail: 'failed' } });
-    expect(p).toContain('npm test → FAIL');
-    expect(p).toMatch(/NOT "done"/);
+    expect(p).toContain('`npm test` → FAIL (failed)');
+    expect(p).toMatch(/NOT .*(done|task completed)/i);
     expect(JOURNAL_OUTPUT_FORMAT).toContain('entries');
   });
 });

@@ -16,7 +16,7 @@ function artifacts(over: Partial<Record<string, Partial<ExportMenuArtifact>>> = 
     { kind: 'exploration', label: 'Exploration summary', ready: true, version: 1, lockedAudited: false },
     { kind: 'spec', label: 'Specification', ready: true, version: 1, lockedAudited: false },
     { kind: 'plan', label: 'Plan', ready: true, version: 1, lockedAudited: false },
-    { kind: 'review', label: 'Review report', ready: false, version: null, lockedAudited: false },
+    { kind: 'journal', label: 'Journal', ready: false, version: null, lockedAudited: false },
   ];
   return base.map((a) => ({ ...a, ...(over[a.kind] ?? {}) }));
 }
@@ -37,8 +37,8 @@ describe('ExportMenu (test 12, F10)', () => {
     expect(screen.getByTestId('export-row-plan')).toBeInTheDocument();
     expect(screen.getByTestId('export-bundle')).toBeInTheDocument();
 
-    // pending review row is dimmed + aria-disabled
-    const reviewRow = screen.getByTestId('export-row-review');
+    // pending journal row is dimmed + aria-disabled
+    const reviewRow = screen.getByTestId('export-row-journal');
     expect(reviewRow).toHaveAttribute('aria-disabled', 'true');
     expect(reviewRow.className).toContain('opacity-[.55]');
     expect(screen.getByText('pending')).toBeInTheDocument();
@@ -91,9 +91,9 @@ describe('ExportMenu (test 12, F10)', () => {
     await waitFor(() => screen.getByTestId('export-bundle'));
     fireEvent.click(screen.getByTestId('export-bundle'));
     await waitFor(() => expect(onToast).toHaveBeenCalled());
-    // included = exploration, spec → toast names specification, omits pending review
+    // included = exploration, spec → toast names specification, omits pending journal
     expect(onToast.mock.calls[0][0]).toContain('exploration');
     expect(onToast.mock.calls[0][0]).toContain('specification');
-    expect(onToast.mock.calls[0][0]).not.toContain('review');
+    expect(onToast.mock.calls[0][0]).not.toContain('journal');
   });
 });

@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { explorationTask } from '@/db/schema/exploration';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';

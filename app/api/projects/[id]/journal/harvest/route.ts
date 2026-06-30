@@ -4,7 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
 import { stage } from '@/db/schema/projects';
 import { readExplorationSummaryAsync, readSpecFileAsync, readPlanFileAsync } from '@/projects/project-files';

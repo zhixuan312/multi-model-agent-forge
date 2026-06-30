@@ -1,6 +1,6 @@
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { loop, loopRun } from '@/db/schema/loop';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]) {
   const cols = getTableColumns(table);

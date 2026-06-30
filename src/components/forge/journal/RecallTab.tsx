@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { Card, CardContent, Eyebrow, Spinner } from '@/components/ui';
+import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { RailLayout } from '@/components/forge/journal/journal-shell';
 import { RecallAnswer } from '@/components/forge/journal/RecallView';
@@ -63,6 +63,7 @@ export function RecallTab({
 
   const trimmed = query.trim();
   const canSubmit = trimmed.length >= 10 && trimmed.length <= 4000 && status !== 'running';
+  const hasContent = status !== 'idle' || pins.length > 0 || faqs.length > 0;
 
   /** Dispatch a recall and poll the proxy until terminal; resolves to the parsed
    * answer or throws. Shared by the composer and by per-pin Refresh. */
@@ -158,57 +159,65 @@ export function RecallTab({
         </>
       }
     >
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="flex flex-col gap-4">
-          {status === 'running' ? (
-            <Card>
-              <CardContent className="flex items-center gap-3">
-                <Spinner className="size-4 text-accent" />
-                <span className="truncate text-sm text-ink-soft">
-                  Recalling — <span className="text-ink">{asked}</span>
-                </span>
-              </CardContent>
-            </Card>
-          ) : null}
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {hasContent ? (
+            <div className="flex flex-col gap-4">
+              {status === 'running' ? (
+                <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 px-4 py-3">
+                  <Spinner className="size-4 text-accent" />
+                  <span className="truncate text-sm text-ink-soft">
+                    Recalling — <span className="text-ink">{asked}</span>
+                  </span>
+                </div>
+              ) : null}
 
-          {status === 'error' && error ? (
-            <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
-              {error}
-            </p>
-          ) : null}
+              {status === 'error' && error ? (
+                <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
+                  {error}
+                </p>
+              ) : null}
 
-          {status === 'done' && parsed ? (
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <Eyebrow className="flex items-center gap-1.5 text-accent-deep">
-                  <Sparkles className="size-3.5" /> Answer
-                </Eyebrow>
-                <button
-                  type="button"
-                  onClick={() => void pinLiveAnswer()}
-                  disabled={livePinState !== 'idle'}
-                  aria-label="Pin this answer"
-                  className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
-                >
-                  <Pin className="size-3.5" />
-                  {livePinState === 'pinned' ? 'Pinned' : livePinState === 'saving' ? 'Pinning…' : 'Pin'}
-                </button>
-              </div>
-              {livePinError ? <p className="text-xs text-rose">{livePinError}</p> : null}
-              <RecallAnswer parsed={parsed} index={index} onNavigate={onNavigate} />
-            </section>
-          ) : null}
+              {status === 'done' && parsed ? (
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Eyebrow className="flex items-center gap-1.5 text-accent-deep">
+                      <Sparkles className="size-3.5" /> Answer
+                    </Eyebrow>
+                    <button
+                      type="button"
+                      onClick={() => void pinLiveAnswer()}
+                      disabled={livePinState !== 'idle'}
+                      aria-label="Pin this answer"
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
+                    >
+                      <Pin className="size-3.5" />
+                      {livePinState === 'pinned' ? 'Pinned' : livePinState === 'saving' ? 'Pinning…' : 'Pin'}
+                    </button>
+                  </div>
+                  {livePinError ? <p className="text-xs text-rose">{livePinError}</p> : null}
+                  <RecallAnswer parsed={parsed} index={index} onNavigate={onNavigate} />
+                </section>
+              ) : null}
 
-          <PinnedSection
-            pins={pins}
-            index={index}
-            onNavigate={onNavigate}
-            onUnpin={(p) => void unpin(p)}
-            onRefresh={(p) => void refreshPin(p)}
-          />
-          <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
-        </div>
-      </div>
+              <PinnedSection
+                pins={pins}
+                index={index}
+                onNavigate={onNavigate}
+                onUnpin={(p) => void unpin(p)}
+                onRefresh={(p) => void refreshPin(p)}
+              />
+              <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
+            </div>
+          ) : (
+            <EmptyState
+              icon={<Sparkles />}
+              title="No saved answers yet"
+              description="Ask the journal a question using the composer on the right. Pin useful answers to keep them here for quick access."
+            />
+          )}
+        </CardContent>
+      </Card>
     </RailLayout>
   );
 

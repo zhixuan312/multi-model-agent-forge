@@ -14,7 +14,7 @@
  */
 import { and, eq, isNull, desc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { actionLog } from '@/db/schema/audit';
+import { actionLog } from '@/db/schema/ops';
 
 export interface FaqsDeps {
   db?: Db;

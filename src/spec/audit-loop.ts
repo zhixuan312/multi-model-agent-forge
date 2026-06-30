@@ -3,7 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { auditPass } from '@/db/schema/artifacts';
 import type { AuditPassRow } from '@/db/schema/artifacts';
 import type { AuditVerdict } from '@/db/enums';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`

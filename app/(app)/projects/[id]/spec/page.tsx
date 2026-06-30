@@ -58,7 +58,7 @@ export default async function SpecStagePage({
   const stageRow = await ensureSpecStage(db, id);
   const components = await loadOutline(db, stageRow.id);
   const latestSpec = await getLatestSpec(db, id);
-  const specApprovers = (stageRow.approvers as string[] | null) ?? [];
+  const specApprovers = stageRow.approvers;
   const initialMessages = await loadAllMessages(db, stageRow.id);
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.

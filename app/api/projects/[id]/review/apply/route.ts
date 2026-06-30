@@ -5,7 +5,7 @@ import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import '@/dispatch/handler-registry';

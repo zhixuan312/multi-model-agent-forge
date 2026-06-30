@@ -5,7 +5,7 @@
  */
 import { isNull, and, isNotNull, eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 async function main() {

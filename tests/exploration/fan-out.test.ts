@@ -13,7 +13,7 @@ describe('buildProposeRequest', () => {
   it('builds a 6-part prompt from the brief and repo list', async () => {
     const projectId = 'proj-1';
     const mockDb = createMockDb({
-      'select:project_artifact': [{ id: 'art-1', projectId, kind: 'exploration_brief', bodyMd: 'We want to add caching to the API.', version: 1 }],
+      'select:project': [{ briefMd: 'We want to add caching to the API.' }],
       'select:project_attachment': [],
       'select:project_repo': [{ projectId, repoId: 'repo-1', name: 'api-service' }],
     });
@@ -28,7 +28,7 @@ describe('buildProposeRequest', () => {
 
   it('includes attachment labels in the prompt', async () => {
     const mockDb = createMockDb({
-      'select:project_artifact': [{ bodyMd: 'Brief text', version: 1 }],
+      'select:project': [{ briefMd: 'Brief text' }],
       'select:project_attachment': [{ kind: 'url', label: 'API docs', payload: 'https://api.example.com/docs' }],
       'select:project_repo': [],
     });

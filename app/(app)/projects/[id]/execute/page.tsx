@@ -3,8 +3,9 @@ import { eq, and, desc } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { repo } from '@/db/schema/workspace';
+import { buildPr } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
@@ -146,7 +147,11 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       projectName={proj.name}
       phase={proj.phase as any}
       repoGroups={groups}
-      buildPrs={(proj.buildPrs ?? {}) as Record<string, { url: string; branch: string; targetBranch: string }>}
+      buildPrs={Object.fromEntries(
+        (await db.select({ repoId: buildPr.repoId, url: buildPr.url, branch: buildPr.branch, targetBranch: buildPr.targetBranch })
+          .from(buildPr).where(eq(buildPr.projectId, id)))
+          .map(r => [r.repoId, { url: r.url, branch: r.branch, targetBranch: r.targetBranch }])
+      )}
       terminalResults={terminalResults}
       reviewPasses={reviewPasses}
       reviewRunning={!!runningReview}

@@ -12,7 +12,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { project, projectRepo, projectMember, stage } from '@/db/schema/projects';
+import { project, projectRepo, stage } from '@/db/schema/projects';
+import { participant } from '@/db/schema/participants';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import {
@@ -133,7 +134,7 @@ export async function createProject(
 
     await tx.insert(projectRepo).values(uniqueRepoIds.map((repoId) => ({ projectId: row.id, repoId })));
 
-    await tx.insert(projectMember).values({ projectId: row.id, memberId: actor.id, role: 'owner' });
+    await tx.insert(participant).values({ projectId: row.id, memberId: actor.id, scope: 'project', scopeId: null, role: 'owner' });
 
     await logAction(
       {
@@ -170,9 +171,9 @@ export async function visibleProjects(
   // over the SAME bounded set (one project query + one stage query + one repo
   // count query keyed by the scoped ids) — still O(1) round-trips, not N+1.
   const memberProjectIds = db
-    .select({ pid: projectMember.projectId })
-    .from(projectMember)
-    .where(eq(projectMember.memberId, actor.id));
+    .select({ pid: participant.projectId })
+    .from(participant)
+    .where(and(eq(participant.memberId, actor.id), eq(participant.scope, 'project')));
 
   const rows = await db
     .select({
@@ -200,11 +201,11 @@ export async function visibleProjects(
     .where(inArray(member.id, ownerIds));
   const ownerById = new Map(owners.map((o) => [o.id, o]));
 
-  // Membership set (Mine filter).
+  // Membership set (Mine filter — project-level scope only).
   const memberships = await db
-    .select({ projectId: projectMember.projectId })
-    .from(projectMember)
-    .where(and(inArray(projectMember.projectId, ids), eq(projectMember.memberId, actor.id)));
+    .select({ projectId: participant.projectId })
+    .from(participant)
+    .where(and(inArray(participant.projectId, ids), eq(participant.memberId, actor.id), eq(participant.scope, 'project')));
   const memberSet = new Set(memberships.map((m) => m.projectId));
 
   // Stage rows for the whole set (one query).
@@ -287,9 +288,9 @@ export async function assertProjectReadable(
   if (row.ownerId === actor.id) return;
 
   const [membership] = await db
-    .select({ memberId: projectMember.memberId })
-    .from(projectMember)
-    .where(and(eq(projectMember.projectId, projectId), eq(projectMember.memberId, actor.id)))
+    .select({ memberId: participant.memberId })
+    .from(participant)
+    .where(and(eq(participant.projectId, projectId), eq(participant.memberId, actor.id), eq(participant.scope, 'project')))
     .limit(1);
   if (membership) return;
 

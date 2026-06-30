@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { LOOP_KIND, LOOP_WORKER_TIER, LOOP_TRIGGER, LOOP_RUN_STATUS } from '@/db/enums';
 
 /**

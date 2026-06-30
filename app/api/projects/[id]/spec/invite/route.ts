@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { component } from '@/db/schema/spec';
+import { participant } from '@/db/schema/participants';
 import { insertNotification } from '@/collab/notification-store';
 import { currentMember } from '@/auth/current-member';
 import { templateForKind } from '@/spec/components';
@@ -21,23 +22,20 @@ export async function POST(
   const db = getDb();
 
   const [comp] = await db
-    .select({ kind: component.kind, participants: component.participants })
+    .select({ kind: component.kind })
     .from(component)
     .where(eq(component.id, componentId))
     .limit(1);
   if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
-  // Add both the invitee and the inviter to participants
-  const existing = (comp.participants as string[] | null) ?? [];
-  const updated = [...existing];
-  if (!updated.includes(me.id)) updated.push(me.id);
-  if (!updated.includes(memberId)) updated.push(memberId);
-  if (updated.length !== existing.length) {
-    await db
-      .update(component)
-      .set({ participants: updated as unknown as object, updatedAt: new Date() })
-      .where(eq(component.id, componentId));
-  }
+  await db
+    .insert(participant)
+    .values({ projectId: id, memberId: me.id, scope: 'component', scopeId: componentId, role: 'reviewer' })
+    .onConflictDoNothing();
+  await db
+    .insert(participant)
+    .values({ projectId: id, memberId, scope: 'component', scopeId: componentId, role: 'reviewer' })
+    .onConflictDoNothing();
 
   const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, id)).limit(1);
   const compLabel = templateForKind(comp.kind as ComponentKind).label;

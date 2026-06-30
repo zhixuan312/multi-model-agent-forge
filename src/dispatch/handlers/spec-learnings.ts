@@ -1,6 +1,6 @@
 import { eq, asc } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/artifacts';
+import { learningCandidate } from '@/db/schema/learning';
 import { ComposeLearningsSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 

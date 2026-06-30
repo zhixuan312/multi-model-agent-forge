@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { vi } from 'vitest';
 import { component, componentSection } from '@/db/schema/spec';
-import { actionLog } from '@/db/schema/audit';
+import { actionLog } from '@/db/schema/ops';
 import { assembleSpec, getLatestSpec, buildSpecMarkdown } from '@/spec/assemble';
 import { createMockDb, seq } from '../test-utils/mock-db';
 

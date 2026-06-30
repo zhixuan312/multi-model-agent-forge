@@ -3,7 +3,7 @@ import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { ATTACHMENT_KIND, EXPLORATION_TASK_KIND, EXPLORATION_TASK_STATUS } from '@/db/enums';
 
 /**

@@ -1,6 +1,6 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { logAction } from '@/observability/action-log';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';

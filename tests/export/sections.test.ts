@@ -77,7 +77,7 @@ describe('sections — non-spec split (F5)', () => {
   });
 
   it('does not require the NN grammar for non-spec', () => {
-    expect(() => parseArtifactSections('## Anything goes\n\nbody', 'review')).not.toThrow();
+    expect(() => parseArtifactSections('## Anything goes\n\nbody', 'journal')).not.toThrow();
   });
 });
 

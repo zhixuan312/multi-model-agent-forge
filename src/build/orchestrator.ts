@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, stage } from '@/db/schema/projects';
+import { project, stage, buildPr } from '@/db/schema/projects';
 import { planTask, type PlanTaskRow } from '@/db/schema/build';
 import { repo } from '@/db/schema/workspace';
 import { projectRepo } from '@/db/schema/projects';
@@ -108,7 +108,6 @@ export async function runExecutePipeline(
 
   // PR creation for non-halted repos with committed tasks.
   const haltedSet = new Set(schedResult.haltedRepos);
-  const buildPrs: Record<string, { url: string; branch: string; targetBranch: string }> = {};
   if (deps.pr) {
     const [projRow] = await db.select({ name: project.name }).from(project).where(eq(project.id, projectId));
     const projectName = projRow?.name ?? projectId;
@@ -130,15 +129,17 @@ export async function runExecutePipeline(
           tasks: repoTasks.map((t) => ({ title: t.title, commitSha: t.commitSha })),
         });
         if (result && 'url' in result) {
-          buildPrs[repoId] = { url: result.url, branch, targetBranch };
+          await db
+            .insert(buildPr)
+            .values({ projectId, repoId, url: result.url, branch, targetBranch })
+            .onConflictDoUpdate({
+              target: [buildPr.projectId, buildPr.repoId],
+              set: { url: result.url, branch, targetBranch },
+            });
         }
       } catch (err) {
         console.error(`[forge] PR creation failed for repo ${meta.name}`, err);
       }
-    }
-
-    if (Object.keys(buildPrs).length > 0) {
-      await db.update(project).set({ buildPrs }).where(eq(project.id, projectId));
     }
   }
 

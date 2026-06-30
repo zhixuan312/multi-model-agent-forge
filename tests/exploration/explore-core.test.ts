@@ -2,9 +2,8 @@
 import { rmSync } from 'fs';
 import { join } from 'path';
 import { and, eq } from 'drizzle-orm';
-import { artifact } from '@/db/schema/artifacts';
 import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { projectRepo } from '@/db/schema/projects';
 
 afterAll(() => {
@@ -25,18 +24,17 @@ import {
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 describe('brief persistence', () => {
-  it('saves the brain-dump as exploration_brief; re-save bumps version; latest read wins', async () => {
+  it('saves the brain-dump to project.brief_md and reads it back', async () => {
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const mockDb = createMockDb({
-      'select:project_artifact': seq([], [{ v: 1 }], [{ bodyMd: 'second dump' }]),
-      'insert:project_artifact': seq([{ id: 'art-1', projectId, kind: 'exploration_brief', version: 1, bodyMd: 'first dump' }], [{ id: 'art-2', projectId, kind: 'exploration_brief', version: 2, bodyMd: 'second dump' }]),
+      'update:project': [],
+      'select:project': [{ briefMd: 'second dump' }],
+      'insert:ops_action_log': [],
     });
 
-    const r1 = await saveBrief(projectId, 'first dump', { id: ownerId }, mockDb);
-    const r2 = await saveBrief(projectId, 'second dump', { id: ownerId }, mockDb);
-    expect(r1.version).toBe(1);
-    expect(r2.version).toBe(2);
+    await saveBrief(projectId, 'first dump', { id: ownerId }, mockDb);
+    expect(mockDb._assertCalled('project', 'update')).toBe(true);
     const latest = await latestBrief(projectId, mockDb);
     expect(latest).toBe('second dump');
   });

@@ -2,9 +2,8 @@ import { stat } from 'node:fs/promises';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/mma';
-import { artifact } from '@/db/schema/artifacts';
-import { projectRepo } from '@/db/schema/projects';
+import { mmaBatch } from '@/db/schema/ops';
+import { project, projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';
@@ -55,14 +54,9 @@ async function buildBody(
   // research: background ← latest brief (≥20 floor; pad with a neutral context note
   // ONLY to satisfy the structural floor when the brief is short — the prompt is
   // never auto-padded, the BACKGROUND context is).
-  const [brief] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
+  const [briefRow] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
   const background =
-    (brief?.bodyMd?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);
+    (briefRow?.briefMd?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);
   return { researchQuestion: task.prompt, background };
 }
 

@@ -1,7 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
-import { projectRepo } from '@/db/schema/projects';
+import { project, projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { attachment } from '@/db/schema/exploration';
 import {
@@ -89,12 +88,8 @@ export async function buildProposeRequest(
 ): Promise<{ system: string; user: string }> {
   const db = deps.db ?? getDb();
 
-  const [brief] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
+  const [briefRow] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
+  const brief = briefRow?.briefMd ? { bodyMd: briefRow.briefMd } : undefined;
 
   const attachments = await db
     .select({ kind: attachment.kind, label: attachment.label, payload: attachment.payload })

@@ -1,8 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { learningCandidate } from '@/db/schema/artifacts';
-import type { LearningCandidateRow } from '@/db/schema/artifacts';
+import { learningCandidate, type LearningCandidateRow } from '@/db/schema/learning';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { stage } from '@/db/schema/projects';
 import type { LearningType } from '@/db/enums';

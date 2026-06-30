@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/artifacts';
+import { learningCandidate } from '@/db/schema/learning';
 import { readJournalFileAsync } from '@/projects/project-files';
 import { parseJournalSections } from '@/journal/journal-file-ops';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';

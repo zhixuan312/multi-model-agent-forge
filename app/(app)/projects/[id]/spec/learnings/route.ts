@@ -3,7 +3,7 @@ import { eq, asc } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildLearningsPrompt } from '@/spec/learnings';
-import { learningCandidate } from '@/db/schema/artifacts';
+import { learningCandidate } from '@/db/schema/learning';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';

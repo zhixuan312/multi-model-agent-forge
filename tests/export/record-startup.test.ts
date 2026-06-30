@@ -28,7 +28,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
         projectId,
         kind: 'spec',
         format: 'pdf',
-        artifactId: null,
+        artifactVersion: null,
         content: Buffer.from('%PDF-fake'),
         projectName: 'My Project',
         createdBy,
@@ -46,7 +46,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     expect(JSON.stringify(valueCall?.args)).toContain(projectId);
   });
 
-  it('a bundle row has artifact_id null and target=bundle', async () => {
+  it('a bundle row has artifactKind=bundle and artifactVersion null', async () => {
     const projectId = 'proj-1';
     const createdBy = 'member-1';
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
@@ -61,7 +61,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
         projectId,
         kind: null,
         format: 'bundle',
-        artifactId: null,
+        artifactVersion: null,
         content: Buffer.from('PK fake zip'),
         projectName: 'P',
         createdBy,
@@ -74,7 +74,8 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     const valueCall = insertCalls.find((c) => c.method === 'values');
     expect(valueCall?.args).toEqual([
       expect.objectContaining({
-        artifactId: null,
+        artifactKind: 'bundle',
+        artifactVersion: null,
         format: 'bundle',
         projectId,
       }),
@@ -85,7 +86,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
       expect.objectContaining({
         action: 'export.created',
         target: 'bundle',
-        meta: expect.objectContaining({ artifactId: null, format: 'bundle' }),
+        meta: expect.objectContaining({ artifactKind: null, format: 'bundle' }),
       }),
     ]);
   });
@@ -106,7 +107,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
         projectId,
         kind: 'spec',
         format: 'md',
-        artifactId: null,
+        artifactVersion: null,
         content: Buffer.from('# md'),
         projectName: 'P',
         createdBy,
@@ -137,7 +138,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
         projectId,
         kind: 'spec',
         format: 'md',
-        artifactId: null,
+        artifactVersion: null,
         content: Buffer.from('x'),
         projectName: '../../etc/passwd',
         createdBy,

@@ -6,7 +6,7 @@
 
 import { eq, or, isNull, desc, and } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { notification, type NotificationRow } from '@/db/schema/notification';
+import { notification, type NotificationRow } from '@/db/schema/ops';
 
 // ── Handler metadata (dispatch failure context) ────────────────────
 

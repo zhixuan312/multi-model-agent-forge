@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { connectionSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/identity';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 
 /**

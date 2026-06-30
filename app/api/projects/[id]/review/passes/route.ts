@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 
 export const runtime = 'nodejs';
 

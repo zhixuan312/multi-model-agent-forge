@@ -1,5 +1,5 @@
 import { getDb, type Db } from '@/db/client';
-import { actionLog } from '@/db/schema/audit';
+import { actionLog } from '@/db/schema/ops';
 
 /**
  * `logAction` (Spec 3 flow 5) — append one `action_log` row, the domain

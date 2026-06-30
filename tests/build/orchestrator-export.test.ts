@@ -1,9 +1,21 @@
 // @vitest-environment node
+import { vi } from 'vitest';
 import { GitOps } from '@/build/branch';
 import { runExecutePipeline } from '@/build/orchestrator';
 import { downloadStageArtifact, ArtifactNotFoundError } from '@/build/export-download';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
+
+vi.mock('@/projects/project-files', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    readPlanFile: vi.fn().mockReturnValue({ bodyMd: '# Plan v3 body', version: 3, updatedAt: '' }),
+    readExplorationFile: vi.fn().mockReturnValue(null),
+    readSpecFile: vi.fn().mockReturnValue(null),
+    readJournalFile: vi.fn().mockReturnValue(null),
+  };
+});
 import {
   RecordingBus,
   FakePlanFs,
@@ -92,9 +104,10 @@ describe('downloadStageArtifact (F8)', () => {
   });
 
   it('throws ArtifactNotFoundError when the stage artifact is absent', async () => {
+    const { readPlanFile } = await import('@/projects/project-files');
+    (readPlanFile as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
     const db = createMockDb({
       'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
-      'select:project_artifact': [],
     });
     await expect(
       downloadStageArtifact({ projectId: 'proj-1', kind: 'plan', actor: { id: 'member-1' } }, { db }),

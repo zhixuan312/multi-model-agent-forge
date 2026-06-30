@@ -19,7 +19,7 @@ function makeDeps(over: Partial<LoopRunDeps> = {}): LoopRunDeps & Record<string,
     isGithubRepo: vi.fn(async () => true),
     resolveCurrentBranch: vi.fn(async () => 'main'),
     mainSession: vi.fn(async ({ prompt }: { prompt: string }) =>
-      prompt.includes('Plan the run')
+      prompt.includes('planning brain')
         ? { output: '{"recalls":[{"query":"q1","purpose":"p1"}],"verifyCommand":"npm test"}', sessionId: 'sess-1' }
         : { output: '{"entries":[{"tag":"learned","text":"real insight"}]}', sessionId: 'sess-1' },
     ),

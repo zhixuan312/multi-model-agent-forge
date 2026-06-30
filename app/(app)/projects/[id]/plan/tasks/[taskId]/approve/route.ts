@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
+import { participant } from '@/db/schema/participants';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -13,17 +14,18 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const db = getDb();
-  const [task] = await db.select({ approvedBy: planTask.approvedBy, participants: planTask.participants }).from(planTask).where(eq(planTask.id, taskId)).limit(1);
-  const approvers = (task?.approvedBy as string[] | null) ?? [];
-  const parts = (task?.participants as string[] | null) ?? [];
 
-  const updatedApprovers = approvers.includes(me.id) ? approvers : [...approvers, me.id];
-  const updatedParts = parts.includes(me.id) ? parts : [...parts, me.id];
+  await db
+    .insert(participant)
+    .values({ projectId: id, memberId: me.id, scope: 'task', scopeId: taskId, role: 'approver' })
+    .onConflictDoNothing();
+  await db
+    .insert(participant)
+    .values({ projectId: id, memberId: me.id, scope: 'task', scopeId: taskId, role: 'reviewer' })
+    .onConflictDoNothing();
 
   await db.update(planTask).set({
     status: 'committed',
-    approvedBy: updatedApprovers as unknown as object,
-    participants: updatedParts as unknown as object,
     updatedAt: new Date(),
   }).where(eq(planTask.id, taskId));
 
@@ -37,13 +39,23 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse>
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const db = getDb();
-  const [task] = await db.select({ approvedBy: planTask.approvedBy }).from(planTask).where(eq(planTask.id, taskId)).limit(1);
-  const approvers = (task?.approvedBy as string[] | null) ?? [];
-  const updated = approvers.filter((a) => a !== me.id);
+
+  await db.delete(participant).where(
+    and(
+      eq(participant.scopeId, taskId),
+      eq(participant.memberId, me.id),
+      eq(participant.scope, 'task'),
+      eq(participant.role, 'approver'),
+    ),
+  );
+
+  const remaining = await db
+    .select({ memberId: participant.memberId })
+    .from(participant)
+    .where(and(eq(participant.scopeId, taskId), eq(participant.scope, 'task'), eq(participant.role, 'approver')));
 
   await db.update(planTask).set({
-    status: updated.length > 0 ? 'committed' : 'queued',
-    approvedBy: updated as unknown as object,
+    status: remaining.length > 0 ? 'committed' : 'queued',
     updatedAt: new Date(),
   }).where(eq(planTask.id, taskId));
 

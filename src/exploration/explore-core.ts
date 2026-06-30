@@ -1,9 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { artifact } from '@/db/schema/artifacts';
 import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/mma';
+import { project } from '@/db/schema/projects';
+import { mmaBatch } from '@/db/schema/ops';
 import { repo } from '@/db/schema/workspace';
 import { projectRepo } from '@/db/schema/projects';
 import { logAction } from '@/observability/action-log';
@@ -13,47 +13,30 @@ import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
  * Brief persistence + the explore rail/summary reads.
- * Brain-dump text: `artifact(kind='exploration_brief')` in DB, versioned.
+ * Brain-dump text: `project.brief_md` column in DB (short user input, never exported).
  * Rail tasks: `exploration_task` joined to `mma_batch` for live status.
  * Exploration summary: file-based at `.mma/projects/<id>/exploration.md`.
  */
 
 export const briefSchema = z.object({ text: z.string().max(100_000) });
 
-/** Save the brain-dump as a versioned exploration_brief artifact (max+1). */
+/** Save the brain-dump to project.brief_md. */
 export async function saveBrief(
   projectId: string,
   text: string,
   actor: { id: string },
   db: Db = getDb(),
-): Promise<{ version: number }> {
-  const [{ v } = { v: null }] = await db
-    .select({ v: artifact.version })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
-  const nextVersion = (v ?? 0) + 1;
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(artifact)
-      .values({ projectId, kind: 'exploration_brief', bodyMd: text, version: nextVersion, createdBy: actor.id });
-    await logAction(
-      { projectId, memberId: actor.id, action: 'explore_brief', target: `project:${projectId}`, meta: { version: nextVersion } },
-      tx as unknown as Db,
-    );
-  });
-  return { version: nextVersion };
+): Promise<void> {
+  await db.update(project).set({ briefMd: text, updatedAt: new Date() }).where(eq(project.id, projectId));
+  await logAction(
+    { projectId, memberId: actor.id, action: 'explore_brief', target: `project:${projectId}` },
+    db,
+  );
 }
 
 export async function latestBrief(projectId: string, db: Db = getDb()): Promise<string> {
-  const [row] = await db
-    .select({ bodyMd: artifact.bodyMd })
-    .from(artifact)
-    .where(and(eq(artifact.projectId, projectId), eq(artifact.kind, 'exploration_brief')))
-    .orderBy(desc(artifact.version))
-    .limit(1);
-  return row?.bodyMd ?? '';
+  const [row] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
+  return row?.briefMd ?? '';
 }
 
 /** The rail's task list joined to its live mma_batch status/headline/error. */

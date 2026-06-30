@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { planTask, type PlanTaskRow, type PlanTaskMeta } from '@/db/schema/build';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { MmaClient } from '@/mma/client';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { GitOps } from '@/build/branch';

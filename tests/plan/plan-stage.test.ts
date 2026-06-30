@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 describe('plan-stage features', () => {
   describe('PlanAuditFinding', () => {
-    it('includes evidence and suggestion fields', async () => {
-      const { type: _ } = await import('@/mock/domains/projects/plan-types') as any;
-      // PlanAuditFinding should have evidence + suggestion
+    it('includes evidence and suggestion fields', () => {
       const finding = {
         severity: 'high' as const,
         category: 'test',

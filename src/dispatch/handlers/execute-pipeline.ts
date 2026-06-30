@@ -2,9 +2,9 @@ import { eq, and, sql } from 'drizzle-orm';
 import { execFileSync } from 'node:child_process';
 import type { Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
-import { project } from '@/db/schema/projects';
+import { project, buildPr } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { connectionSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/identity';
 import { createBuildPr } from '@/build/pr';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
@@ -75,9 +75,13 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
       },
     );
     if (pr && 'url' in pr) {
-      await db.update(project).set({
-        buildPrs: sql`jsonb_set(COALESCE(build_prs, '{}'::jsonb), ${sql.raw(`'{${repoId}}'`)}, ${sql.raw(`'${JSON.stringify({ url: pr.url, branch: forgeBranch, targetBranch })}'`)}::jsonb)`,
-      }).where(eq(project.id, ctx.projectId));
+      await db
+        .insert(buildPr)
+        .values({ projectId: ctx.projectId, repoId, url: pr.url, branch: forgeBranch, targetBranch })
+        .onConflictDoUpdate({
+          target: [buildPr.projectId, buildPr.repoId],
+          set: { url: pr.url, branch: forgeBranch, targetBranch },
+        });
       await logAction({ projectId: ctx.projectId, memberId: actorId, action: 'create_pr', target: `repo:${repoRow.name}` }, db);
     }
   } catch (prErr) {

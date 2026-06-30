@@ -1,15 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { eq, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
 import { planTask } from '@/db/schema/build';
-import { project } from '@/db/schema/projects';
+import { project, buildPr } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { connectionSettings } from '@/db/schema/config';
+import { connectionSettings } from '@/db/schema/identity';
 import { createBuildPr } from '@/build/pr';
 import { buildForgeBranch } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
@@ -107,9 +106,13 @@ export async function POST(
   if ('error' in pr) return NextResponse.json({ error: pr.error }, { status: 502 });
 
   // Store PR
-  await db.update(project).set({
-    buildPrs: sql`jsonb_set(COALESCE(build_prs, '{}'::jsonb), ${sql.raw(`'{${repoId}}'`)}, ${sql.raw(`'${JSON.stringify({ url: pr.url, branch: forgeBranch, targetBranch })}'`)}::jsonb)`,
-  }).where(eq(project.id, id));
+  await db
+    .insert(buildPr)
+    .values({ projectId: id, repoId, url: pr.url, branch: forgeBranch, targetBranch })
+    .onConflictDoUpdate({
+      target: [buildPr.projectId, buildPr.repoId],
+      set: { url: pr.url, branch: forgeBranch, targetBranch },
+    });
 
   await logAction({ projectId: id, memberId: me.id, action: 'create_pr', target: `repo:${repoRow.name}` }, db);
 

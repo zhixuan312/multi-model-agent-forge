@@ -2,7 +2,8 @@ import { notFound, redirect } from 'next/navigation';
 import { eq, and, desc } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
+import { buildPr } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { ReviewStageClient, type ReviewPassView } from '@/components/forge/ReviewStageClient';
 
@@ -97,7 +98,11 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     ? ((runningApply.request as Record<string, unknown> | null)?.findingsCount as number ?? 0)
     : 0;
 
-  const buildPrs = (proj.buildPrs ?? {}) as Record<string, { url: string; branch: string; targetBranch: string }>;
+  const buildPrs = Object.fromEntries(
+    (await db.select({ repoId: buildPr.repoId, url: buildPr.url, branch: buildPr.branch, targetBranch: buildPr.targetBranch })
+      .from(buildPr).where(eq(buildPr.projectId, id)))
+      .map(r => [r.repoId, { url: r.url, branch: r.branch, targetBranch: r.targetBranch }])
+  );
 
   return (
     <ReviewStageClient

@@ -20,10 +20,6 @@ export type ProjectVisibility = (typeof PROJECT_VISIBILITY)[number];
 export const PROJECT_PHASE = ['design', 'build', 'learn'] as const;
 export type ProjectPhase = (typeof PROJECT_PHASE)[number];
 
-/** project_member.role (schema.md §3). owner seeded on create; collaborator added later. */
-export const PROJECT_MEMBER_ROLE = ['owner', 'collaborator'] as const;
-export type ProjectMemberRole = (typeof PROJECT_MEMBER_ROLE)[number];
-
 /**
  * stage.kind (schema.md §5). The fixed six-stage skeleton seeded on create,
  * grouped DESIGN (exploration·spec·plan) › BUILD (execute·review) › LEARN (journal).
@@ -78,20 +74,20 @@ export type QaSender = (typeof QA_SENDER)[number];
 export const ARTIFACT_KIND = ['exploration_brief', 'exploration', 'spec', 'plan'] as const;
 export type ArtifactKind = (typeof ARTIFACT_KIND)[number];
 
-/** audit_pass.scope (schema.md §8). Spec 4 only writes `spec` (Part B); `plan` is Spec 7. */
-export const AUDIT_SCOPE = ['spec', 'plan'] as const;
+/** audit_pass.scope — which stage's audit. */
+export const AUDIT_SCOPE = ['spec', 'plan', 'review'] as const;
 export type AuditScope = (typeof AUDIT_SCOPE)[number];
 
 /** audit_pass.verdict (schema.md §8). `revised` = had critical/high; `clean` = none. */
 export const AUDIT_VERDICT = ['revised', 'clean'] as const;
 export type AuditVerdict = (typeof AUDIT_VERDICT)[number];
 
-/** learning_candidate.type (schema.md §9). The kind of learning proposed at freeze. */
-export const LEARNING_TYPE = ['challenge', 'insight', 'decision'] as const;
+/** learning_candidate.type — the kind of learning. */
+export const LEARNING_TYPE = ['challenge', 'insight', 'decision', 'pattern'] as const;
 export type LearningType = (typeof LEARNING_TYPE)[number];
 
-/** learning_candidate.origin (schema.md §9). Which stage produced the learning. */
-export const LEARNING_ORIGIN = ['exploration', 'spec'] as const;
+/** learning_candidate.origin — which stage produced the learning. */
+export const LEARNING_ORIGIN = ['exploration', 'spec', 'plan', 'execute', 'review', 'discussion'] as const;
 export type LearningOrigin = (typeof LEARNING_ORIGIN)[number];
 
 /** learning_candidate.status (schema.md §9). proposed→kept/removed→recorded. */
@@ -182,6 +178,16 @@ export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
  */
 export const EXPORT_FORMAT = ['md', 'pdf', 'bundle'] as const;
 export type ExportFormat = (typeof EXPORT_FORMAT)[number];
+
+/* ── Participants (unified participation + approval) ───────────────────────── */
+
+/** participant.scope — where the participation applies. */
+export const PARTICIPANT_SCOPE = ['project', 'stage', 'component', 'task'] as const;
+export type ParticipantScope = (typeof PARTICIPANT_SCOPE)[number];
+
+/** participant.role — what the member does at that scope. */
+export const PARTICIPANT_ROLE = ['owner', 'reviewer', 'approver'] as const;
+export type ParticipantRole = (typeof PARTICIPANT_ROLE)[number];
 
 /* ── Loops (admin-only, cron-scheduled goal-driven jobs) ────────────────────── */
 

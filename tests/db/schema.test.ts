@@ -1,7 +1,5 @@
 import { getTableColumns, getTableName } from 'drizzle-orm';
-import { member, memberIdentity, session } from '@/db/schema/identity';
-import { appSecrets } from '@/db/schema/secrets';
-import { connectionSettings } from '@/db/schema/config';
+import { member, memberIdentity, session, appSecrets, connectionSettings } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import { journalPin } from '@/db/schema/journal';
 import * as schema from '@/db/schema';

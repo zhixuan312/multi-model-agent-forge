@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { getPollManager } from '@/sse/poll-manager';
 import { buildMmaClient } from '@/mma/server-client';

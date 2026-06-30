@@ -1,6 +1,7 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
+import { participant } from '@/db/schema/participants';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import type { ComponentStatus } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
@@ -15,29 +16,42 @@ import type { ComponentKind } from '@/db/enums';
  */
 
 /** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation. */
-export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: unknown }> {
+export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: string[] }> {
   const dbi = db ?? getDb();
   const [existing] = await dbi
-    .select({ id: stage.id, status: stage.status, approvers: stage.approvers })
+    .select({ id: stage.id, status: stage.status })
     .from(stage)
     .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')))
     .limit(1);
+
+  let stageId: string;
+  let stageStatus: string;
+
   if (existing) {
+    stageId = existing.id;
+    stageStatus = existing.status;
     if (existing.status === 'pending') {
       await dbi
         .update(stage)
         .set({ status: 'active', startedAt: new Date() })
         .where(eq(stage.id, existing.id));
-      return { id: existing.id, status: 'active', approvers: existing.approvers };
+      stageStatus = 'active';
     }
-    return existing;
+  } else {
+    const [row] = await dbi
+      .insert(stage)
+      .values({ projectId, kind: 'spec', status: 'active', startedAt: new Date() })
+      .returning({ id: stage.id, status: stage.status });
+    stageId = row.id;
+    stageStatus = row.status;
   }
-  // No spec stage yet (defensive — project creation seeds all stages): create it active.
-  const [row] = await dbi
-    .insert(stage)
-    .values({ projectId, kind: 'spec', status: 'active', startedAt: new Date() })
-    .returning({ id: stage.id, status: stage.status, approvers: stage.approvers });
-  return row;
+
+  const approverRows = await dbi
+    .select({ memberId: participant.memberId })
+    .from(participant)
+    .where(and(eq(participant.scope, 'stage'), eq(participant.scopeId, stageId), eq(participant.role, 'approver')));
+
+  return { id: stageId, status: stageStatus, approvers: approverRows.map((r) => r.memberId) };
 }
 
 /** Capture / update the project intent and derive the summary (pure, no LLM). */
@@ -94,6 +108,24 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
     .where(eq(component.stageId, stageId))
     .orderBy(asc(component.orderIndex));
 
+  const compIds = comps.map((c) => c.id);
+  const compParticipants = compIds.length > 0
+    ? await dbi
+        .select({ scopeId: participant.scopeId, memberId: participant.memberId, role: participant.role })
+        .from(participant)
+        .where(and(eq(participant.scope, 'component'), inArray(participant.scopeId, compIds)))
+    : [];
+
+  const approversByComp = new Map<string, string[]>();
+  const reviewersByComp = new Map<string, string[]>();
+  for (const p of compParticipants) {
+    if (!p.scopeId) continue;
+    const map = p.role === 'approver' ? approversByComp : reviewersByComp;
+    const list = map.get(p.scopeId) ?? [];
+    list.push(p.memberId);
+    map.set(p.scopeId, list);
+  }
+
   const views: ComponentView[] = [];
   for (const c of comps) {
     const secs = await dbi
@@ -111,9 +143,9 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
       humanSatisfied: c.humanSatisfied,
       forced: c.forced,
       stale: c.stale,
-      approvedBy: (c.approvedBy as string[] | null) ?? [],
+      approvedBy: approversByComp.get(c.id) ?? [],
       mmaSessionId: c.mmaSessionId,
-      participantIds: (c.participants as string[] | null) ?? [],
+      participantIds: reviewersByComp.get(c.id) ?? [],
       orderIndex: c.orderIndex,
       sections: secs.map((s) => ({
         id: s.id,

@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { actionLog } from '@/db/schema/audit';
+import { actionLog } from '@/db/schema/ops';
 import { logAction } from '@/observability/action-log';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 

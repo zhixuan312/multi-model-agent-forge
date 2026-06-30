@@ -2,7 +2,7 @@ import { uuid, text, boolean, integer, jsonb, timestamp, index } from 'drizzle-o
 import { forge } from '@/db/schema/_schema';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { BUILD_TASK_STATUS, REVIEW_POLICY } from '@/db/enums';
 
 /**
@@ -46,8 +46,6 @@ export const planTask = forge.table(
     targetBranch: text('target_branch'), // user-selected base branch for build + PR target
     commitSha: text('commit_sha'), // the MMA worker commit SHA (envelope.structuredReport.commitSha)
     fixNote: text('fix_note'), // the main-agent inline fix description, if any
-    approvedBy: jsonb('approved_by_list').notNull().default([]), // member id[] who approved this task
-    participants: jsonb('participants').notNull().default([]), // member id[] invited to review
     meta: jsonb('meta'), // { buildCmd?, testCmd?, fixCommitSha? } — display/audit only
     mmaBatchId: uuid('mma_batch_id').references(() => mmaBatch.id), // the execute_plan call
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -85,9 +83,10 @@ export const exportRecord = forge.table(
     projectId: uuid('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    artifactId: uuid('artifact_id'), // null for a bundle; no FK cascade needed (additive)
+    artifactKind: text('artifact_kind').notNull(),
+    artifactVersion: integer('artifact_version'),
     format: text('format', { enum: ['md', 'pdf', 'bundle'] }).notNull(),
-    filePath: text('file_path').notNull(), // md: synthetic served filename `<kind>-v<version>.md`
+    filePath: text('file_path').notNull(),
     createdBy: uuid('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

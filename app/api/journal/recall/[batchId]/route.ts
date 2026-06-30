@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { guardJournal } from '@/journal/guard';
 import { buildMmaClient } from '@/mma/server-client';
 import { getDb } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 export const maxDuration = 600;

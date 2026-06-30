@@ -50,7 +50,7 @@ describe('template — cover + meta + TOC (F1/F3/F10)', () => {
     expect(coverKicker('spec')).toBe('Specification · Forge');
     expect(coverKicker('exploration')).toBe('Exploration · Forge');
     expect(coverKicker('plan')).toBe('Plan · Forge');
-    expect(coverKicker('review')).toBe('Review · Forge');
+    expect(coverKicker('journal')).toBe('Journal · Forge');
     const html = renderArtifactHtml(specInput());
     expect(html).toContain('Specification · Forge');
   });

@@ -1,5 +1,5 @@
 import { getDb, type Db } from '@/db/client';
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import type { CallUsage } from '@/anthropic/client';
 

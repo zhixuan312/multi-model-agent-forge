@@ -1,7 +1,7 @@
 import sodium from 'libsodium-wrappers';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { appSecrets } from '@/db/schema/secrets';
+import { appSecrets } from '@/db/schema/identity';
 
 /**
  * Encrypted secret storage — libsodium `crypto_secretbox` (symmetric,

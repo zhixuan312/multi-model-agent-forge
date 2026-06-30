@@ -8,7 +8,7 @@ import { logAction } from '@/observability/action-log';
 import { getDb } from '@/db/client';
 
 export const maxDuration = 600;
-import { mmaBatch } from '@/db/schema/mma';
+import { mmaBatch } from '@/db/schema/ops';
 
 /**
  * `POST /api/journal/recall` — the ONE money-spending endpoint in Spec 6.

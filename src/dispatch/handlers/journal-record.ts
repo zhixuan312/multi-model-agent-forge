@@ -1,6 +1,6 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/artifacts';
+import { learningCandidate } from '@/db/schema/learning';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
 async function handleJournalRecord(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {

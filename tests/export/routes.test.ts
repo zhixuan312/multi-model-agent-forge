@@ -61,7 +61,7 @@ describe('route helpers — kind validation (F27)', () => {
     expect(parseExportKind('spec')).toBe('spec');
     expect(parseExportKind('exploration')).toBe('exploration');
     expect(parseExportKind('plan')).toBe('plan');
-    expect(parseExportKind('review')).toBe('review');
+    expect(parseExportKind('journal')).toBe('journal');
     expect(parseExportKind('exploration_brief')).toBeNull();
     expect(parseExportKind('nope')).toBeNull();
   });
@@ -128,7 +128,7 @@ describe('GET /export/artifacts (Key flow A)', () => {
     const body = await res.json();
     const byKind = Object.fromEntries(body.artifacts.map((a: { kind: string }) => [a.kind, a]));
     expect(byKind.spec.ready).toBe(true);
-    expect(byKind.review.ready).toBe(false);
+    expect(byKind.journal.ready).toBe(false);
   });
 
   it('403 for a non-collaborator on a private project', async () => {
@@ -138,7 +138,7 @@ describe('GET /export/artifacts (Key flow A)', () => {
     mockCaller = asMember(strangerId);
     mockDb = createMockDb({
       'select:project': [{ ownerId, visibility: 'private' }],
-      'select:project_member': [],
+      'select:project_participant': [],
     });
     const res = await artifactsRoute.GET(new NextRequest('http://x/a'), {
       params: Promise.resolve({ id: projectId }),
@@ -196,7 +196,7 @@ describe('GET /export/md (Key flow B)', () => {
     mockCaller = asMember(ownerId);
     readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
     mockDb = createMockDb({
-      'select:project_member': [{ memberId: ownerId }],
+      'select:project_participant': [{ memberId: ownerId }],
       'select:project': seq(
         [{ ownerId, visibility: 'public', phase: 'design' }],
         [{ ownerId, visibility: 'public', phase: 'design' }],

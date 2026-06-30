@@ -1,6 +1,7 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { planTask } from '@/db/schema/build';
+import { participant } from '@/db/schema/participants';
 import { qaMessage } from '@/db/schema/spec';
 import { repo } from '@/db/schema/workspace';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
@@ -96,8 +97,6 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
         title: planTask.title,
         status: planTask.status,
         phase: planTask.phase,
-        approvedBy: planTask.approvedBy,
-        participants: planTask.participants,
         targetRepoId: planTask.targetRepoId,
         dependsOn: planTask.dependsOn,
         repoName: repo.name,
@@ -106,6 +105,23 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
       .leftJoin(repo, eq(planTask.targetRepoId, repo.id))
       .where(eq(planTask.projectId, projectId))
       .orderBy(asc(planTask.orderIndex));
+
+    const taskIds = dbRows.map((r) => r.id);
+    const taskParticipants = taskIds.length > 0
+      ? await dbi
+          .select({ scopeId: participant.scopeId, memberId: participant.memberId, role: participant.role })
+          .from(participant)
+          .where(and(eq(participant.scope, 'task'), inArray(participant.scopeId, taskIds)))
+      : [];
+    const approversByTask = new Map<string, string[]>();
+    const reviewersByTask = new Map<string, string[]>();
+    for (const p of taskParticipants) {
+      if (!p.scopeId) continue;
+      const map = p.role === 'approver' ? approversByTask : reviewersByTask;
+      const list = map.get(p.scopeId) ?? [];
+      list.push(p.memberId);
+      map.set(p.scopeId, list);
+    }
 
     const metaByTitle = new Map(dbRows.map((r) => [r.title, r]));
 
@@ -122,8 +138,8 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
         targetRepo: meta?.repoName ?? '',
         dbStatus: meta?.status,
         phase: s.phase ?? meta?.phase ?? undefined,
-        approvedBy: (meta?.approvedBy as string[] | null) ?? [],
-        participantIds: (meta?.participants as string[] | null) ?? [],
+        approvedBy: meta ? (approversByTask.get(meta.id) ?? []) : [],
+        participantIds: meta ? (reviewersByTask.get(meta.id) ?? []) : [],
       };
     });
   }

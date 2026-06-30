@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '@/components/ui';
-import type { NotificationRow } from '@/db/schema/notification';
+import type { NotificationRow } from '@/db/schema/ops';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

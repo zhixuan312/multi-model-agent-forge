@@ -1,4 +1,4 @@
-import { uuid, text, timestamp, index, primaryKey, unique, jsonb } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, primaryKey, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
@@ -6,7 +6,6 @@ import { repo } from '@/db/schema/workspace';
 import {
   PROJECT_VISIBILITY,
   PROJECT_PHASE,
-  PROJECT_MEMBER_ROLE,
   STAGE_KIND,
   STAGE_STATUS,
 } from '@/db/enums';
@@ -22,16 +21,15 @@ export const project = forge.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
-    summary: text('summary'), // derived from intent_md by Spec 4; NULL here
-    intentMd: text('intent_md'), // captured at start of Spec; NULL here
+    summary: text('summary'),
+    intentMd: text('intent_md'),
+    briefMd: text('brief_md'),
     ownerId: uuid('owner_id')
       .notNull()
       .references(() => member.id),
     visibility: text('visibility', { enum: PROJECT_VISIBILITY }).notNull(),
     phase: text('phase', { enum: PROJECT_PHASE }).notNull().default('design'),
-    currentStage: text('current_stage', { enum: STAGE_KIND }), // resume pointer
-    frozenAt: timestamp('frozen_at', { withTimezone: true }), // set when the spec is locked (design→build, Spec 4)
-    buildPrs: jsonb('build_prs').$type<Record<string, { url: string; branch: string; targetBranch: string }>>().default({}),
+    currentStage: text('current_stage', { enum: STAGE_KIND }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -41,6 +39,33 @@ export const project = forge.table(
     index('project_updated_idx').on(t.updatedAt.desc()),
   ],
 );
+
+/**
+ * `project_build_pr` — one PR per repo per project. Replaces the old
+ * `project.build_prs` JSONB blob with a proper relational table.
+ */
+export const buildPr = forge.table(
+  'project_build_pr',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repo.id),
+    url: text('url').notNull(),
+    branch: text('branch').notNull(),
+    targetBranch: text('target_branch').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('build_pr_project_idx').on(t.projectId),
+    unique('build_pr_project_repo_uniq').on(t.projectId, t.repoId),
+  ],
+);
+
+export type BuildPrRow = typeof buildPr.$inferSelect;
 
 /**
  * `project_repo` (schema.md §3) — the chosen repo subset. Composite PK; cascades
@@ -61,25 +86,6 @@ export const projectRepo = forge.table(
 );
 
 /**
- * `project_member` (schema.md §3) — private-project access. An `owner` row is
- * always seeded on create (uniform audit/ownership regardless of visibility);
- * `project_member` is only meaningful for private projects.
- */
-export const projectMember = forge.table(
-  'project_member',
-  {
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'cascade' }),
-    memberId: uuid('member_id')
-      .notNull()
-      .references(() => member.id),
-    role: text('role', { enum: PROJECT_MEMBER_ROLE }).notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.projectId, t.memberId] })],
-);
-
-/**
  * `project_stage` (schema.md §5) — the five-stage skeleton (one row per kind). Seeded on
  * create with `exploration=active`, the rest `pending`. UNIQUE (project_id, kind)
  * makes the seed idempotent (a retry can't double-seed). PK `gen_random_uuid()`.
@@ -96,7 +102,6 @@ export const stage = forge.table(
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastPhase: text('last_phase'),
-    approvers: jsonb('approvers').notNull().default([]),
   },
   (t) => [unique('stage_project_kind_uniq').on(t.projectId, t.kind)],
 );

@@ -8,7 +8,7 @@
  *  - at-rest perms (F17): the root + `<project_id>/` dirs are `0700`, files
  *    `0600` (defense-in-depth on the single-tenant box);
  *  - action_log (F7): `action='export.created'`, `target`=kind|`bundle`,
- *    `meta={ format, artifactId|null, filePath }`.
+ *    `meta={ format, artifactKind, filePath }`.
  */
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { getDb, type Db } from '@/db/client';
@@ -24,7 +24,7 @@ export interface RecordExportInput {
   /** The artifact kind (md/pdf) or null for a bundle. */
   kind: ExportArtifactKind | null;
   format: ExportFormat;
-  artifactId: string | null;
+  artifactVersion?: number | null;
   /** The bytes to persist on disk. */
   content: Buffer;
   /** Project name → slug for the on-disk filename component. */
@@ -78,7 +78,8 @@ export async function recordExport(
       .insert(exportRecord)
       .values({
         projectId: input.projectId,
-        artifactId: input.artifactId, // null ⟺ bundle
+        artifactKind: input.kind ?? 'bundle',
+        artifactVersion: input.artifactVersion ?? null,
         format: input.format,
         filePath,
         createdBy: input.createdBy,
@@ -91,7 +92,7 @@ export async function recordExport(
         memberId: input.createdBy,
         action: 'export.created',
         target,
-        meta: { format: input.format, artifactId: input.artifactId, filePath },
+        meta: { format: input.format, artifactKind: input.kind, filePath },
       },
       tx as unknown as Db,
     );

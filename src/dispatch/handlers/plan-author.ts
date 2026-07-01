@@ -30,7 +30,6 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
     throw new Error('Plan file has no ### task sections.');
   }
 
-  // Look up the project's repos for targetRepoId
   const repos = await db
     .select({ id: repo.id, name: repo.name })
     .from(projectRepo)
@@ -53,10 +52,7 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
           title,
           phase: s.phase ?? null,
           targetRepoId: defaultRepoId,
-          isWrite: true,
           orderIndex: i,
-          reviewPolicy: 'reviewed',
-          status: 'queued',
         })
         .returning({ id: planTask.id });
       inserted.push({ id: row.id, title });

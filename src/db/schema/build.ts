@@ -35,8 +35,7 @@ export const planTask = forge.table(
     phase: text('phase'), // track/phase grouping (e.g. "Track G — Guard fixes")
     targetRepoId: uuid('target_repo_id')
       .notNull()
-      .references(() => repo.id), // the ONE repo (one-repo-per-task)
-    isWrite: boolean('is_write').notNull().default(true),
+      .references(() => repo.id),
     dependsOn: uuid('depends_on').array(), // other plan_task.id[]
     orderIndex: integer('order_index').notNull(),
     reviewPolicy: text('review_policy', { enum: REVIEW_POLICY }).notNull().default('reviewed'),

@@ -16,7 +16,7 @@ async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise
   }
 }
 
-const TASK_HEADING_RE = /^### .+/;
+const TASK_HEADING_RE = /^### Task .+/;
 const PHASE_HEADING_RE = /^## .+/;
 
 export interface PlanTaskSection {

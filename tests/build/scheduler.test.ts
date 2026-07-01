@@ -10,7 +10,6 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
     projectId: 'p',
     title: `T${over.id}`,
     targetRepoId: over.repoId,
-    isWrite: true,
     dependsOn: over.dependsOn ?? null,
     orderIndex: over.orderIndex ?? seq++,
     reviewPolicy: 'reviewed',

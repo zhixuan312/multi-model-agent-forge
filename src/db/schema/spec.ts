@@ -63,14 +63,14 @@ export const componentSection = forge.table(
 );
 
 /**
- * `project_qa_message` — the per-COMPONENT chat transcript.
+ * `project_qa_message` — shared chat transcript for spec components AND plan tasks.
+ * `component_id` is a generic scope ID (no FK — used for both component and task UUIDs).
  */
 export const qaMessage = forge.table(
   'project_qa_message',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    componentId: uuid('component_id')
-      .references(() => component.id, { onDelete: 'cascade' }),
+    componentId: uuid('component_id'),
     stageId: uuid('stage_id')
       .references(() => stage.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),

@@ -984,12 +984,19 @@ function ValidateStage({
             </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {rounds.length === 0 ? (
+            {!auditing && rounds.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <Shield className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
                   Run an audit to check sequencing, coverage and TDD gaps.
                 </p>
+              </div>
+            ) : null}
+            {auditing ? (
+              <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
+                <Loader2 className="size-4 animate-spin text-accent" />
+                <span className="text-sm font-medium text-ink">Pass {rounds.length + 1}</span>
+                <span className="text-xs text-ink-faint">Running…</span>
               </div>
             ) : null}
             {[...rounds].reverse().map((r) => (

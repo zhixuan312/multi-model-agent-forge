@@ -1,10 +1,9 @@
-import { eq, sql, asc } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
-import { stage } from '@/db/schema/projects';
+import { component, qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
-import { assembleSpec } from '@/spec/assemble';
+import { replaceSpecSection } from '@/spec/spec-file-ops';
 
 function splitByHeadings(md: string): Array<{ heading: string | null; body: string }> {
   const lines = md.split('\n');
@@ -36,39 +35,18 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const componentId = request.componentId;
 
   if (result.updatedSectionMd) {
-    const allSections = await db
-      .select({ id: componentSection.id, label: componentSection.label })
-      .from(componentSection)
-      .where(eq(componentSection.componentId, componentId))
-      .orderBy(asc(componentSection.orderIndex));
-
     const chunks = splitByHeadings(result.updatedSectionMd);
-
-    if (chunks.length > 0 && allSections.length > 0) {
-      if (chunks.length === 1 && !chunks[0].heading) {
-        await db.update(componentSection)
-          .set({ draftMd: chunks[0].body, updatedAt: new Date() })
-          .where(eq(componentSection.id, allSections[0].id));
-      } else {
-        for (const chunk of chunks) {
-          const label = chunk.heading?.replace(/^###\s*/, '').trim();
-          const match = allSections.find((s) => s.label.toLowerCase() === label?.toLowerCase());
-          if (match) {
-            await db.update(componentSection)
-              .set({ draftMd: chunk.body, updatedAt: new Date() })
-              .where(eq(componentSection.id, match.id));
-          }
-        }
+    for (const chunk of chunks) {
+      const label = chunk.heading?.replace(/^###\s*/, '').trim();
+      if (label) {
+        await replaceSpecSection(ctx.projectId, label, chunk.body);
       }
     }
-
-    // Re-assemble spec.md from all DB sections (same as auto-draft)
-    const [specStage] = await db
-      .select({ id: stage.id })
-      .from(stage)
-      .where(eq(stage.projectId, ctx.projectId));
-    if (specStage) {
-      await assembleSpec(db, ctx.projectId, specStage.id, ctx.actorId ?? 'system');
+    // Single block with no heading — write using component kind as label
+    if (chunks.length === 1 && !chunks[0].heading) {
+      const request2 = ctx.request as { componentKind?: string };
+      const fallbackLabel = request2.componentKind ?? 'Content';
+      await replaceSpecSection(ctx.projectId, fallbackLabel, chunks[0].body);
     }
   }
 

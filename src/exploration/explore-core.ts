@@ -71,9 +71,23 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
       outputMd = summary;
     } else if (summary && typeof summary === 'object') {
       const s = summary as Record<string, unknown>;
-      outputMd = typeof s.answer === 'string' ? s.answer
+      const answer = typeof s.answer === 'string' ? s.answer
         : typeof s.summary === 'string' ? s.summary
-        : JSON.stringify(s, null, 2);
+        : null;
+      const findings = Array.isArray(s.findings) ? s.findings as Array<Record<string, unknown>> : [];
+      const parts: string[] = [];
+      if (answer) parts.push(answer);
+      if (findings.length > 0) {
+        parts.push('\n\n---\n\n### Supporting evidence\n');
+        for (const f of findings) {
+          const weight = String(f.weight ?? '').toUpperCase();
+          const claim = String(f.claim ?? '');
+          const evidence = f.evidence ? `\n  > ${String(f.evidence)}` : '';
+          const file = f.file && f.line ? `\n  *${f.file}:${f.line}*` : f.file ? `\n  *${f.file}*` : '';
+          parts.push(`- **[${weight}]** ${claim}${evidence}${file}`);
+        }
+      }
+      outputMd = parts.length > 0 ? parts.join('\n') : JSON.stringify(s, null, 2);
     }
     return {
       id: r.id,

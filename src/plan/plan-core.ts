@@ -86,6 +86,20 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   const planFile = await readPlanFileAsync(projectId);
   const planMd = planFile?.bodyMd ?? null;
 
+  // If plan.md was deleted but DB still has tasks, reset — same pattern as spec loadOutline
+  if (!planMd) {
+    const staleTaskIds = (await dbi
+      .select({ id: planTask.id })
+      .from(planTask)
+      .where(eq(planTask.projectId, projectId)))
+      .map((r) => r.id);
+    if (staleTaskIds.length > 0) {
+      await dbi.delete(qaMessage).where(inArray(qaMessage.componentId, staleTaskIds));
+      await dbi.delete(participant).where(and(eq(participant.scope, 'task'), inArray(participant.scopeId, staleTaskIds)));
+      await dbi.delete(planTask).where(eq(planTask.projectId, projectId));
+    }
+  }
+
   // Parse tasks from the physical plan.md file
   let tasks: PlanTaskView[] = [];
   if (planMd) {

@@ -111,13 +111,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const [phases] = useServerState(props.phases);
   const allTasks = useMemo(() => phases.flatMap((p) => p.tasks), [phases]);
 
-  const derivedPhase: PlanPhase = (() => {
-    if (props.auditRounds.length > 0) return 'validate';
-    const allApprovedInit = allTasks.length > 0 && allTasks.every((t) => t.dbStatus === 'committed' || t.dbStatus === 'approved');
-    if (allApprovedInit) return 'validate';
-    return 'refine';
-  })();
-  const safeInitial = props.initialPhase === 'validate' && allTasks.length === 0 ? undefined : props.initialPhase;
+  const allApprovedInit = allTasks.length > 0 && allTasks.every((t) => t.dbStatus === 'committed' || t.dbStatus === 'approved');
+  const derivedPhase: PlanPhase = allApprovedInit ? 'validate' : 'refine';
+  const safeInitial = props.initialPhase === 'validate' && !allApprovedInit ? undefined : props.initialPhase;
   const [phase, setPhaseRaw] = useState<PlanPhase>(safeInitial ?? derivedPhase);
 
   const setPhase = (p: PlanPhase) => {
@@ -486,27 +482,27 @@ function DetailStage({
       contentRef.current?.scrollTo?.(0, 0);
     }
   }, [activeId, taskView, threads]);
-  const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>(() => {
-    const out: Record<string, Participant[]> = {};
+  // Plan-level participants — invite once, can approve any task
+  const [planParticipants, setPlanParticipants] = useState<Participant[]>(() => {
+    const seen = new Set<string>();
+    const result: Participant[] = [];
+    const memberById = new Map(projectMembers.map((m) => [m.id, m]));
     for (const t of allTasks) {
-      const ids = t.participantIds ?? [];
-      if (ids.length > 0 && projectMembers.length > 0) {
-        const memberById = new Map(projectMembers.map((m) => [m.id, m]));
-        out[t.id] = ids
-          .map((id) => memberById.get(id))
-          .filter(Boolean)
-          .map((m) => ({ member: m!, addedBy: null, approvedAt: (t.approvedBy ?? []).includes(m!.id) ? new Date().toISOString() : null }));
+      for (const pid of (t.participantIds ?? [])) {
+        if (seen.has(pid)) continue;
+        seen.add(pid);
+        const m = memberById.get(pid);
+        if (m) result.push({ member: m, addedBy: null, approvedAt: null });
       }
     }
-    return out;
+    return result;
   });
   const meParticipant: Participant | null = currentMember
-    ? { member: currentMember, addedBy: null, approvedAt: status[active?.id ?? ''] === 'approved' ? new Date().toISOString() : null }
+    ? { member: currentMember, addedBy: null, approvedAt: null }
     : null;
-  const stored = taskApprovers[active?.id ?? ''] ?? [];
-  const taskParticipants: Participant[] = meParticipant
-    ? [meParticipant, ...stored.filter((p) => p.member.id !== meParticipant.member.id)]
-    : stored;
+  const allParticipants: Participant[] = meParticipant
+    ? [meParticipant, ...planParticipants.filter((p) => p.member.id !== meParticipant.member.id)]
+    : planParticipants;
 
   useEffect(() => {
     function onPlanUpdated(e: Event) {
@@ -537,8 +533,18 @@ function DetailStage({
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col">
+        <aside className="flex min-h-0 flex-col gap-4">
           <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
+            <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2" />
+              <span className="shrink-0 text-xs font-medium text-ink-faint">0/0</span>
+            </div>
+            <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+              <p className="text-xs text-ink-faint">Tasks appear here once the plan is drafted.</p>
+            </CardContent>
+          </Card>
         </aside>
       </div>
     );
@@ -681,19 +687,18 @@ function DetailStage({
         </CardHeader>
         <div className="shrink-0 border-b border-line px-5 py-2.5">
           <ParticipantStrip
-            participants={taskParticipants}
+            participants={allParticipants}
             pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
             onAdd={(m) => {
-              setTaskApprovers((prev) => {
-                const existing = prev[active.id] ?? [];
-                if (existing.some((p) => p.member.id === m.id)) return prev;
-                return { ...prev, [active.id]: [...existing, { member: m, addedBy: null, approvedAt: null }] };
-              });
-              fetch(`/api/projects/${projectId}/plan/tasks/${active.id}/invite`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ memberId: m.id }),
-              }).catch(() => {});
+              if (planParticipants.some((p) => p.member.id === m.id)) return;
+              setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]);
+              for (const t of allTasks) {
+                fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ memberId: m.id }),
+                }).catch(() => {});
+              }
             }}
             disabled={readOnly}
           />

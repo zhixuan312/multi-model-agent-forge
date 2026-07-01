@@ -43,9 +43,19 @@ export const SynthesisSchema = z.object({
 });
 export type Synthesis = z.infer<typeof SynthesisSchema>;
 
+/** Promote inline bold labels to ## headings so the document has consistent structure. */
+function promoteInlineHeadings(md: string): string {
+  return md
+    .replace(/^\*\*currentState\*\*[:\s]*/gim, '## Current state\n\n')
+    .replace(/^\*\*current\s*state\*\*[:\s]*/gim, '## Current state\n\n')
+    .replace(/^\*\*roughDirection\*\*[:\s]*/gim, '## Rough direction\n\n')
+    .replace(/^\*\*rough\s*direction\*\*[:\s]*/gim, '## Rough direction\n\n');
+}
+
 /** Compose the three sections into the artifact body markdown. */
 export function composeExplorationMarkdown(s: Synthesis): string {
-  const parts = ['## Background', '', s.background.trim(), ''];
+  const bg = promoteInlineHeadings(s.background.trim());
+  const parts = ['## Background', '', bg, ''];
   if (s.currentState.trim()) {
     parts.push('## Current state', '', s.currentState.trim(), '');
   }

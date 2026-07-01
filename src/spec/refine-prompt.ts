@@ -9,8 +9,9 @@
  */
 
 export interface RefinePromptInput {
-  sectionLabel: string;
-  sectionDraftMd: string;
+  componentLabel: string;
+  sectionHeadings: string[];
+  componentDraftMd: string;
   messagesSinceLastForge: Array<{ sender: string; bodyMd: string }>;
   isFirstCall: boolean;
   fullSpecMd?: string;
@@ -43,39 +44,43 @@ export function getMessagesSinceLastForge(
  * Build the 6-part structured prompt for the refine call.
  */
 export function buildRefinePrompt(input: RefinePromptInput): { system: string; user: string } {
-  const system = `Role: You are a specification co-author working on the "${input.sectionLabel}" section.
+  const headingList = input.sectionHeadings.map((h) => `  - ### ${h}`).join('\n');
+  const system = `Role: You are a specification co-author refining the "${input.componentLabel}" component.
 
 Task: Process the team's discussion and:
-  1. Update the section draft to incorporate their feedback
+  1. Update the component draft to incorporate their feedback
   2. Give a brief chat reply confirming what you changed
-  3. After updating, review the WHOLE section — if there are gaps or ambiguities in the overall section (not just what was discussed), you may ask clarifying questions
+  3. After updating, review the component — if there are gaps or ambiguities, ask clarifying questions
+
+This component has these sections:
+${headingList}
 
 Constraints:
-- Keep the section's existing structure unless the team explicitly asks to change it
-- Your chatReply should be concise — confirm what you changed
 - Apply the team's feedback as stated — do not question what they told you
-- Questions (if any) should be about gaps in the OVERALL section, not about the feedback itself
 - Preserve all existing content that wasn't discussed — only modify what the team addressed
-- Write in proper markdown: use ### subheadings, **bold** for key terms, bullet lists, \`code\` for technical names, tables for comparisons. The output renders as a professional document
-- Questions should be specific and actionable, not generic
+- Your chatReply should be concise — confirm what you changed
+- Questions (if any) should be about gaps in the component, not about the feedback itself
 
 Output format:
 Return a JSON object with exactly three fields:
-  {
-    "chatReply": "brief summary of what you changed — do NOT include questions here",
-    "updatedSectionMd": "the full updated section markdown",
-    "questions": ["specific follow-up question 1", "specific follow-up question 2"]
-  }
-- chatReply: only describes what you changed. Keep it short and factual.
-- questions: separate array for follow-up questions. Empty array if none.
-- Do NOT put questions in chatReply — they belong only in the questions array.
-- If no section changes are needed, return the current draft unchanged in updatedSectionMd.`;
+\`\`\`json
+{
+  "chatReply": "brief summary of what you changed",
+  "updatedSectionMd": "the full component markdown with ALL ### section headings preserved",
+  "questions": ["specific follow-up question 1"]
+}
+\`\`\`
+- updatedSectionMd MUST start each section with its \`### Heading\` exactly as listed above
+- Return ALL sections of this component, not just the ones you changed
+- chatReply: only describes what you changed. Keep it short and factual
+- questions: separate array for follow-up questions. Empty array if none
+- Do NOT put questions in chatReply — they belong only in the questions array`;
 
   const contextParts: string[] = [];
   if (input.isFirstCall && input.fullSpecMd) {
     contextParts.push(`Context:\n\n--- Full Spec ---\n${input.fullSpecMd}\n--- End Full Spec ---`);
   }
-  contextParts.push(`--- Current "${input.sectionLabel}" Section Draft ---\n${input.sectionDraftMd}\n--- End Section Draft ---`);
+  contextParts.push(`--- Current "${input.componentLabel}" Component Draft ---\n${input.componentDraftMd}\n--- End Component Draft ---`);
 
   const userMessages = input.messagesSinceLastForge
     .map((m) => `[${m.sender === 'forge' ? 'Forge' : 'Team member'}]: ${m.bodyMd}`)

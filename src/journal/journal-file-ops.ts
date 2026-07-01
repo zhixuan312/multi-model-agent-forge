@@ -3,7 +3,7 @@
  * the physical journal.md file. Mirrors plan-file-ops.ts pattern.
  */
 
-import { readJournalFileAsync, writeJournalAsync } from '@/projects/project-files';
+import { backupArtifact, readJournalFileAsync, writeJournalAsync } from '@/projects/project-files';
 
 const writeLocks = new Map<string, Promise<unknown>>();
 async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -73,6 +73,7 @@ export async function replaceJournalSection(
     const after = lines.slice(match.endLine + 1);
     const replacement = [match.heading, '', newBody.trim(), ''];
     const updated = [...before, ...replacement, ...after].join('\n');
+    await backupArtifact(projectId, 'journal.md');
     await writeJournalAsync(projectId, updated);
     return true;
   });

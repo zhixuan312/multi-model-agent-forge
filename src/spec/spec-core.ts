@@ -113,13 +113,39 @@ export async function loadOutline(db: Db, stageId: string, projectId?: string): 
 
   // Read section content from spec.md (file = source of truth)
   let fileSections: Map<string, string> = new Map();
+  let specFileExists = false;
   if (projectId) {
     const specFile = await readSpecFileAsync(projectId);
     if (specFile) {
+      specFileExists = true;
       const parsed = parseSpecSections(specFile.bodyMd);
       for (const s of parsed) {
         const label = s.heading.replace(/^###\s*/, '').trim();
         fileSections.set(label.toLowerCase(), s.body);
+      }
+    }
+  }
+
+  // If spec.md was deleted but components are still marked drafted/approved,
+  // reset them to gathering so auto-draft re-triggers. Clear stale conversation
+  // and approvals — they belong to the previous draft cycle.
+  if (!specFileExists) {
+    const draftedIds = comps.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id);
+    if (draftedIds.length > 0) {
+      await dbi
+        .update(component)
+        .set({ status: 'gathering', aiSatisfied: false, humanSatisfied: false })
+        .where(inArray(component.id, draftedIds));
+      await dbi.delete(qaMessage).where(inArray(qaMessage.componentId, draftedIds));
+      await dbi
+        .delete(participant)
+        .where(and(eq(participant.scope, 'component'), inArray(participant.scopeId, draftedIds), eq(participant.role, 'approver')));
+      for (const c of comps) {
+        if (draftedIds.includes(c.id)) {
+          c.status = 'gathering';
+          c.aiSatisfied = false;
+          c.humanSatisfied = false;
+        }
       }
     }
   }

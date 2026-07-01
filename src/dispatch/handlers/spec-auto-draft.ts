@@ -5,7 +5,9 @@ import { project } from '@/db/schema/projects';
 import { FullSpecDraftSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import type { OutlineEntry } from '@/spec/auto-draft';
-import { replaceSpecSection } from '@/spec/spec-file-ops';
+import { backupArtifact, writeSpecAsync } from '@/projects/project-files';
+import { templateForKind } from '@/spec/components';
+import type { ComponentKind } from '@/db/enums';
 
 
 function normalizeSections(data: unknown): unknown {
@@ -37,6 +39,7 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
   const outline = request.outline ?? [];
 
   const questionsByComponent = new Map<string, { questions: string[] }>();
+  const draftByKey = new Map<string, string>();
 
   for (const drafted of parsed.sections) {
     const match = outline.find(
@@ -44,8 +47,7 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
     );
     if (!match) continue;
 
-    // Write content to spec.md (file = source of truth)
-    await replaceSpecSection(ctx.projectId, match.sectionLabel, drafted.draftMd);
+    draftByKey.set(`${match.componentKind}:${match.sectionKey}`, drafted.draftMd);
 
     const existing = questionsByComponent.get(match.componentId);
     if (existing) {
@@ -54,6 +56,43 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
       questionsByComponent.set(match.componentId, { questions: [...drafted.questions] });
     }
   }
+
+  // Build full structured markdown with ## Component → ### Section nesting
+  const compOrder = new Map<string, { kind: string; label: string; sections: { key: string; label: string; draftMd: string | null }[] }>();
+  for (const entry of outline) {
+    let comp = compOrder.get(entry.componentId);
+    if (!comp) {
+      comp = { kind: entry.componentKind, label: entry.componentLabel, sections: [] };
+      compOrder.set(entry.componentId, comp);
+    }
+    comp.sections.push({
+      key: entry.sectionKey,
+      label: entry.sectionLabel,
+      draftMd: draftByKey.get(`${entry.componentKind}:${entry.sectionKey}`) ?? null,
+    });
+  }
+
+  const components = [...compOrder.values()].map((c) => ({
+    kind: c.kind as ComponentKind,
+    label: c.label,
+    sections: c.sections,
+  }));
+
+  const out: string[] = [];
+  for (const comp of components) {
+    out.push(`## ${comp.label}`);
+    out.push('');
+    const tpl = templateForKind(comp.kind);
+    for (const sec of comp.sections) {
+      const draftHeading = tpl.sections.find((s) => s.key === sec.key)?.draftHeading ?? sec.label;
+      out.push(`### ${draftHeading}`);
+      out.push('');
+      out.push(sec.draftMd ?? '');
+      out.push('');
+    }
+  }
+  await backupArtifact(ctx.projectId, 'spec.md');
+  await writeSpecAsync(ctx.projectId, out.join('\n'));
 
   for (const [compId, { questions }] of questionsByComponent) {
     await db

@@ -6,7 +6,7 @@ import { repo } from '@/db/schema/workspace';
 import { logAction } from '@/observability/action-log';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { getLatestSpec } from '@/spec/assemble';
-import { writePlanAsync, readPlanFileAsync } from '@/projects/project-files';
+import { backupArtifact, writePlanAsync, readPlanFileAsync } from '@/projects/project-files';
 import type { PlanDraft } from '@/build/plan-schema';
 import {
   validateAndResolve,
@@ -236,6 +236,7 @@ export async function authorPlan(
     '',
   ].join('\n');
   const combinedMd = planHeader + renderCombinedPlan(combinedGroups);
+  await backupArtifact(projectId, 'plan.md');
   const { version } = await writePlanAsync(projectId, combinedMd);
 
   // 6. Persist plan_task rows.

@@ -25,11 +25,12 @@ describe('refine handler — session reuse', () => {
 describe('refine handler — delta prompt computation', () => {
   it('first call includes full spec context', () => {
     const input = {
-      sectionLabel: 'Technical Design',
-      sectionDraftMd: '## Architecture\nMonolith backend.',
+      componentLabel: 'Technical Design',
+      sectionHeadings: ['Current state', 'Proposed design', 'Impact'],
+      componentDraftMd: '### Current state\n\nMonolith backend.\n\n### Proposed design\n\nMicroservices.',
       messagesSinceLastForge: [{ sender: 'member', bodyMd: 'switch to microservices' }],
       isFirstCall: true,
-      fullSpecMd: '# Full Spec\n## Context\n...\n## Technical Design\nMonolith.',
+      fullSpecMd: '## Context\n\n### Background\n\n...\n\n## Technical Design\n\n### Current state\n\nMonolith.',
     };
     const { user } = buildRefinePrompt(input);
     expect(user).toContain('Full Spec');
@@ -37,10 +38,11 @@ describe('refine handler — delta prompt computation', () => {
     expect(user).toContain('switch to microservices');
   });
 
-  it('continuation call excludes full spec, includes only section draft', () => {
+  it('continuation call excludes full spec, includes only component draft', () => {
     const input = {
-      sectionLabel: 'Technical Design',
-      sectionDraftMd: '## Architecture\nMicroservices.',
+      componentLabel: 'Technical Design',
+      sectionHeadings: ['Current state', 'Proposed design'],
+      componentDraftMd: '### Current state\n\nMicroservices.',
       messagesSinceLastForge: [{ sender: 'member', bodyMd: 'add API gateway' }],
       isFirstCall: false,
     };
@@ -127,8 +129,9 @@ describe('refine handler — full lifecycle', () => {
     expect(isFirstCall).toBe(false); // continuation
 
     const { system, user } = buildRefinePrompt({
-      sectionLabel: 'Context',
-      sectionDraftMd: component.sectionDraftMd,
+      componentLabel: 'Context',
+      sectionHeadings: ['Background'],
+      componentDraftMd: component.sectionDraftMd,
       messagesSinceLastForge: delta,
       isFirstCall,
     });
@@ -150,7 +153,7 @@ describe('refine handler — full lifecycle', () => {
 
     // Step 5: Verify what gets saved
     // - chatReply → qa_message (sender='forge')
-    // - updatedSectionMd → component_section.draft_md
+    // - updatedSectionMd → spec.md (file = source of truth)
     // - chat.message SSE published with chatReply
     expect(result.chatReply).toBeTruthy();
     expect(result.updatedSectionMd).toBeTruthy();

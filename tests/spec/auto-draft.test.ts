@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildAutoDraftRequest, buildRefineRequest } from '@/spec/auto-draft';
+import { buildAutoDraftRequest } from '@/spec/auto-draft';
 import { createMockDb } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
@@ -52,49 +52,3 @@ describe('buildAutoDraftRequest', () => {
   });
 });
 
-describe('buildRefineRequest', () => {
-  it('returns error when component not found', async () => {
-    const mockDb = createMockDb({
-      'select:project_component': [],
-    });
-
-    const result = await buildRefineRequest({
-      db: mockDb,
-      componentId: 'nonexistent',
-      userAnswer: 'some feedback',
-      history: [],
-    });
-    expect('error' in result).toBe(true);
-    if ('error' in result) {
-      expect(result.error).toBe('Component not found.');
-    }
-  });
-
-  it('returns system + user prompts for a valid component', async () => {
-    const mockDb = createMockDb({
-      'select:project_component': [
-        { id: 'comp-1', stageId: 'stage-1', kind: 'context', status: 'drafted' },
-      ],
-      'select:project_stage': [{ projectId: 'proj-1' }],
-      'select:project_component_section': [
-        { id: 'sec-1', componentId: 'comp-1', key: 'background', label: 'Background', draftMd: 'Original draft' },
-      ],
-      'select:project_qa_message': [{ maxSeq: 0 }],
-      'insert:project_qa_message': [],
-    });
-
-    const result = await buildRefineRequest({
-      db: mockDb,
-      componentId: 'comp-1',
-      userAnswer: 'Add more context about the team.',
-      history: [],
-    });
-    expect('error' in result).toBe(false);
-    if (!('error' in result)) {
-      expect(result.system).toContain('specification refiner');
-      expect(result.user).toContain('Original draft');
-      expect(result.user).toContain('Add more context about the team.');
-      expect(typeof result.projectId).toBe('string');
-    }
-  });
-});

@@ -47,14 +47,15 @@ describe('getMessagesSinceLastForge', () => {
 
 describe('buildRefinePrompt', () => {
   const baseInput: RefinePromptInput = {
-    sectionLabel: 'Context',
-    sectionDraftMd: '# Context\nThe demo uses PostgreSQL.',
+    componentLabel: 'Context',
+    sectionHeadings: ['Background'],
+    componentDraftMd: '### Background\n\nThe demo uses PostgreSQL.',
     messagesSinceLastForge: [
       { sender: 'member', bodyMd: 'our target audience is CPFB users' },
       { sender: 'member', bodyMd: '@Forge update this section' },
     ],
     isFirstCall: true,
-    fullSpecMd: '# Full Spec\n## Context\nThe demo...\n## Problem\nDependency...',
+    fullSpecMd: '## Context\n\n### Background\n\nThe demo...\n\n## Problem\n\n### Problem\n\nDependency...',
   };
 
   it('includes the 6-part structure on first call', () => {
@@ -71,13 +72,13 @@ describe('buildRefinePrompt', () => {
     const { user } = buildRefinePrompt(baseInput);
     expect(user).toContain('Full Spec');
     expect(user).toContain(baseInput.fullSpecMd!);
-    expect(user).toContain(baseInput.sectionDraftMd);
+    expect(user).toContain(baseInput.componentDraftMd);
   });
 
-  it('includes only section draft on continuation', () => {
+  it('includes only component draft on continuation', () => {
     const { user } = buildRefinePrompt({ ...baseInput, isFirstCall: false, fullSpecMd: undefined });
     expect(user).not.toContain('Full Spec');
-    expect(user).toContain(baseInput.sectionDraftMd);
+    expect(user).toContain(baseInput.componentDraftMd);
   });
 
   it('includes user messages in the input', () => {
@@ -86,9 +87,10 @@ describe('buildRefinePrompt', () => {
     expect(user).toContain('@Forge update this section');
   });
 
-  it('includes section label', () => {
+  it('includes component label and section headings', () => {
     const { system } = buildRefinePrompt(baseInput);
     expect(system).toContain('Context');
+    expect(system).toContain('### Background');
   });
 
   it('specifies JSON output format with chatReply, updatedSectionMd, and questions', () => {
@@ -96,6 +98,21 @@ describe('buildRefinePrompt', () => {
     expect(system).toContain('chatReply');
     expect(system).toContain('updatedSectionMd');
     expect(system).toContain('questions');
+  });
+
+  it('lists all section headings for multi-section component', () => {
+    const input: RefinePromptInput = {
+      ...baseInput,
+      componentLabel: 'Goals & Requirements',
+      sectionHeadings: ['Goals', 'Functional requirements', 'Scope', 'Constraints', 'Success metrics'],
+      componentDraftMd: '### Goals\n\nGoal 1\n\n### Functional requirements\n\nReq 1',
+    };
+    const { system } = buildRefinePrompt(input);
+    expect(system).toContain('### Goals');
+    expect(system).toContain('### Functional requirements');
+    expect(system).toContain('### Scope');
+    expect(system).toContain('### Constraints');
+    expect(system).toContain('### Success metrics');
   });
 });
 

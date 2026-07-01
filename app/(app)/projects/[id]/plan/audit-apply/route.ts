@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getDb } from '@/db/client';
 import { guardBuildWrite } from '@/build/guard';
-import { planFilePath } from '@/projects/project-files';
+import { planFilePath, backupArtifact } from '@/projects/project-files';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
@@ -77,6 +77,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const cwd = resolveWorkspaceRoot();
   const planPath = planFilePath(id);
   const prompt = buildRevisePrompt(planPath, findingsBlock);
+
+  await backupArtifact(id, 'plan.md');
 
   const mma = await buildMmaClient({ db });
   const { batchRowId } = await dispatchMma({

@@ -255,7 +255,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     [],
   );
 
-  const allApproved = components.length > 0 && components.every((c) => c.status === 'approved');
+  const allApproved = components.length > 0 && components.every((c) => c.status === 'approved' || (c.approvedBy as string[]).length > 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="spec-stage">
@@ -712,7 +712,8 @@ function TemplateRow({
 interface DisplayState { label: string; cls: string }
 
 function componentDisplayState(c: ComponentView): DisplayState {
-  if (c.status === 'approved') return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
+  if (c.status === 'approved' || (c.approvedBy as string[]).length > 0)
+    return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
     return c.aiSatisfied
       ? { label: 'Ready', cls: 'bg-sage-tint text-[var(--sage-deep)]' }
@@ -757,17 +758,14 @@ function CraftStage({
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
   const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
-  const [refining, setRefining] = useState(false);
+  const [refiningComponents, setRefiningComponents] = useState<Set<string>>(new Set());
 
-  // Auto-fetch drafts for all drafted components on first load
-  const initialFetchDone = useRef(false);
+  // Rebuild drafts from components whenever they change (server re-render after MMA completes)
   useEffect(() => {
-    if (initialFetchDone.current || autoDrafting) return;
-    const draftedComponents = components.filter((c) => c.status === 'drafted' || c.status === 'approved');
-    if (draftedComponents.length === 0) return;
-    initialFetchDone.current = true;
+    if (autoDrafting) return;
     const drafts: Record<string, string> = {};
-    for (const c of draftedComponents) {
+    for (const c of components) {
+      if (c.status !== 'drafted' && c.status !== 'approved') continue;
       const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
       if (md) drafts[c.id] = md;
     }
@@ -831,7 +829,8 @@ function CraftStage({
           }
         }
         const old = prev[c.id];
-        next[c.id] = { participants, discussion: old?.discussion ?? [] };
+        const keepDiscussion = c.status !== 'gathering';
+        next[c.id] = { participants, discussion: keepDiscussion ? (old?.discussion ?? []) : [] };
       }
       return next;
     });
@@ -872,15 +871,17 @@ function CraftStage({
         };
       });
       if (msg.authorId === 'forge') {
-        setRefining(false);
+        setRefiningComponents((prev) => { const next = new Set(prev); next.delete(cid); return next; });
       }
     };
     const typingHandler = (e: Event) => {
       const { componentId: cid, typing } = (e as CustomEvent).detail as { componentId: string; typing: boolean };
-      if (cid === activeIdRef.current) {
-        setRefining(typing);
-        if (typing) setCraftView('conversation');
-      }
+      setRefiningComponents((prev) => {
+        const next = new Set(prev);
+        if (typing) next.add(cid); else next.delete(cid);
+        return next;
+      });
+      if (cid === activeIdRef.current && typing) setCraftView('conversation');
     };
     window.addEventListener('chat:message', handler);
     window.addEventListener('chat:typing', typingHandler);
@@ -893,7 +894,7 @@ function CraftStage({
   const [nudge, setNudge] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [activeId, collab]);
+  const contentRef = useRef<HTMLDivElement>(null);
   // When a section gets drafted (Construct), bring the freshly-built draft into
   // view — otherwise it lands below the fold and the click feels like a no-op.
   const draftedNow = activeId
@@ -908,32 +909,10 @@ function CraftStage({
   // No client-side auto-approve from collab state.
 
   const active = components.find((c) => c.id === activeId) ?? null;
-  const approvedCount = components.filter((c) => c.status === 'approved').length;
+  const approvedCount = components.filter((c) => c.status === 'approved' || (c.approvedBy as string[]).length > 0).length;
 
   // Auto-construct the draft for any component that has sections with content.
   // The toggle lets users switch between Spec and Discussion views.
-  useEffect(() => {
-    if (!active || constructedDrafts[active.id]) return;
-    const hasDraft = active.sections.some((s) => s.draftMd);
-    if (!hasDraft) return;
-    const md = active.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
-    if (md) {
-      setConstructedDrafts((prev) => ({ ...prev, [active.id]: md }));
-    } else {
-      // Fetch from server if not in client state
-      fetch(`/projects/${projectId}/spec/outline`)
-        .then((r) => r.json())
-        .then((data: { components?: ComponentView[] }) => {
-          const fresh = data.components?.find((c) => c.id === active.id);
-          if (fresh) {
-            const freshMd = fresh.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
-            if (freshMd) setConstructedDrafts((prev) => ({ ...prev, [active.id]: freshMd }));
-          }
-        })
-        .catch(() => {});
-    }
-  }, [active, activeId, constructedDrafts, projectId]);
-
   /** Resolve a member id for attribution (you · pool · any seeded participant). */
   function memberById(id: string): MemberRef | undefined {
     if (id === currentMember.id) return currentMember;
@@ -956,10 +935,18 @@ function CraftStage({
 
   // Spec/Discussion toggle: default to spec view when drafted, discussion when needs input
   const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
-  const craftView = craftViewOverride[active.id] ?? (showingDraft ? 'spec' : 'conversation');
+  const hasQuestions = drafted && !active.aiSatisfied;
+  const craftView = craftViewOverride[active.id] ?? (hasQuestions ? 'conversation' : showingDraft ? 'spec' : 'conversation');
   const setCraftView = useCallback((v: 'spec' | 'conversation') => {
     setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
   }, []);
+  useEffect(() => {
+    if (craftView === 'conversation') {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    } else {
+      contentRef.current?.scrollTo(0, 0);
+    }
+  }, [activeId, collab, craftView]);
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };
@@ -1029,16 +1016,16 @@ function CraftStage({
     const cleanText = forgeTagged ? text.replace(/@forge\s*/gi, '').trim() : '';
     const userInput = cleanText || 'Update and refine based on the conversation so far.';
     if (forgeTagged && drafted) {
-      setRefining(true);
-      setCraftView('conversation');
       const compId = active.id;
+      setRefiningComponents((prev) => new Set(prev).add(compId));
+      setCraftView('conversation');
 
       mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: userInput })
         .then(() => {
-          setRefining(false);
+          setRefiningComponents((prev) => { const next = new Set(prev); next.delete(compId); return next; });
         })
         .catch(() => {
-          setRefining(false);
+          setRefiningComponents((prev) => { const next = new Set(prev); next.delete(compId); return next; });
           patchCollab((u) => ({
             ...u,
             discussion: [
@@ -1112,7 +1099,7 @@ function CraftStage({
               <RoleChip key={r} role={r} />
             ))}
           </div>
-          {showingDraft ? <CraftViewToggle active={craftView} onSwitch={setCraftView} /> : null}
+          {drafted ? <CraftViewToggle active={craftView} onSwitch={setCraftView} /> : null}
         </CardHeader>
 
         {/* Co-approval strip — only show when the section has a draft to review. */}
@@ -1127,7 +1114,7 @@ function CraftStage({
           </div>
         ) : null}
 
-        <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 !py-5">
+        <div ref={contentRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 px-5 py-5">
           {autoDrafting && !drafted ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
@@ -1137,8 +1124,10 @@ function CraftStage({
           ) : null}
 
           {/* Spec view: rendered markdown, like exploration summary */}
-          {craftView === 'spec' && showingDraft ? (
-            <ProseBlock>{showingDraft}</ProseBlock>
+          {craftView === 'spec' ? (
+            showingDraft
+              ? <ProseBlock>{showingDraft}</ProseBlock>
+              : <p className="py-8 text-center text-sm text-ink-faint">No draft content yet. Switch to Discussion to refine this section.</p>
           ) : null}
 
           {/* Conversation view */}
@@ -1150,7 +1139,7 @@ function CraftStage({
                 currentMemberId={currentMember.id}
                 mentionPool={inChatMembers}
               />
-              {refining ? (
+              {active && refiningComponents.has(active.id) ? (
                 <div className="flex gap-2.5">
                   <ForgeMark className="mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
@@ -1167,7 +1156,7 @@ function CraftStage({
             </>
           ) : null}
           <div ref={bottomRef} />
-        </CardContent>
+        </div>
 
         {craftView === 'spec' && showingDraft ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
@@ -1181,16 +1170,16 @@ function CraftStage({
               {iApproved ? 'Revoke' : 'Approve'}
             </Button>
           </div>
-        ) : craftView === 'conversation' ? (
+        ) : (
           <ConversationComposer
             value={input}
             onChange={setInput}
             onSend={() => submit()}
-            disabled={readOnly || refining}
+            disabled={readOnly || (active != null && refiningComponents.has(active.id))}
             voice={voiceEnabled}
             mentionPool={inChatMembers}
           />
-        ) : null}
+        )}
       </Card>
 
       {/* RIGHT — guidance + components + progress (1/3) */}
@@ -1733,6 +1722,13 @@ function DocumentScreen({
                 <p className="mt-3 text-xs leading-relaxed text-ink-faint">
                   Each audit round lands here<br />with its verdict and findings.
                 </p>
+              </div>
+            ) : null}
+            {auditing ? (
+              <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
+                <Loader2 className="size-4 animate-spin text-accent" />
+                <span className="text-sm font-medium text-ink">Pass {rounds.length + 1}</span>
+                <span className="text-xs text-ink-faint">Running…</span>
               </div>
             ) : null}
             {[...rounds].reverse().map((r) => (

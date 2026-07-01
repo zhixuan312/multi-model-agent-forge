@@ -3,17 +3,18 @@ import type { Db } from '@/db/client';
 import { component, qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
-import { replaceSpecSection } from '@/spec/spec-file-ops';
+import { backupArtifact, readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
+import { parseSpecSections } from '@/spec/spec-file-ops';
 
-function splitByHeadings(md: string): Array<{ heading: string | null; body: string }> {
+function splitByHeadings(md: string): Array<{ heading: string; body: string }> {
   const lines = md.split('\n');
-  const chunks: Array<{ heading: string | null; body: string }> = [];
+  const chunks: Array<{ heading: string; body: string }> = [];
   let currentHeading: string | null = null;
   let currentLines: string[] = [];
 
   for (const line of lines) {
     if (/^###\s+/.test(line)) {
-      if (currentHeading !== null || currentLines.length > 0) {
+      if (currentHeading) {
         chunks.push({ heading: currentHeading, body: currentLines.join('\n').trim() });
       }
       currentHeading = line;
@@ -22,10 +23,10 @@ function splitByHeadings(md: string): Array<{ heading: string | null; body: stri
       currentLines.push(line);
     }
   }
-  if (currentHeading !== null || currentLines.length > 0) {
+  if (currentHeading) {
     chunks.push({ heading: currentHeading, body: currentLines.join('\n').trim() });
   }
-  return chunks.filter((c) => c.body.length > 0 || c.heading);
+  return chunks;
 }
 
 async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
@@ -36,20 +37,32 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
 
   if (result.updatedSectionMd) {
     const chunks = splitByHeadings(result.updatedSectionMd);
+    if (chunks.length > 0) {
+      // Build a replacement map from the MMA response
+      const replacements = new Map<string, string>();
+      for (const chunk of chunks) {
+        const label = chunk.heading.replace(/^###\s*/, '').trim().toLowerCase();
+        replacements.set(label, chunk.body);
+      }
 
-    // Write to spec.md (file = source of truth)
-    for (const chunk of chunks) {
-      const label = chunk.heading?.replace(/^###\s*/, '').trim();
-      if (label) {
-        await replaceSpecSection(ctx.projectId, label, chunk.body);
+      await backupArtifact(ctx.projectId, 'spec.md');
+      const file = await readSpecFileAsync(ctx.projectId);
+      if (file) {
+        const allSections = parseSpecSections(file.bodyMd);
+        const lines = file.bodyMd.split('\n');
+        // Apply replacements from last to first to preserve line numbers
+        const sorted = allSections
+          .filter((s) => replacements.has(s.heading.replace(/^###\s*/, '').trim().toLowerCase()))
+          .sort((a, b) => b.startLine - a.startLine);
+        for (const sec of sorted) {
+          const label = sec.heading.replace(/^###\s*/, '').trim().toLowerCase();
+          const newBody = replacements.get(label)!;
+          const replacement = [sec.heading, '', newBody.trim(), ''];
+          lines.splice(sec.startLine, sec.endLine - sec.startLine + 1, ...replacement);
+        }
+        await writeSpecAsync(ctx.projectId, lines.join('\n'));
       }
     }
-    if (chunks.length === 1 && !chunks[0].heading) {
-      const request2 = ctx.request as { componentKind?: string };
-      const fallbackLabel = request2.componentKind ?? 'Content';
-      await replaceSpecSection(ctx.projectId, fallbackLabel, chunks[0].body);
-    }
-
   }
 
   const aiSatisfied = result.questions.length === 0;

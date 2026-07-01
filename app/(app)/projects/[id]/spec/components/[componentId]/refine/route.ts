@@ -9,7 +9,9 @@ import { projectEventBus } from '@/sse/event-bus';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { buildRefinePrompt, getMessagesSinceLastForge } from '@/spec/refine-prompt';
 import { getLatestSpec } from '@/spec/assemble';
-import { readSpecSection } from '@/spec/spec-file-ops';
+import { readComponentSections } from '@/spec/spec-file-ops';
+import { templateForKind } from '@/spec/components';
+import type { ComponentKind } from '@/db/enums';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
@@ -35,16 +37,19 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     .limit(1);
   if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
+  const tpl = templateForKind(comp.kind as ComponentKind);
   const sections = await db
     .select({ label: componentSection.label })
     .from(componentSection)
     .where(eq(componentSection.componentId, componentId))
     .orderBy(asc(componentSection.orderIndex));
-  const sectionLabel = sections[0]?.label ?? comp.kind;
+  const sectionLabels = sections.map((s) => s.label);
 
-  // Read section content from spec.md (file = source of truth)
-  const fileSection = await readSpecSection(id, sectionLabel);
-  const sectionDraftMd = fileSection?.body ?? '';
+  // Read all sections for this component from spec.md
+  const fileSections = await readComponentSections(id, sectionLabels);
+  const componentDraftMd = fileSections
+    .map((s) => `${s.heading}\n\n${s.body}`)
+    .join('\n\n');
 
   const allMessages = await db
     .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
@@ -55,7 +60,6 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const isFirstCall = comp.mmaSessionId === null;
   const delta = getMessagesSinceLastForge(allMessages);
 
-  // Build prompt
   let fullSpecMd: string | undefined;
   if (isFirstCall) {
     const spec = await getLatestSpec(db, id);
@@ -63,8 +67,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   }
 
   const { system, user } = buildRefinePrompt({
-    sectionLabel,
-    sectionDraftMd,
+    componentLabel: tpl.label,
+    sectionHeadings: sectionLabels,
+    componentDraftMd,
     messagesSinceLastForge: delta,
     isFirstCall,
     fullSpecMd,

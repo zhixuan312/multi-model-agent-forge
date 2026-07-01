@@ -43,7 +43,7 @@ export const component = forge.table(
 
 /**
  * `project_component_section` — the sub-sections within a component.
- * Content only: key, label, draft_md, order. No status or satisfaction
+ * Metadata only: key, label, order. Content lives in spec.md. No status or satisfaction
  * flags — those live on the component.
  */
 export const componentSection = forge.table(

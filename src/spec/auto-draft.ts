@@ -1,16 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
+import { component, componentSection } from '@/db/schema/spec';
 import type { ComponentKind } from '@/db/enums';
-import type { FullSpecSection } from '@/spec/schemas';
-import { templateForKind, COMPONENT_TEMPLATES } from '@/spec/components';
+import { templateForKind } from '@/spec/components';
 import { getLatestExploration } from '@/spec/orchestrator';
 
 /**
- * Auto-draft (Approach C) — ONE main-agent call drafts ALL spec sections +
+ * Auto-draft — ONE main-agent call drafts ALL spec sections +
  * attaches 0-N questions per section. Sections with 0 questions are AI-satisfied.
- * Per-section refinement uses cheap calls scoped to the section only.
  */
 
 /* ── Full-spec draft (one call) ──────────────────────────────────────────── */
@@ -150,91 +148,4 @@ export async function buildAutoDraftRequest(
   };
 }
 
-/* ── Per-section refinement (cheap call) ─────────────────────────────────── */
-
-function buildRefinementSystem(componentLabel: string, sectionLabel: string, prompt: string): string {
-  return `Role: You are a specification refiner for Forge, a collaborative SDLC platform. You are refining the "${sectionLabel}" section of the "${componentLabel}" component.
-
-Task: Revise the current draft based on the user's feedback. Address their input directly, then review the overall section for remaining gaps. If gaps exist, ask specific follow-up questions.
-
-Context: Section purpose — ${prompt}
-
-Constraints:
-- Apply the user's feedback as stated — do not question or reinterpret their direction
-- Preserve all existing content that the feedback does not address
-- Keep the section's existing structure unless explicitly asked to change it
-- Questions (if any) should target gaps in the OVERALL section, not the feedback itself
-- Write in proper markdown: ### subheadings, **bold** for key terms, bullet lists, \`code\` for technical names, tables for comparisons
-
-Output format:
-Return a JSON object with exactly two fields:
-\`\`\`json
-{ "draftMd": "<the full revised section markdown>", "questions": ["specific question 1"] }
-\`\`\`
-- draftMd: the COMPLETE section content after revision (not a diff)
-- questions: follow-up questions about remaining gaps, or empty array if none`;
-}
-
-function buildRefinementUser(
-  currentDraft: string,
-  userAnswer: string,
-  history: { role: 'forge' | 'user'; text: string }[],
-): string {
-  const parts: string[] = [];
-  if (history.length > 0) {
-    parts.push('Context: Conversation history');
-    for (const m of history) {
-      parts.push(`\n**${m.role === 'forge' ? 'Forge' : 'User'}:** ${m.text}`);
-    }
-  }
-  parts.push(`\nInput:\n\n--- Current Draft ---\n${currentDraft}\n--- End Draft ---`);
-  parts.push(`\n--- User Feedback ---\n${userAnswer}\n--- End Feedback ---`);
-  return parts.join('\n');
-}
-
-export async function buildRefineRequest(
-  deps: { db?: Db; componentId: string; userAnswer: string; history: { role: 'forge' | 'user'; text: string }[] },
-): Promise<{ system: string; user: string; projectId: string } | { error: string }> {
-  const db = deps.db ?? getDb();
-
-  const [comp] = await db
-    .select()
-    .from(component)
-    .where(eq(component.id, deps.componentId))
-    .limit(1);
-  if (!comp) return { error: 'Component not found.' };
-
-  const tpl = templateForKind(comp.kind as ComponentKind);
-
-  const [stageRow] = await db
-    .select({ projectId: stage.projectId })
-    .from(component)
-    .innerJoin(stage, eq(component.stageId, stage.id))
-    .where(eq(component.id, deps.componentId))
-    .limit(1);
-
-  // Read current draft from spec.md (file = source of truth)
-  const { readSpecFileAsync } = await import('@/projects/project-files');
-  const specFile = stageRow ? await readSpecFileAsync(stageRow.projectId) : null;
-  const currentDraft = specFile?.bodyMd ?? '';
-
-  // Persist user message immediately (not deferred)
-  const [{ maxSeq }] = await db
-    .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-    .from(qaMessage)
-    .where(eq(qaMessage.componentId, deps.componentId));
-  const seq = (maxSeq ?? -1) + 1;
-  await db.insert(qaMessage).values({
-    componentId: deps.componentId,
-    seq,
-    sender: 'member',
-    bodyMd: deps.userAnswer,
-  });
-
-  return {
-    system: buildRefinementSystem(tpl.label, tpl.label, tpl.sections.map((s) => s.prompt).join('; ')),
-    user: buildRefinementUser(currentDraft, deps.userAnswer, deps.history),
-    projectId: stageRow?.projectId ?? '',
-  };
-}
 

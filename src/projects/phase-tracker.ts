@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { stage } from '@/db/schema/projects';
 import { component } from '@/db/schema/spec';
+import { participant } from '@/db/schema/participants';
 import type { StageKind } from '@/db/enums';
 
 const PHASE_ORDER: Record<string, string[]> = {
@@ -42,13 +43,32 @@ export async function advancePhase(db: Db, projectId: string, stageKind: StageKi
 
   if (newIdx <= currentIdx) return;
 
+  // Promote components with approvers to 'approved' status before any gate check
+  const [stageRow] = await db
+    .select({ id: stage.id })
+    .from(stage)
+    .where(and(eq(stage.projectId, projectId), eq(stage.kind, stageKind)))
+    .limit(1);
+  if (stageRow) {
+    const comps = await db
+      .select({ id: component.id, status: component.status })
+      .from(component)
+      .where(eq(component.stageId, stageRow.id));
+    const unapprovedIds = comps.filter((c) => c.status !== 'approved').map((c) => c.id);
+    if (unapprovedIds.length > 0) {
+      const approvers = await db
+        .select({ scopeId: participant.scopeId })
+        .from(participant)
+        .where(and(eq(participant.scope, 'component'), inArray(participant.scopeId, unapprovedIds), eq(participant.role, 'approver')));
+      const approvedIds = [...new Set(approvers.map((a) => a.scopeId).filter(Boolean))] as string[];
+      if (approvedIds.length > 0) {
+        await db.update(component).set({ status: 'approved' }).where(inArray(component.id, approvedIds));
+      }
+    }
+  }
+
   // Gate: spec 'finalize' requires all components approved
   if (stageKind === 'spec' && newPhase === 'finalize') {
-    const [stageRow] = await db
-      .select({ id: stage.id })
-      .from(stage)
-      .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')))
-      .limit(1);
     if (stageRow) {
       const comps = await db
         .select({ status: component.status })

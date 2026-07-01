@@ -205,7 +205,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'refine' || key === 'validate') setPhase(key as PlanPhase);
+        if (key === 'refine') setPhase('refine');
+        if (key === 'validate' && allApprovedRef.current) setPhase('validate');
       }),
     [],
   );
@@ -221,6 +222,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   const approvedCount = allTasks.filter((t) => status[t.id] === 'approved').length;
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
+  const allApprovedRef = useRef(allApproved);
+  allApprovedRef.current = allApproved;
   const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
   const auditing = !!props.pendingAudit || mma.busyHandlers.has('plan-audit');

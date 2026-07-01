@@ -9,11 +9,11 @@ import {
   Loader2,
   Lock,
   NotebookPen,
-  Plus,
   RotateCcw,
   BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import {
   Button,
@@ -24,30 +24,18 @@ import {
   CardFooter,
   Badge,
   Micro,
-  TextSm,
 } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
-import { LEARNING_CATEGORIES, type LearningCategory, type LearningSource } from '@/journal/types';
+import type { LearningCategory, LearningSource } from '@/journal/types';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
 
-- **Harvest** — Forge extracts learnings from all stages, discussions, and audit findings
-- **Curate** — review each learning, refine through discussion, approve or remove
-- **Record** — approved learnings are written to the team journal
-
-### Two tiers of learning
-
-- **Domain-specific** — tied to the project's technology, APIs, and problem space
-- **Generic** — universal team principles any project can apply
-
-### What each learning contains
-
-- Principle, evidence, risk if ignored, confidence level
-- Category (decision, design, behavior, process, knowledge, style)
-- Source stage and searchable tags`;
+- **Harvest** — Forge extracts learnings from all stages
+- **Curate** — review, refine, approve or remove
+- **Record** — approved learnings are saved to the team journal`;
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -131,7 +119,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const [activeId, setActiveId] = useState<string>(props.activeLearningId ?? props.learnings[0]?.id ?? '');
   const [threads, setThreads] = useState<Record<string, Msg[]>>({});
   const [input, setInput] = useState('');
-  const [learningView, setLearningView] = useState<'content' | 'discussion'>('content');
+  const [viewOverride, setViewOverride] = useState<Record<string, 'content' | 'discussion'>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
@@ -178,12 +166,25 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   const approvedCount = props.learnings.filter((l) => status[l.id] === 'kept' || status[l.id] === 'recorded').length;
   const allApproved = props.learnings.length > 0 && approvedCount === props.learnings.length;
+  const allRecorded = props.learnings.length > 0 && props.learnings.every((l) => status[l.id] === 'recorded');
   const isApproved = active ? (status[active.id] === 'kept' || status[active.id] === 'recorded') : false;
 
-  const [refining, setRefining] = useState(false);
+  const [refiningLearnings, setRefiningLearnings] = useState<Set<string>>(new Set());
   const msgs = threads[activeId] ?? [];
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [threads, activeId]);
+  const lastMsg = msgs[msgs.length - 1];
+  const hasForgeReply = lastMsg?.role === 'forge';
+  const learningView = active ? (viewOverride[active.id] ?? (hasForgeReply ? 'discussion' : 'content')) : 'content';
+  const setLearningView = (v: 'content' | 'discussion') => {
+    if (active) setViewOverride((prev) => ({ ...prev, [active.id]: v }));
+  };
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (learningView === 'discussion') {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    } else {
+      contentRef.current?.scrollTo?.(0, 0);
+    }
+  }, [activeId, learningView, threads]);
 
   // Category groups for right panel
   const categories = useMemo(() => {
@@ -215,7 +216,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   function send() {
     const text = input.trim();
-    if (!text || !active || refining) return;
+    if (!text || !active || refiningLearnings.has(active.id)) return;
     setInput('');
     setThreads((th) => ({
       ...th,
@@ -225,12 +226,13 @@ export function JournalStageClient(props: JournalStageClientProps) {
     const forgeTagged = /@forge\b/i.test(text);
     if (forgeTagged) {
       const cleanText = text.replace(/@forge\s*/gi, '').trim() || 'Refine this learning based on the discussion.';
-      setRefining(true);
+      const refineId = active.id;
+      setRefiningLearnings((prev) => new Set(prev).add(refineId));
       setLearningView('discussion');
       // TODO: dispatch to journal-refine route when implemented
       // For now, add a placeholder response
       setTimeout(() => {
-        setRefining(false);
+        setRefiningLearnings((prev) => { const next = new Set(prev); next.delete(refineId); return next; });
         setThreads((th) => ({
           ...th,
           [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: `Noted: "${cleanText}". Refinement will be applied when journal-refine is wired up.` }],
@@ -253,8 +255,31 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col">
+        <aside className="flex min-h-0 flex-col gap-4">
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader>
+              <CardTitle>Learnings</CardTitle>
+              <Button size="sm" disabled leftIcon={<Check />}>Approve all</Button>
+            </CardHeader>
+            <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2" />
+              <span className="shrink-0 text-xs font-medium text-ink-faint">0/0</span>
+            </div>
+            <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+              <p className="text-xs text-ink-faint">Learnings appear here once harvesting completes.</p>
+            </CardContent>
+            <CardFooter className="flex-col !items-stretch gap-2">
+              <button
+                type="button"
+                disabled
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium pointer-events-none cursor-not-allowed bg-ink/30 text-white/50"
+              >
+                <Lock className="size-4" />
+                Record 0 learnings
+              </button>
+            </CardFooter>
+          </Card>
         </aside>
       </div>
     );
@@ -290,6 +315,15 @@ export function JournalStageClient(props: JournalStageClientProps) {
   }
 
   return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <AutomationBar
+        mode="off"
+        note=""
+        disabled={readOnly}
+        idleHint="Capture learnings from this project, or let Forge extract them automatically."
+        onRun={() => {}}
+        onStop={() => {}}
+      />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — learning content / discussion (like Plan Refine) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
@@ -315,7 +349,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
             ))}
           </div>
         </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-5 py-5">
           {learningView === 'content' ? (
             <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
               {active.body}
@@ -326,7 +360,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — type @Forge to refine this learning.</p>
               ) : null}
               {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{m.text}</ChatForge>))}
-              {refining ? (
+              {active && refiningLearnings.has(active.id) ? (
                 <ChatForge>
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="size-3.5 animate-spin text-accent" /> Thinking…
@@ -336,7 +370,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
               <div ref={bottomRef} />
             </div>
           )}
-        </CardContent>
+        </div>
         {learningView === 'content' ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
@@ -355,7 +389,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
             onChange={setInput}
             onSend={send}
             placeholder="@Forge to refine this learning..."
-            disabled={readOnly || refining}
+            disabled={readOnly || (active != null && refiningLearnings.has(active.id))}
           />
         )}
       </Card>
@@ -437,19 +471,20 @@ export function JournalStageClient(props: JournalStageClientProps) {
             <button
               type="button"
               onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {})}
-              disabled={approvedCount === 0 || readOnly || recording}
+              disabled={approvedCount === 0 || readOnly || recording || allRecorded}
               className={cn(
                 'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
+                approvedCount === 0 || recording || allRecorded ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
               )}
             >
-              {recording ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-              {recording ? 'Recording...' : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
-              {!recording && !readOnly ? <ArrowRight className="size-4" /> : null}
+              {recording ? <Loader2 className="size-4 animate-spin" /> : allRecorded ? <Check className="size-4" /> : <Lock className="size-4" />}
+              {recording ? 'Recording...' : allRecorded ? `Recorded ${props.learnings.length} learnings` : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
+              {!recording && !readOnly && !allRecorded ? <ArrowRight className="size-4" /> : null}
             </button>
           </CardFooter>
         </Card>
       </aside>
+    </div>
     </div>
   );
 }

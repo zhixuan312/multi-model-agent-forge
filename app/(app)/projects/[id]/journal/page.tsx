@@ -47,6 +47,12 @@ export default async function JournalStagePage({ params, searchParams }: { param
   let candidates = await db.select().from(learningCandidate)
     .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
 
+  // If journal.md was deleted but DB still has candidates, clear stale rows so auto-harvest re-triggers
+  if (!journalFile && candidates.length > 0) {
+    await db.delete(learningCandidate).where(eq(learningCandidate.projectId, id));
+    candidates = [];
+  }
+
   // Seed DB from journal.md if file exists but no DB rows (e.g., after data cleanup)
   if (candidates.length === 0 && fileSections.length > 0) {
     const TYPE_MAP: Record<string, 'challenge' | 'insight' | 'decision'> = {

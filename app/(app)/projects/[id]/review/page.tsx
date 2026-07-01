@@ -108,7 +108,6 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     <ReviewStageClient
       projectId={id}
       projectName={proj.name}
-      phase={proj.phase as any}
       passes={passes}
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}

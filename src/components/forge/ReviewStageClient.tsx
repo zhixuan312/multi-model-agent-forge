@@ -14,10 +14,10 @@ import {
   Badge,
 } from '@/components/ui';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
-import type { ProjectPhase } from '@/db/enums';
 
 const REVIEW_NOTE = `### Review — check the code changes
 
@@ -53,7 +53,6 @@ export interface ReviewPassView {
 export interface ReviewStageClientProps {
   projectId: string;
   projectName: string;
-  phase?: ProjectPhase;
   passes: ReviewPassView[];
   reviewRunning: boolean;
   applyRunning: boolean;
@@ -109,6 +108,15 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   }
 
   return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <AutomationBar
+        mode="off"
+        note=""
+        disabled={readOnly}
+        idleHint="Review the code changes, or let Forge run the review automatically."
+        onRun={() => {}}
+        onStop={() => {}}
+      />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — findings content */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
@@ -220,12 +228,19 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             </a>
           ))}
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {props.passes.length === 0 ? (
+            {!reviewing && props.passes.length === 0 ? (
               <div className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3.5 py-3">
                 <ScanSearch className="mt-0.5 size-4 shrink-0 text-ink-faint" />
                 <p className="text-xs leading-relaxed text-ink-soft">
                   Run a code review to check correctness, security, performance, and style.
                 </p>
+              </div>
+            ) : null}
+            {reviewing ? (
+              <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
+                <Loader2 className="size-4 animate-spin text-accent" />
+                <span className="text-sm font-medium text-ink">Pass {props.passes.length + 1}</span>
+                <span className="text-xs text-ink-faint">Running…</span>
               </div>
             ) : null}
             {[...props.passes].reverse().map((p) => {
@@ -267,6 +282,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           </CardFooter>
         </Card>
       </aside>
+    </div>
     </div>
   );
 }

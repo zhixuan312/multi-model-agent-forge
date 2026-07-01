@@ -533,7 +533,7 @@ function MonitorPhase({
               from="execute"
               testId="execute-continue-link"
             />
-            {!allTerminal && <TextSm className="text-center !text-ink-faint">Waiting for all repos to complete</TextSm>}
+
           </CardFooter>
         </Card>
       </aside>

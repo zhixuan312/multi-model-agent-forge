@@ -45,18 +45,12 @@ export type Synthesis = z.infer<typeof SynthesisSchema>;
 
 /** Compose the three sections into the artifact body markdown. */
 export function composeExplorationMarkdown(s: Synthesis): string {
-  return [
-    '## Background',
-    '',
-    s.background.trim(),
-    '',
-    '## Current state',
-    '',
-    s.currentState.trim(),
-    '',
-    '## Rough direction',
-    '',
-    s.roughDirection.trim(),
-    '',
-  ].join('\n');
+  const parts = ['## Background', '', s.background.trim(), ''];
+  if (s.currentState.trim()) {
+    parts.push('## Current state', '', s.currentState.trim(), '');
+  }
+  if (s.roughDirection.trim()) {
+    parts.push('## Rough direction', '', s.roughDirection.trim(), '');
+  }
+  return parts.join('\n');
 }

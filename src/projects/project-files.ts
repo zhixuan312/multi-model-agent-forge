@@ -72,9 +72,21 @@ async function readArtifactAsync(projectId: string, filename: string): Promise<A
   return parseFrontmatter(raw);
 }
 
+function backupBeforeWriteSync(dir: string, filename: string): void {
+  const filePath = join(dir, filename);
+  if (!existsSync(filePath)) return;
+  const raw = readFileSync(filePath, 'utf-8');
+  const { version } = parseFrontmatter(raw);
+  const backupDir = join(dir, 'backups');
+  if (!existsSync(backupDir)) mkdirSync(backupDir, { recursive: true });
+  const name = filename.replace(/\.md$/, '');
+  writeFileSync(join(backupDir, `${name}_v${version}.md`), raw, 'utf-8');
+}
+
 function writeArtifact(projectId: string, filename: string, bodyMd: string): string {
   const dir = projectDir(projectId);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  backupBeforeWriteSync(dir, filename);
   const filePath = join(dir, filename);
   const prev = existsSync(filePath) ? parseFrontmatter(readFileSync(filePath, 'utf-8')) : null;
   const nextVersion = (prev?.version ?? 0) + 1;
@@ -82,9 +94,22 @@ function writeArtifact(projectId: string, filename: string, bodyMd: string): str
   return filePath;
 }
 
+async function backupBeforeWrite(dir: string, filename: string): Promise<void> {
+  const filePath = join(dir, filename);
+  try {
+    const raw = await readFile(filePath, 'utf-8');
+    const { version } = parseFrontmatter(raw);
+    const backupDir = join(dir, 'backups');
+    await mkdir(backupDir, { recursive: true });
+    const name = filename.replace(/\.md$/, '');
+    await writeFile(join(backupDir, `${name}_v${version}.md`), raw, 'utf-8');
+  } catch { /* file doesn't exist yet — nothing to back up */ }
+}
+
 async function writeArtifactAsync(projectId: string, filename: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
   const dir = projectDir(projectId);
   await mkdir(dir, { recursive: true });
+  await backupBeforeWrite(dir, filename);
   const filePath = join(dir, filename);
   let prevVersion = 0;
   try {

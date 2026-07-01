@@ -123,7 +123,16 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [brief, setBrief] = useState(props.initialBrief);
   const [attachments, setAttachments] = useState<AttachmentView[]>(props.initialAttachments);
   const [attachError, setAttachError] = useState<string | null>(null);
-  const [viewOverride, setViewOverride] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
+  const [viewOverrideRaw, setViewOverrideRaw] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
+  const setViewOverride = (v: 'brief' | 'discover' | 'synthesize') => {
+    setViewOverrideRaw(v);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('phase', v);
+      window.history.replaceState(null, '', url.pathname + url.search);
+    }
+  };
+  const viewOverride = viewOverrideRaw;
 
   const drafts = tasks.filter((t) => t.status === 'draft');
 
@@ -252,11 +261,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
       setViewOverride(key as 'brief' | 'discover' | 'synthesize');
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('phase', key);
-        window.history.replaceState(null, '', url.pathname + url.search);
-      }
     });
   }, []);
 

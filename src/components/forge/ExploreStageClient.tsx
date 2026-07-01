@@ -878,10 +878,17 @@ function SummaryPane(props: {
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto !py-5">
-        <ProseBlock className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
-          {props.bodyMd}
-        </ProseBlock>
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto !py-5">
+        {props.bodyMd ? (
+          <ProseBlock className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
+            {props.bodyMd}
+          </ProseBlock>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+            <Loader2 className="size-5 animate-spin text-accent" />
+            <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

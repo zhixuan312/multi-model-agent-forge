@@ -126,11 +126,14 @@ export function PlanStageClient(props: PlanStageClientProps) {
       const url = new URL(window.location.href);
       url.searchParams.set('phase', p);
       router.push(url.pathname + url.search, { scroll: false });
-      fetch(`/api/projects/${props.projectId}/phase`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: 'plan', phase: p }),
-      }).catch(() => {});
     }
+  };
+  const advancePhase = async (p: PlanPhase) => {
+    await fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'plan', phase: p }),
+    }).catch(() => {});
+    setPhase(p);
   };
   const serverStatus = useMemo(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),
@@ -338,7 +341,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
               router.refresh();
             }).catch(() => {});
           }}
-          onValidate={() => setPhase('validate')}
+          onValidate={() => advancePhase('validate')}
         />
       ) : (
         <ValidateStage

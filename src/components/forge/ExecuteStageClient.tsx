@@ -134,11 +134,14 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       const url = new URL(window.location.href);
       url.searchParams.set('phase', p);
       router.push(url.pathname + url.search, { scroll: false });
-      fetch(`/api/projects/${props.projectId}/phase`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: 'execute', phase: p }),
-      }).catch(() => {});
     }
+  };
+  const advanceExecPhase = async (p: ExecutePhase) => {
+    await fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'execute', phase: p }),
+    }).catch(() => {});
+    setExecPhase(p);
   };
   const [branches, setBranches] = useState<Record<string, string>>(
     () => Object.fromEntries(props.repoGroups.map((g) => [g.repoId, g.targetBranch])),
@@ -209,7 +212,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
 
   async function startExecution() {
     if (mma.busyRef.current.has('execute-pipeline') || anyDone) {
-      setExecPhase('implement');
+      advanceExecPhase('implement');
       return;
     }
     setDispatching(true);
@@ -225,7 +228,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       const json = (await res.json().catch(() => ({}))) as { error?: string; status?: string };
       if (res.status === 202) {
         setDispatching(false);
-        setExecPhase('implement');
+        advanceExecPhase('implement');
         if (json.status !== 'already_running') {
           setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
         }

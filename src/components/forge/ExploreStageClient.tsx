@@ -153,6 +153,17 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const synthesizing = mma.busyHandlers.has('explore-synthesize');
   const { error } = mma;
 
+  async function advancePhase(targetPhase: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/projects/${props.projectId}/phase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'exploration', phase: targetPhase }),
+      });
+      return res.ok;
+    } catch { return false; }
+  }
+
   async function analyze(): Promise<void> {
     await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
     await mma.dispatch(`/api/projects/${props.projectId}/explore/propose`, 'explore-propose');
@@ -221,18 +232,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     return dataPhase;
   })();
 
-  // Publish the sub-phase to the stepper + register the navigation handler.
+  // Publish the viewing sub-phase to the stepper (does NOT persist to DB — that's
+  // done explicitly in "Continue to X" handlers via advancePhaseAndTransition).
   useEffect(() => {
     const sub = viewOverride
       ? viewOverride
       : phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
     stagePhaseStore.set(sub);
-    fetch(`/api/projects/${props.projectId}/phase`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'exploration', phase: sub }),
-    }).catch(() => {});
-  }, [phase, viewOverride, props.projectId]);
+  }, [phase, viewOverride]);
 
   const synthFired = useRef(false);
   useEffect(() => {
@@ -253,7 +260,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     });
   }, []);
 
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? tasks[0]?.id ?? null);
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
@@ -308,9 +315,10 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <Button
                   variant="primary"
                   className="w-full"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!hasAnalyzed) { analyze(); }
                     else if (drafts.length > 0) { run(); }
+                    await advancePhase('discover');
                     setViewOverride('discover');
                   }}
                   disabled={locked || proposing || tasks.length === 0}
@@ -359,6 +367,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               onChanged={refreshTasks}
               onRun={run}
               canRun={drafts.length > 0 && !proposing && !locked}
+              disabled={proposing || locked}
               headerAction={
                 <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               }
@@ -380,7 +389,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Button
               variant="primary"
               className="w-full"
-              onClick={() => setViewOverride('synthesize')}
+              onClick={async () => { await advancePhase('synthesize'); setViewOverride('synthesize'); }}
               disabled={!allDone || locked || synthesizing}
               loading={synthesizing}
               rightIcon={<ArrowRight />}
@@ -591,6 +600,7 @@ function FanOutCard(props: {
   onChanged: () => void;
   onRun: () => void;
   canRun: boolean;
+  disabled?: boolean;
   headerAction?: React.ReactNode;
 }) {
   const [adding, setAdding] = useState<string | null>(null);
@@ -740,7 +750,8 @@ function FanOutCard(props: {
                     <button
                       type="button"
                       onClick={() => setAdding(g.kind)}
-                      className="flex min-h-[7rem] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:bg-accent-tint/30 hover:text-accent"
+                      disabled={props.disabled}
+                      className="flex min-h-[7rem] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:bg-accent-tint/30 hover:text-accent disabled:pointer-events-none disabled:opacity-40"
                     >
                       <Plus className="size-4" /> Add {g.label.toLowerCase()}
                     </button>

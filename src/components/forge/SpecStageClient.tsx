@@ -200,10 +200,13 @@ export function SpecStageClient(props: SpecStageClientProps) {
     const url = new URL(window.location.href);
     url.searchParams.set('phase', p);
     router.push(url.pathname + url.search, { scroll: false });
-    fetch(`/api/projects/${props.projectId}/phase`, {
+  };
+  const advancePhase = async (p: SpecPhase) => {
+    await fetch(`/api/projects/${props.projectId}/phase`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: 'spec', phase: p }),
     }).catch(() => {});
+    setPhase(p);
   };
   const refresh = useCallback(() => { router.refresh(); }, [router]);
   const mma = useMmaDispatch(props.projectId, {
@@ -306,7 +309,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setComponents(next);
             setPicked(new Set(next.map((c) => c.kind)));
             autoDraftFired.current = true;
-            setPhase('craft');
+            advancePhase('craft');
             const hasUndrafted = next.some((c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd));
             if (hasUndrafted) {
               void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
@@ -331,7 +334,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             setComponents((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
           }
           onEditOutline={() => setPhase('outline')}
-          onConsolidate={() => setPhase('finalize')}
+          onConsolidate={() => advancePhase('finalize')}
         />
       ) : (
         <DocumentScreen

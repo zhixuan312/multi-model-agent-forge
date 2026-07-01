@@ -75,6 +75,8 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
         : typeof s.summary === 'string' ? s.summary
         : null;
       const findings = Array.isArray(s.findings) ? s.findings as Array<Record<string, unknown>> : [];
+      const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      findings.sort((a, b) => (SEVERITY_ORDER[String(a.weight)] ?? 9) - (SEVERITY_ORDER[String(b.weight)] ?? 9));
       const parts: string[] = [];
       if (answer) parts.push(answer);
       if (findings.length > 0) {

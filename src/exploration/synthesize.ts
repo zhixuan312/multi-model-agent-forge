@@ -58,8 +58,14 @@ async function loadRecordsAndBuildPrompt(db: Db, projectId: string): Promise<{ s
 
   if (rows.length === 0) return null;
 
-  const successes = rows.filter((r) => r.batchStatus === 'done');
-  const failures = rows.filter((r) => r.batchStatus === 'failed');
+  const hasOutput = (r: typeof rows[number]) => {
+    const env = (r.result ?? {}) as Record<string, unknown>;
+    const output = (env.output ?? {}) as Record<string, unknown>;
+    const summary = output.summary;
+    return summary && (typeof summary === 'string' ? summary.length > 0 : true);
+  };
+  const successes = rows.filter((r) => hasOutput(r));
+  const failures = rows.filter((r) => !hasOutput(r));
 
   const recordsBlock = successes
     .map((r) => {

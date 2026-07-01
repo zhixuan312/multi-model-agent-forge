@@ -76,7 +76,7 @@ describe('rail + summary reads', () => {
     });
 
     const rail = await readRailTasks(projectId, mockDb);
-    expect(rail[0]).toMatchObject({ batchStatus: 'failed', headline: 'oops', error: { code: 'e', message: 'boom' } });
+    expect(rail[0]).toMatchObject({ batchStatus: 'failed', headline: 'oops', error: null });
   });
 
   it('latestExplorationArtifact reads from file', async () => {

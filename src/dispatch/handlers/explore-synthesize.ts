@@ -34,12 +34,17 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   const request = ctx.request as { actorId: string };
 
   const rows = await db
-    .select({ route: mmaBatch.route, batchStatus: mmaBatch.status, repoName: repo.name })
+    .select({ route: mmaBatch.route, batchStatus: mmaBatch.status, result: mmaBatch.result, repoName: repo.name })
     .from(explorationTask)
     .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
     .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
     .where(and(eq(explorationTask.projectId, ctx.projectId), eq(explorationTask.status, 'recorded')));
-  const failures = rows.filter((r) => r.batchStatus === 'failed');
+  const failures = rows.filter((r) => {
+    if (r.batchStatus !== 'failed') return false;
+    const env = (r.result ?? {}) as Record<string, unknown>;
+    const output = ((env.output ?? {}) as Record<string, unknown>);
+    return !output.summary;
+  });
   const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
 
   let currentState = synthesis.currentState;

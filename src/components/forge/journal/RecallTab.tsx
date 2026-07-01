@@ -179,6 +179,39 @@ export function RecallTab({
     }
   }
 
+  async function pinRecent(r: RecentRecall) {
+    if (!r.answerMd) return;
+    try {
+      const res = await fetch('/api/journal/pins', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          question: r.question,
+          answerMd: r.answerMd,
+          findings: r.findings ?? [],
+          citationIds: r.citationIds ?? [],
+        }),
+      });
+      if (res.status !== 201) return;
+      const created = (await res.json()) as PinnedView;
+      setPins((prev) => [created, ...prev]);
+      router.refresh();
+    } catch { /* best effort */ }
+  }
+
+  async function refreshRecent(r: RecentRecall) {
+    try {
+      const result = await dispatchAndPoll(r.question);
+      setParsed(result);
+      setAsked(r.question);
+      setStatus('done');
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+      setStatus('error');
+    }
+  }
+
   return (
     <RailLayout
       rail={
@@ -245,7 +278,7 @@ export function RecallTab({
               />
 
               {completedRecalls.length > 0 ? (
-                <RecentSection recalls={completedRecalls} index={index} onNavigate={onNavigate} />
+                <RecentSection recalls={completedRecalls} index={index} onNavigate={onNavigate} onPin={pinRecent} onRefresh={refreshRecent} />
               ) : null}
 
               <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
@@ -392,44 +425,43 @@ function PinnedSection({
       <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
         <Pin className="size-3.5" /> Pinned Q&amp;A
       </Eyebrow>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col divide-y divide-line">
         {pins.map((p) => {
           const isOpen = expanded.has(p.id);
           const panelId = `pin-panel-${p.id}`;
           const busy = p._busy;
           return (
-            <Card key={p.id}>
-              <CardContent className="p-0">
-                <button
-                  type="button"
-                  onClick={() => toggle(p.id)}
-                  aria-expanded={isOpen}
-                  aria-controls={panelId}
-                  className="focus-ring flex w-full items-center gap-2 px-4 py-3 text-left"
-                >
-                  <ChevronRight
-                    className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
-                  />
-                  <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{p.question}</span>
-                  {p.stale ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-deep">
-                      Journal updated since
-                    </span>
-                  ) : null}
-                </button>
+            <div key={p.id}>
+              <button
+                type="button"
+                onClick={() => toggle(p.id)}
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                className="focus-ring flex w-full items-center gap-2 py-3 text-left"
+              >
+                <ChevronRight
+                  className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                />
+                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{p.question}</span>
+                {p.stale ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-deep">
+                    Journal updated since
+                  </span>
+                ) : null}
+              </button>
 
-                {isOpen ? (
-                  <div id={panelId} className="border-t border-line px-4 py-3">
-                    <RecallAnswer
-                      parsed={{ summary: p.answerMd, findings: p.findings, citationIds: p.citationIds }}
-                      index={index}
-                      onNavigate={onNavigate}
-                    />
-                    {p._error ? <p className="mt-2 text-xs text-rose">{p._error}</p> : null}
-                    <div className="mt-3 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onRefresh(p)}
+              {isOpen ? (
+                <div id={panelId} className="pb-3 pl-6">
+                  <RecallAnswer
+                    parsed={{ summary: p.answerMd, findings: p.findings, citationIds: p.citationIds }}
+                    index={index}
+                    onNavigate={onNavigate}
+                  />
+                  {p._error ? <p className="mt-2 text-xs text-rose">{p._error}</p> : null}
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onRefresh(p)}
                         disabled={!!busy}
                         className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
                       >
@@ -447,10 +479,9 @@ function PinnedSection({
                         {busy === 'unpin' ? 'Removing…' : 'Unpin'}
                       </button>
                     </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>
@@ -463,12 +494,18 @@ function RecentSection({
   recalls,
   index,
   onNavigate,
+  onPin,
+  onRefresh,
 }: {
   recalls: RecentRecall[];
   index: IndexLookupRow[];
   onNavigate: (id: string) => void;
+  onPin: (r: RecentRecall) => void;
+  onRefresh: (r: RecentRecall) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [pinning, setPinning] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -482,34 +519,58 @@ function RecentSection({
       <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
         <Sparkles className="size-3.5" /> Recent answers
       </Eyebrow>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col divide-y divide-line">
         {recalls.map((r) => {
           const isOpen = expanded.has(r.id);
           return (
-            <Card key={r.id}>
-              <CardContent className="p-0">
-                <button
-                  type="button"
-                  onClick={() => toggle(r.id)}
-                  aria-expanded={isOpen}
-                  className="focus-ring flex w-full items-center gap-2 px-4 py-3 text-left"
-                >
-                  <ChevronRight
-                    className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
+            <div key={r.id}>
+              <button
+                type="button"
+                onClick={() => toggle(r.id)}
+                aria-expanded={isOpen}
+                className="focus-ring flex w-full items-center gap-2 py-3 text-left"
+              >
+                <ChevronRight
+                  className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                />
+                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{r.question}</span>
+              </button>
+              {isOpen && r.answerMd ? (
+                <div className="pb-3 pl-6">
+                  <RecallAnswer
+                    parsed={{ summary: r.answerMd, findings: (r.findings ?? []) as ParsedRecall['findings'], citationIds: (r.citationIds ?? []) }}
+                    index={index}
+                    onNavigate={onNavigate}
                   />
-                  <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{r.question}</span>
-                </button>
-                {isOpen && r.answerMd ? (
-                  <div className="border-t border-line px-4 py-3">
-                    <RecallAnswer
-                      parsed={{ summary: r.answerMd, findings: (r.findings ?? []) as ParsedRecall['findings'], citationIds: (r.citationIds ?? []) }}
-                      index={index}
-                      onNavigate={onNavigate}
-                    />
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefreshing((prev) => new Set(prev).add(r.id));
+                        onRefresh(r);
+                      }}
+                      disabled={refreshing.has(r.id)}
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
+                    >
+                      <RefreshCw className={`size-3.5 ${refreshing.has(r.id) ? 'animate-spin' : ''}`} />
+                      {refreshing.has(r.id) ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPinning((prev) => new Set(prev).add(r.id));
+                        onPin(r);
+                      }}
+                      disabled={pinning.has(r.id)}
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
+                    >
+                      <Pin className="size-3.5" />
+                      {pinning.has(r.id) ? 'Pinned' : 'Pin'}
+                    </button>
                   </div>
-                ) : null}
-              </CardContent>
-            </Card>
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>
@@ -532,29 +593,25 @@ function FaqSection({
       <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
         <MessageCircleQuestion className="size-3.5" /> Frequently asked
       </Eyebrow>
-      <Card>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-line">
-            {faqs.map((f) => (
-              <li key={f.question}>
-                <button
-                  type="button"
-                  onClick={() => onAsk(f.question)}
-                  disabled={disabled}
-                  className="focus-ring group flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-ink-soft hover:bg-surface-2 disabled:opacity-50"
-                >
-                  <Sparkles className="size-3.5 shrink-0 text-ink-faint group-hover:text-accent" />
-                  <span className="min-w-0 flex-1">{f.question}</span>
-                  <span className="shrink-0 rounded-[var(--r-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">
-                    {f.count}×
-                  </span>
-                  <ArrowRight className="size-4 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+      <ul className="flex flex-col divide-y divide-line">
+        {faqs.map((f) => (
+          <li key={f.question}>
+            <button
+              type="button"
+              onClick={() => onAsk(f.question)}
+              disabled={disabled}
+              className="focus-ring group flex w-full items-center gap-2 py-3 text-left text-sm text-ink-soft hover:text-ink disabled:opacity-50"
+            >
+              <Sparkles className="size-3.5 shrink-0 text-ink-faint group-hover:text-accent" />
+              <span className="min-w-0 flex-1">{f.question}</span>
+              <span className="shrink-0 rounded-[var(--r-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">
+                {f.count}×
+              </span>
+              <ArrowRight className="size-4 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

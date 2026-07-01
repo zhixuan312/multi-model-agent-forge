@@ -20,10 +20,9 @@ function shortDate(iso: string): string {
   return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
 }
 
-function shortTime(d: Date | string): string {
-  const date = typeof d === 'string' ? new Date(d) : d;
-  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
-}
+import { formatTime } from '@/lib/format-date';
+
+const shortTime = formatTime;
 
 export function NotificationBell({ items: serverItems }: { items: NotificationRow[] }) {
   const [liveItems, setLiveItems] = useState<NotificationRow[] | null>(null);

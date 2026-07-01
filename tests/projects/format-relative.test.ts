@@ -30,10 +30,9 @@ describe('formatDate', () => {
   it('renders a deterministic "MMM D, YYYY" string', () => {
     expect(formatDate(new Date('2026-06-09T12:00:00Z'))).toBe('Jun 9, 2026');
   });
-  it('is timezone- and locale-independent (UTC getters)', () => {
-    // The same instant must format identically regardless of host TZ/locale —
-    // this is the hydration-safety guarantee `toLocaleDateString()` cannot make.
+  it('uses Asia/Singapore timezone (UTC+8)', () => {
+    // 2026-12-31T23:30:00Z = 2027-01-01 07:30 SGT
     const instant = new Date('2026-12-31T23:30:00Z');
-    expect(formatDate(instant)).toBe('Dec 31, 2026');
+    expect(formatDate(instant)).toBe('Jan 1, 2027');
   });
 });

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Input, Field, Textarea, Label, Micro } from '@/components/ui';
-import { nextRuns, LOOP_TIMEZONE } from '@/loops/cron';
+import { nextRuns } from '@/loops/cron';
+import { formatDateTime } from '@/lib/format-date';
 import type { LoopRow } from '@/db/schema/loop';
 
 export interface RepoOption {
@@ -74,9 +75,7 @@ export function LoopForm({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const preview = nextRuns(cron, 3).map((d) =>
-    d.toLocaleString('en-GB', { timeZone: LOOP_TIMEZONE, dateStyle: 'short', timeStyle: 'short' }),
-  );
+  const preview = nextRuns(cron, 3).map((d) => formatDateTime(d));
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

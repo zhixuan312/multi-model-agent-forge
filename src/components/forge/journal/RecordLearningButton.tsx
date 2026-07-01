@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { NotebookPen, Sparkles } from 'lucide-react';
+import { formatIsoDate } from '@/lib/format-date';
 import { cn } from '@/lib/cn';
 import { Button, Textarea } from '@/components/ui';
 import {
@@ -70,7 +71,7 @@ export function RecordLearningButton() {
   function record() {
     if (!framed) return;
     const id = String(9000 + recordedStore.get().length + 1);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = formatIsoDate(new Date());
     recordedStore.add({
       id,
       title: framed,

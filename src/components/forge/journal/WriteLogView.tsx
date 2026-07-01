@@ -5,6 +5,7 @@ import { EmptyState, Eyebrow, Mono } from '@/components/ui';
 import { opStyle } from '@/components/forge/journal/palette';
 import type { LogEntry } from '@/journal/types';
 import { cn } from '@/lib/cn';
+import { formatDateTime } from '@/lib/format-date';
 
 /**
  * The Write-log table (Spec 6). Renders `log.md` as a four-column table
@@ -65,8 +66,8 @@ export function WriteLogView({
                 data-title={e.title}
                 className="[&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
               >
-                <td className="pr-3">
-                  <Mono className="!text-xs text-ink-soft">{e.date}</Mono>
+                <td className="pr-3 whitespace-nowrap">
+                  <Mono className="!text-xs text-ink-soft">{formatDateTime(e.date)}</Mono>
                 </td>
                 <td className="pr-3">
                   <span

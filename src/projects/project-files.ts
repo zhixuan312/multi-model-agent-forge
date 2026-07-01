@@ -42,9 +42,10 @@ function parseFrontmatter(content: string): ArtifactFile {
   return { version: 1, updatedAt: '', bodyMd: content };
 }
 
+import { formatTimestamp } from '@/lib/format-date';
+
 function stampFrontmatter(bodyMd: string, version: number): string {
-  const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace('T', ' ');
-  return `---\nversion: ${version}\nupdated_at: ${now}\n---\n\n${bodyMd}`;
+  return `---\nversion: ${version}\nupdated_at: ${formatTimestamp(new Date())}\n---\n\n${bodyMd}`;
 }
 
 function readFileSync_(projectId: string, filename: string): string | null {

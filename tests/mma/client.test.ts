@@ -54,7 +54,7 @@ describe('MmaClient.dispatch', () => {
     expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork%2Frepo');
     expect(c.init?.method).toBe('POST');
     expect(headerVal(c.init, 'Authorization')).toBe('Bearer secret-bearer-xyz');
-    expect(headerVal(c.init, 'X-MMA-Client')).toBe('forge');
+    expect(headerVal(c.init, 'X-MMA-Client')).toBe('claude-code');
     expect(headerVal(c.init, 'X-MMA-Main-Model')).toBe('claude-opus-4-8');
     expect(headerVal(c.init, 'content-type')).toMatch(/application\/json/);
     expect(c.init?.body).toBe(JSON.stringify({ type: 'audit', document: 'hi' }));

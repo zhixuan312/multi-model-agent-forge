@@ -21,9 +21,11 @@ export const statusLabel = (s: string): string => RUN_STATUS_LABEL[s] ?? s;
 /** Capitalize the first letter — for short tokens like the trigger. */
 export const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
+import { formatDateTime } from '@/lib/format-date';
+
 export function fmtRunTime(v: string | Date | null): string {
   if (!v) return '—';
-  return new Date(v).toLocaleString('en-GB', { timeZone: LOOP_TIMEZONE, dateStyle: 'short', timeStyle: 'short' });
+  return formatDateTime(v);
 }
 
 /** Human duration between two timestamps, or '—' if either is missing. */

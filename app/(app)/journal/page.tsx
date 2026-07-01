@@ -114,7 +114,7 @@ export default async function JournalPage({
             .from(mmaBatch)
             .where(and(eq(mmaBatch.route, 'journal_recall'), eq(mmaBatch.dispatchedBy, me.id)))
             .orderBy(desc(mmaBatch.createdAt))
-            .limit(10)
+            .limit(5)
         : Promise.resolve([]),
     ]);
     pinned = rawPins.map((p) => ({

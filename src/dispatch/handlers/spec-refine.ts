@@ -1,9 +1,33 @@
 import { eq, sql, asc } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
+import { stage } from '@/db/schema/projects';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
-import { replaceSpecSection } from '@/spec/spec-file-ops';
+import { assembleSpec } from '@/spec/assemble';
+
+function splitByHeadings(md: string): Array<{ heading: string | null; body: string }> {
+  const lines = md.split('\n');
+  const chunks: Array<{ heading: string | null; body: string }> = [];
+  let currentHeading: string | null = null;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    if (/^###\s+/.test(line)) {
+      if (currentHeading !== null || currentLines.length > 0) {
+        chunks.push({ heading: currentHeading, body: currentLines.join('\n').trim() });
+      }
+      currentHeading = line;
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentHeading !== null || currentLines.length > 0) {
+    chunks.push({ heading: currentHeading, body: currentLines.join('\n').trim() });
+  }
+  return chunks.filter((c) => c.body.length > 0 || c.heading);
+}
 
 async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -12,19 +36,39 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const componentId = request.componentId;
 
   if (result.updatedSectionMd) {
-    const [firstSection] = await db
+    const allSections = await db
       .select({ id: componentSection.id, label: componentSection.label })
       .from(componentSection)
       .where(eq(componentSection.componentId, componentId))
-      .orderBy(asc(componentSection.orderIndex))
-      .limit(1);
-    if (firstSection) {
-      await db
-        .update(componentSection)
-        .set({ draftMd: result.updatedSectionMd, updatedAt: new Date() })
-        .where(eq(componentSection.id, firstSection.id));
+      .orderBy(asc(componentSection.orderIndex));
 
-      await replaceSpecSection(ctx.projectId, firstSection.label, result.updatedSectionMd);
+    const chunks = splitByHeadings(result.updatedSectionMd);
+
+    if (chunks.length > 0 && allSections.length > 0) {
+      if (chunks.length === 1 && !chunks[0].heading) {
+        await db.update(componentSection)
+          .set({ draftMd: chunks[0].body, updatedAt: new Date() })
+          .where(eq(componentSection.id, allSections[0].id));
+      } else {
+        for (const chunk of chunks) {
+          const label = chunk.heading?.replace(/^###\s*/, '').trim();
+          const match = allSections.find((s) => s.label.toLowerCase() === label?.toLowerCase());
+          if (match) {
+            await db.update(componentSection)
+              .set({ draftMd: chunk.body, updatedAt: new Date() })
+              .where(eq(componentSection.id, match.id));
+          }
+        }
+      }
+    }
+
+    // Re-assemble spec.md from all DB sections (same as auto-draft)
+    const [specStage] = await db
+      .select({ id: stage.id })
+      .from(stage)
+      .where(eq(stage.projectId, ctx.projectId));
+    if (specStage) {
+      await assembleSpec(db, ctx.projectId, specStage.id, ctx.actorId ?? 'system');
     }
   }
 

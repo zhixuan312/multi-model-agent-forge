@@ -28,5 +28,5 @@ export async function GET(
     .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
     .limit(1);
   if (!specStage) return NextResponse.json({ components: [] });
-  return NextResponse.json({ components: await loadOutline(db, specStage.id) });
+  return NextResponse.json({ components: await loadOutline(db, specStage.id, id) });
 }

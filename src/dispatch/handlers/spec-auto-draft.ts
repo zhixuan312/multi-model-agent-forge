@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
-import { project, stage } from '@/db/schema/projects';
+import { component, qaMessage } from '@/db/schema/spec';
+import { project } from '@/db/schema/projects';
 import { FullSpecDraftSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import type { OutlineEntry } from '@/spec/auto-draft';
-import { assembleSpec } from '@/spec/assemble';
+import { replaceSpecSection } from '@/spec/spec-file-ops';
 
 
 function normalizeSections(data: unknown): unknown {
@@ -44,10 +44,8 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
     );
     if (!match) continue;
 
-    await db
-      .update(componentSection)
-      .set({ draftMd: drafted.draftMd, updatedAt: new Date() })
-      .where(eq(componentSection.id, match.sectionId));
+    // Write content to spec.md (file = source of truth)
+    await replaceSpecSection(ctx.projectId, match.sectionLabel, drafted.draftMd);
 
     const existing = questionsByComponent.get(match.componentId);
     if (existing) {
@@ -62,15 +60,6 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
       .update(component)
       .set({ aiSatisfied: questions.length === 0, status: 'drafted', updatedAt: new Date() })
       .where(eq(component.id, compId));
-  }
-
-  // Assemble spec.md from all DB sections (writes the physical file)
-  const [specStage] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(eq(stage.projectId, ctx.projectId));
-  if (specStage) {
-    await assembleSpec(db, ctx.projectId, specStage.id, ctx.actorId ?? 'system');
   }
 
   const { projectEventBus } = await import('@/sse/event-bus');

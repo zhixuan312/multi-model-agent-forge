@@ -1,6 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildAutoDraftRequest, buildRefineRequest } from '@/spec/auto-draft';
 import { createMockDb } from '../test-utils/mock-db';
+
+vi.mock('@/projects/project-files', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/projects/project-files')>();
+  return {
+    ...orig,
+    readSpecFileAsync: vi.fn().mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '### Background\n\nOriginal draft' }),
+  };
+});
 
 const projectId = 'proj-1';
 

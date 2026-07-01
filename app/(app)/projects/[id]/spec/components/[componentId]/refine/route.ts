@@ -36,15 +36,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
   const sections = await db
-    .select({ label: componentSection.label, draftMd: componentSection.draftMd })
+    .select({ label: componentSection.label })
     .from(componentSection)
     .where(eq(componentSection.componentId, componentId))
     .orderBy(asc(componentSection.orderIndex));
   const sectionLabel = sections[0]?.label ?? comp.kind;
 
-  // Read section content from spec.md (source of truth), fall back to DB
+  // Read section content from spec.md (file = source of truth)
   const fileSection = await readSpecSection(id, sectionLabel);
-  const sectionDraftMd = fileSection?.body ?? sections.map((s) => s.draftMd ?? '').join('\n\n');
+  const sectionDraftMd = fileSection?.body ?? '';
 
   const allMessages = await db
     .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })

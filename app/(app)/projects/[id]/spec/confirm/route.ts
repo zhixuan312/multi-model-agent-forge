@@ -33,5 +33,5 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const stage = await ensureSpecStage(db, id);
   await captureIntent(db, id, parsed.data.intentMd, guard.memberId);
   await confirmComponents(db, stage.id, parsed.data.kinds);
-  return NextResponse.json({ components: await loadOutline(db, stage.id) });
+  return NextResponse.json({ components: await loadOutline(db, stage.id, id) });
 }

@@ -5,6 +5,7 @@ import { component, componentSection } from '@/db/schema/spec';
 import { logAction } from '@/observability/action-log';
 import { templateForKind } from '@/spec/components';
 import { readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
+import { parseSpecSections } from '@/spec/spec-file-ops';
 import type { ComponentKind } from '@/db/enums';
 
 /**
@@ -88,12 +89,19 @@ export async function assembleSpec(
   const componentViews = [];
   for (const comp of comps) {
     const sections = await dbi
-      .select({ key: componentSection.key, label: componentSection.label, draftMd: componentSection.draftMd })
+      .select({ key: componentSection.key, label: componentSection.label })
       .from(componentSection)
       .where(eq(componentSection.componentId, comp.id))
       .orderBy(asc(componentSection.orderIndex));
     const tpl = templateForKind(comp.kind as ComponentKind);
-    componentViews.push({ kind: comp.kind as ComponentKind, label: tpl.label, sections });
+    // Read content from existing spec.md
+    const fileSections = prev ? parseSpecSections(prev.bodyMd) : [];
+    const fileContentByLabel = new Map(fileSections.map((s) => [s.heading.replace(/^###\s*/, '').trim().toLowerCase(), s.body]));
+    componentViews.push({
+      kind: comp.kind as ComponentKind,
+      label: tpl.label,
+      sections: sections.map((s) => ({ ...s, draftMd: fileContentByLabel.get(s.label.toLowerCase()) ?? null })),
+    });
   }
 
   const bodyMd = buildSpecMarkdown(

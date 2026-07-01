@@ -3,6 +3,8 @@ import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
 import { participant } from '@/db/schema/participants';
 import { component, componentSection, qaMessage } from '@/db/schema/spec';
+import { readSpecFileAsync } from '@/projects/project-files';
+import { parseSpecSections } from '@/spec/spec-file-ops';
 import type { ComponentStatus } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import { deriveSummary } from '@/spec/summary';
@@ -99,14 +101,28 @@ export interface ComponentView {
   sections: SectionView[];
 }
 
-/** Load the full component/section outline for a project's spec stage, ordered. */
-export async function loadOutline(db: Db, stageId: string): Promise<ComponentView[]> {
+/** Load the full component/section outline for a project's spec stage, ordered.
+ * Section content comes from spec.md (file = source of truth), metadata from DB. */
+export async function loadOutline(db: Db, stageId: string, projectId?: string): Promise<ComponentView[]> {
   const dbi = db ?? getDb();
   const comps = await dbi
     .select()
     .from(component)
     .where(eq(component.stageId, stageId))
     .orderBy(asc(component.orderIndex));
+
+  // Read section content from spec.md (file = source of truth)
+  let fileSections: Map<string, string> = new Map();
+  if (projectId) {
+    const specFile = await readSpecFileAsync(projectId);
+    if (specFile) {
+      const parsed = parseSpecSections(specFile.bodyMd);
+      for (const s of parsed) {
+        const label = s.heading.replace(/^###\s*/, '').trim();
+        fileSections.set(label.toLowerCase(), s.body);
+      }
+    }
+  }
 
   const compIds = comps.map((c) => c.id);
   const compParticipants = compIds.length > 0
@@ -151,7 +167,7 @@ export async function loadOutline(db: Db, stageId: string): Promise<ComponentVie
         id: s.id,
         key: s.key,
         label: s.label,
-        draftMd: s.draftMd,
+        draftMd: fileSections.get(s.label.toLowerCase()) ?? null,
         orderIndex: s.orderIndex,
       })),
     });

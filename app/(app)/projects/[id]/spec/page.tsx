@@ -56,7 +56,7 @@ export default async function SpecStagePage({
   if (!proj) notFound();
 
   const stageRow = await ensureSpecStage(db, id);
-  const components = await loadOutline(db, stageRow.id);
+  const components = await loadOutline(db, stageRow.id, id);
   const latestSpec = await getLatestSpec(db, id);
   const specApprovers = stageRow.approvers;
   const initialMessages = await loadAllMessages(db, stageRow.id);

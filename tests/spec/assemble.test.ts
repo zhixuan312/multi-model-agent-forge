@@ -50,8 +50,8 @@ describe('assembleSpec', () => {
     const sectionId = 'sec-1';
     const ownerId = 'owner-1';
 
-    // No previous spec file on disk
-    readSpecFileAsyncMock.mockResolvedValue(null);
+    // Existing spec file on disk with section content
+    readSpecFileAsyncMock.mockResolvedValue({ version: 0, updatedAt: '', bodyMd: '## Context\n\n### Background\n\nbody-background' });
     // writeSpecAsync returns the saved version
     writeSpecAsyncMock.mockResolvedValue({ filePath: '/fake/spec.md', version: 1 });
 

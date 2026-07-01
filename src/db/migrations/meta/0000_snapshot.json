@@ -1,5 +1,5 @@
 {
-  "id": "417bdb99-ea9a-4bed-a361-9524f16f3869",
+  "id": "5c88eed7-e2c6-4c50-af86-3893e7beb289",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1211,12 +1211,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "draft_md": {
-          "name": "draft_md",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "order_index": {
           "name": "order_index",

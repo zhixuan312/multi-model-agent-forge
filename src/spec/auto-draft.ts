@@ -213,11 +213,10 @@ export async function buildRefineRequest(
     .where(eq(component.id, deps.componentId))
     .limit(1);
 
-  const sections = await db
-    .select({ draftMd: componentSection.draftMd })
-    .from(componentSection)
-    .where(eq(componentSection.componentId, deps.componentId));
-  const currentDraft = sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
+  // Read current draft from spec.md (file = source of truth)
+  const { readSpecFileAsync } = await import('@/projects/project-files');
+  const specFile = stageRow ? await readSpecFileAsync(stageRow.projectId) : null;
+  const currentDraft = specFile?.bodyMd ?? '';
 
   // Persist user message immediately (not deferred)
   const [{ maxSeq }] = await db

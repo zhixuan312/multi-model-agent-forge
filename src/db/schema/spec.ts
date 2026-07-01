@@ -55,7 +55,6 @@ export const componentSection = forge.table(
       .references(() => component.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
     label: text('label').notNull(),
-    draftMd: text('draft_md'),
     orderIndex: integer('order_index').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

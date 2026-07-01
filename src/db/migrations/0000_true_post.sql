@@ -127,7 +127,6 @@ CREATE TABLE "forge"."project_component_section" (
 	"component_id" uuid NOT NULL,
 	"key" text NOT NULL,
 	"label" text NOT NULL,
-	"draft_md" text,
 	"order_index" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

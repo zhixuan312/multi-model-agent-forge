@@ -270,7 +270,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     .map((t) => {
       let status: string;
       let statusVariant: StageShellItem['statusVariant'];
-      if (t.batchStatus === 'failed') { status = 'failed'; statusVariant = 'rose'; }
+      if (t.batchStatus === 'failed' && !t.outputMd) { status = 'failed'; statusVariant = 'rose'; }
+      else if (t.batchStatus === 'failed' && t.outputMd) { status = 'recorded'; statusVariant = 'amber'; }
       else if (t.status === 'recorded' || t.batchStatus === 'done') { status = 'recorded'; statusVariant = 'sage'; }
       else { status = 'running'; statusVariant = 'amber'; }
       const LABEL: Record<string, string> = { investigate: 'Investigate', research: 'Research', journal: 'Journal recall' };
@@ -412,12 +413,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               <div className="grid h-full place-items-center">
                 <p className="text-sm text-ink-faint">Select a task from the list to view its output.</p>
               </div>
-            ) : selectedTask.batchStatus === 'failed' ? (
+            ) : selectedTask.batchStatus === 'failed' && !selectedTask.outputMd ? (
               <div className="flex flex-col items-center gap-2 py-8">
                 <p className="text-sm font-medium text-[var(--rose)]">Task failed</p>
                 <p className="text-xs text-ink-soft">{selectedTask.error?.message ?? 'Unknown error.'}</p>
               </div>
-            ) : selectedTask.status !== 'recorded' && selectedTask.batchStatus !== 'done' ? (
+            ) : selectedTask.status !== 'recorded' && selectedTask.batchStatus !== 'done' && selectedTask.batchStatus !== 'failed' ? (
               <div className="grid h-full place-items-center">
                 <div className="flex flex-col items-center gap-2">
                   <Loader2 className="size-6 animate-spin text-accent" />
@@ -426,6 +427,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               </div>
             ) : selectedTask.outputMd ? (
               <>
+                {selectedTask.error ? (
+                  <div className="mb-3 rounded-[var(--r-md)] border border-amber bg-amber-tint/40 px-3 py-2 text-xs text-amber-deep">
+                    {selectedTask.error.message}
+                  </div>
+                ) : null}
                 <Eyebrow className="mb-2 !text-ink-faint">Findings</Eyebrow>
                 <ProseBlock variant="document">{selectedTask.outputMd}</ProseBlock>
               </>

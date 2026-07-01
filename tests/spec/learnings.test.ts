@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { vi } from 'vitest';
 import {
   buildLearningsPrompt,
   commitLearnings,
@@ -8,10 +9,19 @@ import {
   parseRecordedNodeIds,
   JournalRecordIncompleteError,
 } from '@/spec/learnings';
-import { mockMma, journalEnvelope, type RecordedDispatch } from './mock-mma';
+import { journalEnvelope, type RecordedDispatch } from './mock-mma';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 const WS_ROOT = '/forge-workspace-test-root';
+
+let dispatchMmaEnvelope: unknown = {};
+const dispatchMmaCalls: Array<{ route: string; cwd: string; body: unknown }> = [];
+vi.mock('@/dispatch/dispatch-helpers', () => ({
+  dispatchMma: async (opts: Record<string, unknown>) => {
+    dispatchMmaCalls.push({ route: opts.route as string, cwd: opts.cwd as string, body: opts.body });
+    return { batchRowId: 'batch-1', envelope: dispatchMmaEnvelope };
+  },
+}));
 
 describe('parseRecordedNodeIds (pure)', () => {
   it('reads output.summary.recorded[].ids[]', () => {
@@ -65,11 +75,13 @@ describe('curation', () => {
   });
 });
 
-describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
+describe('commitLearnings (cwd MUST be workspace root)', () => {
+  beforeEach(() => { dispatchMmaCalls.length = 0; });
+
   it('dispatches journal-record at cwd=workspace root, stamps node ids, flips to recorded', async () => {
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
-    const calls: RecordedDispatch[] = [];
+    dispatchMmaEnvelope = journalEnvelope(['0007-some-slug', '0008-next-slug']);
     const mockDb = createMockDb({
       'select:project_learning_candidate': seq(
         [
@@ -88,27 +100,24 @@ describe('commitLearnings (mock MMA — cwd MUST be workspace root)', () => {
       'insert:ops_action_log': [{ id: 'log-1', projectId, action: 'record_learnings' }],
     });
 
-    const mma = mockMma({
-      envelopes: { 'journal-record': [journalEnvelope(['0007-some-slug', '0008-next-slug'])] },
-      calls,
-    });
-
+    const mma = {} as any;
     const res = await commitLearnings({ db: mockDb, mma, workspaceRoot: WS_ROOT }, projectId, ownerId);
     expect(res.recordedCount).toBe(2);
-    expect(calls[0].route).toBe('journal-record');
-    expect(calls[0].cwd).toBe(WS_ROOT);
-    expect((calls[0].body as { learnings: string[] }).learnings).toHaveLength(2);
+    expect(dispatchMmaCalls[0].route).toBe('journal_record');
+    expect(dispatchMmaCalls[0].cwd).toBe(WS_ROOT);
+    expect((dispatchMmaCalls[0].body as { learnings: string[] }).learnings).toHaveLength(2);
   });
 
   it('missing node ids → JournalRecordIncompleteError, candidates stay kept (F4)', async () => {
     const projectId = 'proj-6';
     const ownerId = 'owner-6';
+    dispatchMmaEnvelope = journalEnvelope([]);
     const mockDb = createMockDb({
       'select:project_learning_candidate': [
         { id: 'cand-1', projectId, status: 'kept', origin: 'member', bodyMd: 'Kept but the write fails.', type: 'insight' },
       ],
     });
-    const mma = mockMma({ envelopes: { 'journal-record': [journalEnvelope([])] } });
+    const mma = {} as any;
     await expect(
       commitLearnings({ db: mockDb, mma, workspaceRoot: WS_ROOT }, projectId, ownerId),
     ).rejects.toBeInstanceOf(JournalRecordIncompleteError);

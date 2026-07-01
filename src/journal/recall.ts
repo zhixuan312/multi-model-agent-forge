@@ -159,15 +159,3 @@ export function parseRecallEnvelope(envelope: unknown): ParsedRecall {
   return { summary, findings: base.findings, citationIds: base.citationIds };
 }
 
-/**
- * Dispatch a recall query on the team journal at the workspace root. Thin wrapper
- * over `MmaClient.journalRecall` so the route + tests share one call site (cwd is
- * ALWAYS the workspace root — never a project repo).
- */
-export async function dispatchRecall(
-  client: MmaClient,
-  workspaceRoot: string,
-  query: string,
-): Promise<{ batchId: string }> {
-  return client.journalRecall(workspaceRoot, { prompt: query });
-}

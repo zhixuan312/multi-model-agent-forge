@@ -52,10 +52,10 @@ export type PollOutcome =
 interface RegisteredBatch {
   batchId: string; // the row id
   mmaBatchId: string; // MMA's returned batch id
-  projectId: string;
+  projectId: string | null;
   route: string;
   taskId: string | null;
-  handler: string | null; // on-terminal handler key (dispatch system)
+  handler: string | null;
   createdAt: Date;
   attempt: number; // transient-error attempt counter
   timer: ReturnType<typeof setTimeout> | null;
@@ -116,7 +116,7 @@ export class PollManager {
   register(b: {
     batchId: string;
     mmaBatchId: string;
-    projectId: string;
+    projectId: string | null;
     route: string;
     taskId: string | null;
     handler?: string | null;
@@ -198,7 +198,7 @@ export class PollManager {
     logPoll({
       level: 'warn',
       event: 'poll.retry',
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       attempt,
       backoffMs: delay,
@@ -207,7 +207,7 @@ export class PollManager {
     logPoll({
       level: 'error',
       event: 'mma.call_error',
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       detail: errName(err),
     });
@@ -221,7 +221,7 @@ export class PollManager {
       .update(mmaBatch)
       .set({ status: 'running' })
       .where(eq(mmaBatch.id, entry.batchId));
-    if (entry.taskId) {
+    if (entry.taskId && entry.projectId) {
       this.bus.publish(entry.projectId, {
         type: 'task.progress',
         taskId: entry.taskId,
@@ -293,7 +293,7 @@ export class PollManager {
         level: 'error',
         event: 'handler.failed',
         batchId: entry.mmaBatchId,
-        projectId: entry.projectId,
+        projectId: entry.projectId ?? undefined,
         detail: String(handlerErr),
       });
       await this.db
@@ -334,7 +334,7 @@ export class PollManager {
     logPoll({
       level: 'error',
       event: 'poll.not_found',
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       taskId: entry.taskId ?? undefined,
       detail: 'MMA returned 404 — task lost after server restart',
@@ -369,7 +369,7 @@ export class PollManager {
     logPoll({
       level: 'error',
       event: 'poll.timeout',
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       taskId: entry.taskId ?? undefined,
     });
@@ -381,12 +381,12 @@ export class PollManager {
     logPoll({
       level: state.status === 'failed' ? 'warn' : 'info',
       event: state.status === 'failed' ? 'task.failed' : 'task.done',
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       taskId: entry.taskId ?? undefined,
     });
     // Existing explore-specific events (backward compat)
-    if (entry.taskId) {
+    if (entry.taskId && entry.projectId) {
       this.bus.publish(
         entry.projectId,
         terminalEvent({
@@ -398,7 +398,7 @@ export class PollManager {
       );
     }
     // Universal dispatch events for handler-based batches
-    if (entry.handler) {
+    if (entry.handler && entry.projectId) {
       this.bus.publish(entry.projectId, state.status === 'failed'
         ? { type: 'dispatch.failed', batchId: entry.batchId, handler: entry.handler, error: state.error?.message ?? 'Unknown error' }
         : { type: 'dispatch.done', batchId: entry.batchId, handler: entry.handler },
@@ -414,13 +414,14 @@ export class PollManager {
     const { pushDispatchFailure } = await import('@/collab/notification-store');
     const { project } = await import('@/db/schema/projects');
     const { eq } = await import('drizzle-orm');
+    if (!entry.projectId) return;
     const [proj] = await this.db
       .select({ name: project.name })
       .from(project)
       .where(eq(project.id, entry.projectId))
       .limit(1);
     await pushDispatchFailure({
-      projectId: entry.projectId,
+      projectId: entry.projectId ?? undefined,
       projectName: proj?.name ?? '',
       handler: entry.handler!,
       batchId: entry.batchId,

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { guardExploreWrite } from '@/exploration/guard';
 import { buildSynthesizeRequest } from '@/exploration/synthesize';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
 import '@/dispatch/handler-registry';
@@ -29,7 +29,7 @@ export async function POST(
   }
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

@@ -6,7 +6,7 @@ import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-c
 import { getDb } from '@/db/client';
 import { learningCandidate } from '@/db/schema/learning';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { parseTags } from '@/journal/journal-core';
 import '@/dispatch/handler-registry';
@@ -70,7 +70,7 @@ Output format:
 Write each node to .mma/journal/ using the journal_record tool. Each node must have frontmatter (id, title, category, status: adopted, tags, date) and body (## Context + ## Consequences).`;
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

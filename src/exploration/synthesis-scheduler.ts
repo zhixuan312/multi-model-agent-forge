@@ -5,7 +5,7 @@ import { mmaBatch } from '@/db/schema/ops';
 import { ProjectEventBus, projectEventBus, type ProjectEvent } from '@/sse/event-bus';
 import { buildSynthesizeRequest } from '@/exploration/synthesize';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister } from '@/dispatch/dispatch-helpers';
+import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readExplorationSummary } from '@/projects/project-files';
 import '@/dispatch/handler-registry';
@@ -100,7 +100,7 @@ export class SynthesisScheduler {
 
     try {
       const mma = await buildMmaClient({ db: this.db });
-      await dispatchAndRegister({
+      await dispatchMma({
         db: this.db,
         mma,
         projectId,

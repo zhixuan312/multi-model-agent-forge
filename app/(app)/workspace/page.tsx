@@ -3,7 +3,7 @@ import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { currentMember } from '@/auth/current-member';
-import { listRepos } from '@/git/repos-core';
+import { listRepos, syncWorkspaceRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
 
 const WORKSPACE_NOTE = `### Shared repositories
@@ -29,6 +29,7 @@ const WORKSPACE_NOTE = `### Shared repositories
 export default async function WorkspacePage() {
   const me = await currentMember();
   const isAdmin = me?.isAdmin ?? false;
+  await syncWorkspaceRepos();
   const repos = await listRepos();
 
   const initialRepos: RepoCardData[] = repos.map((r) => ({

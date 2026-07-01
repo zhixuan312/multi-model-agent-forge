@@ -10,7 +10,7 @@ import {
 
 /**
  * Fan-out prompt builder + validation. Builds the propose prompt for async
- * MMA dispatch (`dispatchAndRegister` → `explore-propose` handler). The handler
+ * MMA dispatch (`dispatchMma` → `explore-propose` handler). The handler
  * parses the response and inserts `exploration_task` rows.
  */
 

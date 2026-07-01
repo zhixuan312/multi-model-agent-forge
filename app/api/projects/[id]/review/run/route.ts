@@ -8,7 +8,7 @@ import { mmaBatch } from '@/db/schema/ops';
 import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -66,7 +66,7 @@ export async function POST(
 
   for (const repoRow of repos) {
     try {
-      const batchRowId = await dispatchAndRegister({
+      const { batchRowId } = await dispatchMma({
         db,
         mma,
         projectId: id,

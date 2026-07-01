@@ -1,4 +1,4 @@
-import { parseRecallEnvelope, dispatchRecall } from '@/journal/recall';
+import { parseRecallEnvelope } from '@/journal/recall';
 import type { MmaClient } from '@/mma/client';
 
 /**
@@ -125,17 +125,3 @@ describe('parseRecallEnvelope (v5.4 terminal envelope shape)', () => {
   });
 });
 
-describe('dispatchRecall', () => {
-  it('calls MmaClient.journalRecall with the workspace root as cwd', async () => {
-    const calls: { cwd: string; prompt: string }[] = [];
-    const client = {
-      journalRecall: async (cwd: string, input: { prompt: string }) => {
-        calls.push({ cwd, prompt: input.prompt });
-        return { batchId: 'b-1' };
-      },
-    } as unknown as MmaClient;
-    const out = await dispatchRecall(client, '/workspace', 'how do we gate completion?');
-    expect(out).toEqual({ batchId: 'b-1' });
-    expect(calls).toEqual([{ cwd: '/workspace', prompt: 'how do we gate completion?' }]);
-  });
-});

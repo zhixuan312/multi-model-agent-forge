@@ -39,6 +39,11 @@ const topFaqs = vi.fn(async () => [
 ]);
 vi.mock('@/journal/pins-core', () => ({ listPins }));
 vi.mock('@/journal/faqs-core', () => ({ topFaqs }));
+vi.mock('@/db/client', () => ({
+  getDb: () => ({
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: () => Promise.resolve([]) }) }) }) }),
+  }),
+}));
 
 const currentJournalLogCount = vi.fn(async () => 9);
 vi.mock('@/journal/journal-rev', () => ({

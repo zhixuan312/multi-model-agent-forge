@@ -14,7 +14,7 @@ import { planFilePath } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { execFileSync } from 'node:child_process';
 import '@/dispatch/handler-registry';
 
@@ -100,7 +100,7 @@ export async function POST(
     // 2. Dispatch via centralized PollManager + handler registry
     // Plan file is at an absolute path (.mma/projects/<id>/plan.md) — MMA reads it directly
     try {
-      const batchRowId = await dispatchAndRegister({
+      const { batchRowId } = await dispatchMma({
         db,
         mma,
         projectId: id,

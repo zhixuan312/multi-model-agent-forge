@@ -4,7 +4,7 @@ import { auditPass } from '@/db/schema/artifacts';
 
 /**
  * Plan-audit queries — pass history for the Plan stage UI. The dispatch path
- * is async via `dispatchAndRegister` → `plan-audit` handler. Reuses
+ * is async via `dispatchMma` → `plan-audit` handler. Reuses
  * `parseAuditEnvelope` + `nextPassNo` from `spec/audit-loop`.
  */
 

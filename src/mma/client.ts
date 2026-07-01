@@ -102,7 +102,7 @@ export class MmaClient {
     this.timeoutMs = resolveFetchTimeout(opts.timeoutMs);
     this.pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.waitTimeoutMs = opts.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
-    this.client = opts.client ?? process.env.MMA_CLIENT?.trim() ?? 'forge';
+    this.client = opts.client ?? process.env.MMA_CLIENT?.trim() ?? 'claude-code';
   }
 
   private url(path: string): string {

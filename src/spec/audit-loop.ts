@@ -8,7 +8,7 @@ import { mmaBatch } from '@/db/schema/ops';
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
  * + `nextPassNo` are used by both handlers. `auditPassHistory` + `latestAuditPass`
- * serve the UI. Dispatch is async via `dispatchAndRegister`.
+ * serve the UI. Dispatch is async via `dispatchMma`.
  */
 
 /** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */

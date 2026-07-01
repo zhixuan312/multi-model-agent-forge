@@ -4,7 +4,7 @@ import { getDb } from '@/db/client';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { getLatestSpec } from '@/spec/assemble';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { specFilePath } from '@/projects/project-files';
 import { auditPass } from '@/db/schema/artifacts';
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const specPath = specFilePath(id);
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

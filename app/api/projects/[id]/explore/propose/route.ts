@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { guardExploreWrite } from '@/exploration/guard';
 import { buildProposeRequest } from '@/exploration/fan-out';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
 import { projectRepo } from '@/db/schema/projects';
@@ -34,7 +34,7 @@ export async function POST(
   const repoIds = repos.map((r) => r.repoId);
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

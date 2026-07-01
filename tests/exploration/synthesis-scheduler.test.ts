@@ -23,7 +23,7 @@ vi.mock('@/mma/server-client', () => ({
 }));
 
 vi.mock('@/dispatch/dispatch-helpers', () => ({
-  dispatchAndRegister: vi.fn().mockResolvedValue('mock-batch-id'),
+  dispatchMma: vi.fn().mockResolvedValue('mock-batch-id'),
   findInflight: vi.fn().mockResolvedValue(null),
 }));
 
@@ -35,7 +35,7 @@ describe('SynthesisScheduler', () => {
   });
 
   it('debounces: a burst of terminal events coalesces into ONE dispatch after the quiet window', async () => {
-    const { dispatchAndRegister } = await import('@/dispatch/dispatch-helpers');
+    const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
 
     const mockDb = createMockDb({
       'select:project_exploration_task': [
@@ -59,13 +59,13 @@ describe('SynthesisScheduler', () => {
 
     await sched.flush(projectId);
     expect(sched.isArmed(projectId)).toBe(false);
-    expect(dispatchAndRegister).toHaveBeenCalled();
+    expect(dispatchMma).toHaveBeenCalled();
     sched.shutdown();
   });
 
   it('boot reconciliation dispatches synthesis for a project with no exploration.md', async () => {
-    const { dispatchAndRegister } = await import('@/dispatch/dispatch-helpers');
-    (dispatchAndRegister as any).mockClear();
+    const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
+    (dispatchMma as any).mockClear();
 
     const { readExplorationSummary } = await import('@/projects/project-files');
     (readExplorationSummary as any).mockReturnValue(null);
@@ -89,7 +89,7 @@ describe('SynthesisScheduler', () => {
     sched.shutdown();
 
     expect(swept).toContain(projectId);
-    expect(dispatchAndRegister).toHaveBeenCalled();
+    expect(dispatchMma).toHaveBeenCalled();
   });
 
   it('skips reconciliation when exploration.md already exists', async () => {

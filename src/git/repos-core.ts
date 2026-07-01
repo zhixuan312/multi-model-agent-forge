@@ -197,6 +197,37 @@ export async function pullExisting(id: string, deps: ReposDeps = {}): Promise<Pu
   }
 }
 
+export type UpdateRepoResult =
+  | { kind: 'updated'; repo: RepoView }
+  | { kind: 'not_found' }
+  | { kind: 'invalid'; message: string };
+
+export const updateRepoSchema = z.object({
+  tags: tagsSchema,
+  defaultBranch: z.string().trim().min(1).optional(),
+});
+
+export async function updateRepo(id: string, input: unknown, deps: ReposDeps = {}): Promise<UpdateRepoResult> {
+  const db = deps.db ?? getDb();
+  const parsed = updateRepoSchema.safeParse(input);
+  if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+
+  const [existing] = await db.select({ id: repo.id }).from(repo).where(eq(repo.id, id)).limit(1);
+  if (!existing) return { kind: 'not_found' };
+
+  const set: Record<string, unknown> = {};
+  if (parsed.data.tags !== undefined) set.tags = parsed.data.tags;
+  if (parsed.data.defaultBranch) set.defaultBranch = parsed.data.defaultBranch;
+
+  if (Object.keys(set).length === 0) {
+    const [row] = await db.select().from(repo).where(eq(repo.id, id)).limit(1);
+    return { kind: 'updated', repo: toView(row) };
+  }
+
+  const [updated] = await db.update(repo).set(set).where(eq(repo.id, id)).returning();
+  return { kind: 'updated', repo: toView(updated) };
+}
+
 export type DeleteRepoResult = { kind: 'deleted' } | { kind: 'not_found' };
 
 /** Remove a repo row (does not delete files on disk in this slice). */
@@ -208,4 +239,75 @@ export async function deleteRepo(id: string, deps: ReposDeps = {}): Promise<Dele
 
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
+}
+
+/**
+ * Two-way sync between the `.forge-workspace/` directory on disk and the
+ * `workspace_repo` DB table.
+ *
+ * - Disk → DB: git repos on disk not in the DB are auto-registered.
+ * - DB → Disk: repos in the DB whose path no longer exists are marked `error`.
+ *
+ * Called on workspace page load so the DB always reflects reality.
+ */
+export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added: string[]; flagged: string[] }> {
+  const { readdirSync, existsSync, statSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const { join } = await import('node:path');
+
+  const db = deps.db ?? getDb();
+  const root = resolveWorkspaceRoot();
+  const added: string[] = [];
+  const flagged: string[] = [];
+
+  if (!existsSync(root)) return { added, flagged };
+
+  const dbRows = await db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo);
+  const dbByName = new Map(dbRows.map((r) => [r.name, r]));
+
+  const entries = readdirSync(root, { withFileTypes: true });
+  const diskRepoNames = new Set<string>();
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith('.')) continue;
+    const dirPath = join(root, entry.name);
+    const gitDir = join(dirPath, '.git');
+    if (!existsSync(gitDir)) continue;
+
+    diskRepoNames.add(entry.name);
+
+    if (!dbByName.has(entry.name)) {
+      let defaultBranch = 'main';
+      let headSha: string | null = null;
+      try {
+        defaultBranch = execFileSync('git', ['-C', dirPath, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', timeout: 5000 }).trim() || 'main';
+        headSha = execFileSync('git', ['-C', dirPath, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5000 }).trim() || null;
+      } catch { /* use defaults */ }
+
+      try {
+        await db.insert(repo).values({
+          name: entry.name,
+          pathOnDisk: dirPath,
+          defaultBranch,
+          headSha,
+          status: 'cloned',
+        });
+        added.push(entry.name);
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+      }
+    }
+  }
+
+  for (const row of dbRows) {
+    if (row.status === 'error') continue;
+    const onDisk = existsSync(row.pathOnDisk) && statSync(row.pathOnDisk).isDirectory();
+    if (!onDisk) {
+      await db.update(repo).set({ status: 'error' }).where(eq(repo.id, row.id));
+      flagged.push(row.name);
+    }
+  }
+
+  return { added, flagged };
 }

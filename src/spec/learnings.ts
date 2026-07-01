@@ -8,6 +8,7 @@ import type { LearningType } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import { readSpecFileAsync } from '@/projects/project-files';
 import { MmaClient } from '@/mma/client';
+import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 
 /**
@@ -179,9 +180,16 @@ export async function commitLearnings(
   if (kept.length === 0) return { recordedCount: 0, nodeIds: [] };
 
   const tagHints = [...new Set(kept.map((c) => c.type))];
-  const envelope = await deps.mma.dispatchAndWait('journal-record', {
+  const { envelope } = await dispatchMma({
+    db,
+    mma: deps.mma,
+    projectId,
+    route: 'journal_record',
+    handler: 'spec-learnings-record',
     cwd,
     body: { learnings: kept.map((c) => c.bodyMd), tagHints },
+    actorId,
+    await: true,
   });
 
   const nodeIds = parseRecordedNodeIds(envelope);

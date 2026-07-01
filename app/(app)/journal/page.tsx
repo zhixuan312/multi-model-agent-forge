@@ -23,10 +23,14 @@ import { LogTab } from '@/components/forge/journal/LogTab';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { readAllNodes, readNodeFrontmatters } from '@/journal/store-reader';
 import { buildGraphEdges, type GraphNode, type GraphEdge } from '@/journal/graph';
+import { and, eq, desc } from 'drizzle-orm';
+import { getDb } from '@/db/client';
+import { mmaBatch } from '@/db/schema/ops';
 import { currentMember } from '@/auth/current-member';
 import { listPins } from '@/journal/pins-core';
 import { topFaqs } from '@/journal/faqs-core';
 import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
+import { parseRecallEnvelope } from '@/journal/recall';
 import { formatDate } from '@/lib/format-relative';
 import type { JournalReadOutcome } from '@/journal/types';
 import type { IndexLookupRow } from '@/journal/citations';
@@ -90,12 +94,28 @@ export default async function JournalPage({
   // an anonymous render (shouldn't happen under the authed shell) shows none.
   let pinned: PinnedView[] = [];
   let faqs: FaqView[] = [];
+  let recentRecalls: Array<{ id: string; question: string; status: string; batchId: string | null; answerMd?: string; findings?: unknown[]; citationIds?: string[] }> = [];
   if (view === 'recall') {
     const me = await currentMember();
     const logCount = await currentJournalLogCount(root);
-    const [rawPins, topQ] = await Promise.all([
+    const db = getDb();
+    const [rawPins, topQ, recentBatches] = await Promise.all([
       me ? listPins(me.id) : Promise.resolve([]),
       topFaqs(),
+      me
+        ? db
+            .select({
+              id: mmaBatch.id,
+              status: mmaBatch.status,
+              batchId: mmaBatch.batchId,
+              request: mmaBatch.request,
+              result: mmaBatch.result,
+            })
+            .from(mmaBatch)
+            .where(and(eq(mmaBatch.route, 'journal_recall'), eq(mmaBatch.dispatchedBy, me.id)))
+            .orderBy(desc(mmaBatch.createdAt))
+            .limit(10)
+        : Promise.resolve([]),
     ]);
     pinned = rawPins.map((p) => ({
       id: p.id,
@@ -107,6 +127,17 @@ export default async function JournalPage({
       stale: isPinStale(p.journalLogCount, logCount),
     }));
     faqs = topQ;
+    recentRecalls = recentBatches.map((b) => {
+      const question = (b.request as Record<string, unknown>)?.query as string ?? '';
+      const base = { id: b.id, question, status: b.status, batchId: b.batchId };
+      if (b.status === 'done' && b.result) {
+        try {
+          const parsed = parseRecallEnvelope(b.result);
+          return { ...base, answerMd: parsed.summary, findings: parsed.findings, citationIds: parsed.citationIds };
+        } catch { /* parse failed, show as completed without answer */ }
+      }
+      return base;
+    });
   }
 
   // Graph data (only when the Graph tab is active — one extra read).
@@ -139,7 +170,7 @@ export default async function JournalPage({
       </div>
 
       <div className="min-h-0 flex-1">
-        {view === 'recall' ? <RecallTab index={indexRows} pinned={pinned} faqs={faqs} /> : null}
+        {view === 'recall' ? <RecallTab index={indexRows} pinned={pinned} faqs={faqs} recentRecalls={recentRecalls} /> : null}
         {view === 'nodes' ? <NodesTab nodes={read.nodes} skippedCount={read.skippedCount} initialNode={node} /> : null}
         {view === 'graph' ? <GraphTab nodes={graphNodes} edges={graphEdges} /> : null}
         {view === 'log' ? <LogTab log={read.log} /> : null}

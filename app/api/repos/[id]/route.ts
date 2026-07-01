@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
-import { deleteRepo, pullExisting } from '@/git/repos-core';
+import { deleteRepo, pullExisting, updateRepo } from '@/git/repos-core';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -26,6 +26,25 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     case 'error':
       return NextResponse.json({ error: result.message, repo: result.repo }, { status: 502 });
     case 'pulled':
+      return NextResponse.json(result.repo);
+  }
+}
+
+export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const gate = await resolveAdminActor();
+  if (!gate.ok) return gate.response;
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => ({}));
+
+  const result = await updateRepo(id, body);
+  switch (result.kind) {
+    case 'not_found':
+      return NextResponse.json({ error: 'Repo not found.' }, { status: 404 });
+    case 'invalid':
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    case 'updated':
       return NextResponse.json(result.repo);
   }
 }

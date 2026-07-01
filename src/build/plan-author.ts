@@ -21,7 +21,7 @@ import { nodePlanFs, writePlanFile, type PlanFs } from '@/build/plan-fs';
  * Plan authoring — validates a structured plan draft (from the MMA dispatch
  * handler), writes per-repo plan files + the combined `plan.md` physical file,
  * and persists `plan_task` rows. The LLM call happens in MMA via
- * `dispatchAndRegister` → `plan-author` handler; this module owns validation
+ * `dispatchMma` → `plan-author` handler; this module owns validation
  * and persistence only.
  */
 

@@ -66,11 +66,13 @@ describe('WorkspaceClient filter island (Flow E)', () => {
     expect(screen.getByText('Clone repo')).toBeInTheDocument(); // submit button
   });
 
-  it('Remove asks for confirmation before deleting (no one-click delete)', () => {
+  it('Delete is inside the edit form with two-step confirmation', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
-    fireEvent.click(within(row('core-api')).getByLabelText('Remove core-api'));
-    expect(within(row('core-api')).getByText('Remove?')).toBeInTheDocument();
-    expect(within(row('core-api')).getByText('Confirm')).toBeInTheDocument();
-    expect(within(row('core-api')).getByText('Keep')).toBeInTheDocument();
+    fireEvent.click(within(row('core-api')).getByText('Edit'));
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Delete'));
+    expect(screen.getByText('Remove this repo?')).toBeInTheDocument();
+    expect(screen.getByText('Confirm')).toBeInTheDocument();
+    expect(screen.getByText('Keep')).toBeInTheDocument();
   });
 });

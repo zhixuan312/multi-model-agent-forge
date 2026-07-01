@@ -3,14 +3,13 @@ import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
-import { mmaBatch } from '@/db/schema/ops';
 import { PostgresSecretStore } from '@/secrets/secret-store';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
 import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
-import { extractUsageFields } from '@/usage/extract-usage-fields';
+import { dispatchMma } from '@/dispatch/dispatch-helpers';
 
 /**
  * Real `LoopRunDeps` wiring (spec §4 adapters). Reuses Forge's existing
@@ -142,77 +141,33 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const ref = r.stdout.trim();
       return ref && ref !== 'HEAD' ? ref : null; // 'HEAD' = detached → unresolvable
     },
-    mainSession: async ({ cwd, prompt, outputFormat, sessionId, loopRunId }) => {
+    mainSession: async ({ cwd, prompt, outputFormat, loopRunId }) => {
       const mma = await buildMmaClient({ db });
-      const body: Record<string, unknown> = { type: 'orchestrate', prompt, reviewPolicy: 'none' };
+      const body: Record<string, unknown> = { prompt, reviewPolicy: 'none' };
       if (outputFormat) body.outputFormat = outputFormat;
-      const env = await mma.dispatchAndWait('orchestrate', { cwd, body });
-      const usage = extractUsageFields(env);
-      await db
-        .insert(mmaBatch)
-        .values({
-          projectId: null,
-          route: 'orchestrate',
-          cwd,
-          status: 'done',
-          request: { type: 'main', prompt: prompt.slice(0, 200) },
-          result: env as object,
-          terminalAt: new Date(),
-          ...(loopRunId && { loopRunId }),
-          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
-          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
-          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
-          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
-          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
-        })
-        .catch(() => {});
-      // v5.4+ envelope: output.summary holds the response text
+      const { envelope: env } = await dispatchMma({
+        db, mma, projectId: null, route: 'orchestrate', handler: 'loop-plan',
+        cwd, body, actorId: null, loopRunId, await: true,
+      });
       const e = (env ?? {}) as Record<string, unknown>;
-      const output = (e.output ?? {}) as Record<string, unknown>;
+      const output = ((e.output ?? {}) as Record<string, unknown>);
       const summaryRaw = output.summary;
       const text = typeof summaryRaw === 'string' ? summaryRaw
         : (summaryRaw && typeof summaryRaw === 'object') ? JSON.stringify(summaryRaw) : '';
-      return {
-        output: text,
-        sessionId: null, // session resume removed in unified task API
-      };
+      return { output: text, sessionId: null };
     },
     recall: async (_repo, query, loopRunId) => {
       const workspaceRoot = resolveWorkspaceRoot();
       if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
-        const env = await mma.dispatchAndWait('journal-recall', {
-          cwd: workspaceRoot,
-          body: { type: 'journal_recall', prompt: query.slice(0, 4000), reviewPolicy: 'none' },
+        const { envelope: env } = await dispatchMma({
+          db, mma, projectId: null, route: 'journal_recall', handler: 'loop-recall',
+          cwd: workspaceRoot, body: { prompt: query.slice(0, 4000), reviewPolicy: 'none' },
+          actorId: null, loopRunId, await: true,
         });
-        const usage = extractUsageFields(env);
-        await db
-          .insert(mmaBatch)
-          .values({
-            projectId: null,
-            route: 'journal_recall',
-            cwd: workspaceRoot,
-            status: 'done',
-            request: { query: query.slice(0, 200) },
-            result: env as object,
-            terminalAt: new Date(),
-            ...(loopRunId && { loopRunId }),
-            ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
-            ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
-            ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
-            ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
-            ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-            ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-            ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
-          })
-          .catch(() => {});
         const e = (env ?? {}) as Record<string, unknown>;
-        const recallOutput = (e.output ?? {}) as Record<string, unknown>;
+        const recallOutput = ((e.output ?? {}) as Record<string, unknown>);
         const recallSummary = recallOutput.summary;
         return typeof recallSummary === 'string' ? recallSummary : '';
       } catch {
@@ -248,32 +203,13 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`
         : prompt;
-      const body = { type: 'delegate' as const, prompt: fullPrompt, reviewPolicy: 'reviewed' };
-      const env = await mma.dispatchAndWait('delegate', { cwd, body });
-      const usage = extractUsageFields(env);
-      const [batch] = await db
-        .insert(mmaBatch)
-        .values({
-          projectId: null,
-          route: 'delegate',
-          targetRepoId: repo.id,
-          cwd,
-          status: 'done',
-          request: body,
-          result: env as object,
-          terminalAt: new Date(),
-          ...(loopRunId && { loopRunId }),
-          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
-          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
-          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
-          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
-          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
-        })
-        .returning({ id: mmaBatch.id });
-      return { mmaBatchId: batch.id, ...summarizeEnvelope(env) };
+      const body = { prompt: fullPrompt, reviewPolicy: 'reviewed' };
+      const { batchRowId, envelope: env } = await dispatchMma({
+        db, mma, projectId: null, route: 'delegate', handler: 'loop-work',
+        cwd, body, actorId: null, loopRunId, await: true,
+        meta: { targetRepoId: repo.id },
+      });
+      return { mmaBatchId: batchRowId, ...summarizeEnvelope(env) };
     },
     runVerify: async (_repo, cwd, command) => {
       // Run the main-agent's chosen command if it gave one; otherwise fall back to
@@ -361,29 +297,11 @@ Constraints:
 
 Output format:
 Write each node to .mma/journal/ using the journal_record tool. Each node must have frontmatter (id, title, category, status: adopted, tags, date) and body (## Context + ## Consequences).`;
-        const env = await mma.dispatchAndWait('journal-record', { cwd: workspaceRoot, body: { type: 'journal_record', prompt } });
-        const usage = extractUsageFields(env);
-        await db
-          .insert(mmaBatch)
-          .values({
-            projectId: null,
-            route: 'journal_record',
-            cwd: workspaceRoot,
-            status: 'done',
-            request: { learnings: text.slice(0, 200) },
-            result: env as object,
-            terminalAt: new Date(),
-            ...(loopRunId && { loopRunId }),
-            ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
-            ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
-            ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
-            ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
-            ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-            ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-            ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
-          })
-          .catch(() => {});
+        await dispatchMma({
+          db, mma, projectId: null, route: 'journal_record', handler: 'loop-journal',
+          cwd: workspaceRoot, body: { prompt },
+          actorId: null, loopRunId, await: true,
+        });
       } catch {
         /* journal record is best-effort; a failure must not fail the run */
       }

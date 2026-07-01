@@ -7,7 +7,7 @@ import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-c
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -104,7 +104,7 @@ export async function POST(
   const prompt = buildFixPrompt(selected);
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

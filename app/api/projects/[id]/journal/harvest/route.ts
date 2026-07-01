@@ -10,7 +10,7 @@ import { stage } from '@/db/schema/projects';
 import { readExplorationSummaryAsync, readSpecFileAsync, readPlanFileAsync } from '@/projects/project-files';
 import { journalFilePath } from '@/projects/project-files';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import '@/dispatch/handler-registry';
 
@@ -169,7 +169,7 @@ Rules for the structure:
 Write the file to \`${journalPath}\`. This is MANDATORY — the harness reads learnings from that file.`;
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { loopRun, type LoopRow, type LoopRunRow } from '@/db/schema/loop';
@@ -128,6 +129,19 @@ function prBody(goal: string, verify: VerifyOutcome, keyChanges: string[]): stri
   ].join('\n');
 }
 
+/**
+ * Pre-compute repo context — a language-agnostic directory listing so the
+ * planner knows what's in the repo without having to explore.
+ */
+async function buildRepoContext(cwd: string): Promise<string> {
+  try {
+    const entries = readdirSync(cwd, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => `${e.name}/`);
+    const files = entries.filter((e) => e.isFile()).map((e) => e.name);
+    return `Top-level contents:\n${[...dirs, ...files].join('\n')}`;
+  } catch { return ''; }
+}
+
 /** Run one repo within a fire. Persists + returns the `loop_run` row. */
 export async function runLoopForRepo(
   loop: LoopRow,
@@ -181,10 +195,12 @@ export async function runLoopForRepo(
 
     // Stage 3 — PLAN (main #1, opens the session). Degrades to a one-recall, auto-detect
     // plan if the brain is unreachable or returns malformed JSON.
+    // Pre-compute repo structure so the planner doesn't have to guess.
+    const repoContext = await buildRepoContext(worktree);
     let plan: LoopPlan = { recalls: [{ query: goalMd }], verifyCommand: null };
     let sessionId: string | null = null;
     try {
-      const planTurn = await deps.mainSession({ cwd: worktree, prompt: planPrompt(goalMd), outputFormat: PLAN_OUTPUT_FORMAT, loopRunId: runRowId });
+      const planTurn = await deps.mainSession({ cwd: worktree, prompt: planPrompt(goalMd, repoContext), outputFormat: PLAN_OUTPUT_FORMAT, loopRunId: runRowId });
       sessionId = planTurn.sessionId;
       const parsed = parsePlan(planTurn.output);
       if (parsed) plan = parsed.recalls.length || parsed.verifyCommand ? parsed : plan;

@@ -20,29 +20,30 @@ export type LoopPlan = z.infer<typeof planSchema>;
 export const PLAN_OUTPUT_FORMAT =
   'A single JSON object: {"recalls":[{"query":string,"purpose":string}],"verifyCommand":string|null}. No prose.';
 
-export function planPrompt(goalMd: string): string {
+export function planPrompt(goalMd: string, repoContext?: string): string {
+  const contextBlock = repoContext ? `\n\n--- Repository structure ---\n${repoContext}\n--- End structure ---` : '';
   return `Role: You are the planning brain for a scheduled Forge maintenance loop. You investigate the repository before any worker touches it and produce a run plan.
 
 Task: Investigate the repository to understand its structure, then produce a JSON run plan with (a) journal recall queries and (b) the correct verify command.
 
 Context: A maintenance loop is about to run a worker agent against this repository with the goal below. Before the worker starts, you need to:
-1. Read the repo's package.json / Makefile / pyproject.toml to discover the REAL test/build command
-2. Check what test framework is used (vitest, jest, pytest, go test, etc.)
-3. Look at the project structure to understand what the worker will be modifying
+1. Read the repo's build/test config files (package.json, Makefile, pyproject.toml, Cargo.toml, go.mod, etc.) to discover the REAL test/build command
+2. For monorepos with subdirectories (backend/, frontend/, etc.), check EACH subdirectory for its own config
+3. Check what test framework is used (vitest, jest, pytest, go test, cargo test, etc.)
 4. Decide what journal queries would help the worker avoid past mistakes
 
 Input:
 
 --- Goal ---
 ${goalMd}
---- End Goal ---
+--- End Goal ---${contextBlock}
 
 Constraints:
-- You MUST read the repo's build/test configuration files before choosing verifyCommand — do NOT guess "npm test" blindly
-- verifyCommand must be the EXACT command that validates the repo (e.g. "npx vitest run", "pnpm build && pnpm test", "pytest -x")
+- You MUST read the repo's build/test configuration files before choosing verifyCommand — do NOT guess
+- For monorepos, the verify command must cd into the right directory first (e.g. "cd backend && npm test")
+- verifyCommand must be the EXACT command that validates the repo — only use commands that actually exist in the config files you read
 - If no test/build system is found, set verifyCommand to null — never invent a command that doesn't exist
 - recalls: 0-5 journal queries for prior learnings relevant to this goal — fewer is better, only ask for what helps
-- Each recall query should be specific enough to find useful context (not "everything about X")
 
 Output format:
 Respond with ONLY a single JSON object — no prose, no markdown, no commentary:

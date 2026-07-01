@@ -4,7 +4,7 @@ import { getDb } from '@/db/client';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { specFilePath } from '@/projects/project-files';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import '@/dispatch/handler-registry';
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const prompt = buildRevisePrompt(filePath, findingsBlock);
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

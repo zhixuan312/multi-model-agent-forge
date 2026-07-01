@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Sparkles,
@@ -37,14 +37,26 @@ const POLL_CEILING_MS = 5 * 60_000;
 
 type PollResult = { state: 'pending'; headline: string } | { state: 'terminal'; envelope: unknown };
 
+export interface RecentRecall {
+  id: string;
+  question: string;
+  status: string;
+  batchId: string | null;
+  answerMd?: string;
+  findings?: unknown[];
+  citationIds?: string[];
+}
+
 export function RecallTab({
   index,
   pinned,
   faqs,
+  recentRecalls = [],
 }: {
   index: IndexLookupRow[];
   pinned: PinnedView[];
   faqs: FaqView[];
+  recentRecalls?: RecentRecall[];
 }) {
   const router = useRouter();
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
@@ -54,6 +66,7 @@ export function RecallTab({
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedRecall | null>(null);
   const [asked, setAsked] = useState('');
+  const resumedRef = useRef(false);
 
   // Pinned Q&A — server-loaded initial list, then mutated locally on
   // pin/unpin/refresh so the surface stays responsive without a full reload.
@@ -63,21 +76,31 @@ export function RecallTab({
 
   const trimmed = query.trim();
   const canSubmit = trimmed.length >= 10 && trimmed.length <= 4000 && status !== 'running';
-  const hasContent = status !== 'idle' || pins.length > 0 || faqs.length > 0;
 
-  /** Dispatch a recall and poll the proxy until terminal; resolves to the parsed
-   * answer or throws. Shared by the composer and by per-pin Refresh. */
-  async function dispatchAndPoll(q: string): Promise<ParsedRecall> {
-    const dispatch = await fetch('/api/journal/recall', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query: q }),
-    });
-    if (dispatch.status !== 202) {
-      throw new Error('Journal recall unavailable — MMA may be restarting.');
-    }
-    const { batchId } = (await dispatch.json()) as { batchId: string };
+  // Completed recent recalls (not pinned, most recent first)
+  const completedRecalls = recentRecalls.filter((r) => r.status === 'done' && r.answerMd);
+  const hasContent = status !== 'idle' || pins.length > 0 || faqs.length > 0 || completedRecalls.length > 0;
 
+  // Auto-resume: if there's an in-flight recall batch from before page nav, resume polling
+  const inflight = recentRecalls.find((r) => r.status === 'dispatched' || r.status === 'running');
+  useEffect(() => {
+    if (!inflight?.batchId || resumedRef.current || status === 'running') return;
+    resumedRef.current = true;
+    setAsked(inflight.question);
+    setStatus('running');
+    (async () => {
+      try {
+        const result = await pollUntilTerminal(inflight.batchId!);
+        setParsed(result);
+        setStatus('done');
+      } catch (e) {
+        setError((e as Error).message);
+        setStatus('error');
+      }
+    })();
+  }, [inflight?.batchId]);
+
+  async function pollUntilTerminal(batchId: string): Promise<ParsedRecall> {
     const deadline = Date.now() + POLL_CEILING_MS;
     for (;;) {
       if (Date.now() > deadline) throw new Error('Recall timed out — please retry.');
@@ -91,6 +114,19 @@ export function RecallTab({
         return parseRecallEnvelope(poll.envelope);
       }
     }
+  }
+
+  async function dispatchAndPoll(q: string): Promise<ParsedRecall> {
+    const dispatch = await fetch('/api/journal/recall', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: q }),
+    });
+    if (dispatch.status !== 202) {
+      throw new Error('Journal recall unavailable — MMA may be restarting.');
+    }
+    const { batchId } = (await dispatch.json()) as { batchId: string };
+    return pollUntilTerminal(batchId);
   }
 
   async function run(qRaw?: string) {
@@ -207,6 +243,11 @@ export function RecallTab({
                 onUnpin={(p) => void unpin(p)}
                 onRefresh={(p) => void refreshPin(p)}
               />
+
+              {completedRecalls.length > 0 ? (
+                <RecentSection recalls={completedRecalls} index={index} onNavigate={onNavigate} />
+              ) : null}
+
               <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
             </div>
           ) : (
@@ -418,6 +459,64 @@ function PinnedSection({
 }
 
 /** The team's frequently-asked questions — each runs a recall on click. */
+function RecentSection({
+  recalls,
+  index,
+  onNavigate,
+}: {
+  recalls: RecentRecall[];
+  index: IndexLookupRow[];
+  onNavigate: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  return (
+    <section className="flex flex-col gap-2">
+      <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
+        <Sparkles className="size-3.5" /> Recent answers
+      </Eyebrow>
+      <div className="flex flex-col gap-3">
+        {recalls.map((r) => {
+          const isOpen = expanded.has(r.id);
+          return (
+            <Card key={r.id}>
+              <CardContent className="p-0">
+                <button
+                  type="button"
+                  onClick={() => toggle(r.id)}
+                  aria-expanded={isOpen}
+                  className="focus-ring flex w-full items-center gap-2 px-4 py-3 text-left"
+                >
+                  <ChevronRight
+                    className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                  />
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{r.question}</span>
+                </button>
+                {isOpen && r.answerMd ? (
+                  <div className="border-t border-line px-4 py-3">
+                    <RecallAnswer
+                      parsed={{ summary: r.answerMd, findings: (r.findings ?? []) as ParsedRecall['findings'], citationIds: (r.citationIds ?? []) }}
+                      index={index}
+                      onNavigate={onNavigate}
+                    />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function FaqSection({
   faqs,
   onAsk,

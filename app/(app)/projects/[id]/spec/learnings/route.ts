@@ -5,7 +5,7 @@ import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildLearningsPrompt } from '@/spec/learnings';
 import { learningCandidate } from '@/db/schema/learning';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import '@/dispatch/handler-registry';
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { system, user } = await buildLearningsPrompt(db, id);
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

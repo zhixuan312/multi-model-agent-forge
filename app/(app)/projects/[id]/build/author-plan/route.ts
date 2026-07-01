@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
 import { PLAN_AUTHOR_SYSTEM_PROMPT } from '@/build/plan-author';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchAndRegister, findInflight } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { planFilePath } from '@/projects/project-files';
 import { getDb } from '@/db/client';
@@ -52,7 +52,7 @@ export async function POST(
     + `\n\nContext: The following specification has been locked and approved.\n\nInput:\n\n--- Locked Specification ---\n${spec.bodyMd}\n--- End Specification ---\n\n--- Repos in Scope ---\n${repoList}\n--- End Repos ---`;
 
   const mma = await buildMmaClient({ db });
-  const batchRowId = await dispatchAndRegister({
+  const { batchRowId } = await dispatchMma({
     db,
     mma,
     projectId: id,

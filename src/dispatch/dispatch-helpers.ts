@@ -1,49 +1,57 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { logAction } from '@/observability/action-log';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
 import { getPollManager } from '@/sse/poll-manager';
+import { extractUsageFields } from '@/usage/extract-usage-fields';
 
 export interface DispatchOpts {
   db: Db;
   mma: MmaClient;
-  projectId: string;
+  projectId: string | null;
   route: MmaRoute;
   handler: string;
   cwd: string;
   body: unknown;
-  actorId: string;
-  /** Extra metadata stored on the batch row but NOT sent to MMA. */
+  actorId: string | null;
   meta?: Record<string, unknown>;
+  await?: boolean;
+  loopRunId?: string;
 }
 
 export async function findInflight(
   db: Db,
-  projectId: string,
+  projectId: string | null,
   handler: string,
+  actorId?: string | null,
 ): Promise<string | null> {
+  const conditions = [
+    eq(mmaBatch.handler, handler),
+    inArray(mmaBatch.status, ['dispatched', 'running']),
+  ];
+
+  if (projectId) {
+    conditions.push(eq(mmaBatch.projectId, projectId));
+  } else {
+    conditions.push(sql`${mmaBatch.projectId} IS NULL`);
+  }
+
+  if (actorId) {
+    conditions.push(eq(mmaBatch.dispatchedBy, actorId));
+  }
+
   const [row] = await db
     .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt })
     .from(mmaBatch)
-    .where(
-      and(
-        eq(mmaBatch.projectId, projectId),
-        eq(mmaBatch.handler, handler),
-        inArray(mmaBatch.status, ['dispatched', 'running']),
-      ),
-    )
+    .where(and(...conditions))
     .limit(1);
   if (!row) return null;
 
-  // Active health check: verify the MMA task still exists.
-  // If MMA restarted, the task is gone (404) — fail this batch immediately
-  // so the user can re-dispatch. This is the self-recovery path.
   if (row.batchId) {
     const pm = getPollManager();
     if (!pm.isRegistered(row.id)) {
-      // PollManager lost track (server restart). Probe MMA directly.
       try {
         const { buildMmaClient } = await import('@/mma/server-client');
         const mma = await buildMmaClient({ db });
@@ -55,7 +63,6 @@ export async function findInflight(
             .where(eq(mmaBatch.id, row.id));
           return null;
         }
-        // Still alive — re-register with PollManager so it resumes polling
         pm.register({
           batchId: row.id,
           mmaBatchId: row.batchId,
@@ -73,10 +80,6 @@ export async function findInflight(
   return row.id;
 }
 
-/**
- * Return all handler names with in-flight batches for a project.
- * Used by server components to seed the client's busy state on page load.
- */
 export async function findPendingHandlers(
   db: Db,
   projectId: string,
@@ -101,11 +104,6 @@ export interface LocalDispatchOpts {
   work: () => Promise<unknown>;
 }
 
-/**
- * Run a function in the background, tracked by ops_mma_batch. For LLM calls
- * that don't go through MMA dispatch (e.g. direct Anthropic calls in synthesize/fan-out).
- * Creates a batch row, runs the work, persists the result, emits SSE.
- */
 export async function dispatchLocal(opts: LocalDispatchOpts): Promise<string> {
   const existing = await findInflight(opts.db, opts.projectId, opts.handler);
   if (existing) return existing;
@@ -125,7 +123,6 @@ export async function dispatchLocal(opts: LocalDispatchOpts): Promise<string> {
 
   const batchRowId = row.id;
 
-  // Run in background — don't await
   opts.work()
     .then(async (result) => {
       await opts.db
@@ -140,20 +137,31 @@ export async function dispatchLocal(opts: LocalDispatchOpts): Promise<string> {
         .update(mmaBatch)
         .set({ status: 'failed', result: { error: String(err) } as object, terminalAt: new Date() })
         .where(eq(mmaBatch.id, batchRowId));
-      const { projectEventBus } = await import('@/sse/event-bus');
-      projectEventBus.publish(opts.projectId, { type: 'dispatch.failed', batchId: batchRowId, handler: opts.handler, error: String(err) });
+      if (opts.projectId) {
+        const { projectEventBus } = await import('@/sse/event-bus');
+        projectEventBus.publish(opts.projectId, { type: 'dispatch.failed', batchId: batchRowId, handler: opts.handler, error: String(err) });
+      }
     });
 
   return batchRowId;
 }
 
-export async function dispatchAndRegister(opts: DispatchOpts): Promise<string> {
+/**
+ * Unified MMA dispatch — the ONE function for every MMA call.
+ *
+ * `await: false` (default): async — insert batch row, dispatch to MMA, register
+ * with PollManager. Returns `{ batchRowId }` immediately.
+ *
+ * `await: true`: sync — insert batch row, block until MMA returns the terminal
+ * envelope, extract usage, update row. Returns `{ batchRowId, envelope }`.
+ *
+ * Both modes: batch row inserted BEFORE dispatch (every attempt tracked), usage
+ * extracted on terminal, handler fired on terminal (best-effort).
+ */
+export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: string; envelope?: unknown }> {
   const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
-  const { batchId: mmaBatchId } = await opts.mma.dispatch(opts.route, {
-    cwd: opts.cwd,
-    body: payload,
-  });
 
+  // 1. Insert batch row BEFORE dispatch — every attempt is tracked
   const [row] = await opts.db
     .insert(mmaBatch)
     .values({
@@ -161,27 +169,88 @@ export async function dispatchAndRegister(opts: DispatchOpts): Promise<string> {
       route: opts.route,
       handler: opts.handler,
       cwd: opts.cwd,
-      batchId: mmaBatchId,
       status: 'dispatched',
       request: { ...(opts.body as object), ...opts.meta } as object,
       dispatchedBy: opts.actorId,
+      ...(opts.loopRunId && { loopRunId: opts.loopRunId }),
     })
     .returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
 
-  await logAction(
-    { projectId: opts.projectId, memberId: opts.actorId, action: 'dispatch', target: `batch:${row.id}` },
-    opts.db,
-  );
+  const batchRowId = row.id;
 
-  getPollManager().register({
-    batchId: row.id,
-    mmaBatchId,
-    projectId: opts.projectId,
-    route: opts.route,
-    handler: opts.handler,
-    taskId: null,
-    createdAt: row.createdAt,
-  });
+  // Best-effort action log
+  if (opts.actorId) {
+    await logAction(
+      { projectId: opts.projectId, memberId: opts.actorId, action: 'dispatch', target: `batch:${batchRowId}` },
+      opts.db,
+    ).catch(() => {});
+  }
 
-  return row.id;
+  if (opts.await) {
+    // SYNC: block until terminal
+    try {
+      const envelope = await opts.mma.dispatchAndWait(opts.route, { cwd: opts.cwd, body: payload });
+      const usage = extractUsageFields(envelope);
+      await opts.db
+        .update(mmaBatch)
+        .set({
+          status: 'done',
+          result: (envelope ?? {}) as object,
+          terminalAt: new Date(),
+          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+        })
+        .where(eq(mmaBatch.id, batchRowId));
+
+      // Fire handler (best-effort)
+      try {
+        const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
+        ensureHandlersRegistered();
+        const h = getHandler(opts.handler);
+        if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
+      } catch { /* handler failure logged, not propagated */ }
+
+      return { batchRowId, envelope };
+    } catch (err) {
+      await opts.db
+        .update(mmaBatch)
+        .set({ status: 'failed', result: { error: { code: 'dispatch_failed', message: String(err) } } as object, terminalAt: new Date() })
+        .where(eq(mmaBatch.id, batchRowId));
+      throw err;
+    }
+  } else {
+    // ASYNC: dispatch + PollManager
+    try {
+      const { batchId: mmaBatchId } = await opts.mma.dispatch(opts.route, { cwd: opts.cwd, body: payload });
+      await opts.db
+        .update(mmaBatch)
+        .set({ batchId: mmaBatchId })
+        .where(eq(mmaBatch.id, batchRowId));
+
+      getPollManager().register({
+        batchId: batchRowId,
+        mmaBatchId,
+        projectId: opts.projectId,
+        route: opts.route,
+        handler: opts.handler,
+        taskId: null,
+        createdAt: row.createdAt,
+      });
+
+      return { batchRowId };
+    } catch (err) {
+      // Dispatch failed — mark the pre-inserted row as failed
+      await opts.db
+        .update(mmaBatch)
+        .set({ status: 'failed', result: { error: { code: 'dispatch_failed', message: String(err) } } as object, terminalAt: new Date() })
+        .where(eq(mmaBatch.id, batchRowId));
+      throw err;
+    }
+  }
 }

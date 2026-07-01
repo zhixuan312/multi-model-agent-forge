@@ -6,7 +6,7 @@ import { repo } from '@/db/schema/workspace';
 
 /**
  * Synthesis prompt builder + gap markers. Builds the prompt for async MMA
- * dispatch (`dispatchAndRegister` → `explore-synthesize` handler). The
+ * dispatch (`dispatchMma` → `explore-synthesize` handler). The
  * handler parses the response and writes exploration.md.
  */
 

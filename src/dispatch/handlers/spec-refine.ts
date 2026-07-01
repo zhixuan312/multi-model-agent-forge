@@ -36,18 +36,20 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
 
   if (result.updatedSectionMd) {
     const chunks = splitByHeadings(result.updatedSectionMd);
+
+    // Write to spec.md (file = source of truth)
     for (const chunk of chunks) {
       const label = chunk.heading?.replace(/^###\s*/, '').trim();
       if (label) {
         await replaceSpecSection(ctx.projectId, label, chunk.body);
       }
     }
-    // Single block with no heading — write using component kind as label
     if (chunks.length === 1 && !chunks[0].heading) {
       const request2 = ctx.request as { componentKind?: string };
       const fallbackLabel = request2.componentKind ?? 'Content';
       await replaceSpecSection(ctx.projectId, fallbackLabel, chunks[0].body);
     }
+
   }
 
   const aiSatisfied = result.questions.length === 0;

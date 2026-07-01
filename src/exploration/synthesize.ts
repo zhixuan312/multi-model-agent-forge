@@ -24,13 +24,15 @@ Constraints:
 - Be specific and actionable — vague summaries waste the spec author's time
 - Pick ONE concrete approach in the direction section, not "consider options"
 
-Output format: Return three sections in this exact structure:
+Output format: Return a JSON object with exactly three string fields — no markdown wrapper, no code fence, just the raw JSON object:
 
-**background**: One paragraph — what problem the team is solving and why. Ground in the original intent.
+{
+  "background": "One paragraph — what problem the team is solving and why. Ground in the original intent.",
+  "currentState": "Multiple paragraphs organized by theme — what the agents discovered. Name specific files, functions, schemas, dependencies, patterns. Note the source (investigation/research/journal) for each finding. Use markdown formatting within the string (bold, code spans, bullet lists).",
+  "roughDirection": "One concrete proposed approach supported by the findings. Call out risks, open questions, and dependencies the spec should address."
+}
 
-**currentState**: Multiple paragraphs organized by theme — what the agents discovered. Name specific files, functions, schemas, dependencies, patterns. Note the source (investigation/research/journal) for each finding.
-
-**roughDirection**: One concrete proposed approach supported by the findings. Call out risks, open questions, and dependencies the spec should address.`;
+All three fields are REQUIRED and must be non-empty strings. Use markdown formatting within each field value. Do NOT put all content into background — distribute it across the three fields.`;
 
 /** Build the gap marker for one failed task. */
 export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', repoName: string | null): string {

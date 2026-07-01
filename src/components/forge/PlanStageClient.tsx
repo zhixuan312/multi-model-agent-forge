@@ -458,7 +458,7 @@ function DetailStage({
   const active = allTasks.find((t) => t.id === activeId) ?? allTasks[0];
   const phaseOf = phases.find((p) => p.tasks.some((t) => t.id === active?.id));
 
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [threads, activeId]);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Follow the AI as it auto-approves.
   useEffect(() => {
@@ -469,8 +469,23 @@ function DetailStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const [refining, setRefining] = useState(false);
-  const [taskView, setTaskView] = useState<'plan' | 'discussion'>('plan');
+  const [refiningTasks, setRefiningTasks] = useState<Set<string>>(new Set());
+  const [taskViewOverride, setTaskViewOverride] = useState<Record<string, 'plan' | 'discussion'>>({});
+  const activeThread = threads[active?.id ?? ''] ?? [];
+  const lastMsg = activeThread[activeThread.length - 1];
+  const hasQuestions = lastMsg?.role === 'forge';
+  const taskView = active ? (taskViewOverride[active.id] ?? (hasQuestions ? 'discussion' : 'plan')) : 'plan';
+  const setTaskView = (v: 'plan' | 'discussion') => {
+    if (active) setTaskViewOverride((prev) => ({ ...prev, [active.id]: v }));
+  };
+
+  useEffect(() => {
+    if (taskView === 'discussion') {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    } else {
+      contentRef.current?.scrollTo?.(0, 0);
+    }
+  }, [activeId, taskView, threads]);
   const [taskApprovers, setTaskApprovers] = useState<Record<string, Participant[]>>(() => {
     const out: Record<string, Participant[]> = {};
     for (const t of allTasks) {
@@ -497,7 +512,7 @@ function DetailStage({
     function onPlanUpdated(e: Event) {
       const detail = (e as CustomEvent).detail as { taskId?: string; chatReply?: string } | undefined;
       if (!detail?.taskId || !detail?.chatReply) return;
-      setRefining(false);
+      setRefiningTasks((prev) => { const next = new Set(prev); next.delete(detail.taskId!); return next; });
       setThreads((th) => ({
         ...th,
         [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }],
@@ -591,7 +606,7 @@ function DetailStage({
 
   function send() {
     const text = input.trim();
-    if (!text || refining) return;
+    if (!text || (active && refiningTasks.has(active.id))) return;
     setInput('');
 
     const tempId = `tmp-${Date.now()}`;
@@ -620,14 +635,15 @@ function DetailStage({
     const forgeTagged = /@forge\b/i.test(text);
     if (forgeTagged) {
       const cleanText = text.replace(/@forge\s*/gi, '').trim() || 'Refine this task based on the discussion.';
-      setRefining(true);
+      const refineTaskId = active.id;
+      setRefiningTasks((prev) => new Set(prev).add(refineTaskId));
       setTaskView('discussion');
       void mma.dispatch(
-        `/projects/${projectId}/plan/tasks/${active.id}/refine`,
+        `/projects/${projectId}/plan/tasks/${refineTaskId}/refine`,
         'plan-refine',
         { message: cleanText },
       ).catch(() => {
-        setRefining(false);
+        setRefiningTasks((prev) => { const next = new Set(prev); next.delete(refineTaskId); return next; });
         setThreads((th) => ({
           ...th,
           [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }],
@@ -682,7 +698,7 @@ function DetailStage({
             disabled={readOnly}
           />
         </div>
-        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-5 py-5">
           {taskView === 'plan' ? (
             <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
               {active.body}
@@ -693,7 +709,7 @@ function DetailStage({
                 <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — send a message to refine this task.</p>
               ) : null}
               {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
-              {refining ? (
+              {active && refiningTasks.has(active.id) ? (
                 <ChatForge>
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="size-3.5 animate-spin text-accent" /> Thinking…
@@ -703,7 +719,7 @@ function DetailStage({
               <div ref={bottomRef} />
             </div>
           )}
-        </CardContent>
+        </div>
         {taskView === 'plan' ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
@@ -722,7 +738,7 @@ function DetailStage({
             onChange={setInput}
             onSend={send}
             placeholder="@Forge to refine this task..."
-            disabled={readOnly || driving || refining}
+            disabled={readOnly || driving || (active != null && refiningTasks.has(active.id))}
             voice={voiceEnabled ?? false}
             mentionPool={forgeMentionPool}
           />

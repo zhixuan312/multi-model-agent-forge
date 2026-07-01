@@ -21,11 +21,6 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     if (task) {
       await replaceTaskSection(ctx.projectId, task.title, result.updatedTaskBody);
     }
-
-    await db
-      .update(planTask)
-      .set({ detail: result.updatedTaskBody, updatedAt: new Date() })
-      .where(eq(planTask.id, request.taskId));
   }
 
   const forgeReply = result.chatReply || 'Updated the task.';

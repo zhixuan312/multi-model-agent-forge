@@ -944,7 +944,7 @@ function CraftStage({
     if (craftView === 'conversation') {
       bottomRef.current?.scrollIntoView({ block: 'end' });
     } else {
-      contentRef.current?.scrollTo(0, 0);
+      contentRef.current?.scrollTo?.(0, 0);
     }
   }, [activeId, collab, craftView]);
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };

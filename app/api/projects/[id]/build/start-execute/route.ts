@@ -9,8 +9,7 @@ import { planTask } from '@/db/schema/build';
 import { project } from '@/db/schema/projects';
 import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { getLatestPlanArtifact } from '@/build/plan-author';
-import { planFilePath } from '@/projects/project-files';
+import { planFilePath, readPlanFileAsync } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
 import { buildMmaClient } from '@/mma/server-client';
@@ -61,7 +60,7 @@ export async function POST(
     repoList = rows.map((r) => ({ repoId: r.id, targetBranch: r.defaultBranch }));
   }
 
-  const planArtifact = await getLatestPlanArtifact(db, id);
+  const planArtifact = await readPlanFileAsync(id);
   if (!planArtifact?.bodyMd) return NextResponse.json({ error: 'No plan artifact.' }, { status: 400 });
 
   // Absolute path to plan.md — MMA reads are unrestricted, no need to copy into the repo

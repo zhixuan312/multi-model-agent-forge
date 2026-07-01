@@ -12,7 +12,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import type { ProjectEvent } from '@/sse/event-bus';
-import type { BuildView, PlanTaskView } from '@/build/build-core';
+import type { BuildView, BuildPlanTaskView } from '@/build/plan-types';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { Card, CardContent, Badge, Banner, Heading, Text, TextSm, Mono } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -45,7 +45,7 @@ const STATUS_META: Record<string, { label: string; icon: ReactNode; tint: string
 };
 
 export function BuildMonitor({ projectId, initial }: { projectId: string; initial: BuildView }) {
-  const [tasks, setTasks] = useState<PlanTaskView[]>(initial.tasks);
+  const [tasks, setTasks] = useState<BuildPlanTaskView[]>(initial.tasks);
   const [auditPasses, setAuditPasses] = useState(initial.auditPasses);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [reviews, setReviews] = useState<ReviewState[]>([]);
@@ -112,7 +112,7 @@ export function BuildMonitor({ projectId, initial }: { projectId: string; initia
           break;
       }
     }
-    function patch(id: string, fn: (t: PlanTaskView) => PlanTaskView): void {
+    function patch(id: string, fn: (t: BuildPlanTaskView) => BuildPlanTaskView): void {
       setTasks((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
     }
   }, [projectId]);

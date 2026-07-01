@@ -54,6 +54,10 @@ describe('SpecStageClient', () => {
         initialAuditHistory={[]}
         initialCanFreeze={false}
         currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
+        projectMembers={[]}
+        initialMessages={{}}
+        voiceEnabled={false}
+        specApprovers={[]}
       />,
     );
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
@@ -74,6 +78,10 @@ describe('SpecStageClient', () => {
         initialAuditHistory={[]}
         initialCanFreeze={false}
         currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
+        projectMembers={[]}
+        initialMessages={{}}
+        voiceEnabled={false}
+        specApprovers={[]}
       />,
     );
     expect(screen.getByText('Spec')).toBeInTheDocument();

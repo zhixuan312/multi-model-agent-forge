@@ -1,7 +1,7 @@
 import { render, screen, act } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { BuildMonitor } from '@/components/forge/BuildMonitor';
-import type { BuildView } from '@/build/build-core';
+import type { BuildView } from '@/build/plan-types';
 import type { ProjectEvent } from '@/sse/event-bus';
 
 /** A controllable EventSource fake so we can push SSE messages from the test. */
@@ -21,7 +21,7 @@ const VIEW: BuildView = {
   planMd: '# Plan\n\n## Task 1: Cache\n\ncache it',
   planVersion: 1,
   tasks: [
-    { id: 't1', title: 'Task 1: Cache', detail: null, repoName: 'svc', status: 'queued', reviewPolicy: 'full', branch: null, commitSha: null, fixNote: null, dependsOn: [], buildCmd: null, testCmd: null },
+    { id: 't1', title: 'Task 1: Cache', repoName: 'svc', status: 'queued', reviewPolicy: 'full', branch: null, commitSha: null, fixNote: null, dependsOn: [], buildCmd: null, testCmd: null },
   ],
   writeTargets: ['svc'],
   readOnly: ['metrics'],

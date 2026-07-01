@@ -34,3 +34,26 @@ export interface PlanAuditFinding {
   evidence?: string;
   suggestion?: string;
 }
+
+export interface BuildPlanTaskView {
+  id: string;
+  title: string;
+  repoName: string;
+  status: string;
+  reviewPolicy: string;
+  branch: string | null;
+  commitSha: string | null;
+  fixNote: string | null;
+  dependsOn: string[];
+  buildCmd: string | null;
+  testCmd: string | null;
+}
+
+export interface BuildView {
+  planMd: string | null;
+  planVersion: number | null;
+  tasks: BuildPlanTaskView[];
+  writeTargets: string[];
+  readOnly: string[];
+  auditPasses: Array<{ passNo: number; findingsCount: number; verdict: string }>;
+}

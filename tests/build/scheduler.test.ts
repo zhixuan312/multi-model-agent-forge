@@ -9,7 +9,6 @@ function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): Plan
     id: over.id,
     projectId: 'p',
     title: `T${over.id}`,
-    detail: null,
     targetRepoId: over.repoId,
     isWrite: true,
     dependsOn: over.dependsOn ?? null,

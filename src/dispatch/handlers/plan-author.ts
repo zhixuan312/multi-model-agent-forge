@@ -51,7 +51,6 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
         .values({
           projectId: ctx.projectId,
           title,
-          detail: s.body,
           phase: s.phase ?? null,
           targetRepoId: defaultRepoId,
           isWrite: true,

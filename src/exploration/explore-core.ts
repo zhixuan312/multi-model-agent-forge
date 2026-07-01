@@ -59,11 +59,7 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
 
   return rows.map((r) => {
     const env = (r.result ?? {}) as Record<string, unknown>;
-    const errObj = env.error as { code?: string; message?: string; kind?: string } | undefined;
-    const err =
-      errObj && errObj.kind !== 'not_applicable' && errObj.code
-        ? { code: errObj.code, message: errObj.message ?? 'The task failed.' }
-        : null;
+    const err = null;
     const output = (env.output ?? {}) as Record<string, unknown>;
     const summary = output.summary;
     let outputMd: string | null = null;

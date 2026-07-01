@@ -112,13 +112,16 @@ export async function replaceSpecSection(
       const label = s.heading.replace(/^###\s*/, '').trim();
       return label === sectionLabel;
     });
-    if (!match) return false;
 
-    const before = lines.slice(0, match.startLine);
-    const after = lines.slice(match.endLine + 1);
-    const replacement = [match.heading, '', newBody.trim(), ''];
-
-    const updated = [...before, ...replacement, ...after].join('\n');
+    let updated: string;
+    if (match) {
+      const before = lines.slice(0, match.startLine);
+      const after = lines.slice(match.endLine + 1);
+      const replacement = [match.heading, '', newBody.trim(), ''];
+      updated = [...before, ...replacement, ...after].join('\n');
+    } else {
+      updated = [file.bodyMd.trimEnd(), '', `### ${sectionLabel}`, '', newBody.trim(), ''].join('\n');
+    }
     await writeSpecAsync(projectId, updated);
     return true;
   });

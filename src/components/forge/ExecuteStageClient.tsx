@@ -282,20 +282,12 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">
       <AutomationBar
+        projectId={props.projectId}
         mode={auto}
         note={autoNote}
         disabled={readOnly}
         idleHint="Pick target branches and start execution, or let Forge drive."
         runningHint="Forge dispatches the plan, runs every task, creates PRs, then hands off to review."
-        onRun={() => {
-          setAutoNote('Starting execution…');
-          setAuto('running');
-          startExecution();
-        }}
-        onStop={() => {
-          setAuto('off');
-          setAutoNote('Stopped.');
-        }}
       />
 
       {execPhase === 'configure' ? (

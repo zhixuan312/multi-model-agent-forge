@@ -452,13 +452,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
+        projectId={props.projectId}
         mode={auto}
         note={autoNote}
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
         runningHint="Forge harvests, validates, and records learnings, then marks the project complete."
-        onRun={() => { setAutoNote('Starting journal automation…'); setAuto('running'); }}
-        onStop={() => { setAuto('off'); setAutoNote('Stopped.'); }}
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — learning content / discussion (like Plan Refine) */}

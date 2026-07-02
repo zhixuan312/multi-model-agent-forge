@@ -303,8 +303,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         note=""
         disabled
         idleHint="Automation unlocks once the spec is set — Design stages are hand-authored."
-        onRun={() => {}}
-        onStop={() => {}}
       />
 
       {/* Brief phase: brain-dump left, stats + advance right */}

@@ -319,17 +319,10 @@ export function PlanStageClient(props: PlanStageClientProps) {
       ) : null}
 
       <AutomationBar
+        projectId={props.projectId}
         mode={auto}
         note={autoNote}
         disabled={readOnly || locked}
-        onRun={() => {
-          setAutoNote('Forge is driving -- reviewing the decomposition...');
-          setAuto('running');
-        }}
-        onStop={() => {
-          setAuto('off');
-          setAutoNote('Stopped -- you have the wheel.');
-        }}
       />
 
       {phase === 'refine' ? (

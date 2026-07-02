@@ -112,6 +112,8 @@ interface SpecStageClientProps {
   specApprovers?: string[];
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
+  autoMode?: boolean;
+  autoNote?: string;
   readOnly?: boolean;
 }
 
@@ -276,8 +278,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
       {error ? <TextSm className="shrink-0 !text-[var(--rose)]">{error}</TextSm> : null}
 
       <AutomationBar
-        mode={auto}
-        note={autoNote}
+        mode={props.autoMode ? "running" : "off"}
+        note={props.autoNote ?? ""}
         disabled={readOnly || phase !== 'finalize'}
         idleHint={
           phase === 'finalize'
@@ -285,14 +287,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
         }
         runningHint="Forge finalizes the spec and drives the whole flow to the end. Stop anytime."
-        onRun={() => {
-          setAutoNote('Forge is driving — finalizing the spec…');
-          setAuto('running');
-        }}
-        onStop={() => {
-          setAuto('off');
-          setAutoNote('Stopped — you have the wheel.');
-        }}
+        projectId={props.projectId}
       />
 
       {/* BODY — every phase carries its own rails; no top status row. */}

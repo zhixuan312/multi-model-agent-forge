@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bot, Hand, Square } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui';
@@ -10,34 +11,53 @@ import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
 export type AutoMode = 'off' | 'running';
 
 /**
- * AutomationBar — the project-level Automated-mode control shared across the
- * BUILD-onward stages (Plan, Execute, Review, Journal). When running, Forge drives
- * the loop; the human can Stop and take over mid-flight because the on-disk plan is
- * the shared source of truth, so the baton passes freely either way.
+ * AutomationBar — the project-level Automated-mode control. When running, the
+ * server-side driver executes steps autonomously. The user can stop anytime.
  *
- * "Run automated" has a 3-second countdown to guard against accidental clicks.
- * Click again or wait for the countdown to complete. Click "Cancel" to abort.
+ * Pass `projectId` to use server-side automation (POST /automation/start|stop).
+ * The bar reads `autoMode`/`autoNote` from props (server-rendered) and listens
+ * for SSE `automation.progress` events for real-time note updates.
  */
 export function AutomationBar({
+  projectId,
   mode,
   note,
   disabled,
   idleHint,
   runningHint,
-  onRun,
-  onStop,
 }: {
+  projectId?: string;
   mode: AutoMode;
   note: string;
   disabled: boolean;
   idleHint?: string;
   runningHint?: string;
-  onRun: () => void;
-  onStop: () => void;
 }) {
+  const router = useRouter();
   const running = mode === 'running';
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [liveNote, setLiveNote] = useState(note);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => { setLiveNote(note); }, [note]);
+
+  // Listen for SSE automation progress events
+  useEffect(() => {
+    function onProgress(e: Event) {
+      const detail = (e as CustomEvent).detail as { note?: string } | undefined;
+      if (detail?.note) setLiveNote(detail.note);
+    }
+    function onError(e: Event) {
+      const detail = (e as CustomEvent).detail as { error?: string } | undefined;
+      if (detail?.error) setLiveNote(`Error: ${detail.error}`);
+    }
+    window.addEventListener('automation:progress', onProgress);
+    window.addEventListener('automation:error', onError);
+    return () => {
+      window.removeEventListener('automation:progress', onProgress);
+      window.removeEventListener('automation:error', onError);
+    };
+  }, []);
 
   const themeActive = running || countdown !== null;
   useEffect(() => { automationThemeStore.set(themeActive); return () => { automationThemeStore.set(false); }; }, [themeActive]);
@@ -49,6 +69,22 @@ export function AutomationBar({
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
+  function handleRun() {
+    if (projectId) {
+      fetch(`/api/projects/${projectId}/automation/start`, { method: 'POST' })
+        .then(() => router.refresh())
+        .catch(() => {});
+    }
+  }
+
+  function handleStop() {
+    if (projectId) {
+      fetch(`/api/projects/${projectId}/automation/stop`, { method: 'POST' })
+        .then(() => router.refresh())
+        .catch(() => {});
+    }
+  }
+
   function handleRunClick() {
     if (countdown !== null) return;
     setCountdown(3);
@@ -56,7 +92,7 @@ export function AutomationBar({
       setCountdown((prev) => {
         if (prev === null || prev <= 1) {
           clearCountdown();
-          setTimeout(onRun, 0);
+          setTimeout(handleRun, 0);
           return null;
         }
         return prev - 1;
@@ -85,7 +121,7 @@ export function AutomationBar({
           {running ? <span className="inline-flex size-1.5 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden /> : null}
         </p>
         <p className="truncate text-xs text-ink-soft">
-          {note ||
+          {liveNote ||
             (countdown !== null
               ? 'Forge will take over shortly. Cancel to stay manual.'
               : running
@@ -94,7 +130,7 @@ export function AutomationBar({
         </p>
       </div>
       {running ? (
-        <Button size="sm" variant="secondary" onClick={onStop} leftIcon={<Square />}>
+        <Button size="sm" variant="secondary" onClick={handleStop} leftIcon={<Square />}>
           Stop &amp; take over
         </Button>
       ) : countdown !== null ? (

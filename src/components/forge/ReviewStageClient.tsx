@@ -159,13 +159,12 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
+        projectId={props.projectId}
         mode={auto}
         note={autoNote}
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
         runningHint="Forge reviews the code, applies fixes, then advances to Reflect."
-        onRun={() => { setAutoNote('Starting review…'); setAuto('running'); }}
-        onStop={() => { setAuto('off'); setAutoNote('Stopped.'); }}
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — findings content */}

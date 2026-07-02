@@ -73,6 +73,7 @@ const PHASE_CHIPS: { value: PhaseFilter; label: string }[] = [
   { value: 'design', label: 'Design' },
   { value: 'build', label: 'Build' },
   { value: 'learn', label: 'Learn' },
+  { value: 'completed', label: 'Completed' },
 ];
 
 export function ProjectFilterBar({ projects }: { projects: DashboardProject[] }) {

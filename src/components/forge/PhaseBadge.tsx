@@ -5,6 +5,7 @@ const PHASE: Record<ProjectPhase, { label: string; variant: BadgeProps['variant'
   design: { label: 'Design', variant: 'accent' },
   build: { label: 'Build', variant: 'amber' },
   learn: { label: 'Learn', variant: 'sage' },
+  completed: { label: 'Completed', variant: 'sage' },
 };
 
 export function PhaseBadge({

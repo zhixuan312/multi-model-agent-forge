@@ -14,7 +14,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const db = getDb();
   await db
     .update(project)
-    .set({ completedAt: new Date(), updatedAt: new Date() })
+    .set({ phase: 'completed', completedAt: new Date(), updatedAt: new Date() })
     .where(eq(project.id, id));
 
   return NextResponse.json({ ok: true });

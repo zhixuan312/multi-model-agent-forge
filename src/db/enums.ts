@@ -17,7 +17,7 @@ export const PROJECT_VISIBILITY = ['private', 'public'] as const;
 export type ProjectVisibility = (typeof PROJECT_VISIBILITY)[number];
 
 /** project.phase (schema.md §3). design→build→learn. Matches stepper groups. */
-export const PROJECT_PHASE = ['design', 'build', 'learn'] as const;
+export const PROJECT_PHASE = ['design', 'build', 'learn', 'completed'] as const;
 export type ProjectPhase = (typeof PROJECT_PHASE)[number];
 
 /**

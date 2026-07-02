@@ -213,6 +213,9 @@ export async function deleteMember(
 ): Promise<DeleteMemberResult> {
   const db = deps.db ?? getDb();
 
+  const { isForgeSystemMember } = await import('@/automation/forge-member');
+  if (isForgeSystemMember(memberId)) return { kind: 'not_found' };
+
   const [target] = await db
     .select({ id: member.id, isAdmin: member.isAdmin })
     .from(member)

@@ -88,6 +88,8 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       pendingAudit={pendingAudit}
       pendingApply={pendingApply}
       initialPhase={initialPhase}
+      autoMode={proj.autoMode}
+      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.plan.canMutate}
     />
   );

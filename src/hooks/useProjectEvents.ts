@@ -88,6 +88,12 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
       void qc.invalidateQueries({ queryKey: explorationKeys.artifact(projectId) });
       break;
     }
+    case 'automation.progress':
+      window.dispatchEvent(new CustomEvent('automation:progress', { detail: { note: e.note } }));
+      break;
+    case 'automation.error':
+      window.dispatchEvent(new CustomEvent('automation:error', { detail: { error: e.error } }));
+      break;
     case 'heartbeat':
       break;
   }

@@ -180,8 +180,8 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [messages] = useServerState(props.initialMessages ?? {});
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
-  const [auto, setAuto] = useState<AutoMode>('off');
-  const [autoNote, setAutoNote] = useState('');
+  const auto: AutoMode = props.autoMode ? 'running' : 'off';
+  const autoNote = props.autoNote ?? '';
   // Intent carried forward from the Exploration brief (no longer hand-typed here).
   const [intent] = useState(props.intentMd ?? '');
   const [picked, setPicked] = useState<Set<ComponentKind>>(
@@ -350,11 +350,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           specApprovers={specApprovers}
           setSpecApprovers={setSpecApprovers}
-          onAdvance={() => router.push(`/projects/${props.projectId}/plan?auto=1`)}
+          onAdvance={() => router.push(`/projects/${props.projectId}/plan`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
-          onAutoNote={setAutoNote}
-          onAutoStop={() => setAuto('off')}
         />
       )}
     </div>
@@ -1327,8 +1325,6 @@ function DocumentScreen({
   onAdvance,
   onAssembled,
   onError,
-  onAutoNote,
-  onAutoStop,
 }: {
   projectId: string;
   projectName: string;
@@ -1350,8 +1346,6 @@ function DocumentScreen({
   onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
-  onAutoNote?: (note: string) => void;
-  onAutoStop?: () => void;
 }) {
   // Seed chat from persisted audit history so findings survive page refresh
   const [messages, setMessages] = useState<DocMsg[]>(() => {
@@ -1441,7 +1435,6 @@ function DocumentScreen({
     }
   }
 
-  // Automated mode driver is after the apply() function (needs applying state)
 
   // Entering Document with everything approved → assemble automatically so the
   // full spec is shown immediately (also re-assembles a stale/empty draft).
@@ -1516,44 +1509,6 @@ function DocumentScreen({
       })
       .catch(() => { setApplying(false); setApplyingPass(null); });
   }
-
-  // Automated mode (Spec Document → end): audit loop (5-pass cap), auto-apply
-  const autoDone = useRef(false);
-  const autoPassCount = useRef(0);
-  useEffect(() => {
-    if (!driving || readOnly || autoDone.current) return;
-    const t = setTimeout(() => {
-      if (canFreeze) {
-        autoDone.current = true;
-        onAdvance();
-        return;
-      }
-      if (applying) return;
-      const latestRound = rounds[rounds.length - 1];
-      if (latestRound && autoPassCount.current < rounds.length) {
-        autoPassCount.current = rounds.length;
-        const hasCritHigh = latestRound.findings.some(
-          (f: { severity: string }) => f.severity === 'critical' || f.severity === 'high',
-        );
-        if (hasCritHigh && rounds.length < 5) {
-          onAutoNote?.(`Audit pass ${rounds.length}/5 — applying ${latestRound.findings.length} findings...`);
-          apply(latestRound.passNo, latestRound.findings.map((_: unknown, i: number) => i), latestRound.findings.length);
-          return;
-        }
-        if (hasCritHigh && rounds.length >= 5) {
-          onAutoNote?.('Audit cap reached — critical/high findings remain after 5 passes.');
-          onAutoStop?.();
-          return;
-        }
-      }
-      if (!auditingRef.current) {
-        onAutoNote?.(`Running audit pass ${rounds.length + 1}/5...`);
-        void runAudit();
-      }
-    }, 1100);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driving, canFreeze, rounds.length, applying, readOnly]);
 
   /** Re-post a stored round's findings to the chat (rail card click). */
   function replay(passNo: number): void {

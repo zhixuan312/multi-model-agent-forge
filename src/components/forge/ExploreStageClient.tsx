@@ -109,6 +109,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     queryFn: async () =>
       (await fetch(`/api/projects/${props.projectId}/explore/tasks`).then((r) => (r.ok ? r.json() : props.initialTasks))) as RailTask[],
     initialData: props.initialTasks,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasRunning = data?.some((t) => t.status === 'running' || (t.batchStatus && t.batchStatus !== 'done' && t.batchStatus !== 'failed'));
+      return hasRunning ? 3000 : false;
+    },
   });
   const { data: artifact } = useQuery<ArtifactCacheEntry | undefined>({
     queryKey: explorationKeys.artifact(props.projectId),
@@ -265,6 +270,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   }, []);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? tasks[0]?.id ?? null);
+  useEffect(() => {
+    if (!selectedTaskId && tasks.length > 0) {
+      setSelectedTaskId(tasks[0].id);
+    }
+  }, [selectedTaskId, tasks]);
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };

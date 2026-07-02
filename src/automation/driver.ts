@@ -40,12 +40,25 @@ export async function driveProject(projectId: string): Promise<void> {
       await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
       projectEventBus.publish(projectId, { type: 'automation.progress', note: action.note });
 
-      try {
-        await executeAction(projectId, action, db);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await db.update(project).set({ autoMode: false, autoNote: `Error: ${msg}`, updatedAt: new Date() }).where(eq(project.id, projectId));
-        projectEventBus.publish(projectId, { type: 'automation.error', error: msg });
+      let lastErr: string | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await executeAction(projectId, action, db);
+          lastErr = null;
+          break;
+        } catch (err) {
+          lastErr = err instanceof Error ? err.message : String(err);
+          if (attempt < 3) {
+            const retryNote = `${action.note} (retry ${attempt}/3 — ${lastErr})`;
+            await db.update(project).set({ autoNote: retryNote, updatedAt: new Date() }).where(eq(project.id, projectId));
+            projectEventBus.publish(projectId, { type: 'automation.progress', note: retryNote });
+            await sleep(5000 * attempt);
+          }
+        }
+      }
+      if (lastErr) {
+        await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
+        projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });
         return;
       }
 

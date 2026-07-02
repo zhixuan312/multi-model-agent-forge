@@ -113,7 +113,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   // Automated driver: review loop (5-pass cap) + chain to Reflect
   const autoPassCount = useRef(0);
   useEffect(() => {
-    if (auto !== 'running' || readOnly) return;
+    if (auto !== 'running' || readOnly || props.autoMode) return;
     const t = setTimeout(() => {
       if (reviewing || applying) return;
       const latestPass = props.passes[props.passes.length - 1];

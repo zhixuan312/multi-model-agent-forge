@@ -232,7 +232,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
   // Automated driver: harvest → self-validate each learning → record → mark complete
   const autoRefiningLearning = useRef<string | null>(null);
   useEffect(() => {
-    if (auto !== 'running' || readOnly || phase !== 'journal') return;
+    if (auto !== 'running' || readOnly || phase !== 'journal' || props.autoMode) return;
     const t = setTimeout(() => {
       // Step 1: harvest if needed
       if (props.learnings.length === 0 && !harvesting) {

@@ -257,7 +257,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   // hands the wheel back mid-flight and Run resumes from exactly here.
   const autoAuditPass = useRef(0);
   useEffect(() => {
-    if (auto !== 'running' || readOnly) return;
+    if (auto !== 'running' || readOnly || props.autoMode) return;
     const t = setTimeout(() => {
       if (phase === 'refine') {
         const next = allTasks.find((tk) => status[tk.id] !== 'approved');

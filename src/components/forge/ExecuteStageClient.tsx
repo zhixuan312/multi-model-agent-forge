@@ -266,7 +266,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
 
   // Auto-chain to Review when all tasks are terminal
   useEffect(() => {
-    if (auto !== 'running' || !allTerminal) return;
+    if (auto !== 'running' || !allTerminal || props.autoMode) return;
     const anyCommitted = props.repoGroups.some((g) => jobs[g.repoId]?.status === 'done');
     if (!anyCommitted) {
       setAutoNote('All tasks failed — no code committed.');

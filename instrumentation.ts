@@ -95,4 +95,25 @@ export async function register(): Promise<void> {
       JSON.stringify({ event: 'synthesis_reconcile_deferred', reason: e instanceof Error ? e.message : String(e) }),
     );
   }
+
+  // Resume server-side automation for projects with auto_mode = true
+  try {
+    const { getDb } = await import('@/db/client');
+    const { project } = await import('@/db/schema/projects');
+    const { eq } = await import('drizzle-orm');
+    const { driveProject } = await import('@/automation/driver');
+    const db = getDb();
+    const autoProjects = await db
+      .select({ id: project.id, name: project.name })
+      .from(project)
+      .where(eq(project.autoMode, true));
+    for (const p of autoProjects) {
+      console.log(JSON.stringify({ event: 'automation_resumed', projectId: p.id, name: p.name }));
+      driveProject(p.id).catch((err) => {
+        console.warn(JSON.stringify({ event: 'automation_resume_failed', projectId: p.id, error: err instanceof Error ? err.message : String(err) }));
+      });
+    }
+  } catch (e) {
+    console.warn(JSON.stringify({ event: 'automation_resume_deferred', reason: e instanceof Error ? e.message : String(e) }));
+  }
 }

@@ -17,6 +17,8 @@ export interface AutoAction {
 const WAIT: AutoAction = { kind: 'wait', note: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete' };
 
+import { inArray } from 'drizzle-orm';
+
 function isInflight(db: Db, projectId: string, handler: string) {
   return db
     .select({ id: mmaBatch.id })
@@ -24,7 +26,7 @@ function isInflight(db: Db, projectId: string, handler: string) {
     .where(and(
       eq(mmaBatch.projectId, projectId),
       eq(mmaBatch.handler, handler),
-      eq(mmaBatch.status, 'running'),
+      inArray(mmaBatch.status, ['dispatched', 'running']),
     ))
     .limit(1)
     .then((rows) => rows.length > 0);
@@ -80,6 +82,10 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
 
     if (!planFile && tasks.length === 0) {
       if (await isInflight(db, projectId, 'plan-author')) return WAIT;
+      const existingAuthor = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'plan-author')))
+        .limit(1);
+      if (existingAuthor.length > 0) return WAIT;
       return { kind: 'dispatch_plan_author', note: 'Authoring plan from spec...' };
     }
 
@@ -119,7 +125,12 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     const tasks = await db.select({ status: planTask.status }).from(planTask).where(eq(planTask.projectId, projectId));
     const allTerminal = tasks.length > 0 && tasks.every((t) => ['committed', 'failed', 'skipped'].includes(t.status!));
     if (!allTerminal && tasks.some((t) => ['executing', 'verifying', 'fixing'].includes(t.status!))) return WAIT;
-    if (!allTerminal) {
+    // Check if execution was already dispatched (any batch exists, even done)
+    const existingExec = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+      .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'execute-pipeline')))
+      .limit(1);
+    if (!allTerminal && existingExec.length > 0) return WAIT;
+    if (!allTerminal && existingExec.length === 0) {
       return { kind: 'dispatch_execute', note: 'Dispatching execution...' };
     }
     const committed = tasks.filter((t) => t.status === 'committed').length;
@@ -161,6 +172,10 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
       .where(eq(learningCandidate.projectId, projectId));
 
     if (learnings.length === 0) {
+      const existingHarvest = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'journal-harvest')))
+        .limit(1);
+      if (existingHarvest.length > 0) return WAIT;
       return { kind: 'dispatch_harvest', note: 'Harvesting learnings...' };
     }
 
@@ -172,6 +187,10 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
 
     const allRecorded = learnings.every((l) => l.status === 'recorded');
     if (!allRecorded) {
+      const existingRecord = await db.select({ id: mmaBatch.id }).from(mmaBatch)
+        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'journal-record')))
+        .limit(1);
+      if (existingRecord.length > 0) return WAIT;
       return { kind: 'dispatch_record', note: 'Recording learnings...' };
     }
 

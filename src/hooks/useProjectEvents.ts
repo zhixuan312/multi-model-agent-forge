@@ -91,6 +91,9 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
     case 'automation.progress':
       window.dispatchEvent(new CustomEvent('automation:progress', { detail: { note: e.note } }));
       break;
+    case 'automation.step_done':
+      window.dispatchEvent(new CustomEvent('automation:step_done', { detail: { step: e.step } }));
+      break;
     case 'automation.error':
       window.dispatchEvent(new CustomEvent('automation:error', { detail: { error: e.error } }));
       break;

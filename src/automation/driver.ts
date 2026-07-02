@@ -56,6 +56,9 @@ export async function driveProject(projectId: string): Promise<void> {
           }
         }
       }
+      if (!lastErr) {
+        projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
+      }
       if (lastErr) {
         await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
         projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });

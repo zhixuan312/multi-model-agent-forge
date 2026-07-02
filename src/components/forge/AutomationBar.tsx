@@ -41,23 +41,29 @@ export function AutomationBar({
 
   useEffect(() => { setLiveNote(note); }, [note]);
 
-  // Listen for SSE automation progress events
+  // Listen for SSE automation events
   useEffect(() => {
     function onProgress(e: Event) {
       const detail = (e as CustomEvent).detail as { note?: string } | undefined;
       if (detail?.note) setLiveNote(detail.note);
     }
+    function onStepDone() {
+      router.refresh();
+    }
     function onError(e: Event) {
       const detail = (e as CustomEvent).detail as { error?: string } | undefined;
       if (detail?.error) setLiveNote(`Error: ${detail.error}`);
+      router.refresh();
     }
     window.addEventListener('automation:progress', onProgress);
+    window.addEventListener('automation:step_done', onStepDone);
     window.addEventListener('automation:error', onError);
     return () => {
       window.removeEventListener('automation:progress', onProgress);
+      window.removeEventListener('automation:step_done', onStepDone);
       window.removeEventListener('automation:error', onError);
     };
-  }, []);
+  }, [router]);
 
   const themeActive = running || countdown !== null;
   useEffect(() => { automationThemeStore.set(themeActive); return () => { automationThemeStore.set(false); }; }, [themeActive]);

@@ -61,6 +61,7 @@ export type ProjectEvent =
   | { type: 'chat.typing'; componentId: string; typing: boolean }
   // ── Automation events ────────────────────────────────────────────
   | { type: 'automation.progress'; note: string }
+  | { type: 'automation.step_done'; step: string }
   | { type: 'automation.error'; error: string };
 
 const EVENT = 'event';

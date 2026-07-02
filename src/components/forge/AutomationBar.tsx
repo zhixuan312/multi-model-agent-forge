@@ -56,7 +56,7 @@ export function AutomationBar({
       setCountdown((prev) => {
         if (prev === null || prev <= 1) {
           clearCountdown();
-          onRun();
+          setTimeout(onRun, 0);
           return null;
         }
         return prev - 1;

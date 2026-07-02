@@ -8,7 +8,6 @@
 
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
 export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
-export type RepoStatus = (typeof REPO_STATUS)[number];
 
 /* ── Spec 3: Projects ───────────────────────────────────────────────────── */
 
@@ -76,7 +75,7 @@ export type ArtifactKind = (typeof ARTIFACT_KIND)[number];
 
 /** audit_pass.scope — which stage's audit. */
 export const AUDIT_SCOPE = ['spec', 'plan', 'review'] as const;
-export type AuditScope = (typeof AUDIT_SCOPE)[number];
+
 
 /** audit_pass.verdict (schema.md §8). `revised` = had critical/high; `clean` = none. */
 export const AUDIT_VERDICT = ['revised', 'clean'] as const;
@@ -102,14 +101,12 @@ export type LearningStatus = (typeof LEARNING_STATUS)[number];
  * an MMA route): a validated link, an uploaded image, or an uploaded file.
  */
 export const ATTACHMENT_KIND = ['link', 'image', 'file'] as const;
-export type AttachmentKind = (typeof ATTACHMENT_KIND)[number];
 
 /**
  * exploration_task.kind (schema.md §4). The MMA read rod a fan-out task runs:
  * `investigate` (one repo), `research` (external), `journal` → mma-journal-recall.
  */
 export const EXPLORATION_TASK_KIND = ['investigate', 'research', 'journal'] as const;
-export type ExplorationTaskKind = (typeof EXPLORATION_TASK_KIND)[number];
 
 /**
  * exploration_task.status (schema.md §4). draft (proposed/editable) → running
@@ -118,7 +115,6 @@ export type ExplorationTaskKind = (typeof EXPLORATION_TASK_KIND)[number];
  * the joined `mma_batch.status`.
  */
 export const EXPLORATION_TASK_STATUS = ['draft', 'running', 'recorded'] as const;
-export type ExplorationTaskStatus = (typeof EXPLORATION_TASK_STATUS)[number];
 
 /**
  * mma_route (schema.md §7). The route an `mma_batch` was dispatched on. This
@@ -141,7 +137,6 @@ export type MmaRoute = (typeof MMA_ROUTE)[number];
 
 /** mma_batch.status (schema.md §7). dispatched → running → done|failed. */
 export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed'] as const;
-export type MmaStatus = (typeof MMA_STATUS)[number];
 
 /* ── Spec 7: Build pipeline ─────────────────────────────────────────────── */
 
@@ -159,7 +154,6 @@ export const BUILD_TASK_STATUS = [
   'skipped',
   'failed',
 ] as const;
-export type BuildTaskStatus = (typeof BUILD_TASK_STATUS)[number];
 
 /**
  * plan_task.review_policy (schema.md §0 / Spec 7) — mirrors MMA's
@@ -169,7 +163,6 @@ export type BuildTaskStatus = (typeof BUILD_TASK_STATUS)[number];
  * "downstream errors expected, fixed by a later task"; default is `full`.
  */
 export const REVIEW_POLICY = ['reviewed', 'none'] as const;
-export type ReviewPolicy = (typeof REVIEW_POLICY)[number];
 
 /**
  * export.format (schema.md §6 / Spec 7) — `md` is the only path exercised in
@@ -183,11 +176,9 @@ export type ExportFormat = (typeof EXPORT_FORMAT)[number];
 
 /** participant.scope — where the participation applies. */
 export const PARTICIPANT_SCOPE = ['project', 'stage', 'component', 'task'] as const;
-export type ParticipantScope = (typeof PARTICIPANT_SCOPE)[number];
 
 /** participant.role — what the member does at that scope. */
 export const PARTICIPANT_ROLE = ['owner', 'reviewer', 'approver'] as const;
-export type ParticipantRole = (typeof PARTICIPANT_ROLE)[number];
 
 /* ── Loops (admin-only, cron-scheduled goal-driven jobs) ────────────────────── */
 
@@ -202,7 +193,6 @@ export type LoopKind = (typeof LOOP_KIND)[number];
 
 /** loop.worker_tier — which MMA worker the loop dispatches (maps to agentType). `main` is the orchestrator, never a worker. */
 export const LOOP_WORKER_TIER = ['standard', 'complex'] as const;
-export type LoopWorkerTier = (typeof LOOP_WORKER_TIER)[number];
 
 /** loop_run.trigger — how a fire was activated. */
 export const LOOP_TRIGGER = ['schedule', 'manual'] as const;
@@ -210,4 +200,3 @@ export type LoopTrigger = (typeof LOOP_TRIGGER)[number];
 
 /** loop_run.status — per-repo outcome of a fire. A failed run never opens a PR. */
 export const LOOP_RUN_STATUS = ['running', 'changed', 'no_changes', 'failed'] as const;
-export type LoopRunStatus = (typeof LOOP_RUN_STATUS)[number];

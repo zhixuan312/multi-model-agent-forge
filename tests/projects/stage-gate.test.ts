@@ -1,12 +1,22 @@
 import { describe, it, expect } from 'vitest';
 
-function mockDb(stageStatuses: Record<string, string>) {
+function mockDb(stageStatuses: Record<string, string>, completedAt: Date | null = null) {
+  let callCount = 0;
   return {
     select: () => ({
       from: () => ({
-        where: () => Promise.resolve(
-          Object.entries(stageStatuses).map(([kind, status]) => ({ kind, status })),
-        ),
+        where: () => ({
+          limit: () => {
+            callCount++;
+            return Promise.resolve([{ completedAt }]);
+          },
+          then: (fn: (v: any) => any) => {
+            callCount++;
+            return Promise.resolve(
+              Object.entries(stageStatuses).map(([kind, status]) => ({ kind, status })),
+            ).then(fn);
+          },
+        }),
       }),
     }),
   } as any;

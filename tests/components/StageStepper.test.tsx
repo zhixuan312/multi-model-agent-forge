@@ -25,7 +25,7 @@ describe('StageStepper (4-state track)', () => {
     expect(screen.getByText('Plan')).toBeInTheDocument();
     expect(screen.getByText('Execute')).toBeInTheDocument();
     expect(screen.getByText('Review')).toBeInTheDocument();
-    expect(screen.getByText('Journal')).toBeInTheDocument();
+    expect(screen.getByText('Reflect')).toBeInTheDocument();
   });
 
   it('marks exploration as ongoing (current)', () => {

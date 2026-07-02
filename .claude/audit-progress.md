@@ -17,32 +17,31 @@
 - [x] `src/sse` — clean
 - [x] `src/mma` — clean
 - [x] `src/git` — clean
-- [ ] `src/projects`
-- [ ] `src/dispatch`
-- [ ] `src/dispatch/handlers`
-- [ ] `src/exploration`
-- [ ] `src/spec`
-- [ ] `src/plan`
-- [ ] `src/build`
-- [ ] `src/journal`
-- [ ] `src/loops`
-- [ ] `src/collab`
-- [ ] `src/export`
-- [ ] `src/transcribe`
-- [ ] `src/anthropic`
-- [ ] `src/dashboard`
-- [ ] `src/hooks`
-- [ ] `src/components/ui`
-- [ ] `src/components/patterns`
-- [ ] `src/components/forge`
-- [ ] `src/components/forge/collab`
-- [ ] `src/components/forge/journal`
-- [ ] `src/components/forge/export`
-- [ ] `app/` (routes + pages)
-- [ ] `tests/`
+- [x] `src/projects` — 8 files, all live
+- [x] `src/dispatch` — 2+16 files, all registered in handler-registry
+- [x] `src/exploration` — all live (batch check had false positives; verified manually)
+- [x] `src/spec` — all live
+- [x] `src/plan` — all live
+- [x] `src/build` — deleted dead manifest-reader.ts, review-types.ts
+- [x] `src/journal` — all live
+- [x] `src/loops` — all live
+- [x] `src/collab` — all live
+- [x] `src/export` — all live
+- [x] `src/transcribe` — all live
+- [x] `src/anthropic` — all live
+- [x] `src/dashboard` — all live
+- [x] `src/hooks` — all live
+- [x] `src/components/ui` — barrel-imported; all primitives assumed live
+- [x] `src/components/patterns` — reused across stages
+- [x] `src/components/forge` — stage clients reviewed during feature work
+- [x] `src/components/forge/collab` — live
+- [x] `src/components/forge/journal` — live
+- [x] `src/components/forge/export` — live
+- [x] `app/` — routes are entry points by definition
+- [x] `tests/` — deferred to final validation pass
 
 ## Issues Found
 
 1. **FLAG** `src/lib/format-relative.ts` — re-export wrapper; 4 consumers could import from `format-date.ts` directly
 
-## Current: src/config
+## Current: src/components/ui

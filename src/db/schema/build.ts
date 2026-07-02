@@ -90,5 +90,3 @@ export const exportRecord = forge.table(
   },
   (t) => [index('export_project_idx').on(t.projectId, t.createdAt.desc())],
 );
-
-export type ExportRow = typeof exportRecord.$inferSelect;

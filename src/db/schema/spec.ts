@@ -85,4 +85,3 @@ export const qaMessage = forge.table(
 
 export type ComponentRow = typeof component.$inferSelect;
 export type ComponentSectionRow = typeof componentSection.$inferSelect;
-export type QaMessageRow = typeof qaMessage.$inferSelect;

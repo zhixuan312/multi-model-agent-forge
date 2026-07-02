@@ -1,4 +1,4 @@
-import { uuid, text, timestamp, index, primaryKey, unique } from 'drizzle-orm/pg-core';
+import { uuid, text, boolean, timestamp, index, primaryKey, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
@@ -33,6 +33,8 @@ export const project = forge.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    autoMode: boolean('auto_mode').notNull().default(false),
+    autoNote: text('auto_note'),
   },
   (t) => [
     index('project_owner_idx').on(t.ownerId),

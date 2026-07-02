@@ -12,7 +12,7 @@ import { findInflight } from '@/dispatch/dispatch-helpers';
 import { parseTags } from '@/journal/journal-core';
 import type { LearningCategory, LearningSource } from '@/journal/types';
 
-export default async function JournalStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ learning?: string }> }) {
+export default async function JournalStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ learning?: string; phase?: string }> }) {
   const { id } = await params;
   const { learning: activeLearningId } = await searchParams;
   const me = await currentMember();
@@ -105,6 +105,15 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const pendingHarvest = await findInflight(db, id, 'journal-harvest');
   const pendingRecord = await findInflight(db, id, 'journal-record');
 
+  const allRecorded = learnings.length > 0 && learnings.every((l) => l.status === 'recorded');
+  const { loadProjectSummary } = await import('@/projects/project-summary');
+  const summary = allRecorded ? await loadProjectSummary(db, id) : undefined;
+
+  const { getLastPhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getLastPhase(db, id, 'journal') as 'journal' | 'summary' | null;
+  const phaseParam = (await searchParams).learning ? undefined : (await searchParams).phase as 'journal' | 'summary' | undefined;
+  const initialPhase = phaseParam ?? lastPhase ?? undefined;
+
   return (
     <JournalStageClient
       projectId={id}
@@ -116,6 +125,8 @@ export default async function JournalStagePage({ params, searchParams }: { param
       recording={!!pendingRecord}
       activeLearningId={activeLearningId}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      summary={summary}
+      initialPhase={initialPhase}
       readOnly={!perms.journal.canMutate}
     />
   );

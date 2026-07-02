@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { AutomationBar } from '@/components/forge/AutomationBar';
+import { SummaryPhase } from '@/components/forge/SummaryPhase';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import {
   Button,
@@ -61,6 +62,8 @@ export interface JournalStageClientProps {
   recording: boolean;
   activeLearningId?: string;
   currentMember?: { id: string; displayName: string; avatarTint: string };
+  summary?: import('@/projects/project-summary').ProjectSummary;
+  initialPhase?: 'journal' | 'summary';
   readOnly?: boolean;
 }
 
@@ -114,7 +117,33 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
 
-  useEffect(() => { stagePhaseStore.set('journal'); }, []);
+  type ReflectPhase = 'journal' | 'summary';
+  const allRecordedInit = props.learnings.length > 0 && props.learnings.every((l) => l.status === 'recorded');
+  const derivedPhase: ReflectPhase = allRecordedInit && props.summary ? 'summary' : 'journal';
+  const [phase, setPhaseRaw] = useState<ReflectPhase>(props.initialPhase ?? derivedPhase);
+  const setPhase = (p: ReflectPhase) => {
+    setPhaseRaw(p);
+    const url = new URL(window.location.href);
+    url.searchParams.set('phase', p);
+    router.push(url.pathname + url.search, { scroll: false });
+  };
+  const advancePhase = async (p: ReflectPhase) => {
+    await fetch(`/api/projects/${props.projectId}/phase`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'journal', phase: p }),
+    }).catch(() => {});
+    setPhase(p);
+  };
+
+  useEffect(() => { stagePhaseStore.set(phase); }, [phase]);
+  useEffect(
+    () =>
+      stagePhaseStore.onNavigate((key) => {
+        if (key === 'journal') setPhaseRaw('journal');
+        if (key === 'summary' && allRecordedInit && props.summary) setPhaseRaw('summary');
+      }),
+    [allRecordedInit, props.summary],
+  );
 
   const [activeId, setActiveId] = useState<string>(props.activeLearningId ?? props.learnings[0]?.id ?? '');
   const [threads, setThreads] = useState<Record<string, Msg[]>>({});
@@ -314,6 +343,28 @@ export function JournalStageClient(props: JournalStageClientProps) {
     );
   }
 
+  const [completing, setCompleting] = useState(false);
+
+  if (phase === 'summary' && props.summary) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <SummaryPhase
+          summary={props.summary}
+          projectId={props.projectId}
+          readOnly={readOnly}
+          completing={completing}
+          onMarkComplete={() => {
+            setCompleting(true);
+            fetch(`/api/projects/${props.projectId}/complete`, { method: 'POST' })
+              .then(() => router.refresh())
+              .catch(() => {})
+              .finally(() => setCompleting(false));
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
@@ -470,16 +521,21 @@ export function JournalStageClient(props: JournalStageClientProps) {
           <CardFooter className="flex-col !items-stretch gap-2">
             <button
               type="button"
-              onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {})}
-              disabled={approvedCount === 0 || readOnly || recording || allRecorded}
+              onClick={() => {
+                if (!allRecorded && approvedCount > 0) {
+                  mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {}).catch(() => {});
+                }
+                advancePhase('summary');
+              }}
+              disabled={approvedCount === 0 || readOnly || recording}
               className={cn(
                 'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                approvedCount === 0 || recording || allRecorded ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
+                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-accent text-white hover:bg-accent/90',
               )}
             >
-              {recording ? <Loader2 className="size-4 animate-spin" /> : allRecorded ? <Check className="size-4" /> : <Lock className="size-4" />}
-              {recording ? 'Recording...' : allRecorded ? `Recorded ${props.learnings.length} learnings` : `Record ${approvedCount} learning${approvedCount !== 1 ? 's' : ''}`}
-              {!recording && !readOnly && !allRecorded ? <ArrowRight className="size-4" /> : null}
+              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
+              {recording ? 'Recording...' : 'Continue to Summary'}
+              {!recording ? <ArrowRight className="size-4" /> : null}
             </button>
           </CardFooter>
         </Card>

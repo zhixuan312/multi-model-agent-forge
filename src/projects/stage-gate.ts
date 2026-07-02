@@ -32,6 +32,13 @@ export interface StagePermissions {
 export async function getStagePermissions(db: Db, projectId: string): Promise<StagePermissions> {
   const dbi = db ?? getDb();
 
+  const [proj] = await dbi
+    .select({ completedAt: project.completedAt })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+  const projectComplete = !!proj?.completedAt;
+
   const stageRows = await dbi
     .select({ kind: stage.kind, status: stage.status })
     .from(stage)
@@ -44,6 +51,11 @@ export async function getStagePermissions(db: Db, projectId: string): Promise<St
   const executeDone = executeStatus === 'done';
   const reviewDone = statusOf('review') === 'done';
   const journalDone = statusOf('journal') === 'done';
+
+  if (projectComplete) {
+    const locked = { canMutate: false, canAdvance: false, reason: 'Project is complete.' };
+    return { explore: locked, spec: locked, plan: locked, execute: locked, review: locked, journal: locked };
+  }
 
   const designLocked = executeStarted;
   const designReason = executeDone ? 'Locked — execution has completed.' : 'Locked — execution is in progress.';

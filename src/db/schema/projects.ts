@@ -32,6 +32,7 @@ export const project = forge.table(
     currentStage: text('current_stage', { enum: STAGE_KIND }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
   },
   (t) => [
     index('project_owner_idx').on(t.ownerId),

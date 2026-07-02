@@ -25,7 +25,7 @@ const STAGE_LABEL: Record<StageKind, string> = {
   plan: 'Plan',
   execute: 'Execute',
   review: 'Review',
-  journal: 'Journal',
+  journal: 'Reflect',
 };
 
 /**

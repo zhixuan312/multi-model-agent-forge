@@ -272,7 +272,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
               href={`/projects/${props.projectId}/journal`}
-              label="Continue to Journal"
+              label="Continue to Reflect"
               disabled={readOnly}
               gate
               projectId={props.projectId}

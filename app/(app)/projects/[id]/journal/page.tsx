@@ -127,6 +127,8 @@ export default async function JournalStagePage({ params, searchParams }: { param
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       summary={summary}
       initialPhase={initialPhase}
+      autoMode={proj.autoMode}
+      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.journal.canMutate}
     />
   );

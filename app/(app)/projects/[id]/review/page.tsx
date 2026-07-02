@@ -113,6 +113,8 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       applyRunning={!!runningApply}
       applyCount={applyCount}
       buildPrs={buildPrs}
+      autoMode={proj.autoMode}
+      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.review.canMutate}
     />
   );

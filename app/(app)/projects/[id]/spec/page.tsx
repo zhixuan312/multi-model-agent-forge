@@ -49,7 +49,7 @@ export default async function SpecStagePage({
     ? (phaseParam as SpecPhase)
     : lastPhase ?? undefined;
   const [proj] = await db
-    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
+    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase, autoMode: project.autoMode, autoNote: project.autoNote })
     .from(project)
     .where(eq(project.id, id))
     .limit(1);
@@ -105,6 +105,8 @@ export default async function SpecStagePage({
       pendingApply={pendingApply}
       specApprovers={specApprovers}
       initialPhase={initialPhase}
+      autoMode={proj.autoMode}
+      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.spec.canMutate}
     />
   );

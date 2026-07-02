@@ -64,6 +64,8 @@ export interface JournalStageClientProps {
   currentMember?: { id: string; displayName: string; avatarTint: string };
   summary?: import('@/projects/project-summary').ProjectSummary;
   initialPhase?: 'journal' | 'summary';
+  autoMode?: boolean;
+  autoNote?: string;
   readOnly?: boolean;
 }
 

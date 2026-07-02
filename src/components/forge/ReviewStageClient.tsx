@@ -58,6 +58,8 @@ export interface ReviewStageClientProps {
   applyRunning: boolean;
   applyCount?: number;
   buildPrs?: Record<string, { url: string; branch: string; targetBranch: string }>;
+  autoMode?: boolean;
+  autoNote?: string;
   readOnly?: boolean;
 }
 

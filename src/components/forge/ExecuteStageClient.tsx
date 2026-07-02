@@ -84,6 +84,8 @@ export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
   phase?: ProjectPhase;
+  autoMode?: boolean;
+  autoNote?: string;
   readOnly?: boolean;
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;

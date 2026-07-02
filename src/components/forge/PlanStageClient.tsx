@@ -96,6 +96,8 @@ export interface PlanStageClientProps {
   pendingAudit?: string | null;
   pendingApply?: string | null;
   initialPhase?: 'refine' | 'validate';
+  autoMode?: boolean;
+  autoNote?: string;
   readOnly?: boolean;
 }
 
@@ -320,8 +322,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
       <AutomationBar
         projectId={props.projectId}
-        mode={auto}
-        note={autoNote}
+        mode={props.autoMode ? 'running' : auto}
+        note={props.autoNote || autoNote}
         disabled={readOnly || locked}
       />
 

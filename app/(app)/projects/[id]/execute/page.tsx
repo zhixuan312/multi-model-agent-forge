@@ -157,6 +157,8 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
       initialPhase={initialPhase}
+      autoMode={proj.autoMode}
+      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.execute.canMutate}
     />
   );

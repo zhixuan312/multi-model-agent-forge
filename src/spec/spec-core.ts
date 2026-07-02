@@ -112,16 +112,23 @@ export async function loadOutline(db: Db, stageId: string, projectId?: string): 
     .orderBy(asc(component.orderIndex));
 
   // Read section content from spec.md (file = source of truth)
-  let fileSections: Map<string, string> = new Map();
+  // Map at ## Component level — all content under a ## heading belongs to that component
+  let fileComponentContent: Map<string, string> = new Map();
   let specFileExists = false;
   if (projectId) {
     const specFile = await readSpecFileAsync(projectId);
     if (specFile) {
       specFileExists = true;
       const parsed = parseSpecSections(specFile.bodyMd);
+      const compGroups = new Map<string, string[]>();
       for (const s of parsed) {
-        const label = s.heading.replace(/^###\s*/, '').trim();
-        fileSections.set(label.toLowerCase(), s.body);
+        const comp = s.component.toLowerCase();
+        const group = compGroups.get(comp) ?? [];
+        group.push(`${s.heading}\n\n${s.body}`);
+        compGroups.set(comp, group);
+      }
+      for (const [comp, parts] of compGroups) {
+        fileComponentContent.set(comp, parts.join('\n\n'));
       }
     }
   }
@@ -189,11 +196,13 @@ export async function loadOutline(db: Db, stageId: string, projectId?: string): 
       mmaSessionId: c.mmaSessionId,
       participantIds: reviewersByComp.get(c.id) ?? [],
       orderIndex: c.orderIndex,
-      sections: secs.map((s) => ({
+      sections: secs.map((s, i) => ({
         id: s.id,
         key: s.key,
         label: s.label,
-        draftMd: fileSections.get(s.label.toLowerCase()) ?? null,
+        draftMd: i === 0
+          ? fileComponentContent.get(templateForKind(c.kind as ComponentKind).label.toLowerCase()) ?? null
+          : null,
         orderIndex: s.orderIndex,
       })),
     });

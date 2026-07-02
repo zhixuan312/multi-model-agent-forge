@@ -61,13 +61,23 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
     }
 
     case 'freeze_spec': {
-      // Set stage approvers + advance to done + activate plan
-      await db.insert(participant).values({
-        projectId, memberId: actorId, scope: 'stage',
-        scopeId: (await db.select({ id: stage.id }).from(stage)
-          .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec'))).limit(1))[0]?.id ?? '',
-        role: 'approver',
-      }).onConflictDoNothing();
+      // Approve all components + set stage approver + advance
+      const { component } = await import('@/db/schema/spec');
+      const [specStage] = await db.select({ id: stage.id }).from(stage)
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec'))).limit(1);
+      if (specStage) {
+        const comps = await db.select({ id: component.id }).from(component)
+          .where(eq(component.stageId, specStage.id));
+        for (const c of comps) {
+          await db.insert(participant).values({
+            projectId, memberId: actorId, scope: 'component', scopeId: c.id, role: 'approver',
+          }).onConflictDoNothing();
+          await db.update(component).set({ status: 'approved' }).where(eq(component.id, c.id));
+        }
+        await db.insert(participant).values({
+          projectId, memberId: actorId, scope: 'stage', scopeId: specStage.id, role: 'approver',
+        }).onConflictDoNothing();
+      }
       await advancePhase(db, projectId, 'spec', 'finalize');
       const now = new Date();
       await db.update(stage).set({ status: 'done', completedAt: now })

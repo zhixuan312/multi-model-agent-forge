@@ -253,36 +253,53 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
   // hands the wheel back mid-flight and Run resumes from exactly here.
+  const autoAuditPass = useRef(0);
   useEffect(() => {
-    // NB: don't bail on `locked` -- once locked, the final step is to navigate
-    // into Execute, which still needs to run.
     if (auto !== 'running' || readOnly) return;
     const t = setTimeout(() => {
       if (phase === 'refine') {
         const next = allTasks.find((tk) => status[tk.id] !== 'approved');
         if (next) {
-          setAutoNote('Drafted & approved: ' + next.title);
+          setAutoNote('Approved: ' + next.title);
           setStatus((s) => ({ ...s, [next.id]: 'approved' }));
+          fetch(`/projects/${props.projectId}/plan/tasks/${next.id}/approve`, { method: 'POST' }).catch(() => {});
         } else {
-          setAutoNote('All tasks drafted -- validating the plan...');
-          setPhase('validate');
+          setAutoNote('All tasks approved — running audit...');
+          advancePhase('validate');
         }
       } else if (phase === 'validate') {
-        if (!auditClean && !auditingRef.current) {
-          setAutoNote('Ran audit pass ' + (rounds.length + 1) + ' -- applied critical/high fixes.');
-          runAudit();
-        } else if (!locked) {
-          setAutoNote('Critical & high cleared -- locking the plan, on to Build.');
+        if (applying) return;
+        const latestRound = rounds[rounds.length - 1];
+        if (latestRound && autoAuditPass.current < rounds.length) {
+          autoAuditPass.current = rounds.length;
+          const hasCritHigh = latestRound.findings.some(
+            (f) => f.severity === 'critical' || f.severity === 'high',
+          );
+          if (hasCritHigh && rounds.length < 5) {
+            setAutoNote(`Audit pass ${rounds.length}/5 — applying ${latestRound.findings.length} findings...`);
+            applyFindings(latestRound.findings, latestRound.passNo);
+            return;
+          }
+          if (hasCritHigh && rounds.length >= 5) {
+            setAutoNote('Audit cap reached — critical/high findings remain after 5 passes.');
+            setAuto('off');
+            return;
+          }
+        }
+        if (auditClean && !locked) {
+          setAutoNote('Audit clean — locking the plan.');
           setLocked(true);
-        } else {
-          // Plan is locked -- carry the automated run into the Execute stage.
+        } else if (locked) {
           router.push(`/projects/${props.projectId}/execute?auto=1`);
+        } else if (!auditingRef.current) {
+          setAutoNote(`Running audit pass ${rounds.length + 1}/5...`);
+          runAudit();
         }
       }
     }, 1100);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, phase, status, rounds, auditClean, locked, readOnly]);
+  }, [auto, phase, status, rounds, auditClean, locked, applying, readOnly]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="plan-stage">

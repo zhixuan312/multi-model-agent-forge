@@ -19,7 +19,7 @@ import type { ProjectPhase } from '@/db/enums';
  *
  * The pure predicate is exported as `filterProjects` so it is unit-testable.
  */
-export type PhaseFilter = 'all' | 'design' | 'build' | 'learn';
+export type PhaseFilter = 'all' | 'design' | 'build' | 'learn' | 'completed';
 
 export interface ProjectFilterState {
   search: string;
@@ -42,6 +42,7 @@ const PHASE_BUCKET: Record<ProjectPhase, Exclude<PhaseFilter, 'all'>> = {
   design: 'design',
   build: 'build',
   learn: 'learn',
+  completed: 'completed',
 };
 
 const needsAction = (p: FilterableProject) => p.awaitingHuman > 0 || p.openAuditIssues > 0;
@@ -92,6 +93,7 @@ export function ProjectFilterBar({ projects }: { projects: DashboardProject[] })
     design: bucketCount(projects, 'design'),
     build: bucketCount(projects, 'build'),
     learn: bucketCount(projects, 'learn'),
+    completed: bucketCount(projects, 'completed'),
   };
   const needsCount = projects.filter(needsAction).length;
 

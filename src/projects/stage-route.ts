@@ -31,4 +31,5 @@ export const DATA_PHASE: Record<ProjectPhase, 'design' | 'build'> = {
   design: 'design',
   build: 'build',
   learn: 'build',
+  completed: 'build',
 } as const;

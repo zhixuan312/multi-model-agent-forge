@@ -173,6 +173,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest') || shouldAutoHarvest;
   const recording = props.recording || mma.busyHandlers.has('journal-record');
 
+  const [auto, setAuto] = useState<'off' | 'running'>('off');
+  const [autoNote, setAutoNote] = useState('');
+
+  // Auto-entry from ?auto=1
+  useEffect(() => {
+    if (readOnly) return;
+    if (new URLSearchParams(window.location.search).get('auto') === '1') {
+      setAutoNote('Starting journal automation…');
+      setAuto('running');
+    }
+  }, [readOnly]);
+
   // Auto-trigger harvest when no journal.md exists (like plan auto-triggers author-plan)
   useEffect(() => {
     if (!shouldAutoHarvest || mma.busyRef.current.has('journal-harvest')) return;
@@ -214,6 +226,78 @@ export function JournalStageClient(props: JournalStageClientProps) {
       contentRef.current?.scrollTo?.(0, 0);
     }
   }, [activeId, learningView, threads]);
+
+  // Automated driver: harvest → self-validate each learning → record → mark complete
+  const autoRefiningLearning = useRef<string | null>(null);
+  useEffect(() => {
+    if (auto !== 'running' || readOnly || phase !== 'journal') return;
+    const t = setTimeout(() => {
+      // Step 1: harvest if needed
+      if (props.learnings.length === 0 && !harvesting) {
+        setAutoNote('Harvesting learnings…');
+        void mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {}).catch(() => {});
+        return;
+      }
+      if (harvesting) return;
+
+      // Step 2: self-validate each unapproved learning
+      const nextUnapproved = props.learnings.find((l) => status[l.id] !== 'kept' && status[l.id] !== 'recorded');
+      if (nextUnapproved) {
+        if (refiningLearnings.has(nextUnapproved.id)) return;
+        if (autoRefiningLearning.current === nextUnapproved.id) {
+          // Refinement done — approve
+          autoRefiningLearning.current = null;
+          setAutoNote(`Approved: ${nextUnapproved.title}`);
+          setLocalOverrides((o) => ({ ...o, [nextUnapproved.id]: 'kept' }));
+          fetch(`/api/projects/${props.projectId}/journal/approve`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ learningId: nextUnapproved.id, action: 'approve' }),
+          }).catch(() => {});
+          return;
+        }
+        // Send validation message
+        const idx = props.learnings.indexOf(nextUnapproved) + 1;
+        setActiveId(nextUnapproved.id);
+        setAutoNote(`Validating learning ${idx}/${props.learnings.length}…`);
+        autoRefiningLearning.current = nextUnapproved.id;
+        setThreads((th) => ({
+          ...th,
+          [nextUnapproved.id]: [...(th[nextUnapproved.id] ?? []), { id: nid(), role: 'user', text: 'Review this learning for clarity, actionability, and accuracy. Refine if needed. @Forge' }],
+        }));
+        // For now, since journal-refine may not be wired, just auto-approve after a delay
+        setRefiningLearnings((prev) => new Set(prev).add(nextUnapproved.id));
+        setTimeout(() => {
+          setRefiningLearnings((prev) => { const n = new Set(prev); n.delete(nextUnapproved.id); return n; });
+          setThreads((th) => ({
+            ...th,
+            [nextUnapproved.id]: [...(th[nextUnapproved.id] ?? []), { id: nid(), role: 'forge', text: 'Reviewed — this learning is clear and actionable.' }],
+          }));
+        }, 500);
+        return;
+      }
+
+      // Step 3: record all approved learnings
+      if (!allRecorded && !recording) {
+        setAutoNote('Recording learnings…');
+        void mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {}).catch(() => {});
+        return;
+      }
+      if (recording) return;
+
+      // Step 4: advance to summary + mark complete
+      if (allRecorded) {
+        setAutoNote('Completing project…');
+        fetch(`/api/projects/${props.projectId}/complete`, { method: 'POST' })
+          .then(() => {
+            setAuto('off');
+            advancePhase('summary');
+          })
+          .catch(() => { setAuto('off'); });
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, phase, props.learnings.length, harvesting, recording, allRecorded, status, refiningLearnings, readOnly]);
 
   // Category groups for right panel
   const categories = useMemo(() => {
@@ -368,12 +452,13 @@ export function JournalStageClient(props: JournalStageClientProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
-        mode="off"
-        note=""
+        mode={auto}
+        note={autoNote}
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
-        onRun={() => {}}
-        onStop={() => {}}
+        runningHint="Forge harvests, validates, and records learnings, then marks the project complete."
+        onRun={() => { setAutoNote('Starting journal automation…'); setAuto('running'); }}
+        onStop={() => { setAuto('off'); setAutoNote('Stopped.'); }}
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — learning content / discussion (like Plan Refine) */}

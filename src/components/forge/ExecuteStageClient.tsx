@@ -249,12 +249,35 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   });
   const allFailed = props.repoGroups.length > 0 && props.repoGroups.every((g) => jobs[g.repoId]?.status === 'failed');
 
-  // Auto-retry on page load if all repos failed and no execution is in-flight
+  // Auto-entry from ?auto=1 (chaining from Plan)
   useEffect(() => {
-    if (!allFailed || readOnly || mma.busyRef.current.has('execute-pipeline')) return;
-    void startExecution();
+    if (readOnly) return;
+    if (new URLSearchParams(window.location.search).get('auto') === '1') {
+      setAutoNote('Starting execution…');
+      setAuto('running');
+      if (!allTerminal && !mma.busyRef.current.has('execute-pipeline')) {
+        startExecution();
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [readOnly]);
+
+  // Auto-chain to Review when all tasks are terminal
+  useEffect(() => {
+    if (auto !== 'running' || !allTerminal) return;
+    const anyCommitted = props.repoGroups.some((g) => jobs[g.repoId]?.status === 'done');
+    if (!anyCommitted) {
+      setAutoNote('All tasks failed — no code committed.');
+      setAuto('off');
+      return;
+    }
+    setAutoNote('Execution complete — advancing to Review...');
+    const t = setTimeout(() => {
+      router.push(`/projects/${props.projectId}/review?auto=1`);
+    }, 1500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, allTerminal, jobs]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { Loader2, ScanSearch } from 'lucide-react';
@@ -87,6 +87,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const reviewing = props.reviewRunning || mma.busyHandlers.has('code-review');
   const applying = props.applyRunning || mma.busyHandlers.has('review-apply');
 
+  const [auto, setAuto] = useState<'off' | 'running'>('off');
+  const [autoNote, setAutoNote] = useState('');
+
   const activePass = props.passes.find((p) => p.passNo === activePassNo);
   const isViewingPast = activePass && activePass.passNo < props.passes.length;
   const allApplied = activePass ? activePass.appliedIndices.length > 0 : false;
@@ -95,6 +98,52 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   useEffect(() => {
     if (props.passes.length > 0) setActivePassNo(props.passes[props.passes.length - 1].passNo);
   }, [props.passes.length]);
+
+  // Auto-entry from ?auto=1
+  useEffect(() => {
+    if (readOnly) return;
+    if (new URLSearchParams(window.location.search).get('auto') === '1') {
+      setAutoNote('Starting code review…');
+      setAuto('running');
+    }
+  }, [readOnly]);
+
+  // Automated driver: review loop (5-pass cap) + chain to Reflect
+  const autoPassCount = useRef(0);
+  useEffect(() => {
+    if (auto !== 'running' || readOnly) return;
+    const t = setTimeout(() => {
+      if (reviewing || applying) return;
+      const latestPass = props.passes[props.passes.length - 1];
+      if (latestPass && autoPassCount.current < props.passes.length) {
+        autoPassCount.current = props.passes.length;
+        const hasCritHigh = latestPass.findings.some(
+          (f) => f.weight === 'critical' || f.weight === 'high',
+        );
+        if (hasCritHigh && props.passes.length < 5) {
+          setAutoNote(`Review pass ${props.passes.length}/5 — applying ${latestPass.findings.length} findings...`);
+          apply(latestPass.passNo, latestPass.findings.map((_, i) => i));
+          return;
+        }
+        if (hasCritHigh && props.passes.length >= 5) {
+          setAutoNote('Review cap reached — critical/high findings remain.');
+          setAuto('off');
+          return;
+        }
+        // Clean — chain to Reflect
+        setAutoNote('Review clean — advancing to Reflect...');
+        setTimeout(() => router.push(`/projects/${props.projectId}/journal?auto=1`), 1000);
+        return;
+      }
+      // No review yet or more passes needed — run review
+      if (!reviewing) {
+        setAutoNote(`Running review pass ${props.passes.length + 1}/5...`);
+        void mma.dispatch(`/api/projects/${props.projectId}/review/run`, 'code-review', {});
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, props.passes.length, reviewing, applying, readOnly]);
 
   function apply(passNo: number, indices: number[]) {
     if (readOnly || indices.length === 0 || applying) return;
@@ -110,12 +159,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
-        mode="off"
-        note=""
+        mode={auto}
+        note={autoNote}
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
-        onRun={() => {}}
-        onStop={() => {}}
+        runningHint="Forge reviews the code, applies fixes, then advances to Reflect."
+        onRun={() => { setAutoNote('Starting review…'); setAuto('running'); }}
+        onStop={() => { setAuto('off'); setAutoNote('Stopped.'); }}
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — findings content */}

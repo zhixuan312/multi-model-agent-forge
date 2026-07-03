@@ -2,7 +2,6 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { stage } from '@/db/schema/projects';
 import { readExplorationSummaryAsync, readSpecFileAsync, readPlanFileAsync, journalFilePath } from '@/projects/project-files';
 import { getProject } from '@/projects/projects-core';
 
@@ -10,7 +9,15 @@ export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): P
   const proj = await getProject(projectId, { db });
   const sections: string[] = [];
   sections.push(`# Project: ${proj?.name ?? projectId}`);
-  if (proj?.intentMd) sections.push(`## Intent\n${proj.intentMd}`);
+  // Intent: in details world, brief text IS the intent
+  if (proj?.details && proj.detailsReady) {
+    const { getBriefText } = await import('@/details/read');
+    const { validateDetails } = await import('@/details/schema');
+    const brief = getBriefText(validateDetails(proj.details));
+    if (brief) sections.push(`## Intent\n${brief}`);
+  } else if (proj?.intentMd) {
+    sections.push(`## Intent\n${proj.intentMd}`);
+  }
 
   const explorationMd = await readExplorationSummaryAsync(projectId);
   if (explorationMd) sections.push(`## Exploration\n${explorationMd.slice(0, 6000)}`);
@@ -41,15 +48,16 @@ export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): P
   }
 
   try {
-    const discussions = await db.select({ bodyMd: qaMessage.bodyMd, sender: qaMessage.sender })
-      .from(qaMessage)
-      .innerJoin(stage, eq(qaMessage.stageId, stage.id))
-      .where(eq(stage.projectId, projectId))
-      .orderBy(qaMessage.createdAt);
+    const discussions = await db.select({ bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
+        .from(qaMessage)
+        .where(eq(qaMessage.projectId, projectId))
+        .orderBy(qaMessage.createdAt);
     if (discussions.length > 0) {
-      const convo = discussions.slice(-50).map((d) =>
-        `[${d.sender}] ${(d.bodyMd ?? '').slice(0, 200)}`
-      ).join('\n');
+      const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
+      const convo = discussions.slice(-50).map((d) => {
+        const role = d.authorId === FORGE_MEMBER_ID ? 'forge' : 'member';
+        return `[${role}] ${(d.bodyMd ?? '').slice(0, 200)}`;
+      }).join('\n');
       sections.push(`## Conversations & Discussions\n${convo}`);
     }
   } catch { /* qa_message may not exist for all projects */ }

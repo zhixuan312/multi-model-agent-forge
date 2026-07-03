@@ -1,11 +1,10 @@
-import type { PlanTaskRow } from '@/db/schema/build';
-import type { RepoContext, ExecutorDeps, TaskOutcome } from '@/build/executor';
+import type { PlanTaskView, RepoContext, ExecutorDeps, TaskOutcome } from '@/build/executor';
 import { executeTask } from '@/build/executor';
 
 /**
  * Build scheduler (Spec 7 §Execute, `BuildScheduler`; the 7b orchestration core).
  *
- * Drives queued plan_tasks to completion / halt with:
+ * Drives queued plan tasks to completion / halt with:
  *  - depends_on gating: a task dispatches only when EVERY id in depends_on is
  *    committed/skipped.
  *  - per-cwd serialization: at most one in-flight execute-plan batch per
@@ -19,7 +18,7 @@ import { executeTask } from '@/build/executor';
  * testable with a fake that records dispatch order without real execution.
  */
 
-export const MAX_CONCURRENT_LANES = 4;
+const MAX_CONCURRENT_LANES = 4;
 
 export interface RepoMeta {
   id: string;
@@ -29,7 +28,7 @@ export interface RepoMeta {
 }
 
 /** The per-task runner the scheduler calls (default = the real executor). */
-export type RunTaskFn = (task: PlanTaskRow, repo: RepoContext) => Promise<TaskOutcome>;
+export type RunTaskFn = (task: PlanTaskView, repo: RepoContext) => Promise<TaskOutcome>;
 
 export interface SchedulerResult {
   committed: string[];
@@ -72,7 +71,7 @@ export class BuildScheduler {
    * Run all tasks. `tasks` is the full queued set (with depends_on as id[]).
    * Resolves when every task is terminal (committed/failed/halted/skipped-by-halt).
    */
-  async run(tasks: PlanTaskRow[]): Promise<SchedulerResult> {
+  async run(tasks: PlanTaskView[]): Promise<SchedulerResult> {
     const done = new Map<string, 'committed' | 'failed' | 'halted'>();
     const haltedRepos = new Set<string>();
     const firstTaskSeen = new Set<string>(); // repos that have started their first task
@@ -82,21 +81,21 @@ export class BuildScheduler {
     const failed: string[] = [];
     const halted: string[] = [];
 
-    const isReady = (t: PlanTaskRow): boolean => {
+    const isReady = (t: PlanTaskView): boolean => {
       if (haltedRepos.has(t.targetRepoId)) return false;
       for (const dep of t.dependsOn ?? []) {
         const d = done.get(dep);
-        if (d !== 'committed') return false; // dependents wait on a committed predecessor
+        if (d !== 'committed') return false;
       }
       return true;
     };
 
-    const remaining = (): PlanTaskRow[] => tasks.filter((t) => !done.has(t.id) && !haltedRepos.has(t.targetRepoId));
+    const remaining = (): PlanTaskView[] => tasks.filter((t) => !done.has(t.id) && !haltedRepos.has(t.targetRepoId));
 
     // Order tasks within a repo by order_index for sequential dispatch.
     const sorted = [...tasks].sort((a, b) => a.orderIndex - b.orderIndex);
 
-    const runOne = async (task: PlanTaskRow): Promise<void> => {
+    const runOne = async (task: PlanTaskView): Promise<void> => {
       inFlightRepos.add(task.targetRepoId);
       const meta = this.repos.get(task.targetRepoId)!;
       const firstTask = !firstTaskSeen.has(task.targetRepoId);
@@ -126,16 +125,13 @@ export class BuildScheduler {
       }
     };
 
-    // Event-loop driven dispatcher: launch ready tasks (respecting per-cwd
-    // exclusivity + the lane cap), await the first to settle, repeat.
     const active = new Set<Promise<void>>();
     for (;;) {
-      // Launch as many ready tasks as the cap + per-cwd rule allow.
       let launched = false;
       for (const task of sorted) {
         if (active.size >= this.maxLanes) break;
         if (done.has(task.id)) continue;
-        if (inFlightRepos.has(task.targetRepoId)) continue; // one writer per cwd
+        if (inFlightRepos.has(task.targetRepoId)) continue;
         if (!isReady(task)) continue;
         const p = runOne(task).then(() => {
           active.delete(p);
@@ -145,8 +141,6 @@ export class BuildScheduler {
       }
 
       if (active.size === 0) {
-        // Nothing in flight. If work remains but is all blocked (halted-repo /
-        // unsatisfiable deps), we're done.
         if (remaining().length === 0 || !launched) break;
       }
       if (active.size > 0) {

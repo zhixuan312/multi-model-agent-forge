@@ -72,10 +72,11 @@ function formatUsd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function stageDuration(startedAt: Date | null, completedAt: Date | null): string {
+function stageDuration(startedAt: string | Date | null, completedAt: string | Date | null): string {
   if (!startedAt || !completedAt) return '—';
-  const ms = completedAt.getTime() - startedAt.getTime();
-  return formatDuration(ms);
+  const start = typeof startedAt === 'string' ? new Date(startedAt).getTime() : startedAt.getTime();
+  const end = typeof completedAt === 'string' ? new Date(completedAt).getTime() : completedAt.getTime();
+  return formatDuration(end - start);
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -113,7 +114,9 @@ export function SummaryPhase({ summary, projectId, readOnly, onMarkComplete, com
     const first = orderedStages.find((s) => s.startedAt);
     const last = [...orderedStages].reverse().find((s) => s.completedAt);
     if (!first?.startedAt || !last?.completedAt) return 0;
-    return last.completedAt.getTime() - first.startedAt.getTime();
+    const start = new Date(first.startedAt).getTime();
+    const end = new Date(last.completedAt).getTime();
+    return end - start;
   })();
 
   return (
@@ -145,26 +148,16 @@ export function SummaryPhase({ summary, projectId, readOnly, onMarkComplete, com
           <StatRow label="Spec version" value={`v${summary.quality.specVersion}`} />
           <StatRow label="Plan version" value={`v${summary.quality.planVersion}`} />
           <StatRow label="Audit passes" value={String(summary.quality.auditPasses.length)} />
-          <StatRow
-            label="Findings"
-            value={String(summary.quality.auditPasses.reduce((sum, p) => sum + p.findingsCount, 0))}
-          />
         </StatCard>
 
         <StatCard icon={GitCommit} title="Delivery">
           <StatRow label="Total tasks" value={String(summary.delivery.totalTasks)} />
-          <StatRow label="Committed" value={String(summary.delivery.committed)} />
-          {summary.delivery.failed > 0 ? (
-            <StatRow label="Failed" value={String(summary.delivery.failed)} />
-          ) : null}
-          {summary.delivery.skipped > 0 ? (
-            <StatRow label="Skipped" value={String(summary.delivery.skipped)} />
-          ) : null}
+          <StatRow label="Approved" value={String(summary.delivery.approved)} />
         </StatCard>
 
         <StatCard icon={BookOpen} title="Knowledge">
           <StatRow label="Learnings recorded" value={String(summary.knowledge.recorded)} />
-          {Object.entries(summary.knowledge.byCategory).map(([cat, count]) => (
+          {Object.entries(summary.knowledge.byType).map(([cat, count]) => (
             <StatRow key={cat} label={cat} value={String(count)} />
           ))}
         </StatCard>

@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { auditPass } from '@/db/schema/artifacts';
-import type { AuditPassRow } from '@/db/schema/artifacts';
 import type { AuditVerdict } from '@/db/enums';
 import { mmaBatch } from '@/db/schema/ops';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
@@ -108,11 +108,15 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
 
 /** The next monotonic persisted pass_no for a project's spec audits (`max+1`). */
 export async function nextPassNo(db: Db, projectId: string, scope: 'spec' | 'plan' = 'spec'): Promise<number> {
-  const [row] = await db
-    .select({ m: sql<number>`coalesce(max(${auditPass.passNo}), 0)` })
-    .from(auditPass)
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, scope)));
-  return (row?.m ?? 0) + 1;
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (row?.details) {
+    const d = validateDetails(row.details);
+    const passes = scope === 'spec'
+      ? d.stages.spec.phases.finalize.auditPasses
+      : d.stages.plan.phases.validate.auditPasses;
+    return passes.length + 1;
+  }
+  return 1;
 }
 
 /** A pass-history row for the UI timeline ("pass 1: 2 findings → revised · pass 2: clean"). */
@@ -128,59 +132,32 @@ export interface AuditPassView {
 /** The full audit-pass history for a project+scope, oldest-first. */
 export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' | 'plan' = 'spec'): Promise<AuditPassView[]> {
   const dbi = db ?? getDb();
-  const rows = await dbi
-    .select({
-      passNo: auditPass.passNo,
-      findingsCount: auditPass.findingsCount,
-      verdict: auditPass.verdict,
-      createdAt: auditPass.createdAt,
-      batchResult: mmaBatch.result,
-    })
-    .from(auditPass)
-    .leftJoin(mmaBatch, eq(auditPass.mmaBatchId, mmaBatch.id))
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, scope)))
-    .orderBy(asc(auditPass.passNo));
+  const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return [];
+  const d = validateDetails(row.details);
+  const passes = scope === 'spec'
+    ? d.stages.spec.phases.finalize.auditPasses
+    : d.stages.plan.phases.validate.auditPasses;
 
-  // Find which pass numbers have completed apply batches
-  const applyBatches = await dbi
-    .select({ request: mmaBatch.request })
-    .from(mmaBatch)
-    .where(and(
-      eq(mmaBatch.projectId, projectId),
-      eq(mmaBatch.handler, scope === 'plan' ? 'plan-audit-apply' : 'spec-audit-apply'),
-      eq(mmaBatch.status, 'done'),
-    ));
-  const appliedPassNos = new Set<number>();
-  for (const b of applyBatches) {
-    const req = b.request as Record<string, unknown> | null;
-    if (req && typeof req.passNo === 'number') appliedPassNos.add(req.passNo);
-  }
-
-  return rows.map((r) => {
+  const results: AuditPassView[] = [];
+  for (const p of passes) {
     let findings: ParsedFinding[] = [];
-    if (r.batchResult) {
-      const parsed = parseAuditEnvelope(r.batchResult);
-      if (parsed.kind === 'report') findings = parsed.findings;
+    const batchId = p.audit?.attempts?.[0]?.batchId;
+    if (batchId) {
+      const [batch] = await dbi.select({ result: mmaBatch.result }).from(mmaBatch).where(eq(mmaBatch.id, batchId)).limit(1);
+      if (batch?.result) {
+        const parsed = parseAuditEnvelope(batch.result);
+        if (parsed.kind === 'report') findings = parsed.findings;
+      }
     }
-    return {
-      passNo: r.passNo,
-      findingsCount: r.findingsCount,
-      verdict: r.verdict as AuditVerdict,
-      createdAt: r.createdAt,
+    results.push({
+      passNo: p.passNo,
+      findingsCount: findings.length,
+      verdict: p.status as AuditVerdict,
+      createdAt: new Date(),
       findings,
-      applied: appliedPassNos.has(r.passNo),
-    };
-  });
-}
-
-/** The latest spec audit_pass row (verdict gate for freeze), or null if none run. */
-export async function latestAuditPass(db: Db, projectId: string): Promise<AuditPassRow | null> {
-  const dbi = db ?? getDb();
-  const [row] = await dbi
-    .select()
-    .from(auditPass)
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')))
-    .orderBy(desc(auditPass.passNo))
-    .limit(1);
-  return row ?? null;
+      applied: !!p.fix?.attempts?.length,
+    });
+  }
+  return results;
 }

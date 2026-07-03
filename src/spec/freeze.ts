@@ -1,22 +1,14 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { auditPass } from '@/db/schema/artifacts';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 
-/**
- * Freeze gate — the audit-verdict precondition for the spec stage. `canFreeze`
- * returns true iff the latest spec audit pass has verdict 'clean' (no critical
- * or high findings). The actual design→build phase transition happens via
- * `advanceStage` in `projects-core.ts` when plan→execute.
- */
-
-/** True iff the latest spec audit pass verdict is 'clean'. */
 export async function canFreeze(db: Db, projectId: string): Promise<boolean> {
   const dbi = db ?? getDb();
-  const [latest] = await dbi
-    .select({ verdict: auditPass.verdict })
-    .from(auditPass)
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')))
-    .orderBy(desc(auditPass.passNo))
-    .limit(1);
-  return latest?.verdict === 'clean';
+  const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return false;
+  const d = validateDetails(row.details);
+  const passes = d.stages.spec.phases.finalize.auditPasses;
+  if (passes.length === 0) return false;
+  return passes[passes.length - 1].status === 'clean';
 }

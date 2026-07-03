@@ -1,7 +1,7 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { stage } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 
 export interface StagePerm {
   canMutate: boolean;
@@ -18,78 +18,41 @@ export interface StagePermissions {
   journal: StagePerm;
 }
 
-/**
- * Stage locking rules:
- *
- * Design phase (Explore, Spec, Plan) — freely editable until Execute starts.
- * Users can bounce between them, add research while writing the spec, etc.
- *
- * Build phase — each stage locks when completed, cascading backward:
- *   Execute done → locks Explore, Spec, Plan, Execute
- *   Review done  → locks Explore, Spec, Plan, Execute, Review
- *   Journal done → locks all
- */
 export async function getStagePermissions(db: Db, projectId: string): Promise<StagePermissions> {
   const dbi = db ?? getDb();
 
   const [proj] = await dbi
-    .select({ completedAt: project.completedAt })
+    .select({ completedAt: project.completedAt, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
-  const projectComplete = !!proj?.completedAt;
 
-  const stageRows = await dbi
-    .select({ kind: stage.kind, status: stage.status })
-    .from(stage)
-    .where(eq(stage.projectId, projectId));
-
-  const statusOf = (kind: string) => stageRows.find((r) => r.kind === kind)?.status ?? 'pending';
-
-  const executeStatus = statusOf('execute');
-  const executeStarted = executeStatus === 'active' || executeStatus === 'done';
-  const executeDone = executeStatus === 'done';
-  const reviewDone = statusOf('review') === 'done';
-  const journalDone = statusOf('journal') === 'done';
-
-  if (projectComplete) {
+  if (proj?.completedAt) {
     const locked = { canMutate: false, canAdvance: false, reason: 'Project is complete.' };
     return { explore: locked, spec: locked, plan: locked, execute: locked, review: locked, journal: locked };
   }
+
+  if (!proj?.details) {
+    const open = { canMutate: true, canAdvance: true };
+    return { explore: open, spec: open, plan: open, execute: open, review: open, journal: open };
+  }
+
+  const d = validateDetails(proj.details);
+  const executeStatus = d.stages.execute.status;
+  const executeStarted = executeStatus === 'active' || executeStatus === 'done';
+  const executeDone = executeStatus === 'done';
+  const reviewDone = d.stages.review.status === 'done';
+  const journalDone = d.stages.journal.status === 'done';
 
   const designLocked = executeStarted;
   const designReason = executeDone ? 'Locked — execution has completed.' : 'Locked — execution is in progress.';
 
   return {
-    explore: {
-      canMutate: !designLocked,
-      canAdvance: true,
-      ...(designLocked && { reason: designReason }),
-    },
-    spec: {
-      canMutate: !designLocked,
-      canAdvance: true,
-      ...(designLocked && { reason: designReason }),
-    },
-    plan: {
-      canMutate: !designLocked,
-      canAdvance: true,
-      ...(designLocked && { reason: designReason }),
-    },
-    execute: {
-      canMutate: !executeDone,
-      canAdvance: true,
-      ...(executeDone && { reason: 'Locked — execution is complete.' }),
-    },
-    review: {
-      canMutate: !reviewDone,
-      canAdvance: true,
-      ...(reviewDone && { reason: 'Locked — review is complete.' }),
-    },
-    journal: {
-      canMutate: !journalDone,
-      canAdvance: true,
-      ...(journalDone && { reason: 'Locked — journal is complete.' }),
-    },
+    explore: { canMutate: !designLocked, canAdvance: true, ...(designLocked && { reason: designReason }) },
+    spec: { canMutate: !designLocked, canAdvance: true, ...(designLocked && { reason: designReason }) },
+    plan: { canMutate: !designLocked, canAdvance: true, ...(designLocked && { reason: designReason }) },
+    execute: { canMutate: !executeDone, canAdvance: true, ...(executeDone && { reason: 'Locked — execution is complete.' }) },
+    review: { canMutate: !reviewDone, canAdvance: true, ...(reviewDone && { reason: 'Locked — review is complete.' }) },
+    journal: { canMutate: !journalDone, canAdvance: true, ...(journalDone && { reason: 'Locked — journal is complete.' }) },
   };
 }

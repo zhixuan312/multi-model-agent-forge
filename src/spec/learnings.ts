@@ -1,67 +1,47 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { learningCandidate, type LearningCandidateRow } from '@/db/schema/learning';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
-import { stage } from '@/db/schema/projects';
-import type { LearningType } from '@/db/enums';
-import { logAction } from '@/observability/action-log';
+import { qaMessage } from '@/db/schema/spec';
 import { readSpecFileAsync } from '@/projects/project-files';
-import { MmaClient } from '@/mma/client';
-import { dispatchMma } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { validateDetails, type Details } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
-/**
- * Learnings curation + journal-record — the write path into the team journal.
- *
- * `buildLearningsPrompt` builds the prompt dispatched via `spec-learnings` handler
- * to propose candidate learnings. `commitLearnings` writes kept candidates to the
- * journal via `journal-record` at `cwd`=workspace root.
- */
-
-/** A candidate as surfaced to the curation UI. */
 export interface LearningCandidateView {
-  id: string;
-  bodyMd: string;
-  type: LearningType;
-  status: LearningCandidateRow['status'];
-  recordedNodeId: string | null;
+  index: number;
+  heading: string;
+  type: string;
+  status: string;
 }
 
-function toView(row: LearningCandidateRow): LearningCandidateView {
-  return {
-    id: row.id,
-    bodyMd: row.bodyMd,
-    type: row.type as LearningType,
-    status: row.status,
-    recordedNodeId: row.recordedNodeId,
-  };
-}
-
-/** Build the `composeLearningCandidates` prompt from intent + locked spec + Q&A session. */
 export async function buildLearningsPrompt(
   db: Db,
   projectId: string,
 ): Promise<{ system: string; user: string }> {
   const [proj] = await db
-    .select({ intentMd: project.intentMd, name: project.name })
+    .select({ name: project.name, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
 
+  let intentText: string | null = null;
+  if (proj?.details) {
+    const { getBriefText } = await import('@/details/read');
+    intentText = getBriefText(validateDetails(proj.details));
+  }
+
   const specFile = await readSpecFileAsync(projectId);
   const spec = specFile ? { bodyMd: specFile.bodyMd } : null;
 
-  // A compact transcript summary across the project's sections.
-  const msgs = await db
-    .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
+  const rawMsgs = await db
+    .select({ bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
     .from(qaMessage)
-    .innerJoin(component, eq(qaMessage.componentId, component.id))
-    .innerJoin(stage, eq(component.stageId, stage.id))
-    .where(eq(stage.projectId, projectId))
+    .where(eq(qaMessage.projectId, projectId))
     .orderBy(asc(qaMessage.createdAt));
-
-  const transcript = msgs.map((m) => `- ${m.sender}: ${m.bodyMd}`).join('\n');
+  const transcript = rawMsgs.map((m) => {
+    const sender = m.authorId === FORGE_MEMBER_ID ? 'forge' : 'member';
+    return `- ${sender}: ${m.bodyMd}`;
+  }).join('\n');
 
   const system = [
     "You are Forge's learnings curator. From the locking of a spec, propose the durable",
@@ -73,7 +53,7 @@ export async function buildLearningsPrompt(
 
   const user = [
     `# Project: ${proj?.name ?? '(unknown)'}`,
-    `\n## Intent\n${proj?.intentMd ?? '(none)'}`,
+    `\n## Intent\n${intentText ?? '(none)'}`,
     `\n## Locked specification\n${spec?.bodyMd ?? '(none)'}`,
     transcript ? `\n## Q&A session\n${transcript}` : '',
   ].join('\n');
@@ -81,148 +61,49 @@ export async function buildLearningsPrompt(
   return { system, user };
 }
 
-/** Set a candidate's curation status (keep/remove). */
 export async function setLearningStatus(
   projectId: string,
-  candidateId: string,
+  index: number,
   status: 'kept' | 'removed',
   deps: { db?: Db } = {},
 ): Promise<void> {
   const db = deps.db ?? getDb();
-  await db
-    .update(learningCandidate)
-    .set({ status })
-    .where(and(eq(learningCandidate.id, candidateId), eq(learningCandidate.projectId, projectId)));
+  await updateDetails(db, projectId, (d) => {
+    if (d.stages.journal.phases.journal.learnings[index]) {
+      d.stages.journal.phases.journal.learnings[index].status = status;
+    }
+    return d;
+  });
 }
 
-/** Insert a member-authored candidate (status 'kept', origin 'spec'). */
 export async function addLearning(
   projectId: string,
-  input: { bodyMd: string; type: LearningType },
-  actorId: string,
+  input: { heading: string; type: 'decision' | 'insight' },
   deps: { db?: Db } = {},
 ): Promise<LearningCandidateView> {
   const db = deps.db ?? getDb();
-  const [row] = await db
-    .insert(learningCandidate)
-    .values({
-      projectId,
-      bodyMd: input.bodyMd,
+  let idx = 0;
+  await updateDetails(db, projectId, (d) => {
+    d.stages.journal.phases.journal.learnings.push({
+      heading: input.heading,
       type: input.type,
-      origin: 'spec',
       status: 'kept',
-      createdBy: actorId,
-    })
-    .returning();
-  return toView(row);
+    });
+    idx = d.stages.journal.phases.journal.learnings.length - 1;
+    return d;
+  });
+  return { index: idx, heading: input.heading, type: input.type, status: 'kept' };
 }
 
-/** Extract node ids from a journal-record terminal envelope: `output.summary.recorded[].ids[]`. */
-export function parseRecordedNodeIds(envelope: unknown): string[] {
-  const env = (envelope ?? {}) as Record<string, unknown>;
-  const output = (env.output ?? {}) as Record<string, unknown>;
-  const summary = output.summary;
-  if (!summary || typeof summary !== 'object') return [];
-  const recorded = (summary as Record<string, unknown>).recorded;
-  if (!Array.isArray(recorded)) return [];
-  const ids: string[] = [];
-  for (const entry of recorded) {
-    const e = (entry ?? {}) as { ids?: unknown };
-    if (Array.isArray(e.ids)) {
-      for (const id of e.ids) if (typeof id === 'string' && id.length > 0) ids.push(id);
-    }
-  }
-  return ids;
-}
-
-/** Thrown when journal-record returned no node ids (retryable; candidates stay 'kept'). */
-export class JournalRecordIncompleteError extends Error {
-  constructor() {
-    super('The journal write did not finish — try again.');
-    this.name = 'JournalRecordIncompleteError';
-  }
-}
-
-export interface CommitLearningsDeps {
-  db?: Db;
-  mma: MmaClient;
-  /** Workspace root override (tests); defaults to `resolveWorkspaceRoot()`. */
-  workspaceRoot?: string;
-}
-
-export interface CommitLearningsResult {
-  recordedCount: number;
-  nodeIds: string[];
-}
-
-/**
- * Commit the kept learnings to the team journal. Dispatches ONE `journal-record`
- * batch with all kept candidates as `learnings[]`, at `cwd`=WORKSPACE ROOT, then
- * stamps each kept candidate with a recorded node id and flips it to 'recorded'.
- *
- * On an envelope with no node ids (F4) the candidates stay 'kept' (retryable) and
- * `JournalRecordIncompleteError` is thrown — never stamp on a failed write.
- */
-export async function commitLearnings(
-  deps: CommitLearningsDeps,
+export async function allCandidates(
   projectId: string,
-  actorId: string,
-): Promise<CommitLearningsResult> {
+  deps: { db?: Db } = {},
+): Promise<LearningCandidateView[]> {
   const db = deps.db ?? getDb();
-  const cwd = deps.workspaceRoot ?? resolveWorkspaceRoot();
-
-  const kept = await db
-    .select()
-    .from(learningCandidate)
-    .where(and(eq(learningCandidate.projectId, projectId), eq(learningCandidate.status, 'kept')))
-    .orderBy(asc(learningCandidate.createdAt));
-
-  if (kept.length === 0) return { recordedCount: 0, nodeIds: [] };
-
-  const tagHints = [...new Set(kept.map((c) => c.type))];
-  const { envelope } = await dispatchMma({
-    db,
-    mma: deps.mma,
-    projectId,
-    route: 'journal_record',
-    handler: 'spec-learnings-record',
-    cwd,
-    body: { learnings: kept.map((c) => c.bodyMd), tagHints },
-    actorId,
-    await: true,
-  });
-
-  const nodeIds = parseRecordedNodeIds(envelope);
-  if (nodeIds.length === 0) {
-    // No node ids → failed write; leave candidates 'kept', retryable (F4).
-    throw new JournalRecordIncompleteError();
-  }
-
-  // Stamp each kept candidate with a node id (positional; surplus ids ignored).
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < kept.length; i += 1) {
-      const nodeId = nodeIds[i] ?? nodeIds[nodeIds.length - 1];
-      await tx
-        .update(learningCandidate)
-        .set({ recordedNodeId: nodeId, status: 'recorded' })
-        .where(eq(learningCandidate.id, kept[i].id));
-    }
-    await logAction(
-      { projectId, memberId: actorId, action: 'record_learnings', target: `project:${projectId}` },
-      tx as unknown as Db,
-    );
-  });
-
-  return { recordedCount: kept.length, nodeIds };
-}
-
-/** Load the curation set for the /freeze screen (all candidates, oldest-first). */
-export async function loadLearnings(db: Db, projectId: string): Promise<LearningCandidateView[]> {
-  const dbi = db ?? getDb();
-  const rows = await dbi
-    .select()
-    .from(learningCandidate)
-    .where(eq(learningCandidate.projectId, projectId))
-    .orderBy(asc(learningCandidate.createdAt));
-  return rows.map(toView);
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return [];
+  const d = validateDetails(row.details);
+  return d.stages.journal.phases.journal.learnings.map((l, i) => ({
+    index: i, heading: l.heading, type: l.type, status: l.status,
+  }));
 }

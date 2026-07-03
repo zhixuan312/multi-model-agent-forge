@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, projectRepo } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
+import { project } from '@/db/schema/projects';
 import { attachment } from '@/db/schema/exploration';
 import {
   PROMPT_FLOORS,
@@ -88,23 +87,21 @@ export async function buildProposeRequest(
 ): Promise<{ system: string; user: string }> {
   const db = deps.db ?? getDb();
 
-  const [briefRow] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
-  const brief = briefRow?.briefMd ? { bodyMd: briefRow.briefMd } : undefined;
+  const { validateDetails } = await import('@/details/schema');
+  const { getBriefText, getRepos } = await import('@/details/read');
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  const d = projRow?.details ? validateDetails(projRow.details) : null;
+  const briefText = d ? getBriefText(d) : '';
+  const repos = d ? getRepos(d).map((r) => ({ id: r.id, name: r.name })) : [];
 
   const attachments = await db
     .select({ kind: attachment.kind, label: attachment.label, payload: attachment.payload })
     .from(attachment)
     .where(eq(attachment.projectId, projectId));
 
-  const repos = await db
-    .select({ id: projectRepo.repoId, name: repo.name })
-    .from(projectRepo)
-    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, projectId));
-
   return {
     system: PROPOSE_SYSTEM,
-    user: buildProposeUser({ brief: brief?.bodyMd ?? '', attachments, repos: repos.map((r) => ({ id: r.id, name: r.name })) }),
+    user: buildProposeUser({ brief: briefText, attachments, repos }),
   };
 }
 

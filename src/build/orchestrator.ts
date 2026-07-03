@@ -1,14 +1,13 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, stage, buildPr } from '@/db/schema/projects';
-import { planTask, type PlanTaskRow } from '@/db/schema/build';
-import { repo } from '@/db/schema/workspace';
-import { projectRepo } from '@/db/schema/projects';
+import { project, buildPr } from '@/db/schema/projects';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
 import { BuildScheduler, type RepoMeta, type SchedulerResult } from '@/build/scheduler';
-import type { ExecutorDeps } from '@/build/executor';
+import type { ExecutorDeps, PlanTaskView } from '@/build/executor';
 import { reviewRepo, type RunReviewDeps, type ReviewResult } from '@/build/review';
 import { createBuildPr, type BuildPrDeps } from '@/build/pr';
+import { validateDetails, type Details } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
 /**
  * Build pipeline orchestrator (Spec 7 §SSE monitor / phase machine). Drives the
@@ -17,7 +16,7 @@ import { createBuildPr, type BuildPrDeps } from '@/build/pr';
  * advancing the stage/phase rows.
  *
  * This module owns the EXECUTE+REVIEW drive (the 7b sequencing). Plan authoring +
- * plan-audit (7a) run upstream; the orchestrator consumes queued plan_task rows.
+ * plan-audit (7a) run upstream; the orchestrator consumes queued plan tasks from details.
  * Every effectful dep is injected so tests drive fakes and NEVER run a real
  * execute-plan; the route handler defaults the execute trigger OFF.
  */
@@ -37,27 +36,35 @@ export interface ExecutePipelineResult {
   reachedDone: boolean;
 }
 
-/** Load the queued plan_task rows for a project (the execute input set). */
-export async function loadQueuedTasks(db: Db, projectId: string): Promise<PlanTaskRow[]> {
-  return db
-    .select()
-    .from(planTask)
-    .where(eq(planTask.projectId, projectId));
+/** Load the queued plan tasks for a project from details. */
+async function loadQueuedTasks(db: Db, projectId: string): Promise<PlanTaskView[]> {
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return [];
+  const d = validateDetails(row.details);
+  return d.stages.plan.phases.refine.tasks.map((t, i) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    reviewPolicy: t.reviewPolicy,
+    targetRepoId: t.targetRepoId ?? d.repos[0]?.id ?? '',
+    orderIndex: t.orderIndex ?? i,
+    dependsOn: t.dependsOn,
+    phase: t.phase,
+    branch: t.branch,
+    targetBranch: t.targetBranch,
+    commitSha: t.commitSha,
+    fixNote: t.fixNote,
+    mmaBatchId: t.mmaBatchId,
+    meta: t.meta,
+  }));
 }
 
-/** Load the project's repos as scheduler RepoMeta, keyed by id. */
-export async function loadRepoMeta(db: Db, projectId: string): Promise<Map<string, RepoMeta>> {
-  const rows = await db
-    .select({
-      id: repo.id,
-      name: repo.name,
-      pathOnDisk: repo.pathOnDisk,
-      defaultBranch: repo.defaultBranch,
-    })
-    .from(projectRepo)
-    .innerJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, projectId));
-  return new Map(rows.map((r) => [r.id, r]));
+/** Load the project's repos as scheduler RepoMeta from details, keyed by id. */
+async function loadRepoMeta(db: Db, projectId: string): Promise<Map<string, RepoMeta>> {
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return new Map();
+  const d = validateDetails(row.details);
+  return new Map(d.repos.map((r) => [r.id, { id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }]));
 }
 
 /**
@@ -91,17 +98,19 @@ export async function runExecutePipeline(
   const reposWithCommits = new Map<string, RepoMeta>();
   for (const t of tasks) {
     if (committedTaskIds.has(t.id)) {
-      const meta = repos.get(t.targetRepoId);
-      if (meta) reposWithCommits.set(meta.id, meta);
+      const repoId = t.targetRepoId;
+      if (repoId) {
+        const meta = repos.get(repoId);
+        if (meta) reposWithCommits.set(meta.id, meta);
+      }
     }
   }
 
   const reviews: ReviewResult[] = [];
   for (const meta of reposWithCommits.values()) {
-    const changedFiles = await collectChangedFiles(db, projectId, meta.id);
     const r = await reviewRepo(
       { ...deps.review, bus },
-      { projectId, repoName: meta.name, repoCwd: meta.pathOnDisk, changedFiles },
+      { projectId, repoName: meta.name, repoCwd: meta.pathOnDisk, changedFiles: [] },
     );
     reviews.push(r);
   }
@@ -117,7 +126,7 @@ export async function runExecutePipeline(
       const repoTasks = tasks.filter((t) => t.targetRepoId === repoId && committedTaskIds.has(t.id));
       if (repoTasks.length === 0) continue;
       const branch = repoTasks[0]!.branch;
-      const targetBranch = repoTasks[0]!.targetBranch ?? meta.defaultBranch;
+      const targetBranch = meta.defaultBranch;
       if (!branch || !targetBranch) continue;
 
       try {
@@ -126,7 +135,7 @@ export async function runExecutePipeline(
           branch,
           targetBranch,
           repoPath: meta.pathOnDisk,
-          tasks: repoTasks.map((t) => ({ title: t.title, commitSha: t.commitSha })),
+          tasks: repoTasks.map((t) => ({ title: t.title, commitSha: t.commitSha ?? null })),
         });
         if (result && 'url' in result) {
           await db
@@ -143,29 +152,16 @@ export async function runExecutePipeline(
     }
   }
 
-  // Advance to done (review never blocks; an errored review is "done (advisory)").
-  await db.transaction(async (tx) => {
-    const now = new Date();
-    await tx.update(project).set({ phase: 'learn', updatedAt: now }).where(eq(project.id, projectId));
+  // Advance to done via details (review never blocks).
+  await updateDetails(db, projectId, (d) => {
+    const now = new Date().toISOString();
     for (const kind of ['plan', 'execute', 'review'] as const) {
-      await tx
-        .update(stage)
-        .set({ status: 'done', completedAt: now })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, kind)));
+      d.stages[kind].status = 'done';
+      d.stages[kind].completedAt = now;
     }
+    return d;
   });
+  await db.update(project).set({ phase: 'learn', updatedAt: new Date() }).where(eq(project.id, projectId));
 
   return { scheduler: schedResult, reviews, reachedDone: true };
-}
-
-/** Collect the changed file paths across a repo's committed tasks (review scope). */
-async function collectChangedFiles(db: Db, projectId: string, repoId: string): Promise<string[]> {
-  const rows = await db
-    .select({ meta: planTask.meta })
-    .from(planTask)
-    .where(and(eq(planTask.projectId, projectId), eq(planTask.targetRepoId, repoId), eq(planTask.status, 'committed')));
-  // We don't persist per-file lists on plan_task; the review falls back to the
-  // working tree when this is empty. (Kept as a seam for a future file ledger.)
-  void rows;
-  return [];
 }

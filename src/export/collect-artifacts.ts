@@ -8,21 +8,20 @@
  *    plan · review), determine whether the latest artifact (or the review batch
  *    result) exists.
  *  - locked·audited flag (F4): the Specification menu badge is derived —
- *    `project.phase ∈ {build,done}` AND ≥1 `audit_pass{spec,clean}`.
+ *    `project.phase ∈ {build,done}` AND ≥1 clean spec audit.
  *  - COVER META (§1a): owner / visibility / components-N-approved /
  *    audit-clean-N / version (+ `· locked`).
  *  - PER-SECTION HEADER MAP (F1): for the spec, `NN → {status, roles}` from the
- *    spec-stage `component` rows (NN = order_index+1, zero-padded).
+ *    details components.
  *  - REVIEW→MARKDOWN adapter (F25): normalize the review batch result.
  */
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { readExplorationSummary as readExplorationSummarySync, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
-import { auditPass } from '@/db/schema/artifacts';
-import { component } from '@/db/schema/spec';
-import { project, stage } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
+import { validateDetails } from '@/details/schema';
 import type { CoverMeta, ExportKind, SectionHeaderMap } from '@/export/types';
 
 export type { ExportKind };
@@ -79,34 +78,9 @@ function latestArtifact(
   return null;
 }
 
-
-
-/** Count `audit_pass{scope='spec', verdict='clean'}` for a project. */
-async function countCleanSpecAudits(db: Db, projectId: string): Promise<number> {
-  const rows = await db
-    .select({ id: auditPass.id })
-    .from(auditPass)
-    .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec'), eq(auditPass.verdict, 'clean')));
-  return rows.length;
-}
-
-/** The spec-stage `component` rows, ordered by order_index. */
-async function specComponents(
-  db: Db,
-  projectId: string,
-): Promise<{ status: string; roles: string[]; orderIndex: number }[]> {
-  const [specStage] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')))
-    .limit(1);
-  if (!specStage) return [];
-  const rows = await db
-    .select({ status: component.status, roles: component.primaryRoles, orderIndex: component.orderIndex })
-    .from(component)
-    .where(eq(component.stageId, specStage.id))
-    .orderBy(component.orderIndex);
-  return rows.map((r) => ({ status: r.status, roles: r.roles, orderIndex: r.orderIndex }));
+/** Count clean spec audit passes from details. */
+function countCleanSpecAudits(details: ReturnType<typeof validateDetails>): number {
+  return details.stages.spec.phases.finalize.auditPasses.filter((p) => p.status === 'clean').length;
 }
 
 /** Build the cover meta (§1a) + per-spec-section header map (F1). */
@@ -116,7 +90,7 @@ async function buildMeta(
   artifactVersion: number,
 ): Promise<{ meta: CoverMeta; sectionHeaders: SectionHeaderMap }> {
   const [proj] = await db
-    .select({ ownerId: project.ownerId, visibility: project.visibility, phase: project.phase })
+    .select({ ownerId: project.ownerId, visibility: project.visibility, phase: project.phase, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
@@ -128,19 +102,21 @@ async function buildMeta(
     .where(eq(member.id, proj.ownerId))
     .limit(1);
 
-  const comps = await specComponents(db, projectId);
-  const componentsApproved = comps.filter((c) => c.status === 'approved').length;
-  const auditClean = await countCleanSpecAudits(db, projectId);
+  const d = proj.details ? validateDetails(proj.details) : null;
+  const comps = d?.stages.spec.phases.craft.components ?? [];
+  const componentsApproved = comps.filter((c) => c.approvals.length > 0).length;
+  const auditClean = d ? countCleanSpecAudits(d) : 0;
 
   const locked = proj.phase === 'build' || proj.phase === 'learn';
   const version = `v${artifactVersion}${locked ? ' · locked' : ''}`;
 
   const sectionHeaders: SectionHeaderMap = {};
   comps.forEach((c, i) => {
+    const hasApproval = c.approvals.length > 0;
     sectionHeaders[pad2(i + 1)] = {
-      status: titleCase(c.status),
-      approved: c.status === 'approved',
-      roles: c.roles.join(' · '),
+      status: hasApproval ? 'Approved' : 'Gathering',
+      approved: hasApproval,
+      roles: '',
     };
   });
 
@@ -170,14 +146,15 @@ export async function collectMenu(
   await assertProjectReadable(projectId, actor, { db });
 
   const [proj] = await db
-    .select({ phase: project.phase })
+    .select({ phase: project.phase, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
   if (!proj) throw new Error(`Project ${projectId} not found.`);
 
   const lockedPhase = proj.phase === 'build' || proj.phase === 'learn';
-  const cleanSpecAudits = await countCleanSpecAudits(db, projectId);
+  const d = proj.details ? validateDetails(proj.details) : null;
+  const cleanSpecAudits = d ? countCleanSpecAudits(d) : 0;
 
   const items: ArtifactMenuItem[] = [];
   for (const kind of DELIVERABLE_KINDS) {

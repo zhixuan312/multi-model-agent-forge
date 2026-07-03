@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { planTask, type PlanTaskRow, type PlanTaskMeta } from '@/db/schema/build';
 import { mmaBatch } from '@/db/schema/ops';
 import { MmaClient } from '@/mma/client';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
@@ -10,17 +9,19 @@ import { parseExecuteEnvelope, classifyExecute } from '@/build/execute-envelope'
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { inferCommands, cmdToString, type ManifestSnapshot } from '@/build/command-inference';
 import { type CommandRunner } from '@/build/command-runner';
+import { updateDetails } from '@/details/write';
+import type { Details } from '@/details/schema';
 
 /**
  * Per-task executor (Spec 7 §Execute steps 1–4; the 7b core). Drives ONE
- * plan_task: prep branch → dispatch execute-plan → poll terminal → classify →
+ * plan task: prep branch → dispatch execute-plan → poll terminal → classify →
  * verify (commit payload + self-commit + build/test + non-empty diff) → inline-fix
  * loop → commit / fail / halt. Every effectful dep is injected (MmaClient,
  * GitOps, CommandRunner, the inline-fix function) so tests use fakes and NEVER run
  * a real execute-plan or mutate a real repo.
  */
 
-export const MAX_INLINE_FIX_ATTEMPTS = 3;
+const MAX_INLINE_FIX_ATTEMPTS = 3;
 
 export interface RepoContext {
   id: string;
@@ -31,9 +32,26 @@ export interface RepoContext {
   firstTask: boolean;
 }
 
+export interface PlanTaskView {
+  id: string;
+  title: string;
+  status: string;
+  reviewPolicy: 'reviewed' | 'none';
+  targetRepoId: string;
+  orderIndex: number;
+  dependsOn?: string[];
+  phase?: string;
+  branch?: string;
+  targetBranch?: string;
+  commitSha?: string;
+  fixNote?: string;
+  mmaBatchId?: string;
+  meta?: Record<string, unknown>;
+}
+
 /** The main-agent inline fix (a MAIN-AGENT action, not an MMA dispatch). */
 export type InlineFixFn = (args: {
-  task: PlanTaskRow;
+  task: PlanTaskView;
   repo: RepoContext;
   outputTail: string;
 }) => Promise<{ note: string }>;
@@ -58,10 +76,24 @@ export type TaskOutcome =
   | { status: 'failed'; reason: string }
   | { status: 'halt'; marker: string };
 
-/** Run one plan_task to its terminal outcome. */
+/** Update a plan task's fields in details. */
+async function updateTask(
+  db: Db,
+  projectId: string,
+  taskId: string,
+  patch: Partial<Details['stages']['plan']['phases']['refine']['tasks'][0]>,
+): Promise<void> {
+  await updateDetails(db, projectId, (d) => {
+    const t = d.stages.plan.phases.refine.tasks.find((x) => x.id === taskId);
+    if (t) Object.assign(t, patch);
+    return d;
+  });
+}
+
+/** Run one plan task to its terminal outcome. */
 export async function executeTask(
   deps: ExecutorDeps,
-  args: { task: PlanTaskRow; repo: RepoContext; projectId: string; actorId: string },
+  args: { task: PlanTaskView; repo: RepoContext; projectId: string; actorId: string },
 ): Promise<TaskOutcome> {
   const db = deps.db ?? getDb();
   const bus = deps.bus ?? projectEventBus;
@@ -81,12 +113,12 @@ export async function executeTask(
     });
   } catch (err) {
     const reason = (err as Error).message;
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
     return { status: 'failed', reason };
   }
 
-  await db.update(planTask).set({ branch: prepared.branch, status: 'executing', updatedAt: new Date() }).where(eq(planTask.id, task.id));
+  await updateTask(db, projectId, task.id, { branch: prepared.branch, status: 'executing' });
   bus.publish(projectId, {
     type: 'task.executing',
     taskId: task.id,
@@ -106,7 +138,7 @@ export async function executeTask(
     }));
   } catch (err) {
     const reason = `dispatch failed: ${(err as Error).message}`;
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
     return { status: 'failed', reason };
   }
@@ -124,7 +156,7 @@ export async function executeTask(
       dispatchedBy: args.actorId,
     })
     .returning({ id: mmaBatch.id });
-  await db.update(planTask).set({ mmaBatchId: batchRow.id }).where(eq(planTask.id, task.id));
+  await updateTask(db, projectId, task.id, { mmaBatchId: batchRow.id });
 
   // 3. Poll to terminal + persist the envelope + usage columns.
   const envelope = await pollToTerminal(deps.mma, batchId, deps.pollIntervalMs ?? 25);
@@ -156,18 +188,18 @@ export async function executeTask(
 
   const disposition = classifyExecute(parsed);
   if (disposition.kind === 'halt') {
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason: `halt: ${disposition.marker}` });
     return { status: 'halt', marker: disposition.marker };
   }
   if (disposition.kind === 'failure') {
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason: disposition.reason });
     return { status: 'failed', reason: disposition.reason };
   }
 
   const commitSha = disposition.commitSha;
-  await db.update(planTask).set({ commitSha, status: 'verifying', updatedAt: new Date() }).where(eq(planTask.id, task.id));
+  await updateTask(db, projectId, task.id, { commitSha, status: 'verifying' });
   bus.publish(projectId, { type: 'task.verifying', taskId: task.id });
 
   // 4. Self-commit check — ONCE, before any inline fix.
@@ -175,7 +207,7 @@ export async function executeTask(
   const selfCommitOk = newCommits.length === 1 && newCommits[0] === commitSha;
   if (!selfCommitOk) {
     const reason = `worker may have self-committed — diff suspect (${newCommits.length} commit(s) in head_before..HEAD)`;
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
     return { status: 'failed', reason };
   }
@@ -184,7 +216,7 @@ export async function executeTask(
   const hasDiff = await deps.git.hasDiffSince(repo.pathOnDisk, prepared.headBefore);
   if (!hasDiff) {
     const reason = 'empty diff after commit — nothing implemented on disk';
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
     return { status: 'failed', reason };
   }
@@ -192,8 +224,8 @@ export async function executeTask(
   // 5. Build/test gate — inferred commands, persisted to meta.{buildCmd,testCmd}.
   const manifest = await deps.readManifest(repo);
   const { build, test } = inferCommands(manifest);
-  const meta: PlanTaskMeta = { buildCmd: cmdToString(build), testCmd: cmdToString(test) };
-  await db.update(planTask).set({ meta }).where(eq(planTask.id, task.id));
+  const meta: Record<string, unknown> = { buildCmd: cmdToString(build), testCmd: cmdToString(test) };
+  await updateTask(db, projectId, task.id, { meta });
 
   // F16: a review_policy='none' (intentionally-incomplete) task DEFERS build+test.
   if (task.reviewPolicy === 'none') {
@@ -207,22 +239,22 @@ export async function executeTask(
   }
   if (gate.envError) {
     const reason = `environment error: ${gate.detail}`;
-    await setStatus(db, task.id, 'failed');
+    await updateTask(db, projectId, task.id, { status: 'failed' });
     bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
     return { status: 'failed', reason };
   }
 
   // 6. Inline-fix loop (main-agent action; Forge commits the fix). Capped.
   let lastTail = gate.detail;
-  let metaForFix: PlanTaskMeta = meta;
+  let metaForFix = meta;
   for (let attempt = 1; attempt <= MAX_INLINE_FIX_ATTEMPTS; attempt++) {
-    await setStatus(db, task.id, 'fixing');
+    await updateTask(db, projectId, task.id, { status: 'fixing' });
     const { note } = await deps.inlineFix({ task, repo, outputTail: lastTail });
     bus.publish(projectId, { type: 'task.fixing', taskId: task.id, note });
 
     const fixSha = await deps.git.commitInlineFix(repo.pathOnDisk, `fix: ${note}`);
     metaForFix = { ...metaForFix, fixCommitSha: fixSha };
-    await db.update(planTask).set({ fixNote: note, meta: metaForFix }).where(eq(planTask.id, task.id));
+    await updateTask(db, projectId, task.id, { fixNote: note, meta: metaForFix });
     bus.publish(projectId, { type: 'task.fixed', taskId: task.id, note });
 
     // Post-fix re-verification is build+test ONLY (self-commit check is not re-run).
@@ -232,7 +264,7 @@ export async function executeTask(
     }
     if (reGate.envError) {
       const reason = `environment error: ${reGate.detail}`;
-      await setStatus(db, task.id, 'failed');
+      await updateTask(db, projectId, task.id, { status: 'failed' });
       bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
       return { status: 'failed', reason };
     }
@@ -240,7 +272,7 @@ export async function executeTask(
   }
 
   const reason = `build/test still failing after ${MAX_INLINE_FIX_ATTEMPTS} inline-fix attempts — lane halted`;
-  await setStatus(db, task.id, 'failed');
+  await updateTask(db, projectId, task.id, { status: 'failed' });
   bus.publish(projectId, { type: 'build.task_failed', taskId: task.id, reason });
   return { status: 'failed', reason };
 }
@@ -276,13 +308,9 @@ async function commitTask(
   taskId: string,
   commitSha: string,
 ): Promise<TaskOutcome> {
-  await db.update(planTask).set({ status: 'committed', updatedAt: new Date() }).where(eq(planTask.id, taskId));
+  await updateTask(db, projectId, taskId, { status: 'committed' });
   bus.publish(projectId, { type: 'task.committed', taskId, commitSha });
   return { status: 'committed', commitSha };
-}
-
-async function setStatus(db: Db, taskId: string, status: PlanTaskRow['status']): Promise<void> {
-  await db.update(planTask).set({ status, updatedAt: new Date() }).where(eq(planTask.id, taskId));
 }
 
 async function pollToTerminal(mma: MmaClient, batchId: string, intervalMs: number): Promise<unknown> {

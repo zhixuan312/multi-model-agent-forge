@@ -1,7 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { STAGE_ORDER, type StageKind, type StageStatus } from '@/db/enums';
 import type { Db } from '@/db/client';
-import { stage, project } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
+import { getCurrentPhase } from '@/details/read';
+import { updateDetails } from '@/details/write';
 
 export interface StageRow {
   kind: StageKind;
@@ -28,79 +31,44 @@ const STAGE_LABEL: Record<StageKind, string> = {
   journal: 'Reflect',
 };
 
-/**
- * Ensure the DB reflects that a stage has been reached. Called from the
- * project layout on every navigation.
- *
- * Design stages (Explore, Spec, Plan) are NOT auto-marked done when
- * navigating forward — they stay active/pending until the stage itself
- * completes. Users can freely navigate between design stages.
- *
- * Build stages (Execute, Review, Journal) auto-mark prior stages done
- * when entered, since starting execution is the commitment gate.
- */
 export async function ensureStageReached(db: Db, projectId: string, viewingStage: StageKind): Promise<void> {
   const viewIdx = STAGE_ORDER.indexOf(viewingStage);
   if (viewIdx < 0) return;
 
-  const now = new Date();
-  const DESIGN_BOUNDARY = 3; // execute is index 3
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return;
+  const d = validateDetails(row.details);
 
-  const rows = await db
-    .select({ kind: stage.kind, status: stage.status })
-    .from(stage)
-    .where(eq(stage.projectId, projectId));
-  const statusByKind = new Map(rows.map((r) => [r.kind, r.status]));
+  const DESIGN_BOUNDARY = 3;
+  const now = new Date().toISOString();
 
-  // Only auto-mark prior stages done when entering a build stage (execute+)
+  let changed = false;
+
   if (viewIdx >= DESIGN_BOUNDARY) {
     for (let i = 0; i < viewIdx; i++) {
       const kind = STAGE_ORDER[i];
-      const s = statusByKind.get(kind);
-      if (s !== 'done') {
-        await db
-          .update(stage)
-          .set({ status: 'done', completedAt: now, ...(s === 'pending' ? { startedAt: now } : {}) })
-          .where(and(eq(stage.projectId, projectId), eq(stage.kind, kind)));
+      const stg = d.stages[kind];
+      if (stg.status !== 'done') {
+        stg.status = 'done';
+        if (!stg.completedAt) stg.completedAt = now;
+        if (!stg.startedAt) stg.startedAt = now;
+        changed = true;
       }
     }
   }
 
-  // Mark the viewing stage as active if still pending
-  const viewStatus = statusByKind.get(viewingStage);
-  if (viewStatus === 'pending') {
-    await db
-      .update(stage)
-      .set({ status: 'active', startedAt: now })
-      .where(and(eq(stage.projectId, projectId), eq(stage.kind, viewingStage)));
+  const viewStg = d.stages[viewingStage];
+  if (viewStg.status === 'pending') {
+    viewStg.status = 'active';
+    if (!viewStg.startedAt) viewStg.startedAt = now;
+    changed = true;
   }
 
-  // Track the furthest stage reached
-  const [proj] = await db
-    .select({ currentStage: project.currentStage })
-    .from(project)
-    .where(eq(project.id, projectId));
-  if (proj) {
-    const currentIdx = proj.currentStage ? STAGE_ORDER.indexOf(proj.currentStage as StageKind) : -1;
-    if (viewIdx > currentIdx) {
-      await db
-        .update(project)
-        .set({ currentStage: viewingStage, updatedAt: now })
-        .where(eq(project.id, projectId));
-    }
+  if (changed) {
+    await updateDetails(db, projectId, () => d);
   }
 }
 
-/**
- * Compute visual state + reachability for all 6 stages.
- *
- * Rules:
- * - Visual state is derived from DB status + lock permissions. The viewing
- *   stage only controls which pill is highlighted (`isCurrent`), never the
- *   indicator shape.
- * - Reachability: any stage that has ever been active/done stays navigable.
- *   The viewing stage is always reachable.
- */
 export function computeAllStages(
   stages: StageRow[],
   viewingStage: StageKind | null,

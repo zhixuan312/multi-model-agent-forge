@@ -1,7 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
-import { explorationTask } from '@/db/schema/exploration';
+import { project } from '@/db/schema/projects';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';
 import { ProjectEventBus, projectEventBus } from '@/sse/event-bus';
@@ -13,6 +13,7 @@ import {
 } from '@/sse/envelope';
 import { logPoll } from '@/observability/poll-log';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
+import { updateDetails } from '@/details/write';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 
 /**
@@ -260,11 +261,15 @@ export class PollManager {
           })
           .where(eq(mmaBatch.id, entry.batchId));
 
-        if (entry.taskId) {
-          await tx
-            .update(explorationTask)
-            .set({ status: 'recorded' })
-            .where(eq(explorationTask.id, entry.taskId));
+        if (entry.taskId && entry.projectId) {
+          try {
+            await updateDetails(tx as unknown as Db, entry.projectId, (d) => {
+              const task = d.stages.exploration.phases.discover.tasks.find((t) =>
+                t.attempts.some((a) => a.batchId === entry.batchId));
+              if (task) task.status = 'recorded';
+              return d;
+            });
+          } catch { /* details update is best-effort during poll */ }
         }
 
         // Call the registered on-terminal handler (if any)
@@ -325,12 +330,6 @@ export class PollManager {
         terminalAt: new Date(),
       })
       .where(eq(mmaBatch.id, entry.batchId));
-    if (entry.taskId) {
-      await this.db
-        .update(explorationTask)
-        .set({ status: 'recorded' })
-        .where(eq(explorationTask.id, entry.taskId));
-    }
     logPoll({
       level: 'error',
       event: 'poll.not_found',
@@ -359,12 +358,6 @@ export class PollManager {
           terminalAt: new Date(),
         })
         .where(eq(mmaBatch.id, entry.batchId));
-      if (entry.taskId) {
-        await tx
-          .update(explorationTask)
-          .set({ status: 'recorded' })
-          .where(eq(explorationTask.id, entry.taskId));
-      }
     });
     logPoll({
       level: 'error',
@@ -448,17 +441,7 @@ export class PollManager {
 
     if (rows.length === 0) return 0;
 
-    // Find the owning task per batch (for the SSE link).
-    const taskRows = await this.db
-      .select({ id: explorationTask.id, mmaBatchId: explorationTask.mmaBatchId })
-      .from(explorationTask)
-      .where(
-        inArray(
-          explorationTask.mmaBatchId,
-          rows.map((r) => r.id),
-        ),
-      );
-    const taskByBatch = new Map(taskRows.map((t) => [t.mmaBatchId!, t.id]));
+    const taskByBatch = new Map<string, string>();
 
     let n = 0;
     for (const r of rows) {

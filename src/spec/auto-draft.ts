@@ -1,7 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, stage } from '@/db/schema/projects';
-import { component, componentSection } from '@/db/schema/spec';
+import { project } from '@/db/schema/projects';
 import type { ComponentKind } from '@/db/enums';
 import { templateForKind } from '@/spec/components';
 import { getLatestExploration } from '@/spec/orchestrator';
@@ -89,61 +88,50 @@ export async function buildAutoDraftRequest(
 ): Promise<AutoDraftRequest | { error: string }> {
   const db = deps.db ?? getDb();
 
-  const [proj] = await db
-    .select({ intentMd: project.intentMd })
-    .from(project)
-    .where(eq(project.id, deps.projectId))
-    .limit(1);
+  const { getBriefText } = await import('@/details/read');
+  const { validateDetails } = await import('@/details/schema');
+  let intentText: string | null = null;
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, deps.projectId)).limit(1);
+  if (projRow?.details) intentText = getBriefText(validateDetails(projRow.details)) || null;
   const exploration = await getLatestExploration(deps.projectId);
 
-  const [specStage] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(and(eq(stage.projectId, deps.projectId), eq(stage.kind, 'spec')))
-    .limit(1);
-  if (!specStage) return { error: 'No spec stage.' };
+  // Read components from details + sections from team_spec_template
+  const d = projRow?.details ? validateDetails(projRow.details) : null;
+  if (!d) return { error: 'No details.' };
 
-  const components = await db
-    .select({ id: component.id, kind: component.kind, orderIndex: component.orderIndex })
-    .from(component)
-    .where(eq(component.stageId, specStage.id))
-    .orderBy(component.orderIndex);
+  const { teamSpecTemplate } = await import('@/db/schema/team');
+  const templates = await db.select().from(teamSpecTemplate);
+  const templateByKind = new Map(templates.map((t) => [t.kind, t]));
 
-  const sections = await db
-    .select({
-      id: componentSection.id,
-      componentId: componentSection.componentId,
-      key: componentSection.key,
-      label: componentSection.label,
-      orderIndex: componentSection.orderIndex,
-    })
-    .from(componentSection)
-    .innerJoin(component, eq(componentSection.componentId, component.id))
-    .where(and(eq(component.stageId, specStage.id), sql`${component.status} != 'approved'`))
-    .orderBy(component.orderIndex, componentSection.orderIndex);
+  const comps = d.stages.spec.phases.craft.components.filter((c) => c.approvals.length === 0);
+  if (comps.length === 0) return { error: 'No sections to draft.' };
 
-  if (sections.length === 0) return { error: 'No sections to draft.' };
+  const outline: OutlineEntry[] = [];
+  for (const comp of comps) {
+    const tpl = templateByKind.get(comp.templateId.split('-')[1] ?? '');
+    const compTpl = tpl ? templateForKind(tpl.kind as ComponentKind) : null;
+    if (!compTpl || !tpl) continue;
+    const secs = (tpl.sections as Array<{ key: string; label: string }>) ?? [];
+    for (const sec of secs) {
+      const secTpl = compTpl.sections.find((t) => t.key === sec.key);
+      outline.push({
+        componentKind: tpl.kind,
+        componentLabel: compTpl.label,
+        sectionKey: sec.key,
+        sectionLabel: sec.label,
+        prompt: secTpl?.prompt ?? sec.label,
+        roles: compTpl.primaryRoles,
+        sectionId: `${comp.templateId}:${sec.key}`,
+        componentId: comp.templateId,
+      });
+    }
+  }
 
-  const compById = new Map(components.map((c) => [c.id, c]));
-  const outline: OutlineEntry[] = sections.map((s) => {
-    const comp = compById.get(s.componentId)!;
-    const tpl = templateForKind(comp.kind as ComponentKind);
-    const secTpl = tpl.sections.find((t) => t.key === s.key);
-    return {
-      componentKind: comp.kind,
-      componentLabel: tpl.label,
-      sectionKey: s.key,
-      sectionLabel: s.label,
-      prompt: secTpl?.prompt ?? s.label,
-      roles: tpl.primaryRoles,
-      sectionId: s.id,
-      componentId: s.componentId,
-    };
-  });
+  if (outline.length === 0) return { error: 'No sections to draft.' };
 
   return {
     system: buildFullDraftSystem(),
-    user: buildFullDraftUser(proj?.intentMd ?? null, exploration?.bodyMd ?? null, outline),
+    user: buildFullDraftUser(intentText, exploration?.bodyMd ?? null, outline),
     outline,
   };
 }

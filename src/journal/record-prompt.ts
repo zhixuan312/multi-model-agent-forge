@@ -1,17 +1,15 @@
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
-import { parseTags } from '@/journal/journal-core';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 
 export async function buildRecordPrompt(projectId: string, db: Db = getDb()): Promise<string> {
-  const kept = await db.select({ id: learningCandidate.id, bodyMd: learningCandidate.bodyMd })
-    .from(learningCandidate)
-    .where(and(eq(learningCandidate.projectId, projectId), eq(learningCandidate.status, 'kept')));
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return '';
+  const d = validateDetails(row.details);
+  const kept = d.stages.journal.phases.journal.learnings.filter((l) => l.status === 'kept');
 
-  const lines = kept.map((l) => {
-    const { category, source, text } = parseTags(l.bodyMd);
-    return `- id=${l.id} | category=${category ?? 'insight'} | source=${source ?? 'Manual'} | ${text}`;
-  });
+  const lines = kept.map((l, i) => `- id=${i} | category=${l.type} | source=Forge | ${l.heading}`);
 
   return `Role: You are the journal recorder for Forge, a software delivery harness.
 

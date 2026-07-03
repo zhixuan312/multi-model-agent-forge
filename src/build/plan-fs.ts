@@ -36,24 +36,6 @@ export function planFilePath(repoPath: string, projectId: string): string {
 }
 
 /**
- * Write a repo's plan markdown to `<repoPath>/.forge/plan-<id>.md`. Creates the
- * `.forge/` dir. Does NOT touch git exclude (that is `ensureForgeExcluded`, run at
- * branch-prep). Returns the absolute path written.
- */
-export async function writePlanFile(
-  fs: PlanFs,
-  repoPath: string,
-  projectId: string,
-  planMd: string,
-): Promise<string> {
-  const dir = join(repoPath, '.forge');
-  await fs.mkdir(dir);
-  const path = planFilePath(repoPath, projectId);
-  await fs.writeFile(path, planMd);
-  return path;
-}
-
-/**
  * Idempotently add `.forge/` to the repo's `.git/info/exclude` so the scratch dir
  * is invisible to `git status` and never a commit candidate (F10). Reads the
  * existing exclude file (tolerating absence) and appends only if the entry is

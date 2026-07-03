@@ -1,9 +1,8 @@
 import { stat } from 'node:fs/promises';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/ops';
-import { project, projectRepo } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';
@@ -51,12 +50,14 @@ async function buildBody(
 ): Promise<Record<string, unknown>> {
   if (task.kind === 'investigate') return { question: task.prompt };
   if (task.kind === 'journal') return { query: task.prompt };
-  // research: background ← latest brief (≥20 floor; pad with a neutral context note
-  // ONLY to satisfy the structural floor when the brief is short — the prompt is
-  // never auto-padded, the BACKGROUND context is).
-  const [briefRow] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
+  // research: background ← latest brief from details
+  const { getBriefText } = await import('@/details/read');
+  const { validateDetails } = await import('@/details/schema');
+  let briefText: string | null = null;
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (row?.details) briefText = getBriefText(validateDetails(row.details));
   const background =
-    (briefRow?.briefMd?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);
+    (briefText?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);
   return { researchQuestion: task.prompt, background };
 }
 
@@ -89,19 +90,15 @@ export async function dispatchTasks(
   const workspaceRoot = deps.workspaceRoot ?? resolveWorkspaceRoot();
   const statPath = deps.statPath ?? defaultStat;
 
-  const drafts = await db
-    .select({
-      id: explorationTask.id,
-      kind: explorationTask.kind,
-      prompt: explorationTask.prompt,
-      targetRepoId: explorationTask.targetRepoId,
-    })
-    .from(explorationTask)
-    .where(
-      taskIds
-        ? and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'draft'), inArray(explorationTask.id, taskIds))
-        : and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'draft')),
-    );
+  // Read draft tasks from details
+  const { validateDetails } = await import('@/details/schema');
+  const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!pRow?.details) return [];
+  const d = validateDetails(pRow.details);
+  const allTasks = d.stages.exploration.phases.discover.tasks;
+  const drafts = allTasks
+    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as 'investigate' | 'research' | 'journal', prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
+    .filter((t) => allTasks[t.index].status === 'draft');
 
   const outcomes: TaskDispatchOutcome[] = [];
 
@@ -158,10 +155,18 @@ export async function dispatchTasks(
           dispatchedBy: actor.id,
         })
         .returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
-      await tx
-        .update(explorationTask)
-        .set({ status: 'running', mmaBatchId: b.id })
-        .where(eq(explorationTask.id, task.id));
+      // Update task status + attempt in details
+      const { updateDetails } = await import('@/details/write');
+      await updateDetails(tx as unknown as Db, projectId, (det) => {
+        const idx = (task as any).index;
+        if (det.stages.exploration.phases.discover.tasks[idx]) {
+          det.stages.exploration.phases.discover.tasks[idx].status = 'running';
+          det.stages.exploration.phases.discover.tasks[idx].attempts.push({
+            batchId: b.id, status: 'running', at: new Date().toISOString(),
+          });
+        }
+        return det;
+      });
       await logAction(
         {
           projectId,

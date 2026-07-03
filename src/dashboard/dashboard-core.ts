@@ -9,12 +9,8 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { stage } from '@/db/schema/projects';
-import { participant } from '@/db/schema/participants';
-import { component, componentSection } from '@/db/schema/spec';
+import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
-import { explorationTask } from '@/db/schema/exploration';
-import { auditPass } from '@/db/schema/artifacts';
 import { member } from '@/db/schema/identity';
 import type { ArtifactKind } from '@/db/enums';
 import {
@@ -25,6 +21,7 @@ import {
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
 import { readExplorationSummary, readSpecFile, readPlanFile } from '@/projects/project-files';
+import { validateDetails } from '@/details/schema';
 
 export interface DashboardCollaborator {
   id: string;
@@ -54,14 +51,6 @@ export interface DashboardMetrics {
   auditIssues: number;
 }
 
-/** Artifact advancement order — the furthest-along kind wins as "latest". */
-const KIND_RANK: Record<ArtifactKind, number> = {
-  exploration_brief: 0,
-  exploration: 1,
-  spec: 2,
-  plan: 3,
-};
-
 export async function dashboardProjects(
   actor: ProjectActor,
   deps: ProjectsDeps = {},
@@ -71,65 +60,58 @@ export async function dashboardProjects(
   if (base.length === 0) return [];
   const ids = base.map((p) => p.id);
 
-  // Awaiting-human: component_section (ai && !human && !forced) → component → stage → project.
-  const awaitingRows = await db
-    .select({ projectId: stage.projectId, n: sql<number>`count(*)::int` })
-    .from(component)
-    .innerJoin(stage, eq(component.stageId, stage.id))
-    .where(
-      and(
-        inArray(stage.projectId, ids),
-        eq(component.aiSatisfied, true),
-        eq(component.humanSatisfied, false),
-        eq(component.forced, false),
-      ),
-    )
-    .groupBy(stage.projectId);
-  const awaitingByP = new Map(awaitingRows.map((r) => [r.projectId, Number(r.n)]));
+  // Load details for all projects in one pass
+  const detailsRows = await db
+    .select({ id: project.id, details: project.details, ownerId: project.ownerId })
+    .from(project)
+    .where(inArray(project.id, ids));
+  const detailsById = new Map(detailsRows.map((r) => [r.id, r.details]));
 
-  // Open audit issues: latest pass per (project, scope); count findings where verdict = revised.
-  const passes = await db
-    .select({
-      projectId: auditPass.projectId,
-      scope: auditPass.scope,
-      passNo: auditPass.passNo,
-      findingsCount: auditPass.findingsCount,
-      verdict: auditPass.verdict,
-    })
-    .from(auditPass)
-    .where(inArray(auditPass.projectId, ids));
-  const latestPass = new Map<string, { findingsCount: number; verdict: string }>();
-  const passNoSeen = new Map<string, number>();
-  for (const p of passes) {
-    const k = `${p.projectId}:${p.scope}`;
-    if (p.passNo >= (passNoSeen.get(k) ?? -1)) {
-      passNoSeen.set(k, p.passNo);
-      latestPass.set(k, { findingsCount: p.findingsCount, verdict: p.verdict });
-    }
+  // Awaiting-human: components with approvals from details
+  const awaitingByP = new Map<string, number>();
+  for (const r of detailsRows) {
+    if (!r.details) continue;
+    try {
+      const d = validateDetails(r.details);
+      const comps = d.stages.spec.phases.craft.components;
+      const templates = comps.filter((c) => c.approvals.length === 0);
+      awaitingByP.set(r.id, templates.length);
+    } catch { /* skip invalid */ }
   }
+
+  // Open audit issues: from details audit passes
   const auditByP = new Map<string, number>();
-  for (const [k, v] of latestPass) {
-    if (v.verdict === 'revised') {
-      const pid = k.slice(0, k.lastIndexOf(':'));
-      auditByP.set(pid, (auditByP.get(pid) ?? 0) + v.findingsCount);
-    }
+  for (const r of detailsRows) {
+    if (!r.details) continue;
+    try {
+      const d = validateDetails(r.details);
+      let issues = 0;
+      for (const passes of [d.stages.spec.phases.finalize.auditPasses, d.stages.plan.phases.validate.auditPasses]) {
+        if (passes.length > 0) {
+          const latest = passes[passes.length - 1];
+          if (latest.status === 'revised') issues++;
+        }
+      }
+      if (issues > 0) auditByP.set(r.id, issues);
+    } catch { /* skip */ }
   }
 
-  // Agents running: running mma batches + running exploration tasks.
+  // Agents running: running mma batches + running exploration tasks from details
   const agentsByP = new Map<string, number>();
-  const add = (pid: string, n: number) => agentsByP.set(pid, (agentsByP.get(pid) ?? 0) + n);
   const mmaRun = await db
     .select({ projectId: mmaBatch.projectId, n: sql<number>`count(*)::int` })
     .from(mmaBatch)
     .where(and(inArray(mmaBatch.projectId, ids), eq(mmaBatch.status, 'running')))
     .groupBy(mmaBatch.projectId);
-  for (const r of mmaRun) if (r.projectId) add(r.projectId, Number(r.n)); // loop batches are project-less
-  const taskRun = await db
-    .select({ projectId: explorationTask.projectId, n: sql<number>`count(*)::int` })
-    .from(explorationTask)
-    .where(and(inArray(explorationTask.projectId, ids), eq(explorationTask.status, 'running')))
-    .groupBy(explorationTask.projectId);
-  for (const r of taskRun) add(r.projectId, Number(r.n));
+  for (const r of mmaRun) if (r.projectId) agentsByP.set(r.projectId, Number(r.n));
+  for (const r of detailsRows) {
+    if (!r.details) continue;
+    try {
+      const d = validateDetails(r.details);
+      const running = d.stages.exploration.phases.discover.tasks.filter((t) => t.status === 'running').length;
+      if (running > 0) agentsByP.set(r.id, (agentsByP.get(r.id) ?? 0) + running);
+    } catch { /* skip */ }
+  }
 
   // Latest artifact: furthest-along kind — all checked via file existence.
   const artByP = new Map<string, { kind: ArtifactKind; version: number }>();
@@ -143,32 +125,13 @@ export async function dashboardProjects(
     }
   }
 
-  // Collaborators (project-level participants other than owner).
-  const collabRows = await db
-    .select({
-      projectId: participant.projectId,
-      role: participant.role,
-      id: member.id,
-      displayName: member.displayName,
-      avatarTint: member.avatarTint,
-    })
-    .from(participant)
-    .innerJoin(member, eq(participant.memberId, member.id))
-    .where(and(inArray(participant.projectId, ids), eq(participant.scope, 'project')));
+  // Collaborators: owner is already shown in base; no participant table needed
+  // (details tracks participants per-stage, but the dashboard only needs the owner)
   const collabByP = new Map<string, DashboardCollaborator[]>();
-  for (const r of collabRows) {
-    if (r.role === 'owner') continue;
-    const list = collabByP.get(r.projectId) ?? [];
-    list.push({ id: r.id, displayName: r.displayName, avatarTint: r.avatarTint });
-    collabByP.set(r.projectId, list);
-  }
 
-  // Stages where audit/human-gate signals are still actionable
   const DESIGN_STAGES = new Set(['exploration', 'spec', 'plan']);
 
   return base.map((p) => {
-    // Only show awaiting-human and audit issues if the project is still in a design stage.
-    // Once execution starts (Execute/Review/Journal), design-stage findings are historical.
     const inDesign = DESIGN_STAGES.has(p.currentStage ?? '');
     const awaitingHuman = inDesign ? (awaitingByP.get(p.id) ?? 0) : 0;
     const openAuditIssues = inDesign ? (auditByP.get(p.id) ?? 0) : 0;

@@ -159,14 +159,6 @@ export async function readSpecFileAsync(projectId: string): Promise<SpecFile | n
   return readArtifactAsync(projectId, SPEC_FILE);
 }
 
-export function readSpecSummary(projectId: string): string | null {
-  return readFileSync_(projectId, SPEC_FILE);
-}
-
-export async function readSpecSummaryAsync(projectId: string): Promise<string | null> {
-  return readFileAsync_(projectId, SPEC_FILE);
-}
-
 export async function writeSpecAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
   return writeArtifactAsync(projectId, SPEC_FILE, bodyMd);
 }

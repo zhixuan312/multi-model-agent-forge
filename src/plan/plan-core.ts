@@ -1,9 +1,7 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { planTask } from '@/db/schema/build';
-import { participant } from '@/db/schema/participants';
+import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
-import { repo } from '@/db/schema/workspace';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
 import { readPlanFileAsync } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
@@ -88,16 +86,15 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
 
   // If plan.md was deleted but DB still has tasks, reset — same pattern as spec loadOutline
   if (!planMd) {
-    const staleTaskIds = (await dbi
-      .select({ id: planTask.id })
-      .from(planTask)
-      .where(eq(planTask.projectId, projectId)))
-      .map((r) => r.id);
-    if (staleTaskIds.length > 0) {
-      await dbi.delete(qaMessage).where(inArray(qaMessage.componentId, staleTaskIds));
-      await dbi.delete(participant).where(and(eq(participant.scope, 'task'), inArray(participant.scopeId, staleTaskIds)));
-      await dbi.delete(planTask).where(eq(planTask.projectId, projectId));
-    }
+    // Clear stale tasks from details
+    const { updateDetails } = await import('@/details/write');
+    try {
+      await updateDetails(dbi, projectId, (d) => {
+        d.stages.plan.phases.refine.tasks = [];
+        d.stages.plan.phases.refine.file = undefined;
+        return d;
+      });
+    } catch { /* no details yet — skip */ }
   }
 
   // Parse tasks from the physical plan.md file
@@ -105,36 +102,24 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   if (planMd) {
     const sections = parsePlanSections(planMd);
     // Load DB metadata (approvals, status, participants) keyed by title
-    const dbRows = await dbi
-      .select({
-        id: planTask.id,
-        title: planTask.title,
-        status: planTask.status,
-        phase: planTask.phase,
-        targetRepoId: planTask.targetRepoId,
-        dependsOn: planTask.dependsOn,
-        repoName: repo.name,
-      })
-      .from(planTask)
-      .leftJoin(repo, eq(planTask.targetRepoId, repo.id))
-      .where(eq(planTask.projectId, projectId))
-      .orderBy(asc(planTask.orderIndex));
+    // Read task metadata from details
+    const { validateDetails } = await import('@/details/schema');
+    const [proj] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+    const d = proj?.details ? validateDetails(proj.details) : null;
+    const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
+    const detailsRepos = d?.repos ?? [];
+    const firstRepoName = detailsRepos[0]?.name ?? '';
 
-    const taskIds = dbRows.map((r) => r.id);
-    const taskParticipants = taskIds.length > 0
-      ? await dbi
-          .select({ scopeId: participant.scopeId, memberId: participant.memberId, role: participant.role })
-          .from(participant)
-          .where(and(eq(participant.scope, 'task'), inArray(participant.scopeId, taskIds)))
-      : [];
+    const dbRows = detailsTasks.map((t) => ({
+      id: t.id, title: t.title, status: t.status, phase: null as string | null,
+      targetRepoId: detailsRepos[0]?.id ?? null, dependsOn: null as string[] | null,
+      repoName: firstRepoName,
+    }));
+
     const approversByTask = new Map<string, string[]>();
     const reviewersByTask = new Map<string, string[]>();
-    for (const p of taskParticipants) {
-      if (!p.scopeId) continue;
-      const map = p.role === 'approver' ? approversByTask : reviewersByTask;
-      const list = map.get(p.scopeId) ?? [];
-      list.push(p.memberId);
-      map.set(p.scopeId, list);
+    for (const t of detailsTasks) {
+      if (t.approvals.length > 0) approversByTask.set(t.id, [...t.approvals]);
     }
 
     const metaByTitle = new Map(dbRows.map((r) => [r.title, r]));
@@ -167,15 +152,17 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   if (taskIds.length > 0) {
     const { inArray } = await import('drizzle-orm');
     const rows = await dbi
-      .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
+      .select({ id: qaMessage.id, targetId: qaMessage.targetId, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
       .from(qaMessage)
-      .where(inArray(qaMessage.componentId, taskIds))
+      .where(inArray(qaMessage.targetId, taskIds))
       .orderBy(asc(qaMessage.seq));
+    const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
     for (const r of rows) {
-      if (!r.componentId) continue;
-      const list = messages[r.componentId] ?? [];
-      list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
-      messages[r.componentId] = list;
+      if (!r.targetId) continue;
+      const list = messages[r.targetId] ?? [];
+      const sender = r.authorId === FORGE_MEMBER_ID ? 'forge' : 'member';
+      list.push({ id: r.id, sender: sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
+      messages[r.targetId] = list;
     }
   }
 

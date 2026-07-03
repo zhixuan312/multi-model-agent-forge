@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 
 /** fullSpecDraft — draft ALL sections in one pass + attach questions per section. */
-export const FullSpecSectionSchema = z.object({
+const FullSpecSectionSchema = z.object({
   componentKind: z.string(),
   sectionKey: z.string(),
   draftMd: z.string(),
@@ -19,7 +19,7 @@ export type FullSpecDraft = z.infer<typeof FullSpecDraftSchema>;
 export type FullSpecSection = z.infer<typeof FullSpecSectionSchema>;
 
 /** composeLearningCandidates — at freeze, propose learnings from the session. */
-export const LearningCandidateSchema = z.object({
+const LearningCandidateSchema = z.object({
   bodyMd: z.string(),
   type: z.enum(['challenge', 'insight', 'decision']),
 });

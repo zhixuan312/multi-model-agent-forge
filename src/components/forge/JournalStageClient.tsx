@@ -245,7 +245,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
     }
     fetch(`/api/projects/${props.projectId}/journal/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ learningId: active.id, action: approving ? 'approve' : 'revoke' }),
+      body: JSON.stringify({ learningIndex: active.num - 1, action: approving ? 'approve' : 'revoke' }),
     }).then(() => { setLocalOverrides({}); router.refresh(); }).catch(() => {});
   }
 
@@ -465,7 +465,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                   setLocalOverrides((o) => ({ ...o, [l.id]: allKept ? 'proposed' : 'kept' }));
                   fetch(`/api/projects/${props.projectId}/journal/approve`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ learningId: l.id, action: allKept ? 'revoke' : 'approve' }),
+                    body: JSON.stringify({ learningIndex: l.num - 1, action: allKept ? 'revoke' : 'approve' }),
                   }).catch(() => {});
                 }
                 setTimeout(() => { setLocalOverrides({}); router.refresh(); }, 300);

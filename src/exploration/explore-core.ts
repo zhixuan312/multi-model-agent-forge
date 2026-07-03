@@ -1,14 +1,14 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
-import { repo } from '@/db/schema/workspace';
-import { projectRepo } from '@/db/schema/projects';
 import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
 import { readExplorationFileAsync } from '@/projects/project-files';
+import { setBriefText } from '@/details/write';
+import { getBriefText, getRepos } from '@/details/read';
+import { validateDetails } from '@/details/schema';
 import type { RailTask } from '@/hooks/useProjectEvents';
 
 /**
@@ -20,14 +20,14 @@ import type { RailTask } from '@/hooks/useProjectEvents';
 
 export const briefSchema = z.object({ text: z.string().max(100_000) });
 
-/** Save the brain-dump to project.brief_md. */
+/** Save the brain-dump to details. */
 export async function saveBrief(
   projectId: string,
   text: string,
   actor: { id: string },
   db: Db = getDb(),
 ): Promise<void> {
-  await db.update(project).set({ briefMd: text, updatedAt: new Date() }).where(eq(project.id, projectId));
+  await setBriefText(db, projectId, text);
   await logAction(
     { projectId, memberId: actor.id, action: 'explore_brief', target: `project:${projectId}` },
     db,
@@ -35,27 +35,41 @@ export async function saveBrief(
 }
 
 export async function latestBrief(projectId: string, db: Db = getDb()): Promise<string> {
-  const [row] = await db.select({ briefMd: project.briefMd }).from(project).where(eq(project.id, projectId)).limit(1);
-  return row?.briefMd ?? '';
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (row?.details) return getBriefText(validateDetails(row.details));
+  return '';
 }
 
 /** The rail's task list joined to its live mma_batch status/headline/error. */
 export async function readRailTasks(projectId: string, db: Db = getDb()): Promise<RailTask[]> {
-  const rows = await db
-    .select({
-      id: explorationTask.id,
-      kind: explorationTask.kind,
-      status: explorationTask.status,
-      prompt: explorationTask.prompt,
-      targetRepoId: explorationTask.targetRepoId,
-      mmaBatchId: explorationTask.mmaBatchId,
-      batchStatus: mmaBatch.status,
-      result: mmaBatch.result,
-    })
-    .from(explorationTask)
-    .leftJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
-    .where(eq(explorationTask.projectId, projectId))
-    .orderBy(explorationTask.createdAt);
+  const { inArray } = await import('drizzle-orm');
+  const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!pRow?.details) return [];
+  const d = validateDetails(pRow.details);
+  const tasks = d.stages.exploration.phases.discover.tasks;
+  if (tasks.length === 0) return [];
+
+  const batchIds = tasks.flatMap((t) => t.attempts.map((a) => a.batchId)).filter(Boolean);
+  const batches = batchIds.length > 0
+    ? await db.select({ id: mmaBatch.id, status: mmaBatch.status, result: mmaBatch.result })
+        .from(mmaBatch).where(inArray(mmaBatch.id, batchIds))
+    : [];
+  const batchMap = new Map(batches.map((b) => [b.id, b]));
+
+  const rows = tasks.map((t, i) => {
+    const lastAttempt = t.attempts[t.attempts.length - 1];
+    const batch = lastAttempt ? batchMap.get(lastAttempt.batchId) : undefined;
+    return {
+      id: `task-${i}`,
+      kind: t.kind,
+      status: t.status,
+      prompt: t.prompt,
+      targetRepoId: t.repoId ?? null,
+      mmaBatchId: lastAttempt?.batchId ?? null,
+      batchStatus: batch?.status ?? null,
+      result: batch?.result ?? null,
+    };
+  });
 
   return rows.map((r) => {
     const env = (r.result ?? {}) as Record<string, unknown>;
@@ -122,12 +136,9 @@ export async function readProjectRepoOptions(
   projectId: string,
   db: Db = getDb(),
 ): Promise<{ id: string; name: string }[]> {
-  const rows = await db
-    .select({ id: repo.id, name: repo.name })
-    .from(projectRepo)
-    .innerJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, projectId));
-  return rows.map((r) => ({ id: r.id, name: r.name }));
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (row?.details) return getRepos(validateDetails(row.details)).map((r) => ({ id: r.id, name: r.name }));
+  return [];
 }
 
 /** Per-route prompt floor (re-exported for the editor guard). */
@@ -141,7 +152,7 @@ export class TaskLockedError extends Error {
   }
 }
 
-/** Add a manual draft task to the fan-out (validated against floor + repo subset). */
+/** Add a manual draft task via details. */
 export async function addTask(
   projectId: string,
   input: { kind: 'investigate' | 'research' | 'journal'; targetRepoId?: string | null; prompt: string },
@@ -150,84 +161,66 @@ export async function addTask(
 ): Promise<{ id: string }> {
   const prompt = input.prompt.trim();
   if (prompt.length < PROMPT_FLOORS[input.kind]) throw new TaskLockedError();
-  let targetRepoId: string | null = null;
-  if (input.kind === 'investigate') {
-    const opts = await readProjectRepoOptions(projectId, db);
-    if (!input.targetRepoId || !opts.some((o) => o.id === input.targetRepoId)) {
-      throw new TaskLockedError();
-    }
-    targetRepoId = input.targetRepoId;
-  }
-  const [row] = await db.transaction(async (tx) => {
-    const r = await tx
-      .insert(explorationTask)
-      .values({ projectId, kind: input.kind, targetRepoId, prompt, status: 'draft', createdBy: actor.id })
-      .returning({ id: explorationTask.id });
-    await logAction(
-      { projectId, memberId: actor.id, action: 'explore_add_task', target: `project:${projectId}`, meta: { kind: input.kind } },
-      tx as unknown as Db,
-    );
-    return r;
+  const { updateDetails } = await import('@/details/write');
+  let idx = 0;
+  await updateDetails(db, projectId, (d) => {
+    d.stages.exploration.phases.discover.tasks.push({
+      kind: input.kind,
+      prompt,
+      status: 'draft',
+      ...(input.kind === 'investigate' && input.targetRepoId ? { repoId: input.targetRepoId } : {}),
+      attempts: [],
+    });
+    idx = d.stages.exploration.phases.discover.tasks.length - 1;
+    return d;
   });
-  return { id: row.id };
+  await logAction(
+    { projectId, memberId: actor.id, action: 'explore_add_task', target: `project:${projectId}`, meta: { kind: input.kind } },
+    db,
+  );
+  return { id: `task-${idx}` };
 }
 
-/** Edit a draft task's prompt and/or target repo. Rejects non-draft rows. */
+/** Edit a draft task's prompt and/or target repo via details. */
 export async function editTask(
   projectId: string,
-  taskId: string,
+  taskIndex: number,
   patch: { prompt?: string; targetRepoId?: string | null },
   actor: { id: string },
   db: Db = getDb(),
 ): Promise<void> {
-  const [task] = await db
-    .select({ status: explorationTask.status, kind: explorationTask.kind })
-    .from(explorationTask)
-    .where(and(eq(explorationTask.id, taskId), eq(explorationTask.projectId, projectId)))
-    .limit(1);
-  if (!task) throw new TaskLockedError();
-  if (task.status !== 'draft') throw new TaskLockedError();
-
-  const set: Record<string, unknown> = {};
-  if (patch.prompt !== undefined) {
-    const p = patch.prompt.trim();
-    if (p.length < PROMPT_FLOORS[task.kind]) throw new TaskLockedError();
-    set.prompt = p;
-  }
-  if (patch.targetRepoId !== undefined && task.kind === 'investigate') {
-    const opts = await readProjectRepoOptions(projectId, db);
-    if (!patch.targetRepoId || !opts.some((o) => o.id === patch.targetRepoId)) throw new TaskLockedError();
-    set.targetRepoId = patch.targetRepoId;
-  }
-  if (Object.keys(set).length === 0) return;
-  await db.transaction(async (tx) => {
-    await tx.update(explorationTask).set(set).where(eq(explorationTask.id, taskId));
-    await logAction(
-      { projectId, memberId: actor.id, action: 'explore_edit_task', target: `exploration_task:${taskId}` },
-      tx as unknown as Db,
-    );
+  const { updateDetails } = await import('@/details/write');
+  await updateDetails(db, projectId, (d) => {
+    const task = d.stages.exploration.phases.discover.tasks[taskIndex];
+    if (!task || task.status !== 'draft') return d;
+    if (patch.prompt !== undefined) task.prompt = patch.prompt.trim();
+    if (patch.targetRepoId !== undefined && task.kind === 'investigate') {
+      task.repoId = patch.targetRepoId ?? undefined;
+    }
+    return d;
   });
+  await logAction(
+    { projectId, memberId: actor.id, action: 'explore_edit_task', target: `project:${projectId}` },
+    db,
+  );
 }
 
-/** Remove a draft task (× in the editor). Rejects non-draft rows. */
+/** Remove a draft task via details. */
 export async function removeTask(
   projectId: string,
-  taskId: string,
+  taskIndex: number,
   actor: { id: string },
   db: Db = getDb(),
 ): Promise<void> {
-  const [task] = await db
-    .select({ status: explorationTask.status })
-    .from(explorationTask)
-    .where(and(eq(explorationTask.id, taskId), eq(explorationTask.projectId, projectId)))
-    .limit(1);
-  if (!task) throw new TaskLockedError();
-  if (task.status !== 'draft') throw new TaskLockedError();
-  await db.transaction(async (tx) => {
-    await tx.delete(explorationTask).where(eq(explorationTask.id, taskId));
-    await logAction(
-      { projectId, memberId: actor.id, action: 'explore_remove_task', target: `exploration_task:${taskId}` },
-      tx as unknown as Db,
-    );
+  const { updateDetails } = await import('@/details/write');
+  await updateDetails(db, projectId, (d) => {
+    const task = d.stages.exploration.phases.discover.tasks[taskIndex];
+    if (!task || task.status !== 'draft') return d;
+    d.stages.exploration.phases.discover.tasks.splice(taskIndex, 1);
+    return d;
   });
+  await logAction(
+    { projectId, memberId: actor.id, action: 'explore_remove_task', target: `project:${projectId}` },
+    db,
+  );
 }

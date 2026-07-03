@@ -84,21 +84,6 @@ export function collectFindingCitationIds(finding: RecallFinding): string[] {
   return extractNodeIdsFromText(finding.evidence);
 }
 
-/** All distinct cited ids across every finding, in first-seen order. */
-export function collectAllCitationIds(findings: RecallFinding[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const f of findings) {
-    for (const id of collectFindingCitationIds(f)) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        out.push(id);
-      }
-    }
-  }
-  return out;
-}
-
 /** Resolve cited ids to Sources rows against the in-page index (dedup first). */
 export function resolveCitations(ids: string[], index: IndexLookupRow[]): SourceRow[] {
   const byId = new Map(index.map((r) => [r.id, r]));

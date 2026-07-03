@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { actionLog } from '@/db/schema/ops';
 import { logAction } from '@/observability/action-log';
@@ -94,24 +94,3 @@ export async function hasExecuteAuthorization(
   return Boolean(row);
 }
 
-/** The most-recent execute authorizer (member id) for a repo, or null. */
-export async function lastExecuteAuthorizer(
-  db: Db,
-  projectId: string,
-  repoName: string,
-): Promise<string | null> {
-  const dbi = db ?? getDb();
-  const [row] = await dbi
-    .select({ memberId: actionLog.memberId })
-    .from(actionLog)
-    .where(
-      and(
-        eq(actionLog.projectId, projectId),
-        eq(actionLog.action, 'execute'),
-        eq(actionLog.target, `repo:${repoName}`),
-      ),
-    )
-    .orderBy(sql`${actionLog.createdAt} desc`)
-    .limit(1);
-  return row?.memberId ?? null;
-}

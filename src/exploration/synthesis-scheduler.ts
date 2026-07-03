@@ -1,8 +1,8 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/ops';
+import { project } from '@/db/schema/projects';
 import { ProjectEventBus, projectEventBus, type ProjectEvent } from '@/sse/event-bus';
+import { validateDetails } from '@/details/schema';
 import { buildSynthesizeRequest } from '@/exploration/synthesize';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
@@ -16,7 +16,7 @@ import '@/dispatch/handler-registry';
  * terminal record, dispatches synthesis through the standard async path.
  */
 
-export const SYNTHESIS_DEBOUNCE_MS = 5_000;
+const SYNTHESIS_DEBOUNCE_MS = 5_000;
 
 export interface SchedulerDeps {
   db?: Db;
@@ -70,25 +70,22 @@ export class SynthesisScheduler {
   }
 
   async reconcileOnBoot(): Promise<string[]> {
-    const taskAgg = await this.db
-      .select({
-        projectId: explorationTask.projectId,
-        total: sql<number>`count(*)::int`,
-        recorded: sql<number>`sum(case when ${explorationTask.status} = 'recorded' then 1 else 0 end)::int`,
-      })
-      .from(explorationTask)
-      .leftJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
-      .groupBy(explorationTask.projectId);
-
-    const candidates = taskAgg.filter((p) => p.total > 0 && p.recorded === p.total);
-    if (candidates.length === 0) return [];
+    const detailsProjects = await this.db
+      .select({ id: project.id, details: project.details })
+      .from(project)
+      .where(eq(project.detailsReady, true));
 
     const swept: string[] = [];
-    for (const c of candidates) {
-      const existing = readExplorationSummary(c.projectId);
-      if (!existing) {
-        await this.dispatchSynthesis(c.projectId);
-        swept.push(c.projectId);
+    for (const p of detailsProjects) {
+      if (!p.details) continue;
+      const d = validateDetails(p.details);
+      const tasks = d.stages.exploration.phases.discover.tasks;
+      if (tasks.length > 0 && tasks.every((t) => t.status === 'recorded')) {
+        const existing = readExplorationSummary(p.id);
+        if (!existing) {
+          await this.dispatchSynthesis(p.id);
+          swept.push(p.id);
+        }
       }
     }
     return swept;

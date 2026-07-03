@@ -1,15 +1,14 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { project, stage } from '@/db/schema/projects';
-import { participant } from '@/db/schema/participants';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
+import { project } from '@/db/schema/projects';
+import { qaMessage } from '@/db/schema/spec';
+import { teamSpecTemplate, type TeamSpecTemplateRow } from '@/db/schema/team';
 import { readSpecFileAsync } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import type { ComponentStatus } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
-import { deriveSummary } from '@/spec/summary';
-import { templateForKind } from '@/spec/components';
 import type { ComponentKind } from '@/db/enums';
+import { validateDetails } from '@/details/schema';
 
 /**
  * Spec-stage core — RSC-facing reads, lazy stage lifecycle, and intent capture.
@@ -17,43 +16,22 @@ import type { ComponentKind } from '@/db/enums';
  * enforced by the route/page caller via `assertProjectReadable`.
  */
 
-/** Resolve (lazily creating) the spec stage row for a project. Sets status='active' on creation. */
+/** Resolve spec stage from details. Returns status + approvers. */
 export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: string[] }> {
   const dbi = db ?? getDb();
-  const [existing] = await dbi
-    .select({ id: stage.id, status: stage.status })
-    .from(stage)
-    .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')))
-    .limit(1);
-
-  let stageId: string;
-  let stageStatus: string;
-
-  if (existing) {
-    stageId = existing.id;
-    stageStatus = existing.status;
-    if (existing.status === 'pending') {
-      await dbi
-        .update(stage)
-        .set({ status: 'active', startedAt: new Date() })
-        .where(eq(stage.id, existing.id));
-      stageStatus = 'active';
-    }
-  } else {
-    const [row] = await dbi
-      .insert(stage)
-      .values({ projectId, kind: 'spec', status: 'active', startedAt: new Date() })
-      .returning({ id: stage.id, status: stage.status });
-    stageId = row.id;
-    stageStatus = row.status;
+  const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return { id: projectId, status: 'pending', approvers: [] };
+  const d = validateDetails(row.details);
+  const spec = d.stages.spec;
+  if (spec.status === 'pending') {
+    const { updateDetails } = await import('@/details/write');
+    await updateDetails(dbi, projectId, (det) => {
+      det.stages.spec.status = 'active';
+      det.stages.spec.startedAt = new Date().toISOString();
+      return det;
+    });
   }
-
-  const approverRows = await dbi
-    .select({ memberId: participant.memberId })
-    .from(participant)
-    .where(and(eq(participant.scope, 'stage'), eq(participant.scopeId, stageId), eq(participant.role, 'approver')));
-
-  return { id: stageId, status: stageStatus, approvers: approverRows.map((r) => r.memberId) };
+  return { id: projectId, status: spec.status === 'pending' ? 'active' : spec.status, approvers: spec.participants ?? [] };
 }
 
 /** Capture / update the project intent and derive the summary (pure, no LLM). */
@@ -64,10 +42,8 @@ export async function captureIntent(
   actorId: string,
 ): Promise<void> {
   const dbi = db ?? getDb();
-  await dbi
-    .update(project)
-    .set({ intentMd, summary: deriveSummary(intentMd), updatedAt: new Date() })
-    .where(eq(project.id, projectId));
+  const { setBriefText } = await import('@/details/write');
+  await setBriefText(dbi, projectId, intentMd);
   await logAction(
     { projectId, memberId: actorId, action: 'capture_intent', target: `project:${projectId}` },
     dbi,
@@ -102,108 +78,93 @@ export interface ComponentView {
 }
 
 /** Load the full component/section outline for a project's spec stage, ordered.
- * Section content comes from spec.md (file = source of truth), metadata from DB. */
-export async function loadOutline(db: Db, stageId: string, projectId?: string): Promise<ComponentView[]> {
+ * Section content comes from spec.md (file = source of truth), metadata from details. */
+export async function loadOutline(db: Db, _stageId: string, projectId?: string): Promise<ComponentView[]> {
   const dbi = db ?? getDb();
-  const comps = await dbi
-    .select()
-    .from(component)
-    .where(eq(component.stageId, stageId))
-    .orderBy(asc(component.orderIndex));
+  if (!projectId) return [];
 
-  // Read section content from spec.md (file = source of truth)
-  // Map at ## Component level — all content under a ## heading belongs to that component
+  const [projRow] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!projRow?.details) return [];
+  const d = validateDetails(projRow.details);
+  const comps = d.stages.spec.phases.craft.components;
+  if (comps.length === 0) return [];
+
   let fileComponentContent: Map<string, string> = new Map();
   let specFileExists = false;
-  if (projectId) {
-    const specFile = await readSpecFileAsync(projectId);
-    if (specFile) {
-      specFileExists = true;
-      const parsed = parseSpecSections(specFile.bodyMd);
-      const compGroups = new Map<string, string[]>();
-      for (const s of parsed) {
-        const comp = s.component.toLowerCase();
-        const group = compGroups.get(comp) ?? [];
-        group.push(`${s.heading}\n\n${s.body}`);
-        compGroups.set(comp, group);
-      }
-      for (const [comp, parts] of compGroups) {
-        fileComponentContent.set(comp, parts.join('\n\n'));
-      }
+  const specFile = await readSpecFileAsync(projectId);
+  if (specFile) {
+    specFileExists = true;
+    const parsed = parseSpecSections(specFile.bodyMd);
+    const compGroups = new Map<string, string[]>();
+    for (const s of parsed) {
+      const comp = s.component.toLowerCase();
+      const group = compGroups.get(comp) ?? [];
+      group.push(`${s.heading}\n\n${s.body}`);
+      compGroups.set(comp, group);
+    }
+    for (const [comp, parts] of compGroups) {
+      fileComponentContent.set(comp, parts.join('\n\n'));
     }
   }
 
-  // If spec.md was deleted but components are still marked drafted/approved,
-  // reset them to gathering so auto-draft re-triggers. Clear stale conversation
-  // and approvals — they belong to the previous draft cycle.
-  if (!specFileExists) {
-    const draftedIds = comps.filter((c) => c.status === 'drafted' || c.status === 'approved').map((c) => c.id);
-    if (draftedIds.length > 0) {
-      await dbi
-        .update(component)
-        .set({ status: 'gathering', aiSatisfied: false, humanSatisfied: false })
-        .where(inArray(component.id, draftedIds));
-      await dbi.delete(qaMessage).where(inArray(qaMessage.componentId, draftedIds));
-      await dbi
-        .delete(participant)
-        .where(and(eq(participant.scope, 'component'), inArray(participant.scopeId, draftedIds), eq(participant.role, 'approver')));
-      for (const c of comps) {
-        if (draftedIds.includes(c.id)) {
-          c.status = 'gathering';
-          c.aiSatisfied = false;
-          c.humanSatisfied = false;
-        }
-      }
-    }
-  }
-
-  const compIds = comps.map((c) => c.id);
-  const compParticipants = compIds.length > 0
-    ? await dbi
-        .select({ scopeId: participant.scopeId, memberId: participant.memberId, role: participant.role })
-        .from(participant)
-        .where(and(eq(participant.scope, 'component'), inArray(participant.scopeId, compIds)))
+  // Load templates by ID from DB
+  const templateIds = comps.map((c) => c.templateId);
+  const tplRows = templateIds.length > 0
+    ? await dbi.select().from(teamSpecTemplate).where(inArray(teamSpecTemplate.id, templateIds))
     : [];
+  const tplById = new Map(tplRows.map((r) => [r.id, r]));
 
-  const approversByComp = new Map<string, string[]>();
-  const reviewersByComp = new Map<string, string[]>();
-  for (const p of compParticipants) {
-    if (!p.scopeId) continue;
-    const map = p.role === 'approver' ? approversByComp : reviewersByComp;
-    const list = map.get(p.scopeId) ?? [];
-    list.push(p.memberId);
-    map.set(p.scopeId, list);
+  // If spec.md was deleted but components have approvals, clear them
+  if (!specFileExists) {
+    const hasApproved = comps.some((c) => c.approvals.length > 0);
+    if (hasApproved) {
+      const { updateDetails } = await import('@/details/write');
+      await updateDetails(dbi, projectId, (det) => {
+        for (const c of det.stages.spec.phases.craft.components) {
+          c.approvals = [];
+        }
+        return det;
+      });
+      const compIds = comps.map((c) => c.id);
+      if (compIds.length > 0) {
+        await dbi.delete(qaMessage).where(inArray(qaMessage.targetId, compIds));
+      }
+    }
   }
 
   const views: ComponentView[] = [];
-  for (const c of comps) {
-    const secs = await dbi
-      .select()
-      .from(componentSection)
-      .where(eq(componentSection.componentId, c.id))
-      .orderBy(asc(componentSection.orderIndex));
+  for (let i = 0; i < comps.length; i++) {
+    const c = comps[i];
+    const tpl = tplById.get(c.templateId);
+    if (!tpl) continue;
+    const kind = tpl.kind as ComponentKind;
+    const sections = Array.isArray(tpl.sections) ? tpl.sections as Array<{ key: string; label: string }> : [];
+    const hasApproval = c.approvals.length > 0;
+    const hasDraft = specFileExists && fileComponentContent.has(tpl.label.toLowerCase());
+    const status: ComponentStatus = hasApproval ? 'approved' : (hasDraft ? 'drafted' : 'gathering');
+
     views.push({
       id: c.id,
-      kind: c.kind as ComponentKind,
-      label: templateForKind(c.kind as ComponentKind).label,
-      primaryRoles: c.primaryRoles,
-      status: c.status as ComponentStatus,
-      aiSatisfied: c.aiSatisfied,
-      humanSatisfied: c.humanSatisfied,
-      forced: c.forced,
-      stale: c.stale,
-      approvedBy: approversByComp.get(c.id) ?? [],
-      mmaSessionId: c.mmaSessionId,
-      participantIds: reviewersByComp.get(c.id) ?? [],
-      orderIndex: c.orderIndex,
-      sections: secs.map((s, i) => ({
-        id: s.id,
+      kind,
+      label: tpl.label,
+      primaryRoles: [],
+      status,
+      aiSatisfied: hasDraft,
+      humanSatisfied: hasApproval,
+      forced: false,
+      stale: false,
+      approvedBy: [...c.approvals],
+      mmaSessionId: null,
+      participantIds: [],
+      orderIndex: i,
+      sections: sections.map((s, si) => ({
+        id: `${c.id}-${s.key}`,
         key: s.key,
         label: s.label,
-        draftMd: i === 0
-          ? fileComponentContent.get(templateForKind(c.kind as ComponentKind).label.toLowerCase()) ?? null
+        draftMd: si === 0
+          ? fileComponentContent.get(tpl.label.toLowerCase()) ?? null
           : null,
-        orderIndex: s.orderIndex,
+        orderIndex: si,
       })),
     });
   }
@@ -225,47 +186,52 @@ export interface SectionRepaint {
 /** Build the repaint payload for a component after a mutation. */
 export async function buildSectionRepaint(db: Db, sectionId: string): Promise<SectionRepaint> {
   const dbi = db ?? getDb();
-  const [s] = await dbi
-    .select({ componentId: componentSection.componentId })
-    .from(componentSection)
-    .where(eq(componentSection.id, sectionId))
-    .limit(1);
-  if (!s) throw new Error(`No component_section '${sectionId}'.`);
-  const [c] = await dbi
-    .select()
-    .from(component)
-    .where(eq(component.id, s.componentId))
-    .limit(1);
-  if (!c) throw new Error(`No component '${s.componentId}'.`);
-  return {
-    component: {
-      status: c.status as ComponentStatus,
-      aiSatisfied: c.aiSatisfied,
-      humanSatisfied: c.humanSatisfied,
-      forced: c.forced,
-      stale: c.stale,
-    },
-    qaMessages: await loadComponentMessages(dbi, s.componentId),
-  };
+  // sectionId is `{componentId}-{sectionKey}` — extract componentId
+  const componentId = sectionId.includes('-') ? sectionId.slice(0, 36) : sectionId;
+
+  // Find the project that has this component in details
+  const rows = await dbi.select({ id: project.id, details: project.details }).from(project);
+  for (const r of rows) {
+    if (!r.details) continue;
+    const d = validateDetails(r.details);
+    const comp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
+    if (comp) {
+      const hasApproval = comp.approvals.length > 0;
+      return {
+        component: {
+          status: hasApproval ? 'approved' : 'gathering',
+          aiSatisfied: true,
+          humanSatisfied: hasApproval,
+          forced: false,
+          stale: false,
+        },
+        qaMessages: await loadComponentMessages(dbi, componentId),
+      };
+    }
+  }
+  throw new Error(`No component '${componentId}' found in any project details.`);
 }
 
-/** Load all qa_messages for every component in a stage, keyed by componentId. */
+/** Load all qa_messages for every component in a project, keyed by componentId. */
 export async function loadAllMessages(
   db: Db,
-  stageId: string,
+  _stageId: string,
+  projectId?: string,
 ): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>>> {
+  if (!projectId) return {};
   const rows = await db
-    .select({ id: qaMessage.id, componentId: qaMessage.componentId, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId, seq: qaMessage.seq })
+    .select({ id: qaMessage.id, targetId: qaMessage.targetId, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
     .from(qaMessage)
-    .innerJoin(component, eq(qaMessage.componentId, component.id))
-    .where(eq(component.stageId, stageId))
+    .where(eq(qaMessage.projectId, projectId))
     .orderBy(qaMessage.seq);
+  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const result: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>> = {};
   for (const r of rows) {
-    if (!r.componentId) continue;
-    const list = result[r.componentId] ?? [];
-    list.push({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
-    result[r.componentId] = list;
+    if (!r.targetId) continue;
+    const sender = r.authorId === FORGE_MEMBER_ID ? 'forge' : 'member';
+    const list = result[r.targetId] ?? [];
+    list.push({ id: r.id, sender: sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
+    result[r.targetId] = list;
   }
   return result;
 }
@@ -275,10 +241,15 @@ export async function loadComponentMessages(
   componentId: string,
 ): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> {
   const dbi = db ?? getDb();
+  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const rows = await dbi
-    .select({ id: qaMessage.id, sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
+    .select({ id: qaMessage.id, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
     .from(qaMessage)
-    .where(eq(qaMessage.componentId, componentId))
+    .where(eq(qaMessage.targetId, componentId))
     .orderBy(asc(qaMessage.seq));
-  return rows.map((r) => ({ id: r.id, sender: r.sender as 'forge' | 'member', bodyMd: r.bodyMd }));
+  return rows.map((r) => ({
+    id: r.id,
+    sender: (r.authorId === FORGE_MEMBER_ID ? 'forge' : 'member') as 'forge' | 'member',
+    bodyMd: r.bodyMd,
+  }));
 }

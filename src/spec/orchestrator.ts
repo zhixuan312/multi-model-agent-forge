@@ -1,16 +1,17 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { stage } from '@/db/schema/projects';
-import { component, componentSection } from '@/db/schema/spec';
-import type { ComponentSectionRow, ComponentRow } from '@/db/schema/spec';
-import type { ComponentKind, ComponentStatus } from '@/db/enums';
+import type { ComponentKind } from '@/db/enums';
 import { readExplorationSummaryAsync } from '@/projects/project-files';
-import { COMPONENT_TEMPLATES } from '@/spec/components';
+import { updateDetails } from '@/details/write';
+import { validateDetails } from '@/details/schema';
+import { project } from '@/db/schema/projects';
+import { teamSpecTemplate } from '@/db/schema/team';
 
 /**
  * Spec orchestrator — component lifecycle helpers for the Craft + Outline phases.
  *
- * - `confirmComponents` — Outline phase: create components + sections from template
+ * - `confirmComponents` — Outline phase: store selected component templates in details
  * - `onHumanSatisfied` — Craft phase: per-component approval (nod)
  * - `allComponentsApproved` — assemble gate
  * - `getLatestExploration` — grounding helper for prompts
@@ -18,29 +19,6 @@ import { COMPONENT_TEMPLATES } from '@/spec/components';
 
 export interface OrchestratorDeps {
   db?: Db;
-}
-
-/* ── Helpers ────────────────────────────────────────────────────────────── */
-
-interface SectionContext {
-  section: ComponentSectionRow;
-  component: ComponentRow;
-}
-
-async function loadSectionContext(db: Db, sectionId: string): Promise<SectionContext> {
-  const [section] = await db
-    .select()
-    .from(componentSection)
-    .where(eq(componentSection.id, sectionId))
-    .limit(1);
-  if (!section) throw new Error(`No component_section '${sectionId}'.`);
-  const [comp] = await db
-    .select()
-    .from(component)
-    .where(eq(component.id, section.componentId))
-    .limit(1);
-  if (!comp) throw new Error(`No component '${section.componentId}'.`);
-  return { section, component: comp };
 }
 
 /* ── Grounding ────────────────────────────────────────────────────────── */
@@ -56,78 +34,68 @@ export async function getLatestExploration(
 /* ── Component lifecycle ──────────────────────────────────────────────── */
 
 /**
- * The human nod ("Looks good") — sets human_satisfied + advances to approved.
+ * The human nod ("Looks good") — adds the member to the component's approvals.
  */
-export async function onHumanSatisfied(deps: OrchestratorDeps, sectionId: string): Promise<void> {
+export async function onHumanSatisfied(deps: OrchestratorDeps, componentId: string, memberId?: string): Promise<void> {
   const db = deps.db ?? getDb();
-  const ctx = await loadSectionContext(db, sectionId);
-  const nextStatus: ComponentStatus = 'approved';
-  await db
-    .update(component)
-    .set({ humanSatisfied: true, status: nextStatus, updatedAt: new Date() })
-    .where(eq(component.id, ctx.section.componentId));
+  const [projRow] = await db.select({ id: project.id, details: project.details }).from(project);
+  if (!projRow?.details) return;
+  const d = validateDetails(projRow.details);
+  const comp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
+  if (!comp) return;
+
+  await updateDetails(db, projRow.id, (det) => {
+    const c = det.stages.spec.phases.craft.components.find((x) => x.id === componentId);
+    if (c && memberId && !c.approvals.includes(memberId)) {
+      c.approvals.push(memberId);
+    }
+    return det;
+  });
 }
 
-/* ── Outline confirm: create components + sections ──────────────────── */
+/* ── Outline confirm: store selected templates ──────────────────────── */
 
 /**
- * Create one `component` per selected kind + one `component_section` per template
- * section (status 'gathering', order_index from template order). Additive: skips
- * kinds that already exist for the stage (re-open is additive, no duplicates).
+ * Store the selected component kinds in details with generated UUIDs. Additive:
+ * already-approved components are kept; unapproved ones are replaced.
  */
 export async function confirmComponents(
   db: Db,
-  stageId: string,
+  projectId: string,
   kinds: ComponentKind[],
 ): Promise<void> {
-  const existing = await db
-    .select({ id: component.id, kind: component.kind, status: component.status })
-    .from(component)
-    .where(eq(component.stageId, stageId));
+  const tplRows = await db.select({ id: teamSpecTemplate.id, kind: teamSpecTemplate.kind })
+    .from(teamSpecTemplate).where(inArray(teamSpecTemplate.kind, kinds));
+  const kindToId = new Map(tplRows.map((r) => [r.kind, r.id]));
+  const selectedIds = kinds.map((k) => kindToId.get(k)).filter(Boolean) as string[];
 
-  const approvedKinds = new Set(existing.filter((e) => e.status === 'approved').map((e) => e.kind));
-  const toDelete = existing.filter((e) => e.status !== 'approved').map((e) => e.id);
+  await updateDetails(db, projectId, (d) => {
+    const existing = d.stages.spec.phases.craft.components;
+    const approved = existing.filter((c) => c.approvals.length > 0);
+    const approvedIds = new Set(approved.map((c) => c.templateId));
 
-  if (toDelete.length > 0) {
-    await db.delete(component).where(inArray(component.id, toDelete));
-  }
-  const approvedToRemove = existing.filter((e) => e.status === 'approved' && !kinds.includes(e.kind as ComponentKind)).map((e) => e.id);
-  if (approvedToRemove.length > 0) {
-    await db.delete(component).where(inArray(component.id, approvedToRemove));
-  }
+    const newComponents = selectedIds
+      .filter((id) => !approvedIds.has(id))
+      .map((templateId) => ({
+        id: randomUUID(),
+        templateId,
+        approvals: [] as string[],
+      }));
 
-  const ordered = COMPONENT_TEMPLATES.filter((t) => kinds.includes(t.kind) && !approvedKinds.has(t.kind));
-  for (let i = 0; i < ordered.length; i += 1) {
-    const tpl = ordered[i];
-    const orderIndex = COMPONENT_TEMPLATES.findIndex((t) => t.kind === tpl.kind);
-    await db.transaction(async (tx) => {
-      const [comp] = await tx
-        .insert(component)
-        .values({
-          stageId,
-          kind: tpl.kind,
-          primaryRoles: tpl.primaryRoles,
-          status: 'gathering',
-          orderIndex,
-        })
-        .returning({ id: component.id });
-      await tx.insert(componentSection).values(
-        tpl.sections.map((s, si) => ({
-          componentId: comp.id,
-          key: s.key,
-          label: s.label,
-          orderIndex: si,
-        })),
-      );
-    });
-  }
+    d.stages.spec.phases.craft.components = [
+      ...approved.filter((c) => selectedIds.includes(c.templateId)),
+      ...newComponents,
+    ];
+    d.stages.spec.phases.outline.selectedTemplateIds = selectedIds;
+    return d;
+  });
 }
 
-/** True iff every component of the stage is `approved` (assemble gate). */
-export async function allComponentsApproved(db: Db, stageId: string): Promise<boolean> {
-  const comps = await db
-    .select({ status: component.status })
-    .from(component)
-    .where(eq(component.stageId, stageId));
-  return comps.length > 0 && comps.every((c) => c.status === 'approved');
+/** True iff every component has at least one approval (assemble gate). */
+export async function allComponentsApproved(db: Db, projectId: string): Promise<boolean> {
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return false;
+  const d = validateDetails(row.details);
+  const comps = d.stages.spec.phases.craft.components;
+  return comps.length > 0 && comps.every((c) => c.approvals.length > 0);
 }

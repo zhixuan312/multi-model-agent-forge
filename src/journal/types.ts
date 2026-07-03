@@ -26,10 +26,8 @@ export type JournalStatus = (typeof STATUS_VALUES)[number];
 export const LOG_OPS = ['create', 'refine', 'supersede', 'merge'] as const;
 export type LogOp = (typeof LOG_OPS)[number];
 
-export const isEdgeType = (v: unknown): v is EdgeType => EDGE_TYPES.includes(v as EdgeType);
 export const isStatus = (v: unknown): v is JournalStatus =>
   STATUS_VALUES.includes(v as JournalStatus);
-export const isLogOp = (v: unknown): v is LogOp => LOG_OPS.includes(v as LogOp);
 
 /** One outgoing typed edge (frontmatter `links[]`). `type` is kept as the raw
  *  string so an unknown forward type renders neutral rather than throwing. */

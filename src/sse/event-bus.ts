@@ -57,7 +57,7 @@ export type ProjectEvent =
   // ── Stage-level sync events (multi-user real-time) ────────────────────
   | { type: 'spec.updated' }
   | { type: 'plan.updated'; taskId: string; chatReply: string; updated: boolean }
-  | { type: 'chat.message'; componentId: string; message: { id: string; sender: 'forge' | 'member'; authorId: string; authorName: string; bodyMd: string } }
+  | { type: 'chat.message'; componentId: string; message: { id: string; sender?: 'forge' | 'member'; authorId: string; authorName: string; bodyMd: string } }
   | { type: 'chat.typing'; componentId: string; typing: boolean }
   // ── Automation events ────────────────────────────────────────────
   | { type: 'automation.progress'; note: string; stage?: string; phase?: string }

@@ -1,5 +1,7 @@
-import type { LearningType, LearningOrigin } from '@/db/enums';
 import type { LearningCategory, LearningSource } from '@/journal/types';
+
+type LearningType = 'challenge' | 'insight' | 'decision' | 'pattern';
+type LearningOrigin = 'exploration' | 'spec' | 'plan' | 'execute' | 'review' | 'discussion';
 
 const CATEGORY_TO_TYPE: Record<LearningCategory, LearningType> = {
   decision: 'decision', design: 'decision',

@@ -1,8 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
 import { mmaBatch } from '@/db/schema/ops';
+import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
+import { validateDetails } from '@/details/schema';
 
 /**
  * Synthesis prompt builder + gap markers. Builds the prompt for async MMA
@@ -45,20 +46,40 @@ export function gapMarker(route: 'investigate' | 'research' | 'journal_recall', 
 
 /** Load recorded task results and build the prompt parts. Shared by both paths. */
 async function loadRecordsAndBuildPrompt(db: Db, projectId: string): Promise<{ system: string; user: string; failureMarkers: string[] } | null> {
-  const rows = await db
-    .select({
-      taskId: explorationTask.id,
-      kind: explorationTask.kind,
-      prompt: explorationTask.prompt,
-      route: mmaBatch.route,
-      batchStatus: mmaBatch.status,
-      result: mmaBatch.result,
-      repoName: repo.name,
-    })
-    .from(explorationTask)
-    .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
-    .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
-    .where(and(eq(explorationTask.projectId, projectId), eq(explorationTask.status, 'recorded')));
+  let rows: Array<{ taskId: string; kind: string; prompt: string; route: string | null; batchStatus: string | null; result: unknown; repoName: string | null }>;
+
+  {
+    const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+    if (!pRow?.details) return null;
+    const d = validateDetails(pRow.details);
+    const tasks = d.stages.exploration.phases.discover.tasks.filter((t) => t.status === 'recorded');
+    if (tasks.length === 0) return null;
+    const batchIds = tasks.flatMap((t) => t.attempts.map((a) => a.batchId)).filter(Boolean);
+    const batches = batchIds.length > 0
+      ? await db.select({ id: mmaBatch.id, route: mmaBatch.route, status: mmaBatch.status, result: mmaBatch.result })
+          .from(mmaBatch).where(inArray(mmaBatch.id, batchIds))
+      : [];
+    const batchMap = new Map(batches.map((b) => [b.id, b]));
+    const repoIds = tasks.map((t) => t.repoId).filter(Boolean) as string[];
+    const repos = repoIds.length > 0
+      ? await db.select({ id: repo.id, name: repo.name }).from(repo).where(inArray(repo.id, repoIds))
+      : [];
+    const repoMap = new Map(repos.map((r) => [r.id, r.name]));
+
+    rows = tasks.map((t) => {
+      const lastAttempt = t.attempts[t.attempts.length - 1];
+      const batch = lastAttempt ? batchMap.get(lastAttempt.batchId) : undefined;
+      return {
+        taskId: `discover-${tasks.indexOf(t)}`,
+        kind: t.kind,
+        prompt: t.prompt,
+        route: batch?.route ?? t.kind,
+        batchStatus: batch?.status ?? null,
+        result: batch?.result ?? null,
+        repoName: t.repoId ? repoMap.get(t.repoId) ?? null : null,
+      };
+    });
+  }
 
   if (rows.length === 0) return null;
 

@@ -12,8 +12,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
-import { project, projectRepo, stage } from '@/db/schema/projects';
-import { participant } from '@/db/schema/participants';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import {
@@ -73,7 +74,7 @@ export interface ProjectsDeps {
 
 /* ── Create ─────────────────────────────────────────────────────────────── */
 
-export const createProjectSchema = z.object({
+const createProjectSchema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
   visibility: z.enum(['public', 'private']),
   repoIds: z.array(z.string().uuid()).min(1, 'Pick at least one repository.'),
@@ -112,6 +113,17 @@ export async function createProject(
   const db = deps.db ?? getDb();
 
   const id = await db.transaction(async (tx) => {
+    const { buildInitialDetails } = await import('@/details/schema');
+    const initialDetails = buildInitialDetails();
+    // Populate repos in initial details
+    if (uniqueRepoIds.length > 0) {
+      const { repo } = await import('@/db/schema/workspace');
+      const { inArray } = await import('drizzle-orm');
+      const repos = await tx.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
+        .from(repo).where(inArray(repo.id, uniqueRepoIds));
+      initialDetails.repos = repos.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
+    }
+
     const [row] = await tx
       .insert(project)
       .values({
@@ -120,21 +132,12 @@ export async function createProject(
         phase: 'design',
         currentStage: 'exploration',
         ownerId: actor.id,
+        details: initialDetails,
+        detailsReady: true,
       })
       .returning({ id: project.id });
 
-    await tx.insert(stage).values(
-      STAGE_ORDER.map((kind) => ({
-        projectId: row.id,
-        kind,
-        status: (kind === 'exploration' ? 'active' : 'pending') as StageStatus,
-        startedAt: kind === 'exploration' ? new Date() : null,
-      })),
-    );
-
-    await tx.insert(projectRepo).values(uniqueRepoIds.map((repoId) => ({ projectId: row.id, repoId })));
-
-    await tx.insert(participant).values({ projectId: row.id, memberId: actor.id, scope: 'project', scopeId: null, role: 'owner' });
+    // All project state is in details — no legacy table inserts needed
 
     await logAction(
       {
@@ -166,15 +169,7 @@ export async function visibleProjects(
 ): Promise<ProjectListItem[]> {
   const db = deps.db ?? getDb();
 
-  // Visibility-scoped project set + owner display, ordered updated_at desc.
-  // Drizzle relational/aggregate joins are verbose; assemble in two cheap passes
-  // over the SAME bounded set (one project query + one stage query + one repo
-  // count query keyed by the scoped ids) — still O(1) round-trips, not N+1.
-  const memberProjectIds = db
-    .select({ pid: participant.projectId })
-    .from(participant)
-    .where(and(eq(participant.memberId, actor.id), eq(participant.scope, 'project')));
-
+  // All project state from details — no legacy table joins.
   const rows = await db
     .select({
       id: project.id,
@@ -185,15 +180,14 @@ export async function visibleProjects(
       currentStage: project.currentStage,
       ownerId: project.ownerId,
       updatedAt: project.updatedAt,
+      details: project.details,
     })
     .from(project)
-    .where(sql`${project.visibility} = 'public' OR ${project.id} IN ${memberProjectIds}`)
+    .where(sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`)
     .orderBy(sql`${project.updatedAt} desc`);
 
   if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
 
-  // Owners (one query over the bounded owner set).
   const ownerIds = [...new Set(rows.map((r) => r.ownerId))];
   const owners = await db
     .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
@@ -201,40 +195,24 @@ export async function visibleProjects(
     .where(inArray(member.id, ownerIds));
   const ownerById = new Map(owners.map((o) => [o.id, o]));
 
-  // Membership set (Mine filter — project-level scope only).
-  const memberships = await db
-    .select({ projectId: participant.projectId })
-    .from(participant)
-    .where(and(inArray(participant.projectId, ids), eq(participant.memberId, actor.id), eq(participant.scope, 'project')));
-  const memberSet = new Set(memberships.map((m) => m.projectId));
+  const memberSet = new Set(rows.filter((r) => r.ownerId === actor.id).map((r) => r.id));
 
-  // Stage rows for the whole set (one query).
-  const stageRows = await db
-    .select({ projectId: stage.projectId, kind: stage.kind, status: stage.status })
-    .from(stage)
-    .where(inArray(stage.projectId, ids));
   const stagesByProject = new Map<string, StageView[]>();
-  for (const s of stageRows) {
-    const list = stagesByProject.get(s.projectId) ?? [];
-    list.push({ kind: s.kind, status: s.status });
-    stagesByProject.set(s.projectId, list);
-  }
-
-  // Resolvable-repo count: LEFT JOIN repo, count only rows whose repo resolves
-  // and is not in an `error` state (one query).
-  const repoRows = await db
-    .select({ projectId: projectRepo.projectId, repoStatus: repo.status })
-    .from(projectRepo)
-    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(inArray(projectRepo.projectId, ids));
   const repoCountByProject = new Map<string, number>();
   const unavailableByProject = new Map<string, number>();
-  for (const r of repoRows) {
-    if (r.repoStatus === null || r.repoStatus === 'error') {
-      unavailableByProject.set(r.projectId, (unavailableByProject.get(r.projectId) ?? 0) + 1);
-      continue; // unavailable → not resolvable
+
+  for (const r of rows) {
+    if (r.details) {
+      try {
+        const { validateDetails } = await import('@/details/schema');
+        const d = validateDetails(r.details);
+        const stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
+          kind, status: d.stages[kind].status,
+        }));
+        stagesByProject.set(r.id, stages);
+        repoCountByProject.set(r.id, d.repos.length);
+      } catch { /* invalid details — skip */ }
     }
-    repoCountByProject.set(r.projectId, (repoCountByProject.get(r.projectId) ?? 0) + 1);
   }
 
   return rows.map((r) => {
@@ -286,45 +264,7 @@ export async function assertProjectReadable(
   if (!row) throw new ProjectAccessError('Project not found.');
   if (row.visibility === 'public') return;
   if (row.ownerId === actor.id) return;
-
-  const [membership] = await db
-    .select({ memberId: participant.memberId })
-    .from(participant)
-    .where(and(eq(participant.projectId, projectId), eq(participant.memberId, actor.id), eq(participant.scope, 'project')))
-    .limit(1);
-  if (membership) return;
-
   throw new ProjectAccessError();
-}
-
-/**
- * Stubbed artifact accessor (Spec 4 fills the body). Guard-FIRST: throws for a
- * non-collaborator on a private project. Returns [] for now (no `artifact` table
- * exists yet). Proves the "hides artifacts" half of the guard contract.
- */
-export async function readProjectArtifacts(
-  projectId: string,
-  actor: ProjectActor,
-  deps: ProjectsDeps = {},
-): Promise<unknown[]> {
-  await assertProjectReadable(projectId, actor, deps);
-  return [];
-}
-
-/**
- * Un-guarded code/repo accessor — proves "hides artifacts, NOT code". Repos are
- * team-public (Spec 2); this NEVER routes through the visibility guard.
- */
-export async function readProjectRepos(
-  projectId: string,
-  deps: ProjectsDeps = {},
-): Promise<{ repoId: string }[]> {
-  const db = deps.db ?? getDb();
-  const rows = await db
-    .select({ repoId: projectRepo.repoId })
-    .from(projectRepo)
-    .where(eq(projectRepo.projectId, projectId));
-  return rows.map((r) => ({ repoId: r.repoId }));
 }
 
 /* ── Single-project reads (for the [id] shell) ──────────────────────────── */
@@ -345,11 +285,24 @@ export async function getProjectStages(
   deps: ProjectsDeps = {},
 ): Promise<StageView[]> {
   const db = deps.db ?? getDb();
-  const rows = await db
-    .select({ kind: stage.kind, status: stage.status, lastPhase: stage.lastPhase })
-    .from(stage)
-    .where(eq(stage.projectId, projectId));
-  return orderStages(rows.map((r) => ({ kind: r.kind, status: r.status, lastPhase: r.lastPhase })));
+
+  // Details-ready path: derive stages from details JSON
+  const [proj] = await db
+    .select({ detailsReady: project.detailsReady, details: project.details })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+  if (proj?.details) {
+    const d = validateDetails(proj.details);
+    const { getCurrentPhase } = await import('@/details/read');
+    const stageViews = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => {
+      const stg = d.stages[kind];
+      const phase = getCurrentPhase(d, kind);
+      return { kind, status: stg.status, lastPhase: phase };
+    });
+    return orderStages(stageViews);
+  }
+  return orderStages([]);
 }
 
 /**
@@ -371,19 +324,15 @@ export async function getProjectRepos(
   deps: ProjectsDeps = {},
 ): Promise<ProjectRepoView[]> {
   const db = deps.db ?? getDb();
-  const rows = await db
-    .select({
-      repoId: projectRepo.repoId,
-      name: repo.name,
-      tags: repo.tags,
-      status: repo.status,
-    })
-    .from(projectRepo)
-    .leftJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, projectId));
-
-  return rows.map((r) => ({
-    repoId: r.repoId,
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return [];
+  const d = validateDetails(row.details);
+  const repoIds = d.repos.map((r) => r.id);
+  if (repoIds.length === 0) return [];
+  const repoRows = await db.select({ id: repo.id, name: repo.name, tags: repo.tags, status: repo.status })
+    .from(repo).where(inArray(repo.id, repoIds));
+  return repoRows.map((r) => ({
+    repoId: r.id,
     name: r.name,
     tags: r.tags,
     status: r.status,
@@ -466,25 +415,11 @@ export async function advanceStage(
   const next = STAGE_ORDER[fromIdx + 1];
 
   await db.transaction(async (tx) => {
-    // Mark ALL stages up to and including `from` as done (catches skipped intermediates)
-    const now = new Date();
-    for (let i = 0; i <= fromIdx; i++) {
-      await tx
-        .update(stage)
-        .set({ status: 'done', completedAt: now })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, STAGE_ORDER[i])));
-    }
-    await tx
-      .update(stage)
-      .set({ status: 'active', startedAt: now })
-      .where(and(eq(stage.projectId, projectId), eq(stage.kind, next)));
-    // Derive phase from the next stage's group
-    const nextPhase = (['exploration', 'spec', 'plan'] as const).includes(next as any) ? 'design' as const
-      : (['execute', 'review'] as const).includes(next as any) ? 'build' as const
-      : next === 'journal' ? 'learn' as const : undefined;
+    const { advanceStage } = await import('@/details/write');
+    await advanceStage(tx as unknown as Db, projectId, next as any);
     await tx
       .update(project)
-      .set({ currentStage: next, ...(nextPhase && { phase: nextPhase }), updatedAt: new Date() })
+      .set({ updatedAt: new Date() })
       .where(eq(project.id, projectId));
     await logAction(
       {
@@ -520,9 +455,15 @@ export async function changeRepos(
     throw new ProjectAccessError('A project must keep at least one repository.');
   }
 
+  // Update repos in details
+  const repoRows = await db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
+    .from(repo).where(inArray(repo.id, unique));
+  await updateDetails(db, projectId, (d) => {
+    d.repos = repoRows.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
+    return d;
+  });
+
   await db.transaction(async (tx) => {
-    await tx.delete(projectRepo).where(eq(projectRepo.projectId, projectId));
-    await tx.insert(projectRepo).values(unique.map((repoId) => ({ projectId, repoId })));
     await tx
       .update(project)
       .set({ updatedAt: new Date() })

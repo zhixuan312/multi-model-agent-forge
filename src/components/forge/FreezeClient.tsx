@@ -22,7 +22,7 @@ import {
   Micro,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import type { LearningType } from '@/db/enums';
+type LearningType = 'challenge' | 'insight' | 'decision' | 'pattern';
 
 /**
  * `FreezeClient` (Spec 4 Part B / `/freeze`) — the learnings-curation island.
@@ -37,7 +37,7 @@ import type { LearningType } from '@/db/enums';
 export interface LearningCandidateView {
   id: string;
   bodyMd: string;
-  type: LearningType;
+  type: string;
   status: 'proposed' | 'kept' | 'removed' | 'recorded';
   recordedNodeId: string | null;
 }

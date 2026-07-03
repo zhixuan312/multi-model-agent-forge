@@ -94,3 +94,34 @@ export const notification = forge.table(
 );
 
 export type NotificationRow = typeof notification.$inferSelect;
+
+/**
+ * `ops_auto_step` — one row per automation action. The driver inserts a row
+ * BEFORE executing each action (status 'running') and updates it to 'done' or
+ * 'failed' after. The resolver checks this table to prevent re-dispatching
+ * completed actions. The overlay reads it for stats (step count, elapsed time).
+ */
+export const autoStep = forge.table(
+  'ops_auto_step',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }).notNull(),
+    action: text('action').notNull(),
+    note: text('note').notNull(),
+    stage: text('stage'),
+    phase: text('phase'),
+    targetId: text('target_id'),
+    status: text('status', { enum: ['running', 'done', 'failed'] as const }).notNull().default('running'),
+    error: text('error'),
+    mmaBatchId: uuid('mma_batch_id'),
+    durationMs: integer('duration_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    terminalAt: timestamp('terminal_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('auto_step_project_created_idx').on(t.projectId, t.createdAt),
+    index('auto_step_project_action_target_idx').on(t.projectId, t.action, t.targetId),
+  ],
+);
+
+export type AutoStepRow = typeof autoStep.$inferSelect;

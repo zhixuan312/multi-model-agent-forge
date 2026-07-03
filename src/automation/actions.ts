@@ -118,16 +118,17 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       const taskTitle = action.data?.taskTitle as string;
       if (!taskId) break;
 
-      // 1. Insert user message (validation request)
-      const { qaMessage } = await import('@/db/schema/spec');
+      const { qaMessage: qaMessageTable } = await import('@/db/schema/spec');
       const { sql } = await import('drizzle-orm');
+
+      // 1. Insert user message (validation request)
       const [seqRow] = await db
-        .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-        .from(qaMessage)
-        .where(eq(qaMessage.componentId, taskId));
+        .select({ max: sql<number>`coalesce(max(${qaMessageTable.seq}), -1)` })
+        .from(qaMessageTable)
+        .where(eq(qaMessageTable.componentId, taskId));
       const seq = (seqRow?.max ?? -1) + 1;
       const validationMsg = 'Review this task for completeness, accuracy, and test coverage. Flag any gaps. @Forge';
-      await db.insert(qaMessage).values({
+      await db.insert(qaMessageTable).values({
         componentId: taskId,
         seq,
         sender: 'member',
@@ -148,6 +149,20 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
         actorId,
         meta: { taskId },
         await: true,
+      });
+
+      // 3. Write forge reply so taskHasValidation sees it and doesn't re-dispatch
+      const [seqRow2] = await db
+        .select({ max: sql<number>`coalesce(max(${qaMessageTable.seq}), -1)` })
+        .from(qaMessageTable)
+        .where(eq(qaMessageTable.componentId, taskId));
+      const replySeq = (seqRow2?.max ?? -1) + 1;
+      await db.insert(qaMessageTable).values({
+        componentId: taskId,
+        seq: replySeq,
+        sender: 'forge',
+        bodyMd: 'Task reviewed — no critical issues found.',
+        authorId: actorId,
       });
       break;
     }

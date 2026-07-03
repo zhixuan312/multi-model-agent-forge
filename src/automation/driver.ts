@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
+import { autoStep } from '@/db/schema/ops';
 import { projectEventBus } from '@/sse/event-bus';
 import { resolveNextAction } from '@/automation/resolver';
 import { executeAction } from '@/automation/actions';
@@ -11,10 +12,31 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+const ACTION_STAGE: Record<string, string> = {
+  dispatch_spec_audit: 'spec', apply_spec_findings: 'spec', freeze_spec: 'spec',
+  dispatch_plan_author: 'plan', validate_task: 'plan', approve_task: 'plan',
+  advance_plan_validate: 'plan', dispatch_plan_audit: 'plan', apply_plan_findings: 'plan', lock_plan: 'plan',
+  dispatch_execute: 'execute', advance_to_review: 'execute',
+  dispatch_review: 'review', apply_review_findings: 'review', advance_to_journal: 'review',
+  dispatch_harvest: 'journal', approve_learning: 'journal', dispatch_record: 'journal',
+  advance_to_summary: 'journal', mark_complete: 'journal',
+};
+
+const ACTION_PHASE: Record<string, string> = {
+  dispatch_spec_audit: 'finalize', apply_spec_findings: 'finalize', freeze_spec: 'finalize',
+  dispatch_plan_author: 'refine', validate_task: 'refine', approve_task: 'refine',
+  advance_plan_validate: 'validate', dispatch_plan_audit: 'validate', apply_plan_findings: 'validate', lock_plan: 'validate',
+  dispatch_execute: 'monitor', advance_to_review: 'monitor',
+  dispatch_review: 'review', apply_review_findings: 'review', advance_to_journal: 'review',
+  dispatch_harvest: 'journal', approve_learning: 'journal', dispatch_record: 'journal',
+  advance_to_summary: 'summary', mark_complete: 'summary',
+};
+
 export async function driveProject(projectId: string): Promise<void> {
   if (activeDrivers.get(projectId)) return;
   activeDrivers.set(projectId, true);
   const db = getDb();
+  let stepIndex = 0;
 
   try {
     while (true) {
@@ -37,9 +59,25 @@ export async function driveProject(projectId: string): Promise<void> {
         continue;
       }
 
-      await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
-      projectEventBus.publish(projectId, { type: 'automation.progress', note: action.note });
+      const actionStage = ACTION_STAGE[action.kind];
+      const actionPhase = ACTION_PHASE[action.kind];
+      const targetId = (action.data?.taskId ?? action.data?.learningId ?? action.data?.passNo?.toString()) as string | undefined;
 
+      // Record step BEFORE execution
+      const [stepRow] = await db.insert(autoStep).values({
+        projectId,
+        action: action.kind,
+        note: action.note,
+        stage: actionStage,
+        phase: actionPhase,
+        targetId: targetId ?? null,
+        status: 'running',
+      }).returning({ id: autoStep.id });
+
+      await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
+      projectEventBus.publish(projectId, { type: 'automation.progress', note: action.note, stage: actionStage, phase: actionPhase });
+
+      const t0 = Date.now();
       let lastErr: string | null = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
@@ -51,19 +89,29 @@ export async function driveProject(projectId: string): Promise<void> {
           if (attempt < 3) {
             const retryNote = `${action.note} (retry ${attempt}/3 — ${lastErr})`;
             await db.update(project).set({ autoNote: retryNote, updatedAt: new Date() }).where(eq(project.id, projectId));
-            projectEventBus.publish(projectId, { type: 'automation.progress', note: retryNote });
+            projectEventBus.publish(projectId, { type: 'automation.progress', note: retryNote, stage: actionStage, phase: actionPhase });
             await sleep(5000 * attempt);
           }
         }
       }
-      if (!lastErr && !action.kind.startsWith('navigate_')) {
-        projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
-      }
+
+      const elapsed = Date.now() - t0;
+
       if (lastErr) {
+        // Record failure
+        await db.update(autoStep).set({ status: 'failed', error: lastErr, durationMs: elapsed, terminalAt: new Date() })
+          .where(eq(autoStep.id, stepRow.id));
         await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
         projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });
         return;
       }
+
+      // Record success
+      stepIndex++;
+      await db.update(autoStep).set({ status: 'done', durationMs: elapsed, terminalAt: new Date() })
+        .where(eq(autoStep.id, stepRow.id));
+
+      projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind, stage: actionStage, phase: actionPhase, stepIndex });
 
       await sleep(1000);
     }

@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 import { LiveStageStepper } from '@/components/forge/LiveStageStepper';
-import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
+import { AutomationGate } from '@/components/forge/AutomationGate';
 import { ShellHeader, ShellSubNav, ShellBody } from '@/components/ui/shell';
 import {
   getProject,
@@ -87,18 +87,16 @@ export default async function ProjectLayout({
         />
       </ShellSubNav>
       <ShellBody width="full" fill>
-        {project.autoMode ? (
-          <AutomationOverlay
-            projectId={project.id}
-            projectName={project.name}
-            autoMode={project.autoMode}
-            autoNote={project.autoNote ?? ''}
-            currentStage={project.currentStage ?? 'spec'}
-            phase={project.phase}
-          />
-        ) : (
-          children
-        )}
+        <AutomationGate
+          projectId={project.id}
+          projectName={project.name}
+          autoMode={project.autoMode}
+          autoNote={project.autoNote ?? ''}
+          currentStage={project.currentStage ?? 'spec'}
+          phase={project.phase}
+        >
+          {children}
+        </AutomationGate>
       </ShellBody>
     </PhaseFromRoute>
   );

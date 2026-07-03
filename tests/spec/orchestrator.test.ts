@@ -4,91 +4,89 @@ import {
   confirmComponents,
   allComponentsApproved,
 } from '@/spec/orchestrator';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb, seq, type MockResponses } from '../test-utils/mock-db';
 
 function createOrchestratorDb(responses: MockResponses = {}) {
   return Object.assign(createMockDb(responses), { execute: async () => [] });
 }
 
-const specStageId = 'stage-1';
+const projectId = 'stage-1';
 const componentId = 'comp-1';
-const sectionId1 = 'sec-1';
 
 describe('confirmComponents', () => {
   it('creates one component + one section per template section (gathering)', async () => {
+    const d = buildInitialDetails();
     const mockDb = createOrchestratorDb({
-      'select:project_component': [],
-      'insert:project_component': [{ id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' }],
-      'insert:project_component_section': [
-        { id: sectionId1, componentId, key: 'background', label: 'Background', status: 'gathering', aiSatisfied: false },
-      ],
-      'select:project_component_section': [],
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: projectId }],
     });
-    await confirmComponents(mockDb, specStageId, ['context']);
-    expect(mockDb._assertCalled('project_component', 'insert')).toBe(true);
+    await confirmComponents(mockDb, projectId, ['context']);
+    expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 
   it('is additive on re-open — no duplicate components', async () => {
-    const comp2Id = 'comp-2';
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [
+      { id: componentId, templateId: 'context', approvals: ['m1'] },
+    ];
     const mockDb = createOrchestratorDb({
-      'select:project_component': seq(
-        [{ id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' }],
-        [
-          { id: componentId, stageId: specStageId, kind: 'context', status: 'gathering' },
-          { id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' },
-        ],
-      ),
-      'insert:project_component': [{ id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' }],
-      'select:project_component_section': [],
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: projectId }],
     });
-    await confirmComponents(mockDb, specStageId, ['context', 'problem']);
-    expect(mockDb._assertCalled('project_component', 'insert')).toBe(true);
+    await confirmComponents(mockDb, projectId, ['context', 'problem']);
+    expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 });
 
 describe('allComponentsApproved', () => {
   it('returns true when all components are approved', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [
+      { id: 'c1', templateId: 'context', approvals: ['m1'] },
+      { id: 'c2', templateId: 'problem', approvals: ['m1'] },
+    ];
     const mockDb = createOrchestratorDb({
-      'select:project_component': [
-        { status: 'approved' },
-        { status: 'approved' },
-      ],
+      'select:project': [{ details: d }],
     });
-    expect(await allComponentsApproved(mockDb, specStageId)).toBe(true);
+    expect(await allComponentsApproved(mockDb, projectId)).toBe(true);
   });
 
   it('returns false when any component is not approved', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [
+      { id: 'c1', templateId: 'context', approvals: ['m1'] },
+      { id: 'c2', templateId: 'problem', approvals: [] },
+    ];
     const mockDb = createOrchestratorDb({
-      'select:project_component': [
-        { status: 'approved' },
-        { status: 'drafted' },
-      ],
+      'select:project': [{ details: d }],
     });
-    expect(await allComponentsApproved(mockDb, specStageId)).toBe(false);
+    expect(await allComponentsApproved(mockDb, projectId)).toBe(false);
   });
 
   it('returns false when there are no components', async () => {
+    const d = buildInitialDetails();
     const mockDb = createOrchestratorDb({
-      'select:project_component': [],
+      'select:project': [{ details: d }],
     });
-    expect(await allComponentsApproved(mockDb, specStageId)).toBe(false);
+    expect(await allComponentsApproved(mockDb, projectId)).toBe(false);
   });
 });
 
 describe('onHumanSatisfied', () => {
-  it('sets humanSatisfied=true and status=approved on the component', async () => {
+  it('adds the member to the component approvals via updateDetails', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [
+      { id: componentId, templateId: 'context', approvals: [] },
+    ];
     const mockDb = createOrchestratorDb({
-      'select:project_component_section': [
-        { id: sectionId1, componentId, key: 'background', label: 'Background' },
-      ],
-      'select:project_component': [
-        { id: componentId, stageId: specStageId, kind: 'context', status: 'drafted' },
-      ],
-      'update:project_component': [
-        { id: componentId, humanSatisfied: true, status: 'approved' },
-      ],
+      'select:project': seq(
+        [{ id: projectId, details: d }],
+        [{ details: d, detailsVersion: 0 }],
+      ),
+      'update:project': [{ id: projectId }],
     });
-    await onHumanSatisfied({ db: mockDb }, sectionId1);
-    expect(mockDb._assertCalled('project_component', 'update')).toBe(true);
+    await onHumanSatisfied({ db: mockDb }, componentId, 'member-1');
+    expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 });

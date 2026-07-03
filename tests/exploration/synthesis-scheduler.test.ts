@@ -2,6 +2,7 @@
 import { vi, afterEach } from 'vitest';
 import { SynthesisScheduler } from '@/exploration/synthesis-scheduler';
 import { ProjectEventBus } from '@/sse/event-bus';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', () => ({
@@ -29,6 +30,15 @@ vi.mock('@/dispatch/dispatch-helpers', () => ({
 
 const projectId = 'test-sched-1';
 
+function makeDetailsWithRecordedTasks() {
+  const d = buildInitialDetails();
+  d.stages.exploration.phases.discover.tasks = [{
+    kind: 'research', prompt: 'p', status: 'recorded',
+    attempts: [{ batchId: 'b1', status: 'done', at: '' }],
+  }];
+  return d;
+}
+
 describe('SynthesisScheduler', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -37,15 +47,10 @@ describe('SynthesisScheduler', () => {
   it('debounces: a burst of terminal events coalesces into ONE dispatch after the quiet window', async () => {
     const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
 
+    const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({
-      'select:project_exploration_task': [
-        {
-          taskId: 'task-1', kind: 'research', prompt: 'p', route: 'research',
-          batchStatus: 'done',
-          result: { output: { summary: { answer: 'found stuff' } }, error: null },
-          repoName: null,
-        },
-      ],
+      'select:project': [{ details: d, detailsReady: true }],
+      'select:ops_mma_batch': [{ id: 'b1', route: 'research', status: 'done', result: { output: { summary: { answer: 'found stuff' } } } }],
     });
 
     const bus = new ProjectEventBus();
@@ -70,18 +75,14 @@ describe('SynthesisScheduler', () => {
     const { readExplorationSummary } = await import('@/projects/project-files');
     (readExplorationSummary as any).mockReturnValue(null);
 
+    const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({
-      'select:project_exploration_task': seq(
-        [{ projectId, total: 1, recorded: 1 }],
-        [
-          {
-            taskId: 'task-1', kind: 'research', prompt: 'p', route: 'research',
-            batchStatus: 'done',
-            result: { output: { summary: { answer: 'data' } }, error: null },
-            repoName: null,
-          },
-        ],
+      'select:project': seq(
+        [{ id: projectId, details: d, detailsReady: true }],
+        [{ details: d, detailsReady: true }],
       ),
+      'select:ops_mma_batch': [{ id: 'b1', route: 'research', status: 'done', result: { output: { summary: { answer: 'data' } } } }],
+      'select:project_exploration_task': [],
     });
 
     const sched = new SynthesisScheduler({ db: mockDb, bus: new ProjectEventBus() });
@@ -96,8 +97,10 @@ describe('SynthesisScheduler', () => {
     const { readExplorationSummary } = await import('@/projects/project-files');
     (readExplorationSummary as any).mockReturnValue('## Background\n\nAlready done');
 
+    const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({
-      'select:project_exploration_task': [{ projectId, total: 1, recorded: 1 }],
+      'select:project': [{ id: projectId, details: d, detailsReady: true }],
+      'select:project_exploration_task': [],
     });
 
     const sched = new SynthesisScheduler({ db: mockDb, bus: new ProjectEventBus() });

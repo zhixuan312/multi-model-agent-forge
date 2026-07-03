@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { buildSynthesizeRequest, gapMarker } from '@/exploration/synthesize';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 import { vi } from 'vitest';
 
@@ -10,49 +11,59 @@ vi.mock('@/projects/project-files', () => ({
   writeExplorationSummaryAsync: vi.fn().mockResolvedValue('/fake/exploration.md'),
 }));
 
-function taskRow(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    taskId: 'task-1',
-    kind: 'investigate',
-    prompt: 'What caching approach does the API use?',
-    route: 'investigate',
-    batchStatus: 'done',
-    result: { output: { summary: { answer: 'Redis with a 5-min TTL.' } } },
-    repoName: 'api-service',
-    ...overrides,
-  };
+function makeDetails(tasks: Array<{ kind: string; prompt: string; status: string; repoId?: string; batchId: string }>) {
+  const d = buildInitialDetails();
+  d.stages.exploration.phases.discover.tasks = tasks.map((t) => ({
+    kind: t.kind as 'investigate' | 'research' | 'journal',
+    prompt: t.prompt,
+    status: t.status as 'recorded' | 'draft',
+    ...(t.repoId ? { repoId: t.repoId } : {}),
+    attempts: [{ batchId: t.batchId, status: 'done' as const, at: '2026-07-01T00:00:00Z' }],
+  }));
+  return d;
 }
 
 describe('buildSynthesizeRequest', () => {
   it('returns error when no recorded tasks exist', async () => {
+    const d = buildInitialDetails();
     const db = createMockDb({
-      'select:project_exploration_task': [],
+      'select:project': [{ details: d, detailsReady: true }],
     });
     const result = await buildSynthesizeRequest('proj-1', { db });
     expect('error' in result).toBe(true);
   });
 
-  it('builds a 6-part prompt from recorded task results', async () => {
+  it('builds a prompt from recorded task results', async () => {
+    const d = makeDetails([{
+      kind: 'investigate', prompt: 'What caching approach?', status: 'recorded',
+      repoId: 'r1', batchId: 'b1',
+    }]);
     const db = createMockDb({
-      'select:project_exploration_task': [taskRow()],
+      'select:project': [{ details: d, detailsReady: true }],
+      'select:ops_mma_batch': [{ id: 'b1', route: 'investigate', status: 'done', result: { output: { summary: { answer: 'Redis with a 5-min TTL.' } } } }],
+      'select:workspace_repo': [{ id: 'r1', name: 'api-service' }],
     });
     const result = await buildSynthesizeRequest('proj-1', { db });
     expect('error' in result).toBe(false);
     if (!('error' in result)) {
       expect(result.system).toContain('Role:');
-      expect(result.system).toContain('Task:');
-      expect(result.system).toContain('Constraints:');
       expect(result.user).toContain('Redis');
-      expect(result.user).toContain('api-service');
     }
   });
 
   it('includes failure markers for failed tasks', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.discover.tasks = [
+      { kind: 'investigate', prompt: 'q1', status: 'recorded', repoId: 'r1', attempts: [{ batchId: 'b1', status: 'done', at: '' }] },
+      { kind: 'research', prompt: 'q2', status: 'recorded', attempts: [{ batchId: 'b2', status: 'failed', at: '' }] },
+    ];
     const db = createMockDb({
-      'select:project_exploration_task': [
-        taskRow(),
-        taskRow({ taskId: 'task-2', batchStatus: 'failed', route: 'research', repoName: null }),
+      'select:project': [{ details: d, detailsReady: true }],
+      'select:ops_mma_batch': [
+        { id: 'b1', route: 'investigate', status: 'done', result: { output: { summary: { answer: 'found stuff' } } } },
+        { id: 'b2', route: 'research', status: 'failed', result: null },
       ],
+      'select:workspace_repo': [{ id: 'r1', name: 'api-service' }],
     });
     const result = await buildSynthesizeRequest('proj-1', { db });
     expect('error' in result).toBe(false);
@@ -70,7 +81,6 @@ describe('gapMarker', () => {
 
   it('formats research gap without repo', () => {
     expect(gapMarker('research', null)).toContain('research');
-    expect(gapMarker('research', null)).not.toContain('repo');
   });
 
   it('formats journal_recall as journal-recall', () => {

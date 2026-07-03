@@ -1,28 +1,18 @@
 // @vitest-environment node
 import { BuildScheduler, type RepoMeta, type RunTaskFn } from '@/build/scheduler';
-import type { PlanTaskRow } from '@/db/schema/build';
-import type { TaskOutcome } from '@/build/executor';
+import type { PlanTaskView, TaskOutcome } from '@/build/executor';
 
 let seq = 0;
-function task(over: Partial<PlanTaskRow> & { id: string; repoId: string }): PlanTaskRow {
+function task(over: { id: string; repoId: string; orderIndex?: number; dependsOn?: string[] }): PlanTaskView {
   return {
     id: over.id,
-    projectId: 'p',
     title: `T${over.id}`,
     targetRepoId: over.repoId,
-    dependsOn: over.dependsOn ?? null,
+    dependsOn: over.dependsOn,
     orderIndex: over.orderIndex ?? seq++,
     reviewPolicy: 'reviewed',
     status: 'queued',
-    branch: null,
-    targetBranch: null,
-    commitSha: null,
-    fixNote: null,
-    meta: null,
-    mmaBatchId: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as PlanTaskRow;
+  };
 }
 
 function repoMap(ids: string[]): Map<string, RepoMeta> {
@@ -39,7 +29,7 @@ function recordingRunner(opts: {
   const inflight = new Set<string>();
   const perRepoInflight = new Map<string, number>();
   const maxConcurrentPerRepo = new Map<string, number>();
-  const run: RunTaskFn = async (t: PlanTaskRow) => {
+  const run: RunTaskFn = async (t: PlanTaskView) => {
     order.push(t.id);
     inflight.add(t.id);
     perRepoInflight.set(t.targetRepoId, (perRepoInflight.get(t.targetRepoId) ?? 0) + 1);

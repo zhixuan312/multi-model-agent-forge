@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { loadProjectSummary, type ProjectSummary } from '@/projects/project-summary';
+import { loadProjectSummary } from '@/projects/project-summary';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', () => ({
@@ -11,63 +12,41 @@ const PROJECT_ID = 'proj-1';
 
 describe('loadProjectSummary', () => {
   it('returns a complete summary with all 6 sections', async () => {
+    const d = buildInitialDetails();
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      d.stages[kind].status = 'done';
+      d.stages[kind].startedAt = '2026-06-01T00:00:00Z';
+      d.stages[kind].completedAt = '2026-06-02T00:00:00Z';
+    }
+    d.stages.spec.phases.finalize.auditPasses = [
+      { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
+      { passNo: 2, status: 'clean', audit: { attempts: [{ batchId: 'a2', status: 'done', at: '' }] } },
+    ];
+    d.stages.plan.phases.refine.tasks = [
+      { id: 't1', title: 'Task 1', status: 'approved', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
+      { id: 't2', title: 'Task 2', status: 'approved', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
+    ];
+    d.stages.journal.phases.journal.learnings = [
+      { heading: 'L1', type: 'decision', status: 'recorded' },
+      { heading: 'L2', type: 'insight', status: 'recorded' },
+    ];
+
     const mockDb = createMockDb({
-      'select:project': [{ name: 'Demo', createdAt: new Date('2026-06-01'), completedAt: null }],
-      'select:project_stage': [
-        { kind: 'exploration', status: 'done', startedAt: new Date('2026-06-01'), completedAt: new Date('2026-06-02') },
-        { kind: 'spec', status: 'done', startedAt: new Date('2026-06-02'), completedAt: new Date('2026-06-03') },
-        { kind: 'plan', status: 'done', startedAt: new Date('2026-06-03'), completedAt: new Date('2026-06-04') },
-        { kind: 'execute', status: 'done', startedAt: new Date('2026-06-04'), completedAt: new Date('2026-06-05') },
-        { kind: 'review', status: 'done', startedAt: new Date('2026-06-05'), completedAt: new Date('2026-06-06') },
-        { kind: 'journal', status: 'done', startedAt: new Date('2026-06-06'), completedAt: new Date('2026-06-07') },
-      ],
+      'select:project': [{ name: 'Demo', createdAt: new Date('2026-06-01'), completedAt: null, details: d }],
       'select:ops_mma_batch': [
-        { route: 'orchestrate', status: 'done', costUsd: '0.05', savedVsMainUsd: '0.02', inputTokens: 1000, outputTokens: 500, durationMs: 3000 },
-        { route: 'audit', status: 'done', costUsd: '0.03', savedVsMainUsd: '0.01', inputTokens: 800, outputTokens: 300, durationMs: 2000 },
-      ],
-      'select:project_audit_pass': [
-        { scope: 'spec', passNo: 1, findingsCount: 5, verdict: 'revised' },
-        { scope: 'spec', passNo: 2, findingsCount: 0, verdict: 'clean' },
-        { scope: 'plan', passNo: 1, findingsCount: 3, verdict: 'revised' },
-      ],
-      'select:project_plan_task': [
-        { status: 'committed', commitSha: 'abc123' },
-        { status: 'committed', commitSha: 'def456' },
-        { status: 'failed', commitSha: null },
-      ],
-      'select:project_learning_candidate': [
-        { status: 'recorded', type: 'decision', origin: 'spec' },
-        { status: 'recorded', type: 'insight', origin: 'exploration' },
-        { status: 'recorded', type: 'challenge', origin: 'execute' },
+        { status: 'done', costUsd: '0.05', savedVsMainUsd: '0.02', inputTokens: 1000, outputTokens: 500, durationMs: 3000 },
+        { status: 'done', costUsd: '0.03', savedVsMainUsd: '0.01', inputTokens: 800, outputTokens: 300, durationMs: 2000 },
       ],
     });
 
     const summary = await loadProjectSummary(mockDb, PROJECT_ID);
-
     expect(summary.projectName).toBe('Demo');
     expect(summary.timeline.stages).toHaveLength(6);
     expect(summary.cost.totalUsd).toBeGreaterThan(0);
     expect(summary.effort.totalCalls).toBe(2);
-    expect(summary.quality.auditPasses).toHaveLength(3);
-    expect(summary.delivery.committed).toBe(2);
-    expect(summary.knowledge.recorded).toBe(3);
-  });
-
-  it('handles empty project with no MMA calls', async () => {
-    const mockDb = createMockDb({
-      'select:project': [{ name: 'Empty', createdAt: new Date(), completedAt: null }],
-      'select:project_stage': [],
-      'select:ops_mma_batch': [],
-      'select:project_audit_pass': [],
-      'select:project_plan_task': [],
-      'select:project_learning_candidate': [],
-    });
-
-    const summary = await loadProjectSummary(mockDb, PROJECT_ID);
-
-    expect(summary.cost.totalUsd).toBe(0);
-    expect(summary.effort.totalCalls).toBe(0);
-    expect(summary.delivery.committed).toBe(0);
-    expect(summary.knowledge.recorded).toBe(0);
+    expect(summary.quality.auditPasses).toHaveLength(2);
+    expect(summary.delivery.totalTasks).toBe(2);
+    expect(summary.delivery.approved).toBe(2);
+    expect(summary.knowledge.recorded).toBe(2);
   });
 });

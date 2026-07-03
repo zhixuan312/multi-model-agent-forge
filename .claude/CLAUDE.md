@@ -34,7 +34,7 @@ Explore (Brief → Discover → Synthesize)
           → Journal (Journal)
 ```
 
-Stage lifecycle managed centrally in `src/projects/stage-lifecycle.ts`. Stage advancement via `StageAdvance` component + middleware `x-pathname` header.
+Stage lifecycle managed via `project.details` JSONB column (v0.2.0). Read helpers in `src/details/read.ts`, write helpers in `src/details/write.ts` with optimistic locking. Legacy fallback in `src/projects/stage-lifecycle.ts` for `details_ready = false` projects. Stage advancement via `StageAdvance` component + middleware `x-pathname` header.
 
 ### File-Based Artifacts
 

@@ -13,30 +13,29 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
 const projectId = 'proj-1';
 
 describe('buildAutoDraftRequest', () => {
-  it('returns error when no spec stage exists', async () => {
+  it('returns error when no details exist', async () => {
     const mockDb = createMockDb({
-      'select:project': [{ intentMd: 'test' }],
-      'select:project_stage': [],
+      'select:project': [{ details: null }],
     });
 
     const result = await buildAutoDraftRequest({ db: mockDb, projectId });
     expect('error' in result).toBe(true);
     if ('error' in result) {
-      expect(result.error).toBe('No spec stage.');
+      expect(result.error).toBe('No details.');
     }
   });
 
-  it('returns system + user + outline when spec stage and sections exist', async () => {
-    const stageId = 'stage-1';
-    const comp1Id = 'comp-1';
+  it('returns system + user + outline when details has unapproved components', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.brief.text = 'Remove DB from demo';
+    d.stages.spec.phases.craft.components = [
+      { id: 'comp-ctx', templateId: 't-context', approvals: [] },
+    ];
     const mockDb = createMockDb({
-      'select:project': [{ intentMd: 'Remove DB from demo' }],
-      'select:project_stage': [{ id: stageId }],
-      'select:project_component': [
-        { id: comp1Id, kind: 'context', orderIndex: 0, status: 'gathering' },
-      ],
-      'select:project_component_section': [
-        { id: 'sec-1', componentId: comp1Id, key: 'background', label: 'Background', orderIndex: 0 },
+      'select:project': [{ details: d }],
+      'select:team_spec_template': [
+        { id: 't-context', kind: 'context', label: 'Context', orderIndex: 0, sections: [{ key: 'background', label: 'Background' }] },
       ],
     });
 

@@ -14,23 +14,15 @@ const repo1 = '00000000-0000-4000-8000-000000000001';
 const repo2 = '00000000-0000-4000-8000-000000000002';
 
 describe('createProject — seeding + validation', () => {
-  it('seeds exactly 5 stage rows in STAGE_ORDER, exploration active, rest pending', async () => {
+  it('creates project with details initialized', async () => {
     const ownerId = 'owner-1';
     const projectId = 'proj-1';
     const mockDb = createMockDb({
+      'select:workspace_repo': [
+        { id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' },
+        { id: repo2, name: 'repo-b', pathOnDisk: '/tmp/b', defaultBranch: 'main' },
+      ],
       'insert:project': [{ id: projectId, name: 'test-proj', visibility: 'public', phase: 'design', currentStage: 'exploration', ownerId }],
-      'insert:project_stage': [
-        { id: 'stage-1', projectId, kind: 'exploration', status: 'active' },
-        { id: 'stage-2', projectId, kind: 'spec', status: 'pending' },
-        { id: 'stage-3', projectId, kind: 'plan', status: 'pending' },
-        { id: 'stage-4', projectId, kind: 'execute', status: 'pending' },
-        { id: 'stage-5', projectId, kind: 'review', status: 'pending' },
-      ],
-      'insert:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
-      'insert:project_repo': [
-        { projectId, repoId: repo1 },
-        { projectId, repoId: repo2 },
-      ],
       'insert:ops_action_log': [{ projectId, action: 'create_project', memberId: ownerId }],
     });
 
@@ -40,17 +32,15 @@ describe('createProject — seeding + validation', () => {
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
-    expect(mockDb._assertCalled('project_stage', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('project', 'insert')).toBe(true);
   });
 
-  it('creates the project with phase=design, current_stage=exploration, owner set, summary NULL', async () => {
+  it('creates the project with details initialized', async () => {
     const ownerId = 'owner-2';
     const projectId = 'proj-2';
     const mockDb = createMockDb({
-      'insert:project': [{ id: projectId, phase: 'design', currentStage: 'exploration', ownerId, summary: null, intentMd: null }],
-      'insert:project_stage': [],
-      'insert:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
-      'insert:project_repo': [{ projectId, repoId: repo1 }],
+      'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'insert:project': [{ id: projectId, phase: 'design', currentStage: 'exploration', ownerId, summary: null }],
       'insert:ops_action_log': [{ projectId, action: 'create_project' }],
     });
 
@@ -163,34 +153,43 @@ describe('mutation authorization', () => {
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 
-  it('changeRepos by an owner succeeds and logs', async () => {
+  it('changeRepos updates details repos', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-9';
     const ownerId = 'owner-9';
+    const d = buildInitialDetails();
+    d.repos = [{ id: 'repo-1', name: 'old', pathOnDisk: '/tmp', defaultBranch: 'main' }];
     const mockDb = createMockDb({
-      'select:project': [{ id: projectId, ownerId }],
-      'select:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
-      'select:project_repo': [{ projectId, repoId: 'repo-1' }],
-      'delete:project_repo': [],
-      'insert:project_repo': [{ projectId, repoId: 'repo-2' }],
-      'insert:ops_action_log': [{ projectId, action: 'change_repos' }],
+      'select:project': seq([{ id: projectId, ownerId }], [{ details: d, detailsVersion: 0 }]),
+      'select:workspace_repo': [{ id: 'repo-2', name: 'new', pathOnDisk: '/tmp/2', defaultBranch: 'main' }],
+      'update:project': [{ id: projectId }],
+      'insert:ops_action_log': [],
     });
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId }, { db: mockDb });
-    expect(mockDb._assertCalled('project_repo', 'insert')).toBe(true);
+    expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 });
 
-describe('getProjectRepos — dangling + errored repo resolution', () => {
-  it('marks an errored repo unavailable; a cloned repo available', async () => {
+describe('getProjectRepos — reads from details', () => {
+  it('returns repos from details', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-10';
+    const d = buildInitialDetails();
+    d.repos = [
+      { id: 'good-repo', name: 'Good', pathOnDisk: '/tmp/good', defaultBranch: 'main' },
+      { id: 'bad-repo', name: 'Bad', pathOnDisk: '/tmp/bad', defaultBranch: 'main' },
+    ];
     const mockDb = createMockDb({
-      'select:project_repo': [
-        { projectId, repoId: 'good-repo', name: 'Good', tags: [], status: 'cloned' },
-        { projectId, repoId: 'bad-repo', name: 'Bad', tags: [], status: 'error' },
+      'select:project': [{ details: d }],
+      'select:workspace_repo': [
+        { id: 'good-repo', name: 'Good', tags: [], status: 'cloned' },
+        { id: 'bad-repo', name: 'Bad', tags: [], status: 'error' },
       ],
     });
 
     const views = await getProjectRepos(projectId, { db: mockDb });
+    expect(views).toHaveLength(2);
     const goodView = views.find((v) => v.repoId === 'good-repo');
     const badView = views.find((v) => v.repoId === 'bad-repo');
     expect(goodView?.available).toBe(true);

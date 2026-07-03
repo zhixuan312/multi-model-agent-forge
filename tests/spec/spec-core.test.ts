@@ -1,7 +1,4 @@
 // @vitest-environment node
-import { eq, and } from 'drizzle-orm';
-import { stage, project } from '@/db/schema/projects';
-import { componentSection, qaMessage, component } from '@/db/schema/spec';
 import {
   ensureSpecStage,
   captureIntent,
@@ -11,31 +8,30 @@ import {
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
-describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
-  it('returns the active spec stage; a second call does not duplicate it', async () => {
+describe('ensureSpecStage — reads from details', () => {
+  it('returns the active spec stage from details', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
-    const stageId = 'stage-1';
+    const d = buildInitialDetails();
+    d.stages.spec.status = 'active';
+    d.stages.spec.participants = ['m1'];
     const mockDb = createMockDb({
-      'select:project_stage': seq(
-        [],
-        [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
-      ),
-      'insert:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
-      'update:project_stage': [],
+      'select:project': [{ details: d }],
     });
 
     const first = await ensureSpecStage(mockDb, projectId);
     expect(first.status).toBe('active');
-    const second = await ensureSpecStage(mockDb, projectId);
-    expect(second.id).toBe(first.id);
+    expect(first.approvers).toContain('m1');
   });
 
-  it('flips a pending spec stage to active', async () => {
+  it('flips a pending spec stage to active via details', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-2';
-    const stageId = 'stage-2';
+    const d = buildInitialDetails();
+    d.stages.spec.status = 'pending';
     const mockDb = createMockDb({
-      'select:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'pending', startedAt: null }],
-      'update:project_stage': [{ id: stageId, projectId, kind: 'spec', status: 'active' }],
+      'select:project': seq([{ details: d }], [{ details: d, detailsVersion: 0 }]),
+      'update:project': [{ id: projectId }],
     });
 
     const res = await ensureSpecStage(mockDb, projectId);
@@ -44,15 +40,18 @@ describe('ensureSpecStage — lazy stage lifecycle (F10)', () => {
 });
 
 describe('captureIntent', () => {
-  it('writes intent_md + derives summary (pure)', async () => {
+  it('writes intent to details via setBriefText', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-3';
     const ownerId = 'owner-3';
+    const d = buildInitialDetails();
     const mockDb = createMockDb({
-      'select:project': [{ id: projectId, intentMd: null, summary: null }],
-      'update:project': [{ id: projectId, intentMd: '  We   need a faster checkout flow.  ', summary: 'We need a faster checkout flow.' }],
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: projectId }],
+      'insert:ops_action_log': [],
     });
 
-    await captureIntent(mockDb, projectId, '  We   need a faster checkout flow.  ', ownerId);
+    await captureIntent(mockDb, projectId, '  We need a faster checkout flow.  ', ownerId);
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 });
@@ -62,11 +61,12 @@ describe('section + project_qa_message persistence (DB integration)', () => {
     const projectId = 'proj-4';
     const sectionId = 'sec-1';
     const ownerId = 'owner-4';
+    const FORGE_ID = '00000000-0000-0000-0000-000000000000';
     const mockDb = createMockDb({
       'select:project_qa_message': [
-        { id: 'msg-1', sectionId, sender: 'forge', bodyMd: 'What is the goal?', seq: 1 },
-        { id: 'msg-2', sectionId, sender: 'member', bodyMd: 'Speed up checkout.', seq: 2, authorId: ownerId },
-        { id: 'msg-3', sectionId, sender: 'forge', bodyMd: 'And the constraint?', seq: 3 },
+        { id: 'msg-1', sectionId, bodyMd: 'What is the goal?', seq: 1, authorId: FORGE_ID },
+        { id: 'msg-2', sectionId, bodyMd: 'Speed up checkout.', seq: 2, authorId: ownerId },
+        { id: 'msg-3', sectionId, bodyMd: 'And the constraint?', seq: 3, authorId: FORGE_ID },
       ],
       'select:project_component_section': [{ id: sectionId, status: 'gathering', aiSatisfied: false }],
     });
@@ -80,23 +80,26 @@ describe('section + project_qa_message persistence (DB integration)', () => {
 
 describe('loadOutline', () => {
   it('returns components with template labels + their ordered sections', async () => {
-    const specStageId = 'stage-3';
+    const { buildInitialDetails } = await import('@/details/schema');
+    const projectId = 'proj-outline';
     const comp1Id = 'comp-1';
     const comp2Id = 'comp-2';
+    const d = buildInitialDetails();
+    const tplId1 = 'tpl-context-uuid';
+    const tplId2 = 'tpl-problem-uuid';
+    d.stages.spec.phases.craft.components = [
+      { id: comp1Id, templateId: tplId1, approvals: [] },
+      { id: comp2Id, templateId: tplId2, approvals: [] },
+    ];
     const mockDb = createMockDb({
-      'select:project_component': [
-        { id: comp1Id, stageId: specStageId, kind: 'context', status: 'gathering' },
-        { id: comp2Id, stageId: specStageId, kind: 'problem', status: 'gathering' },
+      'select:project': [{ details: d }],
+      'select:team_spec_template': [
+        { id: tplId1, kind: 'context', label: 'Context', orderIndex: 0, sections: [{ key: 'background', label: 'Background' }] },
+        { id: tplId2, kind: 'problem', label: 'Problem', orderIndex: 1, sections: [{ key: 'problem', label: 'Problem' }] },
       ],
-      'select:project_component_section': seq(
-        [
-          { id: 'sec-1', componentId: comp1Id, key: 'background', label: 'Background', status: 'gathering' },
-        ],
-        [{ id: 'sec-3', componentId: comp2Id, key: 'problem', label: 'Problem', status: 'gathering' }],
-      ),
     });
 
-    const outline = await loadOutline(mockDb, specStageId);
+    const outline = await loadOutline(mockDb, 'ignored', projectId);
     expect(outline.map((c) => c.kind)).toEqual(['context', 'problem']);
     expect(outline[0].label).toBe('Context');
     expect(outline[0].sections.map((s) => s.key)).toEqual(['background']);

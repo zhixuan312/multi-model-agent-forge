@@ -4,6 +4,7 @@ import { GitOps } from '@/build/branch';
 import { runExecutePipeline } from '@/build/orchestrator';
 import { downloadStageArtifact, ArtifactNotFoundError } from '@/build/export-download';
 import { ProjectAccessError } from '@/projects/projects-core';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
@@ -37,14 +38,22 @@ function committedEnvelope(sha: string) {
 
 describe('runExecutePipeline', () => {
   it('schedules tasks, reviews committed repos, and advances phase=done (review never blocks)', async () => {
+    const d = buildInitialDetails();
+    d.repos = [{ id: 'repo-1', name: 'test-repo', pathOnDisk: '/work/a', defaultBranch: 'main' }];
+    d.stages.plan.phases.refine.tasks = [{
+      id: 'task-1',
+      title: 'Task 1',
+      status: 'queued',
+      approvals: [],
+      attempts: [],
+      targetRepoId: 'repo-1',
+      orderIndex: 0,
+      reviewPolicy: 'reviewed',
+    }];
     const db = createMockDb({
-      'select:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-1', title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'queued', reviewPolicy: 'full', commitSha: null, fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
-      'select:project_repo': [{ id: 'repo-1', projectId: 'proj-1', name: 'test-repo', pathOnDisk: '/work/a', defaultBranch: 'main', createdAt: new Date(), updatedAt: new Date() }],
+      'select:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'build', ownerId: 'member-1', details: d, detailsVersion: 0, createdAt: new Date(), updatedAt: new Date() }],
+      'update:project': [{ id: 'proj-1' }],
       'insert:ops_mma_batch': [{ id: 'mma-batch-1', createdAt: new Date() }],
-      'update:project_plan_task': [{ id: 'task-1', projectId: 'proj-1', targetRepoId: 'repo-1', title: 'Task 1', detail: 'd', orderIndex: 0, isWrite: true, status: 'committed', reviewPolicy: 'full', commitSha: 'WORKER01', fixNote: null, meta: null, createdAt: new Date(), updatedAt: new Date() }],
-      'update:project': [{ id: 'proj-1', name: 'test-proj', visibility: 'public', phase: 'learn', ownerId: 'member-1', createdAt: new Date(), updatedAt: new Date() }],
-      'insert:ops_action_log': [{ id: 'log-1', projectId: 'proj-1', memberId: 'member-1', action: 'execute', target: 'repo:test-repo', meta: null, createdAt: new Date() }],
     });
     const mma = new FakeMma({
       'execute-plan': [committedEnvelope('WORKER01')],

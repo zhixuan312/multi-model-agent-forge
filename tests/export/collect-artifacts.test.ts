@@ -83,34 +83,34 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
 
 describe('collect-artifacts — locked·audited flag (F4)', () => {
   it('locked (build) phase + ≥1 clean spec audit ⇒ lockedAudited true', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
+    const d = buildInitialDetails();
+    d.stages.spec.phases.finalize.auditPasses = [{ passNo: 1, status: 'clean' }];
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'build' }],
-        [{ ownerId, visibility: 'public', phase: 'build' }],
+        [{ ownerId, visibility: 'public', phase: 'build', details: d }],
+        [{ ownerId, visibility: 'public', phase: 'build', details: d }],
       ),
-      'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': [],  // plan query
-      'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.lockedAudited).toBe(true);
   });
 
   it('unlocked (design) project ⇒ lockedAudited false even with a clean audit', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
     const ownerId = 'member-1';
     readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
+    const d = buildInitialDetails();
+    d.stages.spec.phases.finalize.auditPasses = [{ passNo: 1, status: 'clean' }];
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'design' }],
-        [{ ownerId, visibility: 'public', phase: 'design' }],
+        [{ ownerId, visibility: 'public', phase: 'design', details: d }],
+        [{ ownerId, visibility: 'public', phase: 'design', details: d }],
       ),
-      'select:project_audit_pass': [{ id: 'audit-1' }],
-      'select:project_artifact': [],  // plan query
-      'select:ops_mma_batch': [],
     });
     const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.lockedAudited).toBe(false);
@@ -141,25 +141,27 @@ describe('collect-artifacts — visibility (F-visibility)', () => {
 
 describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
   it('derives all five meta fields + the NN→{status,roles} map', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
     const ownerId = 'member-1';
-    const specStageId = 'stage-1';
     readSpecFileMock.mockReturnValue({ version: 2, updatedAt: '', bodyMd: SPEC_BODY });
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [
+      { id: 'c1', templateId: 'context', approvals: ['m1'] },
+      { id: 'c2', templateId: 'problem', approvals: ['m1'] },
+      { id: 'c3', templateId: 'technical_design', approvals: [] },
+      { id: 'c4', templateId: 'stories_tasks', approvals: ['m1'] },
+    ];
+    d.stages.spec.phases.finalize.auditPasses = [
+      { passNo: 1, status: 'clean' },
+      { passNo: 2, status: 'clean' },
+    ];
     const db = createMockDb({
       'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'build' }],
-        [{ ownerId, visibility: 'public', phase: 'build' }],
+        [{ ownerId, visibility: 'public', phase: 'build', details: d }],
+        [{ ownerId, visibility: 'public', phase: 'build', details: d }],
       ),
       'select:team_member': [{ displayName: 'Maya Adeyemi' }],
-      'select:project_stage': [{ id: specStageId }],
-      'select:project_component': [
-        { status: 'approved', roles: ['business', 'PM'], orderIndex: 0 },
-        { status: 'approved', roles: ['PM'], orderIndex: 1 },
-        { status: 'gathering', roles: ['SWE'], orderIndex: 2 },
-        { status: 'approved', roles: [], orderIndex: 3 },
-      ],
-      'select:project_audit_pass': [{ id: 'audit-1' }, { id: 'audit-2' }],
-      'select:ops_mma_batch': [],
     });
     const collected = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
     expect(collected.meta.owner).toBe('Maya Adeyemi');
@@ -171,12 +173,12 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
     expect(collected.sectionHeaders['01']).toEqual({
       status: 'Approved',
       approved: true,
-      roles: 'business · PM',
+      roles: '',
     });
     expect(collected.sectionHeaders['03']).toEqual({
       status: 'Gathering',
       approved: false,
-      roles: 'SWE',
+      roles: '',
     });
     expect(collected.sectionHeaders['04'].roles).toBe('');
   });

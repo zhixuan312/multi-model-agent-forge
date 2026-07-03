@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { buildProposeRequest } from '@/exploration/fan-out';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 import { vi } from 'vitest';
 
@@ -12,10 +13,12 @@ vi.mock('@/projects/project-files', () => ({
 describe('buildProposeRequest', () => {
   it('builds a 6-part prompt from the brief and repo list', async () => {
     const projectId = 'proj-1';
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.brief.text = 'We want to add caching to the API.';
+    d.repos = [{ id: 'repo-1', name: 'api-service', pathOnDisk: '/fake', defaultBranch: 'main' }];
     const mockDb = createMockDb({
-      'select:project': [{ briefMd: 'We want to add caching to the API.' }],
+      'select:project': [{ details: d }],
       'select:project_attachment': [],
-      'select:project_repo': [{ projectId, repoId: 'repo-1', name: 'api-service' }],
     });
 
     const request = await buildProposeRequest(projectId, { db: mockDb });
@@ -27,10 +30,11 @@ describe('buildProposeRequest', () => {
   });
 
   it('includes attachment labels in the prompt', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.brief.text = 'Brief text';
     const mockDb = createMockDb({
-      'select:project': [{ briefMd: 'Brief text' }],
+      'select:project': [{ details: d }],
       'select:project_attachment': [{ kind: 'url', label: 'API docs', payload: 'https://api.example.com/docs' }],
-      'select:project_repo': [],
     });
 
     const request = await buildProposeRequest('proj-1', { db: mockDb });

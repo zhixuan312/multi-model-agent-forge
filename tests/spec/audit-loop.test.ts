@@ -3,7 +3,7 @@ import {
   parseAuditEnvelope,
   nextPassNo,
   auditPassHistory,
-  latestAuditPass,
+
 } from '@/spec/audit-loop';
 import { auditEnvelope } from './mock-mma';
 import { createMockDb, seq } from '../test-utils/mock-db';
@@ -63,12 +63,21 @@ describe('parseAuditEnvelope (pure)', () => {
 
 describe('nextPassNo', () => {
   it('returns 1 when no passes exist', async () => {
-    const mockDb = createMockDb({ 'select:project_audit_pass': [{ m: 0 }] });
+    const { buildInitialDetails } = await import('@/details/schema');
+    const d = buildInitialDetails();
+    const mockDb = createMockDb({ 'select:project': [{ details: d }] });
     expect(await nextPassNo(mockDb, 'proj-1')).toBe(1);
   });
 
-  it('returns max+1', async () => {
-    const mockDb = createMockDb({ 'select:project_audit_pass': [{ m: 3 }] });
+  it('returns count+1 from details audit passes', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
+    const d = buildInitialDetails();
+    d.stages.spec.phases.finalize.auditPasses = [
+      { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
+      { passNo: 2, status: 'revised', audit: { attempts: [{ batchId: 'a2', status: 'done', at: '' }] } },
+      { passNo: 3, status: 'clean', audit: { attempts: [{ batchId: 'a3', status: 'done', at: '' }] } },
+    ];
+    const mockDb = createMockDb({ 'select:project': [{ details: d }] });
     expect(await nextPassNo(mockDb, 'proj-1')).toBe(4);
   });
 });

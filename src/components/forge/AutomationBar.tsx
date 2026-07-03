@@ -83,7 +83,7 @@ export function AutomationBar({
   function handleRun() {
     if (projectId) {
       fetch(`/api/projects/${projectId}/automation/start`, { method: 'POST' })
-        .then(() => router.push(`/projects/${projectId}/auto`))
+        .then(() => router.refresh())
         .catch(() => {});
     }
   }
@@ -91,10 +91,7 @@ export function AutomationBar({
   function handleStop() {
     if (projectId) {
       fetch(`/api/projects/${projectId}/automation/stop`, { method: 'POST' })
-        .then(() => {
-          router.push(`/projects/${projectId}`);
-          router.refresh();
-        })
+        .then(() => router.refresh())
         .catch(() => {});
     }
   }

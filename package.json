@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed-journal": "tsx src/journal/seed-journal.ts",
+    "db:seed-templates": "tsx src/db/seed/team-spec-template.ts",
     "db:reap": "tsx src/auth/session-reaper.ts",
     "loop-worker": "tsx src/loops/worker-main.ts"
   },

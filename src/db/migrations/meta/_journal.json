@@ -8,6 +8,27 @@
       "when": 1782898661990,
       "tag": "0000_true_post",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783060000000,
+      "tag": "0001_details_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783070000000,
+      "tag": "0002_qa_message_finalize",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783080000000,
+      "tag": "0003_cleanup",
+      "breakpoints": true
     }
   ]
 }

@@ -382,7 +382,7 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       await db.update(project).set({ currentStage: 'plan', updatedAt: new Date() }).where(eq(project.id, projectId));
       await db.update(stage).set({ status: 'active' })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'plan'), eq(stage.status, 'pending')));
-      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/plan` });
+      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/plan?phase=refine` });
       break;
     }
     case 'navigate_to_execute': {

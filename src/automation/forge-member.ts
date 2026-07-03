@@ -5,7 +5,6 @@
  */
 
 export const FORGE_MEMBER_ID = '00000000-0000-0000-0000-000000000000';
-export const FORGE_USERNAME = 'forge';
 
 export function isForgeSystemMember(memberId: string): boolean {
   return memberId === FORGE_MEMBER_ID;

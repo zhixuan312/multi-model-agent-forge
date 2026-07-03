@@ -1,10 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { autoStep } from '@/db/schema/ops';
 import { projectEventBus } from '@/sse/event-bus';
-import { resolveNextAction } from '@/automation/resolver';
-import { executeAction } from '@/automation/actions';
+import { executeDetailsAction } from '@/automation/details-actions';
+import { updateDetails } from '@/details/write';
 
 const activeDrivers = new Map<string, boolean>();
 
@@ -12,42 +11,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const ACTION_STAGE: Record<string, string> = {
-  dispatch_spec_audit: 'spec', apply_spec_findings: 'spec', freeze_spec: 'spec',
-  dispatch_plan_author: 'plan', validate_task: 'plan', approve_task: 'plan',
-  advance_plan_validate: 'plan', dispatch_plan_audit: 'plan', apply_plan_findings: 'plan', lock_plan: 'plan',
-  dispatch_execute: 'execute', advance_to_review: 'execute',
-  dispatch_review: 'review', apply_review_findings: 'review', advance_to_journal: 'review',
-  dispatch_harvest: 'journal', approve_learning: 'journal', dispatch_record: 'journal',
-  advance_to_summary: 'journal', mark_complete: 'journal',
-};
-
-const ACTION_PHASE: Record<string, string> = {
-  dispatch_spec_audit: 'finalize', apply_spec_findings: 'finalize', freeze_spec: 'finalize',
-  dispatch_plan_author: 'refine', validate_task: 'refine', approve_task: 'refine',
-  advance_plan_validate: 'validate', dispatch_plan_audit: 'validate', apply_plan_findings: 'validate', lock_plan: 'validate',
-  dispatch_execute: 'monitor', advance_to_review: 'monitor',
-  dispatch_review: 'review', apply_review_findings: 'review', advance_to_journal: 'review',
-  dispatch_harvest: 'journal', approve_learning: 'journal', dispatch_record: 'journal',
-  advance_to_summary: 'summary', mark_complete: 'summary',
-};
-
 export async function driveProject(projectId: string): Promise<void> {
   if (activeDrivers.get(projectId)) return;
   activeDrivers.set(projectId, true);
   const db = getDb();
-  let stepIndex = 0;
 
   try {
     while (true) {
       const [proj] = await db
-        .select({ autoMode: project.autoMode })
+        .select({ autoMode: project.autoMode, detailsReady: project.detailsReady, details: project.details })
         .from(project)
         .where(eq(project.id, projectId))
         .limit(1);
       if (!proj?.autoMode) return;
 
-      const action = await resolveNextAction(projectId, db);
+      const { validateDetails } = await import('@/details/schema');
+      const { resolveNextActionFromDetails } = await import('@/automation/details-resolver');
+      if (!proj.details) { await sleep(5000); continue; }
+      const details = validateDetails(proj.details);
+      const action = resolveNextActionFromDetails(details);
 
       if (action.kind === 'complete') {
         await db.update(project).set({ autoMode: false, autoNote: 'Project complete' }).where(eq(project.id, projectId));
@@ -59,29 +41,13 @@ export async function driveProject(projectId: string): Promise<void> {
         continue;
       }
 
-      const actionStage = ACTION_STAGE[action.kind];
-      const actionPhase = ACTION_PHASE[action.kind];
-      const targetId = (action.data?.taskId ?? action.data?.learningId ?? action.data?.passNo?.toString()) as string | undefined;
-
-      // Record step BEFORE execution
-      const [stepRow] = await db.insert(autoStep).values({
-        projectId,
-        action: action.kind,
-        note: action.note,
-        stage: actionStage,
-        phase: actionPhase,
-        targetId: targetId ?? null,
-        status: 'running',
-      }).returning({ id: autoStep.id });
-
       await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
-      projectEventBus.publish(projectId, { type: 'automation.progress', note: action.note, stage: actionStage, phase: actionPhase });
+      projectEventBus.publish(projectId, { type: 'automation.progress', note: action.note });
 
-      const t0 = Date.now();
       let lastErr: string | null = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          await executeAction(projectId, action, db);
+          await executeDetailsAction(projectId, action, db);
           lastErr = null;
           break;
         } catch (err) {
@@ -89,29 +55,32 @@ export async function driveProject(projectId: string): Promise<void> {
           if (attempt < 3) {
             const retryNote = `${action.note} (retry ${attempt}/3 — ${lastErr})`;
             await db.update(project).set({ autoNote: retryNote, updatedAt: new Date() }).where(eq(project.id, projectId));
-            projectEventBus.publish(projectId, { type: 'automation.progress', note: retryNote, stage: actionStage, phase: actionPhase });
+            projectEventBus.publish(projectId, { type: 'automation.progress', note: retryNote });
             await sleep(5000 * attempt);
           }
         }
       }
-
-      const elapsed = Date.now() - t0;
-
+      if (!lastErr && !action.kind.startsWith('navigate_')) {
+        projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
+        // Record step in details.automation.steps[]
+        try {
+          await updateDetails(db, projectId, (d) => {
+            d.automation.steps.push({
+              action: action.kind,
+              stage: action.stage ?? '',
+              phase: action.phase ?? '',
+              detail: action.note,
+              at: new Date().toISOString(),
+            });
+            return d;
+          });
+        } catch { /* step recording is best-effort */ }
+      }
       if (lastErr) {
-        // Record failure
-        await db.update(autoStep).set({ status: 'failed', error: lastErr, durationMs: elapsed, terminalAt: new Date() })
-          .where(eq(autoStep.id, stepRow.id));
         await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
         projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });
         return;
       }
-
-      // Record success
-      stepIndex++;
-      await db.update(autoStep).set({ status: 'done', durationMs: elapsed, terminalAt: new Date() })
-        .where(eq(autoStep.id, stepRow.id));
-
-      projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind, stage: actionStage, phase: actionPhase, stepIndex });
 
       await sleep(1000);
     }

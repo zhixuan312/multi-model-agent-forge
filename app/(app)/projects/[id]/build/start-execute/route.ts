@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
+import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { GitOps } from '@/build/branch';
 import { authorizeExecute, ExecuteLockedError } from '@/build/execute-authz';
 import { branchName } from '@/build/slug';
 import { runExecutePipeline } from '@/build/orchestrator';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
 export const runtime = 'nodejs';
 
@@ -23,11 +25,21 @@ export async function POST(
   const body = await req.json().catch(() => ({})) as { targetBranches?: Record<string, string> };
   const targetBranches: Record<string, string> = body.targetBranches ?? {};
 
-  const repos = await db
-    .selectDistinct({ repoId: planTask.targetRepoId, name: repo.name })
-    .from(planTask)
-    .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
-    .where(eq(planTask.projectId, id));
+  // Read repos from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (!projRow?.details) return NextResponse.json({ error: 'No project details' }, { status: 400 });
+  const d = validateDetails(projRow.details);
+
+  const tasks = d.stages.plan.phases.refine.tasks;
+  const repoIds = [...new Set(tasks.map((t) => t.targetRepoId).filter(Boolean) as string[])];
+  if (repoIds.length === 0 && d.repos.length > 0) {
+    repoIds.push(...d.repos.map((r) => r.id));
+  }
+
+  const repoRows = repoIds.length > 0
+    ? await db.select({ id: repo.id, name: repo.name }).from(repo).where(eq(repo.id, repoIds[0]!))
+    : [];
+  const repos = repoRows.map((r) => ({ repoId: r.id, name: r.name }));
 
   if (repos.length === 0) {
     return NextResponse.json({ error: 'no write-target repos with queued tasks' }, { status: 400 });
@@ -58,13 +70,18 @@ export async function POST(
     throw e;
   }
 
-  // Set target branches on plan tasks before dispatch
+  // Set target branches on tasks in details
   for (const r of repos) {
     const tb = targetBranches[r.repoId];
     if (tb) {
-      await db.update(planTask)
-        .set({ targetBranch: tb })
-        .where(and(eq(planTask.projectId, id), eq(planTask.targetRepoId, r.repoId)));
+      await updateDetails(db, id, (det) => {
+        for (const t of det.stages.plan.phases.refine.tasks) {
+          if (t.targetRepoId === r.repoId) {
+            t.targetBranch = tb;
+          }
+        }
+        return det;
+      });
     }
   }
 
@@ -73,7 +90,7 @@ export async function POST(
   // Dispatch in background (non-blocking 202)
   setImmediate(() => {
     void runExecutePipeline(
-      { executor: {}, review: {} } as any, // deps wired at runtime by the orchestrator's defaults
+      { executor: {}, review: {} } as any,
       { projectId: id, actorId: guard.memberId, targetBranches },
     ).catch((err) => {
       console.error('[forge] build pipeline crashed', err);

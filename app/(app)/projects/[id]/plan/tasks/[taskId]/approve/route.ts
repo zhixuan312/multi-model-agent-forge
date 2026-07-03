@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
-import { participant } from '@/db/schema/participants';
+import { project } from '@/db/schema/projects';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
+import { updateDetails } from '@/details/write';
+import { validateDetails } from '@/details/schema';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
 
@@ -15,19 +16,14 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const db = getDb();
 
-  await db
-    .insert(participant)
-    .values({ projectId: id, memberId: me.id, scope: 'task', scopeId: taskId, role: 'approver' })
-    .onConflictDoNothing();
-  await db
-    .insert(participant)
-    .values({ projectId: id, memberId: me.id, scope: 'task', scopeId: taskId, role: 'reviewer' })
-    .onConflictDoNothing();
-
-  await db.update(planTask).set({
-    status: 'committed',
-    updatedAt: new Date(),
-  }).where(eq(planTask.id, taskId));
+  await updateDetails(db, id, (d) => {
+    const task = d.stages.plan.phases.refine.tasks.find((t) => t.id === taskId);
+    if (task) {
+      if (!task.approvals.includes(me.id)) task.approvals.push(me.id);
+      task.status = 'approved';
+    }
+    return d;
+  });
 
   projectEventBus.publish(id, { type: 'plan.updated', taskId, chatReply: `${me.displayName} approved this task.`, updated: true });
   return NextResponse.json({ ok: true });
@@ -40,24 +36,14 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse>
 
   const db = getDb();
 
-  await db.delete(participant).where(
-    and(
-      eq(participant.scopeId, taskId),
-      eq(participant.memberId, me.id),
-      eq(participant.scope, 'task'),
-      eq(participant.role, 'approver'),
-    ),
-  );
-
-  const remaining = await db
-    .select({ memberId: participant.memberId })
-    .from(participant)
-    .where(and(eq(participant.scopeId, taskId), eq(participant.scope, 'task'), eq(participant.role, 'approver')));
-
-  await db.update(planTask).set({
-    status: remaining.length > 0 ? 'committed' : 'queued',
-    updatedAt: new Date(),
-  }).where(eq(planTask.id, taskId));
+  await updateDetails(db, id, (d) => {
+    const task = d.stages.plan.phases.refine.tasks.find((t) => t.id === taskId);
+    if (task) {
+      task.approvals = task.approvals.filter((a) => a !== me.id);
+      task.status = task.approvals.length > 0 ? 'approved' : 'pending';
+    }
+    return d;
+  });
 
   projectEventBus.publish(id, { type: 'plan.updated', taskId, chatReply: `${me.displayName} revoked approval.`, updated: true });
   return NextResponse.json({ ok: true });

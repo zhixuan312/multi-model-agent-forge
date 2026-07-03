@@ -4,7 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
-import { loadLearnings } from '@/spec/learnings';
+import { allCandidates } from '@/spec/learnings';
 import { FreezeClient } from '@/components/forge/FreezeClient';
 
 /**
@@ -37,18 +37,18 @@ export default async function FreezePage({
     .limit(1);
   if (!proj) notFound();
 
-  const candidates = await loadLearnings(db, id);
+  const candidates = await allCandidates(id, { db });
 
   return (
     <FreezeClient
       projectId={id}
       locked={proj.phase !== 'design'}
       initialCandidates={candidates.map((c) => ({
-        id: c.id,
-        bodyMd: c.bodyMd,
+        id: String(c.index),
+        bodyMd: c.heading,
         type: c.type,
-        status: c.status,
-        recordedNodeId: c.recordedNodeId,
+        status: c.status as 'proposed' | 'kept' | 'removed' | 'recorded',
+        recordedNodeId: null,
       }))}
     />
   );

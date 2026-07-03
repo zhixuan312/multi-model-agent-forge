@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, asc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
+import { project } from '@/db/schema/projects';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildLearningsPrompt } from '@/spec/learnings';
-import { learningCandidate } from '@/db/schema/learning';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -18,14 +19,13 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const db = getDb();
 
-  // Idempotent: if candidates exist, return them without re-proposing
-  const existing = await db
-    .select()
-    .from(learningCandidate)
-    .where(eq(learningCandidate.projectId, id))
-    .orderBy(asc(learningCandidate.createdAt));
-  if (existing.length > 0) {
-    return NextResponse.json({ candidates: existing });
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (projRow?.details) {
+    const d = validateDetails(projRow.details);
+    const learnings = d.stages.journal.phases.journal.learnings;
+    if (learnings.length > 0) {
+      return NextResponse.json({ candidates: learnings.map((l, i) => ({ id: `learning-${i}`, ...l })) });
+    }
   }
 
   const inflight = await findInflight(db, id, 'spec-learnings');

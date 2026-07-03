@@ -4,8 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
-import { formatTags, mapCategoryToType, mapSourceToOrigin } from '@/journal/journal-core';
+import { updateDetails } from '@/details/write';
 
 export const runtime = 'nodejs';
 
@@ -36,20 +35,24 @@ export async function POST(
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
-  const { text, category, source } = parsed.data;
+  const { text, category } = parsed.data;
 
   const db = getDb();
-  const [row] = await db
-    .insert(learningCandidate)
-    .values({
-      projectId: id,
-      bodyMd: formatTags(text, category, source),
-      type: mapCategoryToType(category),
-      origin: mapSourceToOrigin(source),
-      status: 'proposed',
-      createdBy: me.id,
-    })
-    .returning({ id: learningCandidate.id });
+  const TYPE_MAP: Record<string, 'decision' | 'insight'> = {
+    decision: 'decision', design: 'decision', process: 'insight',
+    behavior: 'insight', knowledge: 'insight', style: 'insight', challenge: 'insight',
+  };
 
-  return NextResponse.json({ id: row.id });
+  let newIndex = -1;
+  await updateDetails(db, id, (d) => {
+    d.stages.journal.phases.journal.learnings.push({
+      heading: text,
+      type: TYPE_MAP[category.toLowerCase()] ?? 'insight',
+      status: 'proposed',
+    });
+    newIndex = d.stages.journal.phases.journal.learnings.length - 1;
+    return d;
+  });
+
+  return NextResponse.json({ id: `learning-${newIndex}`, index: newIndex });
 }

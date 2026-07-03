@@ -2,14 +2,15 @@ import { notFound, redirect } from 'next/navigation';
 import { eq, and, desc } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
 import { mmaBatch } from '@/db/schema/ops';
 import { repo } from '@/db/schema/workspace';
-import { buildPr } from '@/db/schema/projects';
+import { buildPr, project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
 import { ExecuteStageClient, type RepoTerminalResult } from '@/components/forge/ExecuteStageClient';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
 export default async function ExecuteStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -32,23 +33,45 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  // Activate the execute stage + update current_stage on visit
-  const { stage } = await import('@/db/schema/projects');
-  const { project } = await import('@/db/schema/projects');
-  const { and: deq2, eq: deq } = await import('drizzle-orm');
-  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'execute'), deq(stage.status, 'pending')));
+  // Activate the execute stage via details
+  await updateDetails(db, id, (d) => {
+    if (d.stages.execute.status === 'pending') {
+      d.stages.execute.status = 'active';
+      d.stages.execute.startedAt = new Date().toISOString();
+    }
+    return d;
+  });
   await db.update(project).set({ currentStage: 'execute' }).where(eq(project.id, id));
-  const tasks = await db
-    .select({
-      id: planTask.id, title: planTask.title, orderIndex: planTask.orderIndex,
-      targetRepoId: planTask.targetRepoId, status: planTask.status,
-      phase: planTask.phase, branch: planTask.branch, commitSha: planTask.commitSha,
-      repoName: repo.name, repoPath: repo.pathOnDisk, defaultBranch: repo.defaultBranch,
-    })
-    .from(planTask)
-    .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
-    .where(eq(planTask.projectId, id))
-    .orderBy(planTask.orderIndex);
+
+  // Read tasks from details + resolve repo metadata
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  const d = projRow?.details ? validateDetails(projRow.details) : null;
+  const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
+  const detailsRepos = d?.repos ?? [];
+
+  // Build task rows for groupTasksByRepo
+  const repoMap = new Map<string, { name: string; pathOnDisk: string; defaultBranch: string }>();
+  for (const r of detailsRepos) {
+    repoMap.set(r.id, { name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch });
+  }
+
+  const tasks = detailsTasks.map((t, i) => {
+    const repoId = t.targetRepoId ?? detailsRepos[0]?.id ?? '';
+    const r = repoMap.get(repoId);
+    return {
+      id: t.id,
+      title: t.title,
+      orderIndex: t.orderIndex ?? i,
+      targetRepoId: repoId,
+      status: t.status,
+      phase: t.phase ?? null,
+      branch: t.branch ?? null,
+      commitSha: t.commitSha ?? null,
+      repoName: r?.name ?? '',
+      repoPath: r?.pathOnDisk ?? '',
+      defaultBranch: r?.defaultBranch ?? 'main',
+    };
+  });
 
   const shortId = projectShortId(id);
   const groups = groupTasksByRepo(tasks, proj.name, shortId);
@@ -126,10 +149,9 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     };
   });
 
-  // Resolve initial phase from URL > last saved > derived
+  // Resolve initial phase from URL > derived
   const validPhases = ['configure', 'implement'] as const;
   type ExecPhase = typeof validPhases[number];
-  // Use inferExecutePhase as ground truth — lastPhase can be stale
   const { inferExecutePhase } = await import('@/build/execute-types');
   const derivedPhase = inferExecutePhase(groups);
   const initialPhase: ExecPhase | undefined = validPhases.includes(urlPhase as any)

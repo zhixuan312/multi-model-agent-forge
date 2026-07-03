@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { stage } from '@/db/schema/projects';
-import { participant } from '@/db/schema/participants';
+import { updateDetails } from '@/details/write';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -16,27 +14,18 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const body = (await req.json().catch(() => ({}))) as { action?: string };
   const db = getDb();
 
-  const [row] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
-    .limit(1);
-  if (!row) return NextResponse.json({ error: 'Stage not found' }, { status: 404 });
-
   if (body.action === 'revoke') {
-    await db.delete(participant).where(
-      and(
-        eq(participant.scopeId, row.id),
-        eq(participant.memberId, me.id),
-        eq(participant.scope, 'stage'),
-        eq(participant.role, 'approver'),
-      ),
-    );
+    await updateDetails(db, id, (d) => {
+      d.stages.spec.participants = d.stages.spec.participants.filter((p) => p !== me.id);
+      return d;
+    });
   } else {
-    await db
-      .insert(participant)
-      .values({ projectId: id, memberId: me.id, scope: 'stage', scopeId: row.id, role: 'approver' })
-      .onConflictDoNothing();
+    await updateDetails(db, id, (d) => {
+      if (!d.stages.spec.participants.includes(me.id)) {
+        d.stages.spec.participants.push(me.id);
+      }
+      return d;
+    });
   }
 
   projectEventBus.publish(id, { type: 'spec.updated' });

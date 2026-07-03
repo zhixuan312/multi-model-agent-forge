@@ -1,18 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
+import { updateDetails } from '@/details/write';
 
 export const runtime = 'nodejs';
 
 const bodySchema = z.object({
-  learningId: z.string().min(1),
+  learningIndex: z.number().int().min(0),
   action: z.enum(['approve', 'revoke']),
-  text: z.string().optional(),
 });
 
 export async function POST(
@@ -36,17 +34,16 @@ export async function POST(
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
-  const { learningId, action, text } = parsed.data;
+  const { learningIndex, action } = parsed.data;
 
   const db = getDb();
-  const update = {
-    status: action === 'approve' ? 'kept' as const : 'proposed' as const,
-  };
-
-  await db
-    .update(learningCandidate)
-    .set(update)
-    .where(and(eq(learningCandidate.id, learningId), eq(learningCandidate.projectId, id)));
+  await updateDetails(db, id, (d) => {
+    const learning = d.stages.journal.phases.journal.learnings[learningIndex];
+    if (learning) {
+      learning.status = action === 'approve' ? 'kept' : 'proposed';
+    }
+    return d;
+  });
 
   return NextResponse.json({ ok: true });
 }

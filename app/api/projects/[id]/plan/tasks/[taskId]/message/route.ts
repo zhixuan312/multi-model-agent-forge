@@ -20,14 +20,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const [seqRow] = await db
     .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), 0)` })
     .from(qaMessage)
-    .where(eq(qaMessage.componentId, taskId));
+    .where(eq(qaMessage.targetId, taskId));
 
   const [row] = await db
     .insert(qaMessage)
     .values({
-      componentId: taskId,
+      targetId: taskId,
+      projectId: id,
+      targetKind: 'plan_task',
       seq: (seqRow?.max ?? 0) + 1,
-      sender: 'member',
       bodyMd: bodyMd.trim(),
       authorId: me.id,
     })

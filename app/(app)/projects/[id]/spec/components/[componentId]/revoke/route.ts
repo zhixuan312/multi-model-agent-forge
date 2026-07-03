@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { getDb } from '@/db/client';
-import { component } from '@/db/schema/spec';
-import { participant } from '@/db/schema/participants';
+import { updateDetails } from '@/details/write';
 import { projectEventBus } from '@/sse/event-bus';
 import { currentMember } from '@/auth/current-member';
 
@@ -19,28 +17,13 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const db = getDb();
 
-  await db.delete(participant).where(
-    and(
-      eq(participant.scopeId, componentId),
-      eq(participant.memberId, me.id),
-      eq(participant.scope, 'component'),
-      eq(participant.role, 'approver'),
-    ),
-  );
-
-  const remaining = await db
-    .select({ memberId: participant.memberId })
-    .from(participant)
-    .where(and(eq(participant.scopeId, componentId), eq(participant.scope, 'component'), eq(participant.role, 'approver')));
-
-  await db
-    .update(component)
-    .set({
-      status: remaining.length > 0 ? 'approved' : 'drafted',
-      humanSatisfied: remaining.length > 0,
-      updatedAt: new Date(),
-    })
-    .where(eq(component.id, componentId));
+  await updateDetails(db, id, (d) => {
+    const comp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
+    if (comp) {
+      comp.approvals = comp.approvals.filter((a) => a !== me.id);
+    }
+    return d;
+  });
 
   projectEventBus.publish(id, { type: 'spec.updated' });
   return NextResponse.json({ ok: true });

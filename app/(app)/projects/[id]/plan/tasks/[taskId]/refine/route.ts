@@ -5,10 +5,11 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
+import { project } from '@/db/schema/projects';
 import { getLatestSpec } from '@/spec/assemble';
 import { buildPlanRefinePrompt } from '@/plan/plan-refine-prompt';
 import { readTaskSection } from '@/plan/plan-file-ops';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
@@ -26,11 +27,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const [task] = await db
-    .select({ title: planTask.title })
-    .from(planTask)
-    .where(eq(planTask.id, taskId))
-    .limit(1);
+  // Find task title from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (!projRow?.details) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  const d = validateDetails(projRow.details);
+  const task = d.stages.plan.phases.refine.tasks.find((t) => t.id === taskId);
   if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
   const section = await readTaskSection(id, task.title);

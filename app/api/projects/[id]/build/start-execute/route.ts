@@ -5,9 +5,7 @@ import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
 import { project } from '@/db/schema/projects';
-import { projectRepo } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { planFilePath, readPlanFileAsync } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
@@ -15,6 +13,8 @@ import { projectShortId } from '@/build/slug';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { execFileSync } from 'node:child_process';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -41,7 +41,6 @@ export async function POST(
 
   const db = getDb();
 
-  // Prevent duplicate dispatch
   const existing = await findInflight(db, id, 'execute-pipeline');
   if (existing) {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
@@ -51,25 +50,26 @@ export async function POST(
   const parsed = bodySchema.safeParse(json);
   let repoList = parsed.success ? parsed.data.repos : [];
 
+  // Get repos from details if not provided
   if (repoList.length === 0) {
-    const rows = await db
-      .select({ id: repo.id, defaultBranch: repo.defaultBranch })
-      .from(projectRepo)
-      .innerJoin(repo, eq(projectRepo.repoId, repo.id))
-      .where(eq(projectRepo.projectId, id));
-    repoList = rows.map((r) => ({ repoId: r.id, targetBranch: r.defaultBranch }));
+    const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+    if (projRow?.details) {
+      const d = validateDetails(projRow.details);
+      repoList = d.repos.map((r) => ({ repoId: r.id, targetBranch: r.defaultBranch }));
+    }
   }
 
   const planArtifact = await readPlanFileAsync(id);
   if (!planArtifact?.bodyMd) return NextResponse.json({ error: 'No plan artifact.' }, { status: 400 });
 
-  // Absolute path to plan.md — MMA reads are unrestricted, no need to copy into the repo
   const planPath = planFilePath(id);
 
   const mma = await buildMmaClient({ db });
   const shortId = projectShortId(id);
-  const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, id));
+  const [proj] = await db.select({ name: project.name, details: project.details }).from(project).where(eq(project.id, id));
   const forgeBranch = buildForgeBranch(proj?.name ?? id, shortId);
+
+  const d = proj?.details ? validateDetails(proj.details) : null;
 
   const dispatched: Array<{ repoId: string; batchId: string }> = [];
   const errors: Array<{ repoId: string; error: string }> = [];
@@ -82,7 +82,6 @@ export async function POST(
       .limit(1);
     if (!repoRow) { errors.push({ repoId, error: 'Repo not found' }); continue; }
 
-    // 1. Create forge branch from target (or checkout if it exists)
     try {
       const branchExists = execFileSync('git', ['-C', repoRow.pathOnDisk, 'branch', '--list', forgeBranch], { encoding: 'utf8' }).trim();
       if (branchExists) {
@@ -96,9 +95,11 @@ export async function POST(
       continue;
     }
 
-    // 2. Dispatch via centralized PollManager + handler registry
-    // Plan file is at an absolute path (.mma/projects/<id>/plan.md) — MMA reads it directly
     try {
+      const taskTitles = d?.stages.plan.phases.refine.tasks
+        .filter((t) => t.targetRepoId === repoId)
+        .map((t) => t.title) ?? [];
+
       const { batchRowId } = await dispatchMma({
         db,
         mma,
@@ -118,15 +119,21 @@ export async function POST(
           targetBranch,
           repoId,
           actorId: me.id,
-          tasks: (await db.select({ title: planTask.title }).from(planTask)
-            .where(and(eq(planTask.projectId, id), eq(planTask.targetRepoId, repoId)))).map((t) => t.title),
+          tasks: taskTitles,
         },
       });
 
-      // Mark tasks as executing
-      await db.update(planTask)
-        .set({ status: 'executing', targetBranch, branch: forgeBranch, updatedAt: new Date() })
-        .where(and(eq(planTask.projectId, id), eq(planTask.targetRepoId, repoId)));
+      // Mark tasks as executing in details
+      await updateDetails(db, id, (det) => {
+        for (const t of det.stages.plan.phases.refine.tasks) {
+          if (t.targetRepoId === repoId) {
+            t.status = 'executing';
+            t.targetBranch = targetBranch;
+            t.branch = forgeBranch;
+          }
+        }
+        return det;
+      });
 
       dispatched.push({ repoId, batchId: batchRowId });
     } catch (err) {
@@ -136,11 +143,12 @@ export async function POST(
 
   if (dispatched.length === 0) return NextResponse.json({ error: 'All repos failed', errors }, { status: 502 });
 
-  // Persist the phase transition so the stepper knows 'implement' was reached
-  const { stage } = await import('@/db/schema/projects');
-  await db.update(stage)
-    .set({ lastPhase: 'implement' })
-    .where(and(eq(stage.projectId, id), eq(stage.kind, 'execute')));
+  // Advance execute phase in details
+  await updateDetails(db, id, (det) => {
+    const exe = det.stages.execute;
+    if (exe.status === 'pending') exe.status = 'active';
+    return det;
+  });
 
   return NextResponse.json({ dispatched, ...(errors.length > 0 ? { errors } : {}) }, { status: 202 });
 }

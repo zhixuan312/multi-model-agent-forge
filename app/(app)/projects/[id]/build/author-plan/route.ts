@@ -8,8 +8,8 @@ import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { planFilePath } from '@/projects/project-files';
 import { getDb } from '@/db/client';
 import { getLatestSpec } from '@/spec/assemble';
-import { projectRepo } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 export async function POST(
@@ -32,18 +32,23 @@ export async function POST(
     return NextResponse.json({ error: 'No locked spec to plan from.' }, { status: 409 });
   }
 
-  const repos = await db
-    .select({ id: repo.id, name: repo.name, tags: repo.tags })
-    .from(projectRepo)
-    .innerJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, id));
+  const [projRow] = await db
+    .select({ details: project.details })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1);
+  if (!projRow?.details) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+  const d = validateDetails(projRow.details);
+  const repos = d.repos;
 
   if (repos.length === 0) {
     return NextResponse.json({ error: 'No repos in the project.' }, { status: 409 });
   }
 
   const repoList = repos
-    .map((r) => `- id=${r.id} name=${r.name} tags=${r.tags.join(',') || '—'}`)
+    .map((r) => `- id=${r.id} name=${r.name}`)
     .join('\n');
 
   const cwd = resolveWorkspaceRoot();

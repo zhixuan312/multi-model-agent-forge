@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
+import { project } from '@/db/schema/projects';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { buildRecordPrompt } from '@/journal/record-prompt';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -36,9 +37,10 @@ export async function POST(
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const kept = await db.select({ id: learningCandidate.id })
-    .from(learningCandidate)
-    .where(and(eq(learningCandidate.projectId, id), eq(learningCandidate.status, 'kept')));
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (!projRow?.details) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  const d = validateDetails(projRow.details);
+  const kept = d.stages.journal.phases.journal.learnings.filter((l) => l.status === 'kept');
 
   if (kept.length === 0) {
     return NextResponse.json({ error: 'No kept learnings to record' }, { status: 400 });
@@ -56,7 +58,7 @@ export async function POST(
     cwd: resolveWorkspaceRoot(),
     body: { prompt },
     actorId: me.id,
-    meta: { learningIds: kept.map((l) => l.id), learningCount: kept.length },
+    meta: { learningCount: kept.length },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

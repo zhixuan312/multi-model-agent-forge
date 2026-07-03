@@ -5,8 +5,8 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
-import { projectRepo } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import '@/dispatch/handler-registry';
@@ -36,11 +36,16 @@ export async function POST(
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const repos = await db
-    .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk })
-    .from(projectRepo)
-    .innerJoin(repo, eq(projectRepo.repoId, repo.id))
-    .where(eq(projectRepo.projectId, id));
+  const [projRow] = await db
+    .select({ details: project.details })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1);
+  if (!projRow?.details) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+  const d = validateDetails(projRow.details);
+  const repos = d.repos;
 
   if (repos.length === 0) return NextResponse.json({ error: 'No repos' }, { status: 400 });
 

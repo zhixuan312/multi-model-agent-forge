@@ -96,17 +96,21 @@ export async function register(): Promise<void> {
     );
   }
 
-  // Resume server-side automation for projects with auto_mode = true
+  // Resume server-side automation for projects with auto_mode = true (legacy)
+  // OR details.automation.status = 'running' (details-ready path)
   try {
     const { getDb } = await import('@/db/client');
     const { project } = await import('@/db/schema/projects');
-    const { eq } = await import('drizzle-orm');
+    const { eq, or, sql } = await import('drizzle-orm');
     const { driveProject } = await import('@/automation/driver');
     const db = getDb();
     const autoProjects = await db
       .select({ id: project.id, name: project.name })
       .from(project)
-      .where(eq(project.autoMode, true));
+      .where(or(
+        eq(project.autoMode, true),
+        sql`${project.details}->'automation'->>'status' = 'running'`,
+      ));
     for (const p of autoProjects) {
       console.log(JSON.stringify({ event: 'automation_resumed', projectId: p.id, name: p.name }));
       driveProject(p.id).catch((err) => {

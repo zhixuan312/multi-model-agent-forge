@@ -1,15 +1,16 @@
 import { notFound, redirect } from 'next/navigation';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
+import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { readJournalFileAsync } from '@/projects/project-files';
 import { parseJournalSections } from '@/journal/journal-file-ops';
 import { JournalStageClient, type JournalLearningView } from '@/components/forge/JournalStageClient';
 import { findInflight } from '@/dispatch/dispatch-helpers';
-import { parseTags } from '@/journal/journal-core';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 import type { LearningCategory, LearningSource } from '@/journal/types';
 
 export default async function JournalStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ learning?: string; phase?: string }> }) {
@@ -32,73 +33,78 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  // Activate the journal stage on visit
-  const { stage, project: projectTable } = await import('@/db/schema/projects');
-  const { and: deq2, eq: deq } = await import('drizzle-orm');
-  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'journal'), deq(stage.status, 'pending')));
-  await db.update(projectTable).set({ currentStage: 'journal' }).where(eq(projectTable.id, id));
+  // Activate the journal stage on visit via details
+  await updateDetails(db, id, (d) => {
+    if (d.stages.journal.status === 'pending') {
+      d.stages.journal.status = 'active';
+      d.stages.journal.startedAt = new Date().toISOString();
+    }
+    return d;
+  });
+  await db.update(project).set({ currentStage: 'journal' }).where(eq(project.id, id));
 
-  // Check if journal.md exists (source of truth)
+  // Check if journal.md exists (source of truth for content)
   const journalFile = await readJournalFileAsync(id);
   const journalMd = journalFile?.bodyMd ?? '';
   const fileSections = journalFile ? parseJournalSections(journalFile.bodyMd) : [];
 
-  // Load DB learning candidates (metadata: status, approvals)
-  let candidates = await db.select().from(learningCandidate)
-    .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
+  // Load learnings from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  const d = projRow?.details ? validateDetails(projRow.details) : null;
+  let detailsLearnings = d?.stages.journal.phases.journal.learnings ?? [];
 
-  // If journal.md was deleted but DB still has candidates, clear stale rows so auto-harvest re-triggers
-  if (!journalFile && candidates.length > 0) {
-    await db.delete(learningCandidate).where(eq(learningCandidate.projectId, id));
-    candidates = [];
+  // If journal.md was deleted but details still has learnings, clear them
+  if (!journalFile && detailsLearnings.length > 0) {
+    await updateDetails(db, id, (det) => {
+      det.stages.journal.phases.journal.learnings = [];
+      return det;
+    });
+    detailsLearnings = [];
   }
 
-  // Seed DB from journal.md if file exists but no DB rows (e.g., after data cleanup)
-  if (candidates.length === 0 && fileSections.length > 0) {
-    const TYPE_MAP: Record<string, 'challenge' | 'insight' | 'decision'> = {
+  // Seed details from journal.md if file exists but no details learnings
+  if (detailsLearnings.length === 0 && fileSections.length > 0) {
+    const TYPE_MAP: Record<string, 'decision' | 'insight'> = {
       decision: 'decision', design: 'decision', process: 'insight',
-      behavior: 'insight', knowledge: 'insight', style: 'insight', challenge: 'challenge',
+      behavior: 'insight', knowledge: 'insight', style: 'insight', challenge: 'insight',
     };
-    for (const s of fileSections) {
-      const title = s.heading.replace(/^###\s*/, '').trim();
-      const cat = s.category?.toLowerCase() ?? 'knowledge';
-      await db.insert(learningCandidate).values({
-        projectId: id,
-        bodyMd: `[category:${cat}][source:${s.category ?? 'Manual'}] ${title}`,
-        type: TYPE_MAP[cat] ?? 'insight',
-        origin: 'spec',
-        status: 'proposed',
+    await updateDetails(db, id, (det) => {
+      det.stages.journal.phases.journal.learnings = fileSections.map((s) => {
+        const title = s.heading.replace(/^###\s*/, '').trim();
+        const cat = s.category?.toLowerCase() ?? 'knowledge';
+        return {
+          heading: title,
+          type: TYPE_MAP[cat] ?? 'insight',
+          status: 'proposed' as const,
+        };
       });
-    }
-    candidates = await db.select().from(learningCandidate)
-      .where(eq(learningCandidate.projectId, id)).orderBy(learningCandidate.createdAt);
+      return det;
+    });
+    // Re-read after seed
+    const [reRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+    detailsLearnings = reRow?.details ? validateDetails(reRow.details).stages.journal.phases.journal.learnings : [];
   }
 
   const TYPE_TO_CATEGORY: Record<string, LearningCategory> = {
-    decision: 'decision', insight: 'knowledge', challenge: 'process',
-  };
-  const ORIGIN_TO_SOURCE: Record<string, LearningSource> = {
-    exploration: 'Exploration', spec: 'Spec',
+    decision: 'decision', insight: 'knowledge',
   };
 
-  // Build learnings from DB rows, with body from journal.md sections if available
-  const learnings: JournalLearningView[] = candidates.map((c, i) => {
-    const { category: tagCat, source: tagSrc, text } = parseTags(c.bodyMd);
-    // Match section in journal.md by title (starts-with for truncated DB titles)
+  // Build learnings view from details, with body from journal.md sections
+  const learnings: JournalLearningView[] = detailsLearnings.map((l, i) => {
     const section = fileSections.find((s) => {
       const heading = s.heading.replace(/^###\s*/, '').trim();
-      return heading === text || heading.startsWith(text) || text.startsWith(heading);
+      return heading === l.heading || heading.startsWith(l.heading) || l.heading.startsWith(heading);
     });
     return {
-      id: c.id,
+      id: `learning-${i}`,
       num: i + 1,
-      title: section ? section.heading.replace(/^###\s*/, '').trim() : text,
-      body: section?.body ?? text,
-      category: (tagCat ?? TYPE_TO_CATEGORY[c.type] ?? 'knowledge') as LearningCategory,
-      source: (tagSrc ?? ORIGIN_TO_SOURCE[c.origin] ?? 'Manual') as LearningSource,
-      status: c.status as 'proposed' | 'kept' | 'recorded',
-      isManual: !!c.createdBy,
-      recordedNodeId: c.recordedNodeId,
+      title: l.heading,
+      body: section?.body ?? l.heading,
+      category: (TYPE_TO_CATEGORY[l.type] ?? 'knowledge') as LearningCategory,
+      source: (section?.category ?? 'Manual') as LearningSource,
+      status: l.status as 'proposed' | 'kept' | 'recorded',
+      isManual: false,
+      recordedNodeId: null,
     };
   });
 

@@ -2,11 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
-import { repo } from '@/db/schema/workspace';
+import { project } from '@/db/schema/projects';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { planFilePath } from '@/projects/project-files';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 export async function POST(
@@ -24,17 +24,16 @@ export async function POST(
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const rows = await db
-    .selectDistinct({ repoId: planTask.targetRepoId, name: repo.name, path: repo.pathOnDisk })
-    .from(planTask)
-    .innerJoin(repo, eq(planTask.targetRepoId, repo.id))
-    .where(eq(planTask.projectId, id));
+  // Get repos from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (!projRow?.details) return NextResponse.json({ error: 'No project details.' }, { status: 409 });
+  const d = validateDetails(projRow.details);
 
-  if (rows.length === 0) {
+  if (d.repos.length === 0 || d.stages.plan.phases.refine.tasks.length === 0) {
     return NextResponse.json({ error: 'No plan tasks found.' }, { status: 409 });
   }
 
-  const r = rows[0];
+  const r = d.repos[0];
   const mma = await buildMmaClient({ db });
   const filePath = planFilePath(id);
 
@@ -44,7 +43,7 @@ export async function POST(
     projectId: id,
     route: 'audit',
     handler: 'plan-audit',
-    cwd: r.path,
+    cwd: r.pathOnDisk,
     body: { subtype: 'plan', target: { paths: [filePath] } },
     actorId: guard.memberId,
   });

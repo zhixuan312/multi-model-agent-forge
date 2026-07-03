@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, and, ne } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { project, stage } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
 import { currentMember } from '@/auth/current-member';
+import { updateDetails } from '@/details/write';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -17,10 +18,17 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     .update(project)
     .set({ phase: 'completed', completedAt: now, updatedAt: now })
     .where(eq(project.id, id));
-  await db
-    .update(stage)
-    .set({ status: 'done', completedAt: now })
-    .where(and(eq(stage.projectId, id), ne(stage.status, 'done')));
+
+  await updateDetails(db, id, (d) => {
+    const nowStr = now.toISOString();
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      if (d.stages[kind].status !== 'done') {
+        d.stages[kind].status = 'done';
+        d.stages[kind].completedAt = nowStr;
+      }
+    }
+    return d;
+  });
 
   return NextResponse.json({ ok: true });
 }

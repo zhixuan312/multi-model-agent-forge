@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { planTask } from '@/db/schema/build';
-import { participant } from '@/db/schema/participants';
+import { project } from '@/db/schema/projects';
 import { insertNotification } from '@/collab/notification-store';
 import { currentMember } from '@/auth/current-member';
+import { validateDetails } from '@/details/schema';
 
 export async function POST(
   req: NextRequest,
@@ -17,21 +17,12 @@ export async function POST(
   const { memberId } = (await req.json()) as { memberId: string };
   const db = getDb();
 
-  const [task] = await db
-    .select({ title: planTask.title })
-    .from(planTask)
-    .where(eq(planTask.id, taskId))
-    .limit(1);
+  // Find task title from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
+  if (!projRow?.details) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  const d = validateDetails(projRow.details);
+  const task = d.stages.plan.phases.refine.tasks.find((t) => t.id === taskId);
   if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-
-  await db
-    .insert(participant)
-    .values({ projectId: id, memberId: me.id, scope: 'task', scopeId: taskId, role: 'reviewer' })
-    .onConflictDoNothing();
-  await db
-    .insert(participant)
-    .values({ projectId: id, memberId, scope: 'task', scopeId: taskId, role: 'reviewer' })
-    .onConflictDoNothing();
 
   await insertNotification({
     memberId,

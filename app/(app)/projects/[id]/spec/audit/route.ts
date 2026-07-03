@@ -7,7 +7,7 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { specFilePath } from '@/projects/project-files';
-import { auditPass } from '@/db/schema/artifacts';
+import { mmaBatch } from '@/db/schema/ops';
 import '@/dispatch/handler-registry';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -33,15 +33,21 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     );
   }
 
-  // Delta mode: get contextBlockId from the latest audit pass (if any)
-  const [lastPass] = await db
-    .select({ contextBlockId: auditPass.contextBlockId })
-    .from(auditPass)
-    .where(and(eq(auditPass.projectId, id), eq(auditPass.scope, 'spec')))
-    .orderBy(desc(auditPass.passNo))
+  // Delta mode: get contextBlockId from the latest spec-audit mmaBatch result (if any)
+  const [lastBatch] = await db
+    .select({ result: mmaBatch.result })
+    .from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'spec-audit'), eq(mmaBatch.status, 'done')))
+    .orderBy(desc(mmaBatch.createdAt))
     .limit(1);
 
-  const contextBlockIds = lastPass?.contextBlockId ? [lastPass.contextBlockId] : undefined;
+  let contextBlockIds: string[] | undefined;
+  if (lastBatch?.result) {
+    const envelope = lastBatch.result as Record<string, unknown>;
+    if (typeof envelope.contextBlockId === 'string') {
+      contextBlockIds = [envelope.contextBlockId];
+    }
+  }
 
   const workspaceRoot = resolveWorkspaceRoot();
   const specPath = specFilePath(id);

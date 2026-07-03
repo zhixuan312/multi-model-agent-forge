@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { loadOutline } from '@/spec/spec-core';
 import { getDb } from '@/db/client';
-import { stage } from '@/db/schema/projects';
 
 export const runtime = 'nodejs';
 
@@ -22,11 +20,5 @@ export async function GET(
     throw e;
   }
   const db = getDb();
-  const [specStage] = await db
-    .select({ id: stage.id })
-    .from(stage)
-    .where(and(eq(stage.projectId, id), eq(stage.kind, 'spec')))
-    .limit(1);
-  if (!specStage) return NextResponse.json({ components: [] });
-  return NextResponse.json({ components: await loadOutline(db, specStage.id, id) });
+  return NextResponse.json({ components: await loadOutline(db, id, id) });
 }

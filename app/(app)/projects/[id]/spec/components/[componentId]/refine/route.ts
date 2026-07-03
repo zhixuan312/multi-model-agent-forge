@@ -5,12 +5,14 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
+import { project } from '@/db/schema/projects';
+import { qaMessage } from '@/db/schema/spec';
+import { validateDetails } from '@/details/schema';
 import { projectEventBus } from '@/sse/event-bus';
-import { component, componentSection, qaMessage } from '@/db/schema/spec';
 import { buildRefinePrompt, getMessagesSinceLastForge } from '@/spec/refine-prompt';
 import { getLatestSpec } from '@/spec/assemble';
 import { readComponentSections } from '@/spec/spec-file-ops';
-import { templateForKind } from '@/spec/components';
+import { teamSpecTemplate } from '@/db/schema/team';
 import type { ComponentKind } from '@/db/enums';
 import '@/dispatch/handler-registry';
 
@@ -29,20 +31,22 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  // Load component + section draft + messages
-  const [comp] = await db
-    .select({ mmaSessionId: component.mmaSessionId, kind: component.kind })
-    .from(component)
-    .where(eq(component.id, componentId))
+  // Load component from details
+  const [projRow] = await db
+    .select({ details: project.details })
+    .from(project)
+    .where(eq(project.id, id))
     .limit(1);
-  if (!comp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
+  if (!projRow?.details) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+  const d = validateDetails(projRow.details);
+  const detailsComp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
+  if (!detailsComp) return NextResponse.json({ error: 'Component not found' }, { status: 404 });
 
-  const tpl = templateForKind(comp.kind as ComponentKind);
-  const sections = await db
-    .select({ label: componentSection.label })
-    .from(componentSection)
-    .where(eq(componentSection.componentId, componentId))
-    .orderBy(asc(componentSection.orderIndex));
+  const [tpl] = await db.select().from(teamSpecTemplate).where(eq(teamSpecTemplate.id, detailsComp.templateId)).limit(1);
+  if (!tpl) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+  const sections = Array.isArray(tpl.sections) ? tpl.sections as Array<{ key: string; label: string }> : [];
   const sectionLabels = sections.map((s) => s.label);
 
   // Read all sections for this component from spec.md
@@ -51,13 +55,19 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     .map((s) => `${s.heading}\n\n${s.body}`)
     .join('\n\n');
 
-  const allMessages = await db
-    .select({ sender: qaMessage.sender, bodyMd: qaMessage.bodyMd })
+  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
+  const rawMessages = await db
+    .select({ authorId: qaMessage.authorId, bodyMd: qaMessage.bodyMd })
     .from(qaMessage)
-    .where(eq(qaMessage.componentId, componentId))
+    .where(eq(qaMessage.targetId, componentId))
     .orderBy(asc(qaMessage.seq));
+  const allMessages = rawMessages.map((m) => ({
+    sender: (m.authorId === FORGE_MEMBER_ID ? 'forge' : 'member') as 'forge' | 'member',
+    bodyMd: m.bodyMd,
+  }));
 
-  const isFirstCall = comp.mmaSessionId === null;
+  // First call = forge has never responded for this component
+  const isFirstCall = !allMessages.some((m) => m.sender === 'forge');
   const delta = getMessagesSinceLastForge(allMessages);
 
   let fullSpecMd: string | undefined;
@@ -90,13 +100,6 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     actorId: guard.memberId,
     meta: { componentId },
   });
-
-  if (isFirstCall) {
-    await db
-      .update(component)
-      .set({ mmaSessionId: batchRowId })
-      .where(eq(component.id, componentId));
-  }
 
   projectEventBus.publish(id, { type: 'chat.typing', componentId, typing: true });
 

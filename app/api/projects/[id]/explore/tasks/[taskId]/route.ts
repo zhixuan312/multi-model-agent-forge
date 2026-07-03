@@ -24,7 +24,7 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: 'Invalid patch.' }, { status: 400 });
 
   try {
-    await editTask(id, taskId, parsed.data, { id: guard.memberId });
+    await editTask(id, parseInt(taskId.replace('task-', ''), 10), parsed.data, { id: guard.memberId });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof TaskLockedError) return NextResponse.json({ error: err.message }, { status: 400 });
@@ -42,7 +42,7 @@ export async function DELETE(
   if (guard instanceof NextResponse) return guard;
 
   try {
-    await removeTask(id, taskId, { id: guard.memberId });
+    await removeTask(id, parseInt(taskId.replace('task-', ''), 10), { id: guard.memberId });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof TaskLockedError) return NextResponse.json({ error: err.message }, { status: 400 });

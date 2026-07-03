@@ -6,7 +6,8 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { getDb } from '@/db/client';
-import { projectRepo } from '@/db/schema/projects';
+import { project } from '@/db/schema/projects';
+import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
 export async function POST(
@@ -27,11 +28,16 @@ export async function POST(
 
   const request = await buildProposeRequest(id, { db });
 
-  const repos = await db
-    .select({ repoId: projectRepo.repoId })
-    .from(projectRepo)
-    .where(eq(projectRepo.projectId, id));
-  const repoIds = repos.map((r) => r.repoId);
+  const [projRow] = await db
+    .select({ details: project.details })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1);
+  if (!projRow?.details) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+  const d = validateDetails(projRow.details);
+  const repoIds = d.repos.map((r) => r.id);
 
   const mma = await buildMmaClient({ db });
   const { batchRowId } = await dispatchMma({

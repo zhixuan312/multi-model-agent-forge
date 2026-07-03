@@ -25,10 +25,16 @@ export default async function ReviewStagePage({ params, searchParams }: { params
 
   const db = getDb();
 
-  // Activate the review stage on visit
-  const { stage, project: projectTable } = await import('@/db/schema/projects');
-  const { and: deq2, eq: deq } = await import('drizzle-orm');
-  await db.update(stage).set({ status: 'active' }).where(deq2(deq(stage.projectId, id), deq(stage.kind, 'review'), deq(stage.status, 'pending')));
+  // Activate the review stage on visit via details
+  const { project: projectTable } = await import('@/db/schema/projects');
+  const { updateDetails } = await import('@/details/write');
+  await updateDetails(db, id, (d) => {
+    if (d.stages.review.status === 'pending') {
+      d.stages.review.status = 'active';
+      d.stages.review.startedAt = new Date().toISOString();
+    }
+    return d;
+  });
   await db.update(projectTable).set({ currentStage: 'review' }).where(eq(projectTable.id, id));
 
   const { getStagePermissions } = await import('@/projects/stage-gate');

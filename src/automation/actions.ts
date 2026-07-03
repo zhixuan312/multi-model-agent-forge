@@ -86,7 +86,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
         .where(eq(project.id, projectId));
       await db.update(stage).set({ status: 'active' })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'plan'), eq(stage.status, 'pending')));
-      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/plan?phase=refine` });
       break;
     }
 
@@ -219,7 +218,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       await db.update(project).set({ currentStage: 'execute', updatedAt: now }).where(eq(project.id, projectId));
       await db.update(stage).set({ status: 'active' })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'execute'), eq(stage.status, 'pending')));
-      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/execute` });
       break;
     }
 
@@ -282,7 +280,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       await db.update(project).set({ currentStage: 'review', updatedAt: now }).where(eq(project.id, projectId));
       await db.update(stage).set({ status: 'active' })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'review'), eq(stage.status, 'pending')));
-      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/review` });
       break;
     }
 
@@ -345,7 +342,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       await db.update(project).set({ currentStage: 'journal', updatedAt: now }).where(eq(project.id, projectId));
       await db.update(stage).set({ status: 'active' })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'journal'), eq(stage.status, 'pending')));
-      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/journal` });
       break;
     }
 

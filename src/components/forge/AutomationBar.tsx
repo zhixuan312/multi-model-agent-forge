@@ -50,9 +50,8 @@ export function AutomationBar({
     function onStepDone() {
       router.refresh();
     }
-    function onNavigate(e: Event) {
-      const detail = (e as CustomEvent).detail as { url?: string } | undefined;
-      if (detail?.url) router.push(detail.url);
+    function onNavigate() {
+      // No-op — auto page handles its own display
     }
     function onError(e: Event) {
       const detail = (e as CustomEvent).detail as { error?: string } | undefined;
@@ -84,7 +83,7 @@ export function AutomationBar({
   function handleRun() {
     if (projectId) {
       fetch(`/api/projects/${projectId}/automation/start`, { method: 'POST' })
-        .then(() => router.refresh())
+        .then(() => router.push(`/projects/${projectId}/auto`))
         .catch(() => {});
     }
   }
@@ -92,7 +91,10 @@ export function AutomationBar({
   function handleStop() {
     if (projectId) {
       fetch(`/api/projects/${projectId}/automation/stop`, { method: 'POST' })
-        .then(() => router.refresh())
+        .then(() => {
+          router.push(`/projects/${projectId}`);
+          router.refresh();
+        })
         .catch(() => {});
     }
   }

@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { component, qaMessage } from '@/db/schema/spec';
+import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
 import { backupArtifact, readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
@@ -65,11 +65,7 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     }
   }
 
-  const aiSatisfied = result.questions.length === 0;
-  await db
-    .update(component)
-    .set({ aiSatisfied, status: 'drafted', updatedAt: new Date() })
-    .where(eq(component.id, componentId));
+  // Component status derived from details.approvals — no legacy table update
 
   let forgeReply = result.chatReply;
   if (result.questions.length > 0) {
@@ -79,12 +75,15 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const [{ maxSeq }] = await db
     .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
     .from(qaMessage)
-    .where(eq(qaMessage.componentId, componentId));
+    .where(eq(qaMessage.targetId, componentId));
 
+  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const [msgRow] = await db.insert(qaMessage).values({
-    componentId,
+    targetId: componentId,
+    projectId: ctx.projectId,
+    targetKind: 'spec_component',
     seq: (maxSeq ?? -1) + 1,
-    sender: 'forge',
+    authorId: FORGE_MEMBER_ID,
     bodyMd: forgeReply,
     meta: { sectionUpdated: !!result.updatedSectionMd, questions: result.questions },
   }).returning({ id: qaMessage.id });
@@ -95,7 +94,6 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     componentId,
     message: {
       id: msgRow.id,
-      sender: 'forge',
       authorId: 'forge',
       authorName: 'Forge',
       bodyMd: forgeReply,

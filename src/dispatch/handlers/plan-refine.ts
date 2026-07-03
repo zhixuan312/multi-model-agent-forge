@@ -1,6 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { planTask } from '@/db/schema/build';
 import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parsePlanRefineResponse } from '@/plan/plan-refine-prompt';
@@ -12,14 +11,15 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const request = ctx.request as { taskId: string };
 
   if (result.updatedTaskBody) {
-    const [task] = await db
-      .select({ title: planTask.title })
-      .from(planTask)
-      .where(eq(planTask.id, request.taskId))
-      .limit(1);
-
-    if (task) {
-      await replaceTaskSection(ctx.projectId, task.title, result.updatedTaskBody);
+    const { project } = await import('@/db/schema/projects');
+    const { validateDetails } = await import('@/details/schema');
+    const [proj] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
+    if (proj?.details) {
+      const d = validateDetails(proj.details);
+      const task = d.stages.plan.phases.refine.tasks.find((t) => t.id === request.taskId);
+      if (task) {
+        await replaceTaskSection(ctx.projectId, task.title, result.updatedTaskBody);
+      }
     }
   }
 
@@ -27,12 +27,15 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const [seqRow] = await db
     .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
     .from(qaMessage)
-    .where(eq(qaMessage.componentId, request.taskId));
+    .where(eq(qaMessage.targetId, request.taskId));
 
+  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const [msgRow] = await db.insert(qaMessage).values({
-    componentId: request.taskId,
+    targetId: request.taskId,
+    projectId: ctx.projectId,
+    targetKind: 'plan_task',
     seq: (seqRow?.max ?? -1) + 1,
-    sender: 'forge',
+    authorId: FORGE_MEMBER_ID,
     bodyMd: forgeReply,
     meta: { taskUpdated: !!result.updatedTaskBody },
   }).returning({ id: qaMessage.id });
@@ -43,8 +46,7 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     componentId: request.taskId,
     message: {
       id: msgRow.id,
-      sender: 'forge',
-      authorId: 'forge',
+      authorId: FORGE_MEMBER_ID,
       authorName: 'Forge',
       bodyMd: forgeReply,
     },

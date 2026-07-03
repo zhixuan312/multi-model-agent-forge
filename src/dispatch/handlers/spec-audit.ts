@@ -1,19 +1,12 @@
-import { desc, and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { auditPass } from '@/db/schema/artifacts';
 import { parseAuditEnvelope, nextPassNo } from '@/spec/audit-loop';
 import type { AuditVerdict } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { updateDetails } from '@/details/write';
 
 async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const [existing] = await db
-    .select({ id: auditPass.id })
-    .from(auditPass)
-    .where(eq(auditPass.mmaBatchId, ctx.batchRowId))
-    .limit(1);
-  if (existing) return;
-
   const parsed = parseAuditEnvelope(envelope);
   if (parsed.kind === 'missing_report') {
     throw new Error('Audit returned no structured report');
@@ -22,14 +15,13 @@ async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pro
   const passNo = await nextPassNo(db, ctx.projectId);
   const verdict: AuditVerdict = parsed.hasCriticalOrHigh ? 'revised' : 'clean';
 
-  await db.insert(auditPass).values({
-    projectId: ctx.projectId,
-    scope: 'spec',
-    passNo,
-    findingsCount: parsed.findings.length,
-    verdict,
-    mmaBatchId: ctx.batchRowId,
-    contextBlockId: parsed.contextBlockId,
+  await updateDetails(db, ctx.projectId, (d) => {
+    d.stages.spec.phases.finalize.auditPasses.push({
+      passNo,
+      status: verdict,
+      audit: { attempts: [{ batchId: ctx.batchRowId, status: 'done', at: new Date().toISOString() }] },
+    });
+    return d;
   });
 
   if (ctx.actorId) {

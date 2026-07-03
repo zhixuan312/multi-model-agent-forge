@@ -1,36 +1,24 @@
-import { eq, asc } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
 import { ComposeLearningsSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-
+import { updateDetails } from '@/details/write';
 
 async function handleSpecLearnings(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  // Idempotent: if candidates already exist, skip
-  const existing = await db
-    .select({ id: learningCandidate.id })
-    .from(learningCandidate)
-    .where(eq(learningCandidate.projectId, ctx.projectId))
-    .limit(1);
-  if (existing.length > 0) return;
-
   const raw = extractJsonFromEnvelope(envelope);
   const out = ComposeLearningsSchema.parse(JSON.parse(raw));
-
   if (out.candidates.length === 0) return;
 
-  await db
-    .insert(learningCandidate)
-    .values(
-      out.candidates.map((c) => ({
-        projectId: ctx.projectId,
-        bodyMd: c.bodyMd,
-        type: c.type,
-        origin: 'spec' as const,
-        status: 'proposed' as const,
-        createdBy: null,
-      })),
-    );
+  await updateDetails(db, ctx.projectId, (d) => {
+    if (d.stages.journal.phases.journal.learnings.length > 0) return d;
+    for (const c of out.candidates) {
+      d.stages.journal.phases.journal.learnings.push({
+        heading: c.bodyMd.split('\n')[0].replace(/^\[.*?\]/, '').trim().slice(0, 120),
+        type: (c.type === 'decision' ? 'decision' : 'insight') as 'decision' | 'insight',
+        status: 'proposed',
+      });
+    }
+    return d;
+  });
 }
 
 registerHandler('spec-learnings', handleSpecLearnings);

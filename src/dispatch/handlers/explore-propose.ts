@@ -1,11 +1,9 @@
-import { and, eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
 import { project } from '@/db/schema/projects';
 import { ProposalSchema, PROMPT_FLOORS, type ProposedTask } from '@/exploration/schemas';
 import { logAction } from '@/observability/action-log';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-
+import { updateDetails } from '@/details/write';
 
 async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -25,28 +23,26 @@ async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown)
 
   if (conformant.length === 0) return;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(explorationTask)
-      .where(and(eq(explorationTask.projectId, ctx.projectId), eq(explorationTask.status, 'draft')));
-    await tx
-      .insert(explorationTask)
-      .values(
-        conformant.map((t) => ({
-          projectId: ctx.projectId,
-          kind: t.kind,
-          targetRepoId: t.kind === 'investigate' ? t.targetRepoId! : null,
-          prompt: t.prompt.trim(),
-          status: 'draft' as const,
-          createdBy: request.actorId,
-        })),
-      );
-    await tx.update(project).set({ updatedAt: new Date() }).where(eq(project.id, ctx.projectId));
-    await logAction(
-      { projectId: ctx.projectId, memberId: request.actorId, action: 'explore_analyze', target: `project:${ctx.projectId}`, meta: { taskCount: conformant.length } },
-      tx as unknown as Db,
-    );
+  await updateDetails(db, ctx.projectId, (d) => {
+    const kept = d.stages.exploration.phases.discover.tasks.filter((t) => t.status !== 'draft');
+    const sortOrder: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
+    const newTasks = conformant
+      .sort((a, b) => (sortOrder[a.kind] ?? 9) - (sortOrder[b.kind] ?? 9))
+      .map((t) => ({
+        kind: t.kind as 'investigate' | 'research' | 'journal',
+        prompt: t.prompt.trim(),
+        status: 'draft' as const,
+        ...(t.kind === 'investigate' && t.targetRepoId ? { repoId: t.targetRepoId } : {}),
+        attempts: [],
+      }));
+    d.stages.exploration.phases.discover.tasks = [...kept, ...newTasks];
+    return d;
   });
+
+  await logAction(
+    { projectId: ctx.projectId, memberId: request.actorId, action: 'explore_analyze', target: `project:${ctx.projectId}`, meta: { taskCount: conformant.length } },
+    db,
+  );
 }
 
 registerHandler('explore-propose', handleExplorePropose);

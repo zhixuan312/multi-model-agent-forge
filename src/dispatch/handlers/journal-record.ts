@@ -1,20 +1,14 @@
-import { eq, and, inArray } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { learningCandidate } from '@/db/schema/learning';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { updateDetails } from '@/details/write';
 
-async function handleJournalRecord(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const request = ctx.request as { learningIds?: string[] };
-  const learningIds = request.learningIds ?? [];
-  if (learningIds.length === 0) return;
-
-  const output = ((envelope as Record<string, unknown>)?.output ?? {}) as Record<string, unknown>;
-  const recordedNodeId = typeof output.contextBlockId === 'string' ? output.contextBlockId : null;
-
-  await db
-    .update(learningCandidate)
-    .set({ status: 'recorded', ...(recordedNodeId && { recordedNodeId }) })
-    .where(inArray(learningCandidate.id, learningIds));
+async function handleJournalRecord(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
+  await updateDetails(db, ctx.projectId, (d) => {
+    for (const l of d.stages.journal.phases.journal.learnings) {
+      if (l.status === 'kept') l.status = 'recorded';
+    }
+    return d;
+  });
 }
 
 registerHandler('journal-record', handleJournalRecord);

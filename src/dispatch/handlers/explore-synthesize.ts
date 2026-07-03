@@ -1,7 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { explorationTask } from '@/db/schema/exploration';
-import { mmaBatch } from '@/db/schema/ops';
+import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';
@@ -9,7 +8,7 @@ import { backupArtifact, writeExplorationSummaryAsync } from '@/projects/project
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-
+import { validateDetails } from '@/details/schema';
 
 async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const env = (envelope ?? {}) as Record<string, unknown>;
@@ -33,19 +32,22 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   }
   const request = ctx.request as { actorId: string };
 
-  const rows = await db
-    .select({ route: mmaBatch.route, batchStatus: mmaBatch.status, result: mmaBatch.result, repoName: repo.name })
-    .from(explorationTask)
-    .innerJoin(mmaBatch, eq(explorationTask.mmaBatchId, mmaBatch.id))
-    .leftJoin(repo, eq(explorationTask.targetRepoId, repo.id))
-    .where(and(eq(explorationTask.projectId, ctx.projectId), eq(explorationTask.status, 'recorded')));
-  const failures = rows.filter((r) => {
-    if (r.batchStatus !== 'failed') return false;
-    const env = (r.result ?? {}) as Record<string, unknown>;
-    const output = ((env.output ?? {}) as Record<string, unknown>);
-    return !output.summary;
-  });
-  const failureMarkers = failures.map((r) => gapMarker(r.route as 'investigate' | 'research' | 'journal_recall', r.repoName));
+  let failureMarkers: string[] = [];
+  const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
+  if (pRow?.details) {
+    const d = validateDetails(pRow.details);
+    const tasks = d.stages.exploration.phases.discover.tasks;
+    for (const t of tasks) {
+      const lastAttempt = t.attempts[t.attempts.length - 1];
+      if (lastAttempt?.status === 'failed') {
+        const route = t.kind === 'journal' ? 'journal_recall' : t.kind;
+        const repoName = t.repoId
+          ? (await db.select({ name: repo.name }).from(repo).where(eq(repo.id, t.repoId)).limit(1))[0]?.name ?? null
+          : null;
+        failureMarkers.push(gapMarker(route as 'investigate' | 'research' | 'journal_recall', repoName));
+      }
+    }
+  }
 
   let currentState = synthesis.currentState;
   for (const marker of failureMarkers) {

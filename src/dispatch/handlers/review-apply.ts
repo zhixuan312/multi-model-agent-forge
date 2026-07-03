@@ -1,7 +1,5 @@
-import { eq } from 'drizzle-orm';
 import { execFileSync } from 'node:child_process';
 import type { Db } from '@/db/client';
-import { repo } from '@/db/schema/workspace';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
 async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {

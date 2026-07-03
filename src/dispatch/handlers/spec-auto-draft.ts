@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
-import { component, qaMessage } from '@/db/schema/spec';
+import { qaMessage } from '@/db/schema/spec';
 import { project } from '@/db/schema/projects';
 import { FullSpecDraftSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -94,23 +94,21 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
   await backupArtifact(ctx.projectId, 'spec.md');
   await writeSpecAsync(ctx.projectId, out.join('\n'));
 
-  for (const [compId, { questions }] of questionsByComponent) {
-    await db
-      .update(component)
-      .set({ aiSatisfied: questions.length === 0, status: 'drafted', updatedAt: new Date() })
-      .where(eq(component.id, compId));
-  }
+  // Component status is derived from details.approvals — no legacy table update needed
 
   const { projectEventBus } = await import('@/sse/event-bus');
   for (const [compId, { questions }] of questionsByComponent) {
-    await db.delete(qaMessage).where(eq(qaMessage.componentId, compId));
+    await db.delete(qaMessage).where(eq(qaMessage.targetId, compId));
     const forgeBody = questions.length > 0
       ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
       : '✅ This looks complete. You can approve it, or tell me what to change.';
+    const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
     const [msgRow] = await db.insert(qaMessage).values({
-      componentId: compId,
+      targetId: compId,
+      projectId: ctx.projectId,
+      targetKind: 'spec_component',
       seq: 0,
-      sender: 'forge',
+      authorId: FORGE_MEMBER_ID,
       bodyMd: forgeBody,
       meta: { autoDraft: true, questions },
     }).returning({ id: qaMessage.id });
@@ -118,7 +116,7 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
     projectEventBus.publish(ctx.projectId, {
       type: 'chat.message',
       componentId: compId,
-      message: { id: msgRow.id, sender: 'forge', authorId: 'forge', authorName: 'Forge', bodyMd: forgeBody },
+      message: { id: msgRow.id, sender: 'forge', authorId: FORGE_MEMBER_ID, authorName: 'Forge', bodyMd: forgeBody },
     });
   }
 

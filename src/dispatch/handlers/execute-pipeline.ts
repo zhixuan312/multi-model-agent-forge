@@ -1,14 +1,14 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { execFileSync } from 'node:child_process';
 import type { Db } from '@/db/client';
-import { planTask } from '@/db/schema/build';
 import { project, buildPr } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
 import { connectionSettings } from '@/db/schema/identity';
 import { createBuildPr } from '@/build/pr';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
 async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const request = ctx.request as {
@@ -21,31 +21,36 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
   const { forgeBranch, targetBranch, repoId } = request;
   const actorId = request.actorId ?? ctx.actorId ?? 'system';
 
-  const [repoRow] = await db
-    .select({ name: repo.name, pathOnDisk: repo.pathOnDisk })
-    .from(repo)
-    .where(eq(repo.id, repoId))
-    .limit(1);
-  if (!repoRow) throw new Error(`Repo ${repoId} not found`);
+  // Look up repo from details
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
+  if (!projRow?.details) throw new Error(`Project ${ctx.projectId} has no details`);
+  const d = validateDetails(projRow.details);
+  const repoMeta = d.repos.find((r) => r.id === repoId);
+  if (!repoMeta) throw new Error(`Repo ${repoId} not found in project details`);
 
-  // Mark tasks as committed
-  await db.update(planTask)
-    .set({ status: 'committed', updatedAt: new Date() })
-    .where(and(eq(planTask.projectId, ctx.projectId), eq(planTask.targetRepoId, repoId)));
+  // Mark tasks as committed in details
+  await updateDetails(db, ctx.projectId, (det) => {
+    for (const t of det.stages.plan.phases.refine.tasks) {
+      if (t.targetRepoId === repoId) {
+        t.status = 'committed';
+      }
+    }
+    return det;
+  });
 
   // Push forge branch to origin
   try {
-    execFileSync('git', ['-C', repoRow.pathOnDisk, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
+    execFileSync('git', ['-C', repoMeta.pathOnDisk, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
   } catch (pushErr) {
-    console.error(`[forge] git push failed for ${repoRow.name}:`, pushErr);
+    console.error(`[forge] git push failed for ${repoMeta.name}:`, pushErr);
   }
 
   // Create PR: forgeBranch → targetBranch
   try {
     const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
-    const tasks = await db.select({ title: planTask.title, commitSha: planTask.commitSha })
-      .from(planTask)
-      .where(and(eq(planTask.projectId, ctx.projectId), eq(planTask.targetRepoId, repoId)));
+    const tasks = d.stages.plan.phases.refine.tasks
+      .filter((t) => t.targetRepoId === repoId)
+      .map((t) => ({ title: t.title, commitSha: t.commitSha ?? null }));
 
     const pr = await createBuildPr(
       {
@@ -70,8 +75,8 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
         projectName: proj?.name ?? ctx.projectId,
         branch: forgeBranch,
         targetBranch,
-        repoPath: repoRow.pathOnDisk,
-        tasks: tasks.map((t) => ({ title: t.title, commitSha: t.commitSha })),
+        repoPath: repoMeta.pathOnDisk,
+        tasks,
       },
     );
     if (pr && 'url' in pr) {
@@ -82,10 +87,10 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
           target: [buildPr.projectId, buildPr.repoId],
           set: { url: pr.url, branch: forgeBranch, targetBranch },
         });
-      await logAction({ projectId: ctx.projectId, memberId: actorId, action: 'create_pr', target: `repo:${repoRow.name}` }, db);
+      await logAction({ projectId: ctx.projectId, memberId: actorId, action: 'create_pr', target: `repo:${repoMeta.name}` }, db);
     }
   } catch (prErr) {
-    console.error(`[forge] PR creation failed for ${repoRow.name}:`, prErr);
+    console.error(`[forge] PR creation failed for ${repoMeta.name}:`, prErr);
   }
 }
 

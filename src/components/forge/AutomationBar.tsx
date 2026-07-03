@@ -50,6 +50,10 @@ export function AutomationBar({
     function onStepDone() {
       router.refresh();
     }
+    function onNavigate(e: Event) {
+      const detail = (e as CustomEvent).detail as { url?: string } | undefined;
+      if (detail?.url) router.push(detail.url);
+    }
     function onError(e: Event) {
       const detail = (e as CustomEvent).detail as { error?: string } | undefined;
       if (detail?.error) setLiveNote(`Error: ${detail.error}`);
@@ -57,10 +61,12 @@ export function AutomationBar({
     }
     window.addEventListener('automation:progress', onProgress);
     window.addEventListener('automation:step_done', onStepDone);
+    window.addEventListener('automation:navigate', onNavigate);
     window.addEventListener('automation:error', onError);
     return () => {
       window.removeEventListener('automation:progress', onProgress);
       window.removeEventListener('automation:step_done', onStepDone);
+      window.removeEventListener('automation:navigate', onNavigate);
       window.removeEventListener('automation:error', onError);
     };
   }, [router]);

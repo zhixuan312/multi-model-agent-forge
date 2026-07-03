@@ -1,12 +1,13 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, desc } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project, stage } from '@/db/schema/projects';
-import { component } from '@/db/schema/spec';
 import { auditPass } from '@/db/schema/artifacts';
 import { planTask } from '@/db/schema/build';
 import { learningCandidate } from '@/db/schema/learning';
 import { mmaBatch } from '@/db/schema/ops';
-import { readSpecFileAsync, readPlanFileAsync } from '@/projects/project-files';
+import { qaMessage } from '@/db/schema/spec';
+import { readPlanFileAsync } from '@/projects/project-files';
 
 export interface AutoAction {
   kind: string;
@@ -17,7 +18,14 @@ export interface AutoAction {
 const WAIT: AutoAction = { kind: 'wait', note: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete' };
 
-import { inArray } from 'drizzle-orm';
+function hasExistingBatch(db: Db, projectId: string, handler: string) {
+  return db
+    .select({ id: mmaBatch.id })
+    .from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, handler)))
+    .limit(1)
+    .then((rows) => rows.length > 0);
+}
 
 function isInflight(db: Db, projectId: string, handler: string) {
   return db
@@ -30,6 +38,16 @@ function isInflight(db: Db, projectId: string, handler: string) {
     ))
     .limit(1)
     .then((rows) => rows.length > 0);
+}
+
+async function taskHasValidation(db: Db, taskId: string): Promise<boolean> {
+  const msgs = await db
+    .select({ sender: qaMessage.sender })
+    .from(qaMessage)
+    .where(eq(qaMessage.componentId, taskId))
+    .orderBy(desc(qaMessage.seq))
+    .limit(1);
+  return msgs.length > 0 && msgs[0].sender === 'forge';
 }
 
 export async function resolveNextAction(projectId: string, db: Db = getDb()): Promise<AutoAction> {
@@ -59,7 +77,7 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     if (await isInflight(db, projectId, 'spec-audit-apply')) return WAIT;
 
     const specAudits = await db
-      .select({ passNo: auditPass.passNo, findingsCount: auditPass.findingsCount, verdict: auditPass.verdict })
+      .select({ passNo: auditPass.passNo, verdict: auditPass.verdict })
       .from(auditPass)
       .where(and(eq(auditPass.projectId, projectId), eq(auditPass.scope, 'spec')))
       .orderBy(asc(auditPass.passNo));
@@ -68,35 +86,66 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     if (!latest) {
       return { kind: 'dispatch_spec_audit', note: 'Running spec audit pass 1...' };
     }
-    const hasCritHigh = latest.verdict === 'revised';
-    if (hasCritHigh && specAudits.length < 5) {
+    if (latest.verdict === 'revised' && specAudits.length < 5) {
       return { kind: 'apply_spec_findings', note: `Audit pass ${specAudits.length}/5 — applying findings...`, data: { passNo: latest.passNo } };
     }
-    return { kind: 'freeze_spec', note: specAudits.length >= 5 ? 'Audit cap reached — freezing spec...' : 'Spec audit clean — freezing...' };
+    // Audit done — freeze spec and navigate to Plan
+    return { kind: 'freeze_spec', note: specAudits.length >= 5 ? 'Audit cap reached — approving spec...' : 'Spec audit clean — approving spec...' };
+  }
+
+  // ── Navigate to Plan (spec done but still on spec page) ──
+  if (specStage?.status === 'done' && proj.currentStage === 'spec') {
+    return { kind: 'navigate_to_plan', note: 'Navigating to Plan...' };
   }
 
   // ── Plan ──
   if (planStage?.status === 'active' || (specStage?.status === 'done' && planStage?.status !== 'done')) {
     const planFile = await readPlanFileAsync(projectId);
-    const tasks = await db.select({ id: planTask.id, status: planTask.status }).from(planTask).where(eq(planTask.projectId, projectId));
+    const tasks = await db
+      .select({ id: planTask.id, status: planTask.status, title: planTask.title })
+      .from(planTask)
+      .where(eq(planTask.projectId, projectId))
+      .orderBy(asc(planTask.orderIndex));
 
+    // Wait for plan to be authored
     if (!planFile && tasks.length === 0) {
       if (await isInflight(db, projectId, 'plan-author')) return WAIT;
-      const existingAuthor = await db.select({ id: mmaBatch.id }).from(mmaBatch)
-        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'plan-author')))
-        .limit(1);
-      if (existingAuthor.length > 0) return WAIT;
+      if (await hasExistingBatch(db, projectId, 'plan-author')) return WAIT;
       return { kind: 'dispatch_plan_author', note: 'Authoring plan from spec...' };
     }
 
+    // Plan exists but no tasks yet (handler creating rows)
+    if (planFile && tasks.length === 0) return WAIT;
+
     const phase = planStage?.lastPhase;
     if (phase !== 'validate') {
-      const unapproved = tasks.find((t) => t.status !== 'committed');
-      if (unapproved) {
-        const idx = tasks.indexOf(unapproved) + 1;
-        return { kind: 'approve_task', note: `Approving task ${idx}/${tasks.length}...`, data: { taskId: unapproved.id } };
+      // Refine phase — self-validate then approve each task
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        if (t.status === 'committed') continue; // already approved
+
+        // Check if this task has been validated (has a forge reply)
+        const validated = await taskHasValidation(db, t.id);
+        if (!validated) {
+          // Check if refine is currently running for this task
+          if (await isInflight(db, projectId, 'plan-refine')) return WAIT;
+          return {
+            kind: 'validate_task',
+            note: `Validating task ${i + 1}/${tasks.length}: ${t.title}`,
+            data: { taskId: t.id, taskTitle: t.title, taskNum: i + 1, totalTasks: tasks.length },
+          };
+        }
+
+        // Validated but not approved — approve it
+        return {
+          kind: 'approve_task',
+          note: `Approving task ${i + 1}/${tasks.length}: ${t.title}`,
+          data: { taskId: t.id },
+        };
       }
-      return { kind: 'advance_plan_validate', note: 'All tasks approved — running audit...' };
+
+      // All tasks approved — advance to validate
+      return { kind: 'advance_plan_validate', note: 'All tasks approved — running plan audit...' };
     }
 
     // Validate phase — audit loop
@@ -119,18 +168,19 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     return { kind: 'lock_plan', note: 'Plan audit done — advancing to Execute...' };
   }
 
+  // ── Navigate to Execute ──
+  if (planStage?.status === 'done' && proj.currentStage === 'plan') {
+    return { kind: 'navigate_to_execute', note: 'Navigating to Execute...' };
+  }
+
   // ── Execute ──
   if (executeStage?.status === 'active' || (planStage?.status === 'done' && executeStage?.status !== 'done')) {
     if (await isInflight(db, projectId, 'execute-pipeline')) return WAIT;
     const tasks = await db.select({ status: planTask.status }).from(planTask).where(eq(planTask.projectId, projectId));
     const allTerminal = tasks.length > 0 && tasks.every((t) => ['committed', 'failed', 'skipped'].includes(t.status!));
     if (!allTerminal && tasks.some((t) => ['executing', 'verifying', 'fixing'].includes(t.status!))) return WAIT;
-    // Check if execution was already dispatched (any batch exists, even done)
-    const existingExec = await db.select({ id: mmaBatch.id }).from(mmaBatch)
-      .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'execute-pipeline')))
-      .limit(1);
-    if (!allTerminal && existingExec.length > 0) return WAIT;
-    if (!allTerminal && existingExec.length === 0) {
+    if (!allTerminal) {
+      if (await hasExistingBatch(db, projectId, 'execute-pipeline')) return WAIT;
       return { kind: 'dispatch_execute', note: 'Dispatching execution...' };
     }
     const committed = tasks.filter((t) => t.status === 'committed').length;
@@ -138,6 +188,11 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
       return { kind: 'error', note: 'All tasks failed — no code committed.' };
     }
     return { kind: 'advance_to_review', note: 'Execution complete — advancing to Review...' };
+  }
+
+  // ── Navigate to Review ──
+  if (executeStage?.status === 'done' && proj.currentStage === 'execute') {
+    return { kind: 'navigate_to_review', note: 'Navigating to Review...' };
   }
 
   // ── Review ──
@@ -161,6 +216,11 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     return { kind: 'advance_to_journal', note: 'Review done — advancing to Journal...' };
   }
 
+  // ── Navigate to Journal ──
+  if (reviewStage?.status === 'done' && proj.currentStage === 'review') {
+    return { kind: 'navigate_to_journal', note: 'Navigating to Journal...' };
+  }
+
   // ── Journal ──
   if (journalStage?.status === 'active' || (reviewStage?.status === 'done' && journalStage?.status !== 'done')) {
     if (await isInflight(db, projectId, 'journal-harvest')) return WAIT;
@@ -172,10 +232,7 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
       .where(eq(learningCandidate.projectId, projectId));
 
     if (learnings.length === 0) {
-      const existingHarvest = await db.select({ id: mmaBatch.id }).from(mmaBatch)
-        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'journal-harvest')))
-        .limit(1);
-      if (existingHarvest.length > 0) return WAIT;
+      if (await hasExistingBatch(db, projectId, 'journal-harvest')) return WAIT;
       return { kind: 'dispatch_harvest', note: 'Harvesting learnings...' };
     }
 
@@ -187,10 +244,7 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
 
     const allRecorded = learnings.every((l) => l.status === 'recorded');
     if (!allRecorded) {
-      const existingRecord = await db.select({ id: mmaBatch.id }).from(mmaBatch)
-        .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, 'journal-record')))
-        .limit(1);
-      if (existingRecord.length > 0) return WAIT;
+      if (await hasExistingBatch(db, projectId, 'journal-record')) return WAIT;
       return { kind: 'dispatch_record', note: 'Recording learnings...' };
     }
 

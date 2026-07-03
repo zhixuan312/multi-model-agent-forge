@@ -84,7 +84,7 @@ describe('resolveNextAction', () => {
     expect(action.note).toContain('cap');
   });
 
-  it('approves unapproved plan task', async () => {
+  it('validates unapproved plan task before approving', async () => {
     const { readPlanFileAsync } = await import('@/projects/project-files');
     (readPlanFileAsync as any).mockResolvedValueOnce({ version: 1, bodyMd: '# Plan' });
     const db = createMockDb({
@@ -94,9 +94,31 @@ describe('resolveNextAction', () => {
         { kind: 'plan', status: 'active', lastPhase: 'refine' },
       ],
       'select:project_plan_task': [
-        { id: 't1', status: 'queued' },
-        { id: 't2', status: 'committed' },
+        { id: 't1', status: 'queued', title: 'Task 1', orderIndex: 0 },
+        { id: 't2', status: 'committed', title: 'Task 2', orderIndex: 1 },
       ],
+      'select:ops_mma_batch': [],
+      'select:project_qa_message': [],
+    });
+    const action = await resolveNextAction('p1', db);
+    expect(action.kind).toBe('validate_task');
+    expect(action.data?.taskId).toBe('t1');
+  });
+
+  it('approves task after validation (forge reply exists)', async () => {
+    const { readPlanFileAsync } = await import('@/projects/project-files');
+    (readPlanFileAsync as any).mockResolvedValueOnce({ version: 1, bodyMd: '# Plan' });
+    const db = createMockDb({
+      'select:project': [{ phase: 'build', completedAt: null, currentStage: 'plan' }],
+      'select:project_stage': [
+        { kind: 'spec', status: 'done', lastPhase: 'finalize' },
+        { kind: 'plan', status: 'active', lastPhase: 'refine' },
+      ],
+      'select:project_plan_task': [
+        { id: 't1', status: 'queued', title: 'Task 1', orderIndex: 0 },
+      ],
+      'select:ops_mma_batch': [],
+      'select:project_qa_message': [{ sender: 'forge' }],
     });
     const action = await resolveNextAction('p1', db);
     expect(action.kind).toBe('approve_task');

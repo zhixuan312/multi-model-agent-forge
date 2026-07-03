@@ -82,9 +82,7 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       const now = new Date();
       await db.update(stage).set({ status: 'done', completedAt: now })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'spec')));
-      await db.update(stage).set({ status: 'active' })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'plan'), eq(stage.status, 'pending')));
-      await db.update(project).set({ currentStage: 'plan', phase: 'build', updatedAt: now })
+      await db.update(project).set({ phase: 'build', updatedAt: now })
         .where(eq(project.id, projectId));
       break;
     }
@@ -107,6 +105,46 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
         body: { prompt, reviewPolicy: 'none' },
         actorId,
         meta: { actorId, cwd },
+        await: true,
+      });
+      break;
+    }
+
+    case 'validate_task': {
+      // Send a self-validation message as forge user, then dispatch @Forge refine
+      const taskId = action.data?.taskId as string;
+      const taskTitle = action.data?.taskTitle as string;
+      if (!taskId) break;
+
+      // 1. Insert user message (validation request)
+      const { qaMessage } = await import('@/db/schema/spec');
+      const { sql } = await import('drizzle-orm');
+      const [seqRow] = await db
+        .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
+        .from(qaMessage)
+        .where(eq(qaMessage.componentId, taskId));
+      const seq = (seqRow?.max ?? -1) + 1;
+      const validationMsg = 'Review this task for completeness, accuracy, and test coverage. Flag any gaps. @Forge';
+      await db.insert(qaMessage).values({
+        componentId: taskId,
+        seq,
+        sender: 'member',
+        bodyMd: validationMsg,
+        authorId: actorId,
+      });
+
+      // 2. Dispatch plan-refine (same as clicking @Forge)
+      await dispatchMma({
+        db, mma, projectId,
+        route: 'orchestrate',
+        handler: 'plan-refine',
+        cwd,
+        body: {
+          prompt: `Review the plan task "${taskTitle}" for completeness, accuracy, and test coverage. Flag any gaps.`,
+          reviewPolicy: 'none',
+        },
+        actorId,
+        meta: { taskId },
         await: true,
       });
       break;
@@ -175,10 +213,7 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       const now = new Date();
       await db.update(stage).set({ status: 'done', completedAt: now })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'plan')));
-      await db.update(stage).set({ status: 'active' })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'execute'), eq(stage.status, 'pending')));
-      await db.update(project).set({ currentStage: 'execute', updatedAt: now })
-        .where(eq(project.id, projectId));
+      await db.update(project).set({ updatedAt: now }).where(eq(project.id, projectId));
       break;
     }
 
@@ -238,10 +273,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       const now = new Date();
       await db.update(stage).set({ status: 'done', completedAt: now })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'execute')));
-      await db.update(stage).set({ status: 'active' })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'review'), eq(stage.status, 'pending')));
-      await db.update(project).set({ currentStage: 'review', updatedAt: now })
-        .where(eq(project.id, projectId));
       break;
     }
 
@@ -301,10 +332,6 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
       const now = new Date();
       await db.update(stage).set({ status: 'done', completedAt: now })
         .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'review')));
-      await db.update(stage).set({ status: 'active' })
-        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'journal'), eq(stage.status, 'pending')));
-      await db.update(project).set({ currentStage: 'journal', updatedAt: now })
-        .where(eq(project.id, projectId));
       break;
     }
 
@@ -347,6 +374,36 @@ export async function executeAction(projectId: string, action: AutoAction, db: D
         meta: { learningIds: kept.map((l) => l.id), learningCount: kept.length },
         await: true,
       });
+      break;
+    }
+
+    // ── Navigation (change page + update currentStage) ─────────────
+    case 'navigate_to_plan': {
+      await db.update(project).set({ currentStage: 'plan', updatedAt: new Date() }).where(eq(project.id, projectId));
+      await db.update(stage).set({ status: 'active' })
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'plan'), eq(stage.status, 'pending')));
+      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/plan` });
+      break;
+    }
+    case 'navigate_to_execute': {
+      await db.update(project).set({ currentStage: 'execute', updatedAt: new Date() }).where(eq(project.id, projectId));
+      await db.update(stage).set({ status: 'active' })
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'execute'), eq(stage.status, 'pending')));
+      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/execute` });
+      break;
+    }
+    case 'navigate_to_review': {
+      await db.update(project).set({ currentStage: 'review', updatedAt: new Date() }).where(eq(project.id, projectId));
+      await db.update(stage).set({ status: 'active' })
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'review'), eq(stage.status, 'pending')));
+      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/review` });
+      break;
+    }
+    case 'navigate_to_journal': {
+      await db.update(project).set({ currentStage: 'journal', updatedAt: new Date() }).where(eq(project.id, projectId));
+      await db.update(stage).set({ status: 'active' })
+        .where(and(eq(stage.projectId, projectId), eq(stage.kind, 'journal'), eq(stage.status, 'pending')));
+      projectEventBus.publish(projectId, { type: 'automation.navigate', url: `/projects/${projectId}/journal` });
       break;
     }
 

@@ -93,11 +93,6 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     return { kind: 'freeze_spec', note: specAudits.length >= 5 ? 'Audit cap reached — approving spec...' : 'Spec audit clean — approving spec...' };
   }
 
-  // ── Navigate to Plan (spec done but still on spec page) ──
-  if (specStage?.status === 'done' && proj.currentStage === 'spec') {
-    return { kind: 'navigate_to_plan', note: 'Navigating to Plan...' };
-  }
-
   // ── Plan ──
   if (planStage?.status === 'active' || (specStage?.status === 'done' && planStage?.status !== 'done')) {
     const planFile = await readPlanFileAsync(projectId);
@@ -168,11 +163,6 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
     return { kind: 'lock_plan', note: 'Plan audit done — advancing to Execute...' };
   }
 
-  // ── Navigate to Execute ──
-  if (planStage?.status === 'done' && proj.currentStage === 'plan') {
-    return { kind: 'navigate_to_execute', note: 'Navigating to Execute...' };
-  }
-
   // ── Execute ──
   if (executeStage?.status === 'active' || (planStage?.status === 'done' && executeStage?.status !== 'done')) {
     if (await isInflight(db, projectId, 'execute-pipeline')) return WAIT;
@@ -188,11 +178,6 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
       return { kind: 'error', note: 'All tasks failed — no code committed.' };
     }
     return { kind: 'advance_to_review', note: 'Execution complete — advancing to Review...' };
-  }
-
-  // ── Navigate to Review ──
-  if (executeStage?.status === 'done' && proj.currentStage === 'execute') {
-    return { kind: 'navigate_to_review', note: 'Navigating to Review...' };
   }
 
   // ── Review ──
@@ -214,11 +199,6 @@ export async function resolveNextAction(projectId: string, db: Db = getDb()): Pr
       return { kind: 'apply_review_findings', note: `Review pass ${reviewAudits.length}/5 — applying findings...`, data: { passNo: latestReview.passNo } };
     }
     return { kind: 'advance_to_journal', note: 'Review done — advancing to Journal...' };
-  }
-
-  // ── Navigate to Journal ──
-  if (reviewStage?.status === 'done' && proj.currentStage === 'review') {
-    return { kind: 'navigate_to_journal', note: 'Navigating to Journal...' };
   }
 
   // ── Journal ──

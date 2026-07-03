@@ -56,7 +56,7 @@ export async function driveProject(projectId: string): Promise<void> {
           }
         }
       }
-      if (!lastErr) {
+      if (!lastErr && !action.kind.startsWith('navigate_')) {
         projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
       }
       if (lastErr) {

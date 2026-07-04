@@ -243,6 +243,28 @@ export class GitOps {
     }
     return (await this.run(repoPath, ['rev-parse', 'HEAD'])).stdout.trim();
   }
+
+  /**
+   * Commit ALL working-tree changes on the current branch IFF the tree is dirty,
+   * returning the new commit SHA (or `null` when there is nothing to commit).
+   * Unlike `commitInlineFix` this never throws on a clean tree — it is the safe path
+   * for a handler that lands the edits of a `reviewPolicy=none` worker (which edits
+   * files but never commits) onto the project branch. Uses an inline Forge identity
+   * so it works even where the repo has no configured `user.name`/`user.email`.
+   */
+  async commitAllIfDirty(repoPath: string, message: string): Promise<string | null> {
+    const status = await this.run(repoPath, ['status', '--porcelain']);
+    if (status.stdout.trim().length === 0) return null; // nothing to commit
+    await this.run(repoPath, ['add', '-A']);
+    const commit = await this.run(repoPath, [
+      '-c', 'user.email=forge@forge.local', '-c', 'user.name=Forge',
+      'commit', '-m', message,
+    ]);
+    if (commit.code !== 0) {
+      throw new GitOpsError('checkout_failed', `commit failed: ${commit.stderr.trim()}`);
+    }
+    return (await this.run(repoPath, ['rev-parse', 'HEAD'])).stdout.trim();
+  }
 }
 
 /** Re-export the slug helpers callers reach for alongside GitOps. */

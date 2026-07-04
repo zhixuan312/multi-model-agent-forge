@@ -14,6 +14,7 @@ import {
 import { logPoll } from '@/observability/poll-log';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
+import { appendBatchTerminalEvent } from '@/details/project-event-labels';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 
 /**
@@ -311,6 +312,10 @@ export class PollManager {
         .where(eq(mmaBatch.id, entry.batchId));
       effectiveState = { status: 'failed', error: { code: 'handler_error', message: String(handlerErr) }, contextBlockId: null };
     }
+    // Resolve the running timeline line AFTER the terminal transaction (which may
+    // itself have mutated details via the handler) so it's a clean, isolated
+    // update. Duration = wall-clock from dispatch. Best-effort.
+    await appendBatchTerminalEvent(this.db, entry.projectId, entry.handler, effectiveState.status, this.now() - entry.createdAt.getTime());
     this.emitTerminal(entry, effectiveState);
     this.deregister(entry.batchId);
   }

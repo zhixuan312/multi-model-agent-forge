@@ -3,7 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { readSpecFileAsync, readPlanFileAsync } from '@/projects/project-files';
-import { validateDetails } from '@/details/schema';
+import { validateDetails, type ProjectEvent } from '@/details/schema';
 
 export interface StageTiming {
   kind: string;
@@ -22,6 +22,8 @@ export interface ProjectSummary {
   quality: { auditPasses: Array<{ scope: string; passNo: number; status: string }>; specVersion: number; planVersion: number };
   delivery: { totalTasks: number; approved: number };
   knowledge: { recorded: number; byType: Record<string, number> };
+  /** The full project activity timeline (explore→journal) for the Summary rail. */
+  events: ProjectEvent[];
 }
 
 export async function loadProjectSummary(db: Db, projectId: string): Promise<ProjectSummary> {
@@ -52,9 +54,11 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
   let auditPasses: Array<{ scope: string; passNo: number; status: string }> = [];
   let tasks: Array<{ status: string }> = [];
   let learnings: Array<{ type: string; status: string }> = [];
+  let events: ProjectEvent[] = [];
 
   if (proj?.details) {
     const d = validateDetails(proj.details);
+    events = d.events;
     stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
       kind, status: d.stages[kind].status,
       startedAt: d.stages[kind].startedAt ?? null,
@@ -89,5 +93,6 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
     quality: { auditPasses, specVersion: specFile?.version ?? 0, planVersion: planFile?.version ?? 0 },
     delivery: { totalTasks: tasks.length, approved: tasks.filter((t) => t.status === 'approved').length },
     knowledge: { recorded: recorded.length, byType },
+    events,
   };
 }

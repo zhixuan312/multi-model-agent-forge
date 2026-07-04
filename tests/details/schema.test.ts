@@ -13,7 +13,8 @@ describe('validateDetails', () => {
 
   it('accepts a completed project details', () => {
     const completed: Details = {
-      automation: { status: 'off', steps: [] },
+      automation: { status: 'off' },
+      events: [],
       repos: [{ id: 'r1', name: 'repo', pathOnDisk: '/tmp/repo', defaultBranch: 'main' }],
       stages: {
         exploration: {
@@ -30,7 +31,7 @@ describe('validateDetails', () => {
           phases: {
             outline: { status: 'done', selectedTemplateIds: ['t1'] },
             craft: { status: 'done', file: 'spec.md', components: [], attempts: [] },
-            finalize: { status: 'done', auditPasses: [] },
+            finalize: { status: 'done', auditPasses: [], approvals: [] },
           },
         },
         plan: {
@@ -149,7 +150,8 @@ describe('validateDetails', () => {
 describe('buildInitialDetails', () => {
   it('creates valid initial state with exploration active', () => {
     const d = buildInitialDetails();
-    expect(d.automation).toEqual({ status: 'off', steps: [] });
+    expect(d.automation).toEqual({ status: 'off' });
+    expect(d.events).toEqual([]);
     expect(d.repos).toEqual([]);
     expect(d.stages.exploration.status).toBe('active');
     expect(d.stages.spec.status).toBe('pending');

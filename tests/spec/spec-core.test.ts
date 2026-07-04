@@ -14,7 +14,8 @@ describe('ensureSpecStage — reads from details', () => {
     const projectId = 'proj-1';
     const d = buildInitialDetails();
     d.stages.spec.status = 'active';
-    d.stages.spec.participants = ['m1'];
+    // approvers = the spec-level sign-off recorded at Finalize (NOT participants).
+    d.stages.spec.phases.finalize.approvals = ['m1'];
     const mockDb = createMockDb({
       'select:project': [{ details: d }],
     });

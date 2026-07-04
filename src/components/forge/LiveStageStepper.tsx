@@ -21,16 +21,25 @@ export function LiveStageStepper({
   currentStage,
   phase,
   lockedStages,
+  autoMode,
+  activePhase,
 }: {
   projectId: string;
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   currentStage: StageKind | null;
   phase: ProjectPhase;
   lockedStages?: StageKind[];
+  autoMode?: boolean;
+  activePhase?: string;
 }) {
   const seg = useSelectedLayoutSegment();
-  const viewingStage: StageKind = (seg ? SEGMENT_TO_STAGE[seg] : undefined) ?? currentStage ?? 'exploration';
-  const subPhase = useStageSubPhase();
+  const subPhaseLive = useStageSubPhase();
+  const routeStage: StageKind = (seg ? SEGMENT_TO_STAGE[seg] : undefined) ?? currentStage ?? 'exploration';
+  // While Forge is driving, the stepper must follow the ACTIVE stage: automation
+  // advances stages without navigating the URL, so the route segment lags behind
+  // (e.g. still on /spec while automation is on Plan). Otherwise follow the route.
+  const viewingStage: StageKind = autoMode ? (currentStage ?? routeStage) : routeStage;
+  const subPhase = autoMode && activePhase ? activePhase : subPhaseLive;
 
   return (
     <StageStepper

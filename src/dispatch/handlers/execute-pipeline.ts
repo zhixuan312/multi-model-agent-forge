@@ -9,6 +9,7 @@ import { projectEventBus } from '@/sse/event-bus';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
+import { recordImplementAttempt } from '@/automation/details-mutations';
 
 async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const request = ctx.request as {
@@ -20,6 +21,17 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
   };
   const { forgeBranch, targetBranch, repoId } = request;
   const actorId = request.actorId ?? ctx.actorId ?? 'system';
+  if (!repoId) return; // can't correlate this terminal to a repo/attempt
+
+  // Record the implement attempt (DONE) + mark tasks committed, so the auto
+  // resolver advances to Review. Manual mode ignores the implement attempt — this
+  // is the single writer of that gating state for both triggers.
+  await updateDetails(db, ctx.projectId, (det) => recordImplementAttempt(det, repoId, ctx.batchRowId, new Date().toISOString()));
+
+  // The branch/PR machinery needs the branch meta the shared core always sets; if
+  // it is somehow absent the attempt is already recorded above (pipeline still
+  // advances) — just skip the PR.
+  if (!forgeBranch || !targetBranch) return;
 
   // Look up repo from details
   const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
@@ -27,16 +39,6 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
   const d = validateDetails(projRow.details);
   const repoMeta = d.repos.find((r) => r.id === repoId);
   if (!repoMeta) throw new Error(`Repo ${repoId} not found in project details`);
-
-  // Mark tasks as committed in details
-  await updateDetails(db, ctx.projectId, (det) => {
-    for (const t of det.stages.plan.phases.refine.tasks) {
-      if (t.targetRepoId === repoId) {
-        t.status = 'committed';
-      }
-    }
-    return det;
-  });
 
   // Push forge branch to origin
   try {
@@ -49,7 +51,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
   try {
     const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
     const tasks = d.stages.plan.phases.refine.tasks
-      .filter((t) => t.targetRepoId === repoId)
+      .filter((t) => !t.targetRepoId || t.targetRepoId === repoId)
       .map((t) => ({ title: t.title, commitSha: t.commitSha ?? null }));
 
     const pr = await createBuildPr(

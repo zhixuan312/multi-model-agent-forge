@@ -79,7 +79,10 @@ export interface TokenUsage {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
-const DEFAULT_WAIT_TIMEOUT_MS = 15 * 60_000;
+// 1 hour — matches PollManager's POLL_HARD_TIMEOUT_MS so a synchronously-awaited
+// task has the same lifetime ceiling as an async-tracked one. A task still
+// running before this is alive, not failed; don't declare it dead early.
+const DEFAULT_WAIT_TIMEOUT_MS = 60 * 60_000;
 
 function resolveFetchTimeout(opt?: number): number {
   if (typeof opt === 'number') return opt;
@@ -430,12 +433,19 @@ export class MmaClient {
     return this.dispatch('review', { cwd, body });
   }
 
-  async dispatchAndWait(route: string, args: { cwd: string; body: unknown }): Promise<unknown> {
+  /**
+   * Dispatch a task and block until it reaches a terminal state. Returns BOTH the
+   * MMA task id (`batchId`) — the same id used to poll — and the terminal
+   * `envelope`. The caller persists `batchId` so a Forge `ops_mma_batch` row can
+   * always be traced back to the MMA task in MMA's own logs/telemetry, even for
+   * synchronous (await) dispatches that never register with the PollManager.
+   */
+  async dispatchAndWait(route: string, args: { cwd: string; body: unknown }): Promise<{ batchId: string; envelope: unknown }> {
     const { batchId } = await this.dispatch(route, args);
     const deadline = Date.now() + this.waitTimeoutMs;
     for (;;) {
       const r = await this.poll(batchId);
-      if (r.state === 'terminal') return r.envelope;
+      if (r.state === 'terminal') return { batchId, envelope: r.envelope };
       if (r.state === 'not_found') {
         throw new Error(`MMA task ${batchId} no longer exists (404) — the server may have restarted.`);
       }

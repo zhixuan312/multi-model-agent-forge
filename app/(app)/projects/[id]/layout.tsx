@@ -72,18 +72,33 @@ export default async function ProjectLayout({
   const lockedStages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const)
     .filter((k) => !perms[PERM_KEY[k]].canMutate);
 
+  // Derive the current stage from details (the active stage) rather than trusting
+  // the denormalized column — automation advances stages without a page visit, so
+  // the column can lag; the stepper must never show a stale/misleading stage.
+  const activeStage = stages.find((s) => s.status === 'active')?.kind ?? project.currentStage;
+  const activePhase = stages.find((s) => s.kind === activeStage)?.lastPhase ?? undefined;
+
   return (
     <PhaseFromRoute>
       <ShellHeader>
-        <ProjectTopbar projectId={project.id} projectName={project.name} phase={project.phase} />
+        <ProjectTopbar
+          projectId={project.id}
+          projectName={project.name}
+          phase={project.phase}
+          eventCount={(() => {
+            try { return ((project.details as any)?.events?.length as number) ?? 0; } catch { return 0; }
+          })()}
+        />
       </ShellHeader>
       <ShellSubNav className="!h-auto !py-3 !px-8 md:!px-12 lg:!px-16">
         <LiveStageStepper
           projectId={project.id}
           stages={stages}
-          currentStage={project.currentStage}
+          currentStage={activeStage}
           phase={project.phase}
           lockedStages={lockedStages}
+          autoMode={project.autoMode}
+          activePhase={activePhase}
         />
       </ShellSubNav>
       <ShellBody width="full" fill>
@@ -92,8 +107,30 @@ export default async function ProjectLayout({
           projectName={project.name}
           autoMode={project.autoMode}
           autoNote={project.autoNote ?? ''}
-          currentStage={project.currentStage ?? 'spec'}
+          currentStage={activeStage ?? 'spec'}
           phase={project.phase}
+          stagePhase={stages.find(s => s.kind === activeStage)?.lastPhase ?? undefined}
+          automationStartedAt={(() => {
+            if (!project.details) return undefined;
+            try {
+              const d = (project.details as any);
+              return d?.automation?.startedAt ?? undefined;
+            } catch { return undefined; }
+          })()}
+          auditPassCount={(() => {
+            if (!project.details) return undefined;
+            try {
+              const d = (project.details as any);
+              const stage = project.currentStage;
+              if (stage === 'spec') return d?.stages?.spec?.phases?.finalize?.auditPasses?.length ?? 0;
+              if (stage === 'plan') return d?.stages?.plan?.phases?.validate?.auditPasses?.length ?? 0;
+              return undefined;
+            } catch { return undefined; }
+          })()}
+          events={(() => {
+            if (!project.details) return undefined;
+            try { return (project.details as any)?.events ?? []; } catch { return []; }
+          })()}
         >
           {children}
         </AutomationGate>

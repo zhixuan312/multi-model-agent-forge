@@ -1,20 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
-import { project } from '@/db/schema/projects';
-import { repo } from '@/db/schema/workspace';
-import { planFilePath, readPlanFileAsync } from '@/projects/project-files';
-import { buildForgeBranch } from '@/build/execute-core';
-import { projectShortId } from '@/build/slug';
 import { buildMmaClient } from '@/mma/server-client';
-import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
-import { execFileSync } from 'node:child_process';
-import { validateDetails } from '@/details/schema';
-import { updateDetails } from '@/details/write';
+import { findInflight } from '@/dispatch/dispatch-helpers';
+import { startExecuteRun } from '@/build/start-execute-run';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -48,107 +40,26 @@ export async function POST(
 
   const json = await _req.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(json);
-  let repoList = parsed.success ? parsed.data.repos : [];
+  const repoList = parsed.success && parsed.data.repos.length > 0 ? parsed.data.repos : undefined;
 
-  // Get repos from details if not provided
-  if (repoList.length === 0) {
-    const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
-    if (projRow?.details) {
-      const d = validateDetails(projRow.details);
-      repoList = d.repos.map((r) => ({ repoId: r.id, targetBranch: r.defaultBranch }));
-    }
-  }
-
-  const planArtifact = await readPlanFileAsync(id);
-  if (!planArtifact?.bodyMd) return NextResponse.json({ error: 'No plan artifact.' }, { status: 400 });
-
-  const planPath = planFilePath(id);
-
+  // The manual "Run execution" button and the auto driver share this ONE core:
+  // it sets up the project branch, dispatches execute_plan on it, and the
+  // execute-pipeline handler pushes + opens the PR (project branch → target).
   const mma = await buildMmaClient({ db });
-  const shortId = projectShortId(id);
-  const [proj] = await db.select({ name: project.name, details: project.details }).from(project).where(eq(project.id, id));
-  const forgeBranch = buildForgeBranch(proj?.name ?? id, shortId);
-
-  const d = proj?.details ? validateDetails(proj.details) : null;
-
-  const dispatched: Array<{ repoId: string; batchId: string }> = [];
-  const errors: Array<{ repoId: string; error: string }> = [];
-
-  for (const { repoId, targetBranch } of repoList) {
-    const [repoRow] = await db
-      .select({ name: repo.name, pathOnDisk: repo.pathOnDisk })
-      .from(repo)
-      .where(eq(repo.id, repoId))
-      .limit(1);
-    if (!repoRow) { errors.push({ repoId, error: 'Repo not found' }); continue; }
-
-    try {
-      const branchExists = execFileSync('git', ['-C', repoRow.pathOnDisk, 'branch', '--list', forgeBranch], { encoding: 'utf8' }).trim();
-      if (branchExists) {
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'checkout', forgeBranch]);
-      } else {
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'fetch', 'origin', targetBranch], { timeout: 30_000 });
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'checkout', '-b', forgeBranch, `origin/${targetBranch}`]);
-      }
-    } catch (err) {
-      errors.push({ repoId, error: `Branch: ${(err as Error).message}` });
-      continue;
-    }
-
-    try {
-      const taskTitles = d?.stages.plan.phases.refine.tasks
-        .filter((t) => t.targetRepoId === repoId)
-        .map((t) => t.title) ?? [];
-
-      const { batchRowId } = await dispatchMma({
-        db,
-        mma,
-        projectId: id,
-        route: 'execute_plan',
-        handler: 'execute-pipeline',
-        cwd: repoRow.pathOnDisk,
-        body: {
-          type: 'execute_plan',
-          target: { paths: [planPath] },
-          tasks: [],
-          reviewPolicy: 'reviewed',
-        },
-        actorId: me.id,
-        meta: {
-          forgeBranch,
-          targetBranch,
-          repoId,
-          actorId: me.id,
-          tasks: taskTitles,
-        },
-      });
-
-      // Mark tasks as executing in details
-      await updateDetails(db, id, (det) => {
-        for (const t of det.stages.plan.phases.refine.tasks) {
-          if (t.targetRepoId === repoId) {
-            t.status = 'executing';
-            t.targetBranch = targetBranch;
-            t.branch = forgeBranch;
-          }
-        }
-        return det;
-      });
-
-      dispatched.push({ repoId, batchId: batchRowId });
-    } catch (err) {
-      errors.push({ repoId, error: `MMA: ${(err as Error).message}` });
-    }
+  let result;
+  try {
+    result = await startExecuteRun(db, mma, id, me.id, repoList);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
-
-  if (dispatched.length === 0) return NextResponse.json({ error: 'All repos failed', errors }, { status: 502 });
-
-  // Advance execute phase in details
-  await updateDetails(db, id, (det) => {
-    const exe = det.stages.execute;
-    if (exe.status === 'pending') exe.status = 'active';
-    return det;
-  });
-
-  return NextResponse.json({ dispatched, ...(errors.length > 0 ? { errors } : {}) }, { status: 202 });
+  if (result.dispatched.length === 0) {
+    return NextResponse.json({ error: 'All repos failed', errors: result.errors }, { status: 502 });
+  }
+  return NextResponse.json(
+    {
+      dispatched: result.dispatched.map((x) => ({ repoId: x.repoId, batchId: x.batchRowId })),
+      ...(result.errors.length > 0 ? { errors: result.errors } : {}),
+    },
+    { status: 202 },
+  );
 }

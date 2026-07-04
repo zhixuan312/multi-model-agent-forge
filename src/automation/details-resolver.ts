@@ -1,4 +1,5 @@
 import type { Details } from '@/details/schema';
+import type { StageKind } from '@/db/enums';
 
 export interface AutoAction {
   kind: string;
@@ -10,6 +11,50 @@ export interface AutoAction {
 
 const WAIT: AutoAction = { kind: 'wait', note: '', stage: '', phase: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete', stage: '', phase: '' };
+
+const STAGE_LABEL: Record<StageKind, string> = {
+  exploration: 'Explore', spec: 'Spec', plan: 'Plan', execute: 'Execute', review: 'Review', journal: 'Journal',
+};
+
+/**
+ * A stage's DEFINING work — the record that proves it actually ran (not just that
+ * its `status` says `done`). This is the completion invariant: a stage marked
+ * `done` without this record is a corrupted/skipped stage, not a finished one.
+ */
+function stageWorkDone(d: Details, stage: StageKind): boolean {
+  const s = d.stages;
+  switch (stage) {
+    case 'exploration':
+      return s.exploration.phases.synthesize.status === 'done' || !!s.exploration.phases.synthesize.file;
+    case 'spec':
+      return s.spec.phases.finalize.approvals.length > 0;
+    case 'plan':
+      return s.plan.phases.refine.tasks.length > 0
+        && s.plan.phases.refine.tasks.every((t) => t.approvals.length > 0)
+        && s.plan.phases.validate.auditPasses.length > 0;
+    case 'execute':
+      return s.execute.phases.implement.repos.some((r) => r.attempts.some((a) => a.status === 'done'));
+    case 'review':
+      return s.review.phases.review.repos.some((r) => r.reviewPasses.length > 0);
+    case 'journal':
+      return s.journal.phases.journal.attempts.some((a) => a.status === 'done');
+  }
+}
+
+/**
+ * The earliest build/design stage (explore→review) whose defining work is NOT
+ * recorded — i.e. a stage that was skipped. Returns `null` when every stage did
+ * real work. Journal is excluded (it's the active stage at the completion
+ * boundary; its own harvest attempt is checked there). This is the guard that
+ * makes "Project complete" impossible without execute committing code and review
+ * running — so a driver glitch can never silently ship a false completion.
+ */
+export function firstUnderdoneStage(d: Details): StageKind | null {
+  for (const stage of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) {
+    if (!stageWorkDone(d, stage)) return stage;
+  }
+  return null;
+}
 
 export function resolveNextActionFromDetails(details: Details): AutoAction {
   const spec = details.stages.spec;
@@ -41,7 +86,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
         return { kind: 'dispatch_audit', note: `Running spec audit pass ${passes.length + 1}...`, stage: 'spec', phase: 'finalize' };
       }
     }
-    return { kind: 'approve_stage', note: 'Spec audit done — approving spec...', stage: 'spec', phase: 'finalize' };
+    return { kind: 'approve_stage', note: 'Forge approved the spec', stage: 'spec', phase: 'finalize' };
   }
 
   // Plan Refine — author + validate + approve tasks
@@ -172,8 +217,21 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       return { kind: 'dispatch_record', note: 'Recording learnings...', stage: 'journal', phase: 'summary' };
     }
 
+    // COMPLETION INVARIANT: never mark complete if a build/design stage was
+    // skipped (marked done without doing its work — e.g. a driver glitch jumped
+    // past execute). Reopen the earliest skipped stage so the pipeline redoes it.
+    const underdone = firstUnderdoneStage(details);
+    if (underdone) {
+      return { kind: 'reopen_stage', note: `${STAGE_LABEL[underdone]} was skipped — reopening to finish it`, stage: underdone, phase: '' };
+    }
+
     return { kind: 'mark_complete', note: 'Marking project complete...', stage: 'journal', phase: 'summary' };
   }
 
+  // Completing from a corrupted "everything done" state: only if the work is real.
+  const underdone = firstUnderdoneStage(details);
+  if (underdone) {
+    return { kind: 'reopen_stage', note: `${STAGE_LABEL[underdone]} was skipped — reopening to finish it`, stage: underdone, phase: '' };
+  }
   return COMPLETE;
 }

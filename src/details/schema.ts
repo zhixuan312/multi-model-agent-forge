@@ -38,11 +38,18 @@ const repoSchema = z.object({
   defaultBranch: z.string(),
 });
 
-const automationStepSchema = z.object({
-  action: z.string(),
+/** One line in the PROJECT-LEVEL event log (`details.events`) — the full activity
+ * timeline across every stage (explore→journal), from both the manual UI and the
+ * auto driver. Never cleared. `kind` drives the icon/styling. */
+const projectEventSchema = z.object({
   stage: z.string(),
   phase: z.string(),
-  detail: z.string().optional(),
+  detail: z.string(),
+  kind: z.enum(['action', 'error', 'done']).optional(),
+  /** How long this activity took, in ms. Set when a `running` line resolves to
+   * `done`/`error` (MMA batch wall-clock). Absent for instantaneous events
+   * (approvals) and still-running lines (the UI ticks those live). */
+  durationMs: z.number().optional(),
   at: z.string(),
 });
 
@@ -50,7 +57,6 @@ const automationSchema = z.object({
   status: automationStatus,
   startedAt: z.string().optional(),
   stoppedAt: z.string().optional(),
-  steps: z.array(automationStepSchema).default([]),
 });
 
 const discoverTaskSchema = z.object({
@@ -159,6 +165,9 @@ const specSchema = z.object({
     finalize: z.object({
       status: phaseStatus,
       auditPasses: z.array(auditPassSchema).default([]),
+      /** Spec-level sign-off at Finalize — approving the WHOLE spec (distinct
+       * from the per-component approvals done in Craft). Member IDs who approved. */
+      approvals: z.array(z.string()).default([]),
     }),
   }),
 });
@@ -231,6 +240,9 @@ const journalSchema = z.object({
 
 const detailsSchema = z.object({
   automation: automationSchema,
+  /** The full project activity timeline (explore→journal), manual + auto. Never
+   * cleared — outlives any single automation run. */
+  events: z.array(projectEventSchema).default([]),
   repos: z.array(repoSchema).default([]),
   stages: z.object({
     exploration: explorationSchema,
@@ -244,7 +256,7 @@ const detailsSchema = z.object({
 
 export type Details = z.infer<typeof detailsSchema>;
 export type Attempt = z.infer<typeof attemptSchema>;
-export type AutomationStep = z.infer<typeof automationStepSchema>;
+export type ProjectEvent = z.infer<typeof projectEventSchema>;
 
 export function validateDetails(json: unknown): Details {
   return detailsSchema.parse(json);
@@ -252,7 +264,8 @@ export function validateDetails(json: unknown): Details {
 
 export function buildInitialDetails(): Details {
   return {
-    automation: { status: 'off', steps: [] },
+    automation: { status: 'off' },
+    events: [],
     repos: [],
     stages: {
       exploration: {
@@ -269,7 +282,7 @@ export function buildInitialDetails(): Details {
         phases: {
           outline: { status: 'pending', selectedTemplateIds: [] },
           craft: { status: 'pending', components: [], attempts: [] },
-          finalize: { status: 'pending', auditPasses: [] },
+          finalize: { status: 'pending', auditPasses: [], approvals: [] },
         },
       },
       plan: {

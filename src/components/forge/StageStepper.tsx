@@ -252,7 +252,7 @@ export function StageStepper({
         >
           <SubPhaseTrack
             steps={subSteps}
-            active={activeSubPhase}
+            active={activeSubPhase || (currentStage ? lastPhaseByKind.get(currentStage) ?? undefined : undefined)}
             furthest={(() => {
               const viewing = computed.find((s) => s.isCurrent);
               if (viewing && (viewing.visual === 'done' || viewing.visual === 'locked')) {

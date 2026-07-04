@@ -271,8 +271,9 @@ describe('MmaClient.dispatchAndWait', () => {
       });
     });
     const client = new MmaClient(baseCfg, { fetchImpl: fn, pollIntervalMs: 1 });
-    const env = await client.dispatchAndWait('audit', { cwd: '/w', body: { document: 'x' } });
-    expect((env as { headline: string }).headline).toBe('done');
+    const { batchId, envelope } = await client.dispatchAndWait('audit', { cwd: '/w', body: { document: 'x' } });
+    expect(batchId).toBe('bw');
+    expect((envelope as { headline: string }).headline).toBe('done');
     expect(polls).toBeGreaterThanOrEqual(2);
   });
 });

@@ -4,13 +4,19 @@ import { useSyncExternalStore, type ReactNode } from 'react';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
 
 let overlayVisible = false;
+let viewOnly = false;
 const listeners = new Set<() => void>();
 function emit() { for (const l of listeners) l(); }
 
 export const automationOverlayStore = {
   get: () => overlayVisible,
-  show: () => { if (!overlayVisible) { overlayVisible = true; emit(); } },
-  hide: () => { if (overlayVisible) { overlayVisible = false; emit(); } },
+  isViewOnly: () => viewOnly,
+  /** Open the overlay to START automation (with the 3-2-1 countdown). */
+  show: () => { viewOnly = false; overlayVisible = true; emit(); },
+  /** Open the overlay READ-ONLY to view a project's activity log (no countdown,
+   * no automation started) — how a completed project shows its full record. */
+  view: () => { viewOnly = true; overlayVisible = true; emit(); },
+  hide: () => { if (overlayVisible) { overlayVisible = false; viewOnly = false; emit(); } },
   subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
 };
 
@@ -21,10 +27,14 @@ interface Props {
   autoNote: string;
   currentStage: string;
   phase: string;
+  stagePhase?: string;
+  automationStartedAt?: string;
+  auditPassCount?: number;
+  events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }>;
   children: ReactNode;
 }
 
-export function AutomationGate({ projectId, projectName, autoMode, autoNote, currentStage, phase, children }: Props) {
+export function AutomationGate({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, auditPassCount, events, children }: Props) {
   const clientOverlay = useSyncExternalStore(automationOverlayStore.subscribe, automationOverlayStore.get, () => false);
   const showOverlay = autoMode || clientOverlay;
 
@@ -36,6 +46,10 @@ export function AutomationGate({ projectId, projectName, autoMode, autoNote, cur
       autoNote={autoNote}
       currentStage={currentStage}
       phase={phase}
+      stagePhase={stagePhase}
+      automationStartedAt={automationStartedAt}
+      auditPassCount={auditPassCount}
+      events={events}
     />
   ) : (
     <>{children}</>

@@ -38,6 +38,11 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
       return { id, title, status: 'pending' as const, approvals: [], attempts: [], reviewPolicy: 'reviewed' as const };
     });
     d.stages.plan.phases.refine.file = 'plan.md';
+    // Close out the running author attempt recorded at dispatch time so the
+    // automation resolver stops WAITing and advances to task validation.
+    const atts = d.stages.plan.phases.refine.attempts;
+    const last = atts[atts.length - 1];
+    if (last && last.status === 'running') last.status = 'done';
     return d;
   });
 

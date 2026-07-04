@@ -22,6 +22,12 @@ async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown
         tasks[i].title = fileTitle;
       }
     }
+
+    const passes = d.stages.plan.phases.validate.auditPasses;
+    const lastPass = passes[passes.length - 1];
+    if (lastPass && !lastPass.fix) {
+      lastPass.fix = { attempts: [{ batchId: ctx.batchRowId, status: 'done', at: new Date().toISOString() }] };
+    }
     return d;
   });
 }

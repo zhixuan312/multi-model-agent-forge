@@ -31,7 +31,7 @@ export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: 
       return det;
     });
   }
-  return { id: projectId, status: spec.status === 'pending' ? 'active' : spec.status, approvers: spec.participants ?? [] };
+  return { id: projectId, status: spec.status === 'pending' ? 'active' : spec.status, approvers: spec.phases.finalize.approvals ?? [] };
 }
 
 /** Capture / update the project intent and derive the summary (pure, no LLM). */

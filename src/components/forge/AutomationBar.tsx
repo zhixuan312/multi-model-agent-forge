@@ -54,11 +54,13 @@ export function AutomationBar({
 
   function handleRun() {
     if (!projectId) return;
-    // Show overlay IMMEDIATELY — countdown happens on the overlay
+    // Show overlay IMMEDIATELY — countdown happens on the overlay.
     automationOverlayStore.show();
-    // Start server automation (overlay's countdown will run while this resolves)
+    // Start server automation; the overlay's countdown runs while this resolves.
+    // Intentionally NO router.refresh() here — the overlay syncs server state once
+    // when the countdown ends, so the top stepper stays still during "Getting
+    // ready" instead of jumping as Forge advances spec→plan behind the countdown.
     fetch(`/api/projects/${projectId}/automation/start`, { method: 'POST' })
-      .then(() => router.refresh())
       .catch(() => { automationOverlayStore.hide(); });
   }
 

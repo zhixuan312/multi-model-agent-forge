@@ -6,6 +6,7 @@ import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
 import { getPollManager } from '@/sse/poll-manager';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
+import { appendBatchTerminalEvent } from '@/details/project-event-labels';
 
 export interface DispatchOpts {
   db: Db;
@@ -189,12 +190,13 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
   if (opts.await) {
     // SYNC: block until terminal
     try {
-      const envelope = await opts.mma.dispatchAndWait(opts.route, { cwd: opts.cwd, body: payload });
+      const { batchId: mmaBatchId, envelope } = await opts.mma.dispatchAndWait(opts.route, { cwd: opts.cwd, body: payload });
       const usage = extractUsageFields(envelope);
       await opts.db
         .update(mmaBatch)
         .set({
           status: 'done',
+          batchId: mmaBatchId,
           result: (envelope ?? {}) as object,
           terminalAt: new Date(),
           ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
@@ -216,12 +218,17 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
         if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
       } catch { /* handler failure logged, not propagated */ }
 
+      // Resolve the running timeline line to its milestone + measured duration —
+      // one line per activity, covering manual-UI dispatches too.
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'done', Date.now() - row.createdAt.getTime());
+
       return { batchRowId, envelope };
     } catch (err) {
       await opts.db
         .update(mmaBatch)
         .set({ status: 'failed', result: { error: { code: 'dispatch_failed', message: String(err) } } as object, terminalAt: new Date() })
         .where(eq(mmaBatch.id, batchRowId));
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
       throw err;
     }
   } else {

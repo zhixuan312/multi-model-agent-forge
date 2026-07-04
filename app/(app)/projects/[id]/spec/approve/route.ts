@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/db/client';
-import { updateDetails } from '@/details/write';
+import { updateDetails, appendProjectEvent } from '@/details/write';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -16,16 +16,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   if (body.action === 'revoke') {
     await updateDetails(db, id, (d) => {
-      d.stages.spec.participants = d.stages.spec.participants.filter((p) => p !== me.id);
+      d.stages.spec.phases.finalize.approvals = d.stages.spec.phases.finalize.approvals.filter((p) => p !== me.id);
       return d;
     });
   } else {
     await updateDetails(db, id, (d) => {
-      if (!d.stages.spec.participants.includes(me.id)) {
-        d.stages.spec.participants.push(me.id);
+      if (!d.stages.spec.phases.finalize.approvals.includes(me.id)) {
+        d.stages.spec.phases.finalize.approvals.push(me.id);
       }
       return d;
     });
+    await appendProjectEvent(db, id, { stage: 'spec', phase: 'finalize', detail: `${me.displayName} approved the spec`, kind: 'done' });
   }
 
   projectEventBus.publish(id, { type: 'spec.updated' });

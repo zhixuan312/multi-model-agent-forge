@@ -204,11 +204,16 @@ export function PlanStageClient(props: PlanStageClientProps) {
   }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
+  // Sub-phase navigation from the top stepper. The stepper only renders a chip as
+  // clickable once that phase is reachable (its `furthest`/lastPhase logic), so we
+  // trust the click and just switch the view — the approval gate lives on the
+  // "Continue to Validate" advance button, NOT on viewing. Re-gating here made the
+  // Validate chip a dead button whenever `allApproved` was momentarily false (e.g.
+  // revisiting a completed Plan stage where tasks didn't all resolve to approved).
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
-        if (key === 'refine') setPhase('refine');
-        if (key === 'validate' && allApprovedRef.current) setPhase('validate');
+        if (key === 'refine' || key === 'validate') setPhase(key as PlanPhase);
       }),
     [],
   );
@@ -216,8 +221,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   const approvedCount = allTasks.filter((t) => status[t.id] === 'approved').length;
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
-  const allApprovedRef = useRef(allApproved);
-  allApprovedRef.current = allApproved;
   const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
   const auditing = !!props.pendingAudit || mma.busyHandlers.has('plan-audit');

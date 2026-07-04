@@ -9,6 +9,7 @@ import {
   BookOpen,
   Check,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Card,
@@ -18,7 +19,8 @@ import {
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { formatDate } from '@/lib/format-date';
+import { cn } from '@/lib/cn';
+import { formatTime } from '@/lib/format-date';
 import type { ProjectSummary } from '@/projects/project-summary';
 
 function StatCard({
@@ -60,6 +62,15 @@ function formatDuration(ms: number): string {
   if (mins < 60) return `${mins}m`;
   const hours = Math.round(mins / 60);
   return `${hours}h ${mins % 60}m`;
+}
+
+/** Compact per-activity duration, matching the live overlay ("0.4s", "2m 48s"). */
+function formatDur(ms: number): string {
+  if (ms < 950) return `${Math.max(0, Math.round(ms / 100) / 10)}s`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${Math.round(s % 60)}s`;
 }
 
 function formatTokens(n: number): string {
@@ -163,25 +174,40 @@ export function SummaryPhase({ summary, projectId, readOnly, onMarkComplete, com
         </StatCard>
       </div>
 
-      {/* RIGHT — note + mark complete (1/3) */}
+      {/* RIGHT — the full project activity log + mark complete (1/3). Each row is
+          three aligned columns: time · detail · duration. */}
       <aside className="flex min-h-0 flex-col gap-4">
         <RailNote icon={<BookOpen />}>{SUMMARY_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
-            <CardTitle>{summary.projectName}</CardTitle>
-            {summary.completedAt ? (
-              <Badge variant="sage" size="sm">Completed</Badge>
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-sm text-ink-soft">
-              Started {formatDate(summary.createdAt)}
-              {summary.completedAt ? (
-                <> · Completed {formatDate(summary.completedAt)}</>
-              ) : null}
+            <div className="flex min-w-0 items-center gap-2">
+              <CardTitle>Activity</CardTitle>
+              {summary.events.length > 0 ? <Badge variant="neutral" size="sm">{summary.events.length}</Badge> : null}
             </div>
+            {summary.completedAt ? <Badge variant="sage" size="sm">Completed</Badge> : null}
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto !py-2">
+            {summary.events.length === 0 ? (
+              <p className="py-8 text-center text-xs text-ink-faint">No activity recorded yet.</p>
+            ) : (
+              summary.events.map((e, i) => (
+                <div key={i} className="grid grid-cols-[2.75rem_1fr_3.5rem] items-start gap-x-2 border-b border-line/40 py-1.5 last:border-0">
+                  {/* col 1 — time (fixed) */}
+                  <span className="mt-px font-mono text-[10px] tabular-nums text-ink-faint">{formatTime(new Date(e.at))}</span>
+                  {/* col 2 — detail (with status icon); wraps within its own column */}
+                  <span className="flex min-w-0 items-start gap-1.5">
+                    {e.kind === 'error'
+                      ? <AlertTriangle className="mt-0.5 size-3 shrink-0 text-[var(--danger,#c0492f)]" />
+                      : <Check className="mt-0.5 size-3 shrink-0 text-[var(--sage)]" />}
+                    <span className={cn('min-w-0 break-words text-[13px] leading-snug', e.kind === 'error' ? 'text-[var(--danger,#c0492f)]' : 'text-ink')}>{e.detail}</span>
+                  </span>
+                  {/* col 3 — duration (fixed, always reserved so col 2 can't eat it) */}
+                  <span className="mt-px text-right font-mono text-[10px] tabular-nums text-ink-faint">{e.durationMs != null ? formatDur(e.durationMs) : ''}</span>
+                </div>
+              ))
+            )}
           </CardContent>
-          <div className="mt-auto border-t border-line px-5 py-4">
+          <div className="mt-auto shrink-0 border-t border-line px-5 py-4">
             {summary.completedAt ? (
               <div className="flex items-center justify-center gap-2 rounded-[var(--r)] bg-sage-tint px-4 py-2.5 text-sm font-medium text-[var(--sage-deep)]">
                 <Check className="size-4" />

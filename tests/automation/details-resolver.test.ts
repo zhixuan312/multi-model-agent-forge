@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { buildInitialDetails } from '@/details/schema';
+import { buildInitialDetails, type Details } from '@/details/schema';
 import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 
+/** Populate the DEFINING work record of every stage — the proof each ran. Without
+ * these, the completion invariant treats a status-only "done" as a skipped stage. */
+function withAllStageWork(d: Details): Details {
+  d.stages.exploration.phases.synthesize.file = 'exploration.md';
+  d.stages.spec.phases.finalize.approvals = ['m1'];
+  d.stages.plan.phases.refine.tasks = [{ id: 't1', title: 'T1', status: 'committed', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' }];
+  d.stages.plan.phases.validate.auditPasses = [{ passNo: 1, status: 'clean' }];
+  d.stages.execute.phases.implement.repos = [{ repoId: 'r1', attempts: [{ batchId: 'e1', status: 'done', at: '' }] }];
+  d.stages.review.phases.review.repos = [{ repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] }];
+  d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
+  return d;
+}
+
 describe('resolveNextActionFromDetails', () => {
-  it('returns complete for a fully done project', () => {
-    const d = buildInitialDetails();
+  it('returns complete for a fully done project (with real work recorded)', () => {
+    const d = withAllStageWork(buildInitialDetails());
     for (const stg of Object.values(d.stages)) {
       stg.status = 'done';
       for (const ph of Object.values(stg.phases as Record<string, { status: string }>)) {
@@ -122,20 +135,69 @@ describe('resolveNextActionFromDetails', () => {
     expect(action.data?.learningIndex).toBe(0);
   });
 
-  it('marks complete after all learnings recorded', () => {
-    const d = buildInitialDetails();
+  it('marks complete after all learnings recorded (all stages did real work)', () => {
+    const d = withAllStageWork(buildInitialDetails());
     for (const k of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) {
       d.stages[k].status = 'done';
     }
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
-    d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
     d.stages.journal.phases.journal.learnings = [
       { heading: 'L1', type: 'decision', status: 'recorded' },
     ];
     d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
     const action = resolveNextActionFromDetails(d);
     expect(action.kind).toBe('mark_complete');
+  });
+
+  describe('completion invariant — never complete on a skipped stage', () => {
+    /** journal active, learnings recorded — the moment before mark_complete. */
+    function atCompletionBoundary(): Details {
+      const d = withAllStageWork(buildInitialDetails());
+      for (const k of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) d.stages[k].status = 'done';
+      d.stages.journal.status = 'active';
+      d.stages.journal.phases.journal.status = 'active';
+      d.stages.journal.phases.journal.learnings = [{ heading: 'L1', type: 'decision', status: 'recorded' }];
+      d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
+      return d;
+    }
+
+    it('reopens Execute when it was marked done but committed nothing', () => {
+      const d = atCompletionBoundary();
+      d.stages.execute.phases.implement.repos = []; // the skip: no execute work
+      const action = resolveNextActionFromDetails(d);
+      expect(action.kind).toBe('reopen_stage');
+      expect(action.stage).toBe('execute');
+    });
+
+    it('reopens Review when it was marked done but ran no pass', () => {
+      const d = atCompletionBoundary();
+      d.stages.review.phases.review.repos = []; // the skip: no review work
+      const action = resolveNextActionFromDetails(d);
+      expect(action.kind).toBe('reopen_stage');
+      expect(action.stage).toBe('review');
+    });
+
+    it('reopens the EARLIEST skipped stage first (plan audit skipped)', () => {
+      const d = atCompletionBoundary();
+      d.stages.plan.phases.validate.auditPasses = []; // plan skipped (earlier than execute/review)
+      d.stages.execute.phases.implement.repos = [];
+      const action = resolveNextActionFromDetails(d);
+      expect(action.kind).toBe('reopen_stage');
+      expect(action.stage).toBe('plan');
+    });
+
+    it('reopens even from a fully "done" corrupted state (all statuses done, no work)', () => {
+      const d = buildInitialDetails();
+      for (const stg of Object.values(d.stages)) {
+        stg.status = 'done';
+        for (const ph of Object.values(stg.phases as Record<string, { status: string }>)) ph.status = 'done';
+      }
+      // synthesize "done" but no other work → earliest skip is spec (not approved)
+      const action = resolveNextActionFromDetails(d);
+      expect(action.kind).toBe('reopen_stage');
+      expect(action.stage).toBe('spec');
+    });
   });
 
   it('waits when an attempt is running', () => {
@@ -150,5 +212,157 @@ describe('resolveNextActionFromDetails', () => {
     }];
     const action = resolveNextActionFromDetails(d);
     expect(action.kind).toBe('wait');
+  });
+});
+
+/**
+ * Full-pipeline transition coverage (AC1). Every state the driver can be in must
+ * resolve to a defined next action so the run never stalls. These lock the exact
+ * transitions the four previously-dormant stages (tasks / execute / review /
+ * journal) depend on — each is only reachable if its action records the gating
+ * state the resolver reads (verified separately by the action-effect tests).
+ */
+describe('resolveNextActionFromDetails — full pipeline', () => {
+  /** A project parked with everything before `plan` done and plan active. */
+  function planActive() {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    d.stages.plan.phases.refine.file = 'plan.md';
+    return d;
+  }
+
+  it('advances to plan-validate once all tasks are approved', () => {
+    const d = planActive();
+    d.stages.plan.phases.refine.tasks = [
+      { id: 't1', title: 'T1', status: 'approved', approvals: ['m1'], attempts: [{ batchId: 'r', status: 'done', at: '' }], reviewPolicy: 'reviewed' },
+    ];
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('advance_phase');
+    expect(action.stage).toBe('plan');
+    expect(action.phase).toBe('validate');
+  });
+
+  it('dispatches plan audit when validate is active with no passes', () => {
+    const d = planActive();
+    d.stages.plan.phases.refine.status = 'done';
+    d.stages.plan.phases.validate.status = 'active';
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('dispatch_audit');
+    expect(action.stage).toBe('plan');
+  });
+
+  it('applies plan-audit findings after a revised pass', () => {
+    const d = planActive();
+    d.stages.plan.phases.refine.status = 'done';
+    d.stages.plan.phases.validate.status = 'active';
+    d.stages.plan.phases.validate.auditPasses = [
+      { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('apply_findings');
+  });
+
+  it('approves plan (→ execute) after a clean plan audit', () => {
+    const d = planActive();
+    d.stages.plan.phases.refine.status = 'done';
+    d.stages.plan.phases.validate.status = 'active';
+    d.stages.plan.phases.validate.auditPasses = [
+      { passNo: 1, status: 'clean', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
+    ];
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('approve_stage');
+    expect(action.stage).toBe('plan');
+  });
+
+  /** Everything up to execute done, execute active. */
+  function executeActive() {
+    const d = buildInitialDetails();
+    for (const k of ['exploration', 'spec', 'plan'] as const) d.stages[k].status = 'done';
+    d.stages.execute.status = 'active';
+    return d;
+  }
+
+  it('dispatches execution when no repo has an implement attempt', () => {
+    const d = executeActive();
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_execute');
+  });
+
+  it('waits while an execute attempt is running', () => {
+    const d = executeActive();
+    d.stages.execute.phases.implement.repos = [
+      { repoId: 'r1', attempts: [{ batchId: 'e1', status: 'running', at: '' }] },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+  });
+
+  it('advances execute → review once the implement attempt is done', () => {
+    const d = executeActive();
+    d.stages.execute.phases.implement.repos = [
+      { repoId: 'r1', attempts: [{ batchId: 'e1', status: 'done', at: '' }] },
+    ];
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('advance_stage');
+    expect(action.stage).toBe('review');
+  });
+
+  /** Everything up to review done, review active. */
+  function reviewActive() {
+    const d = buildInitialDetails();
+    for (const k of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[k].status = 'done';
+    d.stages.review.status = 'active';
+    return d;
+  }
+
+  it('dispatches code review when no repo has a review pass', () => {
+    const d = reviewActive();
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
+  });
+
+  it('waits while a review pass is running', () => {
+    const d = reviewActive();
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'running', at: '' }] } }] },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+  });
+
+  it('applies review findings after a revised pass with no fix yet', () => {
+    const d = reviewActive();
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('apply_review_findings');
+  });
+
+  it('runs another review pass after the fix is applied (< 5 passes)', () => {
+    const d = reviewActive();
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] }, fix: { attempts: [{ batchId: 'f1', status: 'done', at: '' }] } }] },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
+  });
+
+  it('advances review → journal once a repo review is clean', () => {
+    const d = reviewActive();
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] },
+    ];
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('advance_stage');
+    expect(action.stage).toBe('journal');
+  });
+
+  it('records learnings once they are all approved (kept, not recorded)', () => {
+    const d = buildInitialDetails();
+    for (const k of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) d.stages[k].status = 'done';
+    d.stages.journal.status = 'active';
+    d.stages.journal.phases.journal.status = 'active';
+    d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
+    d.stages.journal.phases.journal.learnings = [
+      { heading: 'L1', type: 'decision', status: 'kept' },
+    ];
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_record');
   });
 });

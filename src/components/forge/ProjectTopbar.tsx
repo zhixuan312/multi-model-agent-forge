@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Title } from '@/components/ui/typography';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { ExportMenu } from '@/components/forge/export/ExportMenu';
+import { ViewActivityButton } from '@/components/forge/ViewActivityButton';
 import type { ProjectPhase } from '@/db/enums';
 
 /**
@@ -32,6 +33,8 @@ export interface ProjectTopbarProps {
   presence?: ProjectTopbarPresence[];
   /** Force the inert stub even with a projectId (no-active-project shell). */
   exportDisabled?: boolean;
+  /** Number of project-timeline events — drives the read-only "Activity" button. */
+  eventCount?: number;
 }
 
 export function ProjectTopbar({
@@ -40,6 +43,7 @@ export function ProjectTopbar({
   phase,
   presence = [],
   exportDisabled = false,
+  eventCount = 0,
 }: ProjectTopbarProps) {
   return (
     <div data-testid="project-topbar" className="flex w-full items-center gap-4">
@@ -79,6 +83,8 @@ export function ProjectTopbar({
             />
           ))}
         </div>
+
+        <ViewActivityButton eventCount={eventCount} />
 
         {projectId && !exportDisabled ? (
           <ExportMenu projectId={projectId} />

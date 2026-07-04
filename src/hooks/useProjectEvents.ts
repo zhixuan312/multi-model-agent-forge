@@ -89,10 +89,10 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
       break;
     }
     case 'automation.progress':
-      window.dispatchEvent(new CustomEvent('automation:progress', { detail: { note: e.note } }));
+      window.dispatchEvent(new CustomEvent('automation:progress', { detail: { note: e.note, stage: e.stage, phase: e.phase, kind: e.kind, durationMs: e.durationMs } }));
       break;
     case 'automation.step_done':
-      window.dispatchEvent(new CustomEvent('automation:step_done', { detail: { step: e.step } }));
+      window.dispatchEvent(new CustomEvent('automation:step_done', { detail: { step: e.step, stage: e.stage, phase: e.phase, stepIndex: e.stepIndex } }));
       break;
     case 'automation.navigate':
       window.dispatchEvent(new CustomEvent('automation:navigate', { detail: { url: e.url } }));

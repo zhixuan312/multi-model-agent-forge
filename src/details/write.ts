@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
+import { resolveRunningEventInPlace, reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
 import type { StageKind } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
@@ -43,10 +44,16 @@ export async function updateDetails(
   throw new DetailsVersionConflict(projectId);
 }
 
+/** Design (exploration·spec·plan) → build (execute·review) → learn (journal). */
+const STAGE_PHASE: Record<StageKind, 'design' | 'build' | 'learn'> = {
+  exploration: 'design', spec: 'design', plan: 'design',
+  execute: 'build', review: 'build', journal: 'learn',
+};
+
 export async function advanceStage(
   db: Db, projectId: string, toStage: StageKind,
 ): Promise<Details> {
-  return updateDetails(db, projectId, (d) => {
+  const result = await updateDetails(db, projectId, (d) => {
     const now = new Date().toISOString();
     for (const stg of Object.values(d.stages)) {
       if (stg.status === 'active') {
@@ -60,8 +67,20 @@ export async function advanceStage(
     const target = d.stages[toStage];
     target.status = 'active';
     if (!target.startedAt) target.startedAt = now;
+    // Activate the target stage's first phase so the resolver enters its branch.
+    const firstPhase = STAGE_FIRST_PHASE[toStage];
+    const phases = target.phases as Record<string, { status: string }>;
+    if (phases[firstPhase] && phases[firstPhase].status === 'pending') {
+      phases[firstPhase].status = 'active';
+    }
     return d;
   });
+  // Keep the denormalized columns in sync — the stepper/topbar read these, and
+  // automation never visits pages so nothing else would update them.
+  await db.update(project)
+    .set({ currentStage: toStage, phase: STAGE_PHASE[toStage], updatedAt: new Date() })
+    .where(eq(project.id, projectId));
+  return result;
 }
 
 export async function advancePhase(
@@ -77,12 +96,32 @@ export async function advancePhase(
   });
 }
 
+/**
+ * Reopen a stage that was skipped (marked done without doing its work) — the
+ * completion-invariant recovery. Resets the target stage AND every stage after it
+ * to a clean pending template (so their skipped work is redone from scratch, not
+ * left in a half-corrupt state), then re-activates the target at its first phase.
+ * Clears `completed_at`. The driver then drives the pipeline forward again.
+ */
+export async function reopenStage(
+  db: Db, projectId: string, toStage: StageKind,
+): Promise<Details> {
+  const result = await updateDetails(db, projectId, (d) =>
+    reopenStageInPlace(d, toStage, new Date().toISOString()));
+  await db.update(project)
+    .set({ currentStage: toStage, phase: STAGE_PHASE[toStage], completedAt: null, updatedAt: new Date() })
+    .where(eq(project.id, projectId));
+  return result;
+}
+
 export async function setAutomationStatus(
   db: Db, projectId: string, status: 'off' | 'running',
 ): Promise<Details> {
   return updateDetails(db, projectId, (d) => {
     d.automation.status = status;
     if (status === 'running') {
+      // A fresh run resets only the auto-run clock. The event log is project-level
+      // (`details.events`) and is NEVER cleared — it's the full project timeline.
       d.automation.startedAt = new Date().toISOString();
       d.automation.stoppedAt = undefined;
     } else {
@@ -90,6 +129,44 @@ export async function setAutomationStatus(
     }
     return d;
   });
+}
+
+/**
+ * Append one line to the project-level event log (`details.events`) — the single
+ * writer for the full activity timeline across every stage and both triggers
+ * (manual UI + auto driver). De-dupes a line identical to the immediately previous
+ * one (e.g. a poll loop). Best-effort: never throws into the caller.
+ */
+export async function appendProjectEvent(
+  db: Db, projectId: string,
+  event: { stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number },
+): Promise<void> {
+  try {
+    await updateDetails(db, projectId, (d) => {
+      const last = d.events[d.events.length - 1];
+      if (last && last.detail === event.detail && (last.kind ?? 'action') === (event.kind ?? 'action')) return d;
+      d.events.push({ stage: event.stage, phase: event.phase, detail: event.detail, kind: event.kind ?? 'action', durationMs: event.durationMs, at: new Date().toISOString() });
+      return d;
+    });
+  } catch { /* the durable log is best-effort — never block the caller */ }
+}
+
+/**
+ * Resolve the current `running` activity line to a terminal state (`done`/`error`),
+ * IN PLACE, with the real work duration — so each activity is ONE line that ticks
+ * live while running and lands settled with its measured time (no start/finish
+ * pair). Finds the most-recent unresolved `action` line for `stage` and finalizes
+ * it. If none exists (e.g. a manual dispatch the driver never announced), appends a
+ * fresh terminal line instead. Best-effort: never throws into the caller.
+ */
+export async function resolveRunningEvent(
+  db: Db, projectId: string,
+  opts: { stage: string; phase: string; detail: string; kind?: 'done' | 'error'; durationMs?: number },
+): Promise<void> {
+  try {
+    await updateDetails(db, projectId, (d) =>
+      resolveRunningEventInPlace(d, { ...opts, at: new Date().toISOString() }));
+  } catch { /* the durable log is best-effort — never block the caller */ }
 }
 
 export async function setBriefText(

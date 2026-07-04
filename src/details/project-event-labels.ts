@@ -51,9 +51,9 @@ export async function appendBatchTerminalEvent(
   if (!meta) return;
   const detail = status === 'failed' ? `${meta.label} — failed` : meta.label;
   const kind = status === 'failed' ? 'error' : 'done';
-  await resolveRunningEvent(db, projectId, { stage: meta.stage, phase: meta.phase, detail, kind, durationMs });
-  // Surface the resolution live too, so an open automation overlay finalizes its
-  // running line in place (same shape the driver publishes; the durable resolve
-  // above covers a refresh).
-  projectEventBus.publish(projectId, { type: 'automation.progress', note: detail, stage: meta.stage, phase: meta.phase, kind, durationMs });
+  // resolveRunningEvent returns the RESOLVED label (with any preserved pass number,
+  // e.g. "Audited plan (pass 3)") — publish THAT live so the overlay shows the pass
+  // number immediately, not only after a refresh that re-seeds from details.events.
+  const resolved = await resolveRunningEvent(db, projectId, { stage: meta.stage, phase: meta.phase, detail, kind, durationMs });
+  projectEventBus.publish(projectId, { type: 'automation.progress', note: resolved, stage: meta.stage, phase: meta.phase, kind, durationMs });
 }

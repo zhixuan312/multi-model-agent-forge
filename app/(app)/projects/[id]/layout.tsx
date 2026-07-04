@@ -117,16 +117,6 @@ export default async function ProjectLayout({
               return d?.automation?.startedAt ?? undefined;
             } catch { return undefined; }
           })()}
-          auditPassCount={(() => {
-            if (!project.details) return undefined;
-            try {
-              const d = (project.details as any);
-              const stage = project.currentStage;
-              if (stage === 'spec') return d?.stages?.spec?.phases?.finalize?.auditPasses?.length ?? 0;
-              if (stage === 'plan') return d?.stages?.plan?.phases?.validate?.auditPasses?.length ?? 0;
-              return undefined;
-            } catch { return undefined; }
-          })()}
           events={(() => {
             if (!project.details) return undefined;
             try { return (project.details as any)?.events ?? []; } catch { return []; }

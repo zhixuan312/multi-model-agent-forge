@@ -108,7 +108,6 @@ interface Props {
   phase: string;
   stagePhase?: string;
   automationStartedAt?: string;
-  auditPassCount?: number;
   events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }>;
 }
 
@@ -139,7 +138,7 @@ function seedLogs(events: Array<{ detail: string; kind?: LineKind; durationMs?: 
   });
 }
 
-export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, auditPassCount, events }: Props) {
+export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
   const router = useRouter();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
   // this — only ExploreStageClient does — so without this the overlay would get
@@ -276,6 +275,19 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
 
   const currentIdx = STAGE_ORDER.indexOf(liveStage as StageKey);
 
+  // Richer live metrics, all derived from the event log (so they update as lines
+  // stream AND survive a refresh — no server round-trip). Each counts the settled
+  // milestone lines of a kind of work Forge did across the whole project.
+  const count = (re: RegExp) => logs.filter((l) => l.done && re.test(l.text)).length;
+  const stats = {
+    stageOfTotal: `${Math.min(currentIdx + 1, STAGE_ORDER.length)} of ${STAGE_ORDER.length}`,
+    audits: count(/^Audited (spec|plan)/),
+    tasksApproved: count(/approved task/i),
+    reviews: count(/^Reviewed code/),
+    learnings: count(/kept learning|Recorded learnings/i),
+    issues: logs.filter((l) => l.error).length,
+  };
+
   function stageStatus(key: string): 'done' | 'active' | 'pending' {
     const idx = STAGE_ORDER.indexOf(key as StageKey);
     if (idx < currentIdx) return 'done';
@@ -389,12 +401,23 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
               <CardTitle>Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2.5 !py-4">
-              <Stat label={viewOnly ? 'Activities' : 'Steps completed'} value={`${viewOnly ? logs.length : stepsCompleted}`} icon={<Zap className="size-3" />} />
+              {/* Progress */}
+              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGES.find((s) => s.key === liveStage)?.label ?? liveStage} icon={<Bot className="size-3" />} />
+              <Stat label="Stage" value={stats.stageOfTotal} icon={<Rocket className="size-3" />} />
               {/* Elapsed is a live run clock — meaningless for a historical view. */}
               {!viewOnly && <Stat label="Time elapsed" value={formatElapsed(elapsed)} icon={<Clock className="size-3" />} />}
-              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGES.find((s) => s.key === liveStage)?.label ?? liveStage} icon={<Bot className="size-3" />} />
-              {auditPassCount != null && auditPassCount > 0 && (
-                <Stat label="Audit passes" value={`${auditPassCount}`} icon={<FileText className="size-3" />} />
+              <Stat label={viewOnly ? 'Activities' : 'Steps completed'} value={`${viewOnly ? logs.length : stepsCompleted}`} icon={<Zap className="size-3" />} />
+
+              {/* Work done — each row appears only once that work has happened, so
+                  the panel fills in as Forge progresses instead of showing zeros. */}
+              {(stats.audits > 0 || stats.tasksApproved > 0 || stats.reviews > 0 || stats.learnings > 0 || stats.issues > 0) && (
+                <div className="!mt-3 space-y-2.5 border-t border-line pt-3">
+                  {stats.audits > 0 && <Stat label="Audits run" value={`${stats.audits}`} icon={<FileText className="size-3" />} />}
+                  {stats.tasksApproved > 0 && <Stat label="Tasks approved" value={`${stats.tasksApproved}`} icon={<ListTree className="size-3" />} />}
+                  {stats.reviews > 0 && <Stat label="Code reviews" value={`${stats.reviews}`} icon={<ScanSearch className="size-3" />} />}
+                  {stats.learnings > 0 && <Stat label="Learnings" value={`${stats.learnings}`} icon={<NotebookPen className="size-3" />} />}
+                  {stats.issues > 0 && <Stat label="Issues" value={`${stats.issues}`} icon={<AlertTriangle className="size-3" />} />}
+                </div>
               )}
             </CardContent>
           </Card>

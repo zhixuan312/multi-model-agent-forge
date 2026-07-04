@@ -4,7 +4,7 @@ import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 import {
   recordAuthorAttempt, failStuckAuthorAttempt, recordTaskValidation,
   recordImplementAttempt, recordReviewPass, recordReviewFix, recordHarvestAttempt,
-  resolveRunningEventInPlace, reopenStageInPlace,
+  resolveRunningEventInPlace, reopenStageInPlace, passAugmentedDetail,
 } from '@/automation/details-mutations';
 
 const AT = '2026-07-04T00:00:00.000Z';
@@ -152,10 +152,18 @@ describe('resolveRunningEventInPlace — one line per activity', () => {
   it('resolves the running line in place, preserving the pass number + duration (no new line)', () => {
     const d = buildInitialDetails();
     d.events = [running('spec', 'Running spec audit pass 3')];
-    resolveRunningEventInPlace(d, { stage: 'spec', phase: 'finalize', detail: 'Audited spec', kind: 'done', durationMs: 192000, at: '2026-07-04T00:05:00.000Z' });
+    const resolved = resolveRunningEventInPlace(d, { stage: 'spec', phase: 'finalize', detail: 'Audited spec', kind: 'done', durationMs: 192000, at: '2026-07-04T00:05:00.000Z' });
     expect(d.events).toHaveLength(1);
     // pass number carried from the running line so passes stay distinguishable
     expect(d.events[0]).toMatchObject({ kind: 'done', detail: 'Audited spec (pass 3)', durationMs: 192000, at: AT });
+    // and the RESOLVED label is returned so the live SSE line shows the number too
+    expect(resolved).toBe('Audited spec (pass 3)');
+  });
+
+  it('passAugmentedDetail carries the running pass number onto the base label', () => {
+    expect(passAugmentedDetail('Running plan audit pass 2', 'Audited plan')).toBe('Audited plan (pass 2)');
+    expect(passAugmentedDetail('Authoring plan from spec', 'Authored plan')).toBe('Authored plan'); // no pass → unchanged
+    expect(passAugmentedDetail('Running review pass 5', 'Reviewed code — failed')).toBe('Reviewed code — failed (pass 5)');
   });
 
   it('resolves without a pass suffix when the running line has none', () => {

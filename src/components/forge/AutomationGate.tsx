@@ -29,12 +29,11 @@ interface Props {
   phase: string;
   stagePhase?: string;
   automationStartedAt?: string;
-  auditPassCount?: number;
   events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }>;
   children: ReactNode;
 }
 
-export function AutomationGate({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, auditPassCount, events, children }: Props) {
+export function AutomationGate({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events, children }: Props) {
   const clientOverlay = useSyncExternalStore(automationOverlayStore.subscribe, automationOverlayStore.get, () => false);
   const showOverlay = autoMode || clientOverlay;
 
@@ -48,7 +47,6 @@ export function AutomationGate({ projectId, projectName, autoMode, autoNote, cur
       phase={phase}
       stagePhase={stagePhase}
       automationStartedAt={automationStartedAt}
-      auditPassCount={auditPassCount}
       events={events}
     />
   ) : (

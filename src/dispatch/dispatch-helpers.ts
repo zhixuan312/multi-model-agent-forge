@@ -188,42 +188,13 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
   }
 
   if (opts.await) {
-    // SYNC: block until terminal
+    // SYNC: block until terminal.
+    let mmaBatchId: string;
+    let envelope: unknown;
     try {
-      const { batchId: mmaBatchId, envelope } = await opts.mma.dispatchAndWait(opts.route, { cwd: opts.cwd, body: payload });
-      const usage = extractUsageFields(envelope);
-      await opts.db
-        .update(mmaBatch)
-        .set({
-          status: 'done',
-          batchId: mmaBatchId,
-          result: (envelope ?? {}) as object,
-          terminalAt: new Date(),
-          ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
-          ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
-          ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
-          ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
-          ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-          ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-          ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-          ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
-        })
-        .where(eq(mmaBatch.id, batchRowId));
-
-      // Fire handler (best-effort)
-      try {
-        const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
-        ensureHandlersRegistered();
-        const h = getHandler(opts.handler);
-        if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
-      } catch { /* handler failure logged, not propagated */ }
-
-      // Resolve the running timeline line to its milestone + measured duration —
-      // one line per activity, covering manual-UI dispatches too.
-      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'done', Date.now() - row.createdAt.getTime());
-
-      return { batchRowId, envelope };
+      ({ batchId: mmaBatchId, envelope } = await opts.mma.dispatchAndWait(opts.route, { cwd: opts.cwd, body: payload }));
     } catch (err) {
+      // Transport/dispatch itself failed (never reached a terminal envelope).
       await opts.db
         .update(mmaBatch)
         .set({ status: 'failed', result: { error: { code: 'dispatch_failed', message: String(err) } } as object, terminalAt: new Date() })
@@ -231,6 +202,54 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
       await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
       throw err;
     }
+
+    // The MMA task reached a terminal envelope. Per the wire contract a non-null
+    // `error` object means the task RAN but FAILED (e.g. reviewer_parse_failed from
+    // a provider 401). Treat that as failure — NOT a silent success — so the caller's
+    // retry/stop logic engages. Otherwise an audit that recorded no pass would make
+    // the resolver re-dispatch "pass 1" forever (the infinite-loop bug).
+    const envErr = (envelope as { error?: unknown } | null | undefined)?.error;
+    const taskFailed = envErr != null && typeof envErr === 'object';
+    const usage = extractUsageFields(envelope);
+    await opts.db
+      .update(mmaBatch)
+      .set({
+        status: taskFailed ? 'failed' : 'done',
+        batchId: mmaBatchId,
+        result: (envelope ?? {}) as object,
+        terminalAt: new Date(),
+        ...(usage.costUsd !== null && { costUsd: usage.costUsd }),
+        ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
+        ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
+        ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+        ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
+        ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
+        ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
+        ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
+      })
+      .where(eq(mmaBatch.id, batchRowId));
+
+    if (taskFailed) {
+      // Do NOT fire the success handler — record a failed milestone and throw so the
+      // driver retries (bounded) and then stops with a clear error, instead of looping.
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+      const e = envErr as { code?: string; message?: string };
+      throw new Error(`MMA task failed: ${e.code ?? 'error'}${e.message ? `: ${e.message}` : ''}`);
+    }
+
+    // Fire handler (best-effort)
+    try {
+      const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
+      ensureHandlersRegistered();
+      const h = getHandler(opts.handler);
+      if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
+    } catch { /* handler failure logged, not propagated */ }
+
+    // Resolve the running timeline line to its milestone + measured duration —
+    // one line per activity, covering manual-UI dispatches too.
+    await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'done', Date.now() - row.createdAt.getTime());
+
+    return { batchRowId, envelope };
   } else {
     // ASYNC: dispatch + PollManager
     try {

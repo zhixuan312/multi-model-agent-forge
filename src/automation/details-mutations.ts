@@ -35,29 +35,38 @@ export function reopenStageInPlace(d: Details, toStage: StageKind, at: string): 
  * line for `stage` and finalizes it (kind → done/error, detail → milestone label,
  * stamped duration). If none exists (e.g. a manual dispatch the driver never
  * announced), appends a fresh terminal line. Pure: `at` is passed in, never read
- * from the clock, so it's deterministic and unit-testable.
+ * from the clock, so it's deterministic and unit-testable. RETURNS the resolved
+ * detail (with any preserved pass number) so the caller can publish the exact same
+ * label live over SSE — otherwise the live line shows the number-less label and
+ * only a refresh (which seeds from these events) shows the pass number.
  */
 export function resolveRunningEventInPlace(
   d: Details,
   opts: { stage: string; phase: string; detail: string; kind?: 'done' | 'error'; durationMs?: number; at: string },
-): Details {
+): string {
   for (let i = d.events.length - 1; i >= 0; i--) {
     const e = d.events[i];
     if ((e.kind ?? 'action') === 'action' && e.stage === opts.stage) {
-      // Preserve the pass/iteration number from the running line so the resolved
-      // milestone stays distinguishable across a loop ("Audited spec" →
-      // "Audited spec (pass 3)"). The running note carries it ("Running spec audit
-      // pass 3"); the static milestone label does not.
-      const m = e.detail.match(/\bpass (\d+)\b/i);
-      const detail = m && !/\bpass\b/i.test(opts.detail) ? `${opts.detail} (pass ${m[1]})` : opts.detail;
+      const detail = passAugmentedDetail(e.detail, opts.detail);
       e.kind = opts.kind ?? 'done';
       e.detail = detail;
       if (opts.durationMs != null) e.durationMs = opts.durationMs;
-      return d;
+      return detail;
     }
   }
   d.events.push({ stage: opts.stage, phase: opts.phase, detail: opts.detail, kind: opts.kind ?? 'done', durationMs: opts.durationMs, at: opts.at });
-  return d;
+  return opts.detail;
+}
+
+/**
+ * Preserve the pass/iteration number from a running line's note onto the resolved
+ * milestone label, so a loop stays distinguishable: "Running spec audit pass 3" +
+ * "Audited spec" → "Audited spec (pass 3)". No-op when the running line has no
+ * pass number or the base label already carries one.
+ */
+export function passAugmentedDetail(runningDetail: string, baseDetail: string): string {
+  const m = runningDetail.match(/\bpass (\d+)\b/i);
+  return m && !/\bpass\b/i.test(baseDetail) ? `${baseDetail} (pass ${m[1]})` : baseDetail;
 }
 
 /**

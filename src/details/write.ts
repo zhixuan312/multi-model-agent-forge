@@ -157,16 +157,22 @@ export async function appendProjectEvent(
  * live while running and lands settled with its measured time (no start/finish
  * pair). Finds the most-recent unresolved `action` line for `stage` and finalizes
  * it. If none exists (e.g. a manual dispatch the driver never announced), appends a
- * fresh terminal line instead. Best-effort: never throws into the caller.
+ * fresh terminal line instead. Best-effort: never throws into the caller. RETURNS
+ * the resolved detail (with any preserved pass number) so callers publish the exact
+ * same label live over SSE.
  */
 export async function resolveRunningEvent(
   db: Db, projectId: string,
   opts: { stage: string; phase: string; detail: string; kind?: 'done' | 'error'; durationMs?: number },
-): Promise<void> {
+): Promise<string> {
+  let resolved = opts.detail;
   try {
-    await updateDetails(db, projectId, (d) =>
-      resolveRunningEventInPlace(d, { ...opts, at: new Date().toISOString() }));
+    await updateDetails(db, projectId, (d) => {
+      resolved = resolveRunningEventInPlace(d, { ...opts, at: new Date().toISOString() });
+      return d;
+    });
   } catch { /* the durable log is best-effort — never block the caller */ }
+  return resolved;
 }
 
 export async function setBriefText(

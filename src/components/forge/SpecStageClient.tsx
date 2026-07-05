@@ -999,10 +999,9 @@ function CraftStage({
       })
       .catch(() => {});
 
-    // @Forge triggers the AI to process and respond
+    // @Forge triggers the AI to process and respond (refine_component reads the
+    // persisted thread itself, so the tag alone drives the dispatch).
     const forgeTagged = /@forge\b/i.test(text);
-    const cleanText = forgeTagged ? text.replace(/@forge\s*/gi, '').trim() : '';
-    const userInput = cleanText || 'Update and refine based on the conversation so far.';
     if (forgeTagged && drafted) {
       const compId = active.id;
       setRefiningComponents((prev) => new Set(prev).add(compId));

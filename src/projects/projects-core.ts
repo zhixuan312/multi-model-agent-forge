@@ -383,60 +383,6 @@ export async function changeVisibility(
 }
 
 /**
- * `advanceStage` — move the project's current stage forward. Marks the current
- * stage `done`, the next stage `active`, and updates `currentStage` on the
- * project. Only advances if `from` matches the current stage (idempotent guard).
- */
-export async function advanceStage(
-  projectId: string,
-  from: StageKind,
-  actor: ProjectActor,
-  deps: ProjectsDeps = {},
-): Promise<{ advanced: boolean; currentStage: StageKind }> {
-  const db = deps.db ?? getDb();
-  await assertProjectReadable(projectId, actor, deps);
-
-  const [proj] = await db
-    .select({ currentStage: project.currentStage })
-    .from(project)
-    .where(eq(project.id, projectId))
-    .limit(1);
-  if (!proj) throw new ProjectAccessError('Project not found.');
-
-  // Already past this stage — idempotent.
-  if (proj.currentStage !== from) {
-    return { advanced: false, currentStage: proj.currentStage! };
-  }
-
-  const fromIdx = STAGE_ORDER.indexOf(from);
-  if (fromIdx < 0 || fromIdx >= STAGE_ORDER.length - 1) {
-    return { advanced: false, currentStage: from };
-  }
-  const next = STAGE_ORDER[fromIdx + 1];
-
-  await db.transaction(async (tx) => {
-    const { advanceStage } = await import('@/details/write');
-    await advanceStage(tx as unknown as Db, projectId, next as any);
-    await tx
-      .update(project)
-      .set({ updatedAt: new Date() })
-      .where(eq(project.id, projectId));
-    await logAction(
-      {
-        projectId,
-        memberId: actor.id,
-        action: 'advance_stage',
-        target: `project:${projectId}`,
-        meta: { from, to: next },
-      },
-      tx as unknown as Db,
-    );
-  });
-
-  return { advanced: true, currentStage: next };
-}
-
-/**
  * `changeRepos` — EQUAL-RIGHTS (any read-permitted member). Replaces the full
  * subset (delete-then-insert) and must still satisfy ≥ 1 repo. Row replace +
  * audit insert are atomic.

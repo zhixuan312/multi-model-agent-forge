@@ -34,7 +34,18 @@ Explore (Brief → Discover → Synthesize)
           → Journal (Journal)
 ```
 
-Stage lifecycle managed via `project.details` JSONB column (v0.2.0). Read helpers in `src/details/read.ts`, write helpers in `src/details/write.ts` with optimistic locking. Legacy fallback in `src/projects/stage-lifecycle.ts` for `details_ready = false` projects. Stage advancement via `StageAdvance` component + middleware `x-pathname` header.
+Stage lifecycle managed via `project.details` JSONB column. Read helpers in `src/details/read.ts`, write helpers in `src/details/write.ts` with optimistic locking.
+
+**Unified lifecycle engine (`src/automation/`).** Manual and auto are two *triggers* of ONE gated write path, so a mid-run manual/auto toggle is safe by construction:
+
+- `details` (JSONB) is the single source of truth. Pages are read-only projections — a render/refresh NEVER mutates lifecycle state.
+- `allowedActions(details, mode)` returns the permitted-action SET for the current state + trigger (`auto` takes `allowed[0]`; `manual` adds early-exits like audit-loop advance and direct task/learning approval). The one place the criteria table lives.
+- `performTransition(db, projectId, {action, data}, trigger)` is the single gated executor: reload details → gate (allowed ∈ set · single-flight lease clear · authorized for mode) → run the effect → mirror the columns. Rejections throw `TransitionRejected`.
+- `executeDetailsAction` is the ONE effect switch (every `ACTION_KIND` has exactly one case). `deriveCurrentStage` is the ONLY writer of the denormalized `currentStage`/`phase` columns (called after every effect).
+- `canAutoStart` (`automation/policy.ts`) gates auto entry to `spec/finalize`+ (Design phases are hand-authored).
+- The audit loops (spec finalize / plan validate / review) share `auditLoopStep` (`automation/audit-loop-policy.ts`).
+
+**One endpoint:** every lifecycle mutation is `POST /api/projects/[id]/transition { action, data }` (schema in `automation/action-schema.ts`). The old per-verb routes (`advance`, `phase`, `complete`, `automation/{start,stop}`, `build/*`, `spec/{audit,audit-apply,confirm,outline}`, `review/{run,apply}`, `journal/{harvest,approve,record}`, …) are gone. Clients call `mma.transition(action, data?, handler?)` (`src/hooks/useMmaDispatch.ts`); `StageAdvance` posts `/transition` and does NOT navigate on a rejected transition. Intentional route exceptions (NOT lifecycle transitions): `explore/attachment/*` (multipart I/O) and message-thread content (`spec/components/message`, `plan/tasks/message`) whose insert must return the new id for optimistic-echo dedup.
 
 ### File-Based Artifacts
 
@@ -73,7 +84,7 @@ Output format: [Expected structure]
 - **One implementation per feature** — no parallel DB + file paths
 - **Pattern components** reuse `RailNote`, `StageShell`, `StatusDashboard`, `ConversationComposer` across all pages
 - **Stage stepper** — 4-state indicators (not_started, ongoing, done, locked) with per-phase sub-steps
-- **StageAdvance** — single component for all stage-to-stage transitions
+- **StageAdvance** — single stage-to-stage advance button; posts `/transition` (approve_stage/advance_stage) and only navigates on success
 - **Phase notes** — `RailNote` with contextual guidance per phase, not generic per stage
 
 ## Testing

@@ -22,10 +22,9 @@ export const ACTION_KINDS = [
 ] as const;
 
 /**
- * INTENTIONAL EXCEPTIONS to the single /transition endpoint — NOT lifecycle
- * transitions, so they keep dedicated routes (JSON {action,data} can't carry them):
+ * INTENTIONAL EXCEPTION to the single /transition endpoint — NOT a lifecycle
+ * transition, so it keeps a dedicated route (JSON {action,data} can't carry it):
  *   - attachment add/remove — binary/multipart FILE I/O (explore/attachment/*)
- *   - retry_pr — a git-push retry, pure git I/O (build/retry-pr)
  */
 
 export type ActionKind = (typeof ACTION_KINDS)[number];

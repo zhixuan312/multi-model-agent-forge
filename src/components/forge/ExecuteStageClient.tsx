@@ -220,27 +220,18 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     setDispatching(true);
     setDispatchError(null);
     try {
-      const res = await fetch(`/api/projects/${props.projectId}/build/start-execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repos: props.repoGroups.map((g) => ({ repoId: g.repoId, targetBranch: branches[g.repoId] })),
-        }),
+      // dispatch_execute is async: the no-handler transition resolves once the
+      // execute-pipeline batch has been ACCEPTED (startExecuteRun returns after the
+      // async dispatch), mirroring the old 202. waitFor then tracks its terminal.
+      await mma.transition('dispatch_execute', {
+        repos: props.repoGroups.map((g) => ({ repoId: g.repoId, targetBranch: branches[g.repoId] })),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; status?: string };
-      if (res.status === 202) {
-        setDispatching(false);
-        advanceExecPhase('implement');
-        if (json.status !== 'already_running') {
-          setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
-        }
-        void mma.waitFor('execute-pipeline').catch(() => {});
-      } else {
-        setDispatchError(json.error ?? `Dispatch failed (HTTP ${res.status})`);
-        setDispatching(false);
-      }
-    } catch {
-      setDispatchError('Network error');
+      setDispatching(false);
+      advanceExecPhase('implement');
+      setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
+      void mma.waitFor('execute-pipeline').catch(() => {});
+    } catch (e) {
+      setDispatchError(e instanceof Error ? e.message : 'Dispatch failed');
       setDispatching(false);
     }
   }

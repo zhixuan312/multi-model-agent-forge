@@ -288,7 +288,8 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       // execute_plan ASYNC on it, and the handler pushes + opens the PR. The
       // in-flight guard makes the driver WAIT while it runs; the execute-pipeline
       // handler records the implement attempt on terminal so the resolver advances.
-      await startExecuteRun(db, mma, projectId, FORGE_MEMBER_ID);
+      const repoList = action.data?.repos as Array<{ repoId: string; targetBranch: string }> | undefined;
+      await startExecuteRun(db, mma, projectId, FORGE_MEMBER_ID, repoList);
       break;
     }
 

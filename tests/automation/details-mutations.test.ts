@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { buildInitialDetails, validateDetails, type Details } from '@/details/schema';
 import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 import {
-  recordAuthorAttempt, failStuckAuthorAttempt, recordTaskValidation,
-  recordImplementAttempt, recordReviewPass, recordReviewFix, recordHarvestAttempt,
+  recordAuthorAttempt, recordTaskValidation,
+  recordExecuteAttempt, recordImplementAttempt, openRunningAttempts,
+  recordReviewPass, recordReviewFix, recordHarvestAttempt,
   resolveRunningEventInPlace, reopenStageInPlace, passAugmentedDetail,
 } from '@/automation/details-mutations';
 
@@ -38,24 +39,16 @@ describe('details-mutations — record the resolver gating state', () => {
     expect(resolveNextActionFromDetails(d).kind).toBe('wait');
   });
 
-  it('failStuckAuthorAttempt flips running→failed + logs an error step → resolver re-dispatches', () => {
+  it('a flipped (failed) plan-author attempt → resolver re-dispatches', () => {
     const d = buildInitialDetails();
     d.stages.exploration.status = 'done';
     d.stages.spec.status = 'done';
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
     recordAuthorAttempt(d, 'b1', AT);
-    const flipped = failStuckAuthorAttempt(d, AT);
-    expect(flipped).toBe(true);
-    expect(d.stages.plan.phases.refine.attempts.at(-1)!.status).toBe('failed');
-    expect(d.events.at(-1)).toMatchObject({ kind: 'error', detail: 'Plan author failed — retrying' });
+    // the centralized reconcile flips a stuck running attempt to failed
+    d.stages.plan.phases.refine.attempts.at(-1)!.status = 'failed';
     expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');
-  });
-
-  it('failStuckAuthorAttempt is a no-op when there is no running attempt', () => {
-    const d = planRefineActive();
-    expect(failStuckAuthorAttempt(d, AT)).toBe(false);
-    expect(d.events).toHaveLength(0);
   });
 
   it('recordTaskValidation → done task attempt → resolver approves the task', () => {
@@ -68,16 +61,31 @@ describe('details-mutations — record the resolver gating state', () => {
     expect(resolveNextActionFromDetails(d).kind).toBe('approve_task');
   });
 
-  it('recordImplementAttempt → done repo attempt + tasks committed → resolver advances to Review', () => {
+  function executeActive() {
     const d = buildInitialDetails();
     for (const k of ['exploration', 'spec', 'plan'] as const) d.stages[k].status = 'done';
     d.stages.execute.status = 'active';
     d.stages.plan.phases.refine.tasks = [
       { id: 't1', title: 'T1', status: 'approved', approvals: ['m'], attempts: [], reviewPolicy: 'reviewed' },
     ];
-    recordImplementAttempt(d, 'repo-1', 'e1', AT);
+    return d;
+  }
+
+  it('recordExecuteAttempt → running attempt → resolver WAITs (no duplicate dispatch)', () => {
+    const d = executeActive();
+    recordExecuteAttempt(d, 'repo-1', 'e1', AT);
     expect(d.stages.execute.phases.implement.repos).toEqual([
-      { repoId: 'repo-1', attempts: [{ batchId: 'e1', status: 'done', at: AT }] },
+      { repoId: 'repo-1', attempts: [{ batchId: 'e1', status: 'running', at: AT }] },
+    ]);
+    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+  });
+
+  it('recordImplementAttempt FLIPS the running attempt to done (no 2nd attempt) → advance to Review', () => {
+    const d = executeActive();
+    recordExecuteAttempt(d, 'repo-1', 'e1', AT);
+    recordImplementAttempt(d, 'repo-1', 'e1', AT);
+    expect(d.stages.execute.phases.implement.repos[0].attempts).toEqual([
+      { batchId: 'e1', status: 'done', at: AT },
     ]);
     expect(d.stages.plan.phases.refine.tasks[0].status).toBe('committed');
     const action = resolveNextActionFromDetails(d);
@@ -85,14 +93,48 @@ describe('details-mutations — record the resolver gating state', () => {
     expect(action.stage).toBe('review');
   });
 
-  it('recordImplementAttempt appends to an existing repo entry (idempotent find-or-create)', () => {
+  it('a flipped (failed) execute attempt → resolver re-dispatches (retry)', () => {
+    const d = executeActive();
+    recordExecuteAttempt(d, 'repo-1', 'e1', AT);
+    // the centralized reconcile flips a stuck running attempt to failed
+    d.stages.execute.phases.implement.repos[0].attempts.at(-1)!.status = 'failed';
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_execute');
+  });
+
+  it('openRunningAttempts (central reconcile source) reports every open async attempt', () => {
+    const d = executeActive();
+    // no open attempts yet
+    expect(openRunningAttempts(d)).toEqual([]);
+    // a running execute attempt is surfaced with its stage/phase/label + live ref
+    recordExecuteAttempt(d, 'repo-1', 'e1', AT);
+    const open = openRunningAttempts(d);
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ stage: 'execute', phase: 'implement', label: 'Execution' });
+    expect(open[0].attempt.batchId).toBe('e1');
+    // flipping via the returned reference mutates details in place
+    open[0].attempt.status = 'failed';
+    expect(d.stages.execute.phases.implement.repos[0].attempts[0].status).toBe('failed');
+    // and a done execute attempt is NOT reported as open
+    expect(openRunningAttempts(d)).toEqual([]);
+  });
+
+  it('openRunningAttempts excludes a plan-author attempt once refine.file is set (handler closed it)', () => {
     const d = buildInitialDetails();
-    d.stages.execute.status = 'active';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    recordAuthorAttempt(d, 'b1', AT);
+    expect(openRunningAttempts(d).map((x) => x.label)).toEqual(['Plan author']);
+    d.stages.plan.phases.refine.file = 'plan.md'; // handler success signal
+    expect(openRunningAttempts(d)).toEqual([]);
+  });
+
+  it('recordImplementAttempt falls back to a done attempt when none is running (manual path)', () => {
+    const d = executeActive();
     recordImplementAttempt(d, 'repo-1', 'e1', AT);
-    recordImplementAttempt(d, 'repo-1', 'e2', AT);
-    const repos = d.stages.execute.phases.implement.repos;
-    expect(repos).toHaveLength(1);
-    expect(repos[0].attempts).toHaveLength(2);
+    expect(d.stages.execute.phases.implement.repos[0].attempts).toEqual([
+      { batchId: 'e1', status: 'done', at: AT },
+    ]);
+    expect(resolveNextActionFromDetails(d).kind).toBe('advance_stage');
   });
 
   it('recordReviewPass(clean) → resolver advances to Journal', () => {

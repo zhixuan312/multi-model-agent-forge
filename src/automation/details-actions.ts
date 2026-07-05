@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
@@ -13,7 +13,7 @@ import { updateDetails, advanceStage, advancePhase, reopenStage } from '@/detail
 import type { StageKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
 import {
-  recordAuthorAttempt, failStuckAuthorAttempt, recordTaskValidation, recordHarvestAttempt,
+  recordAuthorAttempt, recordTaskValidation, recordHarvestAttempt, openRunningAttempts,
 } from '@/automation/details-mutations';
 import { startExecuteRun } from '@/build/start-execute-run';
 import type { AutoAction } from '@/automation/details-resolver';
@@ -59,28 +59,44 @@ async function inflightGuard(db: Db, projectId: string, handler: string): Promis
 }
 
 /**
- * The plan-author attempt is recorded `running` at dispatch and closed to `done`
- * by the terminal handler — but the handler only runs on SUCCESS. If the batch
- * ends `failed` (e.g. MMA wrote no plan.md so the handler threw), the attempt is
- * left `running` and the resolver would WAIT forever. Reconcile that here: flip a
- * `running` author attempt to `failed` once its batch is terminal-failed, so the
- * resolver re-dispatches (bounded by the in-flight guard — one at a time).
+ * CENTRALIZED reconcile for EVERY async-dispatched attempt (plan-author, execute,
+ * and any future async route — see `RECONCILABLE_ATTEMPTS`). An attempt is recorded
+ * `running` at dispatch and closed to `done` by its terminal handler, but the
+ * handler only runs on SUCCESS. If the batch ends `failed`, the attempt is left
+ * `running` and a WAITing resolver would deadlock forever. This ONE function (not a
+ * bespoke reconcile per handler) flips every such `running` attempt whose MMA batch
+ * is terminal-`failed` to `failed`, so the resolver re-dispatches (bounded by the
+ * in-flight guard). All open attempts are checked in a single batch query.
  */
-export async function reconcilePlanAuthorAttempt(db: Db, projectId: string): Promise<void> {
+export async function reconcileStuckAttempts(db: Db, projectId: string): Promise<void> {
   const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!pRow?.details) return;
   const d = validateDetails(pRow.details);
-  const refine = d.stages.plan.phases.refine;
-  if (refine.file) return; // handler already closed the attempt out
-  const last = refine.attempts[refine.attempts.length - 1];
-  if (!last || last.status !== 'running' || !last.batchId) return;
-  const [batch] = await db.select({ status: mmaBatch.status }).from(mmaBatch).where(eq(mmaBatch.id, last.batchId)).limit(1);
-  if (batch?.status !== 'failed') return;
-  // Flip the open attempt to failed + log an error line (surfaces the async
-  // failure and un-collapses the retry). Also mirror the error line onto the live
-  // stream so the UI shows it immediately, not only on the next refresh.
-  await updateDetails(db, projectId, (det) => { failStuckAuthorAttempt(det, new Date().toISOString()); return det; });
-  projectEventBus.publish(projectId, { type: 'automation.progress', note: 'Plan author failed — retrying', stage: 'plan', phase: 'refine', kind: 'error' });
+  const open = openRunningAttempts(d).filter((x) => x.attempt.batchId);
+  if (open.length === 0) return;
+  const failedRows = await db
+    .select({ id: mmaBatch.id })
+    .from(mmaBatch)
+    .where(and(inArray(mmaBatch.id, open.map((x) => x.attempt.batchId!)), eq(mmaBatch.status, 'failed')));
+  const failed = new Set(failedRows.map((r) => r.id));
+  const toFlip = open.filter((x) => failed.has(x.attempt.batchId!));
+  if (toFlip.length === 0) return;
+  const at = new Date().toISOString();
+  // Flip in ONE updateDetails (re-find the live attempts on the fresh details) and
+  // append a durable error line; mirror it live so the UI shows the retry at once.
+  await updateDetails(db, projectId, (det) => {
+    const stuck = new Set(toFlip.map((x) => x.attempt.batchId));
+    for (const { stage, phase, label, attempt } of openRunningAttempts(det)) {
+      if (attempt.batchId && stuck.has(attempt.batchId)) {
+        attempt.status = 'failed';
+        det.events.push({ stage, phase, detail: `${label} failed — retrying`, kind: 'error', at });
+      }
+    }
+    return det;
+  });
+  for (const { stage, phase, label } of toFlip) {
+    projectEventBus.publish(projectId, { type: 'automation.progress', note: `${label} failed — retrying`, stage, phase, kind: 'error' });
+  }
 }
 
 export async function executeDetailsAction(projectId: string, action: AutoAction, db: Db = getDb()): Promise<ActionResult> {
@@ -291,12 +307,15 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (!entry) break;
       const repoMeta = d.repos.find((r) => r.id === entry.repoId);
       if (!repoMeta) break;
-      // The review-apply handler records the fix into details (single writer) and
-      // pushes the project branch. Body carries ONLY the orchestrate task's own
-      // fields — the MMA schema rejects unrecognized keys (cwd/repoId → HTTP 400);
-      // cwd is the dispatch cwd (URL), repoId rides in meta.
+      // `delegate` (worktree route): MMA cuts a worktree off the checked-out
+      // `forge/…` branch HEAD, the worker applies the fixes, and MMA force-commits
+      // the diff and fast-forward-merges it back onto the project branch — so MMA
+      // OWNS the commit (no Forge-side git add/commit). `reviewPolicy:'none'` keeps
+      // it a single-worker single-commit run. The worker runs in an isolated HEAD
+      // checkout, so the working tree MUST be clean at dispatch (execute + prior
+      // review-apply both commit, so it is). The handler records the fix + pushes.
       await dispatchMma({
-        db, mma, projectId, route: 'orchestrate', handler: 'review-apply', cwd: repoMeta.pathOnDisk,
+        db, mma, projectId, route: 'delegate', handler: 'review-apply', cwd: repoMeta.pathOnDisk,
         body: { prompt: 'Apply the code-review findings from the previous review pass to the code in this repository. Make the fixes directly.', reviewPolicy: 'none' },
         actorId: FORGE_MEMBER_ID, meta: { repoId: entry.repoId }, await: true,
       });

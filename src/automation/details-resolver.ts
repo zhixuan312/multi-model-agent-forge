@@ -146,11 +146,17 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
   // Execute
   if (execute.status === 'active') {
     const implRepos = execute.phases.implement.repos;
+    // A running implement attempt (recorded at dispatch) → WAIT until its terminal
+    // flips it. This is what prevents a duplicate execute at the terminal moment.
     for (const repo of implRepos) {
       const last = repo.attempts[repo.attempts.length - 1];
       if (last?.status === 'running') return WAIT;
     }
-    if (implRepos.length === 0 || implRepos.every((r) => r.attempts.length === 0)) {
+    // Dispatch when NO repo has a successful (done) attempt yet — covers the first
+    // dispatch (empty) AND a retry after a `failed` attempt. Advancing on a failed
+    // execute (no committed code) is exactly the skip the completion invariant bans.
+    const hasDone = implRepos.some((r) => r.attempts.some((a) => a.status === 'done'));
+    if (!hasDone) {
       return { kind: 'dispatch_execute', note: 'Dispatching execution...', stage: 'execute', phase: 'implement' };
     }
     return { kind: 'advance_stage', note: 'Execution complete — advancing to Review...', stage: 'review', phase: 'review' };

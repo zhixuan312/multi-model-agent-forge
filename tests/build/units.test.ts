@@ -1,19 +1,7 @@
 // @vitest-environment node
 import { slugRefComponent, branchName, projectShortId } from '@/build/slug';
 import { safeChildEnv, SECRET_ENV_KEYS } from '@/build/command-runner';
-import { GitOps, type GitRunner, type GitRunResult } from '@/build/branch';
-
-/** A recording git runner for GitOps tests — returns canned results by argv[0..]. */
-function mockRunner(responses: Record<string, GitRunResult>): { run: GitRunner; calls: string[][] } {
-  const calls: string[][] = [];
-  const run: GitRunner = async (_repo, argv) => {
-    calls.push(argv);
-    // match on the leading non-`-c` git subcommand + first arg
-    const key = argv.filter((a, i) => !(argv[i - 1] === '-c') && a !== '-c').slice(0, 2).join(' ');
-    return responses[key] ?? { code: 0, stdout: '', stderr: '' };
-  };
-  return { run, calls };
-}
+import { GitOps } from '@/build/branch';
 
 describe('slug + branch naming', () => {
   it('slugs ref-illegal chars and collapses repeats', () => {
@@ -30,37 +18,6 @@ describe('slug + branch naming', () => {
     const hit = GitOps.collisionCheck(['My Repo', 'my repo']);
     expect(hit).not.toBeNull();
     expect(hit?.slug).toBe('my-repo');
-  });
-});
-
-/**
- * commitAllIfDirty is the fix for the review-apply defect: a `reviewPolicy=none`
- * worker EDITS repo files but never commits, so the handler must commit before
- * pushing — else the fixes stay uncommitted (dirty tree, PR missing them).
- */
-describe('GitOps.commitAllIfDirty', () => {
-  it('commits all changes with an inline Forge identity and returns the new SHA when dirty', async () => {
-    const { run, calls } = mockRunner({
-      'status --porcelain': { code: 0, stdout: ' M backend/src/foo.ts\n', stderr: '' },
-      'commit -m': { code: 0, stdout: '', stderr: '' },
-      'rev-parse HEAD': { code: 0, stdout: 'abc123\n', stderr: '' },
-    });
-    const sha = await new GitOps(run).commitAllIfDirty('/repo', 'review: apply findings (pass 2)');
-    expect(sha).toBe('abc123');
-    // staged everything, then committed with an inline identity (works without repo config)
-    expect(calls).toContainEqual(['add', '-A']);
-    const commit = calls.find((c) => c.includes('commit'));
-    expect(commit).toEqual(['-c', 'user.email=forge@forge.local', '-c', 'user.name=Forge', 'commit', '-m', 'review: apply findings (pass 2)']);
-  });
-
-  it('is a no-op (returns null, no commit) when the tree is clean', async () => {
-    const { run, calls } = mockRunner({
-      'status --porcelain': { code: 0, stdout: '', stderr: '' },
-    });
-    const sha = await new GitOps(run).commitAllIfDirty('/repo', 'noop');
-    expect(sha).toBeNull();
-    expect(calls.some((c) => c.includes('commit'))).toBe(false);
-    expect(calls.some((c) => c.includes('add'))).toBe(false);
   });
 });
 

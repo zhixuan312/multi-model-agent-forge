@@ -1,5 +1,57 @@
-import { buildInitialDetails, type Details } from '@/details/schema';
+import { buildInitialDetails, type Details, type Attempt } from '@/details/schema';
 import { STAGE_ORDER, type StageKind } from '@/db/enums';
+
+/**
+ * The CENTRAL registry of async-dispatched attempts that can get stuck `running`
+ * if their MMA batch fails (the terminal handler only runs on SUCCESS, so a failed
+ * batch never closes the attempt). This is the single source that drives the ONE
+ * `reconcileStuckAttempts` — instead of a bespoke reconcile + fail mutator per
+ * handler. Add a row here for each new async route; sync routes block the driver
+ * (dispatchMma throws on a failed envelope) so they never leave a stuck attempt.
+ *
+ * `open(d)` returns the currently-open `running` attempt for that route, or
+ * `undefined` (already closed / never dispatched). Guards live here too, e.g.
+ * plan-author is only "open" while `refine.file` is unset (the handler's success
+ * signal). Returns a live reference into `d` so the reconcile can flip it in place.
+ */
+export const RECONCILABLE_ATTEMPTS: ReadonlyArray<{
+  stage: string;
+  phase: string;
+  label: string;
+  open: (d: Details) => Attempt | undefined;
+}> = [
+  {
+    stage: 'plan', phase: 'refine', label: 'Plan author',
+    open: (d) => {
+      const r = d.stages.plan.phases.refine;
+      if (r.file) return undefined; // handler already closed the attempt out
+      const a = r.attempts[r.attempts.length - 1];
+      return a?.status === 'running' ? a : undefined;
+    },
+  },
+  {
+    stage: 'execute', phase: 'implement', label: 'Execution',
+    open: (d) => {
+      for (const repo of d.stages.execute.phases.implement.repos) {
+        const a = repo.attempts[repo.attempts.length - 1];
+        if (a?.status === 'running') return a;
+      }
+      return undefined;
+    },
+  },
+];
+
+/** Every currently-open `running` async attempt across all routes (live references
+ * into `d`), tagged with its stage/phase/label. Pure → the reconcile's location
+ * logic is unit-tested without a DB. */
+export function openRunningAttempts(d: Details): Array<{ stage: string; phase: string; label: string; attempt: Attempt }> {
+  const out: Array<{ stage: string; phase: string; label: string; attempt: Attempt }> = [];
+  for (const loc of RECONCILABLE_ATTEMPTS) {
+    const attempt = loc.open(d);
+    if (attempt) out.push({ stage: loc.stage, phase: loc.phase, label: loc.label, attempt });
+  }
+  return out;
+}
 
 /** The first phase of each stage — the one activated when the stage becomes active
  * so the resolver enters its branch. Single source for advance + reopen. */
@@ -87,18 +139,6 @@ export function recordAuthorAttempt(d: Details, batchId: string, at: string): De
   return d;
 }
 
-/** The async plan-author batch failed → flip the open `running` attempt to
- * `failed` and log an error line, so the resolver re-dispatches (bounded by the
- * in-flight guard) instead of WAITing forever. Returns whether it flipped one. */
-export function failStuckAuthorAttempt(d: Details, at: string): boolean {
-  const atts = d.stages.plan.phases.refine.attempts;
-  const a = atts[atts.length - 1];
-  if (!a || a.status !== 'running') return false;
-  a.status = 'failed';
-  d.events.push({ stage: 'plan', phase: 'refine', detail: 'Plan author failed — retrying', kind: 'error', at });
-  return true;
-}
-
 /** A plan task was self-validated → a `done` attempt so the resolver advances to
  * `approve_task` instead of re-validating the same task forever. */
 export function recordTaskValidation(d: Details, taskId: string, batchId: string, at: string): Details {
@@ -107,13 +147,28 @@ export function recordTaskValidation(d: Details, taskId: string, batchId: string
   return d;
 }
 
-/** The plan was executed for a repo → a `done` implement attempt (find-or-create
- * the per-repo entry) so the resolver advances to Review; tasks marked committed. */
+/** Execute dispatched (async) for a repo → a `running` implement attempt so the
+ * resolver WAITs (instead of re-dispatching) until the execute-pipeline handler
+ * closes it out. Mirrors `recordAuthorAttempt`; closes the terminal-moment race
+ * where the batch is `done` but its attempt isn't recorded yet → duplicate execute. */
+export function recordExecuteAttempt(d: Details, repoId: string, batchId: string, at: string): Details {
+  const repos = d.stages.execute.phases.implement.repos;
+  let entry = repos.find((x) => x.repoId === repoId);
+  if (!entry) { entry = { repoId, attempts: [] }; repos.push(entry); }
+  entry.attempts.push({ batchId, status: 'running', at });
+  return d;
+}
+
+/** The plan was executed for a repo → FLIP the open `running` implement attempt to
+ * `done` (the resolver then advances to Review; tasks marked committed). Falls back
+ * to appending a `done` attempt if no running one exists (defensive). */
 export function recordImplementAttempt(d: Details, repoId: string, batchId: string, at: string): Details {
   const repos = d.stages.execute.phases.implement.repos;
   let entry = repos.find((x) => x.repoId === repoId);
   if (!entry) { entry = { repoId, attempts: [] }; repos.push(entry); }
-  entry.attempts.push({ batchId, status: 'done', at });
+  const running = entry.attempts.find((a) => a.status === 'running');
+  if (running) { running.status = 'done'; running.at = at; }
+  else entry.attempts.push({ batchId, status: 'done', at });
   for (const t of d.stages.plan.phases.refine.tasks) t.status = 'committed';
   return d;
 }

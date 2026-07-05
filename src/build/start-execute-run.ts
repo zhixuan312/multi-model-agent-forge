@@ -10,6 +10,7 @@ import { buildForgeBranch } from '@/build/execute-core';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
+import { recordExecuteAttempt } from '@/automation/details-mutations';
 
 export interface ExecuteDispatch {
   repoId: string;
@@ -105,6 +106,10 @@ export async function startExecuteRun(
           }
         }
         if (det.stages.execute.status === 'pending') det.stages.execute.status = 'active';
+        // Record a RUNNING implement attempt at dispatch so the resolver WAITs
+        // (not re-dispatches) until the execute-pipeline handler closes it out —
+        // closes the terminal-moment race that spawned a duplicate execute.
+        recordExecuteAttempt(det, repoId, batchRowId, new Date().toISOString());
         return det;
       });
       dispatched.push({ repoId, batchRowId, forgeBranch, targetBranch });

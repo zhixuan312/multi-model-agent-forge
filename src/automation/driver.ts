@@ -43,11 +43,12 @@ export async function driveProject(projectId: string): Promise<void> {
       const { validateDetails } = await import('@/details/schema');
       const { resolveNextActionFromDetails } = await import('@/automation/details-resolver');
       if (!proj.details) { await sleep(5000); continue; }
-      // Reconcile a failed async plan-author before resolving, so a WAITing
-      // resolver doesn't deadlock on an attempt the terminal handler never closed.
-      // On a flip it emits its own error line (surfacing the async failure).
-      const { reconcilePlanAuthorAttempt } = await import('@/automation/details-actions');
-      await reconcilePlanAuthorAttempt(db, projectId).catch(() => {});
+      // Centralized reconcile for EVERY async-dispatched attempt (plan-author,
+      // execute, …) before resolving, so a WAITing resolver doesn't deadlock on a
+      // `running` attempt whose terminal handler never closed it (handlers only run
+      // on success). A flip emits an error line (surfacing the failure) → retry.
+      const { reconcileStuckAttempts } = await import('@/automation/details-actions');
+      await reconcileStuckAttempts(db, projectId).catch(() => {});
       const [proj2] = await db
         .select({ details: project.details })
         .from(project)

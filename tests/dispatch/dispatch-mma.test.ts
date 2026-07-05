@@ -55,6 +55,32 @@ describe('findInflight — project-level single-flight (handler omitted)', () =>
 });
 
 /**
+ * Regression: the SYNC-path terminal handler must receive `ctx.request` = body + meta
+ * MERGED — the same shape persisted to the batch row and rehydrated by the async
+ * PollManager path. Before the fix the sync path passed bare `opts.body`, so a handler
+ * that keys off a `meta` field (e.g. plan-refine's `taskId`, used in a WHERE clause)
+ * got `undefined` → "UNDEFINED_VALUE" → threw → the driver failed the whole run.
+ */
+describe('dispatchMma — sync handler receives body + meta merged as request', () => {
+  it('merges meta (e.g. taskId) into ctx.request, not just body', async () => {
+    const { registerHandler } = await import('@/dispatch/handler-registry');
+    let seen: unknown = null;
+    registerHandler('test-capture-request', async (_db, ctx) => { seen = ctx.request; });
+
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-c', createdAt: new Date() }] });
+    await dispatchMma({
+      db,
+      mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
+      projectId: 'p', route: 'orchestrate', handler: 'test-capture-request',
+      cwd: '/w', body: { prompt: 'x' }, meta: { taskId: 'task-42' },
+      actorId: '00000000-0000-0000-0000-000000000000', await: true,
+    });
+
+    expect(seen).toEqual({ prompt: 'x', taskId: 'task-42' });
+  });
+});
+
+/**
  * Regression: a SYNC (`await: true`) dispatch must persist the MMA task id into
  * `ops_mma_batch.batch_id`. Before the fix, the sync path stored status/result/
  * usage but never the MMA task id, so every automation dispatch row had a NULL

@@ -14,8 +14,8 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
  * the resolver always sees a consistent review state and manual↔auto switching
  * mid-review never loses progress. (The review UI still renders finding detail
  * from the batch `result`; details holds the pass structure/status the resolver
- * reads.) `repoId` comes from the dispatch meta; for a single-repo project the
- * sync path (no meta on ctx.request) falls back to the sole repo.
+ * reads.) `repoId` comes from the dispatch meta (merged into `ctx.request` on both
+ * dispatch paths); the sole-repo fallback is a defensive default if it is absent.
  */
 async function handleCodeReview(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);

@@ -129,13 +129,21 @@ export async function findPendingHandlers(
 export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: string; envelope?: unknown }> {
   const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
 
+  // The handler's `ctx.request` is body + meta merged — the SAME shape persisted to
+  // the batch row's `request` column — so a terminal handler reads dispatch-time
+  // context (e.g. plan-refine's `taskId`, passed via `meta`) regardless of whether
+  // it fires on the sync path (below) or the async PollManager path (which rehydrates
+  // `request` from the row). Passing bare `opts.body` here dropped `meta` → handlers
+  // that key off a meta field got `undefined` and threw.
+  const request = { ...(opts.body as object), ...opts.meta };
+
   const values = {
     projectId: opts.projectId,
     route: opts.route,
     handler: opts.handler,
     cwd: opts.cwd,
     status: 'dispatched' as const,
-    request: { ...(opts.body as object), ...opts.meta } as object,
+    request: request as object,
     dispatchedBy: opts.actorId,
     ...(opts.loopRunId && { loopRunId: opts.loopRunId }),
   };
@@ -237,7 +245,7 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
       const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
       ensureHandlersRegistered();
       const h = getHandler(opts.handler);
-      if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
+      if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request, actorId: opts.actorId }, envelope);
     } catch (handlerErr) {
       console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
       await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));

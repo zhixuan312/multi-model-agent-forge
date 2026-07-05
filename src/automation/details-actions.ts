@@ -430,31 +430,14 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       break;
     }
 
-    // ── Spec-craft approval + journal add (Task 8b-2). ONE implementation each,
-    //    ported from spec/sections/[sectionId]/nod (onHumanSatisfied) and journal/add.
+    // ── Spec-craft approval (Task 8b-2). ONE implementation, ported from
+    //    spec/sections/[sectionId]/nod (onHumanSatisfied).
     case 'approve_component': {
       const componentId = action.data?.componentId as string | undefined;
       if (!componentId) break;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const { onHumanSatisfied } = await import('@/spec/orchestrator');
       await onHumanSatisfied({ db }, componentId, actorId);
-      break;
-    }
-
-    case 'add_learning': {
-      const text = action.data?.text as string | undefined;
-      const category = (action.data?.category as string) ?? 'knowledge';
-      if (!text) break;
-      const TYPE_MAP: Record<string, 'decision' | 'insight'> = {
-        decision: 'decision', design: 'decision', process: 'insight',
-        behavior: 'insight', knowledge: 'insight', style: 'insight', challenge: 'insight',
-      };
-      await updateDetails(db, projectId, (d) => {
-        d.stages.journal.phases.journal.learnings.push({
-          heading: text, type: TYPE_MAP[category.toLowerCase()] ?? 'insight', status: 'proposed',
-        });
-        return d;
-      });
       break;
     }
 

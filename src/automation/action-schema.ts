@@ -16,7 +16,7 @@ export const ACTION_KINDS = [
   'apply_review_findings', 'dispatch_harvest', 'approve_learning', 'dispatch_record', 'mark_complete',
   // Design-phase + cross-cutting (Task 8b)
   'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component',
-  'add_learning', 'start_auto', 'take_over',
+  'start_auto', 'take_over',
   // content edits (Task 10) — pure-content writes routed through the executor. Message-
   // thread content (plan-task chat, component chat) stays on its own route: the insert
   // must return the new message id for the client's optimistic-echo dedup, which a

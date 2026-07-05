@@ -50,6 +50,7 @@ function addManualExtras(details: Details, set: Action[]): void {
   const ex = stages.exploration;
   if (ex.status === 'active') {
     if (ex.phases.brief.status === 'active') {
+      set.push({ kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief' });
       set.push({ kind: 'propose_discover_tasks', note: 'Analyze sources', stage: 'exploration', phase: 'brief' });
       if (ex.phases.discover.tasks.length >= 1) {
         set.push({ kind: 'advance_phase', note: 'Continue to Discover', stage: 'exploration', phase: 'discover' });
@@ -77,6 +78,7 @@ function addManualExtras(details: Details, set: Action[]): void {
   //    we drive approval + the phase transitions (whose effects already exist).
   const sp = stages.spec;
   if (sp.status === 'active' && sp.phases.outline.status === 'active') {
+    set.push({ kind: 'select_components', note: 'Select components', stage: 'spec', phase: 'outline' });
     if ((sp.phases.outline.selectedTemplateIds?.length ?? 0) >= 1) {
       set.push({ kind: 'advance_phase', note: 'Continue to Craft', stage: 'spec', phase: 'craft' });
     }

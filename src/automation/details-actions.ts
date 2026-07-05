@@ -457,6 +457,27 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       break;
     }
 
+    // ── Content edits (Task 10) — skip the phase lease (spec §4.5). The ONE
+    //    implementation each, from explore/brief (saveBrief) and the spec outline
+    //    confirm (confirmComponents).
+    case 'set_brief': {
+      const text = action.data?.text as string | undefined;
+      if (text == null) break;
+      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
+      const { saveBrief } = await import('@/exploration/explore-core');
+      await saveBrief(projectId, text, { id: actorId });
+      await db.update(project).set({ intentMd: text, updatedAt: new Date() }).where(eq(project.id, projectId));
+      break;
+    }
+
+    case 'select_components': {
+      const kinds = action.data?.kinds as string[] | undefined;
+      if (!kinds || kinds.length === 0) break;
+      const { confirmComponents } = await import('@/spec/orchestrator');
+      await confirmComponents(db, projectId, kinds as never);
+      break;
+    }
+
     // ── Cross-cutting: the auto toggle (Task 8b-3). ONE implementation, replacing the
     //    retired automation/{start,stop} routes.
     case 'start_auto': {

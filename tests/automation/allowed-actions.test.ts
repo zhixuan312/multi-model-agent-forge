@@ -52,9 +52,11 @@ describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]
   it('auto never drives exploration (empty set)', () => {
     expect(allowedActions(exploring('brief'), 'auto')).toEqual([]);
   });
-  it('brief + no tasks → [propose_discover_tasks]; +task → also advance_phase', () => {
+  it('brief → set_brief + propose_discover_tasks; +task → also advance_phase', () => {
     const d = exploring('brief');
-    expect(kinds(d, 'manual')).toEqual(['propose_discover_tasks']);
+    expect(kinds(d, 'manual')).toContain('set_brief');
+    expect(kinds(d, 'manual')).toContain('propose_discover_tasks');
+    expect(kinds(d, 'manual')).not.toContain('advance_phase'); // no tasks yet
     d.stages.exploration.phases.discover.tasks = [{ kind: 'investigate', prompt: 'x', status: 'draft', attempts: [] }] as never;
     expect(kinds(d, 'manual')).toContain('advance_phase');
   });

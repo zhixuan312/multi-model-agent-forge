@@ -243,9 +243,16 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
     // envelope (e.g. an audit that returns prose → `missing_report` → handler throws).
     try {
       const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
-      ensureHandlersRegistered();
+      await ensureHandlersRegistered();
       const h = getHandler(opts.handler);
-      if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request, actorId: opts.actorId }, envelope);
+      if (!h) {
+        // A batch-backed dispatch with no terminal handler records no gating state,
+        // so a WAITing resolver re-dispatches forever (the batch is `done`). Fail
+        // loudly — the catch below marks the batch failed + rethrows so the driver
+        // retries/stops with a clear error instead of looping.
+        throw new Error(`No terminal handler registered for '${opts.handler}'`);
+      }
+      await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request, actorId: opts.actorId }, envelope);
     } catch (handlerErr) {
       console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
       await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));

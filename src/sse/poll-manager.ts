@@ -87,7 +87,12 @@ export class PollManager {
     this.clientPromise = deps.client ? Promise.resolve(deps.client) : null;
     this.now = deps.now ?? Date.now;
     this.rand = deps.rand ?? Math.random;
-    ensureHandlersRegistered();
+    // Warm the handler registry. This is a fire-and-forget kickstart — a real
+    // import failure surfaces where the memoized promise is AWAITED (the terminal
+    // handler fire below, and the sync dispatch path). The `.catch` only stops the
+    // floating kickstart from being an unhandled rejection (e.g. a test env torn
+    // down mid-import); it does NOT swallow errors for the await sites.
+    void ensureHandlersRegistered().catch(() => {});
     // Auto-rehydrate is triggered by getPollManager(), not the constructor,
     // so tests can create instances without side effects.
   }
@@ -281,6 +286,10 @@ export class PollManager {
             .where(eq(mmaBatch.id, entry.batchId))
             .limit(1);
           if (batchRow?.handler) {
+            // Await registration before lookup: the handlers self-register on async
+            // import, so a lookup before they resolve returns undefined and the
+            // terminal handler (the gating-state writer) silently never runs.
+            await ensureHandlersRegistered();
             const handler = getHandler(batchRow.handler);
             if (handler) {
               await handler(tx as unknown as Db, {

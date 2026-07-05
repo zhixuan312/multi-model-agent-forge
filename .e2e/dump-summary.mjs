@@ -1,0 +1,11 @@
+import postgres from 'postgres';
+import { DB, PID } from './e2e-lib.mjs';
+import { parseAuditEnvelope, nextPassNo } from '../src/spec/audit-loop.ts';
+const sql = postgres(DB);
+const [b] = await sql`select result from forge.ops_mma_batch where project_id=${PID} and handler='spec-audit' and status='done' order by created_at desc limit 1`;
+const env = b.result;
+const summary = env?.output?.summary;
+console.log('typeof summary:', typeof summary);
+console.log('summary keys (if obj):', summary && typeof summary === 'object' ? Object.keys(summary) : 'n/a');
+console.log('summary preview:', JSON.stringify(summary).slice(0, 400));
+await sql.end();

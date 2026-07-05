@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { dispatchMma, findInflight, PhaseBusyError } from '@/dispatch/dispatch-helpers';
 import { phaseKeyForHandler } from '@/details/project-event-labels';
+import { registerHandler } from '@/dispatch/handler-registry';
 import type { MmaClient } from '@/mma/client';
 import { createMockDb } from '../test-utils/mock-db';
 
@@ -101,6 +102,10 @@ describe('dispatchMma — sync path persists the MMA task id', () => {
   };
 
   it('sets batchId (MMA task id) on the ops_mma_batch row after a sync dispatch', async () => {
+    // A batch-backed sync dispatch REQUIRES a registered terminal handler (an
+    // unregistered one now throws — it would otherwise record no gating state and
+    // re-dispatch forever). Register a no-op so this test isolates batchId persistence.
+    registerHandler('test-noop-handler', async () => {});
     const db = createMockDb({
       'insert:ops_mma_batch': [{ id: 'row-1', createdAt: new Date() }],
     });
@@ -110,7 +115,7 @@ describe('dispatchMma — sync path persists the MMA task id', () => {
       mma: fakeMma(terminalEnvelope, 'mma-task-99'),
       projectId: 'proj-1',
       route: 'orchestrate',
-      handler: 'test-noop-handler', // unregistered → handler fire is skipped
+      handler: 'test-noop-handler',
       cwd: '/w',
       body: { prompt: 'x' },
       actorId: '00000000-0000-0000-0000-000000000000',

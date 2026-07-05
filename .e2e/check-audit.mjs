@@ -1,0 +1,11 @@
+import postgres from 'postgres';
+import { DB, PID } from './e2e-lib.mjs';
+const sql = postgres(DB);
+const [p] = await sql`select details, current_stage, phase from forge.project where id=${PID}`;
+const passes = p.details.stages.spec.phases.finalize.auditPasses;
+console.log('current_stage/phase:', p.current_stage, p.phase);
+console.log('auditPasses count:', passes.length);
+console.log('passes:', JSON.stringify(passes.map(x => ({passNo:x.passNo, status:x.status, auditAttempts:x.audit?.attempts?.length, fix:!!x.fix}))));
+const batches = await sql`select handler, status, created_at, terminal_at, result from forge.ops_mma_batch where project_id=${PID} and handler like 'spec-audit%' order by created_at desc limit 6`;
+console.log('recent spec-audit batches:', JSON.stringify(batches.map(b => ({h:b.handler, s:b.status, created:b.created_at?.toISOString().slice(11,19), term:b.terminal_at?.toISOString().slice(11,19), err:b.result?.error?.message?.slice(0,60)}))));
+await sql.end();

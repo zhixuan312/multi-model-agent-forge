@@ -67,26 +67,38 @@ export function extractJsonFromEnvelope(envelope: unknown): string {
   return raw;
 }
 
-let initialized = false;
+let registration: Promise<void> | null = null;
 
-export function ensureHandlersRegistered(): void {
-  if (initialized) return;
-  initialized = true;
-  // Lazy import to avoid circular initialization issues
-  import('./handlers/spec-audit').catch(() => {});
-  import('./handlers/plan-audit').catch(() => {});
-  import('./handlers/spec-auto-draft').catch(() => {});
-  import('./handlers/spec-refine').catch(() => {});
-  import('./handlers/plan-author').catch(() => {});
-  import('./handlers/explore-propose').catch(() => {});
-  import('./handlers/explore-synthesize').catch(() => {});
-  import('./handlers/spec-learnings').catch(() => {});
-  import('./handlers/spec-audit-apply').catch(() => {});
-  import('./handlers/plan-audit-apply').catch(() => {});
-  import('./handlers/plan-refine').catch(() => {});
-  import('./handlers/execute-pipeline').catch(() => {});
-  import('./handlers/code-review').catch(() => {});
-  import('./handlers/review-apply').catch(() => {});
-  import('./handlers/journal-harvest').catch(() => {});
-  import('./handlers/journal-record').catch(() => {});
+/**
+ * Register every terminal handler and RESOLVE only once they are all in the
+ * registry. Memoized: the imports run once, and every caller awaits the SAME
+ * promise. Callers MUST `await` this before `getHandler` — the handlers
+ * self-register on module import, so reading the registry before the imports
+ * resolve returns `undefined` and a batch-backed dispatch would record no gating
+ * state (the audit-pass push, the task validation, …) and re-dispatch forever.
+ * That silent race is exactly what a fire-and-forget import list produced; the
+ * lazy dynamic imports still avoid the circular-init issue static imports hit.
+ */
+export function ensureHandlersRegistered(): Promise<void> {
+  if (!registration) {
+    registration = Promise.all([
+      import('./handlers/spec-audit'),
+      import('./handlers/plan-audit'),
+      import('./handlers/spec-auto-draft'),
+      import('./handlers/spec-refine'),
+      import('./handlers/plan-author'),
+      import('./handlers/explore-propose'),
+      import('./handlers/explore-synthesize'),
+      import('./handlers/spec-learnings'),
+      import('./handlers/spec-audit-apply'),
+      import('./handlers/plan-audit-apply'),
+      import('./handlers/plan-refine'),
+      import('./handlers/execute-pipeline'),
+      import('./handlers/code-review'),
+      import('./handlers/review-apply'),
+      import('./handlers/journal-harvest'),
+      import('./handlers/journal-record'),
+    ]).then(() => undefined);
+  }
+  return registration;
 }

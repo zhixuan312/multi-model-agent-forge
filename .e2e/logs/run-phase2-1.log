@@ -1,0 +1,25 @@
+15:43:42 RESET  clearedInflight=0 repoHead=5655145
+15:43:43 START  http=200 {"ok":true}
+15:43:51 EVENT[0] ✓ [exploration] Proposed exploration tasks
+15:43:51 EVENT[1] ✓ [exploration] Synthesized exploration brief
+15:43:51 EVENT[2] ✓ [spec] Drafted spec
+15:43:51 EVENT[3] ✓ [spec] xuan approved component: Context
+15:43:51 EVENT[4] ✓ [spec] xuan approved component: Problem statement
+15:43:51 EVENT[5] ✓ [spec] xuan approved component: Goals & Requirements
+15:43:51 EVENT[6] ✓ [spec] xuan approved component: Alternatives
+15:43:51 EVENT[7] ✓ [spec] xuan approved component: Technical Design
+15:43:51 EVENT[8] ✓ [spec] xuan approved component: Testing Plan
+15:43:51 EVENT[9] ✓ [spec] xuan approved component: Risks
+15:43:51 EVENT[10] ✓ [spec] xuan approved component: User Stories & Tasks
+15:43:51 EVENT[11] • [spec] Running spec audit pass 1
+15:43:51 STATE  spec/design auto=true inflight=1 (spec-audit) | stages={"plan":"pending","spec":"active","review":"pending","execute":"pending","journal":"pending","exploration":"done"}
+15:43:51 BATCH-ERR review-apply: Error: MMA dispatch to /task (orchestrate) failed with HTTP 400: {"error":{"code
+15:46:23 EVENT[12] • [spec] Running spec audit pass 1
+15:46:23 STATE  spec/design auto=true inflight=1 (spec-audit) | stages={"plan":"pending","spec":"active","review":"pending","execute":"pending","journal":"pending","exploration":"done"}
+15:46:23 BATCH-ERR review-apply: Error: MMA dispatch to /task (orchestrate) failed with HTTP 400: {"error":{"code
+15:48:28 EVENT[13] ✓ [spec] Forge approved the spec
+15:48:28 STATE  plan/design auto=true inflight=0 | stages={"plan":"active","spec":"done","review":"pending","execute":"pending","journal":"pending","exploration":"done"}
+15:48:28 BATCH-ERR review-apply: Error: MMA dispatch to /task (orchestrate) failed with HTTP 400: {"error":{"code
+15:48:37 EVENT[14] • [plan] Authoring plan from spec
+15:48:37 STATE  plan/design auto=true inflight=1 (plan-author) | stages={"plan":"active","spec":"done","review":"pending","execute":"pending","journal":"pending","exploration":"done"}
+15:48:37 BATCH-ERR review-apply: Error: MMA dispatch to /task (orchestrate) failed with HTTP 400: {"error":{"code

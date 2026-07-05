@@ -138,11 +138,10 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       router.push(url.pathname + url.search, { scroll: false });
     }
   };
-  const advanceExecPhase = async (p: ExecutePhase) => {
-    await fetch(`/api/projects/${props.projectId}/phase`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'execute', phase: p }),
-    }).catch(() => {});
+  // Execute's configure→implement is a VIEW transition only: the resolver never
+  // advances the execute phase status (auto goes dispatch_execute → advance_stage),
+  // so persisting it would diverge from auto. Keep it local, like the auto path.
+  const advanceExecPhase = (p: ExecutePhase) => {
     setExecPhase(p);
   };
   const [branches, setBranches] = useState<Record<string, string>>(

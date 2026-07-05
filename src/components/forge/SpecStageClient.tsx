@@ -204,10 +204,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
     router.push(url.pathname + url.search, { scroll: false });
   };
   const advancePhase = async (p: SpecPhase) => {
-    await fetch(`/api/projects/${props.projectId}/phase`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'spec', phase: p }),
-    }).catch(() => {});
+    // Spec phase status gates the resolver (finalize.status==='active' runs the audit
+    // loop), so the advance goes through the unified engine as advance_phase.
+    await mma.transition('advance_phase').catch(() => {});
     setPhase(p);
   };
   const refresh = useCallback(() => { router.refresh(); }, [router]);
@@ -1737,7 +1736,9 @@ function DocumentScreen({
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
-              href={specApprovers.length > 0 ? `/projects/${projectId}/plan` : '#'}
+              href={`/projects/${projectId}/plan`}
+              projectId={projectId}
+              from="spec"
               label="Continue to Plan"
               testId="spec-continue-link"
               disabled={specApprovers.length === 0 || readOnly}

@@ -127,10 +127,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
     }
   };
   const advancePhase = async (p: PlanPhase) => {
-    await fetch(`/api/projects/${props.projectId}/phase`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'plan', phase: p }),
-    }).catch(() => {});
+    // Plan phase status gates the resolver (validate.status==='active' runs the audit
+    // loop), so refine→validate goes through the unified engine as advance_phase.
+    await mma.transition('advance_phase').catch(() => {});
     setPhase(p);
   };
   const serverStatus = useMemo(
@@ -327,11 +326,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
           onRunAudit={runAudit}
           onLock={async () => {
             setLocked(true);
-            await fetch(`/api/projects/${props.projectId}/advance`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ from: 'plan' }),
-            });
+            try {
+              await mma.transition('approve_stage'); // plan → execute (signs Forge + advances)
+            } catch { setLocked(false); return; } // rejected → stay on Plan
             router.push(`/projects/${props.projectId}/execute`);
             router.refresh();
           }}

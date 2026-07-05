@@ -129,11 +129,10 @@ export function JournalStageClient(props: JournalStageClientProps) {
     url.searchParams.set('phase', p);
     router.push(url.pathname + url.search, { scroll: false });
   };
-  const advancePhase = async (p: ReflectPhase) => {
-    await fetch(`/api/projects/${props.projectId}/phase`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'journal', phase: p }),
-    }).catch(() => {});
+  // Journal's journal→summary is a VIEW transition only: the resolver drives the
+  // journal stage by harvest/approve/record/complete (never an explicit phase
+  // advance), so keep this local to match the auto path.
+  const advancePhase = (p: ReflectPhase) => {
     setPhase(p);
   };
 

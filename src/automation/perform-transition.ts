@@ -6,6 +6,7 @@ import { allowedActions, type Action, type Mode } from '@/automation/allowed-act
 import { repairActiveStage } from '@/automation/stage-repair';
 import { executeDetailsAction } from '@/automation/details-actions';
 import { deriveCurrentStage } from '@/details/write';
+import { DRIVER_LEASE_STALE_MS } from '@/automation/driver-lease';
 
 /**
  * The single gated executor (spec §4.2). Reload details → repair the exactly-one-
@@ -29,6 +30,23 @@ export interface Trigger {
 const CONTENT_ACTIONS = new Set([
   'set_brief', 'select_components', 'add_attachment', 'remove_attachment', 'refine_component', 'edit_plan_task',
 ]);
+
+/**
+ * True iff the lease is held by a DIFFERENT actor AND still fresh (heartbeat within
+ * DRIVER_LEASE_STALE_MS). That's the single-flight signal: another driver/transition
+ * is genuinely in flight. A stale foreign lease (crashed holder) is NOT fresh → the
+ * new transition may proceed (self-heal, AC10). One's own lease is never "foreign".
+ */
+export function isForeignLeaseFresh(
+  automation: { driverId?: string; driverHeartbeatAt?: string },
+  actorId: string | null | undefined,
+): boolean {
+  const holder = automation.driverId;
+  if (!holder || holder === actorId) return false;
+  const hb = automation.driverHeartbeatAt;
+  if (!hb) return false;
+  return Date.now() - new Date(hb).getTime() < DRIVER_LEASE_STALE_MS;
+}
 
 export async function performTransition(db: Db, projectId: string, action: Action, trigger: Trigger): Promise<void> {
   const [row] = await db
@@ -60,10 +78,15 @@ export async function performTransition(db: Db, projectId: string, action: Actio
     throw new TransitionRejected(`action ${action.kind} not allowed now`);
   }
 
-  // GATE 3 (lease) — wired in Task 7 (moves the driver lease into here). Content
-  // actions will skip it; advancing/MMA-dispatching actions serialize on it.
+  // GATE 3 — single-flight lease. Advancing / MMA-dispatching actions are rejected
+  // while a FRESH FOREIGN lease is held (another driver/transition in flight). The
+  // auto driver holds a persistent lease + heartbeat (driveProject), so a second
+  // driver hits this and waits. Content actions skip it (spec §4.5) — they never
+  // serialize on the phase lease. Stale foreign leases self-heal (AC10).
   const isContent = CONTENT_ACTIONS.has(action.kind);
-  void isContent;
+  if (!isContent && action.kind !== 'take_over' && isForeignLeaseFresh(details.automation, trigger.actorId)) {
+    throw new TransitionRejected('busy — another transition is in flight');
+  }
 
   // EXECUTE the action's effect (the single implementation — today's
   // executeDetailsAction switch; extended for Design/content actions in Tasks 8b/10).

@@ -38,6 +38,42 @@ describe('allowedActions — auto parity + determinism', () => {
   });
 });
 
+describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]', () => {
+  function exploring(phase: 'brief' | 'discover' | 'synthesize') {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'active';
+    d.stages.exploration.phases.brief.status = phase === 'brief' ? 'active' : 'done';
+    d.stages.exploration.phases.discover.status = phase === 'discover' ? 'active' : phase === 'synthesize' ? 'done' : 'pending';
+    d.stages.exploration.phases.synthesize.status = phase === 'synthesize' ? 'active' : 'pending';
+    return d;
+  }
+  const kinds = (d: ReturnType<typeof exploring>, m: 'auto' | 'manual') => allowedActions(d, m).map((a) => a.kind);
+
+  it('auto never drives exploration (empty set)', () => {
+    expect(allowedActions(exploring('brief'), 'auto')).toEqual([]);
+  });
+  it('brief + no tasks → [propose_discover_tasks]; +task → also advance_phase', () => {
+    const d = exploring('brief');
+    expect(kinds(d, 'manual')).toEqual(['propose_discover_tasks']);
+    d.stages.exploration.phases.discover.tasks = [{ kind: 'investigate', prompt: 'x', status: 'draft', attempts: [] }] as never;
+    expect(kinds(d, 'manual')).toContain('advance_phase');
+  });
+  it('discover with drafts → run_discover_tasks; all recorded → advance_phase', () => {
+    const d = exploring('discover');
+    d.stages.exploration.phases.discover.tasks = [{ kind: 'investigate', prompt: 'x', status: 'draft', attempts: [] }] as never;
+    expect(kinds(d, 'manual')).toContain('run_discover_tasks');
+    d.stages.exploration.phases.discover.tasks = [{ kind: 'investigate', prompt: 'x', status: 'recorded', attempts: [] }] as never;
+    expect(kinds(d, 'manual')).toContain('advance_phase');
+    expect(kinds(d, 'manual')).not.toContain('run_discover_tasks');
+  });
+  it('synthesize no-file → dispatch_synthesize; file set → advance_stage to spec', () => {
+    const d = exploring('synthesize');
+    expect(kinds(d, 'manual')).toContain('dispatch_synthesize');
+    d.stages.exploration.phases.synthesize.file = '/x/exploration.md';
+    expect(kinds(d, 'manual')).toContain('advance_stage');
+  });
+});
+
 describe('allowedActions — manual audit-loop early exit', () => {
   it('manual set includes advance after ≥1 pass; auto does not', () => {
     const d = stateFinalizeOnePassRevised();

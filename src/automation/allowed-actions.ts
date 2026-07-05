@@ -29,6 +29,34 @@ export function allowedActions(details: Details, mode: Mode): Action[] {
 function addManualExtras(details: Details, set: Action[]): void {
   const { stages } = details;
 
+  // ── Exploration (Design phase — manual-only; auto never drives it, so the auto
+  //    set here is empty and this builds the manual set). Transitions reuse the
+  //    generic advance_phase / advance_stage actions. Task 8b-1.
+  const ex = stages.exploration;
+  if (ex.status === 'active') {
+    if (ex.phases.brief.status === 'active') {
+      set.push({ kind: 'propose_discover_tasks', note: 'Analyze sources', stage: 'exploration', phase: 'brief' });
+      if (ex.phases.discover.tasks.length >= 1) {
+        set.push({ kind: 'advance_phase', note: 'Continue to Discover', stage: 'exploration', phase: 'discover' });
+      }
+    } else if (ex.phases.discover.status === 'active') {
+      const tasks = ex.phases.discover.tasks;
+      const drafts = tasks.filter((t) => t.status === 'draft').length;
+      const dispatched = tasks.filter((t) => t.status !== 'draft').length;
+      const recorded = tasks.filter((t) => t.status === 'recorded').length;
+      if (drafts > 0) set.push({ kind: 'run_discover_tasks', note: 'Run exploration tasks', stage: 'exploration', phase: 'discover' });
+      if (dispatched > 0 && recorded === dispatched) {
+        set.push({ kind: 'advance_phase', note: 'Continue to Synthesize', stage: 'exploration', phase: 'synthesize' });
+      }
+    } else if (ex.phases.synthesize.status === 'active') {
+      if (!ex.phases.synthesize.file) {
+        set.push({ kind: 'dispatch_synthesize', note: 'Synthesize exploration', stage: 'exploration', phase: 'synthesize' });
+      } else {
+        set.push({ kind: 'advance_stage', note: 'Continue to Spec', stage: 'spec', phase: 'outline' });
+      }
+    }
+  }
+
   const auditPhases: Array<{ passes: AuditPassLike[]; advance: Action }> = [];
   if (stages.spec.status === 'active' && stages.spec.phases.finalize.status === 'active') {
     auditPhases.push({

@@ -39,6 +39,9 @@ const MMA_HANDLER_FOR: Record<string, (a: AutoAction) => string> = {
   apply_review_findings: () => 'review-apply',
   dispatch_harvest: () => 'journal-harvest',
   dispatch_record: () => 'journal-record',
+  // Design-phase (manual-only) dispatches — Task 8b
+  propose_discover_tasks: () => 'explore-propose',
+  dispatch_synthesize: () => 'explore-synthesize',
 };
 
 /** Whether an action dispatches an MMA batch (→ its running timeline line is
@@ -385,6 +388,43 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         return d;
       });
       await db.update(project).set({ completedAt: now, updatedAt: now }).where(eq(project.id, projectId));
+      break;
+    }
+
+    // ── Design-phase (manual-only) effects — Task 8b-1. The ONE implementation of
+    //    each explore step, ported from the retired explore/{propose,run,synthesize}
+    //    routes. Async dispatch (no await:true): the PollManager records the terminal.
+    case 'propose_discover_tasks': {
+      const { buildProposeRequest } = await import('@/exploration/fan-out');
+      const request = await buildProposeRequest(projectId, { db });
+      const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+      const repoIds = projRow?.details ? validateDetails(projRow.details).repos.map((r) => r.id) : [];
+      await dispatchMma({
+        db, mma, projectId, route: 'orchestrate', handler: 'explore-propose', cwd,
+        body: { prompt: `${request.system}\n\n${request.user}`, reviewPolicy: 'none' },
+        actorId: FORGE_MEMBER_ID, meta: { actorId: FORGE_MEMBER_ID, repoIds },
+      });
+      break;
+    }
+
+    case 'run_discover_tasks': {
+      const { dispatchTasks } = await import('@/exploration/dispatch');
+      const { getSynthesisScheduler } = await import('@/exploration/synthesis-scheduler');
+      getSynthesisScheduler().watch(projectId);
+      const taskIds = action.data?.taskIds as string[] | undefined;
+      await dispatchTasks(projectId, { id: FORGE_MEMBER_ID }, { db }, taskIds);
+      break;
+    }
+
+    case 'dispatch_synthesize': {
+      const { buildSynthesizeRequest } = await import('@/exploration/synthesize');
+      const request = await buildSynthesizeRequest(projectId, { db });
+      if ('error' in request) break; // nothing to synthesize yet
+      await dispatchMma({
+        db, mma, projectId, route: 'orchestrate', handler: 'explore-synthesize', cwd,
+        body: { prompt: `${request.system}\n\n${request.user}`, reviewPolicy: 'none' },
+        actorId: FORGE_MEMBER_ID, meta: { actorId: FORGE_MEMBER_ID },
+      });
       break;
     }
 

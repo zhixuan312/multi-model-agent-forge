@@ -19,21 +19,21 @@ describe('performTransition — gate (spec §2.4, AC4/AC17)', () => {
   it('rejects an action not in allowedActions', async () => {
     const db = createMockDb({ 'select:project': [projRow(finalizeActive(), 1, 'running')] });
     await expect(
-      performTransition(db, 'p', { kind: 'mark_complete', note: '', stage: '', phase: '' }, { mode: 'auto' }),
+      performTransition(db, 'p', { kind: 'mark_complete' }, { mode: 'auto' }),
     ).rejects.toBeInstanceOf(TransitionRejected);
   });
 
   it('rejects a manual action while auto is running (except take_over) [AC17]', async () => {
     const db = createMockDb({ 'select:project': [projRow(finalizeActive(), 1, 'running')] });
     await expect(
-      performTransition(db, 'p', { kind: 'dispatch_audit', note: '', stage: 'spec', phase: 'finalize' }, { mode: 'manual', actorId: 'u1' }),
+      performTransition(db, 'p', { kind: 'dispatch_audit' }, { mode: 'manual', actorId: 'u1' }),
     ).rejects.toBeInstanceOf(TransitionRejected);
   });
 
   it('rejects a driver action while auto is off [AC17]', async () => {
     const db = createMockDb({ 'select:project': [projRow(finalizeActive(), 1, 'off')] });
     await expect(
-      performTransition(db, 'p', { kind: 'dispatch_audit', note: '', stage: 'spec', phase: 'finalize' }, { mode: 'auto' }),
+      performTransition(db, 'p', { kind: 'dispatch_audit' }, { mode: 'auto' }),
     ).rejects.toBeInstanceOf(TransitionRejected);
   });
 
@@ -44,7 +44,7 @@ describe('performTransition — gate (spec §2.4, AC4/AC17)', () => {
     d.automation.driverHeartbeatAt = new Date().toISOString(); // fresh
     const db = createMockDb({ 'select:project': [{ details: d, detailsVersion: 1, autoMode: false }] });
     await expect(
-      performTransition(db, 'p', { kind: 'dispatch_audit', note: '', stage: 'spec', phase: 'finalize' }, { mode: 'manual', actorId: 'me' }),
+      performTransition(db, 'p', { kind: 'dispatch_audit' }, { mode: 'manual', actorId: 'me' }),
     ).rejects.toThrow(/busy/);
   });
 

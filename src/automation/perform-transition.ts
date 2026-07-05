@@ -48,7 +48,18 @@ export function isForeignLeaseFresh(
   return Date.now() - new Date(hb).getTime() < DRIVER_LEASE_STALE_MS;
 }
 
-export async function performTransition(db: Db, projectId: string, action: Action, trigger: Trigger): Promise<void> {
+/**
+ * What a caller supplies: the action KIND (+ optional payload). The full Action
+ * (stage/phase/note) is resolved INTERNALLY from `allowedActions` — so a client (the
+ * `/transition` route) never pre-gates or invents stage/phase, and `performTransition`
+ * stays the single gate + resolver. The driver may pass a full Action (a superset).
+ */
+export interface ActionInput {
+  kind: string;
+  data?: Record<string, unknown>;
+}
+
+export async function performTransition(db: Db, projectId: string, input: ActionInput, trigger: Trigger): Promise<void> {
   const [row] = await db
     .select({ details: project.details, autoMode: project.autoMode })
     .from(project)
@@ -62,21 +73,21 @@ export async function performTransition(db: Db, projectId: string, action: Actio
 
   // GATE 4 — mode rule (AC17). take_over is the sole manual action allowed while running.
   const autoRunning = details.automation.status === 'running';
-  if (trigger.mode === 'manual' && autoRunning && action.kind !== 'take_over') {
+  if (trigger.mode === 'manual' && autoRunning && input.kind !== 'take_over') {
     throw new TransitionRejected('auto is driving — take over first');
   }
   if (trigger.mode === 'auto' && !autoRunning) {
     throw new TransitionRejected('auto not running');
   }
 
-  // GATE 2 — allowed by the state machine.
+  // GATE 2 — allowed by the state machine. Resolve the FULL action from the permitted
+  // set by kind (the single resolver), merging the caller's payload.
   const allowed = allowedActions(details, trigger.mode);
-  if (
-    action.kind !== 'take_over' &&
-    !allowed.some((a) => a.kind === action.kind && a.stage === action.stage && a.phase === action.phase)
-  ) {
-    throw new TransitionRejected(`action ${action.kind} not allowed now`);
+  const match = allowed.find((a) => a.kind === input.kind);
+  if (!match) {
+    throw new TransitionRejected(`action ${input.kind} not allowed now`);
   }
+  const action: Action = { ...match, data: { ...(match.data ?? {}), ...(input.data ?? {}) } };
 
   // GATE 3 — single-flight lease. Advancing / MMA-dispatching actions are rejected
   // while a FRESH FOREIGN lease is held (another driver/transition in flight). The

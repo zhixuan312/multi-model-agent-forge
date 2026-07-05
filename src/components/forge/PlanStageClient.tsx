@@ -202,9 +202,10 @@ export function PlanStageClient(props: PlanStageClientProps) {
     authorFiredRef.current = true;
     setAuthoringLocal(true);
     void mma.transition('dispatch_plan_author')
+      .then(() => refresh())
       .catch(() => {})
       .finally(() => setAuthoringLocal(false));
-  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma]);
+  }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, refresh]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
   // Sub-phase navigation from the top stepper. The stepper only renders a chip as
@@ -843,19 +844,19 @@ function ValidateStage({
 }) {
   const [docView, setDocView] = useState<'document' | 'audit'>(planMd ? 'document' : 'audit');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
-  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
 
   useEffect(() => {
     if (rounds.length > 0) { setSelectedPass(rounds[rounds.length - 1].passNo); setDocView('audit'); }
   }, [rounds.length]);
 
-  function apply(passNo: number, indices: number[], total: number) {
-    if (readOnly || indices.length === 0 || applying) return;
+  function apply(passNo: number) {
+    if (readOnly || applying) return;
     const round = rounds.find((r) => r.passNo === passNo);
-    if (!round) return;
-    const selected = indices.map((i) => round.findings[i]).filter(Boolean);
-    onApplyFindings(selected, passNo);
+    if (!round || round.findings.length === 0) return;
+    // apply_findings re-fixes ALL of the pass's findings (the single shared effect;
+    // it reads the pass from details, so a client-selected subset would be ignored).
+    onApplyFindings(round.findings, passNo);
   }
 
   return (
@@ -894,29 +895,20 @@ function ValidateStage({
           ) : (
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
-              selectable
               applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
               readOnly={readOnly}
-              hideApplyBar
-              selectedIndices={selectedFindings}
-              onSelectionChange={(indices) => setSelectedFindings(indices)}
             />
           )}
         </CardContent>
 
         {docView === 'document' ? null
-          : activeRound && !appliedPasses.has(activeRound.passNo) ? (
+          : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button size="sm" variant="ghost" onClick={() => setSelectedFindings(
-              selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_: unknown, i: number) => i),
-            )} disabled={readOnly || applying}>
-              {selectedFindings.length === activeRound.findings.length ? 'Unselect all' : 'Select all'}
-            </Button>
             <Button size="sm"
-              onClick={() => apply(activeRound.passNo, selectedFindings.length > 0 ? selectedFindings : activeRound.findings.map((_: unknown, i: number) => i), activeRound.findings.length)}
-              disabled={readOnly || applying || selectedFindings.length === 0}
+              onClick={() => apply(activeRound.passNo)}
+              disabled={readOnly || applying}
               loading={applying}>
-              Apply ({selectedFindings.length || 'all'})
+              Apply findings ({activeRound.findings.length})
             </Button>
           </div>
         ) : null}
@@ -972,7 +964,7 @@ function ValidateStage({
                   findings={r.findings as Finding[]}
                   applied={appliedPasses.has(r.passNo)}
                   active={selectedPass === r.passNo && docView === 'audit'}
-                  onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('audit'); }}
+                  onClick={() => { setSelectedPass(r.passNo); setDocView('audit'); }}
                 />
                 {applying && applyingPass === r.passNo ? (
                   <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">

@@ -30,11 +30,7 @@ export const ACTION_KINDS = [
  *   - attachment add/remove — binary/multipart FILE I/O (explore/attachment/*)
  */
 
-export type ActionKind = (typeof ACTION_KINDS)[number];
-
 export const transitionSchema = z.object({
   action: z.enum(ACTION_KINDS),
   data: z.record(z.string(), z.unknown()).optional(),
 });
-
-export type TransitionInput = z.infer<typeof transitionSchema>;

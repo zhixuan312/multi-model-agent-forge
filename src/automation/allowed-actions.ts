@@ -92,7 +92,11 @@ function addManualExtras(details: Details, set: Action[]): void {
   //    waiting for Forge's validate_task pass (the manual early-exit; auto still
   //    validates-then-approves each task). Task chat stays on its own route.
   if (stages.plan.status === 'active' && stages.plan.phases.refine.status === 'active') {
-    if (stages.plan.phases.refine.tasks.some((t) => t.approvals.length === 0)) {
+    // Only add the generic manual approve_task if the resolver didn't already emit one
+    // (it carries data.taskId for the first unvalidated task). Two entries for one kind
+    // would let performTransition's by-kind match pick the wrong (task-id-less) one.
+    if (stages.plan.phases.refine.tasks.some((t) => t.approvals.length === 0)
+        && !set.some((a) => a.kind === 'approve_task')) {
       set.push({ kind: 'approve_task', note: 'Approve plan task', stage: 'plan', phase: 'refine' });
     }
   }

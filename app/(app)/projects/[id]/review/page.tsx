@@ -86,14 +86,10 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.route, 'review'), eq(mmaBatch.handler, 'code-review'), eq(mmaBatch.status, 'running')))
     .limit(1);
   const [runningApply] = await db
-    .select({ id: mmaBatch.id, request: mmaBatch.request })
+    .select({ id: mmaBatch.id })
     .from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, id), eq(mmaBatch.handler, 'review-apply'), eq(mmaBatch.status, 'running')))
     .limit(1);
-
-  const applyCount = runningApply
-    ? ((runningApply.request as Record<string, unknown> | null)?.findingsCount as number ?? 0)
-    : 0;
 
   const buildPrs = Object.fromEntries(
     (await db.select({ repoId: buildPr.repoId, url: buildPr.url, branch: buildPr.branch, targetBranch: buildPr.targetBranch })
@@ -108,7 +104,6 @@ export default async function ReviewStagePage({ params, searchParams }: { params
       passes={passes}
       reviewRunning={!!runningReview}
       applyRunning={!!runningApply}
-      applyCount={applyCount}
       buildPrs={buildPrs}
       autoMode={proj.autoMode}
       autoNote={proj.autoNote ?? ''}

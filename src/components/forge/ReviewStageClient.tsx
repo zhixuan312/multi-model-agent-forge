@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { Loader2, ScanSearch } from 'lucide-react';
@@ -56,7 +56,6 @@ export interface ReviewStageClientProps {
   passes: ReviewPassView[];
   reviewRunning: boolean;
   applyRunning: boolean;
-  applyCount?: number;
   buildPrs?: Record<string, { url: string; branch: string; targetBranch: string }>;
   autoMode?: boolean;
   autoNote?: string;
@@ -76,7 +75,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   useEffect(() => { stagePhaseStore.set('review'); }, []);
 
   const [activePassNo, setActivePassNo] = useState(props.passes.length || 1);
-  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
   // dispatch_review / apply_review_findings are synchronous effects (await:true) —
@@ -111,12 +109,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   }, [props.passes.length]);
 
 
-  function apply(passNo: number, indices: number[]) {
-    if (readOnly || indices.length === 0 || applying) return;
+  function apply(passNo: number) {
+    if (readOnly || applying) return;
     const pass = props.passes.find((p) => p.passNo === passNo);
-    if (!pass) return;
-    // apply_review_findings re-fixes the latest pass's findings for the repo (the
-    // single shared implementation; auto and manual apply the same way).
+    if (!pass || pass.findings.length === 0) return;
+    // apply_review_findings re-fixes ALL of the latest pass's findings for the repo
+    // (the single shared implementation — auto and manual apply the same way, so the
+    // UI applies the whole pass rather than a subset the effect would ignore).
     setApplyingLocal(true);
     void mma.transition('apply_review_findings')
       .then(() => refresh())
@@ -191,28 +190,19 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
               <FindingsGrid
                 findings={activePass.findings.map(toFinding)}
-                selectable
                 applying={applying}
                 applied={allApplied}
                 readOnly={readOnly}
-                hideApplyBar
-                selectedIndices={selectedFindings}
-                onSelectionChange={(indices) => setSelectedFindings(indices)}
               />
             </CardContent>
 
             {!isViewingPast && !allApplied && activePass.findings.length > 0 ? (
               <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-                <Button size="sm" variant="ghost" onClick={() => setSelectedFindings(
-                  selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_: unknown, i: number) => i),
-                )} disabled={readOnly || applying}>
-                  {selectedFindings.length === activePass.findings.length ? 'Unselect all' : 'Select all'}
-                </Button>
                 <Button size="sm"
-                  onClick={() => apply(activePass.passNo, selectedFindings.length > 0 ? selectedFindings : activePass.findings.map((_: unknown, i: number) => i))}
-                  disabled={readOnly || applying || selectedFindings.length === 0}
+                  onClick={() => apply(activePass.passNo)}
+                  disabled={readOnly || applying}
                   loading={applying}>
-                  Apply ({selectedFindings.length || 'all'})
+                  Apply findings ({activePass.findings.length})
                 </Button>
               </div>
             ) : null}
@@ -272,13 +262,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
                     findings={p.findings.map(toFinding)}
                     applied={hasApplied}
                     active={isActive}
-                    onClick={() => { setActivePassNo(p.passNo); setSelectedFindings([]); }}
+                    onClick={() => setActivePassNo(p.passNo)}
                   />
                   {applying && isActive ? (
                     <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
                       <Loader2 className="size-3.5 animate-spin text-accent" />
                       <span className="text-xs font-medium text-accent-deep">
-                        Applying {selectedFindings.length || props.applyCount || 0} finding{(selectedFindings.length || props.applyCount || 0) !== 1 ? 's' : ''}...
+                        Applying {p.findings.length} finding{p.findings.length !== 1 ? 's' : ''}...
                       </span>
                     </div>
                   ) : null}

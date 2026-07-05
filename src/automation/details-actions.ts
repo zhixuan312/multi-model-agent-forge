@@ -43,6 +43,10 @@ const MMA_HANDLER_FOR: Record<string, (a: AutoAction) => string> = {
   propose_discover_tasks: () => 'explore-propose',
   dispatch_synthesize: () => 'explore-synthesize',
   refine_component: () => 'spec-refine',
+  // NOTE: run_discover_tasks is intentionally absent — it fans out to N per-task
+  // batches (no single handler to key on) and is manual-only (auto never drives
+  // exploration), so it needs neither the single-flight inflightGuard nor a
+  // batch-terminal line resolver.
 };
 
 /** Whether an action dispatches an MMA batch (→ its running timeline line is

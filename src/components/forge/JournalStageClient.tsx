@@ -9,7 +9,6 @@ import {
   Loader2,
   Lock,
   NotebookPen,
-  RotateCcw,
   BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -214,6 +213,10 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const isApproved = active ? (status[active.id] === 'kept' || status[active.id] === 'recorded') : false;
 
   const [refiningLearnings, setRefiningLearnings] = useState<Set<string>>(new Set());
+  // Must sit with the other hooks, ABOVE every early return below — a useState
+  // after the harvesting/!active returns would change the hook count between
+  // renders (Rules of Hooks) and crash on the harvest→populated transition.
+  const [completing, setCompleting] = useState(false);
   const msgs = threads[activeId] ?? [];
   const lastMsg = msgs[msgs.length - 1];
   const hasForgeReply = lastMsg?.role === 'forge';
@@ -353,8 +356,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
     );
   }
 
-  const [completing, setCompleting] = useState(false);
-
   if (phase === 'summary' && props.summary) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-4">
@@ -434,15 +435,17 @@ export function JournalStageClient(props: JournalStageClientProps) {
         </div>
         {learningView === 'content' ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              onClick={toggleApprove}
-              disabled={readOnly}
-              variant={isApproved ? 'secondary' : 'primary'}
-              leftIcon={isApproved ? <RotateCcw /> : <Check />}
-            >
-              {isApproved ? 'Revoke' : 'Approve'}
-            </Button>
+            {isApproved ? (
+              // Approvals are monotonic (approve_learning is one-way) — show a static
+              // confirmed state, not a Revoke affordance the model cannot honor.
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
+                <Check className="size-4 text-accent" /> Approved
+              </span>
+            ) : (
+              <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
+                Approve
+              </Button>
+            )}
           </div>
         ) : (
           <ConversationComposer

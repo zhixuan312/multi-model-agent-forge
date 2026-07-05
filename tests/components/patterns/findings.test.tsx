@@ -51,19 +51,22 @@ describe('FindingCard', () => {
   });
 });
 
-describe('FindingsGrid', () => {
+describe('FindingsGrid (read-only display — selection was removed as the apply effect re-fixes the whole pass)', () => {
   it('renders findings in a grid', () => {
     render(<FindingsGrid findings={[finding, { ...finding, severity: 'low', claim: 'Minor issue' }]} />);
     expect(screen.getByText('SQL injection in user input')).toBeInTheDocument();
     expect(screen.getByText('Minor issue')).toBeInTheDocument();
   });
 
-  it('calls onApply with all indices when Select all then Apply clicked', () => {
-    const onApply = vi.fn();
-    render(<FindingsGrid findings={[finding]} selectable onApply={onApply} />);
-    fireEvent.click(screen.getByRole('button', { name: /select all/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply 1 selected/i }));
-    expect(onApply).toHaveBeenCalledWith([0]);
+  it('renders an empty state when there are no findings', () => {
+    render(<FindingsGrid findings={[]} />);
+    expect(screen.getByText('No findings.')).toBeInTheDocument();
+  });
+
+  it('renders no selection checkboxes or apply controls', () => {
+    render(<FindingsGrid findings={[finding]} />);
+    expect(screen.queryByRole('button', { name: /select all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /apply/i })).not.toBeInTheDocument();
   });
 });
 

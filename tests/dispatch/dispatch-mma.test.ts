@@ -198,3 +198,30 @@ describe('dispatchMma — a throwing terminal handler fails the batch + rethrows
     expect(statuses).toContain('failed'); // batch flipped done→failed on the handler throw
   });
 });
+
+/**
+ * F1 regression: a batch-backed sync dispatch whose terminal handler is NOT registered
+ * must FAIL LOUDLY (mark failed + throw) rather than silently skip. A skipped handler
+ * records no gating state, so the batch reaches `done` with nothing written and the
+ * WAITing resolver re-dispatches forever — the exact infinite loop the fix closes.
+ */
+describe('dispatchMma — an unregistered terminal handler fails the batch + throws', () => {
+  const okEnvelope = {
+    task: { type: 'audit', status: 'done', taskId: 'mma-ok' },
+    output: { summary: { findings: [] } },
+    error: null,
+  };
+
+  it('marks the row failed and throws when no handler is registered for the batch', async () => {
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-nh', createdAt: new Date() }] });
+    await expect(dispatchMma({
+      db,
+      mma: { dispatchAndWait: async () => ({ batchId: 'mma-ok', envelope: okEnvelope }) } as unknown as MmaClient,
+      projectId: 'proj-1', route: 'orchestrate', handler: 'totally-unregistered-handler',
+      cwd: '/w', body: { prompt: 'x' }, actorId: '00000000-0000-0000-0000-000000000000', await: true,
+    })).rejects.toThrow(/No terminal handler registered/);
+
+    const statuses = db._callsFor('ops_mma_batch').filter((c) => c.method === 'set').map((c) => (c.args[0] as Record<string, unknown>).status);
+    expect(statuses).toContain('failed');
+  });
+});

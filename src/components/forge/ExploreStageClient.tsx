@@ -305,6 +305,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         idleHint="Automation unlocks once the spec is set — Design stages are hand-authored."
       />
 
+      {(error || attachError) ? (
+        <div className="shrink-0 rounded-[var(--r-md)] border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-4 py-2 text-sm text-[var(--rose)]" role="alert">
+          {error || attachError}
+        </div>
+      ) : null}
+
       {/* Brief phase: brain-dump left, stats + advance right */}
       {(phase === 'idle' || phase === 'fanout') ? (
         <StageFullWidth
@@ -331,8 +337,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   onClick={async () => {
                     if (!hasAnalyzed) { analyze(); }
                     else if (drafts.length > 0) { run(); }
-                    await advancePhase('discover');
-                    setViewOverride('discover');
+                    // Only move the view if the server actually advanced the phase —
+                    // a rejected transition must NOT navigate.
+                    if (await advancePhase('discover')) setViewOverride('discover');
                   }}
                   disabled={locked || proposing || tasks.length === 0}
                   loading={proposing}
@@ -402,7 +409,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Button
               variant="primary"
               className="w-full"
-              onClick={async () => { await advancePhase('synthesize'); setViewOverride('synthesize'); }}
+              onClick={async () => { if (await advancePhase('synthesize')) setViewOverride('synthesize'); }}
               disabled={!allDone || locked || synthesizing}
               loading={synthesizing}
               rightIcon={<ArrowRight />}

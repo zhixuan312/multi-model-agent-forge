@@ -1291,12 +1291,6 @@ function ComponentRow({
 /* ── Document screen — whole-spec finalization conversation ──────────────── */
 
 /** One turn in the finalization chat. */
-type DocMsg =
-  | { id: string; role: 'forge'; text: string }
-  | { id: string; role: 'user'; text: string }
-  | { id: string; role: 'draft'; version: number; md: string }
-  | { id: string; role: 'audit'; passNo: number; verdict: 'clean' | 'revised'; findings: AuditFinding[] };
-
 function DocumentScreen({
   projectId,
   projectName,
@@ -1342,45 +1336,19 @@ function DocumentScreen({
 }) {
   const router = useRouter();
   const refresh = useCallback(() => router.refresh(), [router]);
-  // Seed chat from persisted audit history so findings survive page refresh
-  const [messages, setMessages] = useState<DocMsg[]>(() => {
-    const msgs: DocMsg[] = [];
-    if (spec) {
-      msgs.push({ id: 'seed-intro', role: 'forge', text: "I've assembled the full specification from your approved components. Run an audit to check it, tell me anything to refine, then freeze when you're ready." });
-      msgs.push({ id: 'seed-spec', role: 'draft', version: spec.version, md: spec.bodyMd });
-    }
-    for (const p of initialAuditHistory) {
-      if (p.findings && p.findings.length > 0) {
-        msgs.push({ id: `seed-audit-${p.passNo}`, role: 'audit', passNo: p.passNo, verdict: p.verdict, findings: p.findings });
-        if (p.applied) {
-          msgs.push({ id: `seed-applied-${p.passNo}`, role: 'forge', text: `Findings from pass ${p.passNo} have been applied. Press "Construct spec" to re-assemble.` });
-        }
-      }
-    }
-    return msgs;
-  });
-  const [input, setInput] = useState('');
   const initialRounds = useMemo(() =>
     initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })),
     [initialAuditHistory],
   );
   const [rounds] = useServerState(initialRounds);
   const [canFreeze] = useServerState(initialCanFreeze);
-  const seeded = useRef(initialAuditHistory.length > 0 || !!spec);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
-  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   // Auto-select latest pass when new audit completes
   useEffect(() => {
     if (rounds.length > 0) setSelectedPass(rounds[rounds.length - 1].passNo);
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
-  const idc = useRef(0);
-  const nid = () => `dm${idc.current++}`;
-  const bottomRef = useRef<HTMLDivElement>(null);
-  // Auto-scroll the thread to the latest turn (messenger-style).
-  useEffect(() => bottomRef.current?.scrollIntoView({ block: 'end' }), [messages]);
-
 
   // Assemble runs as a plain fetch (not a react-query mutation): the auto-assemble
   // below fires from an effect, and an effect-triggered mutation gets its observer
@@ -1400,13 +1368,6 @@ function DocumentScreen({
       onError(null);
       const next = { version: data.artifact.version, bodyMd: data.artifact.body_md };
       onAssembled(next);
-      if (seeded.current) {
-        setMessages((m) => [
-          ...m,
-          { id: nid(), role: 'forge', text: `Re-assembled the specification — v${next.version}.` },
-          { id: nid(), role: 'draft', version: next.version, md: next.bodyMd },
-        ]);
-      }
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Assemble failed.');
     } finally {
@@ -1448,79 +1409,29 @@ function DocumentScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allApproved, spec, readOnly]);
 
-  // Open the conversation once the assembled spec is available.
-  useEffect(() => {
-    if (seeded.current || !spec) return;
-    seeded.current = true;
-    setMessages([
-      {
-        id: nid(),
-        role: 'forge',
-        text: "I've assembled the full specification from your approved components. Run an audit to check it, tell me anything to refine, then freeze when you're ready.",
-      },
-      { id: nid(), role: 'draft', version: spec.version, md: spec.bodyMd },
-    ]);
-  }, [spec]);
-
-  function sendRefine(): void {
-    const text = input.trim();
-    if (!text || readOnly) return;
-    setInput('');
-    setMessages((m) => [
-      ...m,
-      { id: nid(), role: 'user', text },
-      {
-        id: nid(),
-        role: 'forge',
-        text: "Done — I've revised the spec to address that. Press \"Construct spec\" to regenerate the document, or run the audit again to verify.",
-      },
-    ]);
-  }
-
   const [applying, setApplying] = useState(!!pendingApply);
   const [applyingPass, setApplyingPass] = useState<number | null>(null);
   const [appliedPasses, setAppliedPasses] = useState<Set<number>>(new Set());
   const [applyCount, setApplyCount] = useState(0);
 
-  function apply(passNo: number, indices: number[], total: number): void {
-    if (readOnly || indices.length === 0 || applying) return;
+  function apply(passNo: number): void {
+    if (readOnly || applying) return;
     const round = rounds.find((r) => r.passNo === passNo);
-    if (!round) return;
-    const selectedFindings = indices.map((i) => round.findings[i]).filter(Boolean);
-    const all = indices.length === total;
-    const label = all
-      ? `all ${total} findings`
-      : `finding${indices.length === 1 ? '' : 's'} #${indices.map((i) => i + 1).sort((a, b) => a - b).join(', #')}`;
-    setMessages((m) => [
-      ...m,
-      { id: nid(), role: 'forge', text: `Revising the spec to address ${label} from pass ${passNo}…` },
-    ]);
+    if (!round || round.findings.length === 0) return;
+    // apply_findings re-fixes ALL of the pass's findings — the single shared effect
+    // reads the pass from `details`, so it takes no client payload (a selected subset
+    // would be silently ignored).
     setApplying(true);
     setApplyingPass(passNo);
-    setApplyCount(selectedFindings.length);
-    void mma.transition('apply_findings', { findings: selectedFindings, passNo })
+    setApplyCount(round.findings.length);
+    void mma.transition('apply_findings')
       .then(() => {
         setApplying(false);
-        if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
+        setAppliedPasses((prev) => new Set(prev).add(passNo));
         setApplyingPass(null);
         refresh();
       })
       .catch(() => { setApplying(false); setApplyingPass(null); });
-  }
-
-  /** Re-post a stored round's findings to the chat (rail card click). */
-  function replay(passNo: number): void {
-    const round = rounds.find((r) => r.passNo === passNo);
-    if (!round) return;
-    setMessages((m) => [
-      ...m,
-      {
-        id: nid(),
-        role: 'forge',
-        text: `Here are the pass ${passNo} findings again — select the ones to apply, hit "Apply all", or tell me by number.`,
-      },
-      { id: nid(), role: 'audit', passNo: round.passNo, verdict: round.verdict, findings: round.findings },
-    ]);
   }
 
   return (
@@ -1601,12 +1512,8 @@ function DocumentScreen({
           ) : activeRound ? (
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
-              selectable
               applied={activeRound.applied || appliedPasses.has(activeRound.passNo)}
               readOnly={readOnly}
-              hideApplyBar
-              selectedIndices={selectedFindings}
-              onSelectionChange={(indices) => setSelectedFindings(indices)}
             />
           ) : (
             <div className="flex h-full items-center justify-center">
@@ -1638,25 +1545,15 @@ function DocumentScreen({
               {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
             </Button>
           </div>
-        ) : activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && docView !== 'document' ? (
+        ) : activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && docView !== 'document' && activeRound.findings.length > 0 ? (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => setSelectedFindings(
-                selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_: unknown, i: number) => i),
-              )}
+              onClick={() => apply(activeRound.passNo)}
               disabled={readOnly || applying}
-            >
-              {selectedFindings.length === activeRound.findings.length ? 'Unselect all' : 'Select all'}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => apply(activeRound.passNo, selectedFindings.length > 0 ? selectedFindings : activeRound.findings.map((_: unknown, i: number) => i), activeRound.findings.length)}
-              disabled={readOnly || applying || selectedFindings.length === 0}
               loading={applying}
             >
-              Apply ({selectedFindings.length || 'all'})
+              Apply findings ({activeRound.findings.length})
             </Button>
           </div>
         ) : null}
@@ -1716,7 +1613,7 @@ function DocumentScreen({
                   findings={r.findings as Finding[]}
                   applied={r.applied || appliedPasses.has(r.passNo)}
                   active={selectedPass === r.passNo && docView === 'conversation'}
-                  onClick={() => { setSelectedPass(r.passNo); setSelectedFindings([]); setDocView('conversation'); }}
+                  onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
                 />
                 {applying && applyingPass === r.passNo ? (
                   <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">

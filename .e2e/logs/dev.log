@@ -3721,3 +3721,380 @@ Everything up-to-date
  GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 600ms (next.js: 4ms, proxy.ts: 1212µs, application-code: 596ms)
  GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 593ms (next.js: 3ms, proxy.ts: 1437µs, application-code: 588ms)
  GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 202ms (next.js: 8ms, proxy.ts: 1403µs, application-code: 193ms)
+ POST /api/projects/97801cb6-8d2c-4745-b3bb-b7166053a758/transition 200 in 467ms (next.js: 114ms, proxy.ts: 1995µs, application-code: 351ms)
+{"ts":"2026-07-05T16:05:31.053Z","level":"info","event":"rehydrate","detail":"1 batch(es)"}
+{"ts":"2026-07-05T16:17:14.126Z","level":"info","event":"task.done","projectId":"97801cb6-8d2c-4745-b3bb-b7166053a758","batchId":"74e5c188-89b5-4e4b-bb0b-72ff893b904a"}
+Switched to branch 'forge/removal-db-auto-97801cb6'
+To https://github.com/zhixuan312/self-service-demo.git
+   52c1ff5..c76ad81  forge/removal-db-auto-97801cb6 -> forge/removal-db-auto-97801cb6
+{"ts":"2026-07-05T18:56:44.879Z","level":"info","event":"task.done","projectId":"97801cb6-8d2c-4745-b3bb-b7166053a758","batchId":"1eb5bcbe-ec2c-4739-a834-da22073782e0"}
+Everything up-to-date
+Everything up-to-date
+Everything up-to-date
+Everything up-to-date
+Everything up-to-date
+✓ Compiled in 685ms
+⨯ ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+
+./src/components/forge/JournalStageClient.tsx:360:22
+the name `setCompleting` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 500 in 233ms (next.js: 89ms, proxy.ts: 32ms, application-code: 112ms)
+⨯ ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+
+./src/components/forge/JournalStageClient.tsx:360:22
+the name `setCompleting` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 500 in 10ms (next.js: 4ms, proxy.ts: 1049µs, application-code: 4ms)
+⨯ ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+
+./src/components/forge/JournalStageClient.tsx:360:22
+the name `setCompleting` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 500 in 13ms (next.js: 7ms, proxy.ts: 1065µs, application-code: 5ms)
+⨯ ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+
+./src/components/forge/JournalStageClient.tsx:360:22
+the name `setCompleting` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 500 in 30ms (next.js: 4ms, proxy.ts: 913µs, application-code: 25ms)
+⨯ ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+
+./src/components/forge/JournalStageClient.tsx:360:22
+the name `setCompleting` is defined multiple times
+  [90m358 |[0m   }
+  [90m359 |[0m
+[31m[1m>[0m [90m360 |[0m   [36mconst[0m [completing, setCompleting] = useState([36mfalse[0m);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^[0m
+  [90m361 |[0m
+  [90m362 |[0m   [36mif[0m (phase === [32m'summary'[0m && props.summary) {
+  [90m363 |[0m     [36mreturn[0m (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 500 in 20ms (next.js: 13ms, proxy.ts: 3ms, application-code: 4ms)
+ GET /api/projects/97801cb6-8d2c-4745-b3bb-b7166053a758/events 200 in 265.1min (next.js: 91ms, proxy.ts: 1571µs, application-code: 265.1min)
+[browser] Uncaught Error: ./src/components/forge/JournalStageClient.tsx:360:10
+the name `completing` is defined multiple times
+  358 |   }
+  359 |
+> 360 |   const [completing, setCompleting] = useState(false);
+      |          ^^^^^^^^^^
+  361 |
+  362 |   if (phase === 'summary' && props.summary) {
+  363 |     return (
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/forge/JournalStageClient.tsx
+    ./app/(app)/projects/[id]/journal/page.tsx
+
+
+    at <unknown> (Error: ./src/components/forge/JournalStageClient.tsx:360:10)
+    at <unknown> (Error: (./src/components/forge/JournalStageClient.tsx:360:10)
+✓ Compiled in 44ms
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1167ms (next.js: 266ms, proxy.ts: 985µs, application-code: 900ms)
+ GET /api/projects/97801cb6-8d2c-4745-b3bb-b7166053a758/pending-handlers 200 in 313ms (next.js: 144ms, proxy.ts: 1094µs, application-code: 169ms)
+✓ Compiled in 202ms
+ GET /api/projects/97801cb6-8d2c-4745-b3bb-b7166053a758/events 200 in 6.8s (next.js: 61ms, proxy.ts: 984µs, application-code: 6.7s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 726ms (next.js: 2ms, proxy.ts: 852µs, application-code: 723ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 854ms (next.js: 59ms, proxy.ts: 1057µs, application-code: 794ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1804ms (next.js: 732ms, proxy.ts: 177ms, application-code: 895ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 770ms (next.js: 2ms, proxy.ts: 856µs, application-code: 767ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 798ms (next.js: 1933µs, proxy.ts: 1005µs, application-code: 795ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 271ms (next.js: 4ms, proxy.ts: 1106µs, application-code: 267ms)
+✓ Compiled in 71ms
+ GET /api/projects/97801cb6-8d2c-4745-b3bb-b7166053a758/events 200 in 70s (next.js: 758ms, proxy.ts: 30ms, application-code: 69s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 730ms (next.js: 77ms, proxy.ts: 1205µs, application-code: 652ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1040ms (next.js: 242ms, proxy.ts: 10ms, application-code: 788ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 646ms (next.js: 2ms, proxy.ts: 1143µs, application-code: 643ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 679ms (next.js: 2ms, proxy.ts: 866µs, application-code: 676ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 558ms (next.js: 90ms, proxy.ts: 10ms, application-code: 458ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 416ms (next.js: 2ms, proxy.ts: 1119µs, application-code: 413ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 576ms (next.js: 93ms, proxy.ts: 6ms, application-code: 477ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 404ms (next.js: 2ms, proxy.ts: 970µs, application-code: 401ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 596ms (next.js: 95ms, proxy.ts: 5ms, application-code: 497ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 436ms (next.js: 4ms, proxy.ts: 1202µs, application-code: 431ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 606ms (next.js: 91ms, proxy.ts: 4ms, application-code: 511ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 460ms (next.js: 2ms, proxy.ts: 1244µs, application-code: 456ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1090ms (next.js: 91ms, proxy.ts: 5ms, application-code: 995ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 960ms (next.js: 2ms, proxy.ts: 1195µs, application-code: 957ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 588ms (next.js: 123ms, proxy.ts: 5ms, application-code: 460ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 524ms (next.js: 93ms, proxy.ts: 5ms, application-code: 426ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 385ms (next.js: 1868µs, proxy.ts: 930µs, application-code: 382ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 612ms (next.js: 100ms, proxy.ts: 5ms, application-code: 507ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 468ms (next.js: 2ms, proxy.ts: 1175µs, application-code: 465ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 648ms (next.js: 96ms, proxy.ts: 5ms, application-code: 547ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 526ms (next.js: 11ms, proxy.ts: 1377µs, application-code: 513ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 551ms (next.js: 99ms, proxy.ts: 5ms, application-code: 446ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 429ms (next.js: 2ms, proxy.ts: 1251µs, application-code: 426ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 393ms (next.js: 2ms, proxy.ts: 868µs, application-code: 390ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 524ms (next.js: 92ms, proxy.ts: 4ms, application-code: 428ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 651ms (next.js: 1959µs, proxy.ts: 1003µs, application-code: 649ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 855ms (next.js: 130ms, proxy.ts: 10ms, application-code: 715ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 673ms (next.js: 2ms, proxy.ts: 1101µs, application-code: 670ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 650ms (next.js: 1810µs, proxy.ts: 780µs, application-code: 647ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 672ms (next.js: 1990µs, proxy.ts: 865µs, application-code: 669ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 693ms (next.js: 1929µs, proxy.ts: 763µs, application-code: 690ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 920ms (next.js: 134ms, proxy.ts: 10ms, application-code: 776ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 726ms (next.js: 2ms, proxy.ts: 1164µs, application-code: 723ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 660ms (next.js: 3ms, proxy.ts: 1333µs, application-code: 656ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 893ms (next.js: 107ms, proxy.ts: 7ms, application-code: 779ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 634ms (next.js: 2ms, proxy.ts: 1020µs, application-code: 631ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 648ms (next.js: 2ms, proxy.ts: 1010µs, application-code: 645ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 817ms (next.js: 93ms, proxy.ts: 4ms, application-code: 719ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 708ms (next.js: 2ms, proxy.ts: 1308µs, application-code: 704ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 695ms (next.js: 5ms, proxy.ts: 824µs, application-code: 689ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 678ms (next.js: 3ms, proxy.ts: 1005µs, application-code: 675ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 565ms (next.js: 119ms, proxy.ts: 11ms, application-code: 436ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 395ms (next.js: 2ms, proxy.ts: 1134µs, application-code: 392ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 680ms (next.js: 1975µs, proxy.ts: 850µs, application-code: 677ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 714ms (next.js: 2ms, proxy.ts: 1039µs, application-code: 711ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1007ms (next.js: 227ms, proxy.ts: 8ms, application-code: 773ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 702ms (next.js: 2ms, proxy.ts: 903µs, application-code: 699ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 605ms (next.js: 2ms, proxy.ts: 862µs, application-code: 602ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 634ms (next.js: 3ms, proxy.ts: 1176µs, application-code: 630ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 785ms (next.js: 96ms, proxy.ts: 6ms, application-code: 683ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 627ms (next.js: 2ms, proxy.ts: 903µs, application-code: 624ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 816ms (next.js: 3ms, proxy.ts: 1343µs, application-code: 812ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1022ms (next.js: 138ms, proxy.ts: 10ms, application-code: 873ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 803ms (next.js: 2ms, proxy.ts: 873µs, application-code: 801ms)
+✓ Compiled in 145ms
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1936ms (next.js: 2ms, proxy.ts: 1034µs, application-code: 1933ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1910ms (next.js: 1850µs, proxy.ts: 818µs, application-code: 1907ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1952ms (next.js: 2ms, proxy.ts: 1621µs, application-code: 1948ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 2.3s (next.js: 164ms, proxy.ts: 8ms, application-code: 2.1s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1971ms (next.js: 2ms, proxy.ts: 816µs, application-code: 1968ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 2.4s (next.js: 3ms, proxy.ts: 2ms, application-code: 2.4s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 2.5s (next.js: 3ms, proxy.ts: 1493µs, application-code: 2.5s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 3.4s (next.js: 2ms, proxy.ts: 1773µs, application-code: 3.4s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 3.5s (next.js: 3ms, proxy.ts: 1084µs, application-code: 3.5s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 3.6s (next.js: 2ms, proxy.ts: 856µs, application-code: 3.5s)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1933ms (next.js: 119ms, proxy.ts: 31ms, application-code: 1783ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1441ms (next.js: 345ms, proxy.ts: 22ms, application-code: 1073ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 963ms (next.js: 2ms, proxy.ts: 1124µs, application-code: 960ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 887ms (next.js: 8ms, proxy.ts: 3ms, application-code: 877ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 845ms (next.js: 6ms, proxy.ts: 8ms, application-code: 831ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1012ms (next.js: 4ms, proxy.ts: 1646µs, application-code: 1006ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 940ms (next.js: 9ms, proxy.ts: 886µs, application-code: 931ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 944ms (next.js: 2ms, proxy.ts: 886µs, application-code: 941ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1003ms (next.js: 3ms, proxy.ts: 919µs, application-code: 999ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 960ms (next.js: 3ms, proxy.ts: 2ms, application-code: 955ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1263ms (next.js: 5ms, proxy.ts: 834µs, application-code: 1257ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1234ms (next.js: 2ms, proxy.ts: 1108µs, application-code: 1231ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1209ms (next.js: 2ms, proxy.ts: 1862µs, application-code: 1205ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1379ms (next.js: 6ms, proxy.ts: 1167µs, application-code: 1372ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1372ms (next.js: 3ms, proxy.ts: 1500µs, application-code: 1368ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 791ms (next.js: 2ms, proxy.ts: 1979µs, application-code: 786ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 960ms (next.js: 130ms, proxy.ts: 7ms, application-code: 823ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 778ms (next.js: 5ms, proxy.ts: 1074µs, application-code: 772ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 496ms (next.js: 3ms, proxy.ts: 1604µs, application-code: 491ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 775ms (next.js: 188ms, proxy.ts: 12ms, application-code: 575ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 492ms (next.js: 1917µs, proxy.ts: 845µs, application-code: 490ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 696ms (next.js: 92ms, proxy.ts: 5ms, application-code: 599ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 539ms (next.js: 1873µs, proxy.ts: 868µs, application-code: 536ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 555ms (next.js: 2ms, proxy.ts: 890µs, application-code: 552ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 612ms (next.js: 1963µs, proxy.ts: 992µs, application-code: 609ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 608ms (next.js: 3ms, proxy.ts: 868µs, application-code: 604ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 823ms (next.js: 95ms, proxy.ts: 5ms, application-code: 724ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 732ms (next.js: 136ms, proxy.ts: 5ms, application-code: 591ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 564ms (next.js: 2ms, proxy.ts: 956µs, application-code: 561ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 473ms (next.js: 2ms, proxy.ts: 1194µs, application-code: 469ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 639ms (next.js: 97ms, proxy.ts: 5ms, application-code: 537ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 501ms (next.js: 2ms, proxy.ts: 933µs, application-code: 498ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 502ms (next.js: 1914µs, proxy.ts: 759µs, application-code: 499ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 515ms (next.js: 1991µs, proxy.ts: 1183µs, application-code: 512ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 653ms (next.js: 102ms, proxy.ts: 5ms, application-code: 546ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 925ms (next.js: 2ms, proxy.ts: 966µs, application-code: 922ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 2.1s (next.js: 944ms, proxy.ts: 170ms, application-code: 998ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1539ms (next.js: 131ms, proxy.ts: 6ms, application-code: 1401ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1398ms (next.js: 19ms, proxy.ts: 2ms, application-code: 1377ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 506ms (next.js: 2ms, proxy.ts: 1254µs, application-code: 503ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 732ms (next.js: 167ms, proxy.ts: 12ms, application-code: 553ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 705ms (next.js: 157ms, proxy.ts: 15ms, application-code: 533ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 488ms (next.js: 2ms, proxy.ts: 1143µs, application-code: 485ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 609ms (next.js: 126ms, proxy.ts: 8ms, application-code: 476ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 437ms (next.js: 2ms, proxy.ts: 981µs, application-code: 434ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 582ms (next.js: 124ms, proxy.ts: 10ms, application-code: 448ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 430ms (next.js: 2ms, proxy.ts: 1300µs, application-code: 427ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 535ms (next.js: 2ms, proxy.ts: 1207µs, application-code: 532ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 784ms (next.js: 95ms, proxy.ts: 4ms, application-code: 685ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 608ms (next.js: 132ms, proxy.ts: 11ms, application-code: 465ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 417ms (next.js: 2ms, proxy.ts: 1217µs, application-code: 414ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1744ms (next.js: 139ms, proxy.ts: 7ms, application-code: 1597ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1830ms (next.js: 2ms, proxy.ts: 825µs, application-code: 1827ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1780ms (next.js: 1898µs, proxy.ts: 831µs, application-code: 1777ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1842ms (next.js: 2ms, proxy.ts: 1116µs, application-code: 1839ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1835ms (next.js: 1956µs, proxy.ts: 904µs, application-code: 1832ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 716ms (next.js: 13ms, proxy.ts: 234ms, application-code: 469ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 448ms (next.js: 3ms, proxy.ts: 1396µs, application-code: 444ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 480ms (next.js: 11ms, proxy.ts: 1794µs, application-code: 468ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 797ms (next.js: 2ms, proxy.ts: 937µs, application-code: 794ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 826ms (next.js: 3ms, proxy.ts: 1592µs, application-code: 821ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 1140ms (next.js: 259ms, proxy.ts: 12ms, application-code: 870ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 797ms (next.js: 2ms, proxy.ts: 937µs, application-code: 794ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 812ms (next.js: 2ms, proxy.ts: 903µs, application-code: 809ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 874ms (next.js: 99ms, proxy.ts: 10ms, application-code: 765ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 734ms (next.js: 2ms, proxy.ts: 1193µs, application-code: 731ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 736ms (next.js: 1868µs, proxy.ts: 800µs, application-code: 733ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 551ms (next.js: 96ms, proxy.ts: 5ms, application-code: 450ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 417ms (next.js: 2ms, proxy.ts: 1221µs, application-code: 414ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 560ms (next.js: 101ms, proxy.ts: 4ms, application-code: 454ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 430ms (next.js: 1998µs, proxy.ts: 1305µs, application-code: 427ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 612ms (next.js: 119ms, proxy.ts: 11ms, application-code: 482ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 607ms (next.js: 202ms, proxy.ts: 10ms, application-code: 395ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 574ms (next.js: 95ms, proxy.ts: 5ms, application-code: 474ms)
+ GET /projects/97801cb6-8d2c-4745-b3bb-b7166053a758/journal 200 in 447ms (next.js: 1910µs, proxy.ts: 898µs, application-code: 445ms)

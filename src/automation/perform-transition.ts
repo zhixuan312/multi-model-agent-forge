@@ -5,7 +5,7 @@ import { validateDetails } from '@/details/schema';
 import { allowedActions, type Action, type Mode } from '@/automation/allowed-actions';
 import { repairActiveStage } from '@/automation/stage-repair';
 import { executeDetailsAction } from '@/automation/details-actions';
-import { deriveCurrentStage } from '@/details/write';
+import { deriveCurrentStage, updateDetails } from '@/details/write';
 import { DRIVER_LEASE_STALE_MS } from '@/automation/driver-lease';
 
 /**
@@ -66,8 +66,13 @@ export async function performTransition(db: Db, projectId: string, input: Action
   if (!row?.details) throw new TransitionRejected('no details');
   const details = validateDetails(row.details);
 
-  // Invariant repair BEFORE anything else (spec §2).
-  repairActiveStage(details);
+  // Invariant repair BEFORE anything else (spec §2). If it actually demoted a stray
+  // active stage, PERSIST the fix — otherwise the corruption survives on disk (the
+  // effects re-read fresh details) and every future transition re-virtualizes it.
+  const repair = repairActiveStage(details);
+  if (repair.changed) {
+    await updateDetails(db, projectId, (d) => { repairActiveStage(d); return d; });
+  }
 
   // GATE 4 — mode rule (AC17). take_over is the sole manual action allowed while running.
   const autoRunning = details.automation.status === 'running';
@@ -107,9 +112,14 @@ export async function performTransition(db: Db, projectId: string, input: Action
     throw new TransitionRejected('busy — another transition is in flight');
   }
 
-  // EXECUTE the action's effect (the single implementation — today's
-  // executeDetailsAction switch; extended for Design/content actions in Tasks 8b/10).
-  await executeDetailsAction(projectId, action, db);
+  // EXECUTE the action's effect (the single implementation — the executeDetailsAction
+  // switch). It returns 'inflight' when its per-target guard finds a batch already in
+  // flight for this handler; surface that as a rejection so BOTH the driver (WAIT) and
+  // the manual /transition route (409 busy) react — never a silently-successful no-op.
+  const result = await executeDetailsAction(projectId, action, db);
+  if (result === 'inflight') {
+    throw new TransitionRejected('busy — a batch for this action is already in flight');
+  }
 
   // WRITE mirror — derive currentStage/phase from the (now-updated) active stage.
   await deriveCurrentStage(db, projectId);

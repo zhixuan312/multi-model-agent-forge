@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Badge, Button } from '@/components/ui';
+import { Badge } from '@/components/ui';
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -129,84 +129,43 @@ export function FindingCard({ finding, index, selected, applied, disabled, onSel
 
 export interface FindingsGridProps {
   findings: Finding[];
-  selectable?: boolean;
   applying?: boolean;
   applied?: boolean;
   readOnly?: boolean;
-  onApply?: (selectedIndices: number[]) => void;
-  onSelectionChange?: (selectedIndices: number[]) => void;
-  selectedIndices?: number[];
-  appliedLabel?: string;
-  hideApplyBar?: boolean;
 }
 
-export function FindingsGrid({ findings, selectable, applying, applied, readOnly, onApply, onSelectionChange, selectedIndices, appliedLabel, hideApplyBar }: FindingsGridProps) {
-  const controlled = selectedIndices !== undefined;
-  const [internal, setInternal] = useState<Set<number>>(new Set());
-  const sel = controlled ? new Set(selectedIndices) : internal;
-  const toggle = (i: number) => {
-    const n = new Set(sel); if (n.has(i)) n.delete(i); else n.add(i);
-    if (!controlled) setInternal(n);
-    onSelectionChange?.([...n]);
-  };
-
+/**
+ * Read-only findings table (severity-sorted). Applying a pass is driven by the
+ * caller's own button — the effect re-fixes the whole pass, so there is no
+ * per-finding selection to model here.
+ */
+export function FindingsGrid({ findings, applying, applied, readOnly }: FindingsGridProps) {
   const sorted = [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const disabled = readOnly || !!applying || !!applied;
 
   return (
     <div>
       {findings.length > 0 ? (
-        <>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-line text-left text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-                {selectable ? <th className="w-10 py-2 pl-4 pr-1" /> : null}
-                <th className="w-20 py-2 px-2">Severity</th>
-                <th className="py-2 px-2">Finding</th>
-                <th className="w-10 py-2 pr-4" />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((f, i) => {
-                const origIdx = findings.indexOf(f);
-                return (
-                  <FindingTableRow
-                    key={i}
-                    finding={f}
-                    index={origIdx}
-                    selected={sel.has(origIdx)}
-                    applied={applied}
-                    disabled={disabled}
-                    onSelect={selectable ? () => toggle(origIdx) : undefined}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-          {selectable && onApply && !hideApplyBar ? (
-            <div className="sticky bottom-0 flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3">
-              {applied ? (
-                <span className="text-xs font-medium text-[var(--sage-deep)]">{appliedLabel ?? 'Applied.'}</span>
-              ) : (
-                <>
-                  <span className="mr-auto text-xs text-ink-faint">{sel.size} of {findings.length} selected</span>
-                  <Button size="sm" variant="secondary" onClick={() => {
-                    const allIndices = findings.map((_, i) => i);
-                    const allSelected = sel.size === findings.length;
-                    const next = allSelected ? [] : allIndices;
-                    if (!controlled) setInternal(new Set(next));
-                    onSelectionChange?.(next);
-                  }} disabled={disabled}>
-                    {sel.size === findings.length ? 'Unselect all' : 'Select all'}
-                  </Button>
-                  <Button size="sm" onClick={() => onApply([...sel])} disabled={disabled || sel.size === 0} loading={applying}>
-                    Apply {sel.size || 0} selected
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : null}
-        </>
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-line text-left text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+              <th className="w-20 py-2 px-2">Severity</th>
+              <th className="py-2 px-2">Finding</th>
+              <th className="w-10 py-2 pr-4" />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((f, i) => (
+              <FindingTableRow
+                key={i}
+                finding={f}
+                index={findings.indexOf(f)}
+                applied={applied}
+                disabled={disabled}
+              />
+            ))}
+          </tbody>
+        </table>
       ) : (
         <p className="px-4 py-6 text-center text-xs text-ink-faint">No findings.</p>
       )}

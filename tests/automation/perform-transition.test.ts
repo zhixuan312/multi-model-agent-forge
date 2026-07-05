@@ -57,4 +57,35 @@ describe('performTransition — gate (spec §2.4, AC4/AC17)', () => {
     expect(isForeignLeaseFresh(d.automation, 'me')).toBe(false);
     expect(isForeignLeaseFresh(d.automation, 'other')).toBe(true);
   });
+
+  it('translates an effect "inflight" result into a TransitionRejected (never a silent no-op)', async () => {
+    // executeDetailsAction returns 'inflight' when its per-target guard finds a batch
+    // already dispatched/running for the handler. performTransition must surface that
+    // as a rejection so the manual route returns 409 (not a success-reported no-op).
+    const db = createMockDb({
+      'select:project': [projRow(finalizeActive(), 1, 'running')],
+      'select:ops_mma_batch': [{ id: 'inflight-1', handler: 'spec-audit', status: 'running' }],
+    });
+    await expect(
+      performTransition(db, 'p', { kind: 'dispatch_audit' }, { mode: 'auto' }),
+    ).rejects.toThrow(/in flight/);
+  });
+});
+
+describe('performTransition — persists the exactly-one-active repair (AC16)', () => {
+  it('writes the repaired details when it demotes a stray second active stage', async () => {
+    const d = finalizeActive();
+    d.stages.plan.status = 'active'; // illegal second active stage
+    // A later mark_complete is rejected at the gate, but the repair must have PERSISTED
+    // before that — otherwise the corruption survives on disk.
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1, autoMode: true }],
+      'update:project': [{ id: 'p' }], // the repair's optimistic update succeeds
+    });
+    await expect(
+      performTransition(db, 'p', { kind: 'mark_complete' }, { mode: 'auto' }),
+    ).rejects.toBeInstanceOf(TransitionRejected);
+    const projectSets = db._callsFor('project').filter((c) => c.method === 'set');
+    expect(projectSets.length).toBeGreaterThan(0); // the repair write happened
+  });
 });

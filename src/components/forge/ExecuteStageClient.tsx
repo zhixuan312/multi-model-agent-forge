@@ -73,13 +73,6 @@ export interface RepoTerminalResult {
   branch: string | null;
 }
 
-export interface ReviewPassView {
-  passNo: number;
-  status: 'done' | 'failed';
-  findings: Array<{ weight: string; category: string; claim: string; evidence: string; file: string; line: number; suggestion: string }>;
-  appliedIndices: number[];
-}
-
 export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
@@ -90,9 +83,6 @@ export interface ExecuteStageClientProps {
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   terminalResults?: Record<string, RepoTerminalResult>;
-  reviewPasses?: ReviewPassView[];
-  reviewRunning?: boolean;
-  applyRunning?: boolean;
 }
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -615,9 +605,6 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
 }
 
 /* ── Shared ───────────────────────────────────────────────────────────── */
-
-/* ── Review Phase (inline within Execute) ─────────────────────────── */
-
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (

@@ -4,6 +4,8 @@ import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
 import { allowedActions, type Action, type Mode } from '@/automation/allowed-actions';
 import { repairActiveStage } from '@/automation/stage-repair';
+import { executeDetailsAction } from '@/automation/details-actions';
+import { deriveCurrentStage } from '@/details/write';
 
 /**
  * The single gated executor (spec §4.2). Reload details → repair the exactly-one-
@@ -58,7 +60,15 @@ export async function performTransition(db: Db, projectId: string, action: Actio
     throw new TransitionRejected(`action ${action.kind} not allowed now`);
   }
 
-  // GATE 3 (lease) + EXECUTE + WRITE + mirror — wired in Tasks 6-7.
+  // GATE 3 (lease) — wired in Task 7 (moves the driver lease into here). Content
+  // actions will skip it; advancing/MMA-dispatching actions serialize on it.
   const isContent = CONTENT_ACTIONS.has(action.kind);
   void isContent;
+
+  // EXECUTE the action's effect (the single implementation — today's
+  // executeDetailsAction switch; extended for Design/content actions in Tasks 8b/10).
+  await executeDetailsAction(projectId, action, db);
+
+  // WRITE mirror — derive currentStage/phase from the (now-updated) active stage.
+  await deriveCurrentStage(db, projectId);
 }

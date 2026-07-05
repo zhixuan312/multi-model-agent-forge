@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
 import { resolveRunningEventInPlace, reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
-import type { StageKind } from '@/db/enums';
+import { STAGE_ORDER, type StageKind } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
   constructor(projectId: string) {
@@ -49,6 +49,21 @@ const STAGE_PHASE: Record<StageKind, 'design' | 'build' | 'learn'> = {
   exploration: 'design', spec: 'design', plan: 'design',
   execute: 'build', review: 'build', journal: 'learn',
 };
+
+/**
+ * The single writer of the denormalized `currentStage`/`phase` columns (spec §4.4,
+ * AC8): mirror them from the one active stage in `details`. Called by
+ * `performTransition` after every effect, so the columns can never drift. (The
+ * pre-existing direct writes in advanceStage/reopenStage are removed in Task 11.)
+ */
+export async function deriveCurrentStage(db: Db, projectId: string): Promise<void> {
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  if (!row?.details) return;
+  const d = validateDetails(row.details);
+  const active = STAGE_ORDER.find((k) => d.stages[k].status === 'active');
+  if (!active) return;
+  await db.update(project).set({ currentStage: active, phase: STAGE_PHASE[active], updatedAt: new Date() }).where(eq(project.id, projectId));
+}
 
 export async function advanceStage(
   db: Db, projectId: string, toStage: StageKind,

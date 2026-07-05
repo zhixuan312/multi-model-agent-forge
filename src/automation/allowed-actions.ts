@@ -52,6 +52,12 @@ function addManualExtras(details: Details, set: Action[]): void {
     if (ex.phases.brief.status === 'active') {
       set.push({ kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief' });
       set.push({ kind: 'propose_discover_tasks', note: 'Analyze sources', stage: 'exploration', phase: 'brief' });
+      // Draft tasks are dispatched from the brief/fan-out view before the phase
+      // formally advances to Discover, so run_discover_tasks is valid here too
+      // (matches the client UX; auto never drives exploration).
+      if (ex.phases.discover.tasks.some((t) => t.status === 'draft')) {
+        set.push({ kind: 'run_discover_tasks', note: 'Run exploration tasks', stage: 'exploration', phase: 'discover' });
+      }
       if (ex.phases.discover.tasks.length >= 1) {
         set.push({ kind: 'advance_phase', note: 'Continue to Discover', stage: 'exploration', phase: 'discover' });
       }

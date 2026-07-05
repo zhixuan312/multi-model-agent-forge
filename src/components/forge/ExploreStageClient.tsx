@@ -167,30 +167,30 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const synthesizing = mma.busyHandlers.has('explore-synthesize');
   const { error } = mma;
 
-  async function advancePhase(targetPhase: string): Promise<boolean> {
+  // Exploration sub-phase transitions go through the unified engine as
+  // `advance_phase` (the resolver picks the correct next phase from state).
+  async function advancePhase(_targetPhase: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/projects/${props.projectId}/phase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: 'exploration', phase: targetPhase }),
-      });
-      return res.ok;
+      await mma.transition('advance_phase');
+      return true;
     } catch { return false; }
   }
 
   async function analyze(): Promise<void> {
+    // Brief text is still saved through its own route (content); dispatch of the
+    // discovery-task proposal is the lifecycle transition.
     await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
-    await mma.dispatch(`/api/projects/${props.projectId}/explore/propose`, 'explore-propose');
+    await mma.transition('propose_discover_tasks', undefined, 'explore-propose');
   }
 
   async function run(): Promise<void> {
-    await postJson(`/api/projects/${props.projectId}/explore/run`, {});
+    await mma.transition('run_discover_tasks');
     refreshTasks();
     setTimeout(refreshTasks, 2600);
   }
 
   async function resynthesize(): Promise<void> {
-    await mma.dispatch(`/api/projects/${props.projectId}/explore/synthesize`, 'explore-synthesize');
+    await mma.transition('dispatch_synthesize', undefined, 'explore-synthesize');
   }
 
   async function addLink(): Promise<void> {

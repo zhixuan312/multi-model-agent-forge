@@ -1,5 +1,6 @@
 import type { Details } from '@/details/schema';
 import type { StageKind } from '@/db/enums';
+import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
 
 export interface AutoAction {
   kind: string;
@@ -63,30 +64,15 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
   const review = details.stages.review;
   const journal = details.stages.journal;
 
-  // Spec Finalize — audit loop
+  // Spec Finalize — audit loop (one shared policy: auditLoopStep)
   if (spec.status === 'active' && spec.phases.finalize.status === 'active') {
-    const passes = spec.phases.finalize.auditPasses;
-    const lastPass = passes[passes.length - 1];
-    const latestAttempt = lastPass?.audit?.attempts?.[lastPass.audit.attempts.length - 1];
-
-    if (latestAttempt?.status === 'running') return WAIT;
-    if (lastPass?.fix?.attempts) {
-      const fixAttempt = lastPass.fix.attempts[lastPass.fix.attempts.length - 1];
-      if (fixAttempt?.status === 'running') return WAIT;
+    const step = auditLoopStep(spec.phases.finalize.auditPasses as unknown as AuditPassLike[]);
+    switch (step.kind) {
+      case 'wait': return WAIT;
+      case 'dispatch_audit': return { kind: 'dispatch_audit', note: `Running spec audit pass ${step.passNo}...`, stage: 'spec', phase: 'finalize' };
+      case 'apply_findings': return { kind: 'apply_findings', note: `Applying spec audit pass ${step.passNo} findings...`, stage: 'spec', phase: 'finalize', data: { passNo: step.passNo } };
+      case 'advance': return { kind: 'approve_stage', note: 'Forge approved the spec', stage: 'spec', phase: 'finalize' };
     }
-
-    if (!lastPass) {
-      return { kind: 'dispatch_audit', note: 'Running spec audit pass 1...', stage: 'spec', phase: 'finalize' };
-    }
-    if (lastPass.status === 'revised') {
-      if (!lastPass.fix || lastPass.fix.attempts.length === 0) {
-        return { kind: 'apply_findings', note: `Applying spec audit pass ${passes.length} findings...`, stage: 'spec', phase: 'finalize', data: { passNo: lastPass.passNo } };
-      }
-      if (passes.length < 5) {
-        return { kind: 'dispatch_audit', note: `Running spec audit pass ${passes.length + 1}...`, stage: 'spec', phase: 'finalize' };
-      }
-    }
-    return { kind: 'approve_stage', note: 'Forge approved the spec', stage: 'spec', phase: 'finalize' };
   }
 
   // Plan Refine — author + validate + approve tasks
@@ -121,30 +107,15 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
     return { kind: 'advance_phase', note: 'All tasks approved — running plan audit...', stage: 'plan', phase: 'validate' };
   }
 
-  // Plan Validate — audit loop
+  // Plan Validate — audit loop (same shared policy)
   if (plan.status === 'active' && plan.phases.validate.status === 'active') {
-    const passes = plan.phases.validate.auditPasses;
-    const lastPass = passes[passes.length - 1];
-    const latestAttempt = lastPass?.audit?.attempts?.[lastPass.audit.attempts.length - 1];
-
-    if (latestAttempt?.status === 'running') return WAIT;
-    if (lastPass?.fix?.attempts) {
-      const fixAttempt = lastPass.fix.attempts[lastPass.fix.attempts.length - 1];
-      if (fixAttempt?.status === 'running') return WAIT;
+    const step = auditLoopStep(plan.phases.validate.auditPasses as unknown as AuditPassLike[]);
+    switch (step.kind) {
+      case 'wait': return WAIT;
+      case 'dispatch_audit': return { kind: 'dispatch_audit', note: `Running plan audit pass ${step.passNo}...`, stage: 'plan', phase: 'validate' };
+      case 'apply_findings': return { kind: 'apply_findings', note: `Applying plan audit pass ${step.passNo} findings...`, stage: 'plan', phase: 'validate', data: { passNo: step.passNo } };
+      case 'advance': return { kind: 'approve_stage', note: 'Plan audit done — advancing to Execute...', stage: 'plan', phase: 'validate' };
     }
-
-    if (!lastPass) {
-      return { kind: 'dispatch_audit', note: 'Running plan audit pass 1...', stage: 'plan', phase: 'validate' };
-    }
-    if (lastPass.status === 'revised') {
-      if (!lastPass.fix || lastPass.fix.attempts.length === 0) {
-        return { kind: 'apply_findings', note: `Applying plan audit pass ${passes.length} findings...`, stage: 'plan', phase: 'validate', data: { passNo: lastPass.passNo } };
-      }
-      if (passes.length < 5) {
-        return { kind: 'dispatch_audit', note: `Running plan audit pass ${passes.length + 1}...`, stage: 'plan', phase: 'validate' };
-      }
-    }
-    return { kind: 'approve_stage', note: 'Plan audit done — advancing to Execute...', stage: 'plan', phase: 'validate' };
   }
 
   // Execute
@@ -166,37 +137,28 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
     return { kind: 'advance_stage', note: 'Execution complete — advancing to Review...', stage: 'review', phase: 'review' };
   }
 
-  // Review — review pass loop
+  // Review — per-repo review pass loop, each repo driven by the SAME audit-loop
+  // policy (auditLoopStep). This fixes the old line-191 bug: a repo at the 5-pass cap
+  // whose last pass is still `revised`+unfixed now applies its fix BEFORE advancing,
+  // exactly like spec/plan — instead of silently shipping unfixed findings to Journal.
   if (review.status === 'active') {
-    for (const repo of review.phases.review.repos) {
-      const passes = repo.reviewPasses;
-      const lastPass = passes[passes.length - 1];
-      const reviewAttempt = lastPass?.review?.attempts?.[lastPass.review.attempts.length - 1];
-      if (reviewAttempt?.status === 'running') return WAIT;
-      if (lastPass?.fix?.attempts) {
-        const fixAttempt = lastPass.fix.attempts[lastPass.fix.attempts.length - 1];
-        if (fixAttempt?.status === 'running') return WAIT;
-      }
-    }
-
-    const hasAnyRepo = review.phases.review.repos.length > 0;
-    if (!hasAnyRepo) {
+    const repos = review.phases.review.repos;
+    if (repos.length === 0) {
       return { kind: 'dispatch_review', note: 'Running code review...', stage: 'review', phase: 'review' };
     }
-
-    // Act on the FIRST unfinished repo (not just repos[0]) — else a blocking repo
-    // at index >0 is silently shipped to Journal. `repoId` targets the action.
-    for (const repo of review.phases.review.repos) {
-      const last = repo.reviewPasses[repo.reviewPasses.length - 1];
-      if (last && (last.status === 'clean' || repo.reviewPasses.length >= 5)) continue; // this repo done
-      if (!last) {
-        return { kind: 'dispatch_review', note: 'Running code review...', stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
+    // Act on the FIRST repo that is not yet done (any in-flight repo → WAIT).
+    // Review passes carry their dispatch attempts under `review` (spec/plan use
+    // `audit`); adapt to the shared policy's shape so in-flight detection works.
+    for (const repo of repos) {
+      const passesForPolicy = repo.reviewPasses.map((p) => ({ ...p, audit: p.review })) as unknown as AuditPassLike[];
+      const step = auditLoopStep(passesForPolicy);
+      const passNo = repo.reviewPasses.length;
+      switch (step.kind) {
+        case 'wait': return WAIT;
+        case 'advance': continue; // this repo is done — check the next
+        case 'dispatch_audit': return { kind: 'dispatch_review', note: passNo === 0 ? 'Running code review...' : `Running review pass ${step.passNo}...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
+        case 'apply_findings': return { kind: 'apply_review_findings', note: `Applying review pass ${step.passNo} findings...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
       }
-      // last pass is `revised` (has blocking findings)
-      if (!last.fix || last.fix.attempts.length === 0) {
-        return { kind: 'apply_review_findings', note: `Applying review pass ${repo.reviewPasses.length} findings...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
-      }
-      return { kind: 'dispatch_review', note: `Running review pass ${repo.reviewPasses.length + 1}...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
     }
     return { kind: 'advance_stage', note: 'Review done — advancing to Journal...', stage: 'journal', phase: 'journal' };
   }

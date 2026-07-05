@@ -18,7 +18,7 @@ export const ACTION_KINDS = [
   'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component',
   'add_learning', 'start_auto', 'take_over',
   // content edits (Task 10) — every kind here has exactly one executeDetailsAction effect
-  'set_brief', 'select_components',
+  'set_brief', 'select_components', 'refine_component', 'edit_plan_task',
 ] as const;
 
 /**
@@ -26,9 +26,6 @@ export const ACTION_KINDS = [
  * transitions, so they keep dedicated routes (JSON {action,data} can't carry them):
  *   - attachment add/remove — binary/multipart FILE I/O (explore/attachment/*)
  *   - retry_pr — a git-push retry, pure git I/O (build/retry-pr)
- * And two chat/refine actions still on their routes pending Task 9 client wiring
- * (they will move to /transition then, with their effects): refine_component
- * (spec-refine dispatch), edit_plan_task (plan-task chat message).
  */
 
 export type ActionKind = (typeof ACTION_KINDS)[number];

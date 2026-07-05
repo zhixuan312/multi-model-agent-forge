@@ -84,11 +84,17 @@ function addManualExtras(details: Details, set: Action[]): void {
     }
   } else if (sp.status === 'active' && sp.phases.craft.status === 'active') {
     const comps = sp.phases.craft.components;
+    if (comps.length >= 1) set.push({ kind: 'refine_component', note: 'Refine component', stage: 'spec', phase: 'craft' });
     if (comps.some((c) => c.approvals.length === 0)) {
       set.push({ kind: 'approve_component', note: 'Approve component', stage: 'spec', phase: 'craft' });
     } else if (comps.length >= 1) {
       set.push({ kind: 'advance_phase', note: 'Continue to Finalize', stage: 'spec', phase: 'finalize' });
     }
+  }
+
+  // ── Plan refine: manual task chat message (Task 10e), available while refining.
+  if (stages.plan.status === 'active' && stages.plan.phases.refine.status === 'active') {
+    set.push({ kind: 'edit_plan_task', note: 'Message a plan task', stage: 'plan', phase: 'refine' });
   }
 
   const auditPhases: Array<{ passes: AuditPassLike[]; advance: Action }> = [];

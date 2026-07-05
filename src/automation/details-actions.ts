@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
@@ -19,7 +19,6 @@ import {
 import { startExecuteRun } from '@/build/start-execute-run';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
 import type { AutoAction } from '@/automation/details-resolver';
-import { sql } from 'drizzle-orm';
 
 /** Outcome of an action: `inflight` means an MMA batch for this (project, handler)
  * is already dispatched/running, so the driver must WAIT rather than record a step. */
@@ -43,6 +42,7 @@ const MMA_HANDLER_FOR: Record<string, (a: AutoAction) => string> = {
   // Design-phase (manual-only) dispatches — Task 8b
   propose_discover_tasks: () => 'explore-propose',
   dispatch_synthesize: () => 'explore-synthesize',
+  refine_component: () => 'spec-refine',
 };
 
 /** Whether an action dispatches an MMA batch (→ its running timeline line is
@@ -475,6 +475,61 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (!kinds || kinds.length === 0) break;
       const { confirmComponents } = await import('@/spec/orchestrator');
       await confirmComponents(db, projectId, kinds as never);
+      break;
+    }
+
+    // ── refine_component: the ONE spec-refine dispatch, ported from
+    //    spec/components/[componentId]/refine (buildRefinePrompt over the component
+    //    draft + message delta). Per-target (meta.componentId), skips the phase lease.
+    case 'refine_component': {
+      const componentId = action.data?.componentId as string | undefined;
+      if (!componentId) break;
+      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
+      const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+      if (!projRow?.details) break;
+      const d = validateDetails(projRow.details);
+      const detailsComp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
+      if (!detailsComp) break;
+      const { teamSpecTemplate } = await import('@/db/schema/team');
+      const [tpl] = await db.select().from(teamSpecTemplate).where(eq(teamSpecTemplate.id, detailsComp.templateId)).limit(1);
+      if (!tpl) break;
+      const sections = Array.isArray(tpl.sections) ? (tpl.sections as Array<{ key: string; label: string }>) : [];
+      const sectionLabels = sections.map((s) => s.label);
+      const { readComponentSections } = await import('@/spec/spec-file-ops');
+      const fileSections = await readComponentSections(projectId, sectionLabels);
+      const componentDraftMd = fileSections.map((s) => `${s.heading}\n\n${s.body}`).join('\n\n');
+      const rawMessages = await db.select({ authorId: qaMessage.authorId, bodyMd: qaMessage.bodyMd }).from(qaMessage).where(eq(qaMessage.targetId, componentId)).orderBy(asc(qaMessage.seq));
+      const allMessages = rawMessages.map((m) => ({ sender: (m.authorId === FORGE_MEMBER_ID ? 'forge' : 'member') as 'forge' | 'member', bodyMd: m.bodyMd }));
+      const { getMessagesSinceLastForge, buildRefinePrompt } = await import('@/spec/refine-prompt');
+      const isFirstCall = !allMessages.some((m) => m.sender === 'forge');
+      const delta = getMessagesSinceLastForge(allMessages);
+      let fullSpecMd: string | undefined;
+      if (isFirstCall) {
+        const { getLatestSpec } = await import('@/spec/assemble');
+        const spec = await getLatestSpec(db, projectId);
+        fullSpecMd = spec?.bodyMd;
+      }
+      const { system, user } = buildRefinePrompt({ componentLabel: tpl.label, sectionHeadings: sectionLabels, componentDraftMd, messagesSinceLastForge: delta, isFirstCall, fullSpecMd });
+      await dispatchMma({
+        db, mma, projectId, route: 'orchestrate', handler: 'spec-refine', cwd,
+        body: { prompt: `${system}\n\n${user}`, reviewPolicy: 'none' },
+        actorId, meta: { componentId },
+      });
+      break;
+    }
+
+    // ── edit_plan_task: post a chat message to a plan task (from plan/tasks/[taskId]/
+    //    message). Content action, skips the phase lease.
+    case 'edit_plan_task': {
+      const taskId = action.data?.taskId as string | undefined;
+      const bodyMd = (action.data?.message as string | undefined)?.trim();
+      if (!taskId || !bodyMd) break;
+      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
+      const [seqRow] = await db.select({ max: sql<number>`coalesce(max(${qaMessage.seq}), 0)` }).from(qaMessage).where(eq(qaMessage.targetId, taskId));
+      await db.insert(qaMessage).values({
+        targetId: taskId, projectId, targetKind: 'plan_task',
+        seq: (Number(seqRow?.max) || 0) + 1, bodyMd, authorId: actorId,
+      });
       break;
     }
 

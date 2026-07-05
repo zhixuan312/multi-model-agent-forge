@@ -34,6 +34,14 @@ export interface MmaDispatchState {
   busyRef: React.RefObject<Set<string>>;
   error: string | null;
   dispatch: (url: string, handler: string, body?: unknown) => Promise<void>;
+  /**
+   * The unified lifecycle mutation: POST /transition { action, data }. Pass the MMA
+   * `handler` an action dispatches (spec-audit, code-review, …) to track busy + wait
+   * for its SSE dispatch.done; omit `handler` for instant actions (advance/approve),
+   * which resolve as soon as the transition is accepted. Replaces the bespoke
+   * per-route `dispatch(url, …)` calls (Task 9 route collapse).
+   */
+  transition: (action: string, data?: unknown, handler?: string) => Promise<void>;
   waitFor: (handler: string) => Promise<void>;
   clearError: () => void;
 }
@@ -157,6 +165,32 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
     });
   }, [markBusy, clearBusy]);
 
+  const transition = useCallback(async (action: string, data?: unknown, handler?: string): Promise<void> => {
+    setError(null);
+    if (handler) markBusy(handler);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `Request failed (${res.status}).`);
+      }
+    } catch (e) {
+      if (handler) clearBusy(handler);
+      const msg = e instanceof Error ? e.message : 'Transition failed.';
+      setError(msg);
+      throw e;
+    }
+    // Instant actions (advance/approve/select) have no MMA batch to await.
+    if (!handler) return;
+    return new Promise<void>((resolve, reject) => {
+      pendingRef.current.set(handler, { resolve, reject });
+    });
+  }, [projectId, markBusy, clearBusy]);
+
   const waitFor = useCallback((handler: string): Promise<void> => {
     markBusy(handler);
     return new Promise<void>((resolve, reject) => {
@@ -172,6 +206,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
     busyRef,
     error,
     dispatch,
+    transition,
     waitFor,
     clearError,
   };

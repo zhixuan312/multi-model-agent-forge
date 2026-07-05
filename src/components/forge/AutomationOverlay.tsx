@@ -309,7 +309,10 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
   }
 
   async function handleStop() {
-    await fetch(`/api/projects/${projectId}/automation/stop`, { method: 'POST' });
+    await fetch(`/api/projects/${projectId}/transition`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'take_over' }),
+    });
     automationOverlayStore.hide();
     router.refresh();
   }

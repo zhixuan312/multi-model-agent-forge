@@ -60,16 +60,19 @@ export function AutomationBar({
     // Intentionally NO router.refresh() here — the overlay syncs server state once
     // when the countdown ends, so the top stepper stays still during "Getting
     // ready" instead of jumping as Forge advances spec→plan behind the countdown.
-    fetch(`/api/projects/${projectId}/automation/start`, { method: 'POST' })
-      .catch(() => { automationOverlayStore.hide(); });
+    fetch(`/api/projects/${projectId}/transition`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'start_auto' }),
+    }).catch(() => { automationOverlayStore.hide(); });
   }
 
   function handleStop() {
     if (!projectId) return;
     automationOverlayStore.hide();
-    fetch(`/api/projects/${projectId}/automation/stop`, { method: 'POST' })
-      .then(() => router.refresh())
-      .catch(() => {});
+    fetch(`/api/projects/${projectId}/transition`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'take_over' }),
+    }).then(() => router.refresh()).catch(() => {});
   }
 
   // If already running (server state), don't render the bar — overlay handles it

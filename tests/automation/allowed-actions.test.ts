@@ -74,6 +74,33 @@ describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]
   });
 });
 
+describe('allowedActions — spec Design phases (Task 8b-2)', () => {
+  function specPhase(phase: 'outline' | 'craft') {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'active';
+    d.stages.spec.phases.outline.status = phase === 'outline' ? 'active' : 'done';
+    d.stages.spec.phases.craft.status = phase === 'craft' ? 'active' : 'pending';
+    return d;
+  }
+  it('outline with ≥1 selected → advance_phase to craft', () => {
+    const d = specPhase('outline');
+    d.stages.spec.phases.outline.selectedTemplateIds = ['t1'];
+    expect(allowedActions(d, 'manual').map((a) => a.kind)).toContain('advance_phase');
+  });
+  it('craft with an unapproved component → approve_component', () => {
+    const d = specPhase('craft');
+    d.stages.spec.phases.craft.components = [{ id: 'c1', templateId: 't1', approvals: [] }] as never;
+    expect(allowedActions(d, 'manual').map((a) => a.kind)).toContain('approve_component');
+  });
+  it('craft with all approved → advance_phase to finalize', () => {
+    const d = specPhase('craft');
+    d.stages.spec.phases.craft.components = [{ id: 'c1', templateId: 't1', approvals: ['m1'] }] as never;
+    const acts = allowedActions(d, 'manual');
+    expect(acts.find((a) => a.kind === 'advance_phase')?.phase).toBe('finalize');
+  });
+});
+
 describe('allowedActions — auto toggle (Task 8b-3)', () => {
   function atFinalize(status: 'off' | 'running') {
     const d = buildInitialDetails();

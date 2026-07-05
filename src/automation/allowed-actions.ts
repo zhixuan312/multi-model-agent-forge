@@ -72,6 +72,23 @@ function addManualExtras(details: Details, set: Action[]): void {
     }
   }
 
+  // ── Spec Design phases (outline / craft) — manual-only (Task 8b-2). select_components
+  //    (outline) + refine_component (craft) content actions are added in Task 10; here
+  //    we drive approval + the phase transitions (whose effects already exist).
+  const sp = stages.spec;
+  if (sp.status === 'active' && sp.phases.outline.status === 'active') {
+    if ((sp.phases.outline.selectedTemplateIds?.length ?? 0) >= 1) {
+      set.push({ kind: 'advance_phase', note: 'Continue to Craft', stage: 'spec', phase: 'craft' });
+    }
+  } else if (sp.status === 'active' && sp.phases.craft.status === 'active') {
+    const comps = sp.phases.craft.components;
+    if (comps.some((c) => c.approvals.length === 0)) {
+      set.push({ kind: 'approve_component', note: 'Approve component', stage: 'spec', phase: 'craft' });
+    } else if (comps.length >= 1) {
+      set.push({ kind: 'advance_phase', note: 'Continue to Finalize', stage: 'spec', phase: 'finalize' });
+    }
+  }
+
   const auditPhases: Array<{ passes: AuditPassLike[]; advance: Action }> = [];
   if (stages.spec.status === 'active' && stages.spec.phases.finalize.status === 'active') {
     auditPhases.push({

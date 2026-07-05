@@ -87,7 +87,17 @@ export async function performTransition(db: Db, projectId: string, input: Action
   if (!match) {
     throw new TransitionRejected(`action ${input.kind} not allowed now`);
   }
-  const action: Action = { ...match, data: { ...(match.data ?? {}), ...(input.data ?? {}) } };
+  // Thread the human's member id into the effect payload for MANUAL touches, so
+  // Design-phase effects attribute approvals/dispatches to the actual actor (auto
+  // touches carry a driverId, not a member id, and their effects use FORGE_MEMBER_ID).
+  const action: Action = {
+    ...match,
+    data: {
+      ...(match.data ?? {}),
+      ...(input.data ?? {}),
+      ...(trigger.mode === 'manual' && trigger.actorId ? { actorId: trigger.actorId } : {}),
+    },
+  };
 
   // GATE 3 — single-flight lease. Advancing / MMA-dispatching actions are rejected
   // while a FRESH FOREIGN lease is held (another driver/transition in flight). The

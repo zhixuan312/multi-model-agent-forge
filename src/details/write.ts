@@ -90,11 +90,8 @@ export async function advanceStage(
     }
     return d;
   });
-  // Keep the denormalized columns in sync — the stepper/topbar read these, and
-  // automation never visits pages so nothing else would update them.
-  await db.update(project)
-    .set({ currentStage: toStage, phase: STAGE_PHASE[toStage], updatedAt: new Date() })
-    .where(eq(project.id, projectId));
+  // The denormalized currentStage/phase columns are mirrored by deriveCurrentStage
+  // (the single writer), which performTransition calls after every effect.
   return result;
 }
 
@@ -123,8 +120,10 @@ export async function reopenStage(
 ): Promise<Details> {
   const result = await updateDetails(db, projectId, (d) =>
     reopenStageInPlace(d, toStage, new Date().toISOString()));
+  // currentStage/phase are mirrored by deriveCurrentStage (single writer). Clearing
+  // completedAt is this function's own concern (a reopened project is no longer done).
   await db.update(project)
-    .set({ currentStage: toStage, phase: STAGE_PHASE[toStage], completedAt: null, updatedAt: new Date() })
+    .set({ completedAt: null, updatedAt: new Date() })
     .where(eq(project.id, projectId));
   return result;
 }

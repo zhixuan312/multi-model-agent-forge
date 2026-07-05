@@ -177,9 +177,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   }
 
   async function analyze(): Promise<void> {
-    // Brief text is still saved through its own route (content); dispatch of the
-    // discovery-task proposal is the lifecycle transition.
-    await postJson(`/api/projects/${props.projectId}/explore/brief`, { text: brief });
+    // Save the brief then dispatch the discovery-task proposal — both through the
+    // unified engine (set_brief is a content action; propose is the transition).
+    await mma.transition('set_brief', { text: brief });
     await mma.transition('propose_discover_tasks', undefined, 'explore-propose');
   }
 

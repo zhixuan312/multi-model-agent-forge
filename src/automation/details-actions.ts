@@ -474,7 +474,15 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     case 'select_components': {
       const kinds = action.data?.kinds as string[] | undefined;
       if (!kinds || kinds.length === 0) break;
+      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
+      const intentMd = action.data?.intentMd as string | undefined;
+      // Outline confirm: capture intent (derive summary) THEN create the selected
+      // components + their sections — the single implementation, ported whole from
+      // the spec/confirm route (which did captureIntent + confirmComponents).
+      const { captureIntent, ensureSpecStage } = await import('@/spec/spec-core');
       const { confirmComponents } = await import('@/spec/orchestrator');
+      await ensureSpecStage(db, projectId);
+      if (intentMd) await captureIntent(db, projectId, intentMd, actorId);
       await confirmComponents(db, projectId, kinds as never);
       break;
     }

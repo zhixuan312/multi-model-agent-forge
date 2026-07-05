@@ -299,16 +299,13 @@ export function SpecStageClient(props: SpecStageClientProps) {
           templates={DOC_TEMPLATES}
           existing={components}
           readOnly={readOnly}
-          onConfirmed={(next) => {
-            setComponents(next);
-            setPicked(new Set(next.map((c) => c.kind)));
-            autoDraftFired.current = true;
+          mma={mma}
+          onConfirmed={() => {
+            // select_components created the components server-side; advance to Craft
+            // (the craft-entry effect auto-drafts undrafted sections) and refresh so
+            // the new components flow in from server props.
             advancePhase('craft');
-            const hasUndrafted = next.some((c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd));
-            if (hasUndrafted) {
-              void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
-                .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
-            }
+            refresh();
           }}
           onError={setError}
         />
@@ -424,13 +421,13 @@ function SearchField({
 }
 
 function OutlineStage({
-  projectId,
   intent,
   picked,
   onPick,
   templates,
   existing,
   readOnly,
+  mma,
   onConfirmed,
   onError,
 }: {
@@ -441,20 +438,17 @@ function OutlineStage({
   templates: readonly DocTemplate[];
   existing: ComponentView[];
   readOnly: boolean;
-  onConfirmed: (next: ComponentView[]) => void;
+  mma: MmaDispatchState;
+  onConfirmed: () => void;
   onError: (m: string | null) => void;
 }) {
   const active = matchTemplate(picked, templates);
 
   const confirm = useMutation({
-    mutationFn: () =>
-      postJson<{ components: ComponentView[] }>(`/projects/${projectId}/spec/confirm`, {
-        intentMd: intent,
-        kinds: [...picked],
-      }),
-    onSuccess: (data) => {
+    mutationFn: () => mma.transition('select_components', { kinds: [...picked], intentMd: intent }),
+    onSuccess: () => {
       onError(null);
-      onConfirmed(data.components);
+      onConfirmed();
     },
     onError: (e: Error) => onError(e.message),
   });

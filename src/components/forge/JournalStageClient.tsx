@@ -154,12 +154,10 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
+  // dispatch_harvest / dispatch_record are synchronous effects (await:true) — the
+  // no-handler transition resolves the POST when their terminal handler recorded
+  // the result, so local flags drive button state (no SSE busy-handler).
   const mma = useMmaDispatch(props.projectId, {
-    onDone: {
-      'journal-harvest': refresh,
-      'journal-record': refresh,
-      'journal-refine': refresh,
-    },
     events: {
       'journal.updated': (data) => {
         window.dispatchEvent(new CustomEvent('journal:updated', { detail: data }));
@@ -171,17 +169,30 @@ export function JournalStageClient(props: JournalStageClientProps) {
     },
   });
 
+  const [harvestingLocal, setHarvestingLocal] = useState(false);
+  const [recordingLocal, setRecordingLocal] = useState(false);
   const shouldAutoHarvest = !props.hasJournalFile && props.learnings.length === 0 && !props.harvesting;
-  const harvesting = props.harvesting || mma.busyHandlers.has('journal-harvest') || shouldAutoHarvest;
-  const recording = props.recording || mma.busyHandlers.has('journal-record');
+  const harvesting = props.harvesting || harvestingLocal || shouldAutoHarvest;
+  const recording = props.recording || recordingLocal;
 
   const auto: 'off' | 'running' = props.autoMode ? 'running' : 'off';
   const autoNote = props.autoNote ?? '';
 
+  const harvestFiredRef = useRef(false);
+  function runHarvest() {
+    if (harvestingLocal || harvestFiredRef.current) return;
+    harvestFiredRef.current = true;
+    setHarvestingLocal(true);
+    void mma.transition('dispatch_harvest')
+      .then(() => refresh())
+      .catch(() => {})
+      .finally(() => { harvestFiredRef.current = false; setHarvestingLocal(false); });
+  }
+
   // Auto-trigger harvest when no journal.md exists (like plan auto-triggers author-plan)
   useEffect(() => {
-    if (!shouldAutoHarvest || mma.busyRef.current.has('journal-harvest')) return;
-    void mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {}).catch(() => {});
+    if (!shouldAutoHarvest) return;
+    runHarvest();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -233,20 +244,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
   }, [props.learnings]);
 
   function toggleApprove() {
-    if (!active) return;
-    const approving = !isApproved;
-    const next = approving ? 'kept' : 'proposed';
-    setLocalOverrides((o) => ({ ...o, [active.id]: next }));
+    if (!active || isApproved) return; // approvals are monotonic (approve_learning is one-way)
+    setLocalOverrides((o) => ({ ...o, [active.id]: 'kept' }));
     // Auto-advance to next unapproved learning
-    if (approving) {
-      const nextStatus = { ...status, [active.id]: 'kept' as const };
-      const nextUnapproved = props.learnings.find((l) => nextStatus[l.id] !== 'kept' && nextStatus[l.id] !== 'recorded');
-      if (nextUnapproved) setActiveId(nextUnapproved.id);
-    }
-    fetch(`/api/projects/${props.projectId}/journal/approve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ learningIndex: active.num - 1, action: approving ? 'approve' : 'revoke' }),
-    }).then(() => { setLocalOverrides({}); router.refresh(); }).catch(() => {});
+    const nextStatus = { ...status, [active.id]: 'kept' as const };
+    const nextUnapproved = props.learnings.find((l) => nextStatus[l.id] !== 'kept' && nextStatus[l.id] !== 'recorded');
+    if (nextUnapproved) setActiveId(nextUnapproved.id);
+    void mma.transition('approve_learning', { learningIndex: active.num - 1 })
+      .then(() => { setLocalOverrides({}); router.refresh(); }).catch(() => {});
   }
 
   function send() {
@@ -332,7 +337,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
               <p className="text-xs text-ink-soft">Harvest AI learnings from the project run, or add your own.</p>
               <Button
                 size="sm"
-                onClick={() => mma.dispatch(`/api/projects/${props.projectId}/journal/harvest`, 'journal-harvest', {})}
+                onClick={runHarvest}
                 disabled={readOnly || harvesting}
                 loading={harvesting}
                 leftIcon={<NotebookPen />}
@@ -361,7 +366,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
           completing={completing}
           onMarkComplete={() => {
             setCompleting(true);
-            fetch(`/api/projects/${props.projectId}/complete`, { method: 'POST' })
+            void mma.transition('mark_complete')
               .then(() => router.refresh())
               .catch(() => {})
               .finally(() => setCompleting(false));
@@ -460,20 +465,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
             <Button
               size="sm"
               onClick={() => {
-                const allKept = approvedCount === props.learnings.length;
-                for (const l of props.learnings) {
-                  setLocalOverrides((o) => ({ ...o, [l.id]: allKept ? 'proposed' : 'kept' }));
-                  fetch(`/api/projects/${props.projectId}/journal/approve`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ learningIndex: l.num - 1, action: allKept ? 'revoke' : 'approve' }),
-                  }).catch(() => {});
+                // Approve every not-yet-kept learning (monotonic; no revoke-all).
+                const pending = props.learnings.filter((l) => status[l.id] !== 'kept' && status[l.id] !== 'recorded');
+                for (const l of pending) {
+                  setLocalOverrides((o) => ({ ...o, [l.id]: 'kept' }));
+                  void mma.transition('approve_learning', { learningIndex: l.num - 1 }).catch(() => {});
                 }
                 setTimeout(() => { setLocalOverrides({}); router.refresh(); }, 300);
               }}
-              disabled={readOnly || props.learnings.length === 0}
-              leftIcon={approvedCount === props.learnings.length ? <RotateCcw /> : <Check />}
+              disabled={readOnly || props.learnings.length === 0 || approvedCount === props.learnings.length}
+              leftIcon={<Check />}
             >
-              {approvedCount === props.learnings.length ? 'Revoke all' : 'Approve all'}
+              Approve all
             </Button>
           </CardHeader>
           <div className="flex items-center gap-2 border-b border-line px-5 py-2">
@@ -529,7 +532,11 @@ export function JournalStageClient(props: JournalStageClientProps) {
               type="button"
               onClick={() => {
                 if (!allRecorded && approvedCount > 0) {
-                  mma.dispatch(`/api/projects/${props.projectId}/journal/record`, 'journal-record', {}).catch(() => {});
+                  setRecordingLocal(true);
+                  void mma.transition('dispatch_record')
+                    .then(() => refresh())
+                    .catch(() => {})
+                    .finally(() => setRecordingLocal(false));
                 }
                 advancePhase('summary');
               }}

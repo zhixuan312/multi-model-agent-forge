@@ -1,7 +1,58 @@
 // @vitest-environment node
-import { dispatchMma } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight, PhaseBusyError } from '@/dispatch/dispatch-helpers';
+import { phaseKeyForHandler } from '@/details/project-event-labels';
 import type { MmaClient } from '@/mma/client';
 import { createMockDb } from '../test-utils/mock-db';
+
+/**
+ * G2 — per-(project, phase) single-flight. A dispatch is REFUSED (PhaseBusyError)
+ * only when an in-flight batch belongs to a DIFFERENT phase; same-phase (fan-out)
+ * is always allowed. The phase of a handler is `phaseKeyForHandler`.
+ */
+describe('G2 — per-(project, phase) concurrency guard', () => {
+  it('phaseKeyForHandler groups handlers by their pipeline phase', () => {
+    // same phase (plan/validate) → same key → NOT a conflict (audit↔apply loop)
+    expect(phaseKeyForHandler('plan-audit')).toBe('plan/validate');
+    expect(phaseKeyForHandler('plan-audit-apply')).toBe('plan/validate');
+    // different phases → different keys → a conflict
+    expect(phaseKeyForHandler('code-review')).toBe('review/review');
+    expect(phaseKeyForHandler('plan-author')).toBe('plan/refine');
+    // unknown / phase-less handler → null (guard skipped, e.g. global journal-recall)
+    expect(phaseKeyForHandler('journal-recall')).toBeNull();
+    expect(phaseKeyForHandler(null)).toBeNull();
+  });
+
+  it('dispatchMma REFUSES a cross-phase dispatch while another phase is in flight', async () => {
+    // in-flight code-review (review/review); dispatching plan-audit (plan/validate)
+    const db = createMockDb({
+      'select:ops_mma_batch': [{ handler: 'code-review' }], // the guard's in-flight query
+      'insert:ops_mma_batch': [{ id: 'row-x', createdAt: new Date() }],
+    });
+    await expect(dispatchMma({
+      db, mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
+      projectId: 'p', route: 'audit', handler: 'plan-audit', cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
+    })).rejects.toBeInstanceOf(PhaseBusyError);
+  });
+});
+
+/**
+ * Single-flight guard: findInflight WITHOUT a handler is the project-level check the
+ * driver uses to guarantee at most one MMA request in flight per project at any time
+ * (the pipeline is strictly sequential). With a handler it's the classic per-handler
+ * check the manual routes use.
+ */
+describe('findInflight — project-level single-flight (handler omitted)', () => {
+  it('returns an in-flight batch for the project regardless of its handler', async () => {
+    // a plan-author batch is in flight; the project-level call (no handler arg) sees it
+    const db = createMockDb({ 'select:ops_mma_batch': [{ id: 'b1', batchId: null, createdAt: new Date(), route: 'orchestrate', handler: 'plan-author' }] });
+    expect(await findInflight(db, 'proj-1')).toBe('b1');
+  });
+
+  it('returns null when nothing is in flight', async () => {
+    const db = createMockDb({ 'select:ops_mma_batch': [] });
+    expect(await findInflight(db, 'proj-1')).toBeNull();
+  });
+});
 
 /**
  * Regression: a SYNC (`await: true`) dispatch must persist the MMA task id into

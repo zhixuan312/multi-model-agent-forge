@@ -1,9 +1,11 @@
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { projectEventBus } from '@/sse/event-bus';
 import { executeDetailsAction, isBatchBackedAction } from '@/automation/details-actions';
 import { appendProjectEvent, resolveRunningEvent } from '@/details/write';
+import { acquireDriverLease, heartbeatDriverLease, releaseDriverLease } from '@/automation/driver-lease';
 
 const activeDrivers = new Map<string, boolean>();
 
@@ -17,9 +19,19 @@ function cleanLabel(note: string): string {
 }
 
 export async function driveProject(projectId: string): Promise<void> {
-  if (activeDrivers.get(projectId)) return;
+  if (activeDrivers.get(projectId)) return; // fast in-process dedup
   activeDrivers.set(projectId, true);
   const db = getDb();
+
+  // G1 — acquire the DB-backed single-driver lease. If another (live) driver holds
+  // it (a boot-resume or a not-yet-exited driver on another process/module
+  // instance), DO NOT drive: two drivers racing the shared details is what lets
+  // stages advance "in the mess". Stale leases self-heal (heartbeat timeout).
+  const driverId = randomUUID();
+  if (!(await acquireDriverLease(db, projectId, driverId).catch(() => false))) {
+    activeDrivers.delete(projectId);
+    return;
+  }
 
   // One persisted, meaningful line per action, appended to the project-level event
   // log (`details.events`). The SAME record drives the live SSE stream AND the
@@ -33,6 +45,10 @@ export async function driveProject(projectId: string): Promise<void> {
 
   try {
     while (true) {
+      // Refresh the lease + confirm we still own it. If another driver took over
+      // (our heartbeat went stale), STOP — only the current holder may drive.
+      if (!(await heartbeatDriverLease(db, projectId, driverId).catch(() => true))) return;
+
       const [proj] = await db
         .select({ autoMode: project.autoMode, detailsReady: project.detailsReady, details: project.details })
         .from(project)
@@ -68,18 +84,31 @@ export async function driveProject(projectId: string): Promise<void> {
       // spinning and its duration ticks until the running task terminates.
       if (action.kind === 'wait') { await sleep(5000); continue; }
 
+      // SINGLE-FLIGHT GUARD (DB-authoritative): the pipeline is strictly sequential,
+      // so NEVER dispatch OR advance while ANY MMA request is in flight for this
+      // project. Prevents a stray/duplicate writer (e.g. a boot-resumed driver
+      // overlapping a reset) from advancing stages or firing a second concurrent
+      // MMA call while work is in flight. The in-flight batch will terminal + record
+      // its state, then the resolver re-resolves from the settled state.
+      const { findInflight } = await import('@/dispatch/dispatch-helpers');
+      if (await findInflight(db, projectId) !== null) { await sleep(5000); continue; }
+
       // The one meaningful line: what Forge is doing now.
       await emit(cleanLabel(action.note), 'action', action.stage, action.phase);
       await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
 
       let lastErr: string | null = null;
       let result: 'ok' | 'inflight' = 'ok';
+      const { PhaseBusyError } = await import('@/dispatch/dispatch-helpers');
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           result = await executeDetailsAction(projectId, action, db);
           lastErr = null;
           break;
         } catch (err) {
+          // G2 refused a cross-phase dispatch → WAIT (don't burn retries/stop auto);
+          // the in-flight phase will settle and the resolver re-resolves.
+          if (err instanceof PhaseBusyError) { result = 'inflight'; lastErr = null; break; }
           lastErr = err instanceof Error ? err.message : String(err);
           if (attempt < 3) {
             await emit(`Retry ${attempt}/3 — ${lastErr}`, 'error', action.stage, action.phase);
@@ -120,6 +149,7 @@ export async function driveProject(projectId: string): Promise<void> {
     }
   } finally {
     activeDrivers.delete(projectId);
+    await releaseDriverLease(db, projectId, driverId).catch(() => {});
   }
 }
 

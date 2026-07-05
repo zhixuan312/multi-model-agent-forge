@@ -6,7 +6,19 @@ import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
 import { getPollManager } from '@/sse/poll-manager';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
-import { appendBatchTerminalEvent } from '@/details/project-event-labels';
+import { appendBatchTerminalEvent, phaseKeyForHandler } from '@/details/project-event-labels';
+
+/**
+ * Thrown by the G2 guard when a project already has MMA in flight for a DIFFERENT
+ * phase — the caller must WAIT (auto driver) or surface "busy" (manual route),
+ * never dispatch a second phase concurrently.
+ */
+export class PhaseBusyError extends Error {
+  constructor(readonly projectId: string, readonly wantPhase: string, readonly busyPhase: string) {
+    super(`Project ${projectId} is busy in phase "${busyPhase}"; cannot start "${wantPhase}" (one phase at a time).`);
+    this.name = 'PhaseBusyError';
+  }
+}
 
 export interface DispatchOpts {
   db: Db;
@@ -25,13 +37,18 @@ export interface DispatchOpts {
 export async function findInflight(
   db: Db,
   projectId: string | null,
-  handler: string,
+  handler?: string | null,
   actorId?: string | null,
 ): Promise<string | null> {
   const conditions = [
-    eq(mmaBatch.handler, handler),
     inArray(mmaBatch.status, ['dispatched', 'running']),
   ];
+
+  // `handler` omitted → PROJECT-LEVEL single-flight check (ANY in-flight MMA batch
+  // for the project). With a handler → the classic per-handler check.
+  if (handler) {
+    conditions.push(eq(mmaBatch.handler, handler));
+  }
 
   if (projectId) {
     conditions.push(eq(mmaBatch.projectId, projectId));
@@ -44,7 +61,7 @@ export async function findInflight(
   }
 
   const [row] = await db
-    .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt, route: mmaBatch.route })
+    .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt, route: mmaBatch.route, handler: mmaBatch.handler })
     .from(mmaBatch)
     .where(and(...conditions))
     .limit(1);
@@ -70,7 +87,7 @@ export async function findInflight(
           projectId,
           route: row.route,
           taskId: null,
-          handler,
+          handler: row.handler ?? handler ?? undefined,
           createdAt: row.createdAt,
         });
       } catch {
@@ -112,20 +129,41 @@ export async function findPendingHandlers(
 export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: string; envelope?: unknown }> {
   const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
 
-  // 1. Insert batch row BEFORE dispatch — every attempt is tracked
-  const [row] = await opts.db
-    .insert(mmaBatch)
-    .values({
-      projectId: opts.projectId,
-      route: opts.route,
-      handler: opts.handler,
-      cwd: opts.cwd,
-      status: 'dispatched',
-      request: { ...(opts.body as object), ...opts.meta } as object,
-      dispatchedBy: opts.actorId,
-      ...(opts.loopRunId && { loopRunId: opts.loopRunId }),
-    })
-    .returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
+  const values = {
+    projectId: opts.projectId,
+    route: opts.route,
+    handler: opts.handler,
+    cwd: opts.cwd,
+    status: 'dispatched' as const,
+    request: { ...(opts.body as object), ...opts.meta } as object,
+    dispatchedBy: opts.actorId,
+    ...(opts.loopRunId && { loopRunId: opts.loopRunId }),
+  };
+
+  // 1. Insert the batch row BEFORE dispatch — every attempt is tracked. G2: under a
+  // per-project advisory lock (closes the check→insert TOCTOU), REFUSE if any
+  // in-flight batch belongs to a DIFFERENT phase — one phase per project at a time.
+  // Same-phase is fan-out (exploration/discover, multi-repo execute) and always
+  // allowed. Project-less dispatches (global journal-recall) and phase-less handlers
+  // skip the guard.
+  const myPhase = phaseKeyForHandler(opts.handler);
+  let row: { id: string; createdAt: Date };
+  if (opts.projectId && myPhase) {
+    const pid = opts.projectId;
+    row = await opts.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pid})::bigint)`);
+      const inflight = await tx
+        .select({ handler: mmaBatch.handler })
+        .from(mmaBatch)
+        .where(and(eq(mmaBatch.projectId, pid), inArray(mmaBatch.status, ['dispatched', 'running'])));
+      const conflict = inflight.map((b) => phaseKeyForHandler(b.handler)).find((p): p is string => !!p && p !== myPhase);
+      if (conflict) throw new PhaseBusyError(pid, myPhase, conflict);
+      const [inserted] = await tx.insert(mmaBatch).values(values).returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
+      return inserted;
+    });
+  } else {
+    [row] = await opts.db.insert(mmaBatch).values(values).returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
+  }
 
   const batchRowId = row.id;
 

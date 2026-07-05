@@ -146,6 +146,11 @@ export function createMockDb(responses: MockResponses = {}): Db & MockDb {
     async transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
       return fn(out as unknown as Db);
     },
+    // Raw SQL (e.g. the per-phase guard's `pg_advisory_xact_lock`) — a no-op in the
+    // mock; Postgres-specific locking isn't exercised without a real DB.
+    async execute(_query: unknown): Promise<unknown[]> {
+      return [];
+    },
     _calls: calls,
     _callsFor: (table: string) => calls.filter((c) => c.table === table),
     _assertCalled: (table: string, method: string) =>

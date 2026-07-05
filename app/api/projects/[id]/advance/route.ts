@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { advanceStage, assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { getDb } from '@/db/client';
+import { findInflight } from '@/dispatch/dispatch-helpers';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +29,13 @@ export async function POST(
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 });
+
+  // G3 — refuse to advance while ANY MMA request is in flight for this project: a
+  // human must not move a stage out from under an in-flight batch (its terminal
+  // handler would then write into a stage that is no longer active).
+  if (await findInflight(getDb(), id) !== null) {
+    return NextResponse.json({ error: 'A task is still running — wait for it to finish before advancing.' }, { status: 409 });
+  }
 
   const result = await advanceStage(id, parsed.data.from, { id: me.id });
   return NextResponse.json(result);

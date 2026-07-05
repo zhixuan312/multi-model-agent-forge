@@ -57,6 +57,12 @@ const automationSchema = z.object({
   status: automationStatus,
   startedAt: z.string().optional(),
   stoppedAt: z.string().optional(),
+  /** Single-driver lease (G1): the driver that currently owns this project's auto
+   * loop + when it last heartbeat. A second driver (boot-resume / dev-restart) only
+   * takes over when the heartbeat is stale — guaranteeing ONE driver per project so
+   * the pipeline stays strictly sequential. Absent when no driver holds the lease. */
+  driverId: z.string().optional(),
+  driverHeartbeatAt: z.string().optional(),
 });
 
 const discoverTaskSchema = z.object({

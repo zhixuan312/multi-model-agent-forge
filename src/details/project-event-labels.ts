@@ -31,6 +31,19 @@ const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: strin
 };
 
 /**
+ * The `(stage, phase)` an MMA handler belongs to — the SINGLE source (shared with
+ * the activity-log labels) used by the per-(project, phase) concurrency guard (G2):
+ * two batches conflict iff they belong to DIFFERENT phases. Returns a stable
+ * `"<stage>/<phase>"` key, or `null` for a handler with no phase (e.g. the global
+ * `journal-recall`, which is not project-scoped and so is never guarded).
+ */
+export function phaseKeyForHandler(handler: string | null | undefined): string | null {
+  if (!handler) return null;
+  const m = HANDLER_EVENT[handler];
+  return m ? `${m.stage}/${m.phase}` : null;
+}
+
+/**
  * Resolve the running activity line when an MMA batch reaches a terminal state —
  * turning the driver's live "Running X…" line into the settled milestone with its
  * measured duration (one line per activity, no start/finish pair). Called from

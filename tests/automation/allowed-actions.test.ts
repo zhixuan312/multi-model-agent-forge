@@ -74,6 +74,36 @@ describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]
   });
 });
 
+describe('allowedActions — auto toggle (Task 8b-3)', () => {
+  function atFinalize(status: 'off' | 'running') {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'active';
+    d.stages.spec.phases.finalize.status = 'active';
+    d.automation.status = status;
+    return d;
+  }
+  it('manual while auto is running → ONLY take_over', () => {
+    expect(allowedActions(atFinalize('running'), 'manual').map((a) => a.kind)).toEqual(['take_over']);
+  });
+  it('manual off at spec/finalize → includes start_auto', () => {
+    expect(allowedActions(atFinalize('off'), 'manual').map((a) => a.kind)).toContain('start_auto');
+  });
+  it('manual off BEFORE spec/finalize (craft) → no start_auto (canAutoStart false)', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'active';
+    d.stages.spec.phases.craft.status = 'active';
+    d.automation.status = 'off';
+    expect(allowedActions(d, 'manual').map((a) => a.kind)).not.toContain('start_auto');
+  });
+  it('auto mode never offers start_auto/take_over', () => {
+    const auto = allowedActions(atFinalize('running'), 'auto').map((a) => a.kind);
+    expect(auto).not.toContain('take_over');
+    expect(auto).not.toContain('start_auto');
+  });
+});
+
 describe('allowedActions — manual audit-loop early exit', () => {
   it('manual set includes advance after ≥1 pass; auto does not', () => {
     const d = stateFinalizeOnePassRevised();

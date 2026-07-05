@@ -14,10 +14,25 @@ export type Action = AutoAction; // { kind, note, stage, phase, data? }
  * early-exit (advance after ≥1 pass) and, later, take_over + content actions.
  */
 export function allowedActions(details: Details, mode: Mode): Action[] {
+  // While auto drives, the ONLY thing a human may do is take over (gate criterion 4).
+  if (mode === 'manual' && details.automation.status === 'running') {
+    return [{ kind: 'take_over', note: 'Stop & take over', stage: '', phase: '' }];
+  }
   const best = resolveNextActionFromDetails(details);
   const set: Action[] = best.kind === 'wait' ? [] : [best];
   if (mode === 'manual') addManualExtras(details, set);
   return set;
+}
+
+/**
+ * Auto's entry point is gated to `spec/finalize` or later (spec §3 framework
+ * decision — Design phases are still human-authored). Inlined here for Task 8b-3;
+ * Task 11 factors it into a shared `canAutoStart` helper.
+ */
+function canAutoStartInline(d: Details): boolean {
+  const { stages } = d;
+  if (stages.spec.status === 'active') return stages.spec.phases.finalize.status === 'active';
+  return (['plan', 'execute', 'review', 'journal'] as const).some((s) => stages[s].status === 'active');
 }
 
 /**
@@ -83,5 +98,11 @@ function addManualExtras(details: Details, set: Action[]): void {
     if (ap.passes.length >= 1 && !auditInFlight(ap.passes) && !set.some((a) => a.kind === ap.advance.kind)) {
       set.push(ap.advance);
     }
+  }
+
+  // ── Cross-cutting: start auto (status is 'off' here — the running case returned
+  //    early in allowedActions). Only offered at/after spec/finalize (Task 8b-3).
+  if (canAutoStartInline(details)) {
+    set.push({ kind: 'start_auto', note: 'Let Forge drive', stage: '', phase: '' });
   }
 }

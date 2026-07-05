@@ -9,7 +9,8 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { projectEventBus } from '@/sse/event-bus';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
-import { updateDetails, advanceStage, advancePhase, reopenStage } from '@/details/write';
+import { updateDetails, advanceStage, advancePhase, reopenStage, setAutomationStatus } from '@/details/write';
+import { releaseDriverLease } from '@/automation/driver-lease';
 import type { StageKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
 import {
@@ -425,6 +426,29 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         body: { prompt: `${request.system}\n\n${request.user}`, reviewPolicy: 'none' },
         actorId: FORGE_MEMBER_ID, meta: { actorId: FORGE_MEMBER_ID },
       });
+      break;
+    }
+
+    // ── Cross-cutting: the auto toggle (Task 8b-3). ONE implementation, replacing the
+    //    retired automation/{start,stop} routes.
+    case 'start_auto': {
+      await setAutomationStatus(db, projectId, 'running');
+      await db.update(project).set({ autoMode: true, autoNote: 'Starting automation...', updatedAt: new Date() }).where(eq(project.id, projectId));
+      // Launch the driver loop (dynamic import breaks the driver→performTransition→
+      // details-actions static cycle). Fire-and-forget; it acquires its own lease.
+      const { driveProject } = await import('@/automation/driver');
+      driveProject(projectId).catch(() => {});
+      break;
+    }
+
+    case 'take_over': {
+      await setAutomationStatus(db, projectId, 'off');
+      await db.update(project).set({ autoMode: false, updatedAt: new Date() }).where(eq(project.id, projectId));
+      // Force-clear the driver's lease so a stuck holder can't block manual work; the
+      // running driver's heartbeat then reports the loss and it stops at its next check.
+      const [pr] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+      const driverId = pr?.details ? validateDetails(pr.details).automation.driverId : undefined;
+      if (driverId) await releaseDriverLease(db, projectId, driverId).catch(() => {});
       break;
     }
 

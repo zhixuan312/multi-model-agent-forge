@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { projectEventBus } from '@/sse/event-bus';
-import { executeDetailsAction, isBatchBackedAction } from '@/automation/details-actions';
+import { isBatchBackedAction } from '@/automation/details-actions';
+import { performTransition, TransitionRejected } from '@/automation/perform-transition';
+import { allowedActions } from '@/automation/allowed-actions';
 import { appendProjectEvent, resolveRunningEvent } from '@/details/write';
 import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
 
@@ -65,7 +67,6 @@ export async function driveProject(projectId: string): Promise<void> {
       if (!proj?.autoMode) return;
 
       const { validateDetails } = await import('@/details/schema');
-      const { resolveNextActionFromDetails } = await import('@/automation/details-resolver');
       if (!proj.details) { await sleep(5000); continue; }
       // Centralized reconcile for EVERY async-dispatched attempt (plan-author,
       // execute, …) before resolving, so a WAITing resolver doesn't deadlock on a
@@ -79,7 +80,10 @@ export async function driveProject(projectId: string): Promise<void> {
         .where(eq(project.id, projectId))
         .limit(1);
       const details = validateDetails(proj2?.details ?? proj.details);
-      const action = resolveNextActionFromDetails(details);
+      // The unified engine: the driver takes the single best-practice action from the
+      // permitted set. An empty set = WAIT (nothing allowed now, e.g. MMA in flight).
+      const [action] = allowedActions(details, 'auto');
+      if (!action) { await sleep(5000); continue; }
 
       if (action.kind === 'complete') {
         await emit('All stages complete — project finished', 'done', '', '');
@@ -87,10 +91,6 @@ export async function driveProject(projectId: string): Promise<void> {
         await db.update(project).set({ autoMode: false, autoNote: 'Project complete' }).where(eq(project.id, projectId));
         return;
       }
-
-      // WAIT / already-in-flight: emit nothing — the current action line keeps
-      // spinning and its duration ticks until the running task terminates.
-      if (action.kind === 'wait') { await sleep(5000); continue; }
 
       // SINGLE-FLIGHT GUARD (DB-authoritative): the pipeline is strictly sequential,
       // so NEVER dispatch OR advance while ANY MMA request is in flight for this
@@ -110,13 +110,15 @@ export async function driveProject(projectId: string): Promise<void> {
       const { PhaseBusyError } = await import('@/dispatch/dispatch-helpers');
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          result = await executeDetailsAction(projectId, action, db);
+          await performTransition(db, projectId, action, { mode: 'auto', actorId: driverId });
+          result = 'ok';
           lastErr = null;
           break;
         } catch (err) {
-          // G2 refused a cross-phase dispatch → WAIT (don't burn retries/stop auto);
-          // the in-flight phase will settle and the resolver re-resolves.
-          if (err instanceof PhaseBusyError) { result = 'inflight'; lastErr = null; break; }
+          // A refused transition (cross-phase G2, or the gate said busy/not-allowed)
+          // → WAIT (don't burn retries/stop auto); the in-flight phase settles and the
+          // driver re-resolves. Only a real effect error retries/stops.
+          if (err instanceof PhaseBusyError || err instanceof TransitionRejected) { result = 'inflight'; lastErr = null; break; }
           lastErr = err instanceof Error ? err.message : String(err);
           if (attempt < 3) {
             await emit(`Retry ${attempt}/3 — ${lastErr}`, 'error', action.stage, action.phase);

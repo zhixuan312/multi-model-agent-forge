@@ -1039,10 +1039,9 @@ function CraftStage({
       participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
     }));
     onPatch(active.id, { status: 'approved' });
-    // Persist approval to DB — nod each section in this component
-    for (const s of active.sections) {
-      fetch(`/projects/${projectId}/spec/sections/${s.id}/nod`, { method: 'POST' }).catch(() => {});
-    }
+    // Persist approval to DB — one component-level nod through the unified engine
+    // (approve_component → onHumanSatisfied, idempotent for the whole component).
+    mma.transition('approve_component', { componentId: active.id }).catch(() => {});
     const currentIdx = components.findIndex((c) => c.id === active.id);
     const after = components.slice(currentIdx + 1).find((c) => c.status !== 'approved');
     const before = components.slice(0, currentIdx).find((c) => c.status !== 'approved');
@@ -1347,6 +1346,8 @@ function DocumentScreen({
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
+  const router = useRouter();
+  const refresh = useCallback(() => router.refresh(), [router]);
   // Seed chat from persisted audit history so findings survive page refresh
   const [messages, setMessages] = useState<DocMsg[]>(() => {
     const msgs: DocMsg[] = [];
@@ -1420,18 +1421,23 @@ function DocumentScreen({
     }
   }
 
-  const auditing = mma.busyHandlers.has('spec-audit');
+  // The spec-audit effect is synchronous (await:true → the POST resolves when the
+  // audit terminal handler has recorded the pass), so drive the button from a local
+  // flag rather than an SSE busy-handler.
+  const [auditing, setAuditing] = useState(false);
   const auditingRef = useRef(false);
   async function runAudit(): Promise<void> {
     if (auditingRef.current) return;
     auditingRef.current = true;
+    setAuditing(true);
     try {
-      await mma.dispatch(`/projects/${projectId}/spec/audit`, 'spec-audit', {});
-      auditingRef.current = false;
-      // onDone handler calls router.refresh() → useServerState updates rounds
+      await mma.transition('dispatch_audit');
+      refresh(); // useServerState re-pulls the recorded pass
     } catch (e) {
-      auditingRef.current = false;
       onError(e instanceof Error ? e.message : 'Audit failed.');
+    } finally {
+      auditingRef.current = false;
+      setAuditing(false);
     }
   }
 
@@ -1498,14 +1504,12 @@ function DocumentScreen({
     setApplying(true);
     setApplyingPass(passNo);
     setApplyCount(selectedFindings.length);
-    void mma.dispatch(`/projects/${projectId}/spec/audit-apply`, 'spec-audit-apply', {
-      findings: selectedFindings,
-      passNo,
-    })
+    void mma.transition('apply_findings', { findings: selectedFindings, passNo })
       .then(() => {
         setApplying(false);
         if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
         setApplyingPass(null);
+        refresh();
       })
       .catch(() => { setApplying(false); setApplyingPass(null); });
   }

@@ -79,15 +79,24 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
-  const mma = useMmaDispatch(props.projectId, {
-    onDone: {
-      'code-review': refresh,
-      'review-apply': refresh,
-    },
-  });
+  // dispatch_review / apply_review_findings are synchronous effects (await:true) —
+  // the no-handler transition resolves the POST when their terminal handler has
+  // recorded the pass, so local flags drive button state (no SSE busy-handler).
+  const mma = useMmaDispatch(props.projectId);
+  const [reviewingLocal, setReviewingLocal] = useState(false);
+  const [applyingLocal, setApplyingLocal] = useState(false);
 
-  const reviewing = props.reviewRunning || mma.busyHandlers.has('code-review');
-  const applying = props.applyRunning || mma.busyHandlers.has('review-apply');
+  const reviewing = props.reviewRunning || reviewingLocal;
+  const applying = props.applyRunning || applyingLocal;
+
+  function runReview() {
+    if (reviewingLocal) return;
+    setReviewingLocal(true);
+    void mma.transition('dispatch_review')
+      .then(() => refresh())
+      .catch(() => {})
+      .finally(() => setReviewingLocal(false));
+  }
 
   const auto: 'off' | 'running' = props.autoMode ? 'running' : 'off';
   const autoNote = props.autoNote ?? '';
@@ -106,11 +115,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     if (readOnly || indices.length === 0 || applying) return;
     const pass = props.passes.find((p) => p.passNo === passNo);
     if (!pass) return;
-    void mma.dispatch(
-      `/api/projects/${props.projectId}/review/apply`,
-      'review-apply',
-      { passNo, findingIndices: indices },
-    );
+    // apply_review_findings re-fixes the latest pass's findings for the repo (the
+    // single shared implementation; auto and manual apply the same way).
+    setApplyingLocal(true);
+    void mma.transition('apply_review_findings')
+      .then(() => refresh())
+      .catch(() => {})
+      .finally(() => setApplyingLocal(false));
   }
 
   return (
@@ -219,7 +230,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             </div>
             <Button
               size="sm"
-              onClick={() => mma.dispatch(`/api/projects/${props.projectId}/review/run`, 'code-review', {})}
+              onClick={runReview}
               loading={reviewing}
               disabled={readOnly || reviewing || applying}
               leftIcon={<ScanSearch />}

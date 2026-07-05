@@ -174,11 +174,13 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const autoNote = props.autoNote ?? '';
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
+  // Sync MMA-dispatch effects (author/audit/apply) resolve their POST on completion,
+  // so they drive local flags + an explicit refresh rather than SSE busy-handlers.
+  // plan-refine (task chat, Task 10e) still uses the SSE handler path.
+  const [authoringLocal, setAuthoringLocal] = useState(false);
+  const [auditingLocal, setAuditingLocal] = useState(false);
   const mma = useMmaDispatch(props.projectId, {
     onDone: {
-      'plan-author': refresh,
-      'plan-audit': refresh,
-      'plan-audit-apply': refresh,
       'plan-refine': refresh,
     },
     events: {
@@ -191,16 +193,18 @@ export function PlanStageClient(props: PlanStageClientProps) {
       },
     },
   });
-  const authoring = !!props.pendingAuthor || mma.busyHandlers.has('plan-author');
+  const authoring = !!props.pendingAuthor || authoringLocal;
 
-  // Auto-trigger plan authoring if no plan exists yet.
-  // Uses busyRef (synchronous) instead of busyHandlers (state, batched) to
-  // survive React strict mode double-mount — the first dispatch sets busyRef
-  // immediately, so the second mount's effect sees it and bails.
+  // Auto-trigger plan authoring if no plan exists yet. A synchronous ref guards
+  // against the React strict-mode double-mount firing two author dispatches.
+  const authorFiredRef = useRef(false);
   useEffect(() => {
-    if (readOnly || allTasks.length > 0 || props.pendingAuthor || mma.busyRef.current.has('plan-author')) return;
-    void mma.dispatch(`/projects/${props.projectId}/build/author-plan`, 'plan-author')
-      .catch(() => {});
+    if (readOnly || allTasks.length > 0 || props.pendingAuthor || authorFiredRef.current) return;
+    authorFiredRef.current = true;
+    setAuthoringLocal(true);
+    void mma.transition('dispatch_plan_author')
+      .catch(() => {})
+      .finally(() => setAuthoringLocal(false));
   }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma]);
 
   useEffect(() => stagePhaseStore.set(phase), [phase]);
@@ -223,15 +227,17 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
   const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
-  const auditing = !!props.pendingAudit || mma.busyHandlers.has('plan-audit');
+  const auditing = !!props.pendingAudit || auditingLocal;
   const auditingRef = useRef(false);
 
   function runAudit() {
     if (auditingRef.current) return;
     auditingRef.current = true;
-    void mma.dispatch(`/projects/${props.projectId}/build/run-audit`, 'plan-audit')
-      .then(() => { auditingRef.current = false; })
-      .catch(() => { auditingRef.current = false; });
+    setAuditingLocal(true);
+    void mma.transition('dispatch_audit')
+      .then(() => { refresh(); })
+      .catch(() => {})
+      .finally(() => { auditingRef.current = false; setAuditingLocal(false); });
   }
 
   const [applyCount, setApplyCount] = useState(0);
@@ -239,14 +245,15 @@ export function PlanStageClient(props: PlanStageClientProps) {
     setApplying(true);
     setApplyCount(findings.length);
     if (passNo) setApplyingPass(passNo);
-    void mma.dispatch(`/projects/${props.projectId}/plan/audit-apply`, 'plan-audit-apply', { findings, passNo })
+    void mma.transition('apply_findings', { findings, passNo })
       .then(() => {
         setApplying(false);
         if (passNo) setAppliedPasses((prev) => new Set(prev).add(passNo));
         setApplyingPass(null);
+        refresh();
       })
       .catch(() => { setApplying(false); setApplyingPass(null); });
-  }, [props.projectId, mma]);
+  }, [props.projectId, mma, refresh]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
 
@@ -290,14 +297,13 @@ export function PlanStageClient(props: PlanStageClientProps) {
           projectMembers={props.projectMembers ?? []}
           initialMessages={props.initialMessages ?? {}}
           onToggleApprove={(id) => {
-            const next = status[id] === 'approved' ? 'proposed' : 'approved';
-            setStatus((s) => ({ ...s, [id]: next as TaskStatus }));
-            fetch(`/projects/${props.projectId}/plan/tasks/${id}/approve`, {
-              method: next === 'approved' ? 'POST' : 'DELETE',
-            }).then(() => {
-              setLocalOverrides({});
-              router.refresh();
-            }).catch(() => {});
+            // Task approval is monotonic in the unified model (the resolver never
+            // un-approves), so this is a one-way approve_task transition.
+            if (status[id] === 'approved') return;
+            setStatus((s) => ({ ...s, [id]: 'approved' as TaskStatus }));
+            void mma.transition('approve_task', { taskId: id })
+              .then(() => { setLocalOverrides({}); router.refresh(); })
+              .catch(() => {});
           }}
           onValidate={() => advancePhase('validate')}
         />
@@ -525,7 +531,7 @@ function DetailStage({
               <Button
                 size="sm"
                 onClick={() => {
-                  void mma.dispatch(`/projects/${projectId}/build/author-plan`, 'plan-author').catch(() => {});
+                  void mma.transition('dispatch_plan_author').catch(() => {});
                 }}
                 disabled={readOnly}
                 leftIcon={<Sparkles />}

@@ -59,6 +59,9 @@ describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]
     expect(kinds(d, 'manual')).not.toContain('advance_phase'); // no tasks yet
     d.stages.exploration.phases.discover.tasks = [{ kind: 'investigate', prompt: 'x', status: 'draft', attempts: [] }] as never;
     expect(kinds(d, 'manual')).toContain('advance_phase');
+    // Draft tasks can be dispatched from the brief/fan-out view before the phase
+    // formally advances to Discover.
+    expect(kinds(d, 'manual')).toContain('run_discover_tasks');
   });
   it('discover with drafts → run_discover_tasks; all recorded → advance_phase', () => {
     const d = exploring('discover');
@@ -100,6 +103,24 @@ describe('allowedActions — spec Design phases (Task 8b-2)', () => {
     d.stages.spec.phases.craft.components = [{ id: 'c1', templateId: 't1', approvals: ['m1'] }] as never;
     const acts = allowedActions(d, 'manual');
     expect(acts.find((a) => a.kind === 'advance_phase')?.phase).toBe('finalize');
+  });
+});
+
+describe('allowedActions — plan refine (manual direct approval)', () => {
+  function planRefine(taskApprovals: string[]) {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    d.stages.plan.phases.refine.tasks = [{ id: 'task1', title: 'T1', approvals: taskApprovals, attempts: [] }] as never;
+    return d;
+  }
+  it('unapproved task → manual may approve_task directly (no prior validate)', () => {
+    expect(allowedActions(planRefine([]), 'manual').map((a) => a.kind)).toContain('approve_task');
+  });
+  it('all tasks approved → no approve_task offered', () => {
+    expect(allowedActions(planRefine(['m1']), 'manual').map((a) => a.kind)).not.toContain('approve_task');
   });
 });
 

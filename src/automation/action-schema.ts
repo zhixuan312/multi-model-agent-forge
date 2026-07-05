@@ -15,11 +15,21 @@ export const ACTION_KINDS = [
   'dispatch_plan_author', 'validate_task', 'approve_task', 'dispatch_execute', 'dispatch_review',
   'apply_review_findings', 'dispatch_harvest', 'approve_learning', 'dispatch_record', 'mark_complete',
   // Design-phase + cross-cutting (Task 8b)
-  'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component', 'retry_pr',
+  'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component',
   'add_learning', 'start_auto', 'take_over',
-  // content edits (Task 10)
-  'set_brief', 'select_components', 'add_attachment', 'remove_attachment', 'refine_component', 'edit_plan_task',
+  // content edits (Task 10) — every kind here has exactly one executeDetailsAction effect
+  'set_brief', 'select_components',
 ] as const;
+
+/**
+ * INTENTIONAL EXCEPTIONS to the single /transition endpoint — NOT lifecycle
+ * transitions, so they keep dedicated routes (JSON {action,data} can't carry them):
+ *   - attachment add/remove — binary/multipart FILE I/O (explore/attachment/*)
+ *   - retry_pr — a git-push retry, pure git I/O (build/retry-pr)
+ * And two chat/refine actions still on their routes pending Task 9 client wiring
+ * (they will move to /transition then, with their effects): refine_component
+ * (spec-refine dispatch), edit_plan_task (plan-task chat message).
+ */
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 

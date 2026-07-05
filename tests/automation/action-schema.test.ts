@@ -1,4 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { transitionSchema, ACTION_KINDS } from '@/automation/action-schema';
+
+describe('action coverage (Task 8b-4) — no dormant kind', () => {
+  it('every ACTION_KIND has an executeDetailsAction case (one implementation each)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/automation/details-actions.ts'), 'utf8');
+    const missing = ACTION_KINDS.filter((k) => !src.includes(`case '${k}':`));
+    expect(missing).toEqual([]);
+  });
+});
 
 describe('transitionSchema (POST /transition boundary)', () => {
   it('parses a bare action kind', () => {

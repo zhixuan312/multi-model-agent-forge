@@ -28,9 +28,9 @@ function buildFixPrompt(findings: Array<Record<string, unknown>>): string {
 
   return `Role: You are a code review fix applicator for Forge, a software delivery harness. You apply targeted code fixes from review findings to the working codebase.
 
-Task: Read each code review finding below, locate the cited file and line, apply the suggested fix, then verify the codebase still compiles and tests pass. Commit all changes when done.
+Task: Read each code review finding below, locate the cited file and line, apply the suggested fix, then verify the codebase still compiles and tests pass. Make the fixes directly to the files.
 
-Context: A code review pass flagged the findings listed below. Each finding cites a specific file, line, claim (what is wrong), evidence (how the reviewer found it), and a suggested fix. You are working on the forge branch of the PR — your changes will update the pull request automatically.
+Context: A code review pass flagged the findings listed below. Each finding cites a specific file, line, claim (what is wrong), evidence (how the reviewer found it), and a suggested fix.
 
 Input:
 
@@ -43,10 +43,10 @@ Constraints:
 - Make minimal, targeted changes — do not refactor, restructure, or "improve" beyond what the finding requires
 - Preserve all code not touched by a finding
 - After all fixes, run the project's test suite to verify nothing broke
-- Commit all changes with a message summarising which findings were addressed
+- Do NOT run git commit — leave your edits in the working tree; the harness commits them for you
 
 Output format:
-Commit your changes to the current branch. No other output is required — the harness reads the git diff.`;
+Make the fixes directly to the files. Do NOT commit. No other output is required — the harness reads the git diff.`;
 }
 
 export async function POST(
@@ -108,7 +108,10 @@ export async function POST(
     db,
     mma,
     projectId: id,
-    route: 'orchestrate',
+    // `delegate` (worktree route): MMA commits the fixes + ff-merges them onto the
+    // forge branch — same as the auto driver. handleReviewApply records the pass +
+    // pushes (it does NOT commit). Matches the auto path exactly (one implementation).
+    route: 'delegate',
     handler: 'review-apply',
     cwd: cwd!,
     body: {

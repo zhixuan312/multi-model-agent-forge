@@ -95,7 +95,11 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       const authorAttempts = plan.phases.refine.attempts;
       const last = authorAttempts[authorAttempts.length - 1];
       if (last?.status === 'running') return WAIT;
-      if (!last || last.status === 'failed') {
+      // Bounded retry (matches the audit-loop's 5-pass cap): re-author only while
+      // failed attempts are under the cap, so a persistently-failing plan-author
+      // (e.g. MMA keeps writing a section-less plan) can't re-dispatch forever.
+      const failed = authorAttempts.filter((a) => a.status === 'failed').length;
+      if ((!last || last.status === 'failed') && failed < 5) {
         return { kind: 'dispatch_plan_author', note: 'Authoring plan from spec...', stage: 'plan', phase: 'refine' };
       }
       return WAIT;
@@ -180,21 +184,19 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       return { kind: 'dispatch_review', note: 'Running code review...', stage: 'review', phase: 'review' };
     }
 
-    const allDone = review.phases.review.repos.every((r) => {
-      const last = r.reviewPasses[r.reviewPasses.length - 1];
-      return last && (last.status === 'clean' || r.reviewPasses.length >= 5);
-    });
-    if (!allDone) {
-      const repo = review.phases.review.repos[0];
+    // Act on the FIRST unfinished repo (not just repos[0]) — else a blocking repo
+    // at index >0 is silently shipped to Journal. `repoId` targets the action.
+    for (const repo of review.phases.review.repos) {
       const last = repo.reviewPasses[repo.reviewPasses.length - 1];
-      if (last?.status === 'revised') {
-        if (!last.fix || last.fix.attempts.length === 0) {
-          return { kind: 'apply_review_findings', note: `Applying review pass ${repo.reviewPasses.length} findings...`, stage: 'review', phase: 'review' };
-        }
-        if (repo.reviewPasses.length < 5) {
-          return { kind: 'dispatch_review', note: `Running review pass ${repo.reviewPasses.length + 1}...`, stage: 'review', phase: 'review' };
-        }
+      if (last && (last.status === 'clean' || repo.reviewPasses.length >= 5)) continue; // this repo done
+      if (!last) {
+        return { kind: 'dispatch_review', note: 'Running code review...', stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
       }
+      // last pass is `revised` (has blocking findings)
+      if (!last.fix || last.fix.attempts.length === 0) {
+        return { kind: 'apply_review_findings', note: `Applying review pass ${repo.reviewPasses.length} findings...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
+      }
+      return { kind: 'dispatch_review', note: `Running review pass ${repo.reviewPasses.length + 1}...`, stage: 'review', phase: 'review', data: { repoId: repo.repoId } };
     }
     return { kind: 'advance_stage', note: 'Review done — advancing to Journal...', stage: 'journal', phase: 'journal' };
   }
@@ -215,8 +217,12 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       return { kind: 'approve_learning', note: `Approving learning ${unapproved + 1}/${learnings.length}...`, stage: 'journal', phase: 'journal', data: { learningIndex: unapproved } };
     }
 
-    const allRecorded = learnings.every((l) => l.status === 'recorded');
-    if (!allRecorded) {
+    // A learning is "settled" once recorded OR removed (a human can `remove` one
+    // mid-run; dispatch_record only flips kept→recorded, so requiring EVERY learning
+    // to be `recorded` would deadlock on a removed one). Record only when a kept
+    // learning still awaits recording.
+    const needsRecord = learnings.some((l) => l.status === 'kept');
+    if (needsRecord) {
       const recordAttempts = journal.phases.summary.attempts;
       const lastRecord = recordAttempts[recordAttempts.length - 1];
       if (lastRecord?.status === 'running') return WAIT;
@@ -234,7 +240,14 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
     return { kind: 'mark_complete', note: 'Marking project complete...', stage: 'journal', phase: 'summary' };
   }
 
-  // Completing from a corrupted "everything done" state: only if the work is real.
+  // Bottom fallthrough — reached only when NO stage branch above matched. If a
+  // stage is `active` that this resolver does NOT drive (exploration, or spec
+  // outline/craft — the MANUAL Design stages), WAIT: auto-mode never drives Design,
+  // and reopening here would wipe all downstream work in an infinite loop (a stage
+  // reopen re-activates that same undriveable stage). The completion invariant only
+  // applies once EVERY stage claims `done` (the corrupted-complete case).
+  const anyActive = Object.values(details.stages).some((s) => s.status === 'active');
+  if (anyActive) return WAIT;
   const underdone = firstUnderdoneStage(details);
   if (underdone) {
     return { kind: 'reopen_stage', note: `${STAGE_LABEL[underdone]} was skipped — reopening to finish it`, stage: underdone, phase: '' };

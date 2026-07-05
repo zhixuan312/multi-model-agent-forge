@@ -198,6 +198,23 @@ describe('resolveNextActionFromDetails', () => {
       expect(action.kind).toBe('reopen_stage');
       expect(action.stage).toBe('spec');
     });
+
+    it('WAITs (never reopens/wipes) when an UNDRIVEABLE stage is active — exploration', () => {
+      // auto-mode does not drive Design (exploration / spec craft). The old bottom
+      // fallthrough returned reopen_stage → reopenStageInPlace wipes all stages →
+      // infinite loop + data loss. It must WAIT instead.
+      const d = buildInitialDetails(); // exploration active, nothing else done
+      expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    });
+
+    it('WAITs when spec craft is active (Design stage, not auto-driven)', () => {
+      const d = buildInitialDetails();
+      d.stages.exploration.status = 'done';
+      d.stages.spec.status = 'active';
+      d.stages.spec.phases.outline.status = 'done';
+      d.stages.spec.phases.craft.status = 'active'; // craft is manual — no resolver branch
+      expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    });
   });
 
   it('waits when an attempt is running', () => {
@@ -364,5 +381,60 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
       { heading: 'L1', type: 'decision', status: 'kept' },
     ];
     expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_record');
+  });
+});
+
+/** Edge-case fixes from the line-by-line review. */
+describe('resolver edge-case fixes', () => {
+  function withWork(d: import('@/details/schema').Details) {
+    d.stages.exploration.phases.synthesize.file = 'exploration.md';
+    d.stages.spec.phases.finalize.approvals = ['m1'];
+    d.stages.plan.phases.refine.tasks = [{ id: 't1', title: 'T1', status: 'committed', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' }];
+    d.stages.plan.phases.validate.auditPasses = [{ passNo: 1, status: 'clean' }];
+    d.stages.execute.phases.implement.repos = [{ repoId: 'r1', attempts: [{ batchId: 'e1', status: 'done', at: '' }] }];
+    return d;
+  }
+
+  it('LOW5: bounds plan-author re-dispatch at 5 failed attempts', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    // 4 failed → still re-dispatches
+    d.stages.plan.phases.refine.attempts = Array.from({ length: 4 }, (_, i) => ({ batchId: `b${i}`, status: 'failed' as const, at: '' }));
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');
+    // 5 failed → capped → WAIT (no more burn)
+    d.stages.plan.phases.refine.attempts.push({ batchId: 'b5', status: 'failed', at: '' });
+    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+  });
+
+  it('LOW7: journal completes when a learning is `removed` (no dispatch_record deadlock)', () => {
+    const d = withWork(buildInitialDetails());
+    for (const k of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) d.stages[k].status = 'done';
+    d.stages.review.phases.review.repos = [{ repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v', status: 'done', at: '' }] } }] }];
+    d.stages.journal.status = 'active';
+    d.stages.journal.phases.journal.status = 'active';
+    d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
+    d.stages.journal.phases.journal.learnings = [
+      { heading: 'L1', type: 'decision', status: 'recorded' },
+      { heading: 'L2', type: 'insight', status: 'removed' }, // human removed one
+    ];
+    d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
+    // NOT dispatch_record (would loop forever on the removed one) → mark_complete
+    expect(resolveNextActionFromDetails(d).kind).toBe('mark_complete');
+  });
+
+  it('MED4: multi-repo review acts on the BLOCKING repo at index>0, not just repos[0]', () => {
+    const d = withWork(buildInitialDetails());
+    for (const k of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[k].status = 'done';
+    d.stages.review.status = 'active';
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r0', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v0', status: 'done', at: '' }] } }] },
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] }, // blocking
+    ];
+    const action = resolveNextActionFromDetails(d);
+    expect(action.kind).toBe('apply_review_findings'); // NOT advance_stage
+    expect(action.data?.repoId).toBe('r1');
   });
 });

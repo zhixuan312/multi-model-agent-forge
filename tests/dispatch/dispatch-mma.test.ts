@@ -85,3 +85,34 @@ describe('dispatchMma — error envelope is a failure, not a silent success', ()
     expect(statuses).not.toContain('done'); // never recorded as success
   });
 });
+
+/**
+ * F1 regression: a terminal handler that THROWS on an otherwise-successful envelope
+ * (e.g. an audit that returns prose → the handler throws `missing_report`) must mark
+ * the batch `failed` and RETHROW — NOT swallow it and leave the batch `done`. The
+ * swallow left the gate unwritten → the resolver re-dispatched forever (the driver's
+ * retry bound never engaged because dispatchMma reported success).
+ */
+describe('dispatchMma — a throwing terminal handler fails the batch + rethrows', () => {
+  const okEnvelope = {
+    task: { type: 'audit', status: 'done', taskId: 'mma-ok' },
+    output: { summary: 'plain prose, no structured report' },
+    error: null,
+  };
+
+  it('marks the row failed and rethrows when the sync handler throws', async () => {
+    const { registerHandler } = await import('@/dispatch/handler-registry');
+    registerHandler('test-throwing-handler', async () => { throw new Error('handler boom'); });
+
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-h', createdAt: new Date() }] });
+    await expect(dispatchMma({
+      db,
+      mma: { dispatchAndWait: async () => ({ batchId: 'mma-ok', envelope: okEnvelope }) } as unknown as MmaClient,
+      projectId: 'proj-1', route: 'orchestrate', handler: 'test-throwing-handler',
+      cwd: '/w', body: { prompt: 'x' }, actorId: '00000000-0000-0000-0000-000000000000', await: true,
+    })).rejects.toThrow(/handler boom/);
+
+    const statuses = db._callsFor('ops_mma_batch').filter((c) => c.method === 'set').map((c) => (c.args[0] as Record<string, unknown>).status);
+    expect(statuses).toContain('failed'); // batch flipped done→failed on the handler throw
+  });
+});

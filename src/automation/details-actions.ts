@@ -16,6 +16,7 @@ import {
   recordAuthorAttempt, recordTaskValidation, recordHarvestAttempt, openRunningAttempts,
 } from '@/automation/details-mutations';
 import { startExecuteRun } from '@/build/start-execute-run';
+import { parseAuditEnvelope } from '@/spec/audit-loop';
 import type { AutoAction } from '@/automation/details-resolver';
 import { sql } from 'drizzle-orm';
 
@@ -138,7 +139,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [batch] = await db.select({ result: mmaBatch.result }).from(mmaBatch)
         .where(eq(mmaBatch.id, lastPass.audit.attempts[0].batchId)).limit(1);
       if (!batch?.result) break;
-      const findings = extractFindings(batch.result);
+      // Use the CANONICAL audit parser (the same one that set this pass's `revised`
+      // verdict) — a `revised` pass therefore always yields non-empty findings here,
+      // so apply_findings can never spin on an empty list (the old object-only
+      // `extractFindings` diverged from the string-aware verdict → infinite loop).
+      const parsed = parseAuditEnvelope(batch.result);
+      const findings = parsed.kind === 'report' ? parsed.findings : [];
       if (findings.length === 0) break;
       await backupArtifact(projectId, scope === 'spec' ? 'spec.md' : 'plan.md');
       const prompt = buildRevisePrompt(filePath, findings);
@@ -286,10 +292,13 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       if (!pRow?.details) break;
       const d = validateDetails(pRow.details);
-      for (const r of d.repos) {
-        // The code-review handler records the pass into details.reviewPasses (the
-        // single writer for manual + auto); the resolver reads it to advance or
-        // apply findings — no re-review loop, and manual↔auto switching is safe.
+      // A re-review targets ONE repo (resolver passes its repoId); the initial review
+      // (no repoId) fans out to every repo. The code-review handler records the pass
+      // into details.reviewPasses (single writer for manual + auto) — no re-review
+      // loop, and manual↔auto switching is safe.
+      const targetRepoId = action.data?.repoId as string | undefined;
+      const reviewRepos = targetRepoId ? d.repos.filter((r) => r.id === targetRepoId) : d.repos;
+      for (const r of reviewRepos) {
         await dispatchMma({
           db, mma, projectId, route: 'review', handler: 'code-review', cwd: r.pathOnDisk,
           body: { target: { paths: ['.'] }, prompt: 'Review all changed files.' },
@@ -303,7 +312,11 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       if (!pRow?.details) break;
       const d = validateDetails(pRow.details);
-      const entry = d.stages.review.phases.review.repos[0];
+      // Target the specific repo the resolver flagged (multi-repo safe); fall back to
+      // the sole repo for the single-repo / manual path.
+      const targetRepoId = action.data?.repoId as string | undefined;
+      const entry = (targetRepoId && d.stages.review.phases.review.repos.find((r) => r.repoId === targetRepoId))
+        ?? d.stages.review.phases.review.repos[0];
       if (!entry) break;
       const repoMeta = d.repos.find((r) => r.id === entry.repoId);
       if (!repoMeta) break;
@@ -379,27 +392,6 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       break;
   }
   return 'ok';
-}
-
-function extractFindings(result: unknown): Array<{ severity: string; category: string; claim: string; evidence?: string; suggestion?: string }> {
-  const r = result as Record<string, unknown>;
-  const output = (r?.output ?? {}) as Record<string, unknown>;
-  const summary = output.summary;
-  let findings: unknown[] = [];
-  if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
-    findings = (summary as Record<string, unknown>).findings as unknown[] ?? [];
-  }
-  if (!Array.isArray(findings)) return [];
-  return findings.map((f: unknown) => {
-    const ff = f as Record<string, unknown>;
-    return {
-      severity: String(ff.weight ?? ff.severity ?? ''),
-      category: String(ff.category ?? ''),
-      claim: String(ff.claim ?? ''),
-      evidence: ff.evidence ? String(ff.evidence) : undefined,
-      suggestion: ff.suggestion ? String(ff.suggestion) : undefined,
-    };
-  });
 }
 
 function buildRevisePrompt(filePath: string, findings: Array<{ severity: string; category: string; claim: string; evidence?: string; suggestion?: string }>): string {

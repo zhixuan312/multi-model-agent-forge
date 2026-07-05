@@ -23,22 +23,40 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
   const actorId = request.actorId ?? ctx.actorId ?? 'system';
   if (!repoId) return; // can't correlate this terminal to a repo/attempt
 
-  // Record the implement attempt (DONE) + mark tasks committed, so the auto
-  // resolver advances to Review. Manual mode ignores the implement attempt — this
-  // is the single writer of that gating state for both triggers.
-  await updateDetails(db, ctx.projectId, (det) => recordImplementAttempt(det, repoId, ctx.batchRowId, new Date().toISOString()));
-
-  // The branch/PR machinery needs the branch meta the shared core always sets; if
-  // it is somehow absent the attempt is already recorded above (pipeline still
-  // advances) — just skip the PR.
-  if (!forgeBranch || !targetBranch) return;
-
-  // Look up repo from details
+  // Look up the repo up front — needed to VERIFY committed code before recording
+  // execute as done (the completion invariant's teeth).
   const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
   if (!projRow?.details) throw new Error(`Project ${ctx.projectId} has no details`);
   const d = validateDetails(projRow.details);
   const repoMeta = d.repos.find((r) => r.id === repoId);
   if (!repoMeta) throw new Error(`Repo ${repoId} not found in project details`);
+
+  // COMPLETION INVARIANT: only record execute as DONE if MMA actually COMMITTED code
+  // onto the project branch. execute_plan self-commits per task in a worktree and
+  // ff-merges back; if it produced NO commits ahead of the base, advancing to Review
+  // would be a false completion (the exact skip the invariant bans). Verify the
+  // commit count; if zero, THROW → the batch is marked failed → reconcile flips the
+  // running attempt to failed → the resolver retries (and stops after the bound).
+  if (forgeBranch && targetBranch) {
+    let commitCount = 0;
+    try {
+      const out = execFileSync('git', ['-C', repoMeta.pathOnDisk, 'rev-list', '--count', `origin/${targetBranch}..HEAD`], { encoding: 'utf8', timeout: 30_000 }).trim();
+      commitCount = Number(out) || 0;
+    } catch (revErr) {
+      throw new Error(`execute: unable to verify committed code on ${forgeBranch}: ${String(revErr)}`);
+    }
+    if (commitCount === 0) {
+      throw new Error(`execute-pipeline produced no commits on ${forgeBranch} — refusing to advance (would be a false completion)`);
+    }
+  }
+
+  // Record the implement attempt (DONE) + mark tasks committed, so the auto
+  // resolver advances to Review. Single writer of that gating state (manual + auto).
+  await updateDetails(db, ctx.projectId, (det) => recordImplementAttempt(det, repoId, ctx.batchRowId, new Date().toISOString()));
+
+  // The branch/PR machinery needs the branch meta the shared core always sets; if it
+  // is somehow absent the attempt is already recorded above — just skip the PR.
+  if (!forgeBranch || !targetBranch) return;
 
   // Push forge branch to origin
   try {

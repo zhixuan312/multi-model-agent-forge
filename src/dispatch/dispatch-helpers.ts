@@ -44,7 +44,7 @@ export async function findInflight(
   }
 
   const [row] = await db
-    .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt })
+    .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, createdAt: mmaBatch.createdAt, route: mmaBatch.route })
     .from(mmaBatch)
     .where(and(...conditions))
     .limit(1);
@@ -68,7 +68,7 @@ export async function findInflight(
           batchId: row.id,
           mmaBatchId: row.batchId,
           projectId,
-          route: 'orchestrate',
+          route: row.route,
           taskId: null,
           handler,
           createdAt: row.createdAt,
@@ -95,56 +95,6 @@ export async function findPendingHandlers(
       ),
     );
   return rows.map((r) => r.handler).filter((h): h is string => !!h);
-}
-
-export interface LocalDispatchOpts {
-  db: Db;
-  projectId: string;
-  handler: string;
-  actorId: string;
-  work: () => Promise<unknown>;
-}
-
-export async function dispatchLocal(opts: LocalDispatchOpts): Promise<string> {
-  const existing = await findInflight(opts.db, opts.projectId, opts.handler);
-  if (existing) return existing;
-
-  const [row] = await opts.db
-    .insert(mmaBatch)
-    .values({
-      projectId: opts.projectId,
-      route: 'orchestrate',
-      handler: opts.handler,
-      cwd: '.',
-      status: 'dispatched',
-      request: { handler: opts.handler } as object,
-      dispatchedBy: opts.actorId,
-    })
-    .returning({ id: mmaBatch.id });
-
-  const batchRowId = row.id;
-
-  opts.work()
-    .then(async (result) => {
-      await opts.db
-        .update(mmaBatch)
-        .set({ status: 'done', result: (result ?? {}) as object, terminalAt: new Date() })
-        .where(eq(mmaBatch.id, batchRowId));
-      const { projectEventBus } = await import('@/sse/event-bus');
-      projectEventBus.publish(opts.projectId, { type: 'dispatch.done', batchId: batchRowId, handler: opts.handler });
-    })
-    .catch(async (err) => {
-      await opts.db
-        .update(mmaBatch)
-        .set({ status: 'failed', result: { error: String(err) } as object, terminalAt: new Date() })
-        .where(eq(mmaBatch.id, batchRowId));
-      if (opts.projectId) {
-        const { projectEventBus } = await import('@/sse/event-bus');
-        projectEventBus.publish(opts.projectId, { type: 'dispatch.failed', batchId: batchRowId, handler: opts.handler, error: String(err) });
-      }
-    });
-
-  return batchRowId;
 }
 
 /**
@@ -237,13 +187,25 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
       throw new Error(`MMA task failed: ${e.code ?? 'error'}${e.message ? `: ${e.message}` : ''}`);
     }
 
-    // Fire handler (best-effort)
+    // Fire the terminal handler. If it THROWS, the gating state it is the sole
+    // writer of was NOT recorded — a WAITing/gated resolver would re-dispatch
+    // FOREVER (the batch is `done`, so the driver's retry bound never engages and
+    // the in-flight guard clears). So on a handler throw, mark the batch `failed`
+    // and RETHROW, so the caller (driver) retries/stops — mirroring the async
+    // PollManager path, which fails the batch on a handler throw. Closes the
+    // infinite-loop door for a handler that throws on an otherwise-successful
+    // envelope (e.g. an audit that returns prose → `missing_report` → handler throws).
     try {
       const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
       ensureHandlersRegistered();
       const h = getHandler(opts.handler);
       if (h) await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request: opts.body, actorId: opts.actorId }, envelope);
-    } catch { /* handler failure logged, not propagated */ }
+    } catch (handlerErr) {
+      console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
+      await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+      throw handlerErr;
+    }
 
     // Resolve the running timeline line to its milestone + measured duration —
     // one line per activity, covering manual-UI dispatches too.

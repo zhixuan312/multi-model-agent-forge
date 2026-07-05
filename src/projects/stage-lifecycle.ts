@@ -1,10 +1,4 @@
-import { eq } from 'drizzle-orm';
 import { STAGE_ORDER, type StageKind, type StageStatus } from '@/db/enums';
-import type { Db } from '@/db/client';
-import { project } from '@/db/schema/projects';
-import { validateDetails } from '@/details/schema';
-import { getCurrentPhase } from '@/details/read';
-import { updateDetails } from '@/details/write';
 
 export interface StageRow {
   kind: StageKind;
@@ -31,43 +25,14 @@ const STAGE_LABEL: Record<StageKind, string> = {
   journal: 'Reflect',
 };
 
-export async function ensureStageReached(db: Db, projectId: string, viewingStage: StageKind): Promise<void> {
-  const viewIdx = STAGE_ORDER.indexOf(viewingStage);
-  if (viewIdx < 0) return;
-
-  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
-  if (!row?.details) return;
-  const d = validateDetails(row.details);
-
-  const DESIGN_BOUNDARY = 3;
-  const now = new Date().toISOString();
-
-  let changed = false;
-
-  if (viewIdx >= DESIGN_BOUNDARY) {
-    for (let i = 0; i < viewIdx; i++) {
-      const kind = STAGE_ORDER[i];
-      const stg = d.stages[kind];
-      if (stg.status !== 'done') {
-        stg.status = 'done';
-        if (!stg.completedAt) stg.completedAt = now;
-        if (!stg.startedAt) stg.startedAt = now;
-        changed = true;
-      }
-    }
-  }
-
-  const viewStg = d.stages[viewingStage];
-  if (viewStg.status === 'pending') {
-    viewStg.status = 'active';
-    if (!viewStg.startedAt) viewStg.startedAt = now;
-    changed = true;
-  }
-
-  if (changed) {
-    await updateDetails(db, projectId, () => d);
-  }
-}
+// NOTE: a stage-page render is strictly READ-ONLY — it must never mutate stage
+// state. Viewing/refreshing a stage URL (even a stale one, e.g. `/review` while the
+// auto-driver is mid-`plan`) previously called an `ensureStageReached` writer that
+// force-marked prior stages `done` + the viewed stage `active`, clobbering the
+// driver's in-progress work and jumping the pipeline out of order. Stage
+// progression now comes ONLY from the auto-driver or the `/advance` route. The
+// stepper's "this path is done" appearance is computed read-only by
+// `computeAllStages` (the `viewingStage` argument), with the DB left untouched.
 
 export function computeAllStages(
   stages: StageRow[],

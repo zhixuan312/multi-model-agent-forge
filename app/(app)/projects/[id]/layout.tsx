@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
@@ -13,19 +12,8 @@ import {
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { getStagePermissions } from '@/projects/stage-gate';
-import { ensureStageReached } from '@/projects/stage-lifecycle';
 import { getDb } from '@/db/client';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
-import type { StageKind } from '@/db/enums';
-
-const SEGMENT_TO_STAGE: Record<string, StageKind> = {
-  explore: 'exploration',
-  spec: 'spec',
-  plan: 'plan',
-  execute: 'execute',
-  review: 'review',
-  journal: 'journal',
-};
 
 export default async function ProjectLayout({
   children,
@@ -47,17 +35,9 @@ export default async function ProjectLayout({
 
   const db = getDb();
 
-  const h = await headers();
-  const pathname = h.get('x-pathname') ?? '';
-  const segments = pathname.split('/');
-  const idIdx = segments.indexOf(id);
-  const stageSegment = idIdx >= 0 ? segments[idIdx + 1] ?? '' : '';
-  const viewingStage = SEGMENT_TO_STAGE[stageSegment];
-
-  if (viewingStage) {
-    await ensureStageReached(db, id, viewingStage);
-  }
-
+  // Rendering this layout is READ-ONLY — it never advances stages. Stage
+  // progression is owned by the auto-driver and the `/advance` route; a page view
+  // (including a refresh of a stale URL) must not mutate stage state.
   const project = await getProject(id);
   if (!project) notFound();
   const [stages, perms] = await Promise.all([

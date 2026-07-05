@@ -39,17 +39,8 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
     .limit(1);
   if (!proj) notFound();
 
-  // Activate the plan stage + update current_stage on visit
-  const { updateDetails } = await import('@/details/write');
-  await updateDetails(db, id, (d) => {
-    if (d.stages.plan.status === 'pending') {
-      d.stages.plan.status = 'active';
-      d.stages.plan.startedAt = new Date().toISOString();
-    }
-    return d;
-  });
-  await db.update(project).set({ currentStage: 'plan' }).where(eq(project.id, id));
-
+  // READ-ONLY render — do NOT activate the plan stage or write current_stage on
+  // visit. Stage progression is owned by the auto-driver and the /advance route.
   const planView = await loadPlanView(db, id);
   const mmaReady = readMmaBearer() !== null;
   const voiceEnabled = await isVoiceEnabled({ db });

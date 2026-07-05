@@ -25,18 +25,9 @@ export default async function ReviewStagePage({ params, searchParams }: { params
 
   const db = getDb();
 
-  // Activate the review stage on visit via details
-  const { project: projectTable } = await import('@/db/schema/projects');
-  const { updateDetails } = await import('@/details/write');
-  await updateDetails(db, id, (d) => {
-    if (d.stages.review.status === 'pending') {
-      d.stages.review.status = 'active';
-      d.stages.review.startedAt = new Date().toISOString();
-    }
-    return d;
-  });
-  await db.update(projectTable).set({ currentStage: 'review' }).where(eq(projectTable.id, id));
-
+  // READ-ONLY render — do NOT activate the review stage or write current_stage on
+  // visit. Stage progression is owned by the auto-driver and the /advance route; a
+  // page refresh must never mutate stage state (it used to clobber an in-flight run).
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 

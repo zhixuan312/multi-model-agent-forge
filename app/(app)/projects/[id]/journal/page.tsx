@@ -33,16 +33,10 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  // Activate the journal stage on visit via details
-  await updateDetails(db, id, (d) => {
-    if (d.stages.journal.status === 'pending') {
-      d.stages.journal.status = 'active';
-      d.stages.journal.startedAt = new Date().toISOString();
-    }
-    return d;
-  });
-  await db.update(project).set({ currentStage: 'journal' }).where(eq(project.id, id));
-
+  // READ-ONLY w.r.t. stage progression — do NOT activate the journal stage or write
+  // current_stage on visit (that races/corrupts an in-flight run). Stage progression
+  // is owned by the auto-driver and the /advance route. The learnings file↔details
+  // sync below is journal-content only (guarded so it no-ops during a healthy run).
   // Check if journal.md exists (source of truth for content)
   const journalFile = await readJournalFileAsync(id);
   const journalMd = journalFile?.bodyMd ?? '';

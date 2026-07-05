@@ -1,7 +1,21 @@
 // @vitest-environment node
-import { ensureStageReached, computeAllStages, type StageRow } from '@/projects/stage-lifecycle';
-import { createMockDb, seq } from '../test-utils/mock-db';
+import { computeAllStages, type StageRow } from '@/projects/stage-lifecycle';
 
+/**
+ * Regression guard for the page-render-mutates-stage bug.
+ *
+ * Viewing/refreshing a stage URL used to call `ensureStageReached`, which WROTE the
+ * DB — force-marking prior stages `done` and the viewed stage `active`. During an
+ * auto run that clobbered the driver's in-progress work and jumped the pipeline out
+ * of order (e.g. a stale `/review` tab refreshed while the driver was mid-`plan`
+ * jumped straight to review→journal, skipping refine/audit/execute).
+ *
+ * The writer is gone: a stage-page render is now strictly READ-ONLY. The stepper's
+ * "this stage is reached" appearance is computed by `computeAllStages` from the
+ * ACTUAL (unchanged) DB state + the viewed stage — no mutation required. These tests
+ * assert that render is correct WITHOUT any DB write, i.e. the real DB state that the
+ * driver owns is what drives the stepper.
+ */
 function makeRows(statuses: Record<string, string>): StageRow[] {
   return (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
     kind,
@@ -9,107 +23,47 @@ function makeRows(statuses: Record<string, string>): StageRow[] {
   }));
 }
 
-function visuals(result: ReturnType<typeof computeAllStages>) {
-  return Object.fromEntries(result.map((s) => [s.kind, s.visual]));
-}
+const visualOf = (r: ReturnType<typeof computeAllStages>, kind: string) =>
+  r.find((s) => s.kind === kind)!.visual;
 
-function reachableKinds(result: ReturnType<typeof computeAllStages>) {
-  return result.filter((s) => s.reachable).map((s) => s.kind);
-}
+describe('stage stepper is read-only (page render never mutates stage state)', () => {
+  it('THE BUG: refreshing a stale /review URL while the driver is mid-plan does NOT change the pipeline', () => {
+    // The real DB state the driver owns: plan is active (mid plan-refine), everything
+    // downstream still pending. This is exactly what it stays as on a page refresh —
+    // no write happens.
+    const realDbState = makeRows({ exploration: 'done', spec: 'done', plan: 'active' });
 
-describe('ensureStageReached + computeAllStages integration', () => {
-  it('scenario: visit Journal → back to Spec → Review/Journal stay done/reachable', () => {
-    // Step 1: User was at Execute (DB state before visiting Journal)
-    const dbBefore = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done', execute: 'active',
-    });
+    // Viewing /review renders the stepper from that UNCHANGED state. The stepper may
+    // show the path optimistically, but the DB (source of truth) is untouched: plan
+    // is still ongoing, execute/review/journal still not reached.
+    const stepper = computeAllStages(realDbState, 'review');
+    expect(visualOf(stepper, 'plan')).toBe('done');       // implicit-done up to viewed stage (display only)
+    expect(visualOf(stepper, 'review')).toBe('ongoing');  // the viewed stage highlights
+    // Critical: the driver's real state is not advanced — journal never shows reached
+    // off a stale review view, and reachability is bounded by the true furthest stage.
+    expect(visualOf(stepper, 'journal')).toBe('not_started');
+    expect(stepper.find((s) => s.kind === 'journal')!.reachable).toBe(false);
+  });
 
-    // Step 2: User navigates to Journal
-    // ensureStageReached would mark execute+review as done, journal as active
-    // Simulate the DB state AFTER ensureStageReached('journal')
-    const dbAfterJournal = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'done', journal: 'active',
+  it('stepper reflects the DRIVER\'s real progress, not the viewed URL', () => {
+    // Driver has genuinely reached review (execute done, review active).
+    const realDbState = makeRows({
+      exploration: 'done', spec: 'done', plan: 'done', execute: 'done', review: 'active',
     });
-    const atJournal = computeAllStages(dbAfterJournal, 'journal');
-    expect(visuals(atJournal)).toEqual({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'done', journal: 'ongoing',
-    });
-    expect(reachableKinds(atJournal)).toEqual([
-      'exploration', 'spec', 'plan', 'execute', 'review', 'journal',
+    // Even while viewing an EARLIER stage (spec), the true progress shows through.
+    const stepper = computeAllStages(realDbState, 'spec');
+    expect(visualOf(stepper, 'execute')).toBe('done');
+    expect(visualOf(stepper, 'review')).toBe('ongoing');
+    expect(stepper.find((s) => s.kind === 'spec')!.isCurrent).toBe(true);
+    // All genuinely-reached stages stay reachable for navigation.
+    expect(stepper.filter((s) => s.reachable).map((s) => s.kind)).toEqual([
+      'exploration', 'spec', 'plan', 'execute', 'review',
     ]);
-
-    // Step 3: User navigates BACK to Spec
-    // ensureStageReached('spec') should NOT undo anything — it only marks
-    // stages before spec as done (exploration already done) and spec as active
-    // (already done, so no change). DB state stays the same.
-    const dbAfterBackToSpec = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'done', journal: 'active',
-    });
-    const atSpec = computeAllStages(dbAfterBackToSpec, 'spec');
-    expect(visuals(atSpec)).toEqual({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'done', journal: 'ongoing',
-    });
-    // ALL stages still reachable
-    expect(reachableKinds(atSpec)).toEqual([
-      'exploration', 'spec', 'plan', 'execute', 'review', 'journal',
-    ]);
-    // Spec is highlighted as current
-    expect(atSpec.find((s) => s.kind === 'spec')!.isCurrent).toBe(true);
   });
 
-  it('scenario: visit Review without StageAdvance → Execute shows done', () => {
-    // DB before: Execute is active, Review/Journal pending
-    const dbBefore = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done', execute: 'active',
-    });
-
-    // After ensureStageReached('review'): Execute marked done, Review marked active
-    const dbAfterReview = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'active',
-    });
-    const atReview = computeAllStages(dbAfterReview, 'review');
-    expect(atReview.find((s) => s.kind === 'execute')!.visual).toBe('done');
-    expect(atReview.find((s) => s.kind === 'review')!.visual).toBe('ongoing');
-    expect(atReview.find((s) => s.kind === 'review')!.isCurrent).toBe(true);
-  });
-
-  it('scenario: fresh project → visit Explore → nothing changes', () => {
-    // After ensureStageReached('exploration'): no prior stages, exploration stays active
-    const db = makeRows({ exploration: 'active' });
-    const result = computeAllStages(db, 'exploration');
-    expect(visuals(result)).toEqual({
-      exploration: 'ongoing', spec: 'not_started', plan: 'not_started',
-      execute: 'not_started', review: 'not_started', journal: 'not_started',
-    });
-    expect(reachableKinds(result)).toEqual(['exploration']);
-  });
-
-  it('locked stages show lock even when navigating back', () => {
-    const db = makeRows({
-      exploration: 'done', spec: 'done', plan: 'done',
-      execute: 'done', review: 'done', journal: 'active',
-    });
-    const result = computeAllStages(db, 'plan', ['exploration', 'spec']);
-    expect(result.find((s) => s.kind === 'exploration')!.visual).toBe('locked');
-    expect(result.find((s) => s.kind === 'spec')!.visual).toBe('locked');
-    expect(result.find((s) => s.kind === 'plan')!.visual).toBe('done');
-  });
-
-  it('ensureStageReached never moves done back to active', () => {
-    // Simulate: spec is done, user navigates to spec
-    // ensureStageReached should NOT change spec from done to active
-    const db = makeRows({
-      exploration: 'done', spec: 'done', plan: 'active',
-    });
-    // After ensureStageReached('spec'): exploration already done, spec already done
-    // Nothing should change
-    const result = computeAllStages(db, 'spec');
-    expect(result.find((s) => s.kind === 'spec')!.visual).toBe('done');
-    expect(result.find((s) => s.kind === 'spec')!.isCurrent).toBe(true);
+  it('no viewing stage (null) → purely the driver\'s DB state', () => {
+    const stepper = computeAllStages(makeRows({ exploration: 'done', spec: 'active' }), null);
+    expect(visualOf(stepper, 'spec')).toBe('ongoing');
+    expect(visualOf(stepper, 'plan')).toBe('not_started');
   });
 });

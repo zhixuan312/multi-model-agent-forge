@@ -10,7 +10,6 @@ import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
 import { projectShortId } from '@/build/slug';
 import { ExecuteStageClient, type RepoTerminalResult } from '@/components/forge/ExecuteStageClient';
 import { validateDetails } from '@/details/schema';
-import { updateDetails } from '@/details/write';
 
 export default async function ExecuteStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -33,16 +32,8 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  // Activate the execute stage via details
-  await updateDetails(db, id, (d) => {
-    if (d.stages.execute.status === 'pending') {
-      d.stages.execute.status = 'active';
-      d.stages.execute.startedAt = new Date().toISOString();
-    }
-    return d;
-  });
-  await db.update(project).set({ currentStage: 'execute' }).where(eq(project.id, id));
-
+  // READ-ONLY render — do NOT activate the execute stage or write current_stage on
+  // visit. Stage progression is owned by the auto-driver and the /advance route.
   // Read tasks from details + resolve repo metadata
   const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, id)).limit(1);
   const d = projRow?.details ? validateDetails(projRow.details) : null;

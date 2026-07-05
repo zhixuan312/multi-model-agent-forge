@@ -5,7 +5,7 @@ import { project } from '@/db/schema/projects';
 import { projectEventBus } from '@/sse/event-bus';
 import { executeDetailsAction, isBatchBackedAction } from '@/automation/details-actions';
 import { appendProjectEvent, resolveRunningEvent } from '@/details/write';
-import { acquireDriverLease, heartbeatDriverLease, releaseDriverLease } from '@/automation/driver-lease';
+import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
 
 const activeDrivers = new Map<string, boolean>();
 
@@ -33,6 +33,14 @@ export async function driveProject(projectId: string): Promise<void> {
     return;
   }
 
+  // Keep the lease fresh on a BACKGROUND timer, decoupled from the loop body — the
+  // loop blocks for minutes inside a single MMA dispatch, so a loop-top-only
+  // heartbeat would go stale mid-call and let another driver steal the lease.
+  let leaseLost = false;
+  const stopHeartbeat = startLeaseHeartbeat(db, projectId, driverId, () => {
+    leaseLost = true;
+  });
+
   // One persisted, meaningful line per action, appended to the project-level event
   // log (`details.events`). The SAME record drives the live SSE stream AND the
   // durable log, so a refresh shows exactly what was live. Decorative/transient
@@ -45,9 +53,9 @@ export async function driveProject(projectId: string): Promise<void> {
 
   try {
     while (true) {
-      // Refresh the lease + confirm we still own it. If another driver took over
-      // (our heartbeat went stale), STOP — only the current holder may drive.
-      if (!(await heartbeatDriverLease(db, projectId, driverId).catch(() => true))) return;
+      // The background heartbeat owns lease refresh; here we only check whether it
+      // reported a takeover. If another driver took over, STOP — only the holder drives.
+      if (leaseLost) return;
 
       const [proj] = await db
         .select({ autoMode: project.autoMode, detailsReady: project.detailsReady, details: project.details })
@@ -148,6 +156,7 @@ export async function driveProject(projectId: string): Promise<void> {
       await sleep(1000);
     }
   } finally {
+    stopHeartbeat();
     activeDrivers.delete(projectId);
     await releaseDriverLease(db, projectId, driverId).catch(() => {});
   }

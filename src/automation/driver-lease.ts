@@ -16,6 +16,14 @@ import { project } from '@/db/schema/projects';
 /** Heartbeat staleness — a lease older than this may be taken over by another driver. */
 export const DRIVER_LEASE_STALE_MS = 60_000;
 
+/**
+ * Heartbeat cadence. MUST be well under DRIVER_LEASE_STALE_MS so the lease never
+ * looks stale while its holder is alive — even while the driver blocks for MINUTES
+ * inside a single MMA dispatch (the loop body awaits the whole task). At 20s we tick
+ * ~3× per stale window.
+ */
+export const DRIVER_HEARTBEAT_INTERVAL_MS = 20_000;
+
 const staleCond = () =>
   sql`(${project.details}->'automation'->>'driverHeartbeatAt')::timestamptz < now() - interval '60 seconds'`;
 
@@ -57,6 +65,34 @@ export async function heartbeatDriverLease(db: Db, projectId: string, driverId: 
     .where(and(eq(project.id, projectId), sql`${project.details}->'automation'->>'driverId' = ${driverId}`))
     .returning({ id: project.id });
   return rows.length > 0;
+}
+
+/**
+ * Start a BACKGROUND heartbeat that refreshes the lease every
+ * DRIVER_HEARTBEAT_INTERVAL_MS, INDEPENDENT of whatever the driver loop is doing.
+ * This is load-bearing: the driver loop blocks for minutes inside a single
+ * `dispatchMma({await:true})`, so a heartbeat only at the loop top would let the
+ * lease go stale mid-call and a boot-resume / second start could steal it → two
+ * concurrent drivers (the exact race G1 prevents). `onLost` fires if a heartbeat
+ * reports the lease was taken over, so the driver can stop. Returns a stop function
+ * (call it in the driver's `finally`). The timer is `unref`'d so it never keeps the
+ * process alive on its own.
+ */
+export function startLeaseHeartbeat(
+  db: Db,
+  projectId: string,
+  driverId: string,
+  onLost: () => void,
+): () => void {
+  const timer = setInterval(() => {
+    void heartbeatDriverLease(db, projectId, driverId)
+      .then((held) => {
+        if (!held) onLost();
+      })
+      .catch(() => {});
+  }, DRIVER_HEARTBEAT_INTERVAL_MS);
+  (timer as { unref?: () => void }).unref?.();
+  return () => clearInterval(timer);
 }
 
 /** Release the lease iff held by this driver (best-effort; a takeover already cleared it). */

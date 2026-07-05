@@ -27,7 +27,7 @@ export interface Trigger {
 }
 
 /** Actions that edit content within a phase — they skip the phase single-flight lease. */
-const CONTENT_ACTIONS = new Set(['set_brief', 'select_components', 'refine_component', 'edit_plan_task']);
+const CONTENT_ACTIONS = new Set(['set_brief', 'select_components', 'refine_component']);
 
 /**
  * True iff the lease is held by a DIFFERENT actor AND still fresh (heartbeat within

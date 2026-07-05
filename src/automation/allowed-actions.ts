@@ -98,11 +98,10 @@ function addManualExtras(details: Details, set: Action[]): void {
     }
   }
 
-  // ── Plan refine: manual task chat message (Task 10e) + direct approval. A human
-  //    may approve any drafted task without waiting for Forge's validate_task pass
-  //    (the manual early-exit; auto still validates-then-approves each task).
+  // ── Plan refine: direct approval. A human may approve any drafted task without
+  //    waiting for Forge's validate_task pass (the manual early-exit; auto still
+  //    validates-then-approves each task). Task chat stays on its own route.
   if (stages.plan.status === 'active' && stages.plan.phases.refine.status === 'active') {
-    set.push({ kind: 'edit_plan_task', note: 'Message a plan task', stage: 'plan', phase: 'refine' });
     if (stages.plan.phases.refine.tasks.some((t) => t.approvals.length === 0)) {
       set.push({ kind: 'approve_task', note: 'Approve plan task', stage: 'plan', phase: 'refine' });
     }

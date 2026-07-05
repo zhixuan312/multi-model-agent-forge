@@ -1008,7 +1008,9 @@ function CraftStage({
       setRefiningComponents((prev) => new Set(prev).add(compId));
       setCraftView('conversation');
 
-      mma.dispatch(`/projects/${projectId}/spec/components/${compId}/refine`, 'spec-refine', { userAnswer: userInput })
+      // Message already persisted above (spec/components/message); refine_component
+      // reads the thread and dispatches the spec-refine worker — the transition.
+      mma.transition('refine_component', { componentId: compId }, 'spec-refine')
         .then(() => {
           setRefiningComponents((prev) => { const next = new Set(prev); next.delete(compId); return next; });
         })

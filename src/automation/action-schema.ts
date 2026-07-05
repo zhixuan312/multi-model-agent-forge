@@ -17,8 +17,11 @@ export const ACTION_KINDS = [
   // Design-phase + cross-cutting (Task 8b)
   'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component',
   'add_learning', 'start_auto', 'take_over',
-  // content edits (Task 10) — every kind here has exactly one executeDetailsAction effect
-  'set_brief', 'select_components', 'refine_component', 'edit_plan_task',
+  // content edits (Task 10) — pure-content writes routed through the executor. Message-
+  // thread content (plan-task chat, component chat) stays on its own route: the insert
+  // must return the new message id for the client's optimistic-echo dedup, which a
+  // fire-and-forget transition cannot carry.
+  'set_brief', 'select_components', 'refine_component',
 ] as const;
 
 /**

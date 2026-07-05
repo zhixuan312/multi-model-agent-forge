@@ -527,21 +527,6 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       break;
     }
 
-    // ── edit_plan_task: post a chat message to a plan task (from plan/tasks/[taskId]/
-    //    message). Content action, skips the phase lease.
-    case 'edit_plan_task': {
-      const taskId = action.data?.taskId as string | undefined;
-      const bodyMd = (action.data?.message as string | undefined)?.trim();
-      if (!taskId || !bodyMd) break;
-      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
-      const [seqRow] = await db.select({ max: sql<number>`coalesce(max(${qaMessage.seq}), 0)` }).from(qaMessage).where(eq(qaMessage.targetId, taskId));
-      await db.insert(qaMessage).values({
-        targetId: taskId, projectId, targetKind: 'plan_task',
-        seq: (Number(seqRow?.max) || 0) + 1, bodyMd, authorId: actorId,
-      });
-      break;
-    }
-
     // ── Cross-cutting: the auto toggle (Task 8b-3). ONE implementation, replacing the
     //    retired automation/{start,stop} routes.
     case 'start_auto': {

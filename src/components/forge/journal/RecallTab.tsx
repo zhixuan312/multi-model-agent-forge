@@ -33,6 +33,7 @@ import type { PinnedView, FaqView } from '@/journal/recall-content';
  */
 
 const POLL_INTERVAL_MS = 1500;
+const POLL_MAX_INTERVAL_MS = 30_000;
 const POLL_CEILING_MS = 5 * 60_000;
 
 type PollResult = { state: 'pending'; headline: string } | { state: 'terminal'; envelope: unknown };
@@ -102,9 +103,13 @@ export function RecallTab({
 
   async function pollUntilTerminal(batchId: string): Promise<ParsedRecall> {
     const deadline = Date.now() + POLL_CEILING_MS;
+    // Exponential backoff (base 1.5s → cap 30s) under the 5-min hard ceiling — never
+    // faster than the base interval, so a slow recall doesn't hammer the row endpoint.
+    let delay = POLL_INTERVAL_MS;
     for (;;) {
       if (Date.now() > deadline) throw new Error('Recall timed out — please retry.');
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(Math.round(delay * 1.5), POLL_MAX_INTERVAL_MS);
       const pollRes = await fetch(`/api/journal/recall/${batchId}`);
       if (!pollRes.ok) throw new Error('Journal recall poll failed — please retry.');
       const poll = (await pollRes.json()) as PollResult;

@@ -10,7 +10,7 @@ vi.mock('@/auth/current-member', () => ({
 
 const dispatchCalls: unknown[] = [];
 vi.mock('@/dispatch/dispatch-helpers', () => ({
-  dispatchMma: async (opts: unknown) => { dispatchCalls.push(opts); return { batchRowId: 'batch-row-1' }; },
+  dispatchMma: async (opts: unknown) => { dispatchCalls.push(opts); return { batchRowId: 'batch-row-1', batchId: 'ext-batch-1' }; },
   findInflight: async () => null,
 }));
 
@@ -71,16 +71,17 @@ describe('POST /api/journal/recall', () => {
     expect(dispatchCalls).toHaveLength(0);
   });
 
-  it('authenticated non-admin valid query → dispatch via dispatchMma → 202 batchRowId', async () => {
+  it('authenticated non-admin valid query → dispatch via dispatchMma → 202 external batchId', async () => {
     mockCaller = asMember();
     const res = await POST(recallReq({ query: 'how do we gate completion?' }) as never);
     expect(res.status).toBe(202);
     const json = await res.json();
-    expect(json).toEqual({ batchRowId: 'batch-row-1' });
+    expect(json).toEqual({ batchId: 'ext-batch-1' }); // external MMA id (fire-and-row-poll), not the DB row id
     expect(dispatchCalls).toHaveLength(1);
     const opts = dispatchCalls[0] as Record<string, unknown>;
     expect(opts.route).toBe('journal_recall');
-    expect(opts.handler).toBe('journal-recall');
+    expect(opts.handler).toBeNull(); // fire-and-row-poll — no terminal handler
+    expect(opts.label).toBe('journal-recall'); // trace label on the row
     expect(opts.projectId).toBeNull();
   });
 

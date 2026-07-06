@@ -139,18 +139,19 @@ export async function findPendingHandlers(
  * Both modes: batch row inserted BEFORE dispatch (every attempt tracked), usage
  * extracted on terminal, handler fired on terminal (best-effort).
  *
- * `handler: null` = inline-consume (sync only): no terminal handler runs; the caller
- * reads the returned `envelope`. The async path returns the external MMA `batchId`
- * too (for project-less pollers like journal recall that key off it).
+ * `handler: null` = no terminal handler runs. Two shapes:
+ *   - SYNC (`await:true`) — **inline-consume**: the caller reads the returned `envelope`
+ *     (loops).
+ *   - ASYNC (`await:false`) — **fire-and-row-poll**: the PollManager persists the
+ *     terminal envelope onto the `ops_mma_batch` row (it does this for every batch,
+ *     handler or not) and an EXTERNAL consumer polls that row for it (journal recall).
+ * Either way, a NAMED-but-unregistered handler still fails loudly (the F1 guard); only
+ * an explicit `null` opts out. The async path returns the external MMA `batchId` too,
+ * which the row-poller keys off.
  */
 export async function dispatchMma(
   opts: DispatchOpts,
 ): Promise<{ batchRowId: string; envelope?: unknown; batchId?: string }> {
-  // Async with no terminal handler is meaningless — nothing would consume the
-  // terminal (the sync caller reads the envelope; the async path needs a handler).
-  if (!opts.await && opts.handler === null) {
-    throw new Error('dispatchMma: async dispatch (await:false) requires a registered handler; handler:null is inline-consume (await:true) only.');
-  }
   const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
 
   // The handler's `ctx.request` is body + meta merged — the SAME shape persisted to

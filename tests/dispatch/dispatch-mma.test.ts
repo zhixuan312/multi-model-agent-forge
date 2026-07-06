@@ -5,6 +5,10 @@ import { registerHandler } from '@/dispatch/handler-registry';
 import type { MmaClient } from '@/mma/client';
 import { createMockDb } from '../test-utils/mock-db';
 
+// Stub the PollManager so the async path doesn't construct a real DB-backed singleton.
+const { registerMock } = vi.hoisted(() => ({ registerMock: vi.fn() }));
+vi.mock('@/sse/poll-manager', () => ({ getPollManager: () => ({ register: registerMock }) }));
+
 /**
  * G2 — per-(project, phase) single-flight. A dispatch is REFUSED (PhaseBusyError)
  * only when an in-flight batch belongs to a DIFFERENT phase; same-phase (fan-out)
@@ -251,16 +255,22 @@ describe('dispatchMma — inline-consume (handler:null) [AC1]', () => {
 });
 
 /**
- * R1 (AC3): async dispatch (`await:false`) with `handler:null` is invalid — nothing
- * would consume the terminal. It throws a dev-time error BEFORE inserting a row.
+ * R1 (AC3): async dispatch (`await:false`) with `handler:null` is **fire-and-row-poll**:
+ * it dispatches, registers with the PollManager (which persists the terminal envelope
+ * on the row for an external poller to read), runs NO terminal handler, and returns the
+ * external MMA `batchId`. This is the journal-recall shape.
  */
-describe('dispatchMma — async + handler:null is rejected [AC3]', () => {
-  it('throws a dev-time error and inserts no batch row', async () => {
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-x', createdAt: new Date() }] });
-    await expect(dispatchMma({
-      db, mma: { dispatch: async () => ({ batchId: 'm' }) } as unknown as MmaClient,
-      projectId: null, route: 'delegate', handler: null, cwd: '/w', body: {}, actorId: null, await: false,
-    })).rejects.toThrow(/inline-consume/);
-    expect(db._callsFor('ops_mma_batch').some((c) => c.method === 'insert')).toBe(false);
+describe('dispatchMma — async + handler:null is fire-and-row-poll [AC3]', () => {
+  it('dispatches, registers the poller, returns the external batchId, and runs no handler', async () => {
+    registerMock.mockClear();
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-fp', createdAt: new Date() }] });
+    const res = await dispatchMma({
+      db, mma: { dispatch: async () => ({ batchId: 'ext-1' }) } as unknown as MmaClient,
+      projectId: null, route: 'journal_recall', handler: null, label: 'journal-recall',
+      cwd: '/w', body: {}, actorId: 'm1', await: false,
+    });
+    expect(res.batchRowId).toBe('row-fp');
+    expect(res.batchId).toBe('ext-1'); // widened return — the row-poller keys off it
+    expect(registerMock).toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@ vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockCaller,
 vi.mock('@/mma/server-client', () => ({ buildMmaClient: async () => ({ dispatch: async () => ({ batchId: 'b-1' }) }) }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
 vi.mock('@/dispatch/dispatch-helpers', () => ({
-  dispatchMma: async () => ({ batchRowId: 'batch-row-1' }),
+  dispatchMma: async () => ({ batchRowId: 'batch-row-1', batchId: 'ext-batch-1' }),
   findInflight: async () => null,
 }));
 const logAction = vi.fn(async () => {});
@@ -41,11 +41,11 @@ function req(query: string): Request {
 }
 
 describe('journal recall route — dispatch via dispatchMma', () => {
-  it('dispatches and returns 202 with batchRowId', async () => {
+  it('dispatches and returns 202 with the external batchId', async () => {
     const q = 'how does authentication work in this app';
     const res = await recallPOST(req(q) as never);
     expect(res.status).toBe(202);
     const body = await res.json();
-    expect(body.batchRowId).toBe('batch-row-1');
+    expect(body.batchId).toBe('ext-batch-1');
   });
 });

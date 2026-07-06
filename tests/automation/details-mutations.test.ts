@@ -4,7 +4,7 @@ import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 import {
   recordAuthorAttempt, recordTaskValidation,
   recordExecuteAttempt, recordImplementAttempt, openRunningAttempts,
-  recordReviewPass, recordReviewFix, recordHarvestAttempt,
+  recordAuditPass, recordReviewPass, recordReviewFix, recordHarvestAttempt,
   resolveRunningEventInPlace, reopenStageInPlace, passAugmentedDetail,
 } from '@/automation/details-mutations';
 
@@ -141,10 +141,10 @@ describe('details-mutations — record the resolver gating state', () => {
     const d = buildInitialDetails();
     for (const k of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[k].status = 'done';
     d.stages.review.status = 'active';
-    recordReviewPass(d, 'repo-1', 'v1', false, AT);
+    recordReviewPass(d, 'repo-1', 'v1', false, AT, null);
     const pass = d.stages.review.phases.review.repos[0].reviewPasses[0];
     expect(pass).toMatchObject({ passNo: 1, status: 'clean' });
-    expect(pass.review!.attempts).toEqual([{ batchId: 'v1', status: 'done', at: AT }]);
+    expect(pass.review!.attempts).toEqual([{ batchId: 'v1', status: 'done', at: AT, contextBlockId: null }]);
     const action = resolveNextActionFromDetails(d);
     expect(action.kind).toBe('advance_stage');
     expect(action.stage).toBe('journal');
@@ -154,7 +154,7 @@ describe('details-mutations — record the resolver gating state', () => {
     const d = buildInitialDetails();
     for (const k of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[k].status = 'done';
     d.stages.review.status = 'active';
-    recordReviewPass(d, 'repo-1', 'v1', true, AT);
+    recordReviewPass(d, 'repo-1', 'v1', true, AT, null);
     expect(d.stages.review.phases.review.repos[0].reviewPasses[0].status).toBe('revised');
     expect(resolveNextActionFromDetails(d).kind).toBe('apply_review_findings');
   });
@@ -163,11 +163,11 @@ describe('details-mutations — record the resolver gating state', () => {
     const d = buildInitialDetails();
     for (const k of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[k].status = 'done';
     d.stages.review.status = 'active';
-    recordReviewPass(d, 'repo-1', 'v1', true, AT);
+    recordReviewPass(d, 'repo-1', 'v1', true, AT, null);
     recordReviewFix(d, 'repo-1', 'f1', AT);
     expect(d.stages.review.phases.review.repos[0].reviewPasses[0].fix!.attempts).toEqual([{ batchId: 'f1', status: 'done', at: AT }]);
     expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
-    recordReviewPass(d, 'repo-1', 'v2', false, AT);
+    recordReviewPass(d, 'repo-1', 'v2', false, AT, null);
     expect(d.stages.review.phases.review.repos[0].reviewPasses.map((p) => p.passNo)).toEqual([1, 2]);
   });
 
@@ -279,5 +279,32 @@ describe('reopenStageInPlace — reopen a skipped stage', () => {
     expect(d.stages.execute.status).toBe('pending');
     expect(d.stages.review.status).toBe('pending');
     expect(d.stages.spec.phases.finalize.approvals).toEqual(['m1']); // upstream preserved
+  });
+});
+
+describe('recordAuditPass', () => {
+  it('pushes a spec finalize pass carrying the audit attempt block id', () => {
+    const d = recordAuditPass(buildInitialDetails(), 'spec', 1, 'clean', 'batch-1', '2026-07-06T00:00:00Z', 'B1');
+    const p = d.stages.spec.phases.finalize.auditPasses[0];
+    expect(p.passNo).toBe(1);
+    expect(p.status).toBe('clean');
+    expect(p.audit!.attempts[0]).toMatchObject({ batchId: 'batch-1', status: 'done', contextBlockId: 'B1' });
+  });
+  it('stores a null block id on the plan validate pass when MMA returned none', () => {
+    const d = recordAuditPass(buildInitialDetails(), 'plan', 2, 'revised', 'batch-2', '2026-07-06T00:00:00Z', null);
+    expect(d.stages.plan.phases.validate.auditPasses[0].audit!.attempts[0].contextBlockId).toBeNull();
+  });
+});
+
+describe('recordReviewPass — context block id', () => {
+  it('persists the review result block id on the per-repo review attempt', () => {
+    const d = recordReviewPass(buildInitialDetails(), 'r1', 'batch-9', false, '2026-07-06T00:00:00Z', 'RB1');
+    const entry = d.stages.review.phases.review.repos.find((x) => x.repoId === 'r1')!;
+    expect(entry.reviewPasses[0].review!.attempts[0]).toMatchObject({ batchId: 'batch-9', contextBlockId: 'RB1' });
+  });
+  it('accepts a null block id (MMA returned none)', () => {
+    const d = recordReviewPass(buildInitialDetails(), 'r1', 'batch-9', true, '2026-07-06T00:00:00Z', null);
+    const entry = d.stages.review.phases.review.repos.find((x) => x.repoId === 'r1')!;
+    expect(entry.reviewPasses[0].review!.attempts[0].contextBlockId).toBeNull();
   });
 });

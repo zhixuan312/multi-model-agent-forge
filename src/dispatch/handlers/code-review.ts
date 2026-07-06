@@ -5,6 +5,7 @@ import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordReviewPass } from '@/automation/details-mutations';
 import { hasBlockingReviewFindings } from '@/review/review-findings';
+import { interpretTerminal } from '@/sse/envelope';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
 /**
@@ -17,14 +18,15 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
  * reads.) `repoId` comes from the dispatch meta (merged into `ctx.request` on both
  * dispatch paths); the sole-repo fallback is a defensive default if it is absent.
  */
-async function handleCodeReview(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
+export async function handleCodeReview(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
   if (!row?.details) return;
   const req = ctx.request as { repoId?: string } | null;
   const repoId = req?.repoId ?? validateDetails(row.details).repos[0]?.id;
   if (!repoId) return;
   const blocking = hasBlockingReviewFindings(envelope);
-  await updateDetails(db, ctx.projectId, (d) => recordReviewPass(d, repoId, ctx.batchRowId, blocking, new Date().toISOString()));
+  const contextBlockId = interpretTerminal(envelope).contextBlockId;
+  await updateDetails(db, ctx.projectId, (d) => recordReviewPass(d, repoId, ctx.batchRowId, blocking, new Date().toISOString(), contextBlockId));
 }
 
 registerHandler('code-review', handleCodeReview);

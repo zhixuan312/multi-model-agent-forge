@@ -176,14 +176,37 @@ export function recordImplementAttempt(d: Details, repoId: string, batchId: stri
 /** A code-review pass completed for a repo → append the pass (`revised` when it
  * carried critical/high findings, else `clean`) so the resolver either applies
  * findings or advances. */
-export function recordReviewPass(d: Details, repoId: string, batchId: string, blocking: boolean, at: string): Details {
+/** Record one audit round as a new pass on the spec-finalize or plan-validate
+ * audit loop, carrying the read-route result's context block id (or null) so the
+ * NEXT round can be dispatched as a delta. Single writer for both spec & plan. */
+export function recordAuditPass(
+  d: Details,
+  scope: 'spec' | 'plan',
+  passNo: number,
+  verdict: 'revised' | 'clean',
+  batchId: string,
+  at: string,
+  contextBlockId: string | null,
+): Details {
+  const passes = scope === 'spec'
+    ? d.stages.spec.phases.finalize.auditPasses
+    : d.stages.plan.phases.validate.auditPasses;
+  passes.push({
+    passNo,
+    status: verdict,
+    audit: { attempts: [{ batchId, status: 'done', at, contextBlockId }] },
+  });
+  return d;
+}
+
+export function recordReviewPass(d: Details, repoId: string, batchId: string, blocking: boolean, at: string, contextBlockId: string | null): Details {
   const repos = d.stages.review.phases.review.repos;
   let entry = repos.find((x) => x.repoId === repoId);
   if (!entry) { entry = { repoId, reviewPasses: [] }; repos.push(entry); }
   entry.reviewPasses.push({
     passNo: entry.reviewPasses.length + 1,
     status: blocking ? 'revised' : 'clean',
-    review: { attempts: [{ batchId, status: 'done', at }] },
+    review: { attempts: [{ batchId, status: 'done', at, contextBlockId }] },
   });
   return d;
 }

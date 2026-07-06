@@ -13,6 +13,7 @@ import { updateDetails, advanceStage, advancePhase, reopenStage, setAutomationSt
 import { releaseDriverLease } from '@/automation/driver-lease';
 import type { StageKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
+import { lastReadBlockId } from '@/details/read';
 import {
   recordAuthorAttempt, recordTaskValidation, recordHarvestAttempt, openRunningAttempts,
 } from '@/automation/details-mutations';
@@ -125,9 +126,16 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     case 'dispatch_audit': {
       const scope = action.stage === 'spec' ? 'spec' : 'plan';
       const filePath = scope === 'spec' ? specFilePath(projectId) : planFilePath(projectId);
+      const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+      const passes = pRow?.details
+        ? (scope === 'spec'
+            ? validateDetails(pRow.details).stages.spec.phases.finalize.auditPasses
+            : validateDetails(pRow.details).stages.plan.phases.validate.auditPasses)
+        : [];
+      const prevBlockId = lastReadBlockId(passes[passes.length - 1]?.audit?.attempts);
       await dispatchMma({
         db, mma, projectId, route: 'audit', handler: `${scope}-audit`, cwd,
-        body: { subtype: scope, target: { paths: [filePath] } },
+        body: { subtype: scope, target: { paths: [filePath] }, ...(prevBlockId ? { contextBlockIds: [prevBlockId] } : {}) },
         actorId: FORGE_MEMBER_ID, await: true,
       });
       break;
@@ -308,9 +316,11 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const targetRepoId = action.data?.repoId as string | undefined;
       const reviewRepos = targetRepoId ? d.repos.filter((r) => r.id === targetRepoId) : d.repos;
       for (const r of reviewRepos) {
+        const repoEntry = d.stages.review.phases.review.repos.find((x) => x.repoId === r.id);
+        const prevBlockId = lastReadBlockId(repoEntry?.reviewPasses[repoEntry.reviewPasses.length - 1]?.review?.attempts);
         await dispatchMma({
           db, mma, projectId, route: 'review', handler: 'code-review', cwd: r.pathOnDisk,
-          body: { target: { paths: ['.'] }, prompt: 'Review all changed files.' },
+          body: { target: { paths: ['.'] }, prompt: 'Review all changed files.', ...(prevBlockId ? { contextBlockIds: [prevBlockId] } : {}) },
           actorId: FORGE_MEMBER_ID, meta: { repoId: r.id }, await: true,
         });
       }

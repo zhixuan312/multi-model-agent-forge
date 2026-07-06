@@ -13,6 +13,7 @@ const attemptSchema = z.object({
   batchId: z.string(),
   status: attemptStatus,
   at: z.string(),
+  contextBlockId: z.string().nullable().optional(), // read-route terminal block; null on write/fix attempts, absent on legacy rows
 });
 
 const auditPassSchema = z.object({

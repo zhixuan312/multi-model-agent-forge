@@ -303,6 +303,28 @@ body {
   animation: forge-rise 0.5s var(--ease-out) both;
 }
 
+/* Toast auto-dismiss countdown — a thin sliver shrinks left-to-right over the toast's
+   dismiss delay (duration is set inline per toast). Linear so it reads as a real timer. */
+@keyframes forge-toast-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.toast-countdown {
+  animation-name: forge-toast-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .toast-countdown {
+    animation: none;
+  }
+}
+
 /* Skeleton shimmer — a faint sheen sweeps across loading placeholders. */
 @keyframes forge-shimmer {
   100% {

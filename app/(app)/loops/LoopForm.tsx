@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Input, Field, Textarea, Label, Micro } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
 import type { LoopRow } from '@/db/schema/loop';
@@ -103,9 +104,12 @@ export function LoopForm({
     if (!loop) return;
     setBusy(true);
     try {
-      await fetch(`/api/loops/${loop.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/loops/${loop.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Request failed (${res.status}).`);
       onDone();
       router.refresh();
+    } catch {
+      showToast({ type: 'error', message: 'Couldn’t delete the loop — try again.' });
     } finally {
       setBusy(false);
     }

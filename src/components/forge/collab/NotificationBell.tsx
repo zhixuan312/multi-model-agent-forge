@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '@/components/ui';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import type { NotificationRow } from '@/db/schema/ops';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -46,17 +47,42 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
   const [readIds, setReadIds] = useState<Set<string>>(
     () => new Set(items.filter((n) => n.readAt).map((n) => n.id)),
   );
+  const optimistic = useOptimisticAction();
   const visible = useMemo(() => items.filter((n) => !n.dismissedAt), [items]);
   const unread = useMemo(() => visible.filter((n) => !readIds.has(n.id)).length, [visible, readIds]);
 
   function markRead(id: string): void {
-    setReadIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
-    fetch(`/api/notifications/${id}/read`, { method: 'POST' }).catch(() => {});
+    if (readIds.has(id)) return; // already read — no-op (also guards reentrancy, OA-9)
+    void optimistic.run({
+      apply: () => setReadIds((prev) => new Set(prev).add(id)),
+      commit: async () => {
+        const r = await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () =>
+        setReadIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        }),
+      error: 'Couldn’t mark as read.',
+      retryable: true,
+    });
   }
 
   function markAll(): void {
-    setReadIds(new Set(visible.map((n) => n.id)));
-    fetch('/api/notifications/read-all', { method: 'POST' }).catch(() => {});
+    const prev = readIds; // snapshot for a clean bulk revert
+    const ids = visible.map((n) => n.id);
+    void optimistic.run({
+      apply: () => setReadIds(new Set(ids)),
+      commit: async () => {
+        const r = await fetch('/api/notifications/read-all', { method: 'POST' });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () => setReadIds(prev),
+      error: 'Couldn’t mark all as read.',
+      retryable: true,
+    });
   }
 
   return (

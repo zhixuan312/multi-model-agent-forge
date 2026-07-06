@@ -9,6 +9,10 @@ import type { PinnedView, FaqView } from '@/journal/recall-content';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
+// The optimistic primitive routes failures through showToast — capture them.
+const toasts: Array<{ type: string; message: string }> = [];
+vi.mock('@/components/ui/toast', () => ({ showToast: (t: { type: string; message: string }) => { toasts.push(t); } }));
+
 const INDEX = [{ id: '0001', title: 'A node', status: 'adopted' as const }];
 
 /** A fetch fake routing the recall dispatch+poll and the pin routes. */
@@ -42,6 +46,7 @@ function installFetch(overrides: Partial<Record<string, () => Response>> = {}) {
   return { calls, fetchMock };
 }
 
+beforeEach(() => { toasts.length = 0; });
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -95,6 +100,20 @@ describe('RecallTab — pinned rows (AC-10)', () => {
       expect(screen.queryByRole('button', { name: /How does authentication work here/i })).toBeNull(),
     );
     expect(calls.some((c) => c.method === 'DELETE' && c.url === '/api/journal/pins/p1')).toBe(true);
+  });
+
+  it('unpin failure re-inserts the row (optimistic revert) and raises an error toast', async () => {
+    installFetch({ 'DELETE /api/journal/pins/:id': () => new Response(null, { status: 500 }) });
+    render(<RecallTab index={INDEX} pinned={[pin()]} faqs={[]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /How does authentication work here/i })); // expand
+    fireEvent.click(screen.getByRole('button', { name: /Unpin this answer/i }));
+
+    // optimistic remove, then revert on the 500 + an error toast
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /How does authentication work here/i })).toBeInTheDocument(),
+    );
+    expect(toasts.some((t) => t.type === 'error')).toBe(true);
   });
 
   it('refresh re-runs the recall and clears the stale badge', async () => {

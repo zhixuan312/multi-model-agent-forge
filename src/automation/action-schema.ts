@@ -24,12 +24,6 @@ export const ACTION_KINDS = [
   'set_brief', 'select_components', 'refine_component',
 ] as const;
 
-/**
- * INTENTIONAL EXCEPTION to the single /transition endpoint — NOT a lifecycle
- * transition, so it keeps a dedicated route (JSON {action,data} can't carry it):
- *   - attachment add/remove — binary/multipart FILE I/O (explore/attachment/*)
- */
-
 export const transitionSchema = z.object({
   action: z.enum(ACTION_KINDS),
   data: z.record(z.string(), z.unknown()).optional(),

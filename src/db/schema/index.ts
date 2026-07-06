@@ -6,7 +6,6 @@ export * from '@/db/schema/identity';
 export * from '@/db/schema/workspace';
 export * from '@/db/schema/projects';
 export * from '@/db/schema/spec';
-export * from '@/db/schema/exploration';
 export * from '@/db/schema/build';
 export * from '@/db/schema/ops';
 export * from '@/db/schema/loop';

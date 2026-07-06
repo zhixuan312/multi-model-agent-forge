@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { showToast } from '@/components/ui/toast';
 import {
   ArrowRight,
   Check,
@@ -129,7 +131,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const advancePhase = async (p: PlanPhase) => {
     // Plan phase status gates the resolver (validate.status==='active' runs the audit
     // loop), so refine→validate goes through the unified engine as advance_phase.
-    await mma.transition('advance_phase').catch(() => {});
+    await mma.transition('advance_phase').catch(() => {
+      showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
+    });
     setPhase(p);
   };
   const serverStatus = useMemo(
@@ -162,6 +166,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     [props.auditRounds],
   );
   const [rounds] = useServerState(initialRounds);
+  const optimistic = useOptimisticAction();
   const [locked, setLocked] = useState(false);
   const [applying, setApplying] = useState(!!props.pendingApply);
   const [applyingPass, setApplyingPass] = useState<number | null>(null);
@@ -203,7 +208,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     setAuthoringLocal(true);
     void mma.transition('dispatch_plan_author')
       .then(() => refresh())
-      .catch(() => {})
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t author the plan — try again.' }); })
       .finally(() => setAuthoringLocal(false));
   }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, refresh]);
 
@@ -236,7 +241,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
     setAuditingLocal(true);
     void mma.transition('dispatch_audit')
       .then(() => { refresh(); })
-      .catch(() => {})
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t run the audit — try again.' }); })
       .finally(() => { auditingRef.current = false; setAuditingLocal(false); });
   }
 
@@ -252,7 +257,11 @@ export function PlanStageClient(props: PlanStageClientProps) {
         setApplyingPass(null);
         refresh();
       })
-      .catch(() => { setApplying(false); setApplyingPass(null); });
+      .catch(() => {
+        setApplying(false);
+        setApplyingPass(null);
+        showToast({ type: 'error', message: 'Couldn’t apply findings — try again.' });
+      });
   }, [props.projectId, mma, refresh]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
@@ -300,10 +309,14 @@ export function PlanStageClient(props: PlanStageClientProps) {
             // Task approval is monotonic in the unified model (the resolver never
             // un-approves), so this is a one-way approve_task transition.
             if (status[id] === 'approved') return;
-            setStatus((s) => ({ ...s, [id]: 'approved' as TaskStatus }));
-            void mma.transition('approve_task', { taskId: id })
-              .then(() => { setLocalOverrides({}); router.refresh(); })
-              .catch(() => {});
+            void optimistic.run({
+              apply: () => setStatus((s) => ({ ...s, [id]: 'approved' as TaskStatus })),
+              commit: () => mma.transition('approve_task', { taskId: id }),
+              rollback: () => setLocalOverrides((o) => { const n = { ...o }; delete n[id]; return n; }),
+              onSettled: () => { setLocalOverrides({}); router.refresh(); },
+              error: 'Couldn’t approve task — reverted.',
+              retryable: true,
+            });
           }}
           onValidate={() => advancePhase('validate')}
         />
@@ -463,6 +476,7 @@ function DetailStage({
     }
     return result;
   });
+  const optimistic = useOptimisticAction();
   const meParticipant: Participant | null = currentMember
     ? { member: currentMember, addedBy: null, approvedAt: null }
     : null;
@@ -529,7 +543,9 @@ function DetailStage({
               <Button
                 size="sm"
                 onClick={() => {
-                  void mma.transition('dispatch_plan_author').catch(() => {});
+                  void mma.transition('dispatch_plan_author').catch(() => {
+                    showToast({ type: 'error', message: 'Couldn’t author the plan — try again.' });
+                  });
                 }}
                 disabled={readOnly}
                 leftIcon={<Sparkles />}
@@ -661,14 +677,24 @@ function DetailStage({
             pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
             onAdd={(m) => {
               if (planParticipants.some((p) => p.member.id === m.id)) return;
-              setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]);
-              for (const t of allTasks) {
-                fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ memberId: m.id }),
-                }).catch(() => {});
-              }
+              void optimistic.run({
+                apply: () => setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]),
+                commit: async () => {
+                  const results = await Promise.all(
+                    allTasks.map((t) =>
+                      fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ memberId: m.id }),
+                      }),
+                    ),
+                  );
+                  if (results.some((r) => !r.ok)) throw new Error('Invite failed.');
+                },
+                rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
+                error: 'Couldn’t invite — reverted.',
+                retryable: true,
+              });
             }}
             disabled={readOnly}
           />

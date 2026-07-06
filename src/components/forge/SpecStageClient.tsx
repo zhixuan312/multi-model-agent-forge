@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { useMutation } from '@tanstack/react-query';
 import {
   Check,
@@ -33,6 +34,7 @@ import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
+import { showToast } from '@/components/ui/toast';
 import { FindingsGrid, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
@@ -206,7 +208,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const advancePhase = async (p: SpecPhase) => {
     // Spec phase status gates the resolver (finalize.status==='active' runs the audit
     // loop), so the advance goes through the unified engine as advance_phase.
-    await mma.transition('advance_phase').catch(() => {});
+    await mma.transition('advance_phase').catch(() => {
+      showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
+    });
     setPhase(p);
   };
   const refresh = useCallback(() => { router.refresh(); }, [router]);
@@ -743,6 +747,7 @@ function CraftStage({
   onEditOutline: () => void;
   onConsolidate: () => void;
 }) {
+  const optimistic = useOptimisticAction();
   const firstOpen = components.find((c) => c.status !== 'approved') ?? components[0];
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const activeIdRef = useRef(activeId);
@@ -961,13 +966,22 @@ function CraftStage({
     if (readOnly || !active) return;
     const already = activeCollab.participants.some((p) => p.member.id === m.id);
     if (already) return;
-    patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m, currentMember.id) }));
-    // Persist invite + send notification
-    fetch(`/api/projects/${projectId}/spec/invite`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memberId: m.id, componentId: active.id }),
-    }).catch(() => {});
+    const compId = active.id;
+    const prevCollab = collab[compId];
+    void optimistic.run({
+      apply: () => patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m, currentMember.id) })),
+      commit: async () => {
+        const r = await fetch(`/api/projects/${projectId}/spec/invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memberId: m.id, componentId: compId }),
+        });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () => setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } })),
+      error: 'Couldn’t invite — reverted.',
+      retryable: true,
+    });
   }
 
   function submit(): void {
@@ -1032,14 +1046,27 @@ function CraftStage({
 
   function approve(): void {
     if (!active || iApproved) return;
-    patchCollab((u) => ({
-      ...u,
-      participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
-    }));
-    onPatch(active.id, { status: 'approved' });
+    const compId = active.id;
+    const prevStatus = active.status;
+    const prevCollab = collab[compId];
     // Persist approval to DB — one component-level nod through the unified engine
     // (approve_component → onHumanSatisfied, idempotent for the whole component).
-    mma.transition('approve_component', { componentId: active.id }).catch(() => {});
+    void optimistic.run({
+      apply: () => {
+        patchCollab((u) => ({
+          ...u,
+          participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
+        }));
+        onPatch(compId, { status: 'approved' });
+      },
+      commit: () => mma.transition('approve_component', { componentId: compId }),
+      rollback: () => {
+        onPatch(compId, { status: prevStatus });
+        setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
+      },
+      error: 'Couldn’t approve — reverted.',
+      retryable: true,
+    });
     const currentIdx = components.findIndex((c) => c.id === active.id);
     const after = components.slice(currentIdx + 1).find((c) => c.status !== 'approved');
     const before = components.slice(0, currentIdx).find((c) => c.status !== 'approved');
@@ -1053,12 +1080,28 @@ function CraftStage({
   function backToEdit(): void {
     if (readOnly || !active) return;
     if (active.status === 'approved') {
-      onPatch(active.id, { status: 'drafted' });
-      patchCollab((u) => ({
-        ...u,
-        participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
-      }));
-      fetch(`/projects/${projectId}/spec/components/${active.id}/revoke`, { method: 'POST' }).catch(() => {});
+      const compId = active.id;
+      const prevStatus = active.status;
+      const prevCollab = collab[compId];
+      void optimistic.run({
+        apply: () => {
+          onPatch(compId, { status: 'drafted' });
+          patchCollab((u) => ({
+            ...u,
+            participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
+          }));
+        },
+        commit: async () => {
+          const r = await fetch(`/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
+          if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        },
+        rollback: () => {
+          onPatch(compId, { status: prevStatus });
+          setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
+        },
+        error: 'Couldn’t revoke — reverted.',
+        retryable: true,
+      });
     }
     setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -1340,6 +1383,7 @@ function DocumentScreen({
 }) {
   const router = useRouter();
   const refresh = useCallback(() => router.refresh(), [router]);
+  const optimistic = useOptimisticAction();
   const initialRounds = useMemo(() =>
     initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })),
     [initialAuditHistory],
@@ -1533,14 +1577,23 @@ function DocumentScreen({
               onClick={() => {
                 const isApproved = specApprovers.includes(currentMember.id);
                 const action = isApproved ? 'revoke' : 'approve';
-                setSpecApprovers(isApproved
-                  ? specApprovers.filter((a: string) => a !== currentMember.id)
-                  : [...specApprovers, currentMember.id]);
-                fetch(`/projects/${projectId}/spec/approve`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ action }),
-                }).catch(() => {});
+                const prev = specApprovers;
+                void optimistic.run({
+                  apply: () => setSpecApprovers(isApproved
+                    ? specApprovers.filter((a: string) => a !== currentMember.id)
+                    : [...specApprovers, currentMember.id]),
+                  commit: async () => {
+                    const r = await fetch(`/projects/${projectId}/spec/approve`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action }),
+                    });
+                    if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+                  },
+                  rollback: () => setSpecApprovers(prev),
+                  error: isApproved ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
+                  retryable: true,
+                });
               }}
               variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
               leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}

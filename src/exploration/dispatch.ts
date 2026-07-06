@@ -69,7 +69,7 @@ async function buildBody(
   const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (row?.details) briefText = getBriefText(validateDetails(row.details));
   const background =
-    (briefText?.trim() || 'Exploration for this project; see the brief and attachments.').slice(0, 8000);
+    (briefText?.trim() || 'Exploration for this project; see the brief.').slice(0, 8000);
   return { prompt: `${task.prompt}\n\nBackground: ${background}` };
 }
 

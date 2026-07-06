@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
+import { showToast } from '@/components/ui/toast';
 import { Loader2, ScanSearch } from 'lucide-react';
 import {
   Button,
@@ -92,7 +93,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     setReviewingLocal(true);
     void mma.transition('dispatch_review')
       .then(() => refresh())
-      .catch(() => {})
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t run the review — try again.' }); })
       .finally(() => setReviewingLocal(false));
   }
 
@@ -119,7 +120,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     setApplyingLocal(true);
     void mma.transition('apply_review_findings')
       .then(() => refresh())
-      .catch(() => {})
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t apply review findings — try again.' }); })
       .finally(() => setApplyingLocal(false));
   }
 

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Snowflake } from 'lucide-react';
 import { ProseBlock } from '@/components/patterns/prose-block';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { showToast } from '@/components/ui/toast';
+import { redactMessage } from '@/lib/redact';
 import {
   Button,
   Card,
@@ -70,6 +73,29 @@ export function FreezeClient({
   const [error, setError] = useState<string | null>(null);
   const [newType, setNewType] = useState<LearningType>('insight');
   const [newBody, setNewBody] = useState('');
+  const optimistic = useOptimisticAction();
+
+  // Keep/remove is a reversible inline toggle → optimistic: the chip flips immediately and
+  // reverts (with a toast) if the PATCH fails. On success the server's canonical candidate
+  // list reconciles the local state (option a).
+  function setCandidateStatus(id: string, status: 'kept' | 'removed'): void {
+    const prev = candidates;
+    void optimistic.run({
+      apply: () => setCandidates((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c))),
+      commit: async () => {
+        const data = await send<{ candidates: LearningCandidateView[] }>(
+          `/projects/${projectId}/spec/learnings/${id}`,
+          'PATCH',
+          { status },
+        );
+        setCandidates(data.candidates);
+        setError(null);
+      },
+      rollback: () => setCandidates(prev),
+      error: 'Couldn’t update — reverted.',
+      retryable: true,
+    });
+  }
 
   // Ensure the candidate set exists on first load (idempotent propose).
   const propose = useMutation({
@@ -81,18 +107,6 @@ export function FreezeClient({
     if (initialCandidates.length === 0) propose.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const setStatus = useMutation({
-    mutationFn: (vars: { id: string; status: 'kept' | 'removed' }) =>
-      send<{ candidates: LearningCandidateView[] }>(`/projects/${projectId}/spec/learnings/${vars.id}`, 'PATCH', {
-        status: vars.status,
-      }),
-    onSuccess: (data) => {
-      setError(null);
-      setCandidates(data.candidates);
-    },
-    onError: (e: Error) => setError(e.message),
-  });
 
   const add = useMutation({
     mutationFn: (vars: { bodyMd: string; type: LearningType }) =>
@@ -115,7 +129,8 @@ export function FreezeClient({
       setError(null);
       setCandidates(data.candidates);
     },
-    onError: (e: Error) => setError(e.message),
+    // Record-to-journal is a Class-3 write → its failure surfaces on the toast channel.
+    onError: (e: Error) => showToast({ type: 'error', message: redactMessage(e) }),
   });
 
   const allRecorded = candidates.length > 0 && candidates.every((c) => c.status === 'recorded');
@@ -177,7 +192,7 @@ export function FreezeClient({
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => setStatus.mutate({ id: c.id, status: 'kept' })}
+                      onClick={() => setCandidateStatus(c.id, 'kept')}
                       aria-pressed={c.status === 'kept'}
                       className={cn(
                         'rounded-[var(--r-sm)] px-2 py-0.5 text-xs font-medium transition-colors',
@@ -190,7 +205,7 @@ export function FreezeClient({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setStatus.mutate({ id: c.id, status: 'removed' })}
+                      onClick={() => setCandidateStatus(c.id, 'removed')}
                       aria-pressed={c.status === 'removed'}
                       className={cn(
                         'rounded-[var(--r-sm)] px-2 py-0.5 text-xs font-medium transition-colors',

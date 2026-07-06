@@ -6,6 +6,7 @@ import { Bot, Hand } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 
 export type AutoMode = 'off' | 'running';
 
@@ -25,6 +26,7 @@ export function AutomationBar({
   runningHint?: string;
 }) {
   const router = useRouter();
+  const optimistic = useOptimisticAction();
   const running = mode === 'running';
   const [liveNote, setLiveNote] = useState(note);
 
@@ -54,25 +56,42 @@ export function AutomationBar({
 
   function handleRun() {
     if (!projectId) return;
-    // Show overlay IMMEDIATELY — countdown happens on the overlay.
-    automationOverlayStore.show();
-    // Start server automation; the overlay's countdown runs while this resolves.
-    // Intentionally NO router.refresh() here — the overlay syncs server state once
-    // when the countdown ends, so the top stepper stays still during "Getting
-    // ready" instead of jumping as Forge advances spec→plan behind the countdown.
-    fetch(`/api/projects/${projectId}/transition`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'start_auto' }),
-    }).catch(() => { automationOverlayStore.hide(); });
+    // Show overlay IMMEDIATELY (optimistic) — countdown happens on the overlay.
+    // Intentionally NO router.refresh() on success — the overlay syncs server state once
+    // when the countdown ends, so the top stepper stays still during "Getting ready"
+    // instead of jumping as Forge advances spec→plan behind the countdown. On failure the
+    // overlay is hidden (rollback) and a toast explains why.
+    void optimistic.run({
+      apply: () => automationOverlayStore.show(),
+      commit: async () => {
+        const r = await fetch(`/api/projects/${projectId}/transition`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start_auto' }),
+        });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () => automationOverlayStore.hide(),
+      error: 'Couldn’t start automation — try again.',
+      retryable: true,
+    });
   }
 
   function handleStop() {
     if (!projectId) return;
-    automationOverlayStore.hide();
-    fetch(`/api/projects/${projectId}/transition`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'take_over' }),
-    }).then(() => router.refresh()).catch(() => {});
+    void optimistic.run({
+      apply: () => automationOverlayStore.hide(),
+      commit: async () => {
+        const r = await fetch(`/api/projects/${projectId}/transition`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'take_over' }),
+        });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () => automationOverlayStore.show(),
+      onSettled: () => router.refresh(),
+      error: 'Couldn’t stop automation — try again.',
+      retryable: true,
+    });
   }
 
   // If already running (server state), don't render the bar — overlay handles it

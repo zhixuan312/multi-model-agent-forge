@@ -18,7 +18,6 @@ describe('buildProposeRequest', () => {
     d.repos = [{ id: 'repo-1', name: 'api-service', pathOnDisk: '/fake', defaultBranch: 'main' }];
     const mockDb = createMockDb({
       'select:project': [{ details: d }],
-      'select:project_attachment': [],
     });
 
     const request = await buildProposeRequest(projectId, { db: mockDb });
@@ -27,17 +26,5 @@ describe('buildProposeRequest', () => {
     expect(request.system).toContain('Constraints:');
     expect(request.user).toContain('caching');
     expect(request.user).toContain('api-service');
-  });
-
-  it('includes attachment labels in the prompt', async () => {
-    const d = buildInitialDetails();
-    d.stages.exploration.phases.brief.text = 'Brief text';
-    const mockDb = createMockDb({
-      'select:project': [{ details: d }],
-      'select:project_attachment': [{ kind: 'url', label: 'API docs', payload: 'https://api.example.com/docs' }],
-    });
-
-    const request = await buildProposeRequest('proj-1', { db: mockDb });
-    expect(request.user).toContain('API docs');
   });
 });

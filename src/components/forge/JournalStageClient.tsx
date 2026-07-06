@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { showToast } from '@/components/ui/toast';
 import {
   ArrowRight,
   Check,
@@ -183,7 +185,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
     setHarvestingLocal(true);
     void mma.transition('dispatch_harvest')
       .then(() => refresh())
-      .catch(() => {})
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t harvest learnings — try again.' }); })
       .finally(() => { harvestFiredRef.current = false; setHarvestingLocal(false); });
   }
 
@@ -217,6 +219,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
   // after the harvesting/!active returns would change the hook count between
   // renders (Rules of Hooks) and crash on the harvest→populated transition.
   const [completing, setCompleting] = useState(false);
+  const optimistic = useOptimisticAction();
   const msgs = threads[activeId] ?? [];
   const lastMsg = msgs[msgs.length - 1];
   const hasForgeReply = lastMsg?.role === 'forge';
@@ -247,13 +250,20 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   function toggleApprove() {
     if (!active || isApproved) return; // approvals are monotonic (approve_learning is one-way)
-    setLocalOverrides((o) => ({ ...o, [active.id]: 'kept' }));
+    const id = active.id;
+    const learningIndex = active.num - 1;
+    void optimistic.run({
+      apply: () => setLocalOverrides((o) => ({ ...o, [id]: 'kept' })),
+      commit: () => mma.transition('approve_learning', { learningIndex }),
+      rollback: () => setLocalOverrides((o) => { const n = { ...o }; delete n[id]; return n; }),
+      onSettled: () => { setLocalOverrides({}); router.refresh(); },
+      error: 'Couldn’t approve — reverted.',
+      retryable: true,
+    });
     // Auto-advance to next unapproved learning
-    const nextStatus = { ...status, [active.id]: 'kept' as const };
+    const nextStatus = { ...status, [id]: 'kept' as const };
     const nextUnapproved = props.learnings.find((l) => nextStatus[l.id] !== 'kept' && nextStatus[l.id] !== 'recorded');
     if (nextUnapproved) setActiveId(nextUnapproved.id);
-    void mma.transition('approve_learning', { learningIndex: active.num - 1 })
-      .then(() => { setLocalOverrides({}); router.refresh(); }).catch(() => {});
   }
 
   function send() {
@@ -368,7 +378,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
             setCompleting(true);
             void mma.transition('mark_complete')
               .then(() => router.refresh())
-              .catch(() => {})
+              .catch(() => { showToast({ type: 'error', message: 'Couldn’t mark the project complete — try again.' }); })
               .finally(() => setCompleting(false));
           }}
         />
@@ -469,11 +479,23 @@ export function JournalStageClient(props: JournalStageClientProps) {
               onClick={() => {
                 // Approve every not-yet-kept learning (monotonic; no revoke-all).
                 const pending = props.learnings.filter((l) => status[l.id] !== 'kept' && status[l.id] !== 'recorded');
-                for (const l of pending) {
-                  setLocalOverrides((o) => ({ ...o, [l.id]: 'kept' }));
-                  void mma.transition('approve_learning', { learningIndex: l.num - 1 }).catch(() => {});
-                }
-                setTimeout(() => { setLocalOverrides({}); router.refresh(); }, 300);
+                if (pending.length === 0) return;
+                void optimistic.run({
+                  apply: () => setLocalOverrides((o) => {
+                    const next = { ...o };
+                    for (const l of pending) next[l.id] = 'kept';
+                    return next;
+                  }),
+                  commit: () => Promise.all(pending.map((l) => mma.transition('approve_learning', { learningIndex: l.num - 1 }))),
+                  rollback: () => setLocalOverrides((o) => {
+                    const next = { ...o };
+                    for (const l of pending) delete next[l.id];
+                    return next;
+                  }),
+                  onSettled: () => { setLocalOverrides({}); router.refresh(); },
+                  error: 'Couldn’t approve all — reverted.',
+                  retryable: true,
+                });
               }}
               disabled={readOnly || props.learnings.length === 0 || approvedCount === props.learnings.length}
               leftIcon={<Check />}
@@ -537,7 +559,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                   setRecordingLocal(true);
                   void mma.transition('dispatch_record')
                     .then(() => refresh())
-                    .catch(() => {})
+                    .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
                     .finally(() => setRecordingLocal(false));
                 }
                 advancePhase('summary');

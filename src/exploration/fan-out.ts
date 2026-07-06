@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { attachment } from '@/db/schema/exploration';
 import {
   PROMPT_FLOORS,
   type ProposedTask,
@@ -30,37 +29,21 @@ Constraints:
 
 Output format: Return a JSON object with a "tasks" array. Each task has: kind, prompt, target_repo_id (required for investigate, null for others).`;
 
-/** Build the brief + attachments + repo-subset prompt the orchestrator reads. */
+/** Build the brief + repo-subset prompt the orchestrator reads. */
 function buildProposeUser(args: {
   brief: string;
-  attachments: { kind: string; label: string; payload: unknown }[];
   repos: { id: string; name: string | null }[];
 }): string {
   const repoLines = args.repos.map((r) => `- ${r.id} (${r.name ?? 'unknown'})`).join('\n');
-  const attLines = args.attachments
-    .map((a) => `- [${a.kind}] ${a.label}${urlOf(a.payload) ? ` <${urlOf(a.payload)}>` : ''}`)
-    .join('\n');
   return [
     '# Input: Brain-dump brief',
     '',
     args.brief || '(empty)',
     '',
-    '# Input: Attachments',
-    '',
-    attLines || '(none)',
-    '',
     '# Input: Available repositories (use these IDs for target_repo_id)',
     '',
     repoLines || '(none)',
   ].join('\n');
-}
-
-function urlOf(payload: unknown): string | null {
-  if (payload && typeof payload === 'object' && 'url' in payload) {
-    const u = (payload as { url?: unknown }).url;
-    return typeof u === 'string' ? u : null;
-  }
-  return null;
 }
 
 /** Validate one proposed task's shape against the repo subset + floors. */
@@ -94,14 +77,9 @@ export async function buildProposeRequest(
   const briefText = d ? getBriefText(d) : '';
   const repos = d ? getRepos(d).map((r) => ({ id: r.id, name: r.name })) : [];
 
-  const attachments = await db
-    .select({ kind: attachment.kind, label: attachment.label, payload: attachment.payload })
-    .from(attachment)
-    .where(eq(attachment.projectId, projectId));
-
   return {
     system: PROPOSE_SYSTEM,
-    user: buildProposeUser({ brief: briefText, attachments, repos }),
+    user: buildProposeUser({ brief: briefText, repos }),
   };
 }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { showToast } from '@/components/ui/toast';
+import { redactMessage } from '@/lib/redact';
 import {
   ArrowRight,
   CheckCircle2,
@@ -138,7 +139,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     () => Object.fromEntries(props.repoGroups.map((g) => [g.repoId, g.targetBranch])),
   );
   const [dispatching, setDispatching] = useState(false);
-  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const auto: AutoMode = props.autoMode ? 'running' : 'off';
   const autoNote = props.autoNote ?? '';
 
@@ -207,7 +207,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       return;
     }
     setDispatching(true);
-    setDispatchError(null);
     try {
       // dispatch_execute is async: the no-handler transition resolves once the
       // execute-pipeline batch has been ACCEPTED (startExecuteRun returns after the
@@ -218,9 +217,11 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       setDispatching(false);
       advanceExecPhase('implement');
       setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
-      void mma.waitFor('execute-pipeline').catch(() => {});
+      void mma.waitFor('execute-pipeline').catch(() => {
+        showToast({ type: 'error', message: 'The build run failed — see notifications for details.' });
+      });
     } catch (e) {
-      setDispatchError(e instanceof Error ? e.message : 'Dispatch failed');
+      showToast({ type: 'error', message: redactMessage(e) });
       setDispatching(false);
     }
   }
@@ -250,7 +251,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
           branches={branches}
           onBranchChange={(repoId, branch) => setBranches((b) => ({ ...b, [repoId]: branch }))}
           dispatching={dispatching}
-          dispatchError={dispatchError}
           readOnly={readOnly}
           onStart={startExecution}
         />
@@ -272,14 +272,13 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
 /* ── Configure Phase ─────────────────────────────────────────────────── */
 
 function ConfigurePhase({
-  projectName, repoGroups, branches, onBranchChange, dispatching, dispatchError, readOnly, onStart,
+  projectName, repoGroups, branches, onBranchChange, dispatching, readOnly, onStart,
 }: {
   projectName: string;
   repoGroups: RepoGroup[];
   branches: Record<string, string>;
   onBranchChange: (repoId: string, branch: string) => void;
   dispatching: boolean;
-  dispatchError: string | null;
   readOnly: boolean;
   onStart: () => void;
 }) {
@@ -326,7 +325,6 @@ function ConfigurePhase({
             </div>
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {dispatchError && <p className="text-sm text-[var(--rose)]">{dispatchError}</p>}
             <Button className="w-full" onClick={onStart} disabled={readOnly || dispatching} loading={dispatching} leftIcon={<Rocket />}>
               {dispatching ? 'Dispatching…' : 'Continue to Implement'}
             </Button>

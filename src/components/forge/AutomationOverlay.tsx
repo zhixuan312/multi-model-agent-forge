@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjectEvents } from '@/hooks/useProjectEvents';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import {
   Bot,
   Square,
@@ -140,6 +141,7 @@ function seedLogs(events: Array<{ detail: string; kind?: LineKind; durationMs?: 
 
 export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
   const router = useRouter();
+  const optimistic = useOptimisticAction();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
   // this — only ExploreStageClient does — so without this the overlay would get
   // no live progress on spec/plan/execute/review/journal pages).
@@ -308,13 +310,21 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
     return 'pending' as const;
   }
 
-  async function handleStop() {
-    await fetch(`/api/projects/${projectId}/transition`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'take_over' }),
+  function handleStop() {
+    void optimistic.run({
+      apply: () => automationOverlayStore.hide(),
+      commit: async () => {
+        const r = await fetch(`/api/projects/${projectId}/transition`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'take_over' }),
+        });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+      },
+      rollback: () => automationOverlayStore.show(),
+      onSettled: () => router.refresh(),
+      error: 'Couldn’t stop automation — try again.',
+      retryable: true,
     });
-    automationOverlayStore.hide();
-    router.refresh();
   }
 
   return (

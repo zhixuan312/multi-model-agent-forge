@@ -1,9 +1,9 @@
 /**
  * Structured server-side logging for the PollManager + the exploration
  * orchestration calls (Spec 5 §observability — "not client-toast-only"). A
- * batch stuck in `running`, a silent poll-loop stall, a propose/synthesize/
- * transcribe failure, and an attachment disk-write failure must each be
- * diagnosable from logs alone. Distinct from the domain `action_log`.
+ * batch stuck in `running`, a silent poll-loop stall, and a propose/
+ * synthesize/transcribe failure must each be diagnosable from logs alone.
+ * Distinct from the domain `action_log`.
  */
 
 export type PollLogEvent =
@@ -18,7 +18,6 @@ export type PollLogEvent =
   | 'openai.call_error'
   | 'propose.failure'
   | 'synthesize.failure'
-  | 'attachment.write_error'
   | 'auto_draft.failure'
   | 'handler.failed';
 

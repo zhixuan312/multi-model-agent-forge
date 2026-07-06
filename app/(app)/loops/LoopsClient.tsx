@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Search, Repeat, Play, Pencil } from 'lucide-react';
 import { Button, Badge, Input, Title, TextStrong, Mono, Micro, EmptyState, DataTable, Card, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import type { LoopRow } from '@/db/schema/loop';
 import { describeCron } from '@/loops/cron';
 import { LoopForm, type RepoOption } from './LoopForm';
@@ -49,8 +50,11 @@ export function LoopsClient({
     async (id: string) => {
       setBusy(id);
       try {
-        await fetch(`/api/loops/${id}/run`, { method: 'POST' });
+        const r = await fetch(`/api/loops/${id}/run`, { method: 'POST' });
+        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
         router.refresh();
+      } catch {
+        showToast({ type: 'error', message: 'Couldn’t start the loop run — try again.' });
       } finally {
         setBusy(null);
       }

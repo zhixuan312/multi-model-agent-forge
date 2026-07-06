@@ -2,6 +2,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FreezeClient, type LearningCandidateView } from '@/components/forge/FreezeClient';
 
+// keep/remove is now optimistic (useOptimisticAction) — failures revert + toast.
+const toasts: Array<{ type: string; message: string }> = [];
+vi.mock('@/components/ui/toast', () => ({ showToast: (t: { type: string; message: string }) => { toasts.push(t); } }));
+beforeEach(() => { toasts.length = 0; });
+
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
@@ -39,6 +44,20 @@ describe('FreezeClient (learnings curation)', () => {
         expect.objectContaining({ method: 'PATCH' }),
       );
     });
+  });
+
+  it('keep/remove failure reverts the chip (optimistic) and raises an error toast', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'nope' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    wrap(<FreezeClient projectId="p1" locked={true} initialCandidates={candidates} />);
+    // candidates[0] starts 'proposed'; click Remove → optimistically 'removed', then the
+    // PATCH 500s → reverts to 'proposed' + error toast.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    await waitFor(() => expect(toasts.some((t) => t.type === 'error')).toBe(true));
+    await waitFor(() =>
+      expect(screen.getAllByTestId('learning-card')[0]).toHaveAttribute('data-status', 'proposed'),
+    );
   });
 
   it('"Record to journal" commits the kept learnings', async () => {

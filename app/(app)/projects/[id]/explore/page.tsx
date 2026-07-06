@@ -11,15 +11,14 @@ import {
   latestExplorationArtifact,
   readProjectRepoOptions,
 } from '@/exploration/explore-core';
-import { listAttachments } from '@/exploration/attachments';
 import { findPendingHandlers } from '@/dispatch/dispatch-helpers';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
 
 /**
  * Exploration stage — brain-dump → editable fan-out → live agent rail →
- * synthesized summary. RSC first paint hydrates the composer/attachments/tasks/
- * artifact; the client island drives propose/run/synthesize + voice/attachments
- * and patches live from `useProjectEvents` (opened by the project layout).
+ * synthesized summary. RSC first paint hydrates the composer/tasks/artifact;
+ * the client island drives propose/run/synthesize + voice and patches live
+ * from `useProjectEvents` (opened by the project layout).
  * Membership-gated via `assertProjectReadable`.
  */
 export default async function ExploreStagePage({
@@ -49,9 +48,8 @@ export default async function ExploreStagePage({
     .limit(1);
   if (!proj) notFound();
 
-  const [brief, attachments, tasks, artifact, repos, pendingHandlers] = await Promise.all([
+  const [brief, tasks, artifact, repos, pendingHandlers] = await Promise.all([
     latestBrief(id, db),
-    listAttachments(id, { db }),
     readRailTasks(id, db),
     latestExplorationArtifact(id),
     readProjectRepoOptions(id, db),
@@ -79,7 +77,6 @@ export default async function ExploreStagePage({
       projectId={id}
       projectName={proj.name}
       initialBrief={brief}
-      initialAttachments={attachments}
       initialTasks={tasks}
       initialArtifact={artifact}
       repoOptions={repos}

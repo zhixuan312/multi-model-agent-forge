@@ -49,9 +49,9 @@ import {
   type ArtifactCacheEntry,
 } from '@/hooks/useProjectEvents';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
-import type { AttachmentView } from '@/exploration/attachments';
 import { cn } from '@/lib/cn';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
+import { showToast } from '@/components/ui/toast';
 
 /** Per-route prompt floor — pulled from the client-safe schema constants. */
 const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
@@ -67,7 +67,6 @@ interface ExploreStageClientProps {
   projectId: string;
   projectName: string;
   initialBrief: string;
-  initialAttachments: AttachmentView[];
   initialTasks: RailTask[];
   initialArtifact: { id: string; version: number; bodyMd: string } | null;
   repoOptions: { id: string; name: string }[];
@@ -76,19 +75,6 @@ interface ExploreStageClientProps {
   lockedReason?: string;
   pendingHandlers?: string[];
   initialPhase?: 'brief' | 'discover' | 'synthesize';
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? `Request failed (${res.status}).`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export function ExploreStageClient(props: ExploreStageClientProps) {
@@ -126,8 +112,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   });
 
   const [brief, setBrief] = useState(props.initialBrief);
-  const [attachments, setAttachments] = useState<AttachmentView[]>(props.initialAttachments);
-  const [attachError, setAttachError] = useState<string | null>(null);
   const [viewOverrideRaw, setViewOverrideRaw] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
   const setViewOverride = (v: 'brief' | 'discover' | 'synthesize') => {
     setViewOverrideRaw(v);
@@ -179,51 +163,30 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   async function analyze(): Promise<void> {
     // Save the brief then dispatch the discovery-task proposal — both through the
     // unified engine (set_brief is a content action; propose is the transition).
-    await mma.transition('set_brief', { text: brief });
-    await mma.transition('propose_discover_tasks', undefined, 'explore-propose');
+    try {
+      await mma.transition('set_brief', { text: brief });
+      await mma.transition('propose_discover_tasks', undefined, 'explore-propose');
+    } catch {
+      showToast({ type: 'error', message: 'Couldn’t propose discovery tasks — try again.' });
+    }
   }
 
   async function run(): Promise<void> {
-    await mma.transition('run_discover_tasks');
-    refreshTasks();
-    setTimeout(refreshTasks, 2600);
+    try {
+      await mma.transition('run_discover_tasks');
+      refreshTasks();
+      setTimeout(refreshTasks, 2600);
+    } catch {
+      showToast({ type: 'error', message: 'Couldn’t run discovery — try again.' });
+    }
   }
 
   async function resynthesize(): Promise<void> {
-    await mma.transition('dispatch_synthesize', undefined, 'explore-synthesize');
-  }
-
-  async function addLink(): Promise<void> {
-    const url = window.prompt('Link URL (http/https):');
-    if (!url) return;
-    const label = window.prompt('Label:', url) ?? url;
     try {
-      const v = await postJson<AttachmentView>(`/api/projects/${props.projectId}/explore/attachment`, { label, url });
-      setAttachments((a) => [...a, v]);
-    } catch (e) {
-      setAttachError(e instanceof Error ? e.message : 'Attach failed.');
+      await mma.transition('dispatch_synthesize', undefined, 'explore-synthesize');
+    } catch {
+      showToast({ type: 'error', message: 'Couldn’t synthesize — try again.' });
     }
-  }
-
-  async function addFile(file: File): Promise<void> {
-    const kind = file.type.startsWith('image/') ? 'image' : 'file';
-    const form = new FormData();
-    form.append('kind', kind);
-    form.append('label', file.name);
-    form.append('file', file);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/explore/attachment`, { method: 'POST', body: form });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Attach failed.');
-      const view = (await res.json()) as AttachmentView;
-      setAttachments((a) => [...a, view]);
-    } catch (e) {
-      setAttachError(e instanceof Error ? e.message : 'Attach failed.');
-    }
-  }
-
-  async function removeAttachment(attachmentId: string): Promise<void> {
-    await fetch(`/api/projects/${props.projectId}/explore/attachment/${attachmentId}`, { method: 'DELETE' });
-    setAttachments((a) => a.filter((x) => x.id !== attachmentId));
   }
 
   const bodyMd = artifact?.bodyMd ?? props.initialArtifact?.bodyMd ?? null;
@@ -305,9 +268,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         idleHint="Automation unlocks once the spec is set — Design stages are hand-authored."
       />
 
-      {(error || attachError) ? (
+      {error ? (
         <div className="shrink-0 rounded-[var(--r-md)] border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-4 py-2 text-sm text-[var(--rose)]" role="alert">
-          {error || attachError}
+          {error}
         </div>
       ) : null}
 
@@ -367,14 +330,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   onChange={locked ? () => {} : setBrief}
                   onSend={locked ? () => {} : () => { analyze(); setBriefView('tasks'); }}
                   voice={props.voiceEnabled && !locked}
-                  attachments
                   disabled={locked || proposing}
                   placeholder="Tell Forge everything you know…"
                   submitLabel={hasAnalyzed ? 'Re-analyze' : 'Analyze sources'}
                   rows={0}
                   className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
                 />
-                {null}
               </CardContent>
             </Card>
           ) : (

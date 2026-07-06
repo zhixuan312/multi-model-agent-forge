@@ -23,6 +23,7 @@ import {
   DataTable,
   type BadgeProps,
 } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import { filterRepos } from '@/git/repo-filter';
 
 export interface RepoCardData {
@@ -79,8 +80,11 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
     async (id: string) => {
       setBusyId(id);
       try {
-        await fetch(`/api/repos/${id}`, { method: 'PUT' });
+        const res = await fetch(`/api/repos/${id}`, { method: 'PUT' });
+        if (!res.ok) throw new Error(`Request failed (${res.status}).`);
         router.refresh();
+      } catch {
+        showToast({ type: 'error', message: 'Couldn’t pull the repo — try again.' });
       } finally {
         setBusyId(null);
       }
@@ -268,9 +272,12 @@ function RepoEditForm({ repo: r, onDone }: { repo: RepoCardData; onDone: () => v
   async function onDelete() {
     setBusy(true);
     try {
-      await fetch(`/api/repos/${r.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/repos/${r.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Request failed (${res.status}).`);
       onDone();
       router.refresh();
+    } catch {
+      showToast({ type: 'error', message: 'Couldn’t delete the repo — try again.' });
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
-import { Send, Mic, MicOff, Paperclip, Loader2 } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Textarea, Avatar } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
@@ -76,7 +76,6 @@ export interface ConversationComposerProps {
   disabled?: boolean;
   loading?: boolean;
   voice?: boolean;
-  attachments?: boolean;
   secondaryActions?: ReactNode;
   textareaRef?: React.Ref<HTMLTextAreaElement>;
   className?: string;
@@ -96,7 +95,6 @@ export function ConversationComposer({
   disabled = false,
   loading = false,
   voice = false,
-  attachments = false,
   secondaryActions,
   textareaRef,
   className,
@@ -112,7 +110,6 @@ export function ConversationComposer({
   const value = controlled ? controlledValue : internalValue;
   const setVal = controlled ? (controlledOnChange ?? (() => {})) : setInternalValue;
 
-  const fileInput = useRef<HTMLInputElement>(null);
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -158,14 +155,6 @@ export function ConversationComposer({
       rec.start();
       setRecording(true);
     } catch { /* microphone unavailable */ }
-  }
-
-  function handleFile(file: File): void {
-    if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.json') || file.name.endsWith('.csv')) {
-      file.text().then((text) => {
-        setVal(value ? `${value}\n\n--- ${file.name} ---\n${text}` : text);
-      });
-    }
   }
 
   const isVoiceBusy = recording || transcribing;
@@ -271,10 +260,6 @@ export function ConversationComposer({
             <Button size="sm" variant={recording ? 'danger' : 'ghost'} onClick={toggleRecord} disabled={disabled || transcribing || !voice} leftIcon={recording ? <MicOff /> : <Mic />} type="button">
               {recording ? 'Stop' : 'Voice'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => fileInput.current?.click()} disabled={disabled || !attachments} leftIcon={<Paperclip />} type="button">
-              File
-            </Button>
-            <input ref={fileInput} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
           </div>
           <div className="flex items-center gap-2">
             {secondaryActions}

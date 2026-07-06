@@ -73,14 +73,6 @@ export type ArtifactKind = (typeof ARTIFACT_KIND)[number];
 export const AUDIT_VERDICT = ['revised', 'clean'] as const;
 export type AuditVerdict = (typeof AUDIT_VERDICT)[number];
 
-/* ── Spec 5: Exploration ────────────────────────────────────────────────── */
-
-/**
- * attachment.kind (schema.md §4). A brief INPUT (material that feeds a task, not
- * an MMA route): a validated link, an uploaded image, or an uploaded file.
- */
-export const ATTACHMENT_KIND = ['link', 'image', 'file'] as const;
-
 /**
  * mma_route (schema.md §7). The route an `mma_batch` was dispatched on. This
  * spec emits only the first three; the full set is declared now so Spec 7 adds

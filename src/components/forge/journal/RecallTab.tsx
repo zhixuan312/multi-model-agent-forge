@@ -12,6 +12,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { RailLayout } from '@/components/forge/journal/journal-shell';
 import { RecallAnswer } from '@/components/forge/journal/RecallView';
@@ -64,6 +66,7 @@ export function RecallTab({
 }) {
   const router = useRouter();
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
+  const optimistic = useOptimisticAction();
 
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
@@ -277,22 +280,34 @@ export function RecallTab({
 
   // --- pin mutations (closures over the pin state setters) ---
 
-  async function unpin(p: PinnedView) {
-    setPins((prev) => prev.map((x) => (x.id === p.id ? markBusy(x, 'unpin') : x)));
-    const res = await fetch(`/api/journal/pins/${p.id}`, { method: 'DELETE' });
-    // 404 means it's already gone — treat the same as success and drop it.
-    if (res.status === 204 || res.status === 404) {
-      setPins((prev) => prev.filter((x) => x.id !== p.id));
-      return;
-    }
-    setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x, 'Could not unpin.') : x)));
+  // Unpin is a reversible inline action → optimistic: the row disappears on click and is
+  // re-inserted (at its original position) if the DELETE fails, with an error toast.
+  function unpin(p: PinnedView) {
+    const index = pins.findIndex((x) => x.id === p.id);
+    void optimistic.run({
+      apply: () => setPins((prev) => prev.filter((x) => x.id !== p.id)),
+      commit: async () => {
+        const res = await fetch(`/api/journal/pins/${p.id}`, { method: 'DELETE' });
+        // 404 means it's already gone — treat the same as success.
+        if (res.status !== 204 && res.status !== 404) throw new Error('Could not unpin.');
+      },
+      rollback: () =>
+        setPins((prev) => {
+          if (prev.some((x) => x.id === p.id)) return prev;
+          const next = [...prev];
+          next.splice(Math.min(index < 0 ? next.length : index, next.length), 0, p);
+          return next;
+        }),
+      error: 'Could not unpin — restored.',
+      retryable: true,
+    });
   }
 
-  // Refresh a pin: re-run the recall and update THIS pin's cached answer IN PLACE. The
-  // fresh answer never renders as a card above the pin; the recall is also recorded, so
-  // it lands in Recent like any other call.
+  // Refresh a pin: re-run the recall and update THIS pin's cached answer IN PLACE. This is
+  // a genuine loading op (the fresh answer is not predictable), so it keeps a per-row busy
+  // spinner rather than an optimistic apply; failure surfaces through the toast channel.
   async function refreshPin(p: PinnedView) {
-    setPins((prev) => prev.map((x) => (x.id === p.id ? markBusy(x, 'refresh') : x)));
+    setPins((prev) => prev.map((x) => (x.id === p.id ? markBusy(x) : x)));
     try {
       const { parsed, batchId } = await dispatchAndPoll(p.question);
       const res = await fetch(`/api/journal/pins/${p.id}/refresh`, {
@@ -306,21 +321,22 @@ export function RecallTab({
       }
       if (!res.ok) throw new Error('Could not refresh this pin.');
       const updated = (await res.json()) as PinnedView;
-      setPins((prev) => prev.map((x) => (x.id === p.id ? { ...updated, _busy: undefined, _error: undefined } : x)));
+      setPins((prev) => prev.map((x) => (x.id === p.id ? { ...updated, _busy: undefined } : x)));
       addRecent(p.question, parsed, batchId);
     } catch (e) {
-      setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x, (e as Error).message) : x)));
+      setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x) : x)));
+      showToast({ type: 'error', message: (e as Error).message || 'Could not refresh this pin.' });
     }
   }
 }
 
-/** Transient per-pin UI state, carried on the row without a separate map. */
-type PinRow = PinnedView & { _busy?: 'refresh' | 'unpin'; _error?: string };
-function markBusy(p: PinnedView, kind: 'refresh' | 'unpin'): PinRow {
-  return { ...p, _busy: kind, _error: undefined };
+/** Transient per-pin loading state (the refresh spinner), carried on the row. */
+type PinRow = PinnedView & { _busy?: 'refresh' };
+function markBusy(p: PinnedView): PinRow {
+  return { ...p, _busy: 'refresh' };
 }
-function clearBusy(p: PinnedView, error: string): PinRow {
-  return { ...p, _busy: undefined, _error: error };
+function clearBusy(p: PinnedView): PinRow {
+  return { ...p, _busy: undefined };
 }
 
 /** The ask composer — lives in the rail, below the note. */
@@ -441,7 +457,6 @@ function PinnedSection({
                     index={index}
                     onNavigate={onNavigate}
                   />
-                  {p._error ? <p className="mt-2 text-xs text-rose">{p._error}</p> : null}
                   <div className="mt-3 flex items-center gap-2">
                     <button
                       type="button"
@@ -460,7 +475,7 @@ function PinnedSection({
                         className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-rose hover:text-rose disabled:opacity-60"
                       >
                         <Trash2 className="size-3.5" />
-                        {busy === 'unpin' ? 'Removing…' : 'Unpin'}
+                        Unpin
                       </button>
                     </div>
                 </div>

@@ -225,3 +225,42 @@ describe('dispatchMma — an unregistered terminal handler fails the batch + thr
     expect(statuses).toContain('failed');
   });
 });
+
+/**
+ * R1 inline-consume contract (AC1): a sync dispatch with `handler: null` runs NO
+ * terminal handler and does NOT throw — the caller reads the returned envelope. This
+ * is the sanctioned path for project-less/handler-less callers (loops, recall sync).
+ * The `label` still lands on the row for tracing.
+ */
+describe('dispatchMma — inline-consume (handler:null) [AC1]', () => {
+  const okEnvelope = { task: { type: 'delegate', status: 'done', taskId: 'm' }, output: { summary: 'x' }, error: null };
+
+  it('returns the envelope, marks the row done, fires no handler, and does not throw', async () => {
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-ic', createdAt: new Date() }] });
+    const res = await dispatchMma({
+      db,
+      mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: okEnvelope }) } as unknown as MmaClient,
+      projectId: null, route: 'delegate', handler: null, label: 'loop-work',
+      cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
+    });
+    expect((res.envelope as { output: unknown }).output).toBeTruthy();
+    const setCalls = db._callsFor('ops_mma_batch').filter((c) => c.method === 'set').map((c) => c.args[0] as Record<string, unknown>);
+    expect(setCalls.some((a) => a.status === 'done')).toBe(true);
+    expect(setCalls.some((a) => a.status === 'failed')).toBe(false); // no missing-handler throw
+  });
+});
+
+/**
+ * R1 (AC3): async dispatch (`await:false`) with `handler:null` is invalid — nothing
+ * would consume the terminal. It throws a dev-time error BEFORE inserting a row.
+ */
+describe('dispatchMma — async + handler:null is rejected [AC3]', () => {
+  it('throws a dev-time error and inserts no batch row', async () => {
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-x', createdAt: new Date() }] });
+    await expect(dispatchMma({
+      db, mma: { dispatch: async () => ({ batchId: 'm' }) } as unknown as MmaClient,
+      projectId: null, route: 'delegate', handler: null, cwd: '/w', body: {}, actorId: null, await: false,
+    })).rejects.toThrow(/inline-consume/);
+    expect(db._callsFor('ops_mma_batch').some((c) => c.method === 'insert')).toBe(false);
+  });
+});

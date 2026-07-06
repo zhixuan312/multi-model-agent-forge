@@ -146,7 +146,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       const body: Record<string, unknown> = { prompt, reviewPolicy: 'none' };
       if (outputFormat) body.outputFormat = outputFormat;
       const { envelope: env } = await dispatchMma({
-        db, mma, projectId: null, route: 'orchestrate', handler: 'loop-plan',
+        db, mma, projectId: null, route: 'orchestrate', handler: null, label: 'loop-plan',
         cwd, body, actorId: null, loopRunId, await: true,
       });
       const e = (env ?? {}) as Record<string, unknown>;
@@ -162,7 +162,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       try {
         const mma = await buildMmaClient({ db });
         const { envelope: env } = await dispatchMma({
-          db, mma, projectId: null, route: 'journal_recall', handler: 'loop-recall',
+          db, mma, projectId: null, route: 'journal_recall', handler: null, label: 'loop-recall',
           cwd: workspaceRoot, body: { prompt: query.slice(0, 4000), reviewPolicy: 'none' },
           actorId: null, loopRunId, await: true,
         });
@@ -205,7 +205,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
         : prompt;
       const body = { prompt: fullPrompt, reviewPolicy: 'reviewed' };
       const { batchRowId, envelope: env } = await dispatchMma({
-        db, mma, projectId: null, route: 'delegate', handler: 'loop-work',
+        db, mma, projectId: null, route: 'delegate', handler: null, label: 'loop-work',
         cwd, body, actorId: null, loopRunId, await: true,
         meta: { targetRepoId: repo.id },
       });
@@ -298,7 +298,7 @@ Constraints:
 Output format:
 Write each node to .mma/journal/ using the journal_record tool. Each node must have frontmatter (id, title, category, status: adopted, tags, date) and body (## Context + ## Consequences).`;
         await dispatchMma({
-          db, mma, projectId: null, route: 'journal_record', handler: 'loop-journal',
+          db, mma, projectId: null, route: 'journal_record', handler: null, label: 'loop-journal',
           cwd: workspaceRoot, body: { prompt },
           actorId: null, loopRunId, await: true,
         });

@@ -25,7 +25,20 @@ export interface DispatchOpts {
   mma: MmaClient;
   projectId: string | null;
   route: MmaRoute;
-  handler: string;
+  /**
+   * The registered terminal-handler key, OR `null` for **inline-consume**: the caller
+   * reads the returned `envelope` itself (sync `await:true` only) and no terminal
+   * handler runs. A NAMED-but-unregistered handler still fails loudly (the F1 guard);
+   * only an explicit `null` is exempt. Loops / journal-recall's sync variants are the
+   * inline-consumers. Async (`await:false`) with `handler:null` is invalid.
+   */
+  handler: string | null;
+  /**
+   * Display/trace label for the `ops_mma_batch.handler` column when `handler` is
+   * `null` (inline-consume). Lets a handler-less dispatch still be traceable/cost-
+   * attributed by name (e.g. `'loop-work'`). Ignored when `handler` is a string.
+   */
+  label?: string;
   cwd: string;
   body: unknown;
   actorId: string | null;
@@ -125,8 +138,19 @@ export async function findPendingHandlers(
  *
  * Both modes: batch row inserted BEFORE dispatch (every attempt tracked), usage
  * extracted on terminal, handler fired on terminal (best-effort).
+ *
+ * `handler: null` = inline-consume (sync only): no terminal handler runs; the caller
+ * reads the returned `envelope`. The async path returns the external MMA `batchId`
+ * too (for project-less pollers like journal recall that key off it).
  */
-export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: string; envelope?: unknown }> {
+export async function dispatchMma(
+  opts: DispatchOpts,
+): Promise<{ batchRowId: string; envelope?: unknown; batchId?: string }> {
+  // Async with no terminal handler is meaningless — nothing would consume the
+  // terminal (the sync caller reads the envelope; the async path needs a handler).
+  if (!opts.await && opts.handler === null) {
+    throw new Error('dispatchMma: async dispatch (await:false) requires a registered handler; handler:null is inline-consume (await:true) only.');
+  }
   const payload = { type: opts.route, ...(opts.body as Record<string, unknown>) };
 
   // The handler's `ctx.request` is body + meta merged — the SAME shape persisted to
@@ -137,10 +161,13 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
   // that key off a meta field got `undefined` and threw.
   const request = { ...(opts.body as object), ...opts.meta };
 
+  // The row's handler column carries the registered handler key, OR the label when
+  // inline-consume (handler:null) — so a handler-less dispatch stays traceable by name.
+  const rowHandler = opts.handler ?? opts.label ?? null;
   const values = {
     projectId: opts.projectId,
     route: opts.route,
-    handler: opts.handler,
+    handler: rowHandler,
     cwd: opts.cwd,
     status: 'dispatched' as const,
     request: request as object,
@@ -241,23 +268,30 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
     // PollManager path, which fails the batch on a handler throw. Closes the
     // infinite-loop door for a handler that throws on an otherwise-successful
     // envelope (e.g. an audit that returns prose → `missing_report` → handler throws).
-    try {
-      const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
-      await ensureHandlersRegistered();
-      const h = getHandler(opts.handler);
-      if (!h) {
-        // A batch-backed dispatch with no terminal handler records no gating state,
-        // so a WAITing resolver re-dispatches forever (the batch is `done`). Fail
-        // loudly — the catch below marks the batch failed + rethrows so the driver
-        // retries/stops with a clear error instead of looping.
-        throw new Error(`No terminal handler registered for '${opts.handler}'`);
+    // Inline-consume (handler:null): the caller reads the returned `envelope` — no
+    // terminal handler runs and NO throw. This is the sanctioned path for project-less
+    // callers (loops, journal-recall's sync variant) that consume the result directly.
+    // A NAMED-but-unregistered handler still fails loudly below (the F1 guard) — the
+    // exemption is ONLY for an explicit `null`, never for a name that failed to register.
+    if (opts.handler !== null) {
+      try {
+        const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
+        await ensureHandlersRegistered();
+        const h = getHandler(opts.handler);
+        if (!h) {
+          // A batch-backed dispatch with a NAMED but missing handler records no gating
+          // state, so a WAITing resolver re-dispatches forever (the batch is `done`).
+          // Fail loudly — the catch below marks the batch failed + rethrows so the
+          // driver retries/stops with a clear error instead of looping.
+          throw new Error(`No terminal handler registered for '${opts.handler}'`);
+        }
+        await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request, actorId: opts.actorId }, envelope);
+      } catch (handlerErr) {
+        console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
+        await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));
+        await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+        throw handlerErr;
       }
-      await h(opts.db, { batchRowId, projectId: opts.projectId ?? '', handler: opts.handler, request, actorId: opts.actorId }, envelope);
-    } catch (handlerErr) {
-      console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
-      await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));
-      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
-      throw handlerErr;
     }
 
     // Resolve the running timeline line to its milestone + measured duration —
@@ -284,7 +318,9 @@ export async function dispatchMma(opts: DispatchOpts): Promise<{ batchRowId: str
         createdAt: row.createdAt,
       });
 
-      return { batchRowId };
+      // Return the external MMA batchId too — project-less pollers (journal recall)
+      // key off it to read terminal state from the row.
+      return { batchRowId, batchId: mmaBatchId };
     } catch (err) {
       // Dispatch failed — mark the pre-inserted row as failed
       await opts.db

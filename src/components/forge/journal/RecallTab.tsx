@@ -46,6 +46,9 @@ export interface RecentRecall {
   answerMd?: string;
   findings?: unknown[];
   citationIds?: string[];
+  /** True for a client-side entry for a recall the member just ran (not yet reloaded
+   *  from the server). Dropped on resync once the recorded row arrives. */
+  _optimistic?: boolean;
 }
 
 export function RecallTab({
@@ -63,26 +66,54 @@ export function RecallTab({
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
 
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<ParsedRecall | null>(null);
   const [asked, setAsked] = useState('');
   const resumedRef = useRef(false);
 
   // Pinned Q&A — server-loaded initial list, then mutated locally on
   // pin/unpin/refresh so the surface stays responsive without a full reload.
   const [pins, setPins] = useState<PinnedView[]>(pinned);
-  const [livePinState, setLivePinState] = useState<'idle' | 'saving' | 'pinned'>('idle');
-  const [livePinError, setLivePinError] = useState<string | null>(null);
+
+  // Recent answers = the server-recorded recalls PLUS an optimistic entry for a recall
+  // the member just ran, so its answer appears immediately at the top of Recent — NOT as
+  // a separate card floating above the pinned answers. The server list is source of
+  // truth; the resync drops an optimistic entry once its recorded row shows up (deduped
+  // by batchId). Every new recall lands here; pinned answers sit above (PinnedSection).
+  const [recents, setRecents] = useState<RecentRecall[]>(recentRecalls);
+  const [justAskedKey, setJustAskedKey] = useState<string | null>(null);
+  // Depend on a STABLE signature, not the array identity: `recentRecalls` is a fresh
+  // array on every render (default prop / server re-render), so keying the effect on the
+  // reference would loop. The signature only changes when the recorded list actually does.
+  const serverSig = recentRecalls.map((r) => `${r.id}:${r.status}:${r.batchId ?? ''}`).join('|');
+  useEffect(() => {
+    setRecents((local) => {
+      const serverKeys = new Set(recentRecalls.map((r) => r.batchId).filter(Boolean));
+      const pendingOptimistic = local.filter((r) => r._optimistic && r.batchId && !serverKeys.has(r.batchId));
+      return [...pendingOptimistic, ...recentRecalls];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSig]);
 
   const trimmed = query.trim();
   const canSubmit = trimmed.length >= 10 && trimmed.length <= 4000 && status !== 'running';
 
-  // Completed recent recalls (not pinned, most recent first)
-  const completedRecalls = recentRecalls.filter((r) => r.status === 'done' && r.answerMd);
+  // Completed recent recalls (most recent first)
+  const completedRecalls = recents.filter((r) => r.status === 'done' && r.answerMd);
   const hasContent = status !== 'idle' || pins.length > 0 || faqs.length > 0 || completedRecalls.length > 0;
 
-  // Auto-resume: if there's an in-flight recall batch from before page nav, resume polling
+  /** Land a finished recall at the top of Recent (auto-expanded), replacing any prior
+   *  entry for the same batch. */
+  function addRecent(question: string, result: ParsedRecall, batchId: string) {
+    setRecents((prev) => [
+      { id: `live-${batchId}`, question, status: 'done', batchId, answerMd: result.summary, findings: result.findings, citationIds: result.citationIds, _optimistic: true },
+      ...prev.filter((r) => r.batchId !== batchId),
+    ]);
+    setJustAskedKey(batchId);
+  }
+
+  // Auto-resume: if there's an in-flight recall batch from before page nav, resume
+  // polling and land it in Recent when it finishes.
   const inflight = recentRecalls.find((r) => r.status === 'dispatched' || r.status === 'running');
   useEffect(() => {
     if (!inflight?.batchId || resumedRef.current || status === 'running') return;
@@ -92,8 +123,8 @@ export function RecallTab({
     (async () => {
       try {
         const result = await pollUntilTerminal(inflight.batchId!);
-        setParsed(result);
-        setStatus('done');
+        addRecent(inflight.question, result, inflight.batchId!);
+        setStatus('idle');
       } catch (e) {
         setError((e as Error).message);
         setStatus('error');
@@ -121,7 +152,7 @@ export function RecallTab({
     }
   }
 
-  async function dispatchAndPoll(q: string): Promise<ParsedRecall> {
+  async function dispatchAndPoll(q: string): Promise<{ parsed: ParsedRecall; batchId: string }> {
     const dispatch = await fetch('/api/journal/recall', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -131,7 +162,8 @@ export function RecallTab({
       throw new Error('Journal recall unavailable — MMA may be restarting.');
     }
     const { batchId } = (await dispatch.json()) as { batchId: string };
-    return pollUntilTerminal(batchId);
+    const parsed = await pollUntilTerminal(batchId);
+    return { parsed, batchId };
   }
 
   async function run(qRaw?: string) {
@@ -139,14 +171,12 @@ export function RecallTab({
     if (q.length < 10 || q.length > 4000) return;
     setStatus('running');
     setError(null);
-    setParsed(null);
     setAsked(q);
-    setLivePinState('idle');
-    setLivePinError(null);
     try {
-      const result = await dispatchAndPoll(q);
-      setParsed(result);
-      setStatus('done');
+      const { parsed, batchId } = await dispatchAndPoll(q);
+      addRecent(q, parsed, batchId); // lands in Recent (auto-expanded), not a top card
+      setStatus('idle');
+      router.refresh(); // reconcile with the server-recorded recall (FAQ counts, etc.)
     } catch (e) {
       setError((e as Error).message);
       setStatus('error');
@@ -156,32 +186,6 @@ export function RecallTab({
   function askFaq(q: string) {
     setQuery(q);
     void run(q);
-  }
-
-  /** Pin the live answer card. The server stamps the freshness marker. */
-  async function pinLiveAnswer() {
-    if (!parsed || livePinState !== 'idle') return;
-    setLivePinState('saving');
-    setLivePinError(null);
-    try {
-      const res = await fetch('/api/journal/pins', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          question: asked,
-          answerMd: parsed.summary,
-          findings: parsed.findings,
-          citationIds: parsed.citationIds,
-        }),
-      });
-      if (res.status !== 201) throw new Error('Could not pin this answer.');
-      const created = (await res.json()) as PinnedView;
-      setPins((prev) => [created, ...prev]);
-      setLivePinState('pinned');
-    } catch (e) {
-      setLivePinError((e as Error).message);
-      setLivePinState('idle');
-    }
   }
 
   async function pinRecent(r: RecentRecall) {
@@ -204,17 +208,10 @@ export function RecallTab({
     } catch { /* best effort */ }
   }
 
+  // Refreshing a recent answer just re-runs the recall — the fresh answer lands as a new
+  // entry at the top of Recent (every new call is recorded there), never a top card.
   async function refreshRecent(r: RecentRecall) {
-    try {
-      const result = await dispatchAndPoll(r.question);
-      setParsed(result);
-      setAsked(r.question);
-      setStatus('done');
-      router.refresh();
-    } catch (e) {
-      setError((e as Error).message);
-      setStatus('error');
-    }
+    await run(r.question);
   }
 
   return (
@@ -252,28 +249,6 @@ export function RecallTab({
                 </p>
               ) : null}
 
-              {status === 'done' && parsed ? (
-                <section className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Eyebrow className="flex items-center gap-1.5 text-accent-deep">
-                      <Sparkles className="size-3.5" /> Answer
-                    </Eyebrow>
-                    <button
-                      type="button"
-                      onClick={() => void pinLiveAnswer()}
-                      disabled={livePinState !== 'idle'}
-                      aria-label="Pin this answer"
-                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
-                    >
-                      <Pin className="size-3.5" />
-                      {livePinState === 'pinned' ? 'Pinned' : livePinState === 'saving' ? 'Pinning…' : 'Pin'}
-                    </button>
-                  </div>
-                  {livePinError ? <p className="text-xs text-rose">{livePinError}</p> : null}
-                  <RecallAnswer parsed={parsed} index={index} onNavigate={onNavigate} />
-                </section>
-              ) : null}
-
               <PinnedSection
                 pins={pins}
                 index={index}
@@ -283,7 +258,7 @@ export function RecallTab({
               />
 
               {completedRecalls.length > 0 ? (
-                <RecentSection recalls={completedRecalls} index={index} onNavigate={onNavigate} onPin={pinRecent} onRefresh={refreshRecent} />
+                <RecentSection recalls={completedRecalls} index={index} autoExpandKey={justAskedKey} onNavigate={onNavigate} onPin={pinRecent} onRefresh={refreshRecent} />
               ) : null}
 
               <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
@@ -313,14 +288,17 @@ export function RecallTab({
     setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x, 'Could not unpin.') : x)));
   }
 
+  // Refresh a pin: re-run the recall and update THIS pin's cached answer IN PLACE. The
+  // fresh answer never renders as a card above the pin; the recall is also recorded, so
+  // it lands in Recent like any other call.
   async function refreshPin(p: PinnedView) {
     setPins((prev) => prev.map((x) => (x.id === p.id ? markBusy(x, 'refresh') : x)));
     try {
-      const result = await dispatchAndPoll(p.question);
+      const { parsed, batchId } = await dispatchAndPoll(p.question);
       const res = await fetch(`/api/journal/pins/${p.id}/refresh`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ answerMd: result.summary, findings: result.findings, citationIds: result.citationIds }),
+        body: JSON.stringify({ answerMd: parsed.summary, findings: parsed.findings, citationIds: parsed.citationIds }),
       });
       if (res.status === 404) {
         setPins((prev) => prev.filter((x) => x.id !== p.id));
@@ -329,6 +307,7 @@ export function RecallTab({
       if (!res.ok) throw new Error('Could not refresh this pin.');
       const updated = (await res.json()) as PinnedView;
       setPins((prev) => prev.map((x) => (x.id === p.id ? { ...updated, _busy: undefined, _error: undefined } : x)));
+      addRecent(p.question, parsed, batchId);
     } catch (e) {
       setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x, (e as Error).message) : x)));
     }
@@ -498,12 +477,14 @@ function PinnedSection({
 function RecentSection({
   recalls,
   index,
+  autoExpandKey,
   onNavigate,
   onPin,
   onRefresh,
 }: {
   recalls: RecentRecall[];
   index: IndexLookupRow[];
+  autoExpandKey?: string | null;
   onNavigate: (id: string) => void;
   onPin: (r: RecentRecall) => void;
   onRefresh: (r: RecentRecall) => void;
@@ -511,6 +492,13 @@ function RecentSection({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pinning, setPinning] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
+  // Auto-expand the recall the member just ran (matched by batchId) so its answer is
+  // visible immediately without a click.
+  useEffect(() => {
+    if (!autoExpandKey) return;
+    const match = recalls.find((r) => r.batchId === autoExpandKey);
+    if (match) setExpanded((prev) => (prev.has(match.id) ? prev : new Set(prev).add(match.id)));
+  }, [autoExpandKey, recalls]);
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);

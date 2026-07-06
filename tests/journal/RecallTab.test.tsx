@@ -7,7 +7,7 @@ import type { PinnedView, FaqView } from '@/journal/recall-content';
 // covered by their own unit tests; here we drive the client surface and assert the
 // HTTP calls it makes (the recall dispatch and the pin routes are all `fetch`).
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 const INDEX = [{ id: '0001', title: 'A node', status: 'adopted' as const }];
 
@@ -115,8 +115,8 @@ describe('RecallTab — pinned rows (AC-10)', () => {
   });
 });
 
-describe('RecallTab — pin from the live answer (AC-10)', () => {
-  it('pins the just-recalled answer and reflects it in the pinned list', async () => {
+describe('RecallTab — pin from a recent answer (AC-10)', () => {
+  it('a just-run recall lands in Recent (auto-expanded), and pinning it posts the pin', async () => {
     vi.useFakeTimers();
     const { calls } = installFetch({
       'POST /api/journal/pins': () =>
@@ -132,7 +132,11 @@ describe('RecallTab — pin from the live answer (AC-10)', () => {
       await vi.runAllTimersAsync();
     });
 
-    const pinBtn = screen.getByRole('button', { name: /Pin this answer/i });
+    // The answer shows in the Recent section (auto-expanded), not a card above the pins.
+    expect(screen.getByText('Recalled answer.')).toBeInTheDocument();
+
+    // Pin it from the recent row.
+    const pinBtn = screen.getByRole('button', { name: 'Pin' });
     await act(async () => {
       fireEvent.click(pinBtn);
     });

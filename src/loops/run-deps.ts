@@ -296,7 +296,7 @@ Constraints:
 - Link related nodes when the learning references prior decisions
 
 Output format:
-Write each node to .mma/journal/ using the journal_record tool. Each node must have frontmatter (id, title, category, status: adopted, tags, date) and body (## Context + ## Consequences).`;
+Write each node to .mma/journal/ using the journal_record tool. Each node must have OKF frontmatter (id, title, type, status: adopted, tags, timestamp, description) and body (## Context + ## Consequences).`;
         await dispatchMma({
           db, mma, projectId: null, route: 'journal_record', handler: null, label: 'loop-journal',
           cwd: workspaceRoot, body: { prompt },

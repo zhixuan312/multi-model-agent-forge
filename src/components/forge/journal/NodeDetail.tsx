@@ -58,13 +58,13 @@ export function NodeDetail({
       <header>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <Mono className="!text-xs text-ink-faint">{node.id}</Mono>
-          {node.category ? (
-            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CAT_STYLE[node.category])}>
-              {node.category}
+          {node.type ? (
+            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CAT_STYLE[node.type])}>
+              {node.type}
             </span>
           ) : null}
           <StatusBadge status={node.status} />
-          <Micro className="text-ink-faint">{node.date}</Micro>
+          <Micro className="text-ink-faint">{node.timestamp}</Micro>
         </div>
 
         <Title as="h2" className="mt-2.5 !text-2xl !leading-snug">

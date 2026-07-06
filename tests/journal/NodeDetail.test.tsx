@@ -8,7 +8,8 @@ const NODE: JournalNode = {
   title: 'Prefer parallel dispatch',
   status: 'adopted',
   tags: ['concurrency', 'dispatch'],
-  date: '2026-05-24',
+  timestamp: '2026-05-24',
+  type: 'decision',
   links: [
     { type: 'supersedes', target: '0001' },
     { type: 'depends-on', target: '0004' },

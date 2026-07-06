@@ -6,7 +6,7 @@ tags:
   - concurrency
   - dispatch
   - git
-date: "2026-05-24"
+timestamp: "2026-05-24"
 links:
   - type: "relates"
     target: "0003"

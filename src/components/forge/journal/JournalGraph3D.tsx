@@ -38,7 +38,7 @@ export function JournalGraph3D({
   const ref = useRef<HTMLDivElement>(null);
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
-  const [hovered, setHovered] = useState<{ id: string; title: string; status: string; source?: string | null; category?: string | null } | null>(null);
+  const [hovered, setHovered] = useState<{ id: string; title: string; status: string; source?: string | null; type?: string | null } | null>(null);
 
   const key = useMemo(
     () => JSON.stringify({ n: nodes.map((n) => `${n.id}:${n.status}`), e: edges }),
@@ -71,7 +71,7 @@ export function JournalGraph3D({
         status: n.status,
         title: n.title,
         source: n.source ?? null,
-        category: n.category ?? null,
+        type: n.type ?? null,
         val: 1 + 7 * ((deg.get(n.id) ?? 0) / maxDeg),
         neighbors: new Set<string>(),
       }));
@@ -107,8 +107,8 @@ export function JournalGraph3D({
         .nodeOpacity(0.95)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .nodeLabel((n: any) => {
-          const cat = n.category
-            ? `<span style="display:inline-block;font:600 10px ui-sans-serif,system-ui;text-transform:uppercase;letter-spacing:0.03em;color:${CAT_HEX[n.category]?.fg ?? '#6b6051'};background:${CAT_HEX[n.category]?.bg ?? '#f1ece2'};padding:1px 6px;border-radius:999px">${n.category}</span>`
+          const cat = n.type
+            ? `<span style="display:inline-block;font:600 10px ui-sans-serif,system-ui;text-transform:uppercase;letter-spacing:0.03em;color:${CAT_HEX[n.type]?.fg ?? '#6b6051'};background:${CAT_HEX[n.type]?.bg ?? '#f1ece2'};padding:1px 6px;border-radius:999px">${n.type}</span>`
             : '';
           return `<div style="font:600 12px ui-monospace,monospace;color:#211c16;background:rgba(255,255,255,0.97);padding:6px 9px;border-radius:7px;border:1px solid #e7e0d4;box-shadow:0 4px 14px rgba(33,28,22,0.12);max-width:300px;white-space:normal"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="color:#6b6051">${n.id}</span>${cat}</div>${n.title}</div>`;
         })
@@ -131,7 +131,7 @@ export function JournalGraph3D({
             n.neighbors.forEach((id: string) => hiNodes.add(id));
             (nodeLinks.get(n.id) ?? []).forEach((l) => hiLinks.add(l));
           }
-          setHovered(n ? { id: n.id, title: n.title, status: n.status, source: n.source, category: n.category } : null);
+          setHovered(n ? { id: n.id, title: n.title, status: n.status, source: n.source, type: n.type } : null);
           if (graph.controls()) graph.controls().autoRotate = !n;
           if (el) el.style.cursor = n ? 'pointer' : 'grab';
           graph
@@ -184,12 +184,12 @@ export function JournalGraph3D({
           <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: statusHex(hovered.status) }} />
           <span className="font-mono text-xs text-ink-faint">{hovered.id}</span>
           <span className="min-w-0 flex-1 truncate text-sm text-ink">{hovered.title}</span>
-          {hovered.category ? (
+          {hovered.type ? (
             <span
               className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-              style={{ backgroundColor: CAT_HEX[hovered.category]?.bg ?? '#f1ece2', color: CAT_HEX[hovered.category]?.fg ?? '#6b6051' }}
+              style={{ backgroundColor: CAT_HEX[hovered.type]?.bg ?? '#f1ece2', color: CAT_HEX[hovered.type]?.fg ?? '#6b6051' }}
             >
-              {hovered.category}
+              {hovered.type}
             </span>
           ) : null}
         </div>

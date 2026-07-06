@@ -9,10 +9,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 const NODES: NodeSummary[] = [
-  { id: '0001', title: 'Serialize same-repo write dispatch', status: 'superseded', tags: ['concurrency', 'git'], date: '2026-05-24', filename: 'nodes/0001-x.md', category: 'decision' },
-  { id: '0002', title: 'Prefer parallel dispatch', status: 'adopted', tags: ['concurrency', 'dispatch'], date: '2026-05-24', filename: 'nodes/0002-x.md', category: 'design' },
-  { id: '0003', title: 'Investigate flaky poll timeouts', status: 'inconclusive', tags: ['polling'], date: '2026-05-25', filename: 'nodes/0003-x.md', category: 'behavior' },
-  { id: '0004', title: 'Abandon force-directed graph', status: 'dropped', tags: ['ui'], date: '2026-05-26', filename: 'nodes/0004-x.md', category: 'design' },
+  { id: '0001', title: 'Serialize same-repo write dispatch', status: 'superseded', tags: ['concurrency', 'git'], timestamp: '2026-05-24', filename: 'nodes/0001-x.md', type: 'decision' },
+  { id: '0002', title: 'Prefer parallel dispatch', status: 'adopted', tags: ['concurrency', 'dispatch'], timestamp: '2026-05-24', filename: 'nodes/0002-x.md', type: 'design' },
+  { id: '0003', title: 'Investigate flaky poll timeouts', status: 'inconclusive', tags: ['polling'], timestamp: '2026-05-25', filename: 'nodes/0003-x.md', type: 'behavior' },
+  { id: '0004', title: 'Abandon force-directed graph', status: 'dropped', tags: ['ui'], timestamp: '2026-05-26', filename: 'nodes/0004-x.md', type: 'design' },
 ];
 
 function showAllStatuses() {
@@ -77,7 +77,7 @@ describe('NodesView index (search / filter / sort)', () => {
   it('a node with an unknown status still appears with a neutral chip (F19)', () => {
     const withUnknown = [
       ...NODES,
-      { id: '0005', title: 'Weird', status: 'frobnicated', tags: [], date: '2026-05-27', filename: 'nodes/0005-x.md', category: 'knowledge' },
+      { id: '0005', title: 'Weird', status: 'frobnicated', tags: [], timestamp: '2026-05-27', filename: 'nodes/0005-x.md', type: 'knowledge' },
     ];
     render(<NodesView nodes={withUnknown} skippedCount={0} selectedId={null} onSelect={() => {}} />);
     showAllStatuses();

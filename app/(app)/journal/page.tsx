@@ -146,7 +146,7 @@ export default async function JournalPage({
   if (view === 'graph') {
     const ids = new Set(read.nodes.map((n) => n.id));
     const frontmatters = await readNodeFrontmatters(root);
-    graphNodes = read.nodes.map((n) => ({ id: n.id, status: n.status, title: n.title, source: n.source, category: n.category }));
+    graphNodes = read.nodes.map((n) => ({ id: n.id, status: n.status, title: n.title, source: n.source, type: n.type, description: n.description }));
     graphEdges = buildGraphEdges(frontmatters, ids);
   }
 
@@ -189,7 +189,7 @@ function statusFor(
   const total = read.nodes.length;
   const adopted = read.nodes.filter((n) => n.status === 'adopted').length;
   const superseded = read.nodes.filter((n) => n.status === 'superseded').length;
-  const last = read.log.length ? read.log[read.log.length - 1]!.date : null;
+  const last = read.log.length ? read.log[read.log.length - 1]!.timestamp : null;
   const lastRecorded = last ? formatDate(new Date(last)) : null;
 
   if (view === 'recall') {

@@ -6,10 +6,10 @@ import type { LogEntry } from '@/journal/types';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const LOG: LogEntry[] = [
-  { date: '2026-05-24T00:00:00+08:00', op: 'create', id: '0001', title: 'First create' },
-  { date: '2026-05-24T00:00:00+08:00', op: 'supersede', id: '0001', title: 'Then supersede (same day)' },
-  { date: '2026-05-25T00:00:00+08:00', op: 'refine', id: '0002', title: 'A refine' },
-  { date: '2026-05-26T00:00:00+08:00', op: 'archive', id: '0003', title: 'Unknown op row' },
+  { timestamp: '2026-05-24T00:00:00+08:00', op: 'create', id: '0001', title: 'First create' },
+  { timestamp: '2026-05-24T00:00:00+08:00', op: 'supersede', id: '0001', title: 'Then supersede (same day)' },
+  { timestamp: '2026-05-25T00:00:00+08:00', op: 'refine', id: '0002', title: 'A refine' },
+  { timestamp: '2026-05-26T00:00:00+08:00', op: 'archive', id: '0003', title: 'Unknown op row' },
 ];
 
 describe('WriteLogView', () => {

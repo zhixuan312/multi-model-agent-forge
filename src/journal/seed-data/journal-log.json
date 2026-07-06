@@ -1,1800 +1,1800 @@
 [
   {
-    "date": "2026-01-06T13:00:00Z",
+    "timestamp": "2026-01-06T13:00:00Z",
     "op": "create",
     "id": "0002",
     "title": "Guard enum narrowing at the data layer, not the routes"
   },
   {
-    "date": "2026-01-06T14:00:00Z",
+    "timestamp": "2026-01-06T14:00:00Z",
     "op": "create",
     "id": "0001",
     "title": "Guard provider identity at the data layer, not the routes"
   },
   {
-    "date": "2026-01-07T09:00:00Z",
+    "timestamp": "2026-01-07T09:00:00Z",
     "op": "create",
     "id": "0003",
     "title": "Treat a derived signal in the journal graph store as part of the control path"
   },
   {
-    "date": "2026-01-07T11:00:00Z",
+    "timestamp": "2026-01-07T11:00:00Z",
     "op": "create",
     "id": "0004",
     "title": "Make the install writers the single canonical read path"
   },
   {
-    "date": "2026-01-08T13:00:00Z",
+    "timestamp": "2026-01-08T13:00:00Z",
     "op": "create",
     "id": "0005",
     "title": "Prefer a one-owner serialization lock over hand-rolled telemetry attribution"
   },
   {
-    "date": "2026-01-09T12:00:00Z",
+    "timestamp": "2026-01-09T12:00:00Z",
     "op": "create",
     "id": "0007",
     "title": "Treat a derived signal in telemetry attribution as part of the control path"
   },
   {
-    "date": "2026-01-09T15:00:00Z",
+    "timestamp": "2026-01-09T15:00:00Z",
     "op": "create",
     "id": "0006",
     "title": "Strip legacy paths out of the journal viewer"
   },
   {
-    "date": "2026-01-10T10:00:00Z",
+    "timestamp": "2026-01-10T10:00:00Z",
     "op": "create",
     "id": "0008",
     "title": "Derive the bounded-execution guard from a clean-room published-artifact check"
   },
   {
-    "date": "2026-01-11T11:00:00Z",
+    "timestamp": "2026-01-11T11:00:00Z",
     "op": "create",
     "id": "0009",
     "title": "Treat a derived signal in the settings UI as part of the control path"
   },
   {
-    "date": "2026-01-11T11:00:00Z",
+    "timestamp": "2026-01-11T11:00:00Z",
     "op": "create",
     "id": "0010",
     "title": "Enforce the rework loop through Cytoscape + fcose"
   },
   {
-    "date": "2026-01-12T13:00:00Z",
+    "timestamp": "2026-01-12T13:00:00Z",
     "op": "create",
     "id": "0011",
     "title": "Serialize telemetry attribution through node:child_process process groups"
   },
   {
-    "date": "2026-01-13T12:00:00Z",
+    "timestamp": "2026-01-13T12:00:00Z",
     "op": "create",
     "id": "0012",
     "title": "Enforce the journal graph store through objective lifecycle evidence"
   },
   {
-    "date": "2026-01-13T14:00:00Z",
+    "timestamp": "2026-01-13T14:00:00Z",
     "op": "create",
     "id": "0013",
     "title": "Prefer a one-owner serialization lock over hand-rolled same-repo write dispatch"
   },
   {
-    "date": "2026-01-14T13:00:00Z",
+    "timestamp": "2026-01-14T13:00:00Z",
     "op": "refine",
     "id": "0002",
     "title": "Guard enum narrowing at the data layer, not the routes"
   },
   {
-    "date": "2026-01-14T14:00:00Z",
+    "timestamp": "2026-01-14T14:00:00Z",
     "op": "create",
     "id": "0014",
     "title": "Guard the settings UI at the data layer, not the routes"
   },
   {
-    "date": "2026-01-15T12:00:00Z",
+    "timestamp": "2026-01-15T12:00:00Z",
     "op": "create",
     "id": "0015",
     "title": "Serialize same-repo write dispatch through a one-owner serialization lock"
   },
   {
-    "date": "2026-01-15T13:00:00Z",
+    "timestamp": "2026-01-15T13:00:00Z",
     "op": "create",
     "id": "0016",
     "title": "Enforce the lifecycle driver through node:child_process process groups"
   },
   {
-    "date": "2026-01-16T13:00:00Z",
+    "timestamp": "2026-01-16T13:00:00Z",
     "op": "create",
     "id": "0017",
     "title": "Treat a derived signal in path confinement as part of the control path"
   },
   {
-    "date": "2026-01-17T11:00:00Z",
+    "timestamp": "2026-01-17T11:00:00Z",
     "op": "create",
     "id": "0018",
     "title": "Prefer a one-owner serialization lock over hand-rolled the journal graph store"
   },
   {
-    "date": "2026-01-17T14:00:00Z",
+    "timestamp": "2026-01-17T14:00:00Z",
     "op": "create",
     "id": "0019",
     "title": "Dissolve same-repo write dispatch into the registry"
   },
   {
-    "date": "2026-01-18T14:00:00Z",
+    "timestamp": "2026-01-18T14:00:00Z",
     "op": "create",
     "id": "0020",
     "title": "Treat a derived signal in the transport layer as part of the control path"
   },
   {
-    "date": "2026-01-19T12:00:00Z",
+    "timestamp": "2026-01-19T12:00:00Z",
     "op": "create",
     "id": "0021",
     "title": "Prefer a server-side proxy over hand-rolled the bounded-execution guard"
   },
   {
-    "date": "2026-01-19T12:00:00Z",
+    "timestamp": "2026-01-19T12:00:00Z",
     "op": "create",
     "id": "0022",
     "title": "Enforce same-repo write dispatch through a one-owner serialization lock"
   },
   {
-    "date": "2026-01-20T09:00:00Z",
+    "timestamp": "2026-01-20T09:00:00Z",
     "op": "create",
     "id": "0023",
     "title": "Verify cost accounting in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-01-20T11:00:00Z",
+    "timestamp": "2026-01-20T11:00:00Z",
     "op": "refine",
     "id": "0004",
     "title": "Make the install writers the single canonical read path"
   },
   {
-    "date": "2026-01-21T10:00:00Z",
+    "timestamp": "2026-01-21T10:00:00Z",
     "op": "create",
     "id": "0024",
     "title": "Derive provider token accounting from jsdom hydration"
   },
   {
-    "date": "2026-01-21T11:00:00Z",
+    "timestamp": "2026-01-21T11:00:00Z",
     "op": "create",
     "id": "0025",
     "title": "Make the unified task API the single canonical read path"
   },
   {
-    "date": "2026-01-21T15:00:00Z",
+    "timestamp": "2026-01-21T15:00:00Z",
     "op": "merge",
     "id": "0006",
     "title": "Strip legacy paths out of the journal viewer"
   },
   {
-    "date": "2026-01-22T13:00:00Z",
+    "timestamp": "2026-01-22T13:00:00Z",
     "op": "create",
     "id": "0027",
     "title": "Treat a derived signal in the journal graph store as part of the control path"
   },
   {
-    "date": "2026-01-22T14:00:00Z",
+    "timestamp": "2026-01-22T14:00:00Z",
     "op": "create",
     "id": "0026",
     "title": "Make same-repo write dispatch the single canonical read path"
   },
   {
-    "date": "2026-01-23T13:00:00Z",
+    "timestamp": "2026-01-23T13:00:00Z",
     "op": "create",
     "id": "0028",
     "title": "Strip legacy paths out of path confinement"
   },
   {
-    "date": "2026-01-24T11:00:00Z",
+    "timestamp": "2026-01-24T11:00:00Z",
     "op": "create",
     "id": "0029",
     "title": "Verify the idle guard in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-01-24T15:00:00Z",
+    "timestamp": "2026-01-24T15:00:00Z",
     "op": "create",
     "id": "0030",
     "title": "Centralize the graph view behind Radix primitives"
   },
   {
-    "date": "2026-01-25T10:00:00Z",
+    "timestamp": "2026-01-25T10:00:00Z",
     "op": "create",
     "id": "0031",
     "title": "Make path confinement the single canonical read path"
   },
   {
-    "date": "2026-01-26T09:00:00Z",
+    "timestamp": "2026-01-26T09:00:00Z",
     "op": "create",
     "id": "0032",
     "title": "Trust objective signals over self-report in skill resolution"
   },
   {
-    "date": "2026-01-26T11:00:00Z",
+    "timestamp": "2026-01-26T11:00:00Z",
     "op": "create",
     "id": "0033",
     "title": "Make the journal graph store the single canonical read path"
   },
   {
-    "date": "2026-01-27T11:00:00Z",
+    "timestamp": "2026-01-27T11:00:00Z",
     "op": "create",
     "id": "0034",
     "title": "Dissolve the smoke harness into the registry"
   },
   {
-    "date": "2026-01-28T12:00:00Z",
+    "timestamp": "2026-01-28T12:00:00Z",
     "op": "create",
     "id": "0035",
     "title": "Centralize the journal graph store behind a one-owner serialization lock"
   },
   {
-    "date": "2026-01-28T15:00:00Z",
+    "timestamp": "2026-01-28T15:00:00Z",
     "op": "create",
     "id": "0036",
     "title": "Verify event correlation in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-01-29T10:00:00Z",
+    "timestamp": "2026-01-29T10:00:00Z",
     "op": "create",
     "id": "0037",
     "title": "Prefer an in-memory cache keyed by id over hand-rolled the transport layer"
   },
   {
-    "date": "2026-01-30T10:00:00Z",
+    "timestamp": "2026-01-30T10:00:00Z",
     "op": "create",
     "id": "0039",
     "title": "Serialize the unified task API through incremental usage accumulation"
   },
   {
-    "date": "2026-01-30T11:00:00Z",
+    "timestamp": "2026-01-30T11:00:00Z",
     "op": "create",
     "id": "0038",
     "title": "Make the journal graph store the single canonical read path"
   },
   {
-    "date": "2026-01-31T12:00:00Z",
+    "timestamp": "2026-01-31T12:00:00Z",
     "op": "create",
     "id": "0040",
     "title": "Trust objective signals over self-report in same-repo write dispatch"
   },
   {
-    "date": "2026-02-01T11:00:00Z",
+    "timestamp": "2026-02-01T11:00:00Z",
     "op": "create",
     "id": "0042",
     "title": "Treat a derived signal in the unified task API as part of the control path"
   },
   {
-    "date": "2026-02-01T14:00:00Z",
+    "timestamp": "2026-02-01T14:00:00Z",
     "op": "create",
     "id": "0041",
     "title": "Enforce the research orchestrator through a server-side proxy"
   },
   {
-    "date": "2026-02-02T11:00:00Z",
+    "timestamp": "2026-02-02T11:00:00Z",
     "op": "create",
     "id": "0043",
     "title": "Dissolve provider identity into the registry"
   },
   {
-    "date": "2026-02-03T10:00:00Z",
+    "timestamp": "2026-02-03T10:00:00Z",
     "op": "create",
     "id": "0044",
     "title": "Serialize skill resolution through Zod validation at the boundary"
   },
   {
-    "date": "2026-02-03T11:00:00Z",
+    "timestamp": "2026-02-03T11:00:00Z",
     "op": "create",
     "id": "0045",
     "title": "Enforce enum narrowing through the live full-pipeline smoke"
   },
   {
-    "date": "2026-02-04T14:00:00Z",
+    "timestamp": "2026-02-04T14:00:00Z",
     "op": "create",
     "id": "0046",
     "title": "Treat a derived signal in the graph view as part of the control path"
   },
   {
-    "date": "2026-02-05T12:00:00Z",
+    "timestamp": "2026-02-05T12:00:00Z",
     "op": "create",
     "id": "0047",
     "title": "Strip legacy paths out of the journal viewer"
   },
   {
-    "date": "2026-02-05T15:00:00Z",
+    "timestamp": "2026-02-05T15:00:00Z",
     "op": "create",
     "id": "0048",
     "title": "Guard the transport layer at the data layer, not the routes"
   },
   {
-    "date": "2026-02-06T12:00:00Z",
+    "timestamp": "2026-02-06T12:00:00Z",
     "op": "create",
     "id": "0050",
     "title": "Verify provider identity in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-02-06T13:00:00Z",
+    "timestamp": "2026-02-06T13:00:00Z",
     "op": "refine",
     "id": "0028",
     "title": "Strip legacy paths out of path confinement"
   },
   {
-    "date": "2026-02-06T14:00:00Z",
+    "timestamp": "2026-02-06T14:00:00Z",
     "op": "create",
     "id": "0049",
     "title": "Dissolve telemetry attribution into the registry"
   },
   {
-    "date": "2026-02-06T14:00:00Z",
+    "timestamp": "2026-02-06T14:00:00Z",
     "op": "supersede",
     "id": "0013",
     "title": "Prefer a one-owner serialization lock over hand-rolled same-repo write dispatch"
   },
   {
-    "date": "2026-02-07T15:00:00Z",
+    "timestamp": "2026-02-07T15:00:00Z",
     "op": "create",
     "id": "0051",
     "title": "Prefer a file-backed store over hand-rolled enum narrowing"
   },
   {
-    "date": "2026-02-08T09:00:00Z",
+    "timestamp": "2026-02-08T09:00:00Z",
     "op": "create",
     "id": "0052",
     "title": "Verify the research orchestrator in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-02-08T12:00:00Z",
+    "timestamp": "2026-02-08T12:00:00Z",
     "op": "create",
     "id": "0053",
     "title": "Guard cost accounting at the data layer, not the routes"
   },
   {
-    "date": "2026-02-09T15:00:00Z",
+    "timestamp": "2026-02-09T15:00:00Z",
     "op": "create",
     "id": "0054",
     "title": "Prefer a file-backed store over hand-rolled the transport layer"
   },
   {
-    "date": "2026-02-10T09:00:00Z",
+    "timestamp": "2026-02-10T09:00:00Z",
     "op": "create",
     "id": "0055",
     "title": "Serialize the journal viewer through an in-memory cache keyed by id"
   },
   {
-    "date": "2026-02-10T15:00:00Z",
+    "timestamp": "2026-02-10T15:00:00Z",
     "op": "create",
     "id": "0056",
     "title": "Dissolve the journal graph store into the registry"
   },
   {
-    "date": "2026-02-10T15:00:00Z",
+    "timestamp": "2026-02-10T15:00:00Z",
     "op": "supersede",
     "id": "0048",
     "title": "Guard the transport layer at the data layer, not the routes"
   },
   {
-    "date": "2026-02-11T13:00:00Z",
+    "timestamp": "2026-02-11T13:00:00Z",
     "op": "create",
     "id": "0057",
     "title": "Derive provider token accounting from Zod validation at the boundary"
   },
   {
-    "date": "2026-02-11T14:00:00Z",
+    "timestamp": "2026-02-11T14:00:00Z",
     "op": "supersede",
     "id": "0041",
     "title": "Enforce the research orchestrator through a server-side proxy"
   },
   {
-    "date": "2026-02-12T11:00:00Z",
+    "timestamp": "2026-02-12T11:00:00Z",
     "op": "create",
     "id": "0058",
     "title": "Verify the unified task API in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-02-12T12:00:00Z",
+    "timestamp": "2026-02-12T12:00:00Z",
     "op": "create",
     "id": "0059",
     "title": "Strip legacy paths out of completion gating"
   },
   {
-    "date": "2026-02-13T09:00:00Z",
+    "timestamp": "2026-02-13T09:00:00Z",
     "op": "merge",
     "id": "0023",
     "title": "Verify cost accounting in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-02-13T12:00:00Z",
+    "timestamp": "2026-02-13T12:00:00Z",
     "op": "refine",
     "id": "0053",
     "title": "Guard cost accounting at the data layer, not the routes"
   },
   {
-    "date": "2026-02-13T15:00:00Z",
+    "timestamp": "2026-02-13T15:00:00Z",
     "op": "create",
     "id": "0060",
     "title": "Trust objective signals over self-report in telemetry attribution"
   },
   {
-    "date": "2026-02-14T12:00:00Z",
+    "timestamp": "2026-02-14T12:00:00Z",
     "op": "create",
     "id": "0062",
     "title": "Prefer objective lifecycle evidence over hand-rolled skill resolution"
   },
   {
-    "date": "2026-02-14T14:00:00Z",
+    "timestamp": "2026-02-14T14:00:00Z",
     "op": "create",
     "id": "0061",
     "title": "Centralize the recall endpoint behind a server-side proxy"
   },
   {
-    "date": "2026-02-15T10:00:00Z",
+    "timestamp": "2026-02-15T10:00:00Z",
     "op": "create",
     "id": "0063",
     "title": "Centralize the transport layer behind a one-owner serialization lock"
   },
   {
-    "date": "2026-02-16T09:00:00Z",
+    "timestamp": "2026-02-16T09:00:00Z",
     "op": "create",
     "id": "0064",
     "title": "Treat a derived signal in path confinement as part of the control path"
   },
   {
-    "date": "2026-02-16T09:00:00Z",
+    "timestamp": "2026-02-16T09:00:00Z",
     "op": "refine",
     "id": "0032",
     "title": "Trust objective signals over self-report in skill resolution"
   },
   {
-    "date": "2026-02-16T12:00:00Z",
+    "timestamp": "2026-02-16T12:00:00Z",
     "op": "create",
     "id": "0065",
     "title": "Make provider token accounting the single canonical read path"
   },
   {
-    "date": "2026-02-17T12:00:00Z",
+    "timestamp": "2026-02-17T12:00:00Z",
     "op": "create",
     "id": "0066",
     "title": "Serialize config loading through a one-owner serialization lock"
   },
   {
-    "date": "2026-02-17T13:00:00Z",
+    "timestamp": "2026-02-17T13:00:00Z",
     "op": "refine",
     "id": "0017",
     "title": "Treat a derived signal in path confinement as part of the control path"
   },
   {
-    "date": "2026-02-17T13:00:00Z",
+    "timestamp": "2026-02-17T13:00:00Z",
     "op": "merge",
     "id": "0005",
     "title": "Prefer a one-owner serialization lock over hand-rolled telemetry attribution"
   },
   {
-    "date": "2026-02-18T09:00:00Z",
+    "timestamp": "2026-02-18T09:00:00Z",
     "op": "create",
     "id": "0067",
     "title": "Guard the journal viewer at the data layer, not the routes"
   },
   {
-    "date": "2026-02-18T11:00:00Z",
+    "timestamp": "2026-02-18T11:00:00Z",
     "op": "create",
     "id": "0068",
     "title": "Guard the smoke harness at the data layer, not the routes"
   },
   {
-    "date": "2026-02-19T13:00:00Z",
+    "timestamp": "2026-02-19T13:00:00Z",
     "op": "create",
     "id": "0069",
     "title": "Dissolve the lifecycle driver into the registry"
   },
   {
-    "date": "2026-02-20T12:00:00Z",
+    "timestamp": "2026-02-20T12:00:00Z",
     "op": "create",
     "id": "0070",
     "title": "Guard mock-backend wiring at the data layer, not the routes"
   },
   {
-    "date": "2026-02-20T13:00:00Z",
+    "timestamp": "2026-02-20T13:00:00Z",
     "op": "create",
     "id": "0071",
     "title": "Guard the unified task API at the data layer, not the routes"
   },
   {
-    "date": "2026-02-21T09:00:00Z",
+    "timestamp": "2026-02-21T09:00:00Z",
     "op": "refine",
     "id": "0003",
     "title": "Treat a derived signal in the journal graph store as part of the control path"
   },
   {
-    "date": "2026-02-21T14:00:00Z",
+    "timestamp": "2026-02-21T14:00:00Z",
     "op": "create",
     "id": "0072",
     "title": "Centralize the smoke harness behind jsdom hydration"
   },
   {
-    "date": "2026-02-21T15:00:00Z",
+    "timestamp": "2026-02-21T15:00:00Z",
     "op": "create",
     "id": "0073",
     "title": "Strip legacy paths out of the install writers"
   },
   {
-    "date": "2026-02-22T15:00:00Z",
+    "timestamp": "2026-02-22T15:00:00Z",
     "op": "create",
     "id": "0074",
     "title": "Make the rework loop the single canonical read path"
   },
   {
-    "date": "2026-02-23T10:00:00Z",
+    "timestamp": "2026-02-23T10:00:00Z",
     "op": "create",
     "id": "0076",
     "title": "Verify completion gating in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-02-23T13:00:00Z",
+    "timestamp": "2026-02-23T13:00:00Z",
     "op": "create",
     "id": "0075",
     "title": "Derive reviewer selection from a server-side proxy"
   },
   {
-    "date": "2026-02-24T13:00:00Z",
+    "timestamp": "2026-02-24T13:00:00Z",
     "op": "create",
     "id": "0077",
     "title": "Dissolve worktree isolation into the registry"
   },
   {
-    "date": "2026-02-25T09:00:00Z",
+    "timestamp": "2026-02-25T09:00:00Z",
     "op": "create",
     "id": "0078",
     "title": "Prefer a discriminated union over hand-rolled mock-backend wiring"
   },
   {
-    "date": "2026-02-25T09:00:00Z",
+    "timestamp": "2026-02-25T09:00:00Z",
     "op": "refine",
     "id": "0055",
     "title": "Serialize the journal viewer through an in-memory cache keyed by id"
   },
   {
-    "date": "2026-02-25T13:00:00Z",
+    "timestamp": "2026-02-25T13:00:00Z",
     "op": "create",
     "id": "0079",
     "title": "Derive the commit stage from Radix primitives"
   },
   {
-    "date": "2026-02-25T14:00:00Z",
+    "timestamp": "2026-02-25T14:00:00Z",
     "op": "merge",
     "id": "0001",
     "title": "Guard provider identity at the data layer, not the routes"
   },
   {
-    "date": "2026-02-26T15:00:00Z",
+    "timestamp": "2026-02-26T15:00:00Z",
     "op": "create",
     "id": "0080",
     "title": "Serialize config loading through node:child_process process groups"
   },
   {
-    "date": "2026-02-27T10:00:00Z",
+    "timestamp": "2026-02-27T10:00:00Z",
     "op": "create",
     "id": "0082",
     "title": "Strip legacy paths out of the smoke harness"
   },
   {
-    "date": "2026-02-27T14:00:00Z",
+    "timestamp": "2026-02-27T14:00:00Z",
     "op": "create",
     "id": "0081",
     "title": "Derive provider token accounting from a clean-room published-artifact check"
   },
   {
-    "date": "2026-02-28T10:00:00Z",
+    "timestamp": "2026-02-28T10:00:00Z",
     "op": "create",
     "id": "0083",
     "title": "Strip legacy paths out of reviewer selection"
   },
   {
-    "date": "2026-03-01T09:00:00Z",
+    "timestamp": "2026-03-01T09:00:00Z",
     "op": "create",
     "id": "0084",
     "title": "Dissolve event correlation into the registry"
   },
   {
-    "date": "2026-03-01T12:00:00Z",
+    "timestamp": "2026-03-01T12:00:00Z",
     "op": "create",
     "id": "0085",
     "title": "Derive the transport layer from Zod validation at the boundary"
   },
   {
-    "date": "2026-03-02T10:00:00Z",
+    "timestamp": "2026-03-02T10:00:00Z",
     "op": "refine",
     "id": "0063",
     "title": "Centralize the transport layer behind a one-owner serialization lock"
   },
   {
-    "date": "2026-03-02T12:00:00Z",
+    "timestamp": "2026-03-02T12:00:00Z",
     "op": "create",
     "id": "0086",
     "title": "Guard the recall endpoint at the data layer, not the routes"
   },
   {
-    "date": "2026-03-03T10:00:00Z",
+    "timestamp": "2026-03-03T10:00:00Z",
     "op": "create",
     "id": "0088",
     "title": "Make mock-backend wiring the single canonical read path"
   },
   {
-    "date": "2026-03-03T13:00:00Z",
+    "timestamp": "2026-03-03T13:00:00Z",
     "op": "create",
     "id": "0087",
     "title": "Serialize completion gating through a TanStack-backed table"
   },
   {
-    "date": "2026-03-04T10:00:00Z",
+    "timestamp": "2026-03-04T10:00:00Z",
     "op": "create",
     "id": "0089",
     "title": "Guard the journal viewer at the data layer, not the routes"
   },
   {
-    "date": "2026-03-05T13:00:00Z",
+    "timestamp": "2026-03-05T13:00:00Z",
     "op": "create",
     "id": "0090",
     "title": "Guard enum narrowing at the data layer, not the routes"
   },
   {
-    "date": "2026-03-05T14:00:00Z",
+    "timestamp": "2026-03-05T14:00:00Z",
     "op": "create",
     "id": "0091",
     "title": "Prefer jsdom hydration over hand-rolled the structured-output contract"
   },
   {
-    "date": "2026-03-05T15:00:00Z",
+    "timestamp": "2026-03-05T15:00:00Z",
     "op": "merge",
     "id": "0030",
     "title": "Centralize the graph view behind Radix primitives"
   },
   {
-    "date": "2026-03-06T09:00:00Z",
+    "timestamp": "2026-03-06T09:00:00Z",
     "op": "supersede",
     "id": "0078",
     "title": "Prefer a discriminated union over hand-rolled mock-backend wiring"
   },
   {
-    "date": "2026-03-06T11:00:00Z",
+    "timestamp": "2026-03-06T11:00:00Z",
     "op": "create",
     "id": "0092",
     "title": "Trust objective signals over self-report in the lifecycle driver"
   },
   {
-    "date": "2026-03-07T10:00:00Z",
+    "timestamp": "2026-03-07T10:00:00Z",
     "op": "create",
     "id": "0094",
     "title": "Verify the lifecycle driver in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-07T11:00:00Z",
+    "timestamp": "2026-03-07T11:00:00Z",
     "op": "create",
     "id": "0093",
     "title": "Verify telemetry attribution in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-08T09:00:00Z",
+    "timestamp": "2026-03-08T09:00:00Z",
     "op": "create",
     "id": "0095",
     "title": "Make mock-backend wiring the single canonical read path"
   },
   {
-    "date": "2026-03-08T15:00:00Z",
+    "timestamp": "2026-03-08T15:00:00Z",
     "op": "create",
     "id": "0096",
     "title": "Derive enum narrowing from jsdom hydration"
   },
   {
-    "date": "2026-03-09T09:00:00Z",
+    "timestamp": "2026-03-09T09:00:00Z",
     "op": "create",
     "id": "0097",
     "title": "Strip legacy paths out of reviewer selection"
   },
   {
-    "date": "2026-03-09T10:00:00Z",
+    "timestamp": "2026-03-09T10:00:00Z",
     "op": "refine",
     "id": "0008",
     "title": "Derive the bounded-execution guard from a clean-room published-artifact check"
   },
   {
-    "date": "2026-03-10T09:00:00Z",
+    "timestamp": "2026-03-10T09:00:00Z",
     "op": "create",
     "id": "0098",
     "title": "Treat a derived signal in the idle guard as part of the control path"
   },
   {
-    "date": "2026-03-10T10:00:00Z",
+    "timestamp": "2026-03-10T10:00:00Z",
     "op": "supersede",
     "id": "0088",
     "title": "Make mock-backend wiring the single canonical read path"
   },
   {
-    "date": "2026-03-10T15:00:00Z",
+    "timestamp": "2026-03-10T15:00:00Z",
     "op": "create",
     "id": "0099",
     "title": "Strip legacy paths out of the commit stage"
   },
   {
-    "date": "2026-03-11T09:00:00Z",
+    "timestamp": "2026-03-11T09:00:00Z",
     "op": "create",
     "id": "0100",
     "title": "Treat a derived signal in the journal graph store as part of the control path"
   },
   {
-    "date": "2026-03-11T10:00:00Z",
+    "timestamp": "2026-03-11T10:00:00Z",
     "op": "refine",
     "id": "0037",
     "title": "Prefer an in-memory cache keyed by id over hand-rolled the transport layer"
   },
   {
-    "date": "2026-03-12T09:00:00Z",
+    "timestamp": "2026-03-12T09:00:00Z",
     "op": "create",
     "id": "0102",
     "title": "Dissolve the smoke harness into the registry"
   },
   {
-    "date": "2026-03-12T15:00:00Z",
+    "timestamp": "2026-03-12T15:00:00Z",
     "op": "create",
     "id": "0101",
     "title": "Derive the idle guard from Zod validation at the boundary"
   },
   {
-    "date": "2026-03-13T09:00:00Z",
+    "timestamp": "2026-03-13T09:00:00Z",
     "op": "create",
     "id": "0103",
     "title": "Make path confinement the single canonical read path"
   },
   {
-    "date": "2026-03-14T11:00:00Z",
+    "timestamp": "2026-03-14T11:00:00Z",
     "op": "create",
     "id": "0105",
     "title": "Verify reviewer selection in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-14T14:00:00Z",
+    "timestamp": "2026-03-14T14:00:00Z",
     "op": "create",
     "id": "0104",
     "title": "Dissolve cost accounting into the registry"
   },
   {
-    "date": "2026-03-15T12:00:00Z",
+    "timestamp": "2026-03-15T12:00:00Z",
     "op": "create",
     "id": "0106",
     "title": "Make event correlation the single canonical read path"
   },
   {
-    "date": "2026-03-15T12:00:00Z",
+    "timestamp": "2026-03-15T12:00:00Z",
     "op": "supersede",
     "id": "0050",
     "title": "Verify provider identity in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-15T14:00:00Z",
+    "timestamp": "2026-03-15T14:00:00Z",
     "op": "refine",
     "id": "0014",
     "title": "Guard the settings UI at the data layer, not the routes"
   },
   {
-    "date": "2026-03-16T09:00:00Z",
+    "timestamp": "2026-03-16T09:00:00Z",
     "op": "create",
     "id": "0108",
     "title": "Strip legacy paths out of the research orchestrator"
   },
   {
-    "date": "2026-03-16T10:00:00Z",
+    "timestamp": "2026-03-16T10:00:00Z",
     "op": "create",
     "id": "0107",
     "title": "Centralize reviewer selection behind a one-owner serialization lock"
   },
   {
-    "date": "2026-03-16T15:00:00Z",
+    "timestamp": "2026-03-16T15:00:00Z",
     "op": "refine",
     "id": "0099",
     "title": "Strip legacy paths out of the commit stage"
   },
   {
-    "date": "2026-03-17T09:00:00Z",
+    "timestamp": "2026-03-17T09:00:00Z",
     "op": "refine",
     "id": "0052",
     "title": "Verify the research orchestrator in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-17T10:00:00Z",
+    "timestamp": "2026-03-17T10:00:00Z",
     "op": "create",
     "id": "0109",
     "title": "Guard the lifecycle driver at the data layer, not the routes"
   },
   {
-    "date": "2026-03-18T10:00:00Z",
+    "timestamp": "2026-03-18T10:00:00Z",
     "op": "create",
     "id": "0111",
     "title": "Enforce path confinement through incremental usage accumulation"
   },
   {
-    "date": "2026-03-18T15:00:00Z",
+    "timestamp": "2026-03-18T15:00:00Z",
     "op": "create",
     "id": "0110",
     "title": "Centralize the commit stage behind a file-backed store"
   },
   {
-    "date": "2026-03-19T13:00:00Z",
+    "timestamp": "2026-03-19T13:00:00Z",
     "op": "create",
     "id": "0112",
     "title": "Prefer objective lifecycle evidence over hand-rolled the idle guard"
   },
   {
-    "date": "2026-03-20T15:00:00Z",
+    "timestamp": "2026-03-20T15:00:00Z",
     "op": "create",
     "id": "0113",
     "title": "Derive mock-backend wiring from Radix primitives"
   },
   {
-    "date": "2026-03-20T15:00:00Z",
+    "timestamp": "2026-03-20T15:00:00Z",
     "op": "create",
     "id": "0114",
     "title": "Trust objective signals over self-report in the smoke harness"
   },
   {
-    "date": "2026-03-21T12:00:00Z",
+    "timestamp": "2026-03-21T12:00:00Z",
     "op": "create",
     "id": "0115",
     "title": "Trust objective signals over self-report in path confinement"
   },
   {
-    "date": "2026-03-21T15:00:00Z",
+    "timestamp": "2026-03-21T15:00:00Z",
     "op": "supersede",
     "id": "0080",
     "title": "Serialize config loading through node:child_process process groups"
   },
   {
-    "date": "2026-03-22T09:00:00Z",
+    "timestamp": "2026-03-22T09:00:00Z",
     "op": "create",
     "id": "0116",
     "title": "Trust objective signals over self-report in the install writers"
   },
   {
-    "date": "2026-03-22T15:00:00Z",
+    "timestamp": "2026-03-22T15:00:00Z",
     "op": "create",
     "id": "0117",
     "title": "Dissolve mock-backend wiring into the registry"
   },
   {
-    "date": "2026-03-23T09:00:00Z",
+    "timestamp": "2026-03-23T09:00:00Z",
     "op": "create",
     "id": "0118",
     "title": "Prefer objective lifecycle evidence over hand-rolled the rework loop"
   },
   {
-    "date": "2026-03-23T11:00:00Z",
+    "timestamp": "2026-03-23T11:00:00Z",
     "op": "create",
     "id": "0119",
     "title": "Guard the recall endpoint at the data layer, not the routes"
   },
   {
-    "date": "2026-03-24T11:00:00Z",
+    "timestamp": "2026-03-24T11:00:00Z",
     "op": "create",
     "id": "0120",
     "title": "Centralize cost accounting behind an in-memory cache keyed by id"
   },
   {
-    "date": "2026-03-25T10:00:00Z",
+    "timestamp": "2026-03-25T10:00:00Z",
     "op": "create",
     "id": "0121",
     "title": "Guard skill resolution at the data layer, not the routes"
   },
   {
-    "date": "2026-03-25T10:00:00Z",
+    "timestamp": "2026-03-25T10:00:00Z",
     "op": "create",
     "id": "0122",
     "title": "Guard same-repo write dispatch at the data layer, not the routes"
   },
   {
-    "date": "2026-03-26T14:00:00Z",
+    "timestamp": "2026-03-26T14:00:00Z",
     "op": "create",
     "id": "0123",
     "title": "Enforce completion gating through Cytoscape + fcose"
   },
   {
-    "date": "2026-03-27T14:00:00Z",
+    "timestamp": "2026-03-27T14:00:00Z",
     "op": "create",
     "id": "0124",
     "title": "Prefer Radix primitives over hand-rolled the unified task API"
   },
   {
-    "date": "2026-03-27T14:00:00Z",
+    "timestamp": "2026-03-27T14:00:00Z",
     "op": "create",
     "id": "0125",
     "title": "Make same-repo write dispatch the single canonical read path"
   },
   {
-    "date": "2026-03-27T15:00:00Z",
+    "timestamp": "2026-03-27T15:00:00Z",
     "op": "refine",
     "id": "0051",
     "title": "Prefer a file-backed store over hand-rolled enum narrowing"
   },
   {
-    "date": "2026-03-28T09:00:00Z",
+    "timestamp": "2026-03-28T09:00:00Z",
     "op": "create",
     "id": "0126",
     "title": "Verify telemetry attribution in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-29T09:00:00Z",
+    "timestamp": "2026-03-29T09:00:00Z",
     "op": "create",
     "id": "0128",
     "title": "Enforce the rework loop through the live full-pipeline smoke"
   },
   {
-    "date": "2026-03-29T14:00:00Z",
+    "timestamp": "2026-03-29T14:00:00Z",
     "op": "create",
     "id": "0127",
     "title": "Verify the commit stage in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-03-30T09:00:00Z",
+    "timestamp": "2026-03-30T09:00:00Z",
     "op": "refine",
     "id": "0078",
     "title": "Prefer a discriminated union over hand-rolled mock-backend wiring"
   },
   {
-    "date": "2026-03-30T14:00:00Z",
+    "timestamp": "2026-03-30T14:00:00Z",
     "op": "create",
     "id": "0129",
     "title": "Prefer Zod validation at the boundary over hand-rolled the journal viewer"
   },
   {
-    "date": "2026-03-31T09:00:00Z",
+    "timestamp": "2026-03-31T09:00:00Z",
     "op": "create",
     "id": "0130",
     "title": "Trust objective signals over self-report in the journal graph store"
   },
   {
-    "date": "2026-03-31T11:00:00Z",
+    "timestamp": "2026-03-31T11:00:00Z",
     "op": "create",
     "id": "0131",
     "title": "Prefer a discriminated union over hand-rolled the unified task API"
   },
   {
-    "date": "2026-04-01T10:00:00Z",
+    "timestamp": "2026-04-01T10:00:00Z",
     "op": "create",
     "id": "0132",
     "title": "Derive the bounded-execution guard from a single pure function"
   },
   {
-    "date": "2026-04-02T11:00:00Z",
+    "timestamp": "2026-04-02T11:00:00Z",
     "op": "create",
     "id": "0133",
     "title": "Enforce event correlation through Zod validation at the boundary"
   },
   {
-    "date": "2026-04-02T11:00:00Z",
+    "timestamp": "2026-04-02T11:00:00Z",
     "op": "create",
     "id": "0134",
     "title": "Verify same-repo write dispatch in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-04-03T13:00:00Z",
+    "timestamp": "2026-04-03T13:00:00Z",
     "op": "create",
     "id": "0135",
     "title": "Enforce the unified task API through a TanStack-backed table"
   },
   {
-    "date": "2026-04-04T12:00:00Z",
+    "timestamp": "2026-04-04T12:00:00Z",
     "op": "create",
     "id": "0136",
     "title": "Derive config loading from ESM-only imports with .js specifiers"
   },
   {
-    "date": "2026-04-04T13:00:00Z",
+    "timestamp": "2026-04-04T13:00:00Z",
     "op": "create",
     "id": "0137",
     "title": "Centralize config loading behind a clean-room published-artifact check"
   },
   {
-    "date": "2026-04-05T10:00:00Z",
+    "timestamp": "2026-04-05T10:00:00Z",
     "op": "create",
     "id": "0138",
     "title": "Enforce cost accounting through jsdom hydration"
   },
   {
-    "date": "2026-04-06T14:00:00Z",
+    "timestamp": "2026-04-06T14:00:00Z",
     "op": "create",
     "id": "0139",
     "title": "Enforce the commit stage through a single pure function"
   },
   {
-    "date": "2026-04-06T14:00:00Z",
+    "timestamp": "2026-04-06T14:00:00Z",
     "op": "create",
     "id": "0140",
     "title": "Trust objective signals over self-report in the lifecycle driver"
   },
   {
-    "date": "2026-04-07T09:00:00Z",
+    "timestamp": "2026-04-07T09:00:00Z",
     "op": "create",
     "id": "0141",
     "title": "Serialize the structured-output contract through a discriminated union"
   },
   {
-    "date": "2026-04-07T09:00:00Z",
+    "timestamp": "2026-04-07T09:00:00Z",
     "op": "supersede",
     "id": "0102",
     "title": "Dissolve the smoke harness into the registry"
   },
   {
-    "date": "2026-04-07T11:00:00Z",
+    "timestamp": "2026-04-07T11:00:00Z",
     "op": "create",
     "id": "0142",
     "title": "Derive path confinement from a clean-room published-artifact check"
   },
   {
-    "date": "2026-04-08T11:00:00Z",
+    "timestamp": "2026-04-08T11:00:00Z",
     "op": "create",
     "id": "0143",
     "title": "Enforce the commit stage through a file-backed store"
   },
   {
-    "date": "2026-04-09T09:00:00Z",
+    "timestamp": "2026-04-09T09:00:00Z",
     "op": "create",
     "id": "0144",
     "title": "Prefer incremental usage accumulation over hand-rolled same-repo write dispatch"
   },
   {
-    "date": "2026-04-09T10:00:00Z",
+    "timestamp": "2026-04-09T10:00:00Z",
     "op": "create",
     "id": "0145",
     "title": "Dissolve config loading into the registry"
   },
   {
-    "date": "2026-04-10T11:00:00Z",
+    "timestamp": "2026-04-10T11:00:00Z",
     "op": "create",
     "id": "0146",
     "title": "Trust objective signals over self-report in the recall endpoint"
   },
   {
-    "date": "2026-04-10T11:00:00Z",
+    "timestamp": "2026-04-10T11:00:00Z",
     "op": "supersede",
     "id": "0105",
     "title": "Verify reviewer selection in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-04-11T10:00:00Z",
+    "timestamp": "2026-04-11T10:00:00Z",
     "op": "create",
     "id": "0147",
     "title": "Treat a derived signal in the structured-output contract as part of the control path"
   },
   {
-    "date": "2026-04-11T12:00:00Z",
+    "timestamp": "2026-04-11T12:00:00Z",
     "op": "refine",
     "id": "0066",
     "title": "Serialize config loading through a one-owner serialization lock"
   },
   {
-    "date": "2026-04-11T13:00:00Z",
+    "timestamp": "2026-04-11T13:00:00Z",
     "op": "create",
     "id": "0148",
     "title": "Trust objective signals over self-report in mock-backend wiring"
   },
   {
-    "date": "2026-04-12T12:00:00Z",
+    "timestamp": "2026-04-12T12:00:00Z",
     "op": "create",
     "id": "0149",
     "title": "Dissolve same-repo write dispatch into the registry"
   },
   {
-    "date": "2026-04-13T09:00:00Z",
+    "timestamp": "2026-04-13T09:00:00Z",
     "op": "create",
     "id": "0151",
     "title": "Make same-repo write dispatch the single canonical read path"
   },
   {
-    "date": "2026-04-13T11:00:00Z",
+    "timestamp": "2026-04-13T11:00:00Z",
     "op": "create",
     "id": "0150",
     "title": "Serialize mock-backend wiring through jsdom hydration"
   },
   {
-    "date": "2026-04-13T11:00:00Z",
+    "timestamp": "2026-04-13T11:00:00Z",
     "op": "refine",
     "id": "0142",
     "title": "Derive path confinement from a clean-room published-artifact check"
   },
   {
-    "date": "2026-04-14T12:00:00Z",
+    "timestamp": "2026-04-14T12:00:00Z",
     "op": "create",
     "id": "0152",
     "title": "Dissolve completion gating into the registry"
   },
   {
-    "date": "2026-04-15T10:00:00Z",
+    "timestamp": "2026-04-15T10:00:00Z",
     "op": "refine",
     "id": "0109",
     "title": "Guard the lifecycle driver at the data layer, not the routes"
   },
   {
-    "date": "2026-04-15T12:00:00Z",
+    "timestamp": "2026-04-15T12:00:00Z",
     "op": "create",
     "id": "0154",
     "title": "Enforce the transport layer through jsdom hydration"
   },
   {
-    "date": "2026-04-15T13:00:00Z",
+    "timestamp": "2026-04-15T13:00:00Z",
     "op": "create",
     "id": "0153",
     "title": "Make the journal viewer the single canonical read path"
   },
   {
-    "date": "2026-04-16T13:00:00Z",
+    "timestamp": "2026-04-16T13:00:00Z",
     "op": "create",
     "id": "0155",
     "title": "Trust objective signals over self-report in worktree isolation"
   },
   {
-    "date": "2026-04-17T10:00:00Z",
+    "timestamp": "2026-04-17T10:00:00Z",
     "op": "refine",
     "id": "0082",
     "title": "Strip legacy paths out of the smoke harness"
   },
   {
-    "date": "2026-04-17T13:00:00Z",
+    "timestamp": "2026-04-17T13:00:00Z",
     "op": "create",
     "id": "0157",
     "title": "Centralize the journal graph store behind a server-side proxy"
   },
   {
-    "date": "2026-04-17T15:00:00Z",
+    "timestamp": "2026-04-17T15:00:00Z",
     "op": "create",
     "id": "0156",
     "title": "Enforce the smoke harness through objective lifecycle evidence"
   },
   {
-    "date": "2026-04-17T15:00:00Z",
+    "timestamp": "2026-04-17T15:00:00Z",
     "op": "supersede",
     "id": "0099",
     "title": "Strip legacy paths out of the commit stage"
   },
   {
-    "date": "2026-04-18T09:00:00Z",
+    "timestamp": "2026-04-18T09:00:00Z",
     "op": "create",
     "id": "0158",
     "title": "Verify the rework loop in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-04-18T14:00:00Z",
+    "timestamp": "2026-04-18T14:00:00Z",
     "op": "refine",
     "id": "0129",
     "title": "Prefer Zod validation at the boundary over hand-rolled the journal viewer"
   },
   {
-    "date": "2026-04-19T10:00:00Z",
+    "timestamp": "2026-04-19T10:00:00Z",
     "op": "create",
     "id": "0160",
     "title": "Centralize the structured-output contract behind a clean-room published-artifact check"
   },
   {
-    "date": "2026-04-19T13:00:00Z",
+    "timestamp": "2026-04-19T13:00:00Z",
     "op": "create",
     "id": "0159",
     "title": "Strip legacy paths out of provider identity"
   },
   {
-    "date": "2026-04-20T11:00:00Z",
+    "timestamp": "2026-04-20T11:00:00Z",
     "op": "create",
     "id": "0161",
     "title": "Trust objective signals over self-report in the recall endpoint"
   },
   {
-    "date": "2026-04-21T11:00:00Z",
+    "timestamp": "2026-04-21T11:00:00Z",
     "op": "refine",
     "id": "0092",
     "title": "Trust objective signals over self-report in the lifecycle driver"
   },
   {
-    "date": "2026-04-21T12:00:00Z",
+    "timestamp": "2026-04-21T12:00:00Z",
     "op": "create",
     "id": "0162",
     "title": "Serialize the settings UI through tier inversion"
   },
   {
-    "date": "2026-04-21T12:00:00Z",
+    "timestamp": "2026-04-21T12:00:00Z",
     "op": "create",
     "id": "0163",
     "title": "Trust objective signals over self-report in same-repo write dispatch"
   },
   {
-    "date": "2026-04-22T11:00:00Z",
+    "timestamp": "2026-04-22T11:00:00Z",
     "op": "refine",
     "id": "0134",
     "title": "Verify same-repo write dispatch in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-04-22T13:00:00Z",
+    "timestamp": "2026-04-22T13:00:00Z",
     "op": "create",
     "id": "0164",
     "title": "Guard mock-backend wiring at the data layer, not the routes"
   },
   {
-    "date": "2026-04-22T15:00:00Z",
+    "timestamp": "2026-04-22T15:00:00Z",
     "op": "create",
     "id": "0165",
     "title": "Treat a derived signal in provider token accounting as part of the control path"
   },
   {
-    "date": "2026-04-23T15:00:00Z",
+    "timestamp": "2026-04-23T15:00:00Z",
     "op": "create",
     "id": "0166",
     "title": "Prefer a file-backed store over hand-rolled reviewer selection"
   },
   {
-    "date": "2026-04-24T12:00:00Z",
+    "timestamp": "2026-04-24T12:00:00Z",
     "op": "create",
     "id": "0167",
     "title": "Serialize the recall endpoint through jsdom hydration"
   },
   {
-    "date": "2026-04-24T15:00:00Z",
+    "timestamp": "2026-04-24T15:00:00Z",
     "op": "create",
     "id": "0168",
     "title": "Make mock-backend wiring the single canonical read path"
   },
   {
-    "date": "2026-04-25T10:00:00Z",
+    "timestamp": "2026-04-25T10:00:00Z",
     "op": "supersede",
     "id": "0145",
     "title": "Dissolve config loading into the registry"
   },
   {
-    "date": "2026-04-25T15:00:00Z",
+    "timestamp": "2026-04-25T15:00:00Z",
     "op": "create",
     "id": "0169",
     "title": "Verify the journal viewer in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-04-26T09:00:00Z",
+    "timestamp": "2026-04-26T09:00:00Z",
     "op": "create",
     "id": "0171",
     "title": "Derive enum narrowing from the live full-pipeline smoke"
   },
   {
-    "date": "2026-04-26T09:00:00Z",
+    "timestamp": "2026-04-26T09:00:00Z",
     "op": "supersede",
     "id": "0118",
     "title": "Prefer objective lifecycle evidence over hand-rolled the rework loop"
   },
   {
-    "date": "2026-04-26T12:00:00Z",
+    "timestamp": "2026-04-26T12:00:00Z",
     "op": "create",
     "id": "0170",
     "title": "Make mock-backend wiring the single canonical read path"
   },
   {
-    "date": "2026-04-27T15:00:00Z",
+    "timestamp": "2026-04-27T15:00:00Z",
     "op": "create",
     "id": "0172",
     "title": "Trust objective signals over self-report in event correlation"
   },
   {
-    "date": "2026-04-28T11:00:00Z",
+    "timestamp": "2026-04-28T11:00:00Z",
     "op": "create",
     "id": "0173",
     "title": "Prefer a single pure function over hand-rolled the recall endpoint"
   },
   {
-    "date": "2026-04-28T15:00:00Z",
+    "timestamp": "2026-04-28T15:00:00Z",
     "op": "create",
     "id": "0174",
     "title": "Dissolve the smoke harness into the registry"
   },
   {
-    "date": "2026-04-29T10:00:00Z",
+    "timestamp": "2026-04-29T10:00:00Z",
     "op": "create",
     "id": "0175",
     "title": "Strip legacy paths out of enum narrowing"
   },
   {
-    "date": "2026-04-29T14:00:00Z",
+    "timestamp": "2026-04-29T14:00:00Z",
     "op": "supersede",
     "id": "0129",
     "title": "Prefer Zod validation at the boundary over hand-rolled the journal viewer"
   },
   {
-    "date": "2026-04-30T11:00:00Z",
+    "timestamp": "2026-04-30T11:00:00Z",
     "op": "create",
     "id": "0177",
     "title": "Strip legacy paths out of telemetry attribution"
   },
   {
-    "date": "2026-04-30T14:00:00Z",
+    "timestamp": "2026-04-30T14:00:00Z",
     "op": "create",
     "id": "0176",
     "title": "Dissolve cost accounting into the registry"
   },
   {
-    "date": "2026-05-01T14:00:00Z",
+    "timestamp": "2026-05-01T14:00:00Z",
     "op": "create",
     "id": "0178",
     "title": "Make reviewer selection the single canonical read path"
   },
   {
-    "date": "2026-05-02T13:00:00Z",
+    "timestamp": "2026-05-02T13:00:00Z",
     "op": "create",
     "id": "0179",
     "title": "Strip legacy paths out of mock-backend wiring"
   },
   {
-    "date": "2026-05-02T15:00:00Z",
+    "timestamp": "2026-05-02T15:00:00Z",
     "op": "create",
     "id": "0180",
     "title": "Treat a derived signal in config loading as part of the control path"
   },
   {
-    "date": "2026-05-03T09:00:00Z",
+    "timestamp": "2026-05-03T09:00:00Z",
     "op": "refine",
     "id": "0118",
     "title": "Prefer objective lifecycle evidence over hand-rolled the rework loop"
   },
   {
-    "date": "2026-05-03T10:00:00Z",
+    "timestamp": "2026-05-03T10:00:00Z",
     "op": "create",
     "id": "0181",
     "title": "Enforce the smoke harness through objective lifecycle evidence"
   },
   {
-    "date": "2026-05-04T11:00:00Z",
+    "timestamp": "2026-05-04T11:00:00Z",
     "op": "create",
     "id": "0183",
     "title": "Verify the unified task API in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-04T14:00:00Z",
+    "timestamp": "2026-05-04T14:00:00Z",
     "op": "create",
     "id": "0182",
     "title": "Make the settings UI the single canonical read path"
   },
   {
-    "date": "2026-05-05T10:00:00Z",
+    "timestamp": "2026-05-05T10:00:00Z",
     "op": "create",
     "id": "0184",
     "title": "Centralize path confinement behind a server-side proxy"
   },
   {
-    "date": "2026-05-06T09:00:00Z",
+    "timestamp": "2026-05-06T09:00:00Z",
     "op": "create",
     "id": "0186",
     "title": "Serialize worktree isolation through the live full-pipeline smoke"
   },
   {
-    "date": "2026-05-06T12:00:00Z",
+    "timestamp": "2026-05-06T12:00:00Z",
     "op": "refine",
     "id": "0152",
     "title": "Dissolve completion gating into the registry"
   },
   {
-    "date": "2026-05-06T14:00:00Z",
+    "timestamp": "2026-05-06T14:00:00Z",
     "op": "create",
     "id": "0185",
     "title": "Verify same-repo write dispatch in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-06T14:00:00Z",
+    "timestamp": "2026-05-06T14:00:00Z",
     "op": "refine",
     "id": "0127",
     "title": "Verify the commit stage in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-07T09:00:00Z",
+    "timestamp": "2026-05-07T09:00:00Z",
     "op": "create",
     "id": "0187",
     "title": "Serialize the smoke harness through the live full-pipeline smoke"
   },
   {
-    "date": "2026-05-07T09:00:00Z",
+    "timestamp": "2026-05-07T09:00:00Z",
     "op": "create",
     "id": "0188",
     "title": "Treat a derived signal in completion gating as part of the control path"
   },
   {
-    "date": "2026-05-07T09:00:00Z",
+    "timestamp": "2026-05-07T09:00:00Z",
     "op": "refine",
     "id": "0100",
     "title": "Treat a derived signal in the journal graph store as part of the control path"
   },
   {
-    "date": "2026-05-07T15:00:00Z",
+    "timestamp": "2026-05-07T15:00:00Z",
     "op": "refine",
     "id": "0096",
     "title": "Derive enum narrowing from jsdom hydration"
   },
   {
-    "date": "2026-05-08T15:00:00Z",
+    "timestamp": "2026-05-08T15:00:00Z",
     "op": "create",
     "id": "0189",
     "title": "Strip legacy paths out of the journal viewer"
   },
   {
-    "date": "2026-05-09T12:00:00Z",
+    "timestamp": "2026-05-09T12:00:00Z",
     "op": "create",
     "id": "0190",
     "title": "Verify enum narrowing in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-09T14:00:00Z",
+    "timestamp": "2026-05-09T14:00:00Z",
     "op": "create",
     "id": "0191",
     "title": "Prefer a single pure function over hand-rolled completion gating"
   },
   {
-    "date": "2026-05-10T09:00:00Z",
+    "timestamp": "2026-05-10T09:00:00Z",
     "op": "refine",
     "id": "0141",
     "title": "Serialize the structured-output contract through a discriminated union"
   },
   {
-    "date": "2026-05-10T15:00:00Z",
+    "timestamp": "2026-05-10T15:00:00Z",
     "op": "create",
     "id": "0192",
     "title": "Make the settings UI the single canonical read path"
   },
   {
-    "date": "2026-05-11T13:00:00Z",
+    "timestamp": "2026-05-11T13:00:00Z",
     "op": "create",
     "id": "0193",
     "title": "Serialize event correlation through Cytoscape + fcose"
   },
   {
-    "date": "2026-05-11T15:00:00Z",
+    "timestamp": "2026-05-11T15:00:00Z",
     "op": "create",
     "id": "0194",
     "title": "Dissolve the research orchestrator into the registry"
   },
   {
-    "date": "2026-05-12T10:00:00Z",
+    "timestamp": "2026-05-12T10:00:00Z",
     "op": "create",
     "id": "0195",
     "title": "Derive event correlation from Radix primitives"
   },
   {
-    "date": "2026-05-13T10:00:00Z",
+    "timestamp": "2026-05-13T10:00:00Z",
     "op": "create",
     "id": "0196",
     "title": "Trust objective signals over self-report in the idle guard"
   },
   {
-    "date": "2026-05-13T14:00:00Z",
+    "timestamp": "2026-05-13T14:00:00Z",
     "op": "create",
     "id": "0197",
     "title": "Derive cost accounting from an in-memory cache keyed by id"
   },
   {
-    "date": "2026-05-13T15:00:00Z",
+    "timestamp": "2026-05-13T15:00:00Z",
     "op": "supersede",
     "id": "0156",
     "title": "Enforce the smoke harness through objective lifecycle evidence"
   },
   {
-    "date": "2026-05-14T11:00:00Z",
+    "timestamp": "2026-05-14T11:00:00Z",
     "op": "create",
     "id": "0198",
     "title": "Serialize telemetry attribution through incremental usage accumulation"
   },
   {
-    "date": "2026-05-15T09:00:00Z",
+    "timestamp": "2026-05-15T09:00:00Z",
     "op": "create",
     "id": "0199",
     "title": "Treat a derived signal in skill resolution as part of the control path"
   },
   {
-    "date": "2026-05-15T15:00:00Z",
+    "timestamp": "2026-05-15T15:00:00Z",
     "op": "create",
     "id": "0200",
     "title": "Derive reviewer selection from ESM-only imports with .js specifiers"
   },
   {
-    "date": "2026-05-16T10:00:00Z",
+    "timestamp": "2026-05-16T10:00:00Z",
     "op": "create",
     "id": "0201",
     "title": "Verify the journal viewer in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-17T10:00:00Z",
+    "timestamp": "2026-05-17T10:00:00Z",
     "op": "refine",
     "id": "0175",
     "title": "Strip legacy paths out of enum narrowing"
   },
   {
-    "date": "2026-05-17T15:00:00Z",
+    "timestamp": "2026-05-17T15:00:00Z",
     "op": "create",
     "id": "0202",
     "title": "Centralize enum narrowing behind Zod validation at the boundary"
   },
   {
-    "date": "2026-05-17T15:00:00Z",
+    "timestamp": "2026-05-17T15:00:00Z",
     "op": "create",
     "id": "0203",
     "title": "Trust objective signals over self-report in the rework loop"
   },
   {
-    "date": "2026-05-18T14:00:00Z",
+    "timestamp": "2026-05-18T14:00:00Z",
     "op": "create",
     "id": "0204",
     "title": "Prefer a server-side proxy over hand-rolled worktree isolation"
   },
   {
-    "date": "2026-05-19T12:00:00Z",
+    "timestamp": "2026-05-19T12:00:00Z",
     "op": "create",
     "id": "0206",
     "title": "Strip legacy paths out of the journal graph store"
   },
   {
-    "date": "2026-05-19T15:00:00Z",
+    "timestamp": "2026-05-19T15:00:00Z",
     "op": "create",
     "id": "0205",
     "title": "Prefer a one-owner serialization lock over hand-rolled config loading"
   },
   {
-    "date": "2026-05-20T11:00:00Z",
+    "timestamp": "2026-05-20T11:00:00Z",
     "op": "create",
     "id": "0207",
     "title": "Dissolve the structured-output contract into the registry"
   },
   {
-    "date": "2026-05-21T14:00:00Z",
+    "timestamp": "2026-05-21T14:00:00Z",
     "op": "create",
     "id": "0208",
     "title": "Prefer tier inversion over hand-rolled provider identity"
   },
   {
-    "date": "2026-05-21T15:00:00Z",
+    "timestamp": "2026-05-21T15:00:00Z",
     "op": "create",
     "id": "0209",
     "title": "Derive the smoke harness from a server-side proxy"
   },
   {
-    "date": "2026-05-22T09:00:00Z",
+    "timestamp": "2026-05-22T09:00:00Z",
     "op": "refine",
     "id": "0126",
     "title": "Verify telemetry attribution in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-22T10:00:00Z",
+    "timestamp": "2026-05-22T10:00:00Z",
     "op": "create",
     "id": "0210",
     "title": "Guard cost accounting at the data layer, not the routes"
   },
   {
-    "date": "2026-05-22T13:00:00Z",
+    "timestamp": "2026-05-22T13:00:00Z",
     "op": "create",
     "id": "0211",
     "title": "Trust objective signals over self-report in worktree isolation"
   },
   {
-    "date": "2026-05-22T14:00:00Z",
+    "timestamp": "2026-05-22T14:00:00Z",
     "op": "supersede",
     "id": "0182",
     "title": "Make the settings UI the single canonical read path"
   },
   {
-    "date": "2026-05-23T12:00:00Z",
+    "timestamp": "2026-05-23T12:00:00Z",
     "op": "create",
     "id": "0212",
     "title": "Verify the idle guard in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-24T10:00:00Z",
+    "timestamp": "2026-05-24T10:00:00Z",
     "op": "create",
     "id": "0213",
     "title": "Enforce the rework loop through ESM-only imports with .js specifiers"
   },
   {
-    "date": "2026-05-24T14:00:00Z",
+    "timestamp": "2026-05-24T14:00:00Z",
     "op": "create",
     "id": "0214",
     "title": "Derive the smoke harness from Radix primitives"
   },
   {
-    "date": "2026-05-25T13:00:00Z",
+    "timestamp": "2026-05-25T13:00:00Z",
     "op": "create",
     "id": "0215",
     "title": "Trust objective signals over self-report in telemetry attribution"
   },
   {
-    "date": "2026-05-26T12:00:00Z",
+    "timestamp": "2026-05-26T12:00:00Z",
     "op": "supersede",
     "id": "0162",
     "title": "Serialize the settings UI through tier inversion"
   },
   {
-    "date": "2026-05-26T13:00:00Z",
+    "timestamp": "2026-05-26T13:00:00Z",
     "op": "create",
     "id": "0216",
     "title": "Centralize the settings UI behind incremental usage accumulation"
   },
   {
-    "date": "2026-05-26T14:00:00Z",
+    "timestamp": "2026-05-26T14:00:00Z",
     "op": "create",
     "id": "0217",
     "title": "Derive the graph view from the live full-pipeline smoke"
   },
   {
-    "date": "2026-05-27T11:00:00Z",
+    "timestamp": "2026-05-27T11:00:00Z",
     "op": "refine",
     "id": "0134",
     "title": "Verify same-repo write dispatch in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-27T13:00:00Z",
+    "timestamp": "2026-05-27T13:00:00Z",
     "op": "create",
     "id": "0218",
     "title": "Guard completion gating at the data layer, not the routes"
   },
   {
-    "date": "2026-05-28T13:00:00Z",
+    "timestamp": "2026-05-28T13:00:00Z",
     "op": "create",
     "id": "0220",
     "title": "Make same-repo write dispatch the single canonical read path"
   },
   {
-    "date": "2026-05-28T13:00:00Z",
+    "timestamp": "2026-05-28T13:00:00Z",
     "op": "refine",
     "id": "0215",
     "title": "Trust objective signals over self-report in telemetry attribution"
   },
   {
-    "date": "2026-05-28T15:00:00Z",
+    "timestamp": "2026-05-28T15:00:00Z",
     "op": "create",
     "id": "0219",
     "title": "Treat a derived signal in same-repo write dispatch as part of the control path"
   },
   {
-    "date": "2026-05-29T15:00:00Z",
+    "timestamp": "2026-05-29T15:00:00Z",
     "op": "create",
     "id": "0221",
     "title": "Serialize event correlation through node:child_process process groups"
   },
   {
-    "date": "2026-05-30T09:00:00Z",
+    "timestamp": "2026-05-30T09:00:00Z",
     "op": "create",
     "id": "0223",
     "title": "Make provider identity the single canonical read path"
   },
   {
-    "date": "2026-05-30T12:00:00Z",
+    "timestamp": "2026-05-30T12:00:00Z",
     "op": "create",
     "id": "0222",
     "title": "Verify the lifecycle driver in jsdom, never headless puppeteer"
   },
   {
-    "date": "2026-05-31T09:00:00Z",
+    "timestamp": "2026-05-31T09:00:00Z",
     "op": "create",
     "id": "0224",
     "title": "Treat a derived signal in the structured-output contract as part of the control path"
   },
   {
-    "date": "2026-06-01T09:00:00Z",
+    "timestamp": "2026-06-01T09:00:00Z",
     "op": "create",
     "id": "0226",
     "title": "Dissolve the graph view into the registry"
   },
   {
-    "date": "2026-06-01T13:00:00Z",
+    "timestamp": "2026-06-01T13:00:00Z",
     "op": "create",
     "id": "0225",
     "title": "Treat a derived signal in provider token accounting as part of the control path"
   },
   {
-    "date": "2026-06-02T12:00:00Z",
+    "timestamp": "2026-06-02T12:00:00Z",
     "op": "create",
     "id": "0227",
     "title": "Enforce the journal graph store through node:child_process process groups"
   },
   {
-    "date": "2026-06-03T09:00:00Z",
+    "timestamp": "2026-06-03T09:00:00Z",
     "op": "refine",
     "id": "0186",
     "title": "Serialize worktree isolation through the live full-pipeline smoke"
   },
   {
-    "date": "2026-06-03T12:00:00Z",
+    "timestamp": "2026-06-03T12:00:00Z",
     "op": "create",
     "id": "0228",
     "title": "Centralize the lifecycle driver behind a discriminated union"
   },
   {
-    "date": "2026-06-03T14:00:00Z",
+    "timestamp": "2026-06-03T14:00:00Z",
     "op": "create",
     "id": "0229",
     "title": "Strip legacy paths out of completion gating"
   },
   {
-    "date": "2026-06-04T10:00:00Z",
+    "timestamp": "2026-06-04T10:00:00Z",
     "op": "supersede",
     "id": "0196",
     "title": "Trust objective signals over self-report in the idle guard"
   },
   {
-    "date": "2026-06-04T13:00:00Z",
+    "timestamp": "2026-06-04T13:00:00Z",
     "op": "create",
     "id": "0230",
     "title": "Prefer incremental usage accumulation over hand-rolled the smoke harness"
   },
   {
-    "date": "2026-06-04T13:00:00Z",
+    "timestamp": "2026-06-04T13:00:00Z",
     "op": "merge",
     "id": "0211",
     "title": "Trust objective signals over self-report in worktree isolation"
   },
   {
-    "date": "2026-06-05T15:00:00Z",
+    "timestamp": "2026-06-05T15:00:00Z",
     "op": "merge",
     "id": "0189",
     "title": "Strip legacy paths out of the journal viewer"
   },
   {
-    "date": "2026-06-06T14:00:00Z",
+    "timestamp": "2026-06-06T14:00:00Z",
     "op": "merge",
     "id": "0178",
     "title": "Make reviewer selection the single canonical read path"
   },
   {
-    "date": "2026-06-12T11:00:00Z",
+    "timestamp": "2026-06-12T11:00:00Z",
     "op": "refine",
     "id": "0207",
     "title": "Dissolve the structured-output contract into the registry"
   },
   {
-    "date": "2026-06-13T15:00:00Z",
+    "timestamp": "2026-06-13T15:00:00Z",
     "op": "merge",
     "id": "0200",
     "title": "Derive reviewer selection from ESM-only imports with .js specifiers"
   },
   {
-    "date": "2026-06-18T09:00:00Z",
+    "timestamp": "2026-06-18T09:00:00Z",
     "op": "merge",
     "id": "0223",
     "title": "Make provider identity the single canonical read path"
   },
   {
-    "date": "2026-06-20T13:00:00Z",
+    "timestamp": "2026-06-20T13:00:00Z",
     "op": "supersede",
     "id": "0211",
     "title": "Trust objective signals over self-report in worktree isolation"
   },
   {
-    "date": "2026-06-20T15:00:00Z",
+    "timestamp": "2026-06-20T15:00:00Z",
     "op": "refine",
     "id": "0209",
     "title": "Derive the smoke harness from a server-side proxy"
   },
   {
-    "date": "2026-06-21T15:00:00Z",
+    "timestamp": "2026-06-21T15:00:00Z",
     "op": "refine",
     "id": "0202",
     "title": "Centralize enum narrowing behind Zod validation at the boundary"
   },
   {
-    "date": "2026-06-27T15:00:00Z",
+    "timestamp": "2026-06-27T15:00:00Z",
     "op": "supersede",
     "id": "0209",
     "title": "Derive the smoke harness from a server-side proxy"
   },
   {
-    "date": "2026-07-04T12:00:00Z",
+    "timestamp": "2026-07-04T12:00:00Z",
     "op": "supersede",
     "id": "0227",
     "title": "Enforce the journal graph store through node:child_process process groups"
   },
   {
-    "date": "2026-07-10T14:00:00Z",
+    "timestamp": "2026-07-10T14:00:00Z",
     "op": "refine",
     "id": "0204",
     "title": "Prefer a server-side proxy over hand-rolled worktree isolation"
   },
   {
-    "date": "2026-07-14T09:00:00Z",
+    "timestamp": "2026-07-14T09:00:00Z",
     "op": "refine",
     "id": "0223",
     "title": "Make provider identity the single canonical read path"
   },
   {
-    "date": "2026-07-17T13:00:00Z",
+    "timestamp": "2026-07-17T13:00:00Z",
     "op": "refine",
     "id": "0211",
     "title": "Trust objective signals over self-report in worktree isolation"

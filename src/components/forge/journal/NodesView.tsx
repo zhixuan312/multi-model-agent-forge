@@ -47,7 +47,7 @@ export function NodesView({
     const q = search.trim().toLowerCase();
     let rows = nodes.filter((n) => {
       if (statusFilter !== 'All' && n.status !== statusFilter) return false;
-      if (categoryFilter !== 'All' && n.category !== categoryFilter) return false;
+      if (categoryFilter !== 'All' && n.type !== categoryFilter) return false;
       if (!q) return true;
       if (n.title.toLowerCase().includes(q)) return true;
       return n.tags.some((t) => t.toLowerCase().includes(q));
@@ -159,9 +159,9 @@ export function NodesView({
             >
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-[11px] text-ink-faint">{n.id}</span>
-                {n.category ? (
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', CAT_STYLE[n.category])}>
-                    {n.category}
+                {n.type ? (
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', CAT_STYLE[n.type])}>
+                    {n.type}
                   </span>
                 ) : null}
                 <StatusBadge status={n.status} />

@@ -67,7 +67,7 @@ export function WriteLogView({
                 className="[&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
               >
                 <td className="pr-3 whitespace-nowrap">
-                  <Mono className="!text-xs text-ink-soft">{formatDateTime(e.date)}</Mono>
+                  <Mono className="!text-xs text-ink-soft">{formatDateTime(e.timestamp)}</Mono>
                 </td>
                 <td className="pr-3">
                   <span

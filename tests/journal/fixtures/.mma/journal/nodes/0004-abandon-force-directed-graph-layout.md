@@ -6,7 +6,7 @@ tags:
   - graph
   - ui
   - dropped-idea
-date: 2026-05-26
+timestamp: 2026-05-26
 links:
   - type: parent
     target: "0002"

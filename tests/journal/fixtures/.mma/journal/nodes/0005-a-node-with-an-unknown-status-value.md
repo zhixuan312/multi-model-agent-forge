@@ -5,7 +5,7 @@ status: "frobnicated"
 tags:
   - unknown-status
   - leniency
-date: "2026-05-27"
+timestamp: "2026-05-27"
 links:
   - type: "wobbles"
     target: "0002"

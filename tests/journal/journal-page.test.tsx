@@ -20,8 +20,8 @@ vi.mock('@/auth/current-member', () => ({
 vi.mock('@/journal/store-reader', () => ({
   readAllNodes: async () => ({
     kind: 'ok',
-    nodes: [{ id: '0001', status: 'adopted', title: 'A node', source: 'spec', category: 'decision' }],
-    log: [{ date: '2026-01-01', op: 'create', id: '0001', title: 'A node' }],
+    nodes: [{ id: '0001', status: 'adopted', title: 'A node', source: 'spec', type: 'decision' }],
+    log: [{ timestamp: '2026-01-01', op: 'create', id: '0001', title: 'A node' }],
     skippedCount: 0,
   }),
   readNodeFrontmatters: async () => [],

@@ -28,7 +28,7 @@ describe('journal parse helpers', () => {
       'tags:',
       '  - concurrency',
       '  - dispatch',
-      'date: "2026-05-24"',
+      'timestamp: "2026-05-24"',
       'links:',
       '  - type: "supersedes"',
       '    target: "0001"',
@@ -52,7 +52,7 @@ describe('journal parse helpers', () => {
     expect(n.title).toBe('Prefer parallel dispatch');
     expect(n.status).toBe('adopted');
     expect(n.tags).toEqual(['concurrency', 'dispatch']);
-    expect(n.date).toBe('2026-05-24');
+    expect(n.timestamp).toBe('2026-05-24');
     expect(n.links).toEqual([
       { type: 'supersedes', target: '0001' },
       { type: 'relates', target: '0003' },
@@ -69,7 +69,7 @@ describe('journal parse helpers', () => {
       'title: Investigate flaky poll timeouts',
       'status: inconclusive',
       'tags: [polling, flaky, timeouts]',
-      'date: 2026-05-25',
+      'timestamp: 2026-05-25',
       'links:',
       '  - type: relates',
       '    to: "0001"',
@@ -96,7 +96,7 @@ describe('journal parse helpers', () => {
       'status: "frobnicated"',
       'tags:',
       '  - x',
-      'date: "2026-05-27"',
+      'timestamp: "2026-05-27"',
       'links:',
       '  - type: "wobbles"',
       '    target: "0002"',
@@ -129,23 +129,24 @@ describe('journal parse helpers', () => {
     expect(extractCrux(noCrux)).toBeNull();
   });
 
-  it('parseIndexRow splits the comma-separated tags cell; skips header/separator', () => {
-    expect(parseIndexRow('| id | date | status | title | tags |')).toBeNull();
-    expect(parseIndexRow('| --- | --- | --- | --- | --- |')).toBeNull();
-    const row = parseIndexRow('| 0003 | 2026-05-25 | inconclusive | Flaky timeouts | polling, flaky, timeouts |');
+  it('parseIndexRow splits the comma-separated tags cell; skips header/separator (OKF 6-col)', () => {
+    expect(parseIndexRow('| id | timestamp | type | status | title | tags |')).toBeNull();
+    expect(parseIndexRow('| --- | --- | --- | --- | --- | --- |')).toBeNull();
+    const row = parseIndexRow('| 0003 | 2026-05-25 | process | inconclusive | Flaky timeouts | polling, flaky, timeouts |');
     expect(row).toEqual({
       id: '0003',
-      date: '2026-05-25',
+      timestamp: '2026-05-25',
+      type: 'process',
       status: 'inconclusive',
       title: 'Flaky timeouts',
       tags: ['polling', 'flaky', 'timeouts'],
     });
   });
 
-  it('parseLogLine reads date · op · id · title (multi-space delimited)', () => {
+  it('parseLogLine reads timestamp · op · id · title (multi-space delimited)', () => {
     const e = parseLogLine('2026-05-24T00:00:00+08:00  create  0001  Serialize dispatch');
     expect(e).toEqual({
-      date: '2026-05-24T00:00:00+08:00',
+      timestamp: '2026-05-24T00:00:00+08:00',
       op: 'create',
       id: '0001',
       title: 'Serialize dispatch',

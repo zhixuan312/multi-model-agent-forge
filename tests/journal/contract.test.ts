@@ -21,13 +21,14 @@ describe('enum drift guard (local copy === MMA source enum sets)', () => {
 });
 
 describe('on-disk format contract (pins column/delimiter/key shapes)', () => {
-  it('index.md column order is | id | date | status | title | tags | with comma-separated tags', () => {
+  it('index.md column order is | id | timestamp | type | status | title | tags | (OKF) with comma-separated tags', () => {
     const row = parseIndexRow(
-      '| 0013 | 2026-05-24 | adopted | Prefer parallel dispatch | concurrency, dispatch, git |',
+      '| 0013 | 2026-05-24 | decision | adopted | Prefer parallel dispatch | concurrency, dispatch, git |',
     );
     expect(row).toEqual({
       id: '0013',
-      date: '2026-05-24',
+      timestamp: '2026-05-24',
+      type: 'decision',
       status: 'adopted',
       title: 'Prefer parallel dispatch',
       tags: ['concurrency', 'dispatch', 'git'],
@@ -37,7 +38,7 @@ describe('on-disk format contract (pins column/delimiter/key shapes)', () => {
   it('log.md field order is <ISO-8601>  <op>  <id>  <title>', () => {
     const e = parseLogLine('2026-05-24T00:00:00+08:00  create  0013  Prefer parallel dispatch');
     expect(e).toEqual({
-      date: '2026-05-24T00:00:00+08:00',
+      timestamp: '2026-05-24T00:00:00+08:00',
       op: 'create',
       id: '0013',
       title: 'Prefer parallel dispatch',
@@ -53,7 +54,7 @@ describe('on-disk format contract (pins column/delimiter/key shapes)', () => {
       'tags:',
       '  - concurrency',
       '  - dispatch',
-      'date: "2026-05-24"',
+      'timestamp: "2026-05-24"',
       'links:',
       '  - type: "supersedes"',
       '    target: "0012"',

@@ -36,10 +36,11 @@ export function NodesTab({
     title: n.title,
     status: n.status,
     tags: n.tags,
-    date: n.date,
+    timestamp: n.timestamp,
     filename: n.filename,
     source: n.source,
-    category: n.category,
+    type: n.type,
+    description: n.description,
   }));
   const allNodes = [...recordedSummaries, ...nodes];
 

@@ -6,7 +6,7 @@ tags:
   - concurrency
   - dispatch
   - parallel
-date: "2026-05-24"
+timestamp: "2026-05-24"
 links:
   - type: "supersedes"
     target: "0001"

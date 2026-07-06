@@ -5,7 +5,7 @@ status: "adopted"
 tags:
   - stale-index
   - source-of-truth
-date: "2026-05-28"
+timestamp: "2026-05-28"
 links: []
 supersededBy: null
 ---

@@ -43,7 +43,7 @@ export interface JournalNode {
   title: string;
   status: string; // expected ∈ STATUS_VALUES; unknown tolerated
   tags: string[]; // lowercase kebab-case
-  date: string; // ISO-8601 (YYYY-MM-DD)
+  timestamp: string; // ISO-8601 (OKF), e.g. 2026-05-24T00:00:00Z
   links: JournalEdge[];
   supersededBy: string | null;
   context: string; // ## Context body
@@ -54,14 +54,19 @@ export interface JournalNode {
   filename: string;
   /** Lifecycle stage the learning came from (Exploration…Journal, or Manual). */
   source?: string;
-  /** Learning category — decision | design | behavior | process | knowledge | style. */
-  category?: string;
+  /** OKF node type — decision | design | behavior | process | knowledge | style.
+   *  (This is MMA's OKF-required `type`; it is the same taxonomy Forge's harvest
+   *  layer calls `category` — a different, separate concept, see LEARNING_CATEGORIES.) */
+  type?: string;
+  /** OKF-recommended one-line summary of the node (frontmatter `description`). */
+  description?: string;
 }
 
-/** One row of `index.md` (display metadata; tags split on the comma cell). */
+/** One row of `index.md` (OKF columns: id | timestamp | type | status | title | tags). */
 export interface IndexRow {
   id: string;
-  date: string;
+  timestamp: string;
+  type: string;
   status: string;
   title: string;
   tags: string[];
@@ -69,7 +74,7 @@ export interface IndexRow {
 
 /** One parsed line of `log.md`. `op` is raw (unknown op renders neutral). */
 export interface LogEntry {
-  date: string; // ISO-8601 timestamp string, verbatim from the line
+  timestamp: string; // ISO-8601 timestamp string, verbatim from the line
   op: string;
   id: string;
   title: string;
@@ -89,10 +94,11 @@ export interface NodeSummary {
   title: string;
   status: string;
   tags: string[];
-  date: string;
+  timestamp: string;
   filename: string;
   source?: string;
-  category?: string;
+  type?: string;
+  description?: string;
   /** true when listed in `index.md` but the `nodes/` file is gone. */
   fileMissing?: boolean;
 }

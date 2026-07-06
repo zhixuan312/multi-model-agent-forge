@@ -120,7 +120,7 @@ export function parseFrontmatter(raw: string, filename: string): ParseNodeResult
     title: fm.scalars.title ? unquote(fm.scalars.title) : '',
     status: fm.scalars.status ? unquote(fm.scalars.status) : '',
     tags: fm.tags,
-    date: fm.scalars.date ? unquote(fm.scalars.date) : '',
+    timestamp: fm.scalars.timestamp ? unquote(fm.scalars.timestamp) : '',
     links: fm.links,
     supersededBy:
       fm.scalars.supersededBy && unquote(fm.scalars.supersededBy) !== 'null'
@@ -131,7 +131,8 @@ export function parseFrontmatter(raw: string, filename: string): ParseNodeResult
     crux: extractCrux(body),
     filename,
     source: fm.scalars.source ? unquote(fm.scalars.source) : undefined,
-    category: fm.scalars.category ? unquote(fm.scalars.category) : undefined,
+    type: fm.scalars.type ? unquote(fm.scalars.type) : undefined,
+    description: fm.scalars.description ? unquote(fm.scalars.description) : undefined,
   };
   return { ok: true, node };
 }
@@ -259,16 +260,17 @@ export function parseIndexRow(line: string): IndexRow | null {
   const t = line.trim();
   if (!t.startsWith('|')) return null;
   const cells = t.split('|').slice(1, -1).map((c) => c.trim());
-  if (cells.length < 5) return null;
+  if (cells.length < 6) return null;
   if (cells[0] === 'id') return null; // header
   if (/^-+$/.test(cells[0]!)) return null; // separator
-  const [id, date, status, title, tagsCell] = cells;
+  // OKF columns: id | timestamp | type | status | title | tags
+  const [id, timestamp, type, status, title, tagsCell] = cells;
   if (!/^\d{4}$/.test(id!)) return null;
   const tags = (tagsCell ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return { id: id!, date: date!, status: status!, title: title!, tags };
+  return { id: id!, timestamp: timestamp!, type: type!, status: status!, title: title!, tags };
 }
 
 /** Parse one `log.md` line: `<ISO-8601>  <op>  <id>  <title>`. */
@@ -279,7 +281,7 @@ export function parseLogLine(line: string): LogEntry | null {
   // whitespace, keeping the title (which may contain single spaces) intact.
   const m = t.match(/^(\S+)\s+(\S+)\s+(\d{4})\s+(.+)$/);
   if (!m) return null;
-  return { date: m[1]!, op: m[2]!, id: m[3]!, title: m[4]!.trim() };
+  return { timestamp: m[1]!, op: m[2]!, id: m[3]!, title: m[4]!.trim() };
 }
 
 // ── inbound-edge inversion ──────────────────────────────────────────────────
@@ -461,10 +463,11 @@ export async function readAllNodes(root: string): Promise<JournalReadOutcome> {
       title: r.node.title,
       status: r.node.status,
       tags: r.node.tags,
-      date: r.node.date,
+      timestamp: r.node.timestamp,
       filename: f,
       source: r.node.source,
-      category: r.node.category,
+      type: r.node.type,
+      description: r.node.description,
     });
   }
 
@@ -476,7 +479,8 @@ export async function readAllNodes(root: string): Promise<JournalReadOutcome> {
       title: row.title,
       status: row.status,
       tags: row.tags,
-      date: row.date,
+      timestamp: row.timestamp,
+      type: row.type,
       filename: `nodes/${row.id}-*.md`,
       fileMissing: true,
     });

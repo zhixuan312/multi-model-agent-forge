@@ -40,14 +40,17 @@ function q(s: string): string {
 
 /** Render one node as an MMA node markdown file (frontmatter + crux + body). */
 export function renderNode(n: JournalNode): string {
-  const fm: string[] = ['---', `id: ${q(n.id)}`, `title: ${q(n.title)}`, `status: ${q(n.status)}`];
+  // OKF frontmatter order: id, title, type, status, tags, timestamp, links, …, description
+  const fm: string[] = ['---', `id: ${q(n.id)}`, `title: ${q(n.title)}`];
+  if (n.type) fm.push(`type: ${q(n.type)}`);
+  fm.push(`status: ${q(n.status)}`);
   if (n.tags.length) {
     fm.push('tags:');
     for (const t of n.tags) fm.push(`  - ${t}`);
   } else {
     fm.push('tags: []');
   }
-  fm.push(`date: ${q(n.date)}`);
+  fm.push(`timestamp: ${q(n.timestamp)}`);
   if (n.links.length) {
     fm.push('links:');
     for (const l of n.links) {
@@ -59,7 +62,7 @@ export function renderNode(n: JournalNode): string {
   }
   fm.push(`supersededBy: ${n.supersededBy ? q(n.supersededBy) : 'null'}`);
   if (n.source) fm.push(`source: ${q(n.source)}`);
-  if (n.category) fm.push(`category: ${q(n.category)}`);
+  if (n.description) fm.push(`description: ${q(n.description)}`);
   fm.push('---', '');
 
   const body: string[] = [];
@@ -74,13 +77,17 @@ export function renderIndex(nodes: JournalNode[]): string {
   const cell = (s: string) => s.replace(/\|/g, '\\|');
   const rows = [...nodes]
     .sort((a, b) => a.id.localeCompare(b.id))
-    .map((n) => `| ${n.id} | ${n.date} | ${n.status} | ${cell(n.title)} | ${n.tags.join(', ')} |`);
-  return ['| id | date | status | title | tags |', '| --- | --- | --- | --- | --- |', ...rows].join('\n') + '\n';
+    .map((n) => `| ${n.id} | ${n.timestamp} | ${n.type ?? ''} | ${n.status} | ${cell(n.title)} | ${n.tags.join(', ')} |`);
+  return [
+    '| id | timestamp | type | status | title | tags |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...rows,
+  ].join('\n') + '\n';
 }
 
 /** Render `log.md` — one whitespace-delimited line per write, file order. */
 export function renderLog(log: LogEntry[]): string {
-  return log.map((e) => `${e.date}  ${e.op}  ${e.id}  ${e.title}`).join('\n') + '\n';
+  return log.map((e) => `${e.timestamp}  ${e.op}  ${e.id}  ${e.title}`).join('\n') + '\n';
 }
 
 const SCHEMA_MD = `# Journal schema (conventions — do not override the rules below)
@@ -101,10 +108,10 @@ supersedes | refines | relates | depends-on | contradicts | parent
 Free-form lowercase kebab-case.
 
 ## index.md
-Markdown table: id | date | status | title | tags — one row per node, sorted by id ascending.
+Markdown table: id | timestamp | type | status | title | tags — one row per node, sorted by id ascending.
 
 ## log.md
-Append-only, one line per write: <ISO-8601 date>  <op>  <id>  <title>  (op ∈ create|refine|supersede|merge).
+Append-only, one line per write: <ISO-8601 timestamp>  <op>  <id>  <title>  (op ∈ create|refine|supersede|merge).
 
 This file's prose/tag guidance is human-editable; the status enum, edge-type set,
 and id/filename rules are fixed by code and may not be overridden here.

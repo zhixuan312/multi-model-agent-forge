@@ -610,6 +610,10 @@ function DetailStage({
       const refineTaskId = active.id;
       setRefiningTasks((prev) => new Set(prev).add(refineTaskId));
       setTaskView('discussion');
+      // Sanctioned non-transition content op (see CLAUDE.md route exceptions): a
+      // user-message-driven per-task refine, distinct from the auto-driver's
+      // `validate_task`. `mma.dispatch(url, handler)` is on the centralized client path;
+      // the backend uses dispatchMma + the registered `plan-refine` handler.
       void mma.dispatch(
         `/projects/${projectId}/plan/tasks/${refineTaskId}/refine`,
         'plan-refine',

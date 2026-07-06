@@ -273,4 +273,15 @@ describe('dispatchMma — async + handler:null is fire-and-row-poll [AC3]', () =
     expect(res.batchId).toBe('ext-1'); // widened return — the row-poller keys off it
     expect(registerMock).toHaveBeenCalled();
   });
+
+  it('threads taskId to the PollManager register (R4 discover fan-out)', async () => {
+    registerMock.mockClear();
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-d', createdAt: new Date() }] });
+    await dispatchMma({
+      db, mma: { dispatch: async () => ({ batchId: 'ext-d' }) } as unknown as MmaClient,
+      projectId: 'proj-1', route: 'investigate', handler: null, label: 'discover-investigate',
+      cwd: '/w', body: { prompt: 'q' }, actorId: 'm1', taskId: 'task-0', await: false,
+    });
+    expect(registerMock).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'task-0', batchId: 'row-d', mmaBatchId: 'ext-d' }));
+  });
 });

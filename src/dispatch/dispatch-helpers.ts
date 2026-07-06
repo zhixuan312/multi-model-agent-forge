@@ -45,6 +45,13 @@ export interface DispatchOpts {
   meta?: Record<string, unknown>;
   await?: boolean;
   loopRunId?: string;
+  /**
+   * Exploration-discover fan-out only: the owning `exploration_task` id. Threaded
+   * to the PollManager so its terminal poll flips the matching task to `recorded`
+   * (the generic taskId path — no per-task terminal handler needed). Async-only;
+   * ignored on the sync path.
+   */
+  taskId?: string | null;
 }
 
 export async function findInflight(
@@ -315,7 +322,7 @@ export async function dispatchMma(
         projectId: opts.projectId,
         route: opts.route,
         handler: opts.handler,
-        taskId: null,
+        taskId: opts.taskId ?? null,
         createdAt: row.createdAt,
       });
 

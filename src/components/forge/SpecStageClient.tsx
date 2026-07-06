@@ -238,6 +238,10 @@ export function SpecStageClient(props: SpecStageClientProps) {
     if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
     if (props.pendingAutoDraft) { autoDraftFired.current = true; return; }
     autoDraftFired.current = true;
+    // Sanctioned non-transition content op (see CLAUDE.md route exceptions): whole-spec
+    // auto-draft has no ACTION_KIND. `mma.dispatch(url, handler)` is on the centralized
+    // client path (same SSE wait as transitions); the backend uses dispatchMma + the
+    // registered `spec-auto-draft` handler.
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   // eslint-disable-next-line react-hooks/exhaustive-deps

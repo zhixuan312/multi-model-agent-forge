@@ -417,8 +417,9 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const { dispatchTasks } = await import('@/exploration/dispatch');
       const { getSynthesisScheduler } = await import('@/exploration/synthesis-scheduler');
       getSynthesisScheduler().watch(projectId);
-      const taskIds = action.data?.taskIds as string[] | undefined;
-      await dispatchTasks(projectId, { id: FORGE_MEMBER_ID }, { db }, taskIds);
+      // NOTE: dispatchTasks dispatches ALL `draft` discover tasks (the per-id subset
+      // was never honored); `run_discover_tasks` is an all-drafts fan-out.
+      await dispatchTasks(projectId, { id: FORGE_MEMBER_ID }, { db });
       break;
     }
 

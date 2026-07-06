@@ -101,14 +101,18 @@ export async function buildAutoDraftRequest(
 
   const { teamSpecTemplate } = await import('@/db/schema/team');
   const templates = await db.select().from(teamSpecTemplate);
-  const templateByKind = new Map(templates.map((t) => [t.kind, t]));
+  // Components store a template UUID (`templateId`), so index templates by id and
+  // look them up directly. Splitting the UUID on '-' and matching a template *kind*
+  // (the previous code) never resolved, so every component was skipped and the loop
+  // produced an empty outline → the spurious "No sections to draft." error.
+  const templateById = new Map(templates.map((t) => [t.id, t]));
 
   const comps = d.stages.spec.phases.craft.components.filter((c) => c.approvals.length === 0);
   if (comps.length === 0) return { error: 'No sections to draft.' };
 
   const outline: OutlineEntry[] = [];
   for (const comp of comps) {
-    const tpl = templateByKind.get(comp.templateId.split('-')[1] ?? '');
+    const tpl = templateById.get(comp.templateId);
     const compTpl = tpl ? templateForKind(tpl.kind as ComponentKind) : null;
     if (!compTpl || !tpl) continue;
     const secs = (tpl.sections as Array<{ key: string; label: string }>) ?? [];
@@ -121,8 +125,10 @@ export async function buildAutoDraftRequest(
         sectionLabel: sec.label,
         prompt: secTpl?.prompt ?? sec.label,
         roles: compTpl.primaryRoles,
-        sectionId: `${comp.templateId}:${sec.key}`,
-        componentId: comp.templateId,
+        // Use the component's OWN id (not its templateId) — the write-back keys
+        // Q&A messages and section ids by comp.id everywhere else in the app.
+        sectionId: `${comp.id}-${sec.key}`,
+        componentId: comp.id,
       });
     }
   }

@@ -6,6 +6,7 @@ import { logAction } from '@/observability/action-log';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
 import { recordAuditPass } from '@/automation/details-mutations';
+import { projectEventBus } from '@/sse/event-bus';
 
 export async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const parsed = parseAuditEnvelope(envelope);
@@ -26,6 +27,11 @@ export async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknow
       db,
     );
   }
+
+  // Notify subscribed clients so the audit pass appears without a manual refresh.
+  // Auto-driven audits are dispatched server-side, so the client's onDone tracking
+  // never fires — this SSE event is the only signal the finalize UI gets.
+  projectEventBus.publish(ctx.projectId, { type: 'spec.updated' });
 }
 
 registerHandler('spec-audit', handleSpecAudit);

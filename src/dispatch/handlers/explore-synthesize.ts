@@ -9,6 +9,7 @@ import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
+import { updateDetails } from '@/details/write';
 
 async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const env = (envelope ?? {}) as Record<string, unknown>;
@@ -59,6 +60,14 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
 
   await backupArtifact(ctx.projectId, 'exploration.md');
   const filePath = await writeExplorationSummaryAsync(ctx.projectId, bodyMd);
+
+  // Record the synthesized artifact path on the phase — this is what gates the
+  // "Continue to Spec" advance: allowedActions offers advance_stage only once
+  // synthesize.file is set (otherwise it offers dispatch_synthesize / Re-synthesize).
+  await updateDetails(db, ctx.projectId, (d) => {
+    d.stages.exploration.phases.synthesize.file = filePath;
+    return d;
+  });
 
   await logAction(
     { projectId: ctx.projectId, memberId: request.actorId || 'system', action: 'synthesize', target: `file:${filePath}` },

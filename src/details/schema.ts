@@ -278,7 +278,7 @@ export function buildInitialDetails(): Details {
       exploration: {
         status: 'active',
         phases: {
-          brief: { status: 'pending' },
+          brief: { status: 'active' },
           discover: { status: 'pending', attempts: [], tasks: [] },
           synthesize: { status: 'pending', attempts: [] },
         },

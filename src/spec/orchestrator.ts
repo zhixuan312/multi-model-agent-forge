@@ -7,6 +7,7 @@ import { updateDetails } from '@/details/write';
 import { validateDetails } from '@/details/schema';
 import { project } from '@/db/schema/projects';
 import { teamSpecTemplate } from '@/db/schema/team';
+import { projectEventBus } from '@/sse/event-bus';
 
 /**
  * Spec orchestrator — component lifecycle helpers for the Craft + Outline phases.
@@ -36,9 +37,12 @@ export async function getLatestExploration(
 /**
  * The human nod ("Looks good") — adds the member to the component's approvals.
  */
-export async function onHumanSatisfied(deps: OrchestratorDeps, componentId: string, memberId?: string): Promise<void> {
+export async function onHumanSatisfied(deps: OrchestratorDeps, projectId: string, componentId: string, memberId?: string): Promise<void> {
   const db = deps.db ?? getDb();
-  const [projRow] = await db.select({ id: project.id, details: project.details }).from(project);
+  // MUST filter by projectId — without the WHERE this grabbed an arbitrary project,
+  // so approvals silently no-oped (or hit the wrong project) whenever more than one
+  // project existed.
+  const [projRow] = await db.select({ id: project.id, details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!projRow?.details) return;
   const d = validateDetails(projRow.details);
   const comp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
@@ -56,6 +60,10 @@ export async function onHumanSatisfied(deps: OrchestratorDeps, componentId: stri
     }
     return det;
   });
+
+  // Notify subscribed clients so the approval reflects without a manual refresh —
+  // same pattern as the revoke and invite routes (client refreshes on 'spec.updated').
+  projectEventBus.publish(projectId, { type: 'spec.updated' });
 }
 
 /* ── Outline confirm: store selected templates ──────────────────────── */

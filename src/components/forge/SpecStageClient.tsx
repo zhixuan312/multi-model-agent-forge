@@ -246,6 +246,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     // auto-draft has no ACTION_KIND. `mma.dispatch(url, handler)` is on the centralized
     // client path (same SSE wait as transitions); the backend uses dispatchMma + the
     // registered `spec-auto-draft` handler.
+    setError(null); // clear any stale banner from a prior failed draft before retrying
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,13 +309,21 @@ export function SpecStageClient(props: SpecStageClientProps) {
           existing={components}
           readOnly={readOnly}
           mma={mma}
-          onConfirmed={() => {
-            // select_components created the components server-side; advance to Craft
-            // (the craft-entry effect auto-drafts undrafted sections) and refresh so
-            // the new components flow in from server props.
-            advancePhase('craft');
+          onConfirmed={async () => {
+            // select_components created the components server-side. Order matters:
+            // advancePhase does the transition THEN router.push(?phase=craft), which
+            // can be served from the client router cache captured while there were 0
+            // components. So AWAIT the advance (its push happens first), then refresh
+            // LAST — the fresh RSC fetch (8 components, craft active) wins over any
+            // stale cached push. Firing refresh first let the late push clobber it,
+            // leaving a blank "No components yet" view.
+            await advancePhase('craft');
             refresh();
           }}
+          // Outline already confirmed & locked server-side (components exist) — the
+          // Continue button just moves the VIEW to Craft; re-dispatching
+          // select_components would be rejected ("not allowed now") since outline is done.
+          onGoToCraft={() => setPhase('craft')}
           onError={setError}
         />
       ) : phase === 'craft' ? (
@@ -437,6 +446,7 @@ function OutlineStage({
   readOnly,
   mma,
   onConfirmed,
+  onGoToCraft,
   onError,
 }: {
   projectId: string;
@@ -448,9 +458,13 @@ function OutlineStage({
   readOnly: boolean;
   mma: MmaDispatchState;
   onConfirmed: () => void;
+  onGoToCraft: () => void;
   onError: (m: string | null) => void;
 }) {
   const active = matchTemplate(picked, templates);
+  // The outline is locked once confirmed (server marks outline done + craft active).
+  // In that state select_components is rejected, so Continue just navigates forward.
+  const alreadyConfirmed = existing.length > 0;
 
   const confirm = useMutation({
     mutationFn: () => mma.transition('select_components', { kinds: [...picked], intentMd: intent }),
@@ -643,9 +657,9 @@ function OutlineStage({
           </CardContent>
           <CardFooter>
             <StageAdvance
-              onClick={() => confirm.mutate()}
+              onClick={() => (alreadyConfirmed ? onGoToCraft() : confirm.mutate())}
               label={confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
-              disabled={readOnly || !valid || confirm.isPending}
+              disabled={readOnly || (!alreadyConfirmed && !valid) || confirm.isPending}
               testId="outline-continue"
             />
           </CardFooter>
@@ -1048,6 +1062,7 @@ function CraftStage({
     if (!active || iApproved) return;
     const compId = active.id;
     const prevStatus = active.status;
+    const prevApprovedBy = [...active.approvedBy];
     const prevCollab = collab[compId];
     // Persist approval to DB — one component-level nod through the unified engine
     // (approve_component → onHumanSatisfied, idempotent for the whole component).
@@ -1057,24 +1072,23 @@ function CraftStage({
           ...u,
           participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
         }));
-        onPatch(compId, { status: 'approved' });
+        // Patch approvedBy too, not just status: the re-seed effect rebuilds
+        // participants from approvedBy on any `components` change, so without this the
+        // optimistic approval is wiped on the very next render — which is why it looked
+        // like a manual refresh was needed.
+        onPatch(compId, { status: 'approved', approvedBy: Array.from(new Set([...prevApprovedBy, currentMember.id])) });
       },
       commit: () => mma.transition('approve_component', { componentId: compId }),
       rollback: () => {
-        onPatch(compId, { status: prevStatus });
+        onPatch(compId, { status: prevStatus, approvedBy: prevApprovedBy });
         setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
       },
       error: 'Couldn’t approve — reverted.',
       retryable: true,
     });
-    const currentIdx = components.findIndex((c) => c.id === active.id);
-    const after = components.slice(currentIdx + 1).find((c) => c.status !== 'approved');
-    const before = components.slice(0, currentIdx).find((c) => c.status !== 'approved');
-    const nextOpen = after ?? before;
-    if (nextOpen) {
-      setActiveId(nextOpen.id);
-      setInput('');
-    }
+    // Stay on the just-approved section so the button flips to "Revoke" and the
+    // approval is visible immediately. (Previously it auto-jumped to the next open
+    // section, so you never saw your own approval land.)
   }
 
   function backToEdit(): void {
@@ -1082,13 +1096,19 @@ function CraftStage({
     if (active.status === 'approved') {
       const compId = active.id;
       const prevStatus = active.status;
+      const prevApprovedBy = [...active.approvedBy];
       const prevCollab = collab[compId];
       void optimistic.run({
         apply: () => {
-          onPatch(compId, { status: 'drafted' });
+          // Revoke removes ONLY my approval (matches the server route). Patch
+          // approvedBy so the re-seed keeps other approvers intact; status stays
+          // 'approved' if anyone else still approves, else back to 'drafted'. Clear
+          // only my own approvedAt, not everyone's.
+          const nextApprovedBy = prevApprovedBy.filter((id) => id !== currentMember.id);
+          onPatch(compId, { status: nextApprovedBy.length > 0 ? 'approved' : 'drafted', approvedBy: nextApprovedBy });
           patchCollab((u) => ({
             ...u,
-            participants: u.participants.map((p) => ({ ...p, approvedAt: null })),
+            participants: u.participants.map((p) => (p.member.id === currentMember.id ? { ...p, approvedAt: null } : p)),
           }));
         },
         commit: async () => {
@@ -1096,7 +1116,7 @@ function CraftStage({
           if (!r.ok) throw new Error(`Request failed (${r.status}).`);
         },
         rollback: () => {
-          onPatch(compId, { status: prevStatus });
+          onPatch(compId, { status: prevStatus, approvedBy: prevApprovedBy });
           setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
         },
         error: 'Couldn’t revoke — reverted.',
@@ -1107,11 +1127,16 @@ function CraftStage({
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
-  /** Total teammates still pending across every section — drives the soft nudge. */
-  const pendingTotal = components.reduce(
-    (n, c) => n + pendingParticipants(collab[c.id]?.participants ?? []).length,
-    0,
-  );
+  /** UNIQUE teammates still pending on at least one section — drives the soft nudge.
+   * Count people, not section×person instances (summing double-counted the same few
+   * approvers across all 8 sections, e.g. "15" for only 2 pending teammates). */
+  const pendingTotal = (() => {
+    const ids = new Set<string>();
+    for (const c of components) {
+      for (const p of pendingParticipants(collab[c.id]?.participants ?? [])) ids.add(p.member.id);
+    }
+    return ids.size;
+  })();
   function consolidate(): void {
     if (pendingTotal > 0 && !nudge) {
       setNudge(true);
@@ -1150,13 +1175,19 @@ function CraftStage({
         ) : null}
 
         <div ref={contentRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 px-5 py-5">
-          {autoDrafting && !drafted ? (
+          {/* Loading state while the section awaits its draft. Keyed on the section
+              still being `gathering` with no draft (not just the transient dispatch
+              flag) so the panel stays consistent with the rail's "Drafting…" the whole
+              time the auto-draft is generating — the SSE-done flag clears before the
+              draft actually lands. */}
+          {!showingDraft && !drafted && (autoDrafting || active.status === 'gathering') ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-6 animate-spin text-accent" />
               <p className="text-sm font-medium text-ink">Drafting from exploration brief…</p>
               <p className="text-xs text-ink-soft">Each component is drafted using the exploration findings. This takes a moment.</p>
             </div>
-          ) : null}
+          ) : (
+          <>
 
           {/* Spec view: rendered markdown, like exploration summary */}
           {craftView === 'spec' ? (
@@ -1190,6 +1221,8 @@ function CraftStage({
               ) : null}
             </>
           ) : null}
+          </>
+          )}
           <div ref={bottomRef} />
         </div>
 
@@ -1258,8 +1291,8 @@ function CraftStage({
           <CardFooter className="flex-col !items-stretch gap-2">
             {nudge && pendingTotal > 0 ? (
               <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-                {pendingTotal} {pendingTotal === 1 ? "invited approver hasn't" : "invited approvers haven't"} responded
-                yet. One nod per section is enough — you can proceed anyway.
+                Not all invited approvers have responded yet. One nod per section is
+                enough — you can proceed anyway.
               </div>
             ) : null}
             <Button className="w-full" onClick={consolidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>

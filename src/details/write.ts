@@ -209,12 +209,17 @@ export async function resolveRunningEvent(
   return resolved;
 }
 
+/**
+ * Save the exploration brain-dump text. This is a CONTENT edit — it does NOT
+ * complete the brief phase. The phase stays `active` (so "Analyze sources" /
+ * propose_discover_tasks and further edits remain available) until the human
+ * advances via advance_phase ("Continue to Discover"), which marks it done.
+ */
 export async function setBriefText(
   db: Db, projectId: string, text: string,
 ): Promise<Details> {
   return updateDetails(db, projectId, (d) => {
     d.stages.exploration.phases.brief.text = text;
-    d.stages.exploration.phases.brief.status = 'done';
     return d;
   });
 }

@@ -8,11 +8,30 @@ function withStatuses(s: Record<string, string>) {
 }
 
 describe('repairActiveStage (exactly one active stage invariant, spec §2 / AC16)', () => {
-  it('exactly one active → unchanged', () => {
+  it('exactly one active with an active phase → unchanged', () => {
     const d = withStatuses({ exploration: 'done', spec: 'active' });
+    d.stages.spec.phases.outline.status = 'active';
     const { changed } = repairActiveStage(d);
     expect(changed).toBe(false);
     expect(d.stages.spec.status).toBe('active');
+    expect(d.stages.spec.phases.outline.status).toBe('active');
+  });
+  it('one active stage but NO active phase → reopen its first pending phase', () => {
+    // The initial-state bug: exploration active, brief left pending → set_brief rejected.
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.brief.status = 'pending';
+    const { changed } = repairActiveStage(d);
+    expect(changed).toBe(true);
+    expect(d.stages.exploration.phases.brief.status).toBe('active');
+  });
+  it('one active stage mid-way (first phase done) → reopen the next pending phase, not phase 1', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.brief.status = 'done';
+    d.stages.exploration.phases.discover.status = 'pending';
+    const { changed } = repairActiveStage(d);
+    expect(changed).toBe(true);
+    expect(d.stages.exploration.phases.brief.status).toBe('done');
+    expect(d.stages.exploration.phases.discover.status).toBe('active');
   });
   it('multiple active → keep earliest, later → pending', () => {
     const d = withStatuses({ exploration: 'done', spec: 'active', plan: 'active', review: 'active' });

@@ -41,13 +41,14 @@ describe('write helpers — unit logic', () => {
     expect(validated.automation.startedAt).toBeTruthy();
   });
 
-  it('setBriefText sets text and marks phase done', () => {
+  it('saving brief text keeps the phase active (content edit, not a phase completion)', () => {
     const d = buildInitialDetails();
     d.stages.exploration.phases.brief.text = 'my idea';
-    d.stages.exploration.phases.brief.status = 'done';
 
     const validated = validateDetails(d);
     expect(validated.stages.exploration.phases.brief.text).toBe('my idea');
-    expect(validated.stages.exploration.phases.brief.status).toBe('done');
+    // Saving the brain-dump does NOT complete the brief phase — only advance_phase
+    // ("Continue to Discover") does. Brief stays active so propose_discover_tasks works.
+    expect(validated.stages.exploration.phases.brief.status).toBe('active');
   });
 });

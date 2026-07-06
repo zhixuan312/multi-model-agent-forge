@@ -452,7 +452,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (!componentId) break;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const { onHumanSatisfied } = await import('@/spec/orchestrator');
-      await onHumanSatisfied({ db }, componentId, actorId);
+      await onHumanSatisfied({ db }, projectId, componentId, actorId);
       break;
     }
 

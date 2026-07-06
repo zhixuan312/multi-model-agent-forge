@@ -80,7 +80,7 @@ export function StageAdvance({
   );
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex w-full flex-col gap-1.5">
       <button type="button" onClick={handleClick} disabled={disabled || busy} className={cls} data-testid={testId}>
         {gate ? <Lock aria-hidden="true" className="size-4" /> : null}
         {busy ? 'Advancing…' : label}

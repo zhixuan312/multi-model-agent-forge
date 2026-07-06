@@ -5,6 +5,7 @@ import { qaMessage } from '@/db/schema/spec';
 import { teamSpecTemplate, type TeamSpecTemplateRow } from '@/db/schema/team';
 import { readSpecFileAsync } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
+import { templateForKind } from '@/spec/components';
 import type { ComponentStatus } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import type { ComponentKind } from '@/db/enums';
@@ -140,7 +141,13 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
     const kind = tpl.kind as ComponentKind;
     const sections = Array.isArray(tpl.sections) ? tpl.sections as Array<{ key: string; label: string }> : [];
     const hasApproval = c.approvals.length > 0;
-    const hasDraft = specFileExists && fileComponentContent.has(tpl.label.toLowerCase());
+    // Match the drafted content by the CODE label (templateForKind), because that is
+    // the heading the auto-draft handler wrote into spec.md (`## <compTpl.label>`).
+    // The DB `team_spec_template.label` can differ (e.g. 'Problem statement' vs
+    // 'Problem', 'Risks' vs 'Risks & Mitigations'); using it here silently drops those
+    // sections' drafts even though they exist in the file.
+    const matchLabel = templateForKind(kind).label.toLowerCase();
+    const hasDraft = specFileExists && fileComponentContent.has(matchLabel);
     const status: ComponentStatus = hasApproval ? 'approved' : (hasDraft ? 'drafted' : 'gathering');
 
     views.push({
@@ -155,14 +162,18 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
       stale: false,
       approvedBy: [...c.approvals],
       mmaSessionId: null,
-      participantIds: [],
+      // Invited reviewers are stored spec-level (the /spec/invite route pushes to
+      // spec.participants). Surface them on every component so the invite persists
+      // across refresh — previously hardcoded [], so invited members vanished on the
+      // post-invite SSE re-seed.
+      participantIds: d.stages.spec.participants ?? [],
       orderIndex: i,
       sections: sections.map((s, si) => ({
         id: `${c.id}-${s.key}`,
         key: s.key,
         label: s.label,
         draftMd: si === 0
-          ? fileComponentContent.get(tpl.label.toLowerCase()) ?? null
+          ? fileComponentContent.get(matchLabel) ?? null
           : null,
         orderIndex: si,
       })),

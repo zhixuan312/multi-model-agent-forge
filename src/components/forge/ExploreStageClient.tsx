@@ -97,8 +97,17 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     initialData: props.initialTasks,
     refetchInterval: (query) => {
       const data = query.state.data;
-      const hasRunning = data?.some((t) => t.status === 'running' || (t.batchStatus && t.batchStatus !== 'done' && t.batchStatus !== 'failed'));
-      return hasRunning ? 3000 : false;
+      // Keep polling while a task is still working OR has flipped to `done` but its
+      // result envelope (outputMd) hasn't materialized yet — the batch status and the
+      // persisted result are written in separate ticks, so a poll can observe `done`
+      // before the output is joinable. Stopping there would strand the client on an
+      // empty-output snapshot until a manual refresh. Failed tasks are terminal.
+      const pending = data?.some((t) =>
+        t.status === 'running' ||
+        (t.batchStatus != null && t.batchStatus !== 'done' && t.batchStatus !== 'failed') ||
+        (t.batchStatus === 'done' && !t.outputMd),
+      );
+      return pending ? 3000 : false;
     },
   });
   const { data: artifact } = useQuery<ArtifactCacheEntry | undefined>({
@@ -336,6 +345,17 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   rows={0}
                   className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
                 />
+              </CardContent>
+            </Card>
+          ) : proposing && tasks.length === 0 ? (
+            <Card className="flex min-h-0 flex-1 flex-col">
+              <CardHeader>
+                <CardTitle>Exploration tasks</CardTitle>
+                <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center !py-5">
+                <Loader2 className="size-5 animate-spin text-accent" />
+                <p className="text-sm text-ink-faint">Analyzing sources to propose exploration tasks…</p>
               </CardContent>
             </Card>
           ) : (

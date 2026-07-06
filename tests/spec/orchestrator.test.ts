@@ -86,7 +86,7 @@ describe('onHumanSatisfied', () => {
       ),
       'update:project': [{ id: projectId }],
     });
-    await onHumanSatisfied({ db: mockDb }, componentId, 'member-1');
+    await onHumanSatisfied({ db: mockDb }, projectId, componentId, 'member-1');
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('onHumanSatisfied', () => {
       'select:project': seq([{ id: projectId, details: d }], [{ details: d, detailsVersion: 0 }]),
       'update:project': [{ id: projectId }],
     });
-    await onHumanSatisfied({ db: mockDb }, componentId, 'member-1');
+    await onHumanSatisfied({ db: mockDb }, projectId, componentId, 'member-1');
     const written = (mockDb._callsFor('project').find((c) => c.method === 'set')!.args[0] as { details: typeof d }).details;
     expect(written.stages.spec.phases.craft.components[0].approvals).toContain('member-1');
     expect(written.stages.spec.participants).toContain('member-1'); // the gap this closes

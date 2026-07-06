@@ -200,7 +200,13 @@ export async function visibleProjects(
   const stagesByProject = new Map<string, StageView[]>();
   const repoCountByProject = new Map<string, number>();
   const unavailableByProject = new Map<string, number>();
+  // Derive (phase, currentStage) from details — the source of truth — NOT the
+  // denormalized columns, which can drift for legacy/externally-modified rows. The
+  // card's rail already reads details, so reading the badge/CTA from the same place
+  // makes the card internally consistent by construction.
+  const derivedByProject = new Map<string, { currentStage: StageKind | null; phase: ProjectPhase }>();
 
+  const { deriveStageAndPhase } = await import('@/details/write');
   for (const r of rows) {
     if (r.details) {
       try {
@@ -211,6 +217,7 @@ export async function visibleProjects(
         }));
         stagesByProject.set(r.id, stages);
         repoCountByProject.set(r.id, d.repos.length);
+        derivedByProject.set(r.id, deriveStageAndPhase(d));
       } catch { /* invalid details — skip */ }
     }
   }
@@ -218,13 +225,14 @@ export async function visibleProjects(
   return rows.map((r) => {
     const owner = ownerById.get(r.ownerId);
     const orderedStages = orderStages(stagesByProject.get(r.id) ?? []);
+    const derived = derivedByProject.get(r.id);
     return {
       id: r.id,
       name: r.name,
       summary: r.summary,
       visibility: r.visibility,
-      phase: r.phase,
-      currentStage: r.currentStage,
+      phase: derived?.phase ?? r.phase,
+      currentStage: derived?.currentStage ?? r.currentStage,
       ownerId: r.ownerId,
       ownerDisplayName: owner?.displayName ?? 'Unknown',
       ownerAvatarTint: owner?.avatarTint ?? '#9a6b4f',

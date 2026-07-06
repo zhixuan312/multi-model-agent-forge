@@ -48,6 +48,11 @@ export async function onHumanSatisfied(deps: OrchestratorDeps, componentId: stri
     const c = det.stages.spec.phases.craft.components.find((x) => x.id === componentId);
     if (c && memberId && !c.approvals.includes(memberId)) {
       c.approvals.push(memberId);
+      // An approver is by definition a participant — keep the stage roster complete
+      // so downstream readers (dashboard "who's involved") never miss an approver.
+      if (!det.stages.spec.participants.includes(memberId)) {
+        det.stages.spec.participants.push(memberId);
+      }
     }
     return det;
   });

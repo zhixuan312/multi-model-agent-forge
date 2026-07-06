@@ -125,9 +125,30 @@ export async function dashboardProjects(
     }
   }
 
-  // Collaborators: owner is already shown in base; no participant table needed
-  // (details tracks participants per-stage, but the dashboard only needs the owner)
+  // Collaborators: the members who ACTUALLY participated — details tracks participant
+  // member-ids per stage. Union them across stages, drop the owner (shown separately),
+  // resolve to names. NOT the whole roster: a project shows only who worked on it, so
+  // a solo-driven project correctly shows just its owner.
+  const memberById = new Map(
+    (await db.select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint }).from(member))
+      .map((m) => [m.id, m]),
+  );
+  // Only spec / plan / journal carry a participants roster in details.
+  const PARTICIPANT_STAGES = ['spec', 'plan', 'journal'] as const;
   const collabByP = new Map<string, DashboardCollaborator[]>();
+  for (const r of detailsRows) {
+    if (!r.details) continue;
+    try {
+      const d = validateDetails(r.details);
+      const ids = new Set<string>();
+      for (const k of PARTICIPANT_STAGES) for (const pid of d.stages[k].participants) ids.add(pid);
+      ids.delete(r.ownerId);
+      collabByP.set(
+        r.id,
+        [...ids].map((id) => memberById.get(id)).filter((m): m is DashboardCollaborator => !!m),
+      );
+    } catch { /* invalid details — skip */ }
+  }
 
   const DESIGN_STAGES = new Set(['exploration', 'spec', 'plan']);
 

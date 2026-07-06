@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
 import { resolveRunningEventInPlace, reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
-import { STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_ORDER, type StageKind, type ProjectPhase } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
   constructor(projectId: string) {
@@ -51,18 +51,38 @@ const STAGE_PHASE: Record<StageKind, 'design' | 'build' | 'learn'> = {
 };
 
 /**
+ * The pure projection of `details.stages` onto the denormalized (currentStage, phase)
+ * pair — the SINGLE source of the derivation rule, shared by the DB writer below and
+ * by any read that needs the columns (e.g. the dashboard list). Cases:
+ *  - a stage is active → that stage + its phase (the normal mid-flow state);
+ *  - all six stages done → journal / `completed` (a finished project — this is what
+ *    activates the otherwise-dormant `completed` phase, since `mark_complete` only
+ *    stamps `completedAt`, not the phase);
+ *  - otherwise (a transient between-stages state) → the furthest done stage, or the
+ *    initial exploration / design when nothing has started.
+ */
+export function deriveStageAndPhase(d: Details): { currentStage: StageKind; phase: ProjectPhase } {
+  const active = STAGE_ORDER.find((k) => d.stages[k].status === 'active');
+  if (active) return { currentStage: active, phase: STAGE_PHASE[active] };
+  if (STAGE_ORDER.every((k) => d.stages[k].status === 'done')) {
+    return { currentStage: 'journal', phase: 'completed' };
+  }
+  const lastDone = [...STAGE_ORDER].reverse().find((k) => d.stages[k].status === 'done');
+  if (lastDone) return { currentStage: lastDone, phase: STAGE_PHASE[lastDone] };
+  return { currentStage: 'exploration', phase: 'design' };
+}
+
+/**
  * The single writer of the denormalized `currentStage`/`phase` columns (spec §4.4,
- * AC8): mirror them from the one active stage in `details`. Called by
- * `performTransition` after every effect, so the columns can never drift. (The
- * pre-existing direct writes in advanceStage/reopenStage are removed in Task 11.)
+ * AC8): mirror them from `details` via `deriveStageAndPhase`. Called by
+ * `performTransition` after every effect, so the columns can never drift — including
+ * on `mark_complete`, where no stage is active but the project is `completed`.
  */
 export async function deriveCurrentStage(db: Db, projectId: string): Promise<void> {
   const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!row?.details) return;
-  const d = validateDetails(row.details);
-  const active = STAGE_ORDER.find((k) => d.stages[k].status === 'active');
-  if (!active) return;
-  await db.update(project).set({ currentStage: active, phase: STAGE_PHASE[active], updatedAt: new Date() }).where(eq(project.id, projectId));
+  const { currentStage, phase } = deriveStageAndPhase(validateDetails(row.details));
+  await db.update(project).set({ currentStage, phase, updatedAt: new Date() }).where(eq(project.id, projectId));
 }
 
 export async function advanceStage(

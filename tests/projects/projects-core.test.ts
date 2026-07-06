@@ -121,6 +121,29 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
     await expect(assertProjectReadable(projectId, { id: strangerId }, { db: mockDb })).resolves.toBeUndefined();
   });
 
+  it('derives phase/currentStage from details — NOT the stale denormalized column', async () => {
+    // The column drift bug: a completed project whose `phase` column was left at an
+    // old value must still render as completed, because the card reads the derived
+    // value from details (the source of truth), not the column.
+    const { buildInitialDetails } = await import('@/details/schema');
+    const d = buildInitialDetails();
+    for (const s of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      d.stages[s].status = 'done';
+    }
+    const mockDb = createMockDb({
+      'select:project': [{
+        id: 'proj-drift', name: 'Done', summary: null, visibility: 'public',
+        phase: 'design', currentStage: 'exploration', // STALE columns
+        ownerId: 'owner-d', updatedAt: new Date(), details: d,
+      }],
+      'select:team_member': [{ id: 'owner-d', displayName: 'Owner', avatarTint: '#fff' }],
+    });
+
+    const [proj] = await visibleProjects({ id: 'owner-d' }, { db: mockDb });
+    expect(proj.phase).toBe('completed'); // derived from details, not the 'design' column
+    expect(proj.currentStage).toBe('journal');
+  });
+
   it('a private project is hidden from a non-collaborator', async () => {
     const projectId = 'proj-7';
     const ownerId = 'owner-7';

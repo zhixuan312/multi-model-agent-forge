@@ -128,7 +128,11 @@ export default async function JournalPage({
     }));
     faqs = topQ;
     recentRecalls = recentBatches.map((b) => {
-      const question = (b.request as Record<string, unknown>)?.query as string ?? '';
+      // The recall query lives in the batch `request`. The centralized dispatchMma path
+      // stores it as `prompt`; older rows (pre-harmonization) used `query` — read both
+      // so every recent answer shows its question, not a blank row.
+      const req = (b.request as Record<string, unknown>) ?? {};
+      const question = (req.prompt as string) ?? (req.query as string) ?? '';
       const base = { id: b.id, question, status: b.status, batchId: b.batchId };
       if (b.status === 'done' && b.result) {
         try {

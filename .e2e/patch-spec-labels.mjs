@@ -5,7 +5,7 @@
 // Optimistic-lock safe (retries on version bump) so it never clobbers the live
 // driver's concurrent appends.
 import postgres from 'postgres';
-const DB = 'postgresql://postgres:REDACTED_ROTATED@100.117.229.27/postgres';
+const DB = process.env.DATABASE_URL; // set DATABASE_URL before running — never hardcode credentials
 const PID = '97801cb6-8d2c-4745-b3bb-b7166053a758';
 const sql = postgres(DB);
 try {

@@ -2,7 +2,7 @@
 // details (approvals/learnings), using the same labels/durations/pass-numbering
 // as the live activity-log model. Usage: node .e2e/backfill-events.mjs <projectId>
 import postgres from 'postgres';
-const DB = 'postgresql://postgres:REDACTED_ROTATED@100.117.229.27/postgres';
+const DB = process.env.DATABASE_URL; // set DATABASE_URL before running — never hardcode credentials
 const PID = process.argv[2] || '02378477-1808-4f45-9b3c-35ba8e0b5d38';
 const FORGE = '00000000-0000-0000-0000-000000000000';
 

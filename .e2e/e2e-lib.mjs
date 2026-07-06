@@ -4,7 +4,11 @@ import postgres from 'postgres';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-export const DB = 'postgresql://postgres:REDACTED_ROTATED@100.117.229.27/postgres';
+// Never hardcode credentials — read the connection string from the environment.
+// Set DATABASE_URL before running any harness script (same var the Forge app uses).
+export const DB = process.env.DATABASE_URL ?? (() => {
+  throw new Error('DATABASE_URL is not set — export it before running the E2E harness.');
+})();
 export const PID = '97801cb6-8d2c-4745-b3bb-b7166053a758';
 export const MEMBER = '3ba973d8-fe06-4294-b963-5b77ce9653bc'; // xuan
 export const REPO = '/Users/zhangzhixuan/Documents/code/mma-parent/multi-model-agent-forge/.forge-workspace/self_service_demo';

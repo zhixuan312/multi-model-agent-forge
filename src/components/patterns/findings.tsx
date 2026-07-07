@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Badge } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -129,17 +129,26 @@ export function FindingCard({ finding, index, selected, applied, disabled, onSel
 
 export interface FindingsGridProps {
   findings: Finding[];
+  /** Render a leading checkbox column so the user can pick a subset. Selection is
+   * controlled by the caller (`selectedIndices` + `onToggle`) — pair with the shared
+   * `FindingsApplyBar` in the card footer. Omit for a read-only table (unchanged look). */
+  selectable?: boolean;
+  selectedIndices?: number[];
+  onToggle?: (index: number) => void;
   applying?: boolean;
   applied?: boolean;
   readOnly?: boolean;
 }
 
 /**
- * Read-only findings table (severity-sorted). Applying a pass is driven by the
- * caller's own button — the effect re-fixes the whole pass, so there is no
- * per-finding selection to model here.
+ * Severity-sorted findings table. Read-only by default; when `selectable`, adds a
+ * checkbox column (indices are positions in the ORIGINAL `findings` array, which the
+ * server re-parses in the same order, so a checked row maps 1:1 to the fixed finding).
+ * The apply controls live in the shared `FindingsApplyBar` so all three audit/review
+ * stages stay identical.
  */
-export function FindingsGrid({ findings, applying, applied, readOnly }: FindingsGridProps) {
+export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, applying, applied, readOnly }: FindingsGridProps) {
+  const sel = new Set(selectedIndices ?? []);
   const sorted = [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const disabled = readOnly || !!applying || !!applied;
 
@@ -149,26 +158,59 @@ export function FindingsGrid({ findings, applying, applied, readOnly }: Findings
         <table className="w-full">
           <thead>
             <tr className="border-b border-line text-left text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+              {selectable ? <th className="w-10 py-2 pl-4 pr-1" /> : null}
               <th className="w-20 py-2 px-2">Severity</th>
               <th className="py-2 px-2">Finding</th>
               <th className="w-10 py-2 pr-4" />
             </tr>
           </thead>
           <tbody>
-            {sorted.map((f, i) => (
-              <FindingTableRow
-                key={i}
-                finding={f}
-                index={findings.indexOf(f)}
-                applied={applied}
-                disabled={disabled}
-              />
-            ))}
+            {sorted.map((f, i) => {
+              const origIdx = findings.indexOf(f);
+              return (
+                <FindingTableRow
+                  key={i}
+                  finding={f}
+                  index={origIdx}
+                  selected={selectable ? sel.has(origIdx) : undefined}
+                  applied={applied}
+                  disabled={disabled}
+                  onSelect={selectable ? () => onToggle?.(origIdx) : undefined}
+                />
+              );
+            })}
           </tbody>
         </table>
       ) : (
         <p className="px-4 py-6 text-center text-xs text-ink-faint">No findings.</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The ONE apply-bar for every audit/review stage — rendered in the card footer, in
+ * the exact spot the single Apply button used to sit. Shared so spec · plan · review
+ * can't drift. Selection is owned by the caller; this renders Select-all + Apply and
+ * reports intent back via `onToggleAll` / `onApply`.
+ */
+export function FindingsApplyBar({ selectedCount, total, applying, readOnly, onToggleAll, onApply }: {
+  selectedCount: number;
+  total: number;
+  applying?: boolean;
+  readOnly?: boolean;
+  onToggleAll: () => void;
+  onApply: () => void;
+}) {
+  const allSelected = total > 0 && selectedCount === total;
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+      <Button size="sm" variant="ghost" onClick={onToggleAll} disabled={readOnly || applying}>
+        {allSelected ? 'Unselect all' : 'Select all'}
+      </Button>
+      <Button size="sm" onClick={onApply} disabled={readOnly || applying || selectedCount === 0} loading={applying}>
+        Apply ({selectedCount || 'all'})
+      </Button>
     </div>
   );
 }

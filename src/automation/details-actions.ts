@@ -19,6 +19,7 @@ import {
 } from '@/automation/details-mutations';
 import { startExecuteRun } from '@/build/start-execute-run';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
+import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } from '@/review/review-findings';
 import type { AutoAction } from '@/automation/details-resolver';
 
 /** Outcome of an action: `inflight` means an MMA batch for this (project, handler)
@@ -160,7 +161,16 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       // so apply_findings can never spin on an empty list (the old object-only
       // `extractFindings` diverged from the string-aware verdict → infinite loop).
       const parsed = parseAuditEnvelope(batch.result);
-      const findings = parsed.kind === 'report' ? parsed.findings : [];
+      const allFindings = parsed.kind === 'report' ? parsed.findings : [];
+      // Manual subset apply: the client may pass `findingIndices` — positions in the
+      // parsed findings array. auditPassHistory (the client's findings source) runs the
+      // SAME parser, so a checked row's index maps 1:1 to `allFindings` here. No indices
+      // (auto mode, or "Apply all") → fix every finding, preserving prior behavior.
+      const selRaw = (action.data as { findingIndices?: unknown } | undefined)?.findingIndices;
+      const selected = Array.isArray(selRaw)
+        ? selRaw.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < allFindings.length)
+        : [];
+      const findings = selected.length > 0 ? selected.map((i) => allFindings[i]) : allFindings;
       if (findings.length === 0) break;
       await backupArtifact(projectId, scope === 'spec' ? 'spec.md' : 'plan.md');
       const prompt = buildRevisePrompt(filePath, findings);
@@ -339,6 +349,27 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (!entry) break;
       const repoMeta = d.repos.find((r) => r.id === entry.repoId);
       if (!repoMeta) break;
+      // Resolve the pass's findings so we can (a) enumerate exactly the chosen subset in
+      // the fix prompt and (b) record which indices were applied (drives the per-pass
+      // applied UI). Manual sends `findingIndices`; auto sends none → apply ALL. Same
+      // dispatch either way — only the array size differs.
+      const lastPass = entry.reviewPasses[entry.reviewPasses.length - 1];
+      const passNo = (action.data?.passNo as number | undefined) ?? lastPass?.passNo;
+      const reviewBatchId = lastPass?.review?.attempts?.[0]?.batchId;
+      let allFindings: RawReviewFinding[] = [];
+      if (reviewBatchId) {
+        const [rb] = await db.select({ result: mmaBatch.result }).from(mmaBatch).where(eq(mmaBatch.id, reviewBatchId)).limit(1);
+        if (rb?.result) allFindings = extractReviewFindings(rb.result);
+      }
+      const selRaw = (action.data as { findingIndices?: unknown } | undefined)?.findingIndices;
+      const selected = Array.isArray(selRaw)
+        ? selRaw.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < allFindings.length)
+        : [];
+      const indices = selected.length > 0 ? selected : allFindings.map((_, i) => i);
+      const chosen = indices.map((i) => allFindings[i]).filter(Boolean);
+      const prompt = chosen.length > 0
+        ? buildReviewFixPrompt(chosen)
+        : 'Apply the code-review findings from the previous review pass to the code in this repository. Make the fixes directly.';
       // `delegate` (worktree route): MMA cuts a worktree off the checked-out
       // `forge/…` branch HEAD, the worker applies the fixes, and MMA force-commits
       // the diff and fast-forward-merges it back onto the project branch — so MMA
@@ -346,10 +377,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       // it a single-worker single-commit run. The worker runs in an isolated HEAD
       // checkout, so the working tree MUST be clean at dispatch (execute + prior
       // review-apply both commit, so it is). The handler records the fix + pushes.
+      // `passNo` + `findingIndices` ride in meta → the batch request column → the review
+      // page reads them back to show which findings are applied.
       await dispatchMma({
         db, mma, projectId, route: 'delegate', handler: 'review-apply', cwd: repoMeta.pathOnDisk,
-        body: { prompt: 'Apply the code-review findings from the previous review pass to the code in this repository. Make the fixes directly.', reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, meta: { repoId: entry.repoId }, await: true,
+        body: { prompt, reviewPolicy: 'none' },
+        actorId: FORGE_MEMBER_ID, meta: { repoId: entry.repoId, passNo, findingIndices: indices }, await: true,
       });
       break;
     }

@@ -18,7 +18,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 
 const REVIEW_NOTE = `### Review — check the code changes
 
@@ -109,16 +109,20 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     if (props.passes.length > 0) setActivePassNo(props.passes[props.passes.length - 1].passNo);
   }, [props.passes.length]);
 
+  // Manual subset selection — indices into the active pass's findings array.
+  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
+  const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  useEffect(() => { setSelectedFindings([]); }, [activePassNo]);
 
-  function apply(passNo: number) {
-    if (readOnly || applying) return;
+  function apply(passNo: number, indices: number[]) {
+    if (readOnly || applying || indices.length === 0) return;
     const pass = props.passes.find((p) => p.passNo === passNo);
     if (!pass || pass.findings.length === 0) return;
-    // apply_review_findings re-fixes ALL of the latest pass's findings for the repo
-    // (the single shared implementation — auto and manual apply the same way, so the
-    // UI applies the whole pass rather than a subset the effect would ignore).
+    // Same effect as auto mode — only the array size differs. Manual sends the selected
+    // subset (or all) as findingIndices; the server enumerates exactly those findings in
+    // the fix prompt and records them so the pass reflects what was applied.
     setApplyingLocal(true);
-    void mma.transition('apply_review_findings')
+    void mma.transition('apply_review_findings', { findingIndices: indices, passNo })
       .then(() => refresh())
       .catch(() => { showToast({ type: 'error', message: 'Couldn’t apply review findings — try again.' }); })
       .finally(() => setApplyingLocal(false));
@@ -191,6 +195,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
               <FindingsGrid
                 findings={activePass.findings.map(toFinding)}
+                selectable={!isViewingPast}
+                selectedIndices={selectedFindings}
+                onToggle={toggleFinding}
                 applying={applying}
                 applied={allApplied}
                 readOnly={readOnly}
@@ -198,14 +205,14 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             </CardContent>
 
             {!isViewingPast && !allApplied && activePass.findings.length > 0 ? (
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-                <Button size="sm"
-                  onClick={() => apply(activePass.passNo)}
-                  disabled={readOnly || applying}
-                  loading={applying}>
-                  Apply findings ({activePass.findings.length})
-                </Button>
-              </div>
+              <FindingsApplyBar
+                selectedCount={selectedFindings.length}
+                total={activePass.findings.length}
+                applying={applying}
+                readOnly={readOnly}
+                onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
+                onApply={() => apply(activePass.passNo, selectedFindings)}
+              />
             ) : null}
           </>
         )}

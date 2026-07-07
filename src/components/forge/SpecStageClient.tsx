@@ -35,7 +35,7 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { showToast } from '@/components/ui/toast';
-import { FindingsGrid, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
   Avatar,
@@ -1494,22 +1494,28 @@ function DocumentScreen({
   const [applyingPass, setApplyingPass] = useState<number | null>(null);
   const [appliedPasses, setAppliedPasses] = useState<Set<number>>(new Set());
   const [applyCount, setApplyCount] = useState(0);
+  // Manual subset selection — indices into the active round's findings array.
+  const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
+  const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  useEffect(() => { setSelectedFindings([]); }, [selectedPass]);
 
-  function apply(passNo: number): void {
-    if (readOnly || applying) return;
+  function apply(passNo: number, indices: number[]): void {
+    if (readOnly || applying || indices.length === 0) return;
     const round = rounds.find((r) => r.passNo === passNo);
     if (!round || round.findings.length === 0) return;
-    // apply_findings re-fixes ALL of the pass's findings — the single shared effect
-    // reads the pass from `details`, so it takes no client payload (a selected subset
-    // would be silently ignored).
+    // Same dispatch for auto and manual — only the array size differs. Auto mode
+    // dispatches apply_findings for the WHOLE pass (no findingIndices); manual sends the
+    // user-selected subset (or all) as `findingIndices`. The server filters the re-parsed
+    // findings by these indices — identical parser, so indices align 1:1 with the rows.
     setApplying(true);
     setApplyingPass(passNo);
-    setApplyCount(round.findings.length);
-    void mma.transition('apply_findings')
+    setApplyCount(indices.length);
+    void mma.transition('apply_findings', { findingIndices: indices })
       .then(() => {
         setApplying(false);
         setAppliedPasses((prev) => new Set(prev).add(passNo));
         setApplyingPass(null);
+        setSelectedFindings([]);
         refresh();
       })
       .catch(() => { setApplying(false); setApplyingPass(null); });
@@ -1593,6 +1599,10 @@ function DocumentScreen({
           ) : activeRound ? (
             <FindingsGrid
               findings={activeRound.findings as Finding[]}
+              selectable
+              selectedIndices={selectedFindings}
+              onToggle={toggleFinding}
+              applying={applying}
               applied={activeRound.applied || appliedPasses.has(activeRound.passNo)}
               readOnly={readOnly}
             />
@@ -1636,16 +1646,14 @@ function DocumentScreen({
             </Button>
           </div>
         ) : activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && docView !== 'document' && activeRound.findings.length > 0 ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              onClick={() => apply(activeRound.passNo)}
-              disabled={readOnly || applying}
-              loading={applying}
-            >
-              Apply findings ({activeRound.findings.length})
-            </Button>
-          </div>
+          <FindingsApplyBar
+            selectedCount={selectedFindings.length}
+            total={activeRound.findings.length}
+            applying={applying}
+            readOnly={readOnly}
+            onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
+            onApply={() => apply(activeRound.passNo, selectedFindings)}
+          />
         ) : null}
         {!mmaReady ? (
           <div className="shrink-0 border-t border-line px-5 py-2">

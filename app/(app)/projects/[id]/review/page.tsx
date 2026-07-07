@@ -6,6 +6,7 @@ import { mmaBatch } from '@/db/schema/ops';
 import { buildPr } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { ReviewStageClient, type ReviewPassView } from '@/components/forge/ReviewStageClient';
+import { extractReviewFindings } from '@/review/review-findings';
 
 export default async function ReviewStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -47,14 +48,9 @@ export default async function ReviewStagePage({ params, searchParams }: { params
 
   const passes: ReviewPassView[] = reviewBatches.map((b, i) => {
     const passNo = i + 1;
-    const env = b.result as Record<string, unknown> | null;
-    const output = (env?.output ?? {}) as Record<string, unknown>;
-    let summary = output.summary;
-    if (typeof summary === 'string') {
-      try { summary = JSON.parse(summary.replace(/^```json\n?/, '').replace(/\n?```\s*$/, '')); } catch {}
-    }
-    const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
-    const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];
+    // Same parser the apply_review_findings effect uses, so a checked row's index maps
+    // 1:1 to the finding the worker fixes.
+    const findings = extractReviewFindings(b.result);
 
     const appliedForPass = applyBatches
       .filter((ab) => (ab.request as Record<string, unknown> | null)?.passNo === passNo)
@@ -66,15 +62,7 @@ export default async function ReviewStagePage({ params, searchParams }: { params
     return {
       passNo,
       status: (b.status === 'done' ? 'done' : 'failed') as 'done' | 'failed',
-      findings: findings.map((f) => ({
-        weight: (f.weight as string) ?? 'medium',
-        category: (f.category as string) ?? '',
-        claim: (f.claim as string) ?? '',
-        evidence: (f.evidence as string) ?? '',
-        file: (f.file as string) ?? '',
-        line: typeof f.line === 'number' ? f.line : 0,
-        suggestion: (f.suggestion as string) ?? '',
-      })),
+      findings,
       appliedIndices: [...new Set(appliedForPass)],
     };
   });

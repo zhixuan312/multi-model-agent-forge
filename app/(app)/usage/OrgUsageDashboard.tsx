@@ -1,10 +1,10 @@
 import { DollarSign, TrendingUp, Cpu, Users, AlertTriangle, UserRound } from 'lucide-react';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
-import { RailNote } from '@/components/patterns/feature-rail';
+import { MetricRow, MetricCard } from '@/components/ui/metric-card';
 import {
   Card,
   CardContent,
   Title,
+  Text,
   Badge,
   EmptyState,
   Table,
@@ -21,86 +21,77 @@ import { Sparkline } from './Sparkline';
 /**
  * Org-level global usage view (Spec 3, org_admin only). Numbers-only rollup
  * across every team — the org owner sees the bill and where it goes, never any
- * team's project/spec/journal contents or member identities. Trend sparklines
- * are intentionally omitted until the daily-bucketing rollup lands (the current
- * usage-core `trend`/`sparkline` fields are stubs) — we render only real data.
+ * team's project/spec/journal contents or member identities. Laid out as one
+ * scrollable column: a headline metric row, then the daily cost trend, per-team
+ * spend, and the infrastructure breakdown, closed by the privacy note.
  */
 
 const pct = (r: number): string => `${(r * 100).toFixed(r > 0 && r < 0.1 ? 1 : 0)}%`;
 
-const ORG_NOTE = `### Organization usage
-
-- **Numbers only** — cost, tokens, and activity aggregated across every team
-- **No team contents** — project names, specs, journals, and member identities stay private to each team
-
-### What you can see
-
-- The org-wide bill and where it goes — route, tier, and model
-- How spend splits across teams, with member counts and cost share`;
-
 export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
   const h = data.headline;
   return (
-    <StatusDashboard
-      metrics={[
-        {
-          label: 'Spent',
-          value: formatCost(h.totalCostUsd),
-          sublabel: `${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`,
-          icon: <DollarSign />,
-          iconTint: 'accent',
-          muted: h.dispatchCount === 0,
-        },
-        {
-          label: 'Saved',
-          value: formatCost(h.totalSavedUsd || null),
-          sublabel: formatRoi(h.totalSavedUsd, h.totalCostUsd),
-          icon: <TrendingUp />,
-          iconTint: 'sage',
-          muted: !h.totalSavedUsd,
-        },
-        {
-          label: 'Tokens',
-          value: formatTokens(h.totalTokens),
-          sublabel: 'input + output',
-          icon: <Cpu />,
-          iconTint: 'steel',
-          muted: h.totalTokens === 0,
-        },
-        {
-          label: 'Active teams',
-          value: h.activeTeams,
-          sublabel: 'billing this period',
-          icon: <Users />,
-          iconTint: 'accent',
-          muted: h.activeTeams === 0,
-        },
-        {
-          label: 'Failure rate',
-          value: pct(h.failureRate),
-          sublabel: 'of dispatches',
-          icon: <AlertTriangle />,
-          iconTint: 'rose',
-          muted: h.failureRate === 0,
-        },
-        {
-          label: 'Cost / member',
-          value: formatCost(h.costPerMemberUsd || null),
-          sublabel: 'across all teams',
-          icon: <UserRound />,
-          iconTint: 'steel',
-          muted: !h.costPerMemberUsd,
-        },
-      ]}
-      primary={
-        <div className="flex flex-col gap-4">
-          <OrgTrendCard trend={data.trend.orgTotal} />
-          <OrgTeamTable rows={data.costByTeam} />
-          <OrgInfraTable rows={data.infraBreakdown} />
-        </div>
-      }
-      aside={<RailNote icon={<DollarSign />}>{ORG_NOTE}</RailNote>}
-    />
+    <div className="flex flex-col gap-4">
+      <MetricRow>
+        <MetricCard
+          label="Spent"
+          value={formatCost(h.totalCostUsd)}
+          sublabel={`${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`}
+          icon={<DollarSign />}
+          iconTint="accent"
+          muted={h.dispatchCount === 0}
+        />
+        <MetricCard
+          label="Saved"
+          value={formatCost(h.totalSavedUsd || null)}
+          sublabel={formatRoi(h.totalSavedUsd, h.totalCostUsd)}
+          icon={<TrendingUp />}
+          iconTint="sage"
+          muted={!h.totalSavedUsd}
+        />
+        <MetricCard
+          label="Tokens"
+          value={formatTokens(h.totalTokens)}
+          sublabel="input + output"
+          icon={<Cpu />}
+          iconTint="steel"
+          muted={h.totalTokens === 0}
+        />
+        <MetricCard
+          label="Active teams"
+          value={h.activeTeams}
+          sublabel="billing this period"
+          icon={<Users />}
+          iconTint="accent"
+          muted={h.activeTeams === 0}
+        />
+        <MetricCard
+          label="Failure rate"
+          value={pct(h.failureRate)}
+          sublabel="of dispatches"
+          icon={<AlertTriangle />}
+          iconTint="rose"
+          muted={h.failureRate === 0}
+        />
+        <MetricCard
+          label="Cost / member"
+          value={formatCost(h.costPerMemberUsd || null)}
+          sublabel="across all teams"
+          icon={<UserRound />}
+          iconTint="steel"
+          muted={!h.costPerMemberUsd}
+        />
+      </MetricRow>
+
+      <OrgTrendCard trend={data.trend.orgTotal} />
+      <OrgTeamTable rows={data.costByTeam} />
+      <OrgInfraTable rows={data.infraBreakdown} />
+
+      <Text className="px-1 text-xs text-ink-faint">
+        Numbers only — cost, tokens, and activity aggregated across every team. Project names, specs, journals, and
+        member identities stay private to each team.
+      </Text>
+    </div>
   );
 }
 

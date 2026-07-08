@@ -44,7 +44,6 @@ export default async function UsagePage({
         title="Organization usage"
         subnav={<UsageTabsNav active="overview" role={member.role} />}
         width="full"
-        fill
         actions={
           <Suspense>
             <PeriodSelect />

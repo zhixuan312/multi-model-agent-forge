@@ -4,17 +4,14 @@ import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
+import { team } from '@/db/schema/team';
 import { MMA_ROUTE, MMA_STATUS } from '@/db/enums';
 
-/**
- * `ops_mma_batch` — one row per MMA call. The scalar `target_repo_id` FK
- * structurally bounds each batch to ≤1 repo. `result` holds the terminal
- * 7-field envelope only after a terminal state.
- */
 export const mmaBatch = forge.table(
   'ops_mma_batch',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    teamId: uuid('team_id').notNull().references(() => team.id),
     projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
     route: text('route', { enum: MMA_ROUTE }).notNull(),
     targetRepoId: uuid('target_repo_id').references(() => repo.id),
@@ -24,7 +21,7 @@ export const mmaBatch = forge.table(
     handler: text('handler'),
     request: jsonb('request').notNull(),
     result: jsonb('result'),
-    dispatchedBy: uuid('dispatched_by').references(() => member.id),
+    dispatchedBy: uuid('dispatched_by').references(() => member.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     terminalAt: timestamp('terminal_at', { withTimezone: true }),
     costUsd: numeric('cost_usd'),
@@ -37,11 +34,7 @@ export const mmaBatch = forge.table(
     implementerTier: text('implementer_tier'),
     loopRunId: uuid('loop_run_id'),
   },
-  (t) => [
-    index('mma_batch_project_created_idx').on(t.projectId, t.createdAt),
-    index('mma_batch_batch_id_idx').on(t.batchId),
-    index('mma_batch_loop_run_idx').on(t.loopRunId),
-  ],
+  (t) => [index('mma_batch_team_created_idx').on(t.teamId, t.createdAt), index('mma_batch_project_created_idx').on(t.projectId, t.createdAt), index('mma_batch_batch_id_idx').on(t.batchId), index('mma_batch_loop_run_idx').on(t.loopRunId)],
 );
 
 export type MmaBatchRow = typeof mmaBatch.$inferSelect;

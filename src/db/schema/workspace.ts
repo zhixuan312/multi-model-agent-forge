@@ -1,27 +1,21 @@
-import { uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
+import { team } from '@/db/schema/team';
 import { REPO_STATUS } from '@/db/enums';
 
-/**
- * `workspace_repo` — a team repository on disk (schema.md §2). The Workspace UI + the
- * clone/pull git service are Part B. Repos are classified by `tags` only — a
- * free-form, GIN-indexed text[] that doubles as the filter axis. `status`
- * tracks the clone/pull lifecycle (cloned | pulling | error).
- */
 export const repo = forge.table(
   'workspace_repo',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    name: text('name').notNull().unique(),
-    pathOnDisk: text('path_on_disk').notNull(), // under /workspace
+    teamId: uuid('team_id').notNull().references(() => team.id),
+    name: text('name').notNull(),
+    pathOnDisk: text('path_on_disk').notNull(),
     defaultBranch: text('default_branch').notNull(),
     tags: text('tags').array().notNull().default(sql`'{}'`),
-    headSha: text('head_sha'), // last pulled HEAD
+    headSha: text('head_sha'),
     status: text('status', { enum: REPO_STATUS }).notNull().default('cloned'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('repo_tags_gin').using('gin', t.tags), // schema.md §2: GIN on tags
-  ],
+  (t) => [unique('workspace_repo_team_name_uniq').on(t.teamId, t.name), index('repo_team_idx').on(t.teamId), index('repo_tags_gin').using('gin', t.tags)],
 );

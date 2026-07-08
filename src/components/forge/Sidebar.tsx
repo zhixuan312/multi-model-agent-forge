@@ -45,13 +45,15 @@ const SECTIONS: NavSection[] = [
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
-      { href: '/usage', label: 'Usage', icon: BarChart3 },
     ],
   },
   {
     id: 'admin',
     label: 'Settings',
     items: [
+      // Usage leads the Settings group — visible to every role, above the
+      // role-gated settings surfaces.
+      { href: '/usage', label: 'Usage', icon: BarChart3 },
       { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin' },
       { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin' },
     ],

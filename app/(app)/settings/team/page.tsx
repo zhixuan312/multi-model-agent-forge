@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq, sql } from 'drizzle-orm';
 import { GitBranch, FolderTree, Boxes, Users } from 'lucide-react';
@@ -7,13 +6,28 @@ import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
-import { PageFrame, MetricCard, Card, CardContent, Title, Text, buttonVariants } from '@/components/ui';
+import { PageFrame, MetricCard, MetricRow } from '@/components/ui';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { GitTokenForm } from './GitTokenForm';
 import { WorkspaceForm } from './WorkspaceForm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const TEAM_NOTE = `### This team
+
+- **Git token** — clones and pulls every repo the team builds in
+- **Workspace** — where the team's repos and journal live on disk
+
+### Also here
+
+- **Members** — add teammates and pick admins on the Members tab
+- **Repositories** — connect repos from the Workspace page
+
+### Kept private
+
+- **Your team only** — no other team ever sees this team's work`;
 
 /**
  * Team settings (Spec 2 FR-9, team-admin only for that team). The team admin
@@ -41,8 +55,8 @@ export default async function TeamSettingsPage() {
   return (
     <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full">
       <div className="flex flex-col gap-4">
-        {/* STATUS — four equal metric boxes, mirroring the connections surface */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {/* STATUS — four equal metric boxes, same shell as the org tabs */}
+        <MetricRow>
           <MetricCard
             label="Git access"
             value={teamRow.gitTokenRef ? 'Ready' : 'No token'}
@@ -68,42 +82,20 @@ export default async function TeamSettingsPage() {
             icon={<Users />}
             iconTint="rose"
           />
+        </MetricRow>
+
+        {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as Connections / Models. The
+            two config cards sit side by side so neither stretches sparse. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-start lg:col-span-2">
+            <GitTokenForm tokenSet={teamRow.gitTokenRef !== null} />
+            <WorkspaceForm current={teamRow.workspaceRootPath} />
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <RailNote icon={<GitBranch />}>{TEAM_NOTE}</RailNote>
+          </div>
         </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <GitTokenForm tokenSet={teamRow.gitTokenRef !== null} />
-          <WorkspaceForm current={teamRow.workspaceRootPath} />
-        </div>
-
-        <Card>
-          <CardContent className="flex flex-col items-start gap-2">
-            <div className="flex items-center gap-2">
-              <Boxes className="size-4 text-ink-soft" aria-hidden />
-              <Title>Repositories</Title>
-            </div>
-            <Text>
-              {repoCount} repositor{repoCount === 1 ? 'y' : 'ies'} registered in this team&apos;s workspace.
-            </Text>
-            <Link href="/workspace" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Manage repositories
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex flex-col items-start gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="size-4 text-ink-soft" aria-hidden />
-              <Title>Members</Title>
-            </div>
-            <Text>
-              {memberCount} member{memberCount === 1 ? '' : 's'} on this team.
-            </Text>
-            <Link href="/settings/members" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Manage members
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     </PageFrame>
   );

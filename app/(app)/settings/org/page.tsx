@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { sql } from 'drizzle-orm';
-import { Plug, BarChart3 } from 'lucide-react';
+import { Plug, BarChart3, Cpu } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
@@ -49,21 +49,36 @@ export default async function OrgSettingsPage() {
       <div className="flex flex-col gap-4">
         <TeamsPanel initialTeams={teams} />
 
-        <Card>
-          <CardContent className="flex flex-col items-start gap-2">
-            <div className="flex items-center gap-2">
-              <Plug className="size-4 text-ink-soft" aria-hidden />
-              <Title>MMA connection</Title>
-            </div>
-            <Text>
-              Base URL <Mono>{conn.mmaBaseUrl ?? 'http://127.0.0.1:7337 (default)'}</Mono>. The engine and provider
-              models are shared by every team.
-            </Text>
-            <Link href="/settings/connections" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Configure connection &amp; models
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardContent className="flex flex-col items-start gap-2">
+              <div className="flex items-center gap-2">
+                <Plug className="size-4 text-ink-soft" aria-hidden />
+                <Title>MMA connection</Title>
+              </div>
+              <Text>
+                Base URL <Mono>{conn.mmaBaseUrl ?? 'http://127.0.0.1:7337 (default)'}</Mono>. The engine and voice key
+                are shared by every team.
+              </Text>
+              <Link href="/settings/connections" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Configure connection
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col items-start gap-2">
+              <div className="flex items-center gap-2">
+                <Cpu className="size-4 text-ink-soft" aria-hidden />
+                <Title>Provider models</Title>
+              </div>
+              <Text>The main / complex / standard agent tiers every team&apos;s work runs on.</Text>
+              <Link href="/settings/models" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Configure models
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardContent className="flex flex-col items-start gap-2">

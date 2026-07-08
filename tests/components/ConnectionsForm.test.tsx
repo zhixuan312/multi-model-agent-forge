@@ -11,11 +11,10 @@ vi.mock('next/navigation', () => ({
 
 const empty: ConnectionsData = {
   mmaBaseUrl: null,
-  gitTokenSet: false,
   openaiTranscriptionKeySet: false,
 };
 
-const openCard = (name: 'MMA' | 'Git' | 'Speech to text') =>
+const openCard = (name: 'MMA' | 'Speech to text') =>
   fireEvent.click(screen.getByRole('button', { name: `Edit ${name}` }));
 
 describe('ConnectionsForm', () => {
@@ -23,13 +22,14 @@ describe('ConnectionsForm', () => {
     vi.restoreAllMocks();
   });
 
-  it('reads on load: shows indicators + Edit buttons, no form fields yet', () => {
+  it('reads on load: shows org indicators + Edit buttons, no git card (git is team-owned)', () => {
     render(<ConnectionsForm initial={empty} mmaBearer={null} />);
-    expect(screen.getByTestId('git-token-indicator')).toBeInTheDocument();
     expect(screen.getByTestId('openai-key-indicator')).toBeInTheDocument();
     expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit MMA' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit Git' })).toBeInTheDocument();
+    // Git token moved to Team settings — it must NOT appear on the org connection surface.
+    expect(screen.queryByTestId('git-token-indicator')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Git' })).not.toBeInTheDocument();
   });
 
   it('opening MMA reveals the form, base URL prefilled with the loopback default', () => {
@@ -47,14 +47,6 @@ describe('ConnectionsForm', () => {
     expect(bearer.value).toBe('local-token-xyz');
   });
 
-  it('git token input is write-only (password, never prefilled)', () => {
-    render(<ConnectionsForm initial={{ ...empty, gitTokenSet: true }} mmaBearer={null} />);
-    openCard('Git');
-    const git = screen.getByLabelText(/Service token/) as HTMLInputElement;
-    expect(git).toHaveAttribute('type', 'password');
-    expect(git.value).toBe('');
-  });
-
   it('the MMA section saves base URL alone (never sends a token)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -67,15 +59,6 @@ describe('ConnectionsForm', () => {
     const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
     expect(body.mmaBaseUrl).toBe('http://127.0.0.1:7337');
     expect('mmaToken' in body).toBe(false);
-  });
-
-  it('the Git section validates an empty token client-side on save', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    render(<ConnectionsForm initial={empty} mmaBearer={null} />);
-    openCard('Git');
-    fireEvent.submit(screen.getByRole('form', { name: 'Git connection' }));
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/git service token/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect('gitToken' in body).toBe(false);
   });
 });

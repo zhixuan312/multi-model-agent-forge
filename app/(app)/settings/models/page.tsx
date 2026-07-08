@@ -1,5 +1,6 @@
 import { Layers, Bot, SquareTerminal, KeyRound, Cpu } from 'lucide-react';
-import { requireAdminPage } from '@/auth/require-admin';
+import { redirect } from 'next/navigation';
+import { currentMember } from '@/auth/current-member';
 import { readMmaTiers } from '@/mma/mma-config-reader';
 import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame, MetricCard } from '@/components/ui';
@@ -24,14 +25,16 @@ const MODELS_NOTE = `### Agent tiers
 - **Apply** — switches the agent to it`;
 
 /**
- * Team Settings → Models (the merged Providers + Roster surface). Admin-gated.
- * Same shell as the other tabs: a STATUS row of four metric boxes, then a
- * 2/3 ∣ 1/3 row — the tier panel (Primary) and the access note (Rail). Each tier
- * is configured + validated/applied against the live mma via
- * `POST /configure-provider`; current state is read from mma's config.json.
+ * Org Settings → Models (the merged Providers + Roster surface). Provider/model
+ * configuration is org-owned (FR-9), org_admin only. Same shell as the other
+ * tabs: a STATUS row of four metric boxes, then a 2/3 ∣ 1/3 row — the tier panel
+ * (Primary) and the access note (Rail). Each tier is configured +
+ * validated/applied against the live mma via `POST /configure-provider`.
  */
 export default async function ModelsPage() {
-  await requireAdminPage();
+  const me = await currentMember();
+  if (!me) redirect('/login');
+  if (me.role !== 'org_admin') redirect('/');
   const tiers = readMmaTiers();
   const suggestions = readModelProfiles().profiles;
 
@@ -42,7 +45,7 @@ export default async function ModelsPage() {
   const apiKeys = values.filter((t) => t?.authMode === 'api-key').length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="org" />} width="full">
+    <PageFrame title="Org settings" subnav={<SettingsTabs active="org" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

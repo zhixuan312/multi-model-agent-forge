@@ -9,23 +9,24 @@ import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
-const CONNECTIONS_NOTE = `### Secrets
+const CONNECTIONS_NOTE = `### Org secrets
 
-- **MMA** — the local engine Forge runs everything through
-- **Git** — clones & pulls every team repo
+- **MMA** — the local engine every team runs through
 - **Speech-to-text** — optional voice transcription
 
 ### Storage
 
-- **Encrypted** — shown only as set / not set, never sent to the browser`;
+- **Encrypted** — shown only as set / not set, never sent to the browser
+- **Git token** — team-owned; set it under Team settings`;
 
 export interface ConnectionsData {
   mmaBaseUrl: string | null;
-  gitTokenSet: boolean;
   openaiTranscriptionKeySet: boolean;
 }
 
-type Conn = 'mma' | 'git' | 'openai';
+// Git token is team-owned (edited under Team settings) — the org connection
+// surface handles only the MMA engine and the org voice/transcription key.
+type Conn = 'mma' | 'openai';
 type ValidateResult = { ok: boolean; detail: string };
 
 function SetIndicator({ set, testid }: { set: boolean; testid: string }) {
@@ -125,10 +126,11 @@ function ConnectionCard({
 }
 
 /**
- * Connections form: MMA (the local engine — base URL + an optional advanced
- * bearer for a remote MMA), Git (service token), and Speech-to-text (OpenAI
- * key) — each its own card with read-on-load → Edit → Validate · Save. Token
- * inputs are write-only; sections save independently via PUT /api/connections.
+ * Org connections form: MMA (the local engine — base URL + an optional advanced
+ * bearer for a remote MMA) and Speech-to-text (OpenAI key) — each its own card
+ * with read-on-load → Edit → Validate · Save. Token inputs are write-only;
+ * sections save independently via PUT /api/connections. The team git token is
+ * managed separately under Team settings.
  */
 export function ConnectionsForm({
   initial,
@@ -140,7 +142,6 @@ export function ConnectionsForm({
 }) {
   const router = useRouter();
   const [mmaBaseUrl, setMmaBaseUrl] = useState(initial.mmaBaseUrl ?? DEFAULT_MMA_BASE_URL);
-  const [gitToken, setGitToken] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | Conn>(null);
@@ -158,7 +159,6 @@ export function ConnectionsForm({
     setError(null);
     setValidateResult(null);
     setOpen(null);
-    setGitToken('');
     setOpenaiKey('');
     setMmaBaseUrl(initial.mmaBaseUrl ?? DEFAULT_MMA_BASE_URL);
   }
@@ -200,7 +200,6 @@ export function ConnectionsForm({
         setError(b?.error ?? 'Could not save.');
         return;
       }
-      setGitToken('');
       setOpenaiKey('');
       setOpen(null);
       setValidateResult(null);
@@ -254,43 +253,6 @@ export function ConnectionsForm({
                 aria-readonly="true"
                 placeholder="no local token found"
                 className="cursor-not-allowed bg-surface-2 font-mono text-ink-soft"
-              />
-            )}
-          </Field>
-        </ConnectionCard>
-
-        {/* Git */}
-        <ConnectionCard
-          title="Git"
-          ariaLabel="Git connection"
-          indicator={<SetIndicator set={initial.gitTokenSet} testid="git-token-indicator" />}
-          open={open === 'git'}
-          busy={busy === 'git'}
-          validating={validating === 'git'}
-          validateResult={open === 'git' ? validateResult : null}
-          onEdit={() => edit('git')}
-          onCancel={cancel}
-          onValidate={() => validate('git', gitToken)}
-          onSubmit={() => {
-            if (gitToken === '') {
-              setError('Enter a git service token to save.');
-              return;
-            }
-            void save('git', { gitToken });
-          }}
-        >
-          <Field label="Service token" hint={initial.gitTokenSet ? 'set — blank keeps it' : 'clones & pulls every team repo'}>
-            {(p) => (
-              <Input
-                {...p}
-                type="password"
-                value={gitToken}
-                onChange={(e) => {
-                  setGitToken(e.target.value);
-                  setValidateResult(null);
-                }}
-                placeholder={initial.gitTokenSet ? '•••••••• (unchanged)' : ''}
-                className="font-mono"
               />
             )}
           </Field>

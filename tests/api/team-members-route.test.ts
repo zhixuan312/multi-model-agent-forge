@@ -10,11 +10,13 @@ vi.mock('@/auth/current-member', () => ({
   currentMember: async () => mockCaller,
   currentSession: async () => null,
 }));
+const FORGE_ID = '00000000-0000-0000-0000-000000000000';
 vi.mock('@/db/client', () => ({
   getDb: () =>
     createMockDb({
       'select:team_member': [
         { id: 'm1', username: 'ada', displayName: 'Ada', avatarTint: '#000', role: 'member', teamId: 'team-1', createdAt: new Date() },
+        { id: FORGE_ID, username: 'forge', displayName: 'Forge', avatarTint: '#000', role: 'member', teamId: 'team-1', createdAt: new Date() },
       ],
     }),
 }));
@@ -45,6 +47,15 @@ describe('GET /api/teams/[id]/members', () => {
     const body = (await res.json()) as Array<Record<string, unknown>>;
     expect(body[0].displayName).toBe('Ada');
     expect(body[0].isAdmin).toBe(false);
+    expect(body[0].isSystem).toBe(false);
     expect(body[0]).not.toHaveProperty('avatarTint');
+  });
+
+  it('flags the Forge agent as a system member (not admin-eligible)', async () => {
+    mockCaller = asMember('org_admin', null);
+    const res = await GET(anyReq(), ctx('team-1'));
+    const body = (await res.json()) as Array<Record<string, unknown>>;
+    const forge = body.find((m) => m.username === 'forge');
+    expect(forge?.isSystem).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Users, ShieldCheck, Pencil } from 'lucide-react';
+import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -36,6 +36,7 @@ interface TeamMemberRow {
   displayName: string;
   username: string;
   isAdmin: boolean;
+  isSystem?: boolean;
 }
 
 /**
@@ -364,14 +365,19 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                                   <span className="flex items-center gap-2">
                                     <span className="font-medium text-ink">{m.displayName}</span>
                                     <Mono className="text-ink-soft">@{m.username}</Mono>
-                                    {m.isAdmin ? (
+                                    {m.isSystem ? (
+                                      <Badge variant="neutral" size="sm">
+                                        <Bot className="size-3" />
+                                        system agent
+                                      </Badge>
+                                    ) : m.isAdmin ? (
                                       <Badge variant="accent" size="sm">
                                         <ShieldCheck className="size-3" />
                                         team admin
                                       </Badge>
                                     ) : null}
                                   </span>
-                                  {m.isAdmin ? null : (
+                                  {m.isSystem || m.isAdmin ? null : (
                                     <Button
                                       size="sm"
                                       variant="secondary"

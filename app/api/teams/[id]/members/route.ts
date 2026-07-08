@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
 import { listMembers } from '@/auth/members-core';
+import { isForgeSystemMember } from '@/automation/forge-member';
 import { getDb } from '@/db/client';
 
 export const runtime = 'nodejs';
@@ -23,6 +24,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const members = await listMembers({ db: getDb(), teamId: id });
   return NextResponse.json(
-    members.map((m) => ({ id: m.id, displayName: m.displayName, username: m.username, isAdmin: m.isAdmin })),
+    members.map((m) => ({
+      id: m.id,
+      displayName: m.displayName,
+      username: m.username,
+      isAdmin: m.isAdmin,
+      // The Forge agent is a non-human system account — not admin-eligible.
+      isSystem: isForgeSystemMember(m.id),
+    })),
   );
 }

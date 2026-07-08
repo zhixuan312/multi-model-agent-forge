@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
 import { assignTeamAdmin } from '@/auth/teams-core';
+import { isForgeSystemMember } from '@/automation/forge-member';
 import { getDb } from '@/db/client';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!memberId) {
     return NextResponse.json({ error: 'memberId required.' }, { status: 400 });
+  }
+  if (isForgeSystemMember(memberId)) {
+    return NextResponse.json({ error: 'The Forge agent cannot be a team admin.' }, { status: 400 });
   }
 
   const result = await assignTeamAdmin(teamId, memberId, { db: getDb() });

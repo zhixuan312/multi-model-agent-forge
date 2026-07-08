@@ -28,7 +28,7 @@ describe('createProject — seeding + validation', () => {
 
     const res = await createProject(
       { name: 'test-proj', visibility: 'public', repoIds: [repo1, repo2] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
@@ -46,7 +46,7 @@ describe('createProject — seeding + validation', () => {
 
     const res = await createProject(
       { name: 'test-proj', visibility: 'private', repoIds: [repo1] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
@@ -58,7 +58,7 @@ describe('createProject — seeding + validation', () => {
 
     const res = await createProject(
       { name: '   ', visibility: 'public', repoIds: [repo1] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     expect(res.ok).toBe(false);
@@ -71,7 +71,7 @@ describe('createProject — seeding + validation', () => {
 
     const res = await createProject(
       { name: 'test-proj', visibility: 'public', repoIds: [] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     expect(res.ok).toBe(false);
@@ -90,12 +90,12 @@ describe('createProject — seeding + validation', () => {
 
     const a = await createProject(
       { name: 'dup', visibility: 'public', repoIds: [repo1] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     const b = await createProject(
       { name: 'dup', visibility: 'public', repoIds: [repo1] },
-      { id: ownerId },
+      { id: ownerId, teamId: 'team-1' },
       { db: mockDb },
     );
     expect(a.ok).toBe(true);
@@ -172,7 +172,7 @@ describe('mutation authorization', () => {
       'insert:ops_action_log': [{ projectId, action: 'change_visibility', memberId: ownerId }],
     });
 
-    await changeVisibility(projectId, 'private', { id: ownerId }, { db: mockDb });
+    await changeVisibility(projectId, 'private', { id: ownerId, teamId: 'team-1' }, { db: mockDb });
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 
@@ -189,7 +189,7 @@ describe('mutation authorization', () => {
       'insert:ops_action_log': [],
     });
 
-    await changeRepos(projectId, ['repo-2'], { id: ownerId }, { db: mockDb });
+    await changeRepos(projectId, ['repo-2'], { id: ownerId, teamId: 'team-1' }, { db: mockDb });
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
   });
 });

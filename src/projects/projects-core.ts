@@ -26,9 +26,10 @@ import {
 } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 
-/** The acting member (only the id is load-bearing for the data layer). */
+/** The acting member (id and teamId are load-bearing for the data layer). */
 export interface ProjectActor {
   id: string;
+  teamId: string;
 }
 
 /** Thrown when an actor may not read or mutate a project. Maps to 404 (read) / 403 (write). */
@@ -127,6 +128,7 @@ export async function createProject(
     const [row] = await tx
       .insert(project)
       .values({
+        teamId: actor.teamId,
         name,
         visibility,
         phase: 'design',
@@ -183,7 +185,10 @@ export async function visibleProjects(
       details: project.details,
     })
     .from(project)
-    .where(sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`)
+    .where(and(
+      eq(project.teamId, actor.teamId),
+      sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`
+    ))
     .orderBy(sql`${project.updatedAt} desc`);
 
   if (rows.length === 0) return [];
@@ -264,9 +269,9 @@ export async function assertProjectReadable(
 ): Promise<void> {
   const db = deps.db ?? getDb();
   const [row] = await db
-    .select({ id: project.id, visibility: project.visibility, ownerId: project.ownerId })
+    .select({ id: project.id, visibility: project.visibility, ownerId: project.ownerId, teamId: project.teamId })
     .from(project)
-    .where(eq(project.id, projectId))
+    .where(and(eq(project.id, projectId), eq(project.teamId, actor.teamId)))
     .limit(1);
 
   if (!row) throw new ProjectAccessError('Project not found.');

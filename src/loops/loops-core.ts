@@ -15,6 +15,7 @@ import { isValidCron } from '@/loops/cron';
 export interface LoopsDeps {
   db?: Db;
   actorId?: string; // the admin creating/owning the loop
+  teamId?: string; // the team that owns the loop
 }
 
 export const createLoopSchema = z.object({
@@ -37,10 +38,15 @@ export type CreateLoopResult =
   | { kind: 'invalid_cron' }
   | { kind: 'duplicate_name' };
 
-async function nameTaken(db: Db, name: string, exceptId?: string): Promise<boolean> {
-  const where = exceptId
+async function nameTaken(db: Db, name: string, teamId?: string, exceptId?: string): Promise<boolean> {
+  let where = exceptId
     ? and(sql`lower(${loop.name}) = lower(${name})`, ne(loop.id, exceptId))
     : sql`lower(${loop.name}) = lower(${name})`;
+  if (teamId) {
+    where = exceptId
+      ? and(eq(loop.teamId, teamId), sql`lower(${loop.name}) = lower(${name})`, ne(loop.id, exceptId))
+      : and(eq(loop.teamId, teamId), sql`lower(${loop.name}) = lower(${name})`);
+  }
   const [row] = await db.select({ id: loop.id }).from(loop).where(where).limit(1);
   return !!row;
 }
@@ -53,11 +59,12 @@ export async function createLoop(input: unknown, deps: LoopsDeps = {}): Promise<
 
   if (!parseLoopConfig(kind, config).ok) return { kind: 'invalid_config' };
   if (cron && !isValidCron(cron)) return { kind: 'invalid_cron' }; // only validate when scheduled
-  if (await nameTaken(db, name)) return { kind: 'duplicate_name' };
+  if (await nameTaken(db, name, deps.teamId)) return { kind: 'duplicate_name' };
 
   const [created] = await db
     .insert(loop)
     .values({
+      teamId: deps.teamId,
       name,
       kind,
       config: parseLoopConfig(kind, config).ok ? (config as object) : {},
@@ -86,13 +93,15 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
   if (!parsed.success) return { kind: 'invalid' };
   const d = parsed.data;
 
-  const [existing] = await db.select().from(loop).where(eq(loop.id, id)).limit(1);
+  let query = db.select().from(loop).where(eq(loop.id, id));
+  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  const [existing] = await query.limit(1);
   if (!existing) return { kind: 'not_found' };
 
   const kind = d.kind ?? existing.kind;
   if (d.config !== undefined && !parseLoopConfig(kind, d.config).ok) return { kind: 'invalid_config' };
   if (d.cron != null && !isValidCron(d.cron)) return { kind: 'invalid_cron' }; // only validate a non-null cron
-  if (d.name !== undefined && (await nameTaken(db, d.name, id))) return { kind: 'duplicate_name' };
+  if (d.name !== undefined && (await nameTaken(db, d.name, deps.teamId, id))) return { kind: 'duplicate_name' };
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (d.name !== undefined) patch.name = d.name;
@@ -110,18 +119,24 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
 
 export async function listLoops(deps: LoopsDeps = {}): Promise<LoopRow[]> {
   const db = deps.db ?? getDb();
-  return db.select().from(loop).orderBy(loop.createdAt);
+  let query = db.select().from(loop);
+  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  return query.orderBy(loop.createdAt);
 }
 
 export async function getLoop(id: string, deps: LoopsDeps = {}): Promise<LoopRow | null> {
   const db = deps.db ?? getDb();
-  const [row] = await db.select().from(loop).where(eq(loop.id, id)).limit(1);
+  let query = db.select().from(loop).where(eq(loop.id, id));
+  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  const [row] = await query.limit(1);
   return row ?? null;
 }
 
 export async function deleteLoop(id: string, deps: LoopsDeps = {}): Promise<{ kind: 'deleted' | 'not_found' }> {
   const db = deps.db ?? getDb();
-  const deleted = await db.delete(loop).where(eq(loop.id, id)).returning({ id: loop.id });
+  let query = db.delete(loop).where(eq(loop.id, id));
+  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  const deleted = await query.returning({ id: loop.id });
   return { kind: deleted.length > 0 ? 'deleted' : 'not_found' };
 }
 
@@ -131,10 +146,11 @@ export async function setLoopEnabled(
   deps: LoopsDeps = {},
 ): Promise<{ kind: 'updated' | 'not_found' }> {
   const db = deps.db ?? getDb();
-  const updated = await db
+  let query = db
     .update(loop)
     .set({ enabled, updatedAt: new Date() })
-    .where(eq(loop.id, id))
-    .returning({ id: loop.id });
+    .where(eq(loop.id, id));
+  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  const updated = await query.returning({ id: loop.id });
   return { kind: updated.length > 0 ? 'updated' : 'not_found' };
 }

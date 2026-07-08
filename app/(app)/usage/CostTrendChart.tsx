@@ -73,10 +73,18 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
 
   const yTicks: number[] = [];
   for (let v = 0; v <= maxCost + step / 2; v += step) yTicks.push(v);
-  const xTickIdx = [0, Math.floor((points.length - 1) / 2), points.length - 1];
+
+  // Label every day when the series is short, otherwise thin to ~6 evenly-spaced.
+  const xTickIdx =
+    points.length <= 8
+      ? points.map((_, i) => i)
+      : Array.from(new Set([0, ...Array.from({ length: 4 }, (_, k) => Math.round(((k + 1) * (points.length - 1)) / 5)), points.length - 1]));
 
   const stepX = innerW / (points.length - 1);
-  const barW = Math.min(26, stepX * 0.55);
+  const barW = Math.min(38, Math.max(8, stepX * 0.5));
+  // Dispatch-volume bars live in a strip along the base so they read as a
+  // separate metric instead of competing with the $ cost line above.
+  const bandH = innerH * 0.34;
 
   const onMove = (e: React.MouseEvent) => {
     const rect = ref.current!.getBoundingClientRect();
@@ -123,9 +131,9 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
           </g>
         ))}
 
-        {/* volume bars (dispatch count) */}
+        {/* dispatch-volume bars — a strip along the base */}
         {points.map((p, i) => {
-          const barH = (p.count / maxCount) * innerH;
+          const barH = (p.count / maxCount) * bandH;
           return (
             <rect
               key={i}
@@ -135,8 +143,8 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
               width={barW}
               height={Math.max(0.5, barH)}
               rx="1.5"
-              fill="var(--accent)"
-              opacity={hover === i ? 0.28 : 0.14}
+              fill="var(--steel)"
+              opacity={hover === i ? 0.38 : 0.2}
             />
           );
         })}
@@ -168,7 +176,7 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
       <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-soft">
         <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--accent)' }} /> Spent</span>
         <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--sage)' }} /> Saved</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2 rounded-[1px]" style={{ background: 'var(--accent)', opacity: 0.18 }} /> Dispatches</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2 rounded-[1px]" style={{ background: 'var(--steel)', opacity: 0.35 }} /> Dispatches</span>
       </div>
 
       {hp && hover !== null && (

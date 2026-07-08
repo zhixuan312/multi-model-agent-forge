@@ -122,6 +122,7 @@ export interface OrgInfraBreakdownRow {
   route: string;
   costUsd: number;
   callCount: number;
+  tokens: number;
   avgCostUsd: number;
 }
 
@@ -380,6 +381,7 @@ async function usageOverviewOrg(
       route: mmaBatch.route,
       costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
       callCount: sql<number>`count(*)::int`,
+      tokens: sql<number>`coalesce(sum(coalesce(${mmaBatch.inputTokens}, 0) + coalesce(${mmaBatch.outputTokens}, 0)), 0)::int`,
       avgCostUsd: sql<number>`coalesce(avg(${mmaBatch.costUsd}::numeric), 0)::float`,
     })
     .from(mmaBatch)
@@ -391,6 +393,7 @@ async function usageOverviewOrg(
     route: r.route,
     costUsd: r.costUsd,
     callCount: r.callCount,
+    tokens: r.tokens,
     avgCostUsd: r.avgCostUsd,
   }));
 

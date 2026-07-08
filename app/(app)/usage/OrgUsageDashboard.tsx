@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Title,
-  Text,
   EmptyState,
   Table,
   TableHeader,
@@ -85,11 +84,6 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
       <OrgTrendCard trend={data.trend.orgTotal} />
       <OrgTeamTable rows={data.costByTeam} />
       <OrgInfraTable rows={data.infraBreakdown} />
-
-      <Text className="px-1 text-xs text-ink-faint">
-        Numbers only — cost, tokens, and activity aggregated across every team. Project names, specs, journals, and
-        member identities stay private to each team.
-      </Text>
     </div>
   );
 }
@@ -147,9 +141,9 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
   return (
     <Card>
       <CardContent>
-        <Title as="h2" className="mb-3">Infrastructure breakdown</Title>
+        <Title as="h2" className="mb-3">Usage breakdown</Title>
         {rows.length === 0 ? (
-          <EmptyState icon={<Cpu />} title="No infrastructure usage yet" description="Cost by route, tier, and model appears here once agents run." />
+          <EmptyState icon={<Cpu />} title="No usage yet" description="Cost, tokens, and calls by route appear here once agents run." />
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -157,6 +151,7 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
                 <TableRow>
                   <TableHead>Route</TableHead>
                   <TableHead className="text-right">Calls</TableHead>
+                  <TableHead className="text-right">Tokens</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Avg</TableHead>
                 </TableRow>
@@ -166,6 +161,7 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
                   <TableRow key={r.route}>
                     <TableCell className="font-medium">{r.route}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.callCount}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatTokens(r.tokens)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.costUsd)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.avgCostUsd || null)}</TableCell>
                   </TableRow>

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -24,11 +25,13 @@ export async function guardSpecWrite(
 
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Membership predicate (public OR project_member). 403 on a write (the actor
   // already knows the project exists if they reached here).
   try {
-    await assertProjectReadable(projectId, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(projectId, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 
@@ -20,9 +21,11 @@ export async function guardExploreWrite(
 
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    await assertProjectReadable(projectId, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(projectId, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

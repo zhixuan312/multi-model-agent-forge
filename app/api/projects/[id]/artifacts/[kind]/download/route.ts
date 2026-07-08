@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { downloadStageArtifact, ArtifactNotFoundError } from '@/build/export-download';
 import { ProjectAccessError } from '@/projects/projects-core';
 
@@ -19,9 +20,11 @@ export async function GET(
 
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const result = await downloadStageArtifact({ projectId: id, kind: kind as DownloadableKind, actor: { id: me.id, teamId: me.teamId! } });
+    const result = await downloadStageArtifact({ projectId: id, kind: kind as DownloadableKind, actor });
     return new NextResponse(result.bodyMd, {
       status: 200,
       headers: {

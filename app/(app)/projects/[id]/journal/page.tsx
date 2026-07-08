@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
@@ -18,8 +19,10 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const { learning: activeLearningId } = await searchParams;
   const me = await currentMember();
   if (!me) redirect('/login');
+  const actor = projectActorFromMember(me);
+  if (!actor) redirect('/');
   try {
-    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(id, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) notFound();
     throw e;

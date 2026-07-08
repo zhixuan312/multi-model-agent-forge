@@ -3,6 +3,7 @@ import { currentMember } from '@/auth/current-member';
 import type { AuthedMember } from '@/auth/auth-provider';
 import { getDb, type Db } from '@/db/client';
 import { team } from '@/db/schema/team';
+import type { ProjectActor } from '@/projects/projects-core';
 
 export interface CurrentTeam {
   id: string;
@@ -48,4 +49,9 @@ export function assertOrgAdmin(actor: AuthedMember): void {
 
 export function assertTeamAdmin(actor: AuthedMember, teamId: string): void {
   if (actor.role !== 'team_admin' || actor.teamId !== teamId) throw new Error('Team admin required.');
+}
+
+export function projectActorFromMember(actor: Pick<AuthedMember, 'id' | 'teamId'>): ProjectActor | null {
+  if (!actor.teamId) return null;
+  return { id: actor.id, teamId: actor.teamId };
 }

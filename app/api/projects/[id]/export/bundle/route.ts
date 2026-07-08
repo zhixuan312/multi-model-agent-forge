@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { exportBundle } from '@/export/service';
 import { mapExportError } from '@/export/route-helpers';
 
@@ -23,12 +24,14 @@ export async function POST(
   const { id } = await params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   const mermaidAsDiagram = parsed.success ? parsed.data.mermaidAsDiagram : true;
 
   try {
-    const { fileName, zip, includedKinds } = await exportBundle(id, { mermaidAsDiagram }, { id: me.id, teamId: me.teamId! });
+    const { fileName, zip, includedKinds } = await exportBundle(id, { mermaidAsDiagram }, actor);
     // Stream the zip body — no Content-Length (chunked).
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {

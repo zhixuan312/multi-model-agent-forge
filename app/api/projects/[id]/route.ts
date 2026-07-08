@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import {
   changeVisibility,
@@ -38,6 +39,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
@@ -52,7 +55,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   // Precondition (2): read-guard FIRST — a hidden/unknown project → 404
   // (anti-enumeration), distinct from the write-authz 403 below.
   try {
-    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(id, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
@@ -64,9 +67,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   // is 403 (leaks nothing, the actor already knows the project exists).
   try {
     if (parsed.data.visibility !== undefined) {
-      await changeVisibility(id, parsed.data.visibility, { id: me.id, teamId: me.teamId! });
+      await changeVisibility(id, parsed.data.visibility, actor);
     } else {
-      await changeRepos(id, parsed.data.repoIds!, { id: me.id, teamId: me.teamId! });
+      await changeRepos(id, parsed.data.repoIds!, actor);
     }
   } catch (e) {
     if (e instanceof ProjectAccessError) {

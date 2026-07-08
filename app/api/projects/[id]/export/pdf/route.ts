@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { exportPdf } from '@/export/service';
 import { parseExportKind, unknownKindResponse, mapExportError } from '@/export/route-helpers';
 
@@ -27,6 +28,8 @@ export async function POST(
   const { id } = await params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
@@ -39,7 +42,7 @@ export async function POST(
       id,
       kind,
       { includeComponents: parsed.data.includeComponents, mermaidAsDiagram: parsed.data.mermaidAsDiagram },
-      { id: me.id, teamId: me.teamId! },
+      actor,
     );
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

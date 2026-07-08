@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { guardExploreWrite } from '@/exploration/guard';
 import { addTask, readRailTasks, TaskLockedError } from '@/exploration/explore-core';
@@ -15,8 +16,10 @@ export async function GET(
   const { id } = await params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(id, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     throw e;

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { collectMenu } from '@/export/collect-artifacts';
 import { mapExportError } from '@/export/route-helpers';
 
@@ -19,8 +20,10 @@ export async function GET(
   const { id } = await params;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    const items = await collectMenu(id, { id: me.id, teamId: me.teamId! });
+    const items = await collectMenu(id, actor);
     return NextResponse.json({ artifacts: items });
   } catch (e) {
     const mapped = mapExportError(e);

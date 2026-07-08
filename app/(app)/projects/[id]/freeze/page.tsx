@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
@@ -21,9 +22,11 @@ export default async function FreezePage({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+  const actor = projectActorFromMember(me);
+  if (!actor) redirect('/');
 
   try {
-    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(id, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) notFound();
     throw e;

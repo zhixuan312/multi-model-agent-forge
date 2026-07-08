@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { createProject } from '@/projects/projects-core';
 import { stageRoute } from '@/projects/stage-route';
 
@@ -21,12 +22,14 @@ export async function createProjectAction(
 ): Promise<NewProjectState> {
   const me = await currentMember();
   if (!me) redirect('/login');
+  const actor = projectActorFromMember(me);
+  if (!actor) redirect('/');
 
   const name = String(formData.get('name') ?? '');
   const visibility = String(formData.get('visibility') ?? 'public');
   const repoIds = formData.getAll('repoIds').map((v) => String(v));
 
-  const res = await createProject({ name, visibility, repoIds }, { id: me.id, teamId: me.teamId! });
+  const res = await createProject({ name, visibility, repoIds }, actor);
   if (!res.ok) {
     return { error: res.error };
   }

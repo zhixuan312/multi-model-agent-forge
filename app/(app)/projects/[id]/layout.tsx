@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 import { LiveStageStepper } from '@/components/forge/LiveStageStepper';
 import { AutomationGate } from '@/components/forge/AutomationGate';
@@ -25,9 +26,11 @@ export default async function ProjectLayout({
   const { id } = await params;
   const me = await currentMember();
   if (!me) redirect('/login');
+  const actor = projectActorFromMember(me);
+  if (!actor) redirect('/');
 
   try {
-    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
+    await assertProjectReadable(id, actor);
   } catch (e) {
     if (e instanceof ProjectAccessError) notFound();
     throw e;

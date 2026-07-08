@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { specSectionList } from '@/export/service';
 import { parseExportKind, unknownKindResponse, mapExportError } from '@/export/route-helpers';
 
@@ -23,11 +24,13 @@ export async function GET(
 
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   if (kind !== 'spec') return NextResponse.json({ sections: [] });
 
   try {
-    const sections = await specSectionList(id, { id: me.id, teamId: me.teamId! });
+    const sections = await specSectionList(id, actor);
     return NextResponse.json({ sections });
   } catch (e) {
     const mapped = mapExportError(e);

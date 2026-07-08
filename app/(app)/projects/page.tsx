@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, CircleAlert, CheckCircle2, Loader2, Lightbulb } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
 import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { RailCard, RailNote } from '@/components/patterns/feature-rail';
@@ -32,7 +33,9 @@ function attentionReason(p: DashboardProject): string {
 export default async function ProjectsPage() {
   const me = await currentMember();
   if (!me) redirect('/login');
-  const projects = await dashboardProjects({ id: me.id, teamId: me.teamId! });
+  const actor = projectActorFromMember(me);
+  if (!actor) redirect('/');
+  const projects = await dashboardProjects(actor);
   const metrics = dashboardMetrics(projects);
 
   const attention = projects.filter((p) => p.awaitingHuman > 0 || p.openAuditIssues > 0);

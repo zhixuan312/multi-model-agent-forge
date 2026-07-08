@@ -42,7 +42,6 @@ export default async function UsagePage({
     return (
       <PageFrame
         title="Organization usage"
-        subnav={<UsageTabsNav active="overview" role={member.role} />}
         width="full"
         actions={
           <Suspense>

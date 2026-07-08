@@ -49,7 +49,6 @@ interface TeamMemberRow {
 export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [workspaceRootPath, setWorkspaceRootPath] = useState('');
   const [adminDisplayName, setAdminDisplayName] = useState('');
@@ -59,7 +58,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
-    setName('');
     setSlug('');
     setWorkspaceRootPath('');
     setAdminDisplayName('');
@@ -76,7 +74,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          name,
           slug,
           workspaceRootPath,
           admin: { displayName: adminDisplayName, username: adminUsername, password: adminPassword },
@@ -143,9 +140,8 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     }
   };
 
-  // Per-team inline edit (name / slug / workspace) — org-admin only.
+  // Per-team inline edit (slug / workspace) — org-admin only.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
   const [editSlug, setEditSlug] = useState('');
   const [editWorkspace, setEditWorkspace] = useState('');
   const [editBusy, setEditBusy] = useState(false);
@@ -154,7 +150,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const startEdit = (t: TeamRow) => {
     setExpandedId(null);
     setEditingId((cur) => (cur === t.id ? null : t.id));
-    setEditName(t.name);
     setEditSlug(t.slug);
     setEditWorkspace(t.workspaceRootPath);
     setEditError(null);
@@ -167,7 +162,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       const res = await fetch(`/api/teams/${teamId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: editName, slug: editSlug, workspaceRootPath: editWorkspace }),
+        body: JSON.stringify({ slug: editSlug, workspaceRootPath: editWorkspace }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -203,11 +198,8 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
 
         {open ? (
           <div className="mb-4 flex flex-col gap-3 rounded-md border border-line bg-surface-2 p-4">
-            <Field label="Name">
-              {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="Platform Team" />}
-            </Field>
-            <Field label="Slug" hint="Lowercase identifier, unique across the org.">
-              {(p) => <Input {...p} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="platform" />}
+            <Field label="Slug" hint="Unique identifier, e.g. platform-team — the team name is derived from it.">
+              {(p) => <Input {...p} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="platform-team" />}
             </Field>
             <Field label="Workspace root path" hint="Local filesystem root for this team's repos and journal.">
               {(p) => (
@@ -251,7 +243,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                 onClick={submit}
                 disabled={
                   busy ||
-                  !name.trim() ||
                   !slug.trim() ||
                   !workspaceRootPath.trim() ||
                   !adminDisplayName.trim() ||
@@ -277,7 +268,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Team</TableHead>
-                  <TableHead>Slug</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Workspace</TableHead>
                   <TableHead className="text-right">Members</TableHead>
@@ -290,9 +280,6 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                   <Fragment key={t.id}>
                     <TableRow>
                       <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell>
-                        <Mono>{t.slug}</Mono>
-                      </TableCell>
                       <TableCell>
                         {t.adminUsername ? <Mono className="text-ink-soft">@{t.adminUsername}</Mono> : <span className="text-ink-faint">—</span>}
                       </TableCell>
@@ -323,12 +310,9 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
 
                     {editingId === t.id ? (
                       <TableRow key={`${t.id}-edit`}>
-                        <TableCell colSpan={7} className="bg-surface-2">
+                        <TableCell colSpan={6} className="bg-surface-2">
                           <div className="flex max-w-xl flex-col gap-3">
-                            <Field label="Name">
-                              {(p) => <Input {...p} value={editName} onChange={(e) => setEditName(e.target.value)} />}
-                            </Field>
-                            <Field label="Slug" hint="Lowercase identifier, unique across the org.">
+                            <Field label="Slug" hint="Unique identifier — the team name is derived from it.">
                               {(p) => <Input {...p} value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />}
                             </Field>
                             <Field label="Workspace root path" hint="Must be a direct child of the operator workspace base.">
@@ -342,7 +326,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                               <Button
                                 size="sm"
                                 onClick={() => saveEdit(t.id)}
-                                disabled={editBusy || !editName.trim() || !editSlug.trim() || !editWorkspace.trim()}
+                                disabled={editBusy || !editSlug.trim() || !editWorkspace.trim()}
                               >
                                 {editBusy ? 'Saving…' : 'Save changes'}
                               </Button>
@@ -353,7 +337,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                     ) : null}
                     {expandedId === t.id ? (
                       <TableRow key={`${t.id}-roster`}>
-                        <TableCell colSpan={7} className="bg-surface-2">
+                        <TableCell colSpan={6} className="bg-surface-2">
                           {rosterBusy ? (
                             <p className="text-sm text-ink-soft">Loading roster…</p>
                           ) : roster.length === 0 ? (

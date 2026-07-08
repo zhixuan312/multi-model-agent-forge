@@ -64,7 +64,6 @@ describe('Teams API routes', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'Team 1',
         slug: 'team-1',
         workspaceRootPath: '/workspace',
         admin: { displayName: 'Lead', username: 'lead', password: 'a-strong-password' },
@@ -79,7 +78,7 @@ describe('Teams API routes', () => {
     const req = new Request('http://localhost/api/teams', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Team 1', slug: 'team-1', workspaceRootPath: '/workspace' }),
+      body: JSON.stringify({ slug: 'team-1', workspaceRootPath: '/workspace' }),
     });
     const res = await postTeam(req as any);
     expect(res.status).toBe(400);

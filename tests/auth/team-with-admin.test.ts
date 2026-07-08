@@ -16,8 +16,7 @@ describe('createTeamWithAdmin', () => {
     });
     const res = await createTeamWithAdmin(
       {
-        name: 'Beta',
-        slug: 'beta',
+        slug: 'beta-squad',
         workspaceRootPath: '/forge/base/beta',
         admin: { displayName: 'Bianca', username: 'bianca', password: STRONG },
       },
@@ -32,6 +31,9 @@ describe('createTeamWithAdmin', () => {
     expect(db._assertCalled('team_member', 'insert')).toBe(true);
     expect(db._assertCalled('team_identity', 'insert')).toBe(true);
 
+    // the team name is derived from the slug
+    const tv = db._callsFor('team').find((c) => c.method === 'values');
+    expect(JSON.stringify(tv?.args)).toContain('Beta Squad');
     // the member is inserted as a team_admin bound to the freshly created team
     const mv = db._callsFor('team_member').find((c) => c.method === 'values');
     expect(JSON.stringify(mv?.args)).toContain('team_admin');

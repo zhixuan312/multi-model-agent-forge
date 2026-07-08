@@ -20,20 +20,20 @@ describe('TeamsPanel', () => {
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('@ada')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /new team/i }));
-    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    // slug is the only team identifier (name is derived); no separate Name field
+    expect(screen.getByLabelText(/^slug$/i)).toBeInTheDocument();
     // the create form provisions the team admin inline
     expect(screen.getByLabelText(/^username$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/initial password/i)).toBeInTheDocument();
   });
 
-  it('creates a team together with its admin credentials', async () => {
+  it('creates a team together with its admin credentials (slug only)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ id: 'team-2' }), { status: 201 }));
     render(<TeamsPanel initialTeams={teams} />);
     fireEvent.click(screen.getByRole('button', { name: /new team/i }));
-    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: 'Beta' } });
-    fireEvent.change(screen.getByLabelText(/^slug$/i), { target: { value: 'beta' } });
+    fireEvent.change(screen.getByLabelText(/^slug$/i), { target: { value: 'beta-squad' } });
     fireEvent.change(screen.getByLabelText(/workspace root path/i), { target: { value: '/w/beta' } });
     fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Bianca' } });
     fireEvent.change(screen.getByLabelText(/^username$/i), { target: { value: 'bianca' } });
@@ -43,11 +43,11 @@ describe('TeamsPanel', () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/teams', expect.objectContaining({ method: 'POST' })));
     const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
     expect(body).toMatchObject({
-      name: 'Beta',
-      slug: 'beta',
+      slug: 'beta-squad',
       workspaceRootPath: '/w/beta',
       admin: { displayName: 'Bianca', username: 'bianca', password: 'a-strong-password' },
     });
+    expect('name' in body).toBe(false); // derived server-side from the slug
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
@@ -55,14 +55,14 @@ describe('TeamsPanel', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
     render(<TeamsPanel initialTeams={teams} />);
     fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
-    const nameField = screen.getByLabelText(/^name$/i);
-    expect((nameField as HTMLInputElement).value).toBe('Alpha'); // prefilled
-    fireEvent.change(nameField, { target: { value: 'Alpha Renamed' } });
+    const slugField = screen.getByLabelText(/^slug$/i);
+    expect((slugField as HTMLInputElement).value).toBe('alpha'); // prefilled
+    fireEvent.change(slugField, { target: { value: 'alpha-renamed' } });
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/teams/team-1', expect.objectContaining({ method: 'PATCH' })));
     const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
-    expect(body).toMatchObject({ name: 'Alpha Renamed', slug: 'alpha', workspaceRootPath: '/w/alpha' });
+    expect(body).toMatchObject({ slug: 'alpha-renamed', workspaceRootPath: '/w/alpha' });
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 

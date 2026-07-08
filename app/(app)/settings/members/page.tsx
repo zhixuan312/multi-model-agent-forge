@@ -1,5 +1,6 @@
 import { Users, ShieldCheck, UserPlus, Monitor } from 'lucide-react';
-import { requireAdminPage } from '@/auth/require-admin';
+import { redirect } from 'next/navigation';
+import { currentMember } from '@/auth/current-member';
 import { listMembers, countActiveSessions } from '@/auth/members-core';
 import { PageFrame } from '@/components/ui';
 import { SettingsTabs } from '@/components/forge/SettingsTabs';
@@ -17,8 +18,12 @@ const MEMBERS_NOTE = `### Roles & access
 - **Last admin** — can't be removed or demoted; the team always keeps one`;
 
 export default async function MembersPage() {
-  await requireAdminPage();
-  const members = await listMembers();
+  // Members management is team-admin, team-scoped (FR-9): a team admin sees and
+  // manages only their own team's roster.
+  const me = await currentMember();
+  if (!me) redirect('/login');
+  if (me.role !== 'team_admin' || !me.teamId) redirect('/');
+  const members = await listMembers({ teamId: me.teamId });
   const activeSessions = await countActiveSessions();
 
   const rows: MemberRowData[] = members.map((m) => ({

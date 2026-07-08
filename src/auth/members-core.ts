@@ -54,6 +54,8 @@ export type CreateMemberResult =
 export interface MembersDeps {
   db?: Db;
   store?: SessionStore;
+  /** When set, scope member queries to this team (FR-9 team isolation). */
+  teamId?: string;
 }
 
 /**
@@ -260,6 +262,7 @@ export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow
       createdAt: member.createdAt,
     })
     .from(member)
+    .where(deps.teamId ? eq(member.teamId, deps.teamId) : undefined)
     .orderBy(member.createdAt);
   return rows.map((row) => ({
     id: row.id,

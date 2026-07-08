@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, ShieldCheck } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -28,6 +28,13 @@ export interface TeamRow {
   workspaceRootPath: string;
   gitTokenSet: boolean;
   memberCount: number;
+}
+
+interface TeamMemberRow {
+  id: string;
+  displayName: string;
+  username: string;
+  isAdmin: boolean;
 }
 
 /**
@@ -74,6 +81,51 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       setError('Network error — please retry.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Per-team roster expansion + team-admin appointment (Spec 2 §Teams).
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [roster, setRoster] = useState<TeamMemberRow[]>([]);
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  const loadRoster = async (teamId: string) => {
+    setRosterBusy(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/members`);
+      setRoster(res.ok ? ((await res.json()) as TeamMemberRow[]) : []);
+    } catch {
+      setRoster([]);
+    } finally {
+      setRosterBusy(false);
+    }
+  };
+
+  const toggleMembers = async (teamId: string) => {
+    if (expandedId === teamId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(teamId);
+    setRoster([]);
+    await loadRoster(teamId);
+  };
+
+  const makeAdmin = async (teamId: string, memberId: string) => {
+    setAssigningId(memberId);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/assign-admin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ memberId }),
+      });
+      if (res.ok) {
+        await loadRoster(teamId);
+        router.refresh();
+      }
+    } finally {
+      setAssigningId(null);
     }
   };
 
@@ -141,27 +193,74 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                   <TableHead>Workspace</TableHead>
                   <TableHead className="text-right">Members</TableHead>
                   <TableHead>Git token</TableHead>
+                  <TableHead className="text-right">Roster</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {initialTeams.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.name}</TableCell>
-                    <TableCell>
-                      <Mono>{t.slug}</Mono>
-                    </TableCell>
-                    <TableCell className="text-ink-soft">{t.workspaceRootPath}</TableCell>
-                    <TableCell className="text-right tabular-nums">{t.memberCount}</TableCell>
-                    <TableCell>
-                      {t.gitTokenSet ? (
-                        <Badge variant="sage" dot size="sm">
-                          set
-                        </Badge>
-                      ) : (
-                        <Badge size="sm">not set</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={t.id}>
+                    <TableRow>
+                      <TableCell className="font-medium">{t.name}</TableCell>
+                      <TableCell>
+                        <Mono>{t.slug}</Mono>
+                      </TableCell>
+                      <TableCell className="text-ink-soft">{t.workspaceRootPath}</TableCell>
+                      <TableCell className="text-right tabular-nums">{t.memberCount}</TableCell>
+                      <TableCell>
+                        {t.gitTokenSet ? (
+                          <Badge variant="sage" dot size="sm">
+                            set
+                          </Badge>
+                        ) : (
+                          <Badge size="sm">not set</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={() => toggleMembers(t.id)}>
+                          <Users className="size-4" />
+                          Members
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {expandedId === t.id ? (
+                      <TableRow key={`${t.id}-roster`}>
+                        <TableCell colSpan={6} className="bg-surface-2">
+                          {rosterBusy ? (
+                            <p className="text-sm text-ink-soft">Loading roster…</p>
+                          ) : roster.length === 0 ? (
+                            <p className="text-sm text-ink-soft">No members on this team yet.</p>
+                          ) : (
+                            <ul className="flex flex-col gap-1.5">
+                              {roster.map((m) => (
+                                <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                                  <span className="flex items-center gap-2">
+                                    <span className="font-medium text-ink">{m.displayName}</span>
+                                    <Mono className="text-ink-soft">@{m.username}</Mono>
+                                    {m.isAdmin ? (
+                                      <Badge variant="accent" size="sm">
+                                        <ShieldCheck className="size-3" />
+                                        team admin
+                                      </Badge>
+                                    ) : null}
+                                  </span>
+                                  {m.isAdmin ? null : (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => makeAdmin(t.id, m.id)}
+                                      disabled={assigningId === m.id}
+                                    >
+                                      {assigningId === m.id ? 'Assigning…' : 'Make admin'}
+                                    </Button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

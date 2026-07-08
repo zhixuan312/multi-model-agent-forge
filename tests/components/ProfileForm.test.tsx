@@ -13,7 +13,8 @@ const me: AuthedMember = {
   username: 'maya',
   displayName: 'Maya Adeyemi',
   avatarTint: '#6A6F8C',
-  isAdmin: false,
+  role: 'member',
+  teamId: 'team-1',
 };
 
 describe('ProfileForm', () => {

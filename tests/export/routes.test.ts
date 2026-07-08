@@ -44,7 +44,7 @@ const sectionsRoute = await import('../../app/api/projects/[id]/export/sections/
 const mdRoute = await import('../../app/api/projects/[id]/export/md/route');
 
 function asMember(id: string): AuthedMember {
-  return { id, username: 'u', displayName: 'U', avatarTint: '#000', isAdmin: false };
+  return { id, username: 'u', displayName: 'U', avatarTint: '#000', role: 'member', teamId: 'team-1' };
 }
 
 beforeEach(() => {

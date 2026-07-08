@@ -32,6 +32,8 @@ export async function register(): Promise<void> {
     const { setAnthropicDiagnosticsSink } = await import('@/anthropic/client');
     const { getDb } = await import('@/db/client');
     const { mmaBatch } = await import('@/db/schema/ops');
+    const { project } = await import('@/db/schema/projects');
+    const { eq } = await import('drizzle-orm');
     const { resolveWorkspaceRoot } = await import('@/git/workspace-root');
 
     const workspaceRoot = resolveWorkspaceRoot();
@@ -47,22 +49,34 @@ export async function register(): Promise<void> {
         const costUsd =
           (inputTokens * 5 + cacheRead * 0.5 + cacheCreate * 6.25 + outputTokens * 25) / 1_000_000;
         console.log(JSON.stringify({ event: 'diagnostics_sink_record', call: record.call, projectId: record.projectId, inputTokens, outputTokens, costUsd: costUsd.toFixed(6) }));
-        getDb().insert(mmaBatch)
-          .values({
-            projectId: record.projectId,
-            route: 'orchestrate' as const,
-            cwd: workspaceRoot,
-            status: record.ok ? ('done' as const) : ('failed' as const),
-            request: { call: record.call },
-            result: record.ok ? {} : { error: record.error },
-            inputTokens: inputTokens + cacheRead + cacheCreate,
-            outputTokens,
-            costUsd: costUsd.toFixed(6),
-            durationMs: record.latencyMs,
-            implementerTier: 'main',
-            terminalAt: new Date(),
+        const db = getDb();
+        db.select({ teamId: project.teamId })
+          .from(project)
+          .where(eq(project.id, record.projectId))
+          .limit(1)
+          .then((rows) => {
+            const teamId = rows[0]?.teamId;
+            if (!teamId) {
+              throw new Error(`diagnostics sink could not resolve teamId for project ${record.projectId}`);
+            }
+            return db.insert(mmaBatch)
+              .values({
+                projectId: record.projectId,
+                teamId,
+                route: 'orchestrate' as const,
+                cwd: workspaceRoot,
+                status: record.ok ? ('done' as const) : ('failed' as const),
+                request: { call: record.call },
+                result: record.ok ? {} : { error: record.error },
+                inputTokens: inputTokens + cacheRead + cacheCreate,
+                outputTokens,
+                costUsd: costUsd.toFixed(6),
+                durationMs: record.latencyMs,
+                implementerTier: 'main',
+                terminalAt: new Date(),
+              })
+              .execute();
           })
-          .execute()
           .then(() => console.log(JSON.stringify({ event: 'diagnostics_sink_inserted', call: record.call })))
           .catch((err) => console.warn(JSON.stringify({ event: 'diagnostics_sink_insert_failed', error: err instanceof Error ? err.message : String(err) })));
       } catch (err) {

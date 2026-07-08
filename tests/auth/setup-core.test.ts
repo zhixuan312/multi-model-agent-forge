@@ -36,11 +36,11 @@ describe('isFirstRun', () => {
 });
 
 describe('createAdminMember', () => {
-  it('inserts an is_admin member + one local identity; hashes the password', async () => {
-    const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
+  it('inserts an org_admin member + one local identity; hashes the password', async () => {
+    const created = createBaseMember({ id: 'a1', username: 'admin', role: 'org_admin', teamId: null });
     const db = createMockDb({ 'insert:team_member': [created] });
     const m = await createAdminMember(db, { displayName: 'Admin', username: 'admin', password: STRONG });
-    expect(m.isAdmin).toBe(true);
+    expect(m.role).toBe('org_admin');
     expect(db._assertCalled('team_identity', 'insert')).toBe(true);
     const idValues = db._callsFor('team_identity').find((c) => c.method === 'values');
     expect(JSON.stringify(idValues?.args)).not.toContain(STRONG);
@@ -62,10 +62,10 @@ describe('registerFirstAdmin', () => {
   });
 
   it('creates the first admin when the team is empty', async () => {
-    const created = createBaseMember({ id: 'a1', username: 'admin', isAdmin: true });
+    const created = createBaseMember({ id: 'a1', username: 'admin', role: 'org_admin', teamId: null });
     const db = createMockDb({ 'select:team_member': [{ count: 0 }], 'insert:team_member': [created] });
     const res = await registerFirstAdmin({ displayName: 'Admin', username: 'admin', password: STRONG }, { db });
     expect(res.kind).toBe('created');
-    if (res.kind === 'created') expect(res.member.isAdmin).toBe(true);
+    if (res.kind === 'created') expect(res.member.role).toBe('org_admin');
   });
 });

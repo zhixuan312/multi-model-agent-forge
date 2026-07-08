@@ -23,7 +23,7 @@ const { GET: pinsGET, POST: pinsPOST } = await import('../../app/api/journal/pin
 const { DELETE: pinDELETE } = await import('../../app/api/journal/pins/[id]/route');
 const { POST: pinRefresh } = await import('../../app/api/journal/pins/[id]/refresh/route');
 
-const member = (): AuthedMember => ({ id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', isAdmin: false });
+const member = (): AuthedMember => ({ id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' });
 function req(body: unknown, method = 'POST', extraHeaders: Record<string, string> = {}): Request {
   return new Request('http://localhost/api/journal/pins', {
     method,

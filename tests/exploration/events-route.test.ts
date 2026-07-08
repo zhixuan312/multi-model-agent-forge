@@ -26,7 +26,7 @@ const { GET } = await import('../../app/api/projects/[id]/events/route');
 const { projectEventBus } = await import('@/sse/event-bus');
 
 function asMember(): AuthedMember {
-  return { id: 'm', username: 'mem', displayName: 'M', avatarTint: '#000', isAdmin: false };
+  return { id: 'm', username: 'mem', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' };
 }
 
 function params(id: string) {

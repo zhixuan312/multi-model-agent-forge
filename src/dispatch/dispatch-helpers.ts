@@ -1,6 +1,9 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
+import { member } from '@/db/schema/identity';
 import { mmaBatch } from '@/db/schema/ops';
+import { project } from '@/db/schema/projects';
+import { loopRun } from '@/db/schema/loop';
 import { logAction } from '@/observability/action-log';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
@@ -52,6 +55,40 @@ export interface DispatchOpts {
    * ignored on the sync path.
    */
   taskId?: string | null;
+}
+
+async function resolveBatchTeamId(opts: Pick<DispatchOpts, 'db' | 'projectId' | 'loopRunId' | 'actorId'>): Promise<string> {
+  if (opts.projectId) {
+    const [projectRow] = await opts.db
+      .select({ teamId: project.teamId })
+      .from(project)
+      .where(eq(project.id, opts.projectId))
+      .limit(1);
+    if (projectRow?.teamId) return projectRow.teamId;
+    throw new Error(`Dispatch requires a team-scoped project: ${opts.projectId}`);
+  }
+
+  if (opts.loopRunId) {
+    const [loopRunRow] = await opts.db
+      .select({ teamId: loopRun.teamId })
+      .from(loopRun)
+      .where(eq(loopRun.id, opts.loopRunId))
+      .limit(1);
+    if (loopRunRow?.teamId) return loopRunRow.teamId;
+    throw new Error(`Dispatch requires a team-scoped loop run: ${opts.loopRunId}`);
+  }
+
+  if (opts.actorId) {
+    const [actorRow] = await opts.db
+      .select({ teamId: member.teamId })
+      .from(member)
+      .where(eq(member.id, opts.actorId))
+      .limit(1);
+    if (actorRow?.teamId) return actorRow.teamId;
+    throw new Error(`Dispatch actor is not team-scoped: ${opts.actorId}`);
+  }
+
+  throw new Error('Dispatch requires a resolvable teamId.');
 }
 
 export async function findInflight(
@@ -172,8 +209,12 @@ export async function dispatchMma(
   // The row's handler column carries the registered handler key, OR the label when
   // inline-consume (handler:null) — so a handler-less dispatch stays traceable by name.
   const rowHandler = opts.handler ?? opts.label ?? null;
+
+  const teamId = await resolveBatchTeamId(opts);
+
   const values = {
     projectId: opts.projectId,
+    teamId,
     route: opts.route,
     handler: rowHandler,
     cwd: opts.cwd,

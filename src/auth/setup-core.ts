@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
+import type { ForgeRole } from '@/auth/auth-provider';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { hashPassword } from '@/auth/password';
@@ -33,13 +34,13 @@ export interface CreatedAdmin {
   username: string;
   displayName: string;
   avatarTint: string;
-  isAdmin: boolean;
+  role: ForgeRole;
 }
 
 /**
- * Insert one `is_admin` member + its single `local` identity (argon2id hash).
+ * Insert one `org_admin` member + its single `local` identity (argon2id hash).
  * No gate of its own — `registerFirstAdmin` owns the zero-members check; this
- * is the pure insertion primitive (mirrors `createMember`, but `is_admin`).
+ * is the pure insertion primitive (mirrors `createMember`, but org admin role).
  */
 export async function createAdminMember(
   db: Db,
@@ -48,13 +49,13 @@ export async function createAdminMember(
   const passwordHash = await hashPassword(input.password);
   const [m] = await db
     .insert(member)
-    .values({ username: input.username, displayName: input.displayName, isAdmin: true })
+    .values({ username: input.username, displayName: input.displayName, role: 'org_admin' })
     .returning({
       id: member.id,
       username: member.username,
       displayName: member.displayName,
       avatarTint: member.avatarTint,
-      isAdmin: member.isAdmin,
+      role: member.role,
     });
   await db.insert(memberIdentity).values({
     memberId: m.id,

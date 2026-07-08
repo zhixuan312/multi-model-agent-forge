@@ -29,7 +29,7 @@ function req(body: unknown): Request {
   });
 }
 const ctx = { params: Promise.resolve({ id: 'p1' }) };
-const member: AuthedMember = { id: 'm', username: 'x', displayName: 'X', avatarTint: '#000000', isAdmin: false };
+const member: AuthedMember = { id: 'm', username: 'x', displayName: 'X', avatarTint: '#000000', role: 'member', teamId: 'team-1' };
 
 describe('POST /transition — error mapping', () => {
   beforeEach(() => { mockCaller = member; performTransition.mockReset(); });

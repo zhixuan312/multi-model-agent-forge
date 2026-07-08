@@ -30,6 +30,7 @@ describe('G2 — per-(project, phase) concurrency guard', () => {
   it('dispatchMma REFUSES a cross-phase dispatch while another phase is in flight', async () => {
     // in-flight code-review (review/review); dispatching plan-audit (plan/validate)
     const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
       'select:ops_mma_batch': [{ handler: 'code-review' }], // the guard's in-flight query
       'insert:ops_mma_batch': [{ id: 'row-x', createdAt: new Date() }],
     });
@@ -72,7 +73,10 @@ describe('dispatchMma — sync handler receives body + meta merged as request', 
     let seen: unknown = null;
     registerHandler('test-capture-request', async (_db, ctx) => { seen = ctx.request; });
 
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-c', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-c', createdAt: new Date() }],
+    });
     await dispatchMma({
       db,
       mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
@@ -111,6 +115,7 @@ describe('dispatchMma — sync path persists the MMA task id', () => {
     // re-dispatch forever). Register a no-op so this test isolates batchId persistence.
     registerHandler('test-noop-handler', async () => {});
     const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
       'insert:ops_mma_batch': [{ id: 'row-1', createdAt: new Date() }],
     });
 
@@ -157,7 +162,10 @@ describe('dispatchMma — error envelope is a failure, not a silent success', ()
   };
 
   it('marks the row failed and throws when the envelope carries an error', async () => {
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-e', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-e', createdAt: new Date() }],
+    });
 
     await expect(dispatchMma({
       db, mma: fakeMma(erroredEnvelope), projectId: 'proj-1', route: 'audit',
@@ -190,7 +198,10 @@ describe('dispatchMma — a throwing terminal handler fails the batch + rethrows
     const { registerHandler } = await import('@/dispatch/handler-registry');
     registerHandler('test-throwing-handler', async () => { throw new Error('handler boom'); });
 
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-h', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-h', createdAt: new Date() }],
+    });
     await expect(dispatchMma({
       db,
       mma: { dispatchAndWait: async () => ({ batchId: 'mma-ok', envelope: okEnvelope }) } as unknown as MmaClient,
@@ -217,7 +228,10 @@ describe('dispatchMma — an unregistered terminal handler fails the batch + thr
   };
 
   it('marks the row failed and throws when no handler is registered for the batch', async () => {
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-nh', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-nh', createdAt: new Date() }],
+    });
     await expect(dispatchMma({
       db,
       mma: { dispatchAndWait: async () => ({ batchId: 'mma-ok', envelope: okEnvelope }) } as unknown as MmaClient,
@@ -240,17 +254,63 @@ describe('dispatchMma — inline-consume (handler:null) [AC1]', () => {
   const okEnvelope = { task: { type: 'delegate', status: 'done', taskId: 'm' }, output: { summary: 'x' }, error: null };
 
   it('returns the envelope, marks the row done, fires no handler, and does not throw', async () => {
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-ic', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:loop_run': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-ic', createdAt: new Date() }],
+    });
     const res = await dispatchMma({
       db,
       mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: okEnvelope }) } as unknown as MmaClient,
       projectId: null, route: 'delegate', handler: null, label: 'loop-work',
-      cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
+      cwd: '/w', body: { prompt: 'x' }, actorId: null, loopRunId: 'loop-run-1', await: true,
     });
     expect((res.envelope as { output: unknown }).output).toBeTruthy();
     const setCalls = db._callsFor('ops_mma_batch').filter((c) => c.method === 'set').map((c) => c.args[0] as Record<string, unknown>);
     expect(setCalls.some((a) => a.status === 'done')).toBe(true);
     expect(setCalls.some((a) => a.status === 'failed')).toBe(false); // no missing-handler throw
+  });
+});
+
+describe('dispatchMma — teamId resolution for project-less dispatches', () => {
+  it('resolves teamId from the dispatching member for project-less async work', async () => {
+    registerMock.mockClear();
+    const db = createMockDb({
+      'select:team_member': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-fp', createdAt: new Date() }],
+    });
+
+    await dispatchMma({
+      db,
+      mma: { dispatch: async () => ({ batchId: 'ext-1' }) } as unknown as MmaClient,
+      projectId: null,
+      route: 'journal_recall',
+      handler: null,
+      label: 'journal-recall',
+      cwd: '/w',
+      body: {},
+      actorId: 'member-1',
+      await: false,
+    });
+
+    const valuesCall = db._callsFor('ops_mma_batch').find((c) => c.method === 'values');
+    expect((valuesCall?.args[0] as Record<string, unknown>).teamId).toBe('team-1');
+  });
+
+  it('fails closed when teamId cannot be resolved', async () => {
+    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-miss', createdAt: new Date() }] });
+
+    await expect(dispatchMma({
+      db,
+      mma: { dispatch: async () => ({ batchId: 'ext-1' }) } as unknown as MmaClient,
+      projectId: null,
+      route: 'journal_recall',
+      handler: null,
+      label: 'journal-recall',
+      cwd: '/w',
+      body: {},
+      actorId: null,
+      await: false,
+    })).rejects.toThrow(/teamId/);
   });
 });
 
@@ -263,7 +323,10 @@ describe('dispatchMma — inline-consume (handler:null) [AC1]', () => {
 describe('dispatchMma — async + handler:null is fire-and-row-poll [AC3]', () => {
   it('dispatches, registers the poller, returns the external batchId, and runs no handler', async () => {
     registerMock.mockClear();
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-fp', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:team_member': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-fp', createdAt: new Date() }],
+    });
     const res = await dispatchMma({
       db, mma: { dispatch: async () => ({ batchId: 'ext-1' }) } as unknown as MmaClient,
       projectId: null, route: 'journal_recall', handler: null, label: 'journal-recall',
@@ -276,7 +339,10 @@ describe('dispatchMma — async + handler:null is fire-and-row-poll [AC3]', () =
 
   it('threads taskId to the PollManager register (R4 discover fan-out)', async () => {
     registerMock.mockClear();
-    const db = createMockDb({ 'insert:ops_mma_batch': [{ id: 'row-d', createdAt: new Date() }] });
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'insert:ops_mma_batch': [{ id: 'row-d', createdAt: new Date() }],
+    });
     await dispatchMma({
       db, mma: { dispatch: async () => ({ batchId: 'ext-d' }) } as unknown as MmaClient,
       projectId: 'proj-1', route: 'investigate', handler: null, label: 'discover-investigate',

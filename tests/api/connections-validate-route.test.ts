@@ -40,7 +40,7 @@ describe('POST /api/connections/validate', () => {
   });
 
   it('non-admin → 403, unauthenticated → 401', async () => {
-    mockCaller = { id: 'm', username: 'm', displayName: 'M', avatarTint: '#9a6b4f', isAdmin: false };
+    mockCaller = { id: 'm', username: 'm', displayName: 'M', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
     expect((await POST(req({ type: 'mma' }) as never)).status).toBe(403);
     mockCaller = null;
     expect((await POST(req({ type: 'mma' }) as never)).status).toBe(401);

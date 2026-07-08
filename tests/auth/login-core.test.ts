@@ -40,7 +40,7 @@ describe('attemptLogin', () => {
   });
 
   it('creates a session + resets the counters on success', async () => {
-    const d = deps({ authenticate: vi.fn(async () => ({ id: 'm1', username: 'ada', displayName: 'Ada', avatarTint: '#9a6b4f', isAdmin: false })) });
+    const d = deps({ authenticate: vi.fn(async () => ({ id: 'm1', username: 'ada', displayName: 'Ada', avatarTint: '#9a6b4f', role: 'member' as const, teamId: 'team-1' })) });
     const res = await attemptLogin(INPUT, d);
     expect(res).toEqual({ kind: 'success', token: 'tok', memberId: 'm1' });
     expect(d.store.create).toHaveBeenCalledWith('m1');

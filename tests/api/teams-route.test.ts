@@ -4,10 +4,14 @@ import type { AuthedMember } from '@/auth/auth-provider';
 import { createMockDb } from '../test-utils/mock-db';
 
 let mockMember: AuthedMember | null = null;
-let mockDb = createMockDb({
-  'select:team': [{ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/workspace', gitTokenRef: null }],
-  'insert:team': [{ id: 'team-1', name: 'Team 1', slug: 'team-1', workspaceRootPath: '/workspace', gitTokenRef: null, createdAt: new Date(), updatedAt: new Date() }],
-});
+const seedDb = () =>
+  createMockDb({
+    'select:team': [{ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/workspace', gitTokenRef: null }],
+    'select:team_member': [], // admin username pre-check: none existing
+    'insert:team': [{ id: 'team-1', name: 'Team 1', slug: 'team-1', workspaceRootPath: '/workspace', gitTokenRef: null, createdAt: new Date(), updatedAt: new Date() }],
+    'insert:team_member': [{ id: 'ta-1', username: 'lead', displayName: 'Lead' }],
+  });
+let mockDb = seedDb();
 
 vi.mock('@/auth/current-member', () => ({
   currentMember: async () => mockMember,
@@ -38,10 +42,7 @@ const member: AuthedMember = {
 };
 
 beforeEach(() => {
-  mockDb = createMockDb({
-    'select:team': [{ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/workspace', gitTokenRef: null }],
-    'insert:team': [{ id: 'team-1', name: 'Team 1', slug: 'team-1', workspaceRootPath: '/workspace', gitTokenRef: null, createdAt: new Date(), updatedAt: new Date() }],
-  });
+  mockDb = seedDb();
 });
 
 describe('Teams API routes', () => {
@@ -57,7 +58,23 @@ describe('Teams API routes', () => {
     expect(res.status).toBe(403);
   });
 
-  it('POST /api/teams returns 201 for org-admin with valid input', async () => {
+  it('POST /api/teams creates the team + its admin (201) for org-admin', async () => {
+    mockMember = orgAdmin;
+    const req = new Request('http://localhost/api/teams', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Team 1',
+        slug: 'team-1',
+        workspaceRootPath: '/workspace',
+        admin: { displayName: 'Lead', username: 'lead', password: 'a-strong-password' },
+      }),
+    });
+    const res = await postTeam(req as any);
+    expect(res.status).toBe(201);
+  });
+
+  it('POST /api/teams returns 400 when the admin block is missing', async () => {
     mockMember = orgAdmin;
     const req = new Request('http://localhost/api/teams', {
       method: 'POST',
@@ -65,6 +82,6 @@ describe('Teams API routes', () => {
       body: JSON.stringify({ name: 'Team 1', slug: 'team-1', workspaceRootPath: '/workspace' }),
     });
     const res = await postTeam(req as any);
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(400);
   });
 });

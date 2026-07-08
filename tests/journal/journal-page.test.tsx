@@ -15,7 +15,7 @@ vi.mock('node:fs', async (importOriginal) => {
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
 vi.mock('@/auth/current-member', () => ({
-  currentMember: async () => ({ id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', isAdmin: false }),
+  currentMember: async () => ({ id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' }),
 }));
 vi.mock('@/journal/store-reader', () => ({
   readAllNodes: async () => ({

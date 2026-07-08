@@ -1,8 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { team } from '@/db/schema/team';
-import { member } from '@/db/schema/identity';
+import { member, memberIdentity } from '@/db/schema/identity';
+import { createMemberSchema } from '@/auth/members-core';
+import { hashPassword } from '@/auth/password';
 import { validateTeamWorkspacePath } from '@/git/workspace-root';
 
 export interface TeamsDeps {
@@ -26,6 +28,61 @@ export async function createTeam(
   const db = deps.db ?? getDb();
   const [created] = await db.insert(team).values(parsed.data).returning();
   return { kind: 'created', team: created };
+}
+
+// A team has no members until its admin exists, and the org admin can never join
+// a team — so a team and its first team_admin are provisioned together (FR-9).
+const createTeamWithAdminSchema = createTeamSchema.extend({
+  admin: createMemberSchema,
+});
+
+type CreatedTeam = { id: string; name: string; slug: string; workspaceRootPath: string; gitTokenRef: string | null };
+
+export type CreateTeamWithAdminResult =
+  | { kind: 'created'; team: CreatedTeam; admin: { id: string; username: string } }
+  | { kind: 'invalid' }
+  | { kind: 'duplicate_username' };
+
+/**
+ * Create a team AND its first team_admin member in one transaction. The org
+ * admin supplies the team fields plus the admin's username + initial password;
+ * the member is bound to the new team with role `team_admin`. If the admin
+ * username is taken, nothing is written (no orphan team).
+ */
+export async function createTeamWithAdmin(
+  input: unknown,
+  deps: TeamsDeps = {},
+): Promise<CreateTeamWithAdminResult> {
+  const parsed = createTeamWithAdminSchema.safeParse(input);
+  if (!parsed.success) return { kind: 'invalid' };
+  const db = deps.db ?? getDb();
+  const { name, slug, workspaceRootPath, admin } = parsed.data;
+
+  // Case-insensitive pre-check (the functional unique index is the real guard).
+  const [existing] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(sql`lower(${member.username}) = lower(${admin.username})`)
+    .limit(1);
+  if (existing) return { kind: 'duplicate_username' };
+
+  const passwordHash = await hashPassword(admin.password);
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [t] = await tx.insert(team).values({ name, slug, workspaceRootPath }).returning();
+      const [m] = await tx
+        .insert(member)
+        .values({ username: admin.username, displayName: admin.displayName, role: 'team_admin', teamId: t.id })
+        .returning({ id: member.id, username: member.username });
+      await tx.insert(memberIdentity).values({ memberId: m.id, passwordHash });
+      return { team: t, admin: m };
+    });
+    return { kind: 'created', team: result.team, admin: result.admin };
+  } catch {
+    // Unique-violation race on the username index → duplicate.
+    return { kind: 'duplicate_username' };
+  }
 }
 
 export type UpdateWorkspacePathResult =

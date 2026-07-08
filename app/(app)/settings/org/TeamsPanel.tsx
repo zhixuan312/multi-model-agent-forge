@@ -28,6 +28,7 @@ export interface TeamRow {
   workspaceRootPath: string;
   gitTokenSet: boolean;
   memberCount: number;
+  adminUsername: string | null;
 }
 
 interface TeamMemberRow {
@@ -38,11 +39,11 @@ interface TeamMemberRow {
 }
 
 /**
- * Org-admin team management (Spec 2 §Teams). Lists every team in the deployment
- * and creates new ones via `POST /api/teams`. The org admin owns the shared
- * infra; each team it creates gets its own workspace root and (later) its own
- * git token + team admin. Assigning a team admin happens from the team's member
- * roster (a member must already belong to the team), so it is not done here.
+ * Org-admin team management (Spec 2 §Teams FR-9). Lists every team in the
+ * deployment and creates new ones via `POST /api/teams`. Because the org admin
+ * can never join a team and a team has no members until its admin exists, each
+ * new team is created together with its first team admin (username + initial
+ * password). Promoting an additional admin later happens from the team roster.
  */
 export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const router = useRouter();
@@ -50,6 +51,9 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [workspaceRootPath, setWorkspaceRootPath] = useState('');
+  const [adminDisplayName, setAdminDisplayName] = useState('');
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +61,9 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     setName('');
     setSlug('');
     setWorkspaceRootPath('');
+    setAdminDisplayName('');
+    setAdminUsername('');
+    setAdminPassword('');
     setError(null);
   };
 
@@ -67,7 +74,12 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, slug, workspaceRootPath }),
+        body: JSON.stringify({
+          name,
+          slug,
+          workspaceRootPath,
+          admin: { displayName: adminDisplayName, username: adminUsername, password: adminPassword },
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -165,13 +177,47 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                 />
               )}
             </Field>
+
+            <div className="mt-1 border-t border-line pt-3">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">Team admin</p>
+              <div className="flex flex-col gap-3">
+                <Field label="Display name">
+                  {(p) => (
+                    <Input {...p} value={adminDisplayName} onChange={(e) => setAdminDisplayName(e.target.value)} placeholder="Alex Rivera" />
+                  )}
+                </Field>
+                <Field label="Username" hint="They sign in with this.">
+                  {(p) => (
+                    <Input {...p} value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} placeholder="alex" />
+                  )}
+                </Field>
+                <Field label="Initial password" hint="Hand this to the admin; they can change it after signing in.">
+                  {(p) => (
+                    <Input {...p} type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="font-mono" />
+                  )}
+                </Field>
+              </div>
+            </div>
+
             {error ? <p className="text-sm text-rose">{error}</p> : null}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={submit} disabled={busy || !name.trim() || !slug.trim() || !workspaceRootPath.trim()}>
-                {busy ? 'Creating…' : 'Create team'}
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={
+                  busy ||
+                  !name.trim() ||
+                  !slug.trim() ||
+                  !workspaceRootPath.trim() ||
+                  !adminDisplayName.trim() ||
+                  !adminUsername.trim() ||
+                  !adminPassword
+                }
+              >
+                {busy ? 'Creating…' : 'Create team + admin'}
               </Button>
             </div>
           </div>
@@ -181,7 +227,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
           <EmptyState
             icon={<Users />}
             title="No teams yet"
-            description="Create the first team, then add members and appoint a team admin from that team's roster."
+            description="Create the first team and its admin. The admin then adds members and configures the team's git token and workspace."
           />
         ) : (
           <div className="overflow-x-auto">
@@ -190,6 +236,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                 <TableRow>
                   <TableHead>Team</TableHead>
                   <TableHead>Slug</TableHead>
+                  <TableHead>Admin</TableHead>
                   <TableHead>Workspace</TableHead>
                   <TableHead className="text-right">Members</TableHead>
                   <TableHead>Git token</TableHead>
@@ -203,6 +250,9 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                       <TableCell className="font-medium">{t.name}</TableCell>
                       <TableCell>
                         <Mono>{t.slug}</Mono>
+                      </TableCell>
+                      <TableCell>
+                        {t.adminUsername ? <Mono className="text-ink-soft">@{t.adminUsername}</Mono> : <span className="text-ink-faint">—</span>}
                       </TableCell>
                       <TableCell className="text-ink-soft">{t.workspaceRootPath}</TableCell>
                       <TableCell className="text-right tabular-nums">{t.memberCount}</TableCell>
@@ -224,7 +274,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                     </TableRow>
                     {expandedId === t.id ? (
                       <TableRow key={`${t.id}-roster`}>
-                        <TableCell colSpan={6} className="bg-surface-2">
+                        <TableCell colSpan={7} className="bg-surface-2">
                           {rosterBusy ? (
                             <p className="text-sm text-ink-soft">Loading roster…</p>
                           ) : roster.length === 0 ? (

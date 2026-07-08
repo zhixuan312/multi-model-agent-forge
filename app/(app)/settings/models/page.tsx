@@ -4,7 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { readMmaTiers } from '@/mma/mma-config-reader';
 import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame, MetricCard } from '@/components/ui';
-import { SettingsTabs } from '@/components/forge/SettingsTabs';
+import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ModelsPanel } from './ModelsPanel';
 
@@ -45,7 +45,7 @@ export default async function ModelsPage() {
   const apiKeys = values.filter((t) => t?.authMode === 'api-key').length;
 
   return (
-    <PageFrame title="Org settings" subnav={<SettingsTabs active="org" />} width="full">
+    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="models" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

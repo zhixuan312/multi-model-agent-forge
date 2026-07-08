@@ -4,7 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { getConnections } from '@/config/connections-core';
 import { readMmaBearer } from '@/mma/client-config';
 import { PageFrame, MetricCard } from '@/components/ui';
-import { SettingsTabs } from '@/components/forge/SettingsTabs';
+import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ export default async function ConnectionsPage() {
   const setCount = (mmaBearer ? 1 : 0) + (view.openaiTranscriptionKeySet ? 1 : 0);
 
   return (
-    <PageFrame title="Org settings" subnav={<SettingsTabs active="org" />} width="full">
+    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="connections" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — org infrastructure secrets */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">

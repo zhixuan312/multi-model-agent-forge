@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { listMembers, countActiveSessions } from '@/auth/members-core';
 import { PageFrame } from '@/components/ui';
-import { SettingsTabs } from '@/components/forge/SettingsTabs';
+import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { MemberTable, type MemberRowData } from './MemberTable';
@@ -41,7 +41,7 @@ export default async function MembersPage() {
   const recent = rows.filter((m) => new Date(m.createdAt) > cutoff).length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="team" />} width="full" fill>
+    <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="members" />} width="full" fill>
       <StatusDashboard
         metrics={[
           { label: 'Team members', value: total, sublabel: 'Total members', icon: <Users />, iconTint: 'rose' },

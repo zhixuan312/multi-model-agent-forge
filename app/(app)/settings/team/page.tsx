@@ -8,7 +8,7 @@ import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import { PageFrame, MetricCard, Card, CardContent, Title, Text, buttonVariants } from '@/components/ui';
-import { SettingsTabs } from '@/components/forge/SettingsTabs';
+import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { GitTokenForm } from './GitTokenForm';
 import { WorkspaceForm } from './WorkspaceForm';
 
@@ -39,7 +39,7 @@ export default async function TeamSettingsPage() {
   const memberCount = memberCountRows[0]?.c ?? 0;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="team" />} width="full">
+    <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — four equal metric boxes, mirroring the connections surface */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

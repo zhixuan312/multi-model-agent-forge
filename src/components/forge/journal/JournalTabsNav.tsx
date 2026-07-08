@@ -3,7 +3,7 @@ import { BookOpen, Hexagon, Share2, History } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 /**
- * The Journal tab bar — lives in the PageFrame header sub-nav (like SettingsTabs),
+ * The Journal tab bar — lives in the PageFrame header sub-nav (like the settings tab bars),
  * Link-based so each view is a real navigation. Server component; the active tab
  * is passed in. Order: Recall · Nodes · Graph · Log.
  */

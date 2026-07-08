@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui';
 import { formatCost, formatDuration } from '@/usage/format';
 import type { RouteAggRow } from '@/usage/usage-core';
 
@@ -12,7 +11,6 @@ export function RouteBreakdown({ routes }: { routes: RouteAggRow[] }) {
         <thead>
           <tr className="text-left text-ink-faint">
             <th className="pb-1.5 font-medium">Route</th>
-            <th className="pb-1.5 font-medium">Tier</th>
             <th className="pb-1.5 text-right font-medium">Calls</th>
             <th className="pb-1.5 text-right font-medium">Total cost</th>
             <th className="pb-1.5 text-right font-medium">Saved</th>
@@ -23,17 +21,8 @@ export function RouteBreakdown({ routes }: { routes: RouteAggRow[] }) {
         </thead>
         <tbody>
           {routes.map((r) => (
-            <tr key={`${r.route}-${r.tier}`} className="border-t border-line/50">
+            <tr key={r.route} className="border-t border-line/50">
               <td className="py-1.5 font-mono text-xs">{r.route}</td>
-              <td className="py-1.5">
-                {r.tier ? (
-                  <Badge variant={r.tier === 'complex' ? 'accent' : r.tier === 'main' ? 'amber' : 'neutral'} size="sm">
-                    {r.tier}
-                  </Badge>
-                ) : (
-                  <span className="text-ink-faint">—</span>
-                )}
-              </td>
               <td className="py-1.5 text-right tabular-nums">{r.callCount}</td>
               <td className="py-1.5 text-right tabular-nums">{formatCost(r.totalCostUsd)}</td>
               <td className="py-1.5 text-right tabular-nums text-[var(--sage)]">{formatCost(r.totalSavedUsd || null)}</td>

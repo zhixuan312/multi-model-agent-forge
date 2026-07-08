@@ -295,9 +295,6 @@ export async function dispatchMma(
         ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
         ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
         ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
-        ...(usage.implementerModel !== null && { implementerModel: usage.implementerModel }),
-        ...(usage.reviewerModel !== null && { reviewerModel: usage.reviewerModel }),
-        ...(usage.implementerTier !== null && { implementerTier: usage.implementerTier }),
       })
       .where(eq(mmaBatch.id, batchRowId));
 

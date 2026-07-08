@@ -5,7 +5,6 @@ import {
   CardContent,
   Title,
   Text,
-  Badge,
   EmptyState,
   Table,
   TableHeader,
@@ -16,7 +15,7 @@ import {
 } from '@/components/ui';
 import { formatCost, formatTokens, formatRoi } from '@/usage/format';
 import type { OrgOverviewResult } from '@/usage/usage-core';
-import { Sparkline } from './Sparkline';
+import { CostTrendChart } from './CostTrendChart';
 
 /**
  * Org-level global usage view (Spec 3, org_admin only). Numbers-only rollup
@@ -99,18 +98,8 @@ function OrgTrendCard({ trend }: { trend: OrgOverviewResult['trend']['orgTotal']
   return (
     <Card>
       <CardContent>
-        <Title as="h2" className="mb-3">Cost trend</Title>
-        {trend.length < 2 ? (
-          <EmptyState icon={<TrendingUp />} title="Not enough history yet" description="Daily org cost appears here once there are at least two days of activity." />
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Sparkline points={trend.map((p) => p.costUsd)} label="Daily org cost" />
-            <div className="flex justify-between text-xs text-ink-soft tabular-nums">
-              <span>{trend[0]?.date}</span>
-              <span>{trend[trend.length - 1]?.date}</span>
-            </div>
-          </div>
-        )}
+        <Title as="h2" className="mb-3">Cost &amp; volume</Title>
+        <CostTrendChart points={trend} />
       </CardContent>
     </Card>
   );
@@ -167,21 +156,15 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
               <TableHeader>
                 <TableRow>
                   <TableHead>Route</TableHead>
-                  <TableHead>Tier</TableHead>
-                  <TableHead>Implementer</TableHead>
-                  <TableHead>Reviewer</TableHead>
                   <TableHead className="text-right">Calls</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Avg</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r, i) => (
-                  <TableRow key={`${r.route}-${r.tier ?? ''}-${r.implementerModel ?? ''}-${r.reviewerModel ?? ''}-${i}`}>
+                {rows.map((r) => (
+                  <TableRow key={r.route}>
                     <TableCell className="font-medium">{r.route}</TableCell>
-                    <TableCell>{r.tier ? <Badge variant="neutral" size="sm">{r.tier}</Badge> : '—'}</TableCell>
-                    <TableCell className="text-ink-soft">{r.implementerModel ?? '—'}</TableCell>
-                    <TableCell className="text-ink-soft">{r.reviewerModel ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.callCount}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.costUsd)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.avgCostUsd || null)}</TableCell>

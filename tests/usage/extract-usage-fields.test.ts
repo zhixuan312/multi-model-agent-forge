@@ -43,8 +43,6 @@ describe('extractUsageFields', () => {
     expect(fields.inputTokens).toBeNull();
     expect(fields.outputTokens).toBeNull();
     expect(fields.durationMs).toBeNull();
-    expect(fields.implementerModel).toBeNull();
-    expect(fields.reviewerModel).toBeNull();
   });
 
   it('returns nulls for null input', () => {
@@ -64,7 +62,6 @@ describe('extractUsageFields', () => {
     };
     const fields = extractUsageFields(envelope);
     expect(fields.costUsd).toBe('0.1234');
-    expect(fields.reviewerModel).toBeNull();
   });
 
   it('handles savedVsMainCostUsd = 0', () => {

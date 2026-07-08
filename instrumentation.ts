@@ -72,7 +72,6 @@ export async function register(): Promise<void> {
                 outputTokens,
                 costUsd: costUsd.toFixed(6),
                 durationMs: record.latencyMs,
-                implementerTier: 'main',
                 terminalAt: new Date(),
               })
               .execute();

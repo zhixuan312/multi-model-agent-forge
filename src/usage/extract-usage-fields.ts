@@ -9,9 +9,6 @@ export interface UsageFields {
   inputTokens: number | null;
   outputTokens: number | null;
   durationMs: number | null;
-  implementerModel: string | null;
-  reviewerModel: string | null;
-  implementerTier: string | null;
 }
 
 function asObj(v: unknown): Record<string, unknown> {
@@ -25,9 +22,6 @@ export function extractUsageFields(envelope: unknown): UsageFields {
     inputTokens: null,
     outputTokens: null,
     durationMs: null,
-    implementerModel: null,
-    reviewerModel: null,
-    implementerTier: null,
   };
 
   if (!envelope || typeof envelope !== 'object') return nullResult;
@@ -44,7 +38,7 @@ export function extractUsageFields(envelope: unknown): UsageFields {
     const inputTokens = typeof totalUsage.inputTokens === 'number' ? totalUsage.inputTokens : null;
     const outputTokens = typeof totalUsage.outputTokens === 'number' ? totalUsage.outputTokens : null;
 
-    return { costUsd, savedVsMainUsd, inputTokens, outputTokens, durationMs, implementerModel: null, reviewerModel: null, implementerTier: null };
+    return { costUsd, savedVsMainUsd, inputTokens, outputTokens, durationMs };
   } catch {
     return nullResult;
   }

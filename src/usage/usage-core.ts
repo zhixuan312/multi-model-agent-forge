@@ -120,9 +120,6 @@ export interface OrgTeamUsageRow {
 
 export interface OrgInfraBreakdownRow {
   route: string;
-  tier: string | null;
-  implementerModel: string | null;
-  reviewerModel: string | null;
   costUsd: number;
   callCount: number;
   avgCostUsd: number;
@@ -131,6 +128,8 @@ export interface OrgInfraBreakdownRow {
 export interface UsagePoint {
   date: string;
   costUsd: number;
+  savedUsd: number;
+  count: number;
 }
 
 export interface TeamSparkline {
@@ -374,35 +373,30 @@ async function usageOverviewOrg(
   headline.costPerMemberUsd = totalMemberCount > 0 ? headline.totalCostUsd / totalMemberCount : 0;
   // headline.trendRatio is computed from the daily series below.
 
-  // Infrastructure breakdown by route/tier/model
+  // Infrastructure breakdown by route. The MMA envelope carries no per-phase
+  // model/tier, so we report spend per route only.
   const infraBreakdownRows = await db
     .select({
       route: mmaBatch.route,
-      tier: mmaBatch.implementerTier,
-      implementerModel: mmaBatch.implementerModel,
-      reviewerModel: mmaBatch.reviewerModel,
       costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
       callCount: sql<number>`count(*)::int`,
       avgCostUsd: sql<number>`coalesce(avg(${mmaBatch.costUsd}::numeric), 0)::float`,
     })
     .from(mmaBatch)
     .where(and(termCond, cutoffCond))
-    .groupBy(mmaBatch.route, mmaBatch.implementerTier, mmaBatch.implementerModel, mmaBatch.reviewerModel)
+    .groupBy(mmaBatch.route)
     .orderBy(sql`sum(${mmaBatch.costUsd}::numeric) desc nulls last`);
 
   const infraBreakdown: OrgInfraBreakdownRow[] = infraBreakdownRows.map((r) => ({
     route: r.route,
-    tier: r.tier,
-    implementerModel: r.implementerModel,
-    reviewerModel: r.reviewerModel,
     costUsd: r.costUsd,
     callCount: r.callCount,
     avgCostUsd: r.avgCostUsd,
   }));
 
-  // Trend: org-total daily cost series (SGT day buckets). Per-team sparklines
-  // are left empty until a per-team daily rollup is added — the dashboard renders
-  // only the org-total series, so no placeholder data is surfaced.
+  // Trend: org-total daily series (SGT day buckets) — cost, savings, and dispatch
+  // count per day feed the dashboard's volume-and-cost chart. Per-team sparklines
+  // are left empty until a per-team daily rollup is added.
   // Inline the timezone as a SQL literal (not a bind param) so the SELECT and
   // GROUP BY day-bucket expressions are textually identical — Postgres rejects a
   // parameterised timezone in GROUP BY as an ungrouped-column reference. TIMEZONE
@@ -412,13 +406,15 @@ async function usageOverviewOrg(
     .select({
       date: sql<string>`to_char(${dayBucket}, 'YYYY-MM-DD')`,
       costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+      savedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
+      count: sql<number>`count(*)::int`,
     })
     .from(mmaBatch)
     .where(and(termCond, cutoffCond))
     .groupBy(dayBucket)
     .orderBy(dayBucket);
 
-  const orgTotal: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd }));
+  const orgTotal: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd, savedUsd: r.savedUsd, count: r.count }));
   const trend = { orgTotal, perTeam: [] as TeamSparkline[] };
 
   // trendRatio: second-half spend vs first-half spend across the series (>1 = rising).
@@ -691,7 +687,6 @@ export interface SourceRouteRow {
 
 export interface RouteAggRow {
   route: string;
-  tier: string | null;
   callCount: number;
   totalCostUsd: number;
   totalSavedUsd: number;
@@ -707,7 +702,6 @@ async function routeAggQuery(
   const rows = await db
     .select({
       route: mmaBatch.route,
-      tier: mmaBatch.implementerTier,
       callCount: sql<number>`count(*)::int`,
       totalCostUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
       totalSavedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
@@ -717,12 +711,11 @@ async function routeAggQuery(
     })
     .from(mmaBatch)
     .where(extraCond)
-    .groupBy(mmaBatch.route, mmaBatch.implementerTier)
+    .groupBy(mmaBatch.route)
     .orderBy(sql`sum(${mmaBatch.costUsd}::numeric) desc nulls last`);
 
   return rows.map((r) => ({
     route: r.route,
-    tier: r.tier,
     callCount: r.callCount,
     totalCostUsd: r.totalCostUsd,
     totalSavedUsd: r.totalSavedUsd,
@@ -800,7 +793,6 @@ export interface BatchDetailRow {
   durationMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
-  implementerModel: string | null;
   createdAt: string;
 }
 
@@ -821,7 +813,6 @@ export async function batchesForProject(
       durationMs: mmaBatch.durationMs,
       inputTokens: mmaBatch.inputTokens,
       outputTokens: mmaBatch.outputTokens,
-      implementerModel: mmaBatch.implementerModel,
       createdAt: mmaBatch.createdAt,
     })
     .from(mmaBatch)
@@ -843,7 +834,6 @@ export async function batchesForProject(
     durationMs: r.durationMs,
     inputTokens: r.inputTokens,
     outputTokens: r.outputTokens,
-    implementerModel: r.implementerModel,
     createdAt: r.createdAt.toISOString(),
   }));
 }
@@ -894,7 +884,6 @@ export async function batchesForLoopRun(
         durationMs: mmaBatch.durationMs,
         inputTokens: mmaBatch.inputTokens,
         outputTokens: mmaBatch.outputTokens,
-        implementerModel: mmaBatch.implementerModel,
         createdAt: mmaBatch.createdAt,
       })
       .from(mmaBatch)
@@ -913,7 +902,6 @@ export async function batchesForLoopRun(
         durationMs: b.durationMs,
         inputTokens: b.inputTokens,
         outputTokens: b.outputTokens,
-        implementerModel: b.implementerModel,
         createdAt: b.createdAt.toISOString(),
       })),
     });

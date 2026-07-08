@@ -51,6 +51,21 @@ describe('TeamsPanel', () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it('edits an existing team via PATCH /api/teams/:id', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    render(<TeamsPanel initialTeams={teams} />);
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const nameField = screen.getByLabelText(/^name$/i);
+    expect((nameField as HTMLInputElement).value).toBe('Alpha'); // prefilled
+    fireEvent.change(nameField, { target: { value: 'Alpha Renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/teams/team-1', expect.objectContaining({ method: 'PATCH' })));
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).toMatchObject({ name: 'Alpha Renamed', slug: 'alpha', workspaceRootPath: '/w/alpha' });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
   it('expands a team, lists its members, and promotes one to team admin', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       if (String(url).endsWith('/members')) {

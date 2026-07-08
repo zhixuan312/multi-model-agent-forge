@@ -118,6 +118,44 @@ export async function updateTeamWorkspacePath(
   return { kind: 'saved', workspaceRootPath: validation.path };
 }
 
+const updateTeamSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  slug: z.string().trim().min(1).optional(),
+  workspaceRootPath: z.string().trim().min(1).optional(),
+});
+
+export type UpdateTeamResult = { kind: 'saved' } | { kind: 'invalid'; reason: string };
+
+/**
+ * Org-admin edit of an existing team's name / slug / workspace root. Only the
+ * fields provided are changed. A new workspace path is validated against the
+ * operator base (direct sibling child, no symlink escape) and stored resolved.
+ */
+export async function updateTeam(
+  candidate: unknown,
+  deps: UpdateWorkspacePathDeps,
+): Promise<UpdateTeamResult> {
+  const parsed = updateTeamSchema.safeParse(candidate);
+  if (!parsed.success) return { kind: 'invalid', reason: 'Invalid team fields.' };
+  const { name, slug, workspaceRootPath } = parsed.data;
+  if (!name && !slug && !workspaceRootPath) return { kind: 'invalid', reason: 'Nothing to update.' };
+
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (name) set.name = name;
+  if (slug) set.slug = slug;
+  if (workspaceRootPath) {
+    const validation = validateTeamWorkspacePath(workspaceRootPath, { base: deps.base, realpath: deps.realpath });
+    if (!validation.ok || !validation.path) {
+      return { kind: 'invalid', reason: validation.reason ?? 'Invalid workspace path.' };
+    }
+    set.workspaceRootPath = validation.path;
+  }
+
+  const db = deps.db ?? getDb();
+  await db.update(team).set(set).where(eq(team.id, deps.teamId));
+  return { kind: 'saved' };
+}
+
 export type AssignTeamAdminResult = { kind: 'assigned' } | { kind: 'not_found' };
 
 export async function assignTeamAdmin(

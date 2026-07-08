@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Users, ShieldCheck } from 'lucide-react';
+import { Plus, Users, ShieldCheck, Pencil } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -115,6 +115,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   };
 
   const toggleMembers = async (teamId: string) => {
+    setEditingId(null);
     if (expandedId === teamId) {
       setExpandedId(null);
       return;
@@ -138,6 +139,46 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       }
     } finally {
       setAssigningId(null);
+    }
+  };
+
+  // Per-team inline edit (name / slug / workspace) — org-admin only.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSlug, setEditSlug] = useState('');
+  const [editWorkspace, setEditWorkspace] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const startEdit = (t: TeamRow) => {
+    setExpandedId(null);
+    setEditingId((cur) => (cur === t.id ? null : t.id));
+    setEditName(t.name);
+    setEditSlug(t.slug);
+    setEditWorkspace(t.workspaceRootPath);
+    setEditError(null);
+  };
+
+  const saveEdit = async (teamId: string) => {
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: editName, slug: editSlug, workspaceRootPath: editWorkspace }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setEditError(body.error ?? 'Could not update the team.');
+        return;
+      }
+      setEditingId(null);
+      router.refresh();
+    } catch {
+      setEditError('Network error — please retry.');
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -266,12 +307,49 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" onClick={() => toggleMembers(t.id)}>
-                          <Users className="size-4" />
-                          Members
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => startEdit(t)}>
+                            <Pencil className="size-4" />
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => toggleMembers(t.id)}>
+                            <Users className="size-4" />
+                            Members
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
+
+                    {editingId === t.id ? (
+                      <TableRow key={`${t.id}-edit`}>
+                        <TableCell colSpan={7} className="bg-surface-2">
+                          <div className="flex max-w-xl flex-col gap-3">
+                            <Field label="Name">
+                              {(p) => <Input {...p} value={editName} onChange={(e) => setEditName(e.target.value)} />}
+                            </Field>
+                            <Field label="Slug" hint="Lowercase identifier, unique across the org.">
+                              {(p) => <Input {...p} value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />}
+                            </Field>
+                            <Field label="Workspace root path" hint="Must be a direct child of the operator workspace base.">
+                              {(p) => <Input {...p} value={editWorkspace} onChange={(e) => setEditWorkspace(e.target.value)} />}
+                            </Field>
+                            {editError ? <p className="text-sm text-rose">{editError}</p> : null}
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={editBusy}>
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => saveEdit(t.id)}
+                                disabled={editBusy || !editName.trim() || !editSlug.trim() || !editWorkspace.trim()}
+                              >
+                                {editBusy ? 'Saving…' : 'Save changes'}
+                              </Button>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
                     {expandedId === t.id ? (
                       <TableRow key={`${t.id}-roster`}>
                         <TableCell colSpan={7} className="bg-surface-2">

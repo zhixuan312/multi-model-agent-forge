@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
+import { updateTeam } from '@/auth/teams-core';
 import { getDb } from '@/db/client';
-import { team } from '@/db/schema/team';
 
+export const runtime = 'nodejs';
+
+/**
+ * Edit an existing team (org-admin only): name / slug / workspace root. Only the
+ * fields provided change; a new workspace path is validated against the operator
+ * base (FR-8) before it is stored.
+ */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   try {
     const member = await currentMember();
@@ -16,19 +22,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id: teamId } = await params;
   const json = await req.json().catch(() => null);
-  const db = getDb();
+  const result = await updateTeam(json, { teamId, db: getDb() });
 
-  const patch: Record<string, unknown> = {};
-  if (typeof json?.name === 'string') patch.name = json.name;
-  if (typeof json?.slug === 'string') patch.slug = json.slug;
-  if (typeof json?.workspaceRootPath === 'string') patch.workspaceRootPath = json.workspaceRootPath;
-
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: 'No fields to update.' }, { status: 400 });
-  }
-
-  await db.update(team).set({ ...patch, updatedAt: new Date() }).where(eq(team.id, teamId));
-  const [updated] = await db.select().from(team).where(eq(team.id, teamId)).limit(1);
-
-  return NextResponse.json(updated);
+  return result.kind === 'invalid'
+    ? NextResponse.json({ error: result.reason }, { status: 400 })
+    : NextResponse.json({ ok: true });
 }

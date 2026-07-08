@@ -122,7 +122,9 @@ export interface OrgInfraBreakdownRow {
   route: string;
   costUsd: number;
   callCount: number;
-  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheTokens: number;
   avgCostUsd: number;
 }
 
@@ -314,7 +316,7 @@ async function usageOverviewOrg(
     .select({
       totalCostUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
       totalSavedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
-      totalTokens: sql<number>`coalesce(sum(coalesce(${mmaBatch.inputTokens}, 0) + coalesce(${mmaBatch.outputTokens}, 0)), 0)::int`,
+      totalTokens: sql<number>`coalesce(sum(coalesce(${mmaBatch.inputTokens}, 0) + coalesce(${mmaBatch.outputTokens}, 0) + coalesce(${mmaBatch.cacheTokens}, 0)), 0)::int`,
       dispatchCount: sql<number>`count(*)::int`,
       failedCount: sql<number>`sum(case when ${mmaBatch.status} = 'failed' then 1 else 0 end)::int`,
       activeTeams: sql<number>`count(distinct ${mmaBatch.teamId})::int`,
@@ -381,7 +383,9 @@ async function usageOverviewOrg(
       route: mmaBatch.route,
       costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
       callCount: sql<number>`count(*)::int`,
-      tokens: sql<number>`coalesce(sum(coalesce(${mmaBatch.inputTokens}, 0) + coalesce(${mmaBatch.outputTokens}, 0)), 0)::int`,
+      inputTokens: sql<number>`coalesce(sum(${mmaBatch.inputTokens}), 0)::int`,
+      outputTokens: sql<number>`coalesce(sum(${mmaBatch.outputTokens}), 0)::int`,
+      cacheTokens: sql<number>`coalesce(sum(${mmaBatch.cacheTokens}), 0)::int`,
       avgCostUsd: sql<number>`coalesce(avg(${mmaBatch.costUsd}::numeric), 0)::float`,
     })
     .from(mmaBatch)
@@ -393,7 +397,9 @@ async function usageOverviewOrg(
     route: r.route,
     costUsd: r.costUsd,
     callCount: r.callCount,
-    tokens: r.tokens,
+    inputTokens: r.inputTokens,
+    outputTokens: r.outputTokens,
+    cacheTokens: r.cacheTokens,
     avgCostUsd: r.avgCostUsd,
   }));
 

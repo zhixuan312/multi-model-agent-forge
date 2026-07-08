@@ -8,6 +8,7 @@ export interface UsageFields {
   savedVsMainUsd: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  cacheTokens: number | null;
   durationMs: number | null;
 }
 
@@ -21,6 +22,7 @@ export function extractUsageFields(envelope: unknown): UsageFields {
     savedVsMainUsd: null,
     inputTokens: null,
     outputTokens: null,
+    cacheTokens: null,
     durationMs: null,
   };
 
@@ -37,8 +39,16 @@ export function extractUsageFields(envelope: unknown): UsageFields {
     const totalUsage = asObj(metrics.totalUsage);
     const inputTokens = typeof totalUsage.inputTokens === 'number' ? totalUsage.inputTokens : null;
     const outputTokens = typeof totalUsage.outputTokens === 'number' ? totalUsage.outputTokens : null;
+    // The SDK reports cache as two buckets: cached-read (reuse) + cached-non-read
+    // (cache creation). Sum them — either present yields a cache total.
+    const cachedRead = typeof totalUsage.cachedReadTokens === 'number' ? totalUsage.cachedReadTokens : 0;
+    const cachedNonRead = typeof totalUsage.cachedNonReadTokens === 'number' ? totalUsage.cachedNonReadTokens : 0;
+    const cacheTokens =
+      typeof totalUsage.cachedReadTokens === 'number' || typeof totalUsage.cachedNonReadTokens === 'number'
+        ? cachedRead + cachedNonRead
+        : null;
 
-    return { costUsd, savedVsMainUsd, inputTokens, outputTokens, durationMs };
+    return { costUsd, savedVsMainUsd, inputTokens, outputTokens, cacheTokens, durationMs };
   } catch {
     return nullResult;
   }

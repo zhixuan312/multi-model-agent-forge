@@ -57,6 +57,13 @@
       "when": 1783300000000,
       "tag": "0007_drop_infra_model_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0008_add_cache_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@ export const mmaBatch = forge.table(
     savedVsMainUsd: numeric('saved_vs_main_usd'),
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),
+    cacheTokens: integer('cache_tokens'),
     durationMs: integer('duration_ms'),
     loopRunId: uuid('loop_run_id'),
   },

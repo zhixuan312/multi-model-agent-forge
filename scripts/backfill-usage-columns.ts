@@ -42,6 +42,7 @@ async function main() {
           ...(usage.savedVsMainUsd !== null && { savedVsMainUsd: usage.savedVsMainUsd }),
           ...(usage.inputTokens !== null && { inputTokens: usage.inputTokens }),
           ...(usage.outputTokens !== null && { outputTokens: usage.outputTokens }),
+          ...(usage.cacheTokens !== null && { cacheTokens: usage.cacheTokens }),
           ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
         })
         .where(eq(mmaBatch.id, row.id));

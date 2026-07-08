@@ -50,7 +50,7 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
         <MetricCard
           label="Tokens"
           value={formatTokens(h.totalTokens)}
-          sublabel="input + output"
+          sublabel="input · output · cache"
           icon={<Cpu />}
           iconTint="steel"
           muted={h.totalTokens === 0}
@@ -151,7 +151,9 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
                 <TableRow>
                   <TableHead>Route</TableHead>
                   <TableHead className="text-right">Calls</TableHead>
-                  <TableHead className="text-right">Tokens</TableHead>
+                  <TableHead className="text-right">Input</TableHead>
+                  <TableHead className="text-right">Output</TableHead>
+                  <TableHead className="text-right">Cache</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Avg</TableHead>
                 </TableRow>
@@ -161,7 +163,9 @@ function OrgInfraTable({ rows }: { rows: OrgOverviewResult['infraBreakdown'] }) 
                   <TableRow key={r.route}>
                     <TableCell className="font-medium">{r.route}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.callCount}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatTokens(r.tokens)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatTokens(r.inputTokens)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatTokens(r.outputTokens)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatTokens(r.cacheTokens)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.costUsd)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCost(r.avgCostUsd || null)}</TableCell>
                   </TableRow>

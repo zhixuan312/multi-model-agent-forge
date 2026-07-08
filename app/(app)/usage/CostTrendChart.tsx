@@ -104,7 +104,8 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
   const hp = hover !== null ? points[hover] : null;
 
   return (
-    <div ref={ref} className="relative w-full" style={{ height }} onMouseLeave={() => setHover(null)} onMouseMove={onMove}>
+    <div className="w-full">
+      <div ref={ref} className="relative w-full" style={{ height }} onMouseLeave={() => setHover(null)} onMouseMove={onMove}>
       <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} role="img" aria-label="Daily cost and dispatch volume">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -172,13 +173,6 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
         )}
       </svg>
 
-      {/* legend */}
-      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-soft">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--accent)' }} /> Spent</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--sage)' }} /> Saved</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2 rounded-[1px]" style={{ background: 'var(--steel)', opacity: 0.35 }} /> Dispatches</span>
-      </div>
-
       {hp && hover !== null && (
         <div
           className="pointer-events-none absolute z-10 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs shadow-sm"
@@ -194,11 +188,19 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
             <b className="tabular-nums text-ink">{formatCost(hp.savedUsd || null)}</b>
           </div>
           <div className="flex items-center justify-between gap-3 text-ink-soft">
-            <span>Dispatches</span>
+            <span style={{ color: 'var(--steel)' }}>Dispatches</span>
             <b className="tabular-nums text-ink">{hp.count}</b>
           </div>
         </div>
       )}
+      </div>
+
+      {/* legend */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-soft">
+        <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--accent)' }} /> Spent</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-3 rounded-full" style={{ background: 'var(--sage)' }} /> Saved</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2 rounded-[1px]" style={{ background: 'var(--steel)', opacity: 0.35 }} /> Dispatches</span>
+      </div>
     </div>
   );
 }

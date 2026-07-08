@@ -1,12 +1,30 @@
 import { redirect } from 'next/navigation';
 import { sql, eq } from 'drizzle-orm';
+import { Users } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 import { PageFrame } from '@/components/ui';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { TeamsPanel, type TeamRow } from './TeamsPanel';
+
+const TEAMS_NOTE = `### Teams
+
+- **Own space** — each team keeps its projects, workspace, and journal to itself
+- **No crossover** — one team never sees another team's work
+
+### Adding a team
+
+- **Set up its admin** — you create their username and first password
+- **Then hand off** — the admin adds members and connects the git repo
+
+### Who can do what
+
+- **You (org admin)** — shared setup plus every team's usage
+- **Team admin** — runs a single team
+- **Forge** — the built-in agent, never an admin`;
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +65,15 @@ export default async function OrgSettingsPage() {
 
   return (
     <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="teams" />} width="full">
-      <TeamsPanel initialTeams={teams} />
+      {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as the other org tabs */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="lg:col-span-2">
+          <TeamsPanel initialTeams={teams} />
+        </div>
+        <div className="flex flex-col gap-4">
+          <RailNote icon={<Users />}>{TEAMS_NOTE}</RailNote>
+        </div>
+      </div>
     </PageFrame>
   );
 }

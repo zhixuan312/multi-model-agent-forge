@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { DollarSign, TrendingUp, Clock, Cpu } from 'lucide-react';
-import { requireAdminPage } from '@/auth/require-admin';
+import { redirect } from 'next/navigation';
+import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
@@ -25,43 +26,72 @@ const NOTE = `### Understanding usage
 - **Loops** — scheduled maintenance jobs that run on their own
 - **Standalone** — ad-hoc questions (journal recall), one-off research, and direct delegations`;
 
-export default async function UsageOverviewPage({
+export default async function UsagePage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  await requireAdminPage();
+  const member = await currentMember();
+  if (!member) redirect('/login');
   const sp = await searchParams;
   const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
-  const data = await usageOverview(period);
 
-  // Pre-load per-source route aggregation for expandable rows
+  if (member.role === 'org_admin') {
+    return (
+      <main>
+        <h1>Org Usage Dashboard</h1>
+        <section>
+          <h2>Headline</h2>
+          <p>Total cost, trend, saved cost, tokens, dispatches, failure rate, active teams.</p>
+        </section>
+        <section>
+          <h2>Cost by Team</h2>
+          <p>Per-team rankings with cost share, member count, and trend.</p>
+        </section>
+        <section>
+          <h2>Infrastructure Breakdown</h2>
+          <p>Cost by route, tier, and model.</p>
+        </section>
+        <section>
+          <h2>Trend</h2>
+          <p>Org-total series and per-team sparklines.</p>
+        </section>
+      </main>
+    );
+  }
+
+  const deps = { teamId: member.teamId };
+  const data = await usageOverview(period, deps);
   const [projectRoutes, loopRoutes, standaloneRoutes] = await Promise.all([
-    routeAggForSource('projects', period),
-    routeAggForSource('loops', period),
-    routeAggForSource('standalone', period),
+    routeAggForSource('projects', period, deps),
+    routeAggForSource('loops', period, deps),
+    routeAggForSource('standalone', period, deps),
   ]);
   const detailBySource: Record<string, RouteAggRow[]> = {
     projects: projectRoutes,
     loops: loopRoutes,
     standalone: standaloneRoutes,
   };
-
-  const tableRows: BatchRowData[] = data.bySources.map((s) => ({
-    source: s.source,
-    route: s.source,
-    routeLabel: s.source === 'projects' ? 'Projects (SDLC)' : s.source === 'loops' ? 'Loops (scheduled)' : 'Standalone (ad-hoc)',
-    costUsd: s.costUsd,
-    savedUsd: s.savedUsd,
-    avgCostUsd: s.taskCount > 0 ? s.costUsd / s.taskCount : 0,
-    durationMs: s.durationMs,
-    taskCount: s.taskCount,
+  const tableRows: BatchRowData[] = data.bySources.map((source) => ({
+    source: source.source,
+    route: source.source,
+    routeLabel:
+      source.source === 'projects'
+        ? 'Projects (SDLC)'
+        : source.source === 'loops'
+          ? 'Loops (scheduled)'
+          : 'Standalone (ad-hoc)',
+    costUsd: source.costUsd,
+    savedUsd: source.savedUsd,
+    avgCostUsd: source.taskCount > 0 ? source.costUsd / source.taskCount : 0,
+    durationMs: source.durationMs,
+    taskCount: source.taskCount,
   }));
 
   return (
     <PageFrame
       title="Usage"
-      subnav={<UsageTabsNav active="overview" period={period} />}
+      subnav={<UsageTabsNav active="overview" period={period} role={member.role} />}
       width="full"
       fill
       actions={

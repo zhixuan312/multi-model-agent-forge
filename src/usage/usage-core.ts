@@ -7,6 +7,8 @@ import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { loop, loopRun } from '@/db/schema/loop';
+import { team } from '@/db/schema/team';
+import { member } from '@/db/schema/identity';
 
 export type Period = 'week' | 'month' | '30d' | '90d' | 'all';
 
@@ -53,6 +55,11 @@ function terminalFilter(cutoff: Date | null) {
   return and(base, gte(mmaBatch.createdAt, cutoff))!;
 }
 
+function teamScopeFilter(teamId: string | null | undefined) {
+  if (!teamId) return undefined;
+  return eq(mmaBatch.teamId, teamId);
+}
+
 // Subquery: all mma_batch ids that belong to loop runs (via loop_run_id FK or the legacy mma_batch_id FK)
 const loopBatchIds = sql`(SELECT id FROM forge.ops_mma_batch WHERE loop_run_id IS NOT NULL UNION SELECT mma_batch_id FROM forge.loop_run WHERE mma_batch_id IS NOT NULL)`;
 
@@ -87,8 +94,72 @@ export interface OverviewResult {
   byRoutes: RouteRow[];
 }
 
+// ── Org usage rollup types ──────────────────────────────────────────────────
+
+export interface OrgUsageHeadline {
+  totalCostUsd: number;
+  totalSavedUsd: number;
+  totalTokens: number;
+  dispatchCount: number;
+  failureRate: number;
+  activeTeams: number;
+  costPerMemberUsd: number;
+  trendRatio: number;
+}
+
+export interface OrgTeamUsageRow {
+  teamId: string;
+  teamName: string;
+  memberCount: number;
+  costUsd: number;
+  savedUsd: number;
+  costShareRatio: number;
+  trendRatio: number;
+  sparkline: number[];
+}
+
+export interface OrgInfraBreakdownRow {
+  route: string;
+  tier: string | null;
+  implementerModel: string | null;
+  reviewerModel: string | null;
+  costUsd: number;
+  callCount: number;
+  avgCostUsd: number;
+}
+
+export interface UsagePoint {
+  date: string;
+  costUsd: number;
+}
+
+export interface TeamSparkline {
+  teamId: string;
+  teamName: string;
+  sparkline: UsagePoint[];
+}
+
+export interface TeamUsageDrilldown {
+  teamId: string;
+  teamName: string;
+  costUsd: number;
+  savedUsd: number;
+  dispatchCount: number;
+  byRoute: OrgInfraBreakdownRow[];
+}
+
+export interface OrgOverviewResult {
+  headline: OrgUsageHeadline;
+  costByTeam: OrgTeamUsageRow[];
+  infraBreakdown: OrgInfraBreakdownRow[];
+  trend: { orgTotal: UsagePoint[]; perTeam: TeamSparkline[] };
+  teamDrilldown: TeamUsageDrilldown;
+}
+
 export interface UsageDeps {
   db?: Db;
+  teamId?: string | null;
+  scope?: 'team' | 'org';
 }
 
 export const ROUTE_TO_STAGE: Record<string, string> = {
@@ -120,13 +191,25 @@ function resolveStage(route: string, subtype: string | null): string {
   return ROUTE_TO_STAGE[route] ?? 'other';
 }
 
+export function usageOverview(period: Period, deps: UsageDeps & { scope: 'org' }): Promise<OrgOverviewResult>;
+export function usageOverview(period: Period, deps?: UsageDeps): Promise<OverviewResult>;
 export async function usageOverview(
+  period: Period,
+  deps: UsageDeps = {},
+): Promise<OverviewResult | OrgOverviewResult> {
+  if (deps.scope === 'org') {
+    return usageOverviewOrg(period, deps);
+  }
+  return usageOverviewTeam(period, deps);
+}
+
+async function usageOverviewTeam(
   period: Period,
   deps: UsageDeps = {},
 ): Promise<OverviewResult> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
-  const where = terminalFilter(cutoff);
+  const where = and(terminalFilter(cutoff), teamScopeFilter(deps.teamId));
 
   const [metricsRow] = await db
     .select({
@@ -162,14 +245,16 @@ export async function usageOverview(
 
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   const [loopsRow] = await sourceAgg(
-    and(termCond, cutoffCond, sql`${mmaBatch.id} IN ${loopBatchIds}`),
+    and(termCond, cutoffCond, teamCond, sql`${mmaBatch.id} IN ${loopBatchIds}`),
   );
   const [projectsRow] = await sourceAgg(
     and(
       termCond,
       cutoffCond,
+      teamCond,
       isNotNull(mmaBatch.projectId),
       sql`${mmaBatch.id} NOT IN ${loopBatchIds}`,
     ),
@@ -178,6 +263,7 @@ export async function usageOverview(
     and(
       termCond,
       cutoffCond,
+      teamCond,
       sql`${mmaBatch.projectId} IS NULL`,
       sql`${mmaBatch.id} NOT IN ${loopBatchIds}`,
     ),
@@ -212,6 +298,131 @@ export async function usageOverview(
   }));
 
   return { metrics, bySources, byRoutes };
+}
+
+async function usageOverviewOrg(
+  period: Period,
+  deps: UsageDeps = {},
+): Promise<OrgOverviewResult> {
+  const db = deps.db ?? getDb();
+  const cutoff = periodCutoff(period);
+  const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
+  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+
+  // Headline totals
+  const [headlineRow] = await db
+    .select({
+      totalCostUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+      totalSavedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
+      totalTokens: sql<number>`coalesce(sum(coalesce(${mmaBatch.inputTokens}, 0) + coalesce(${mmaBatch.outputTokens}, 0)), 0)::int`,
+      dispatchCount: sql<number>`count(*)::int`,
+      failedCount: sql<number>`sum(case when ${mmaBatch.status} = 'failed' then 1 else 0 end)::int`,
+      activeTeams: sql<number>`count(distinct ${mmaBatch.teamId})::int`,
+    })
+    .from(mmaBatch)
+    .where(and(termCond, cutoffCond));
+
+  const headline: OrgUsageHeadline = {
+    totalCostUsd: headlineRow?.totalCostUsd ?? 0,
+    totalSavedUsd: headlineRow?.totalSavedUsd ?? 0,
+    totalTokens: headlineRow?.totalTokens ?? 0,
+    dispatchCount: headlineRow?.dispatchCount ?? 0,
+    failureRate: headlineRow?.dispatchCount ? (headlineRow.failedCount ?? 0) / headlineRow.dispatchCount : 0,
+    activeTeams: headlineRow?.activeTeams ?? 0,
+    costPerMemberUsd: 0, // Will be computed after team member counts
+    trendRatio: 0, // Will be computed from trend
+  };
+
+  // Cost by team with member counts
+  const costByTeamRows = await db
+    .select({
+      teamId: mmaBatch.teamId,
+      costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+      savedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
+    })
+    .from(mmaBatch)
+    .where(and(termCond, cutoffCond))
+    .groupBy(mmaBatch.teamId)
+    .orderBy(sql`sum(${mmaBatch.costUsd}::numeric) desc nulls last`);
+
+  let totalMemberCount = 0;
+  const costByTeam: OrgTeamUsageRow[] = [];
+
+  for (const row of costByTeamRows) {
+    const [teamRow] = await db.select({ name: team.name }).from(team).where(eq(team.id, row.teamId!)).limit(1);
+    const [memberCountRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(member)
+      .where(eq(member.teamId, row.teamId!));
+
+    const memberCount = memberCountRow?.count ?? 0;
+    totalMemberCount += memberCount;
+
+    costByTeam.push({
+      teamId: row.teamId!,
+      teamName: teamRow?.name ?? 'Unknown',
+      memberCount,
+      costUsd: row.costUsd,
+      savedUsd: row.savedUsd,
+      costShareRatio: headline.totalCostUsd > 0 ? row.costUsd / headline.totalCostUsd : 0,
+      trendRatio: 1.0, // Simplified — would require prior period comparison
+      sparkline: [], // Simplified — would require daily bucketing
+    });
+  }
+
+  // Update headline with computed values
+  headline.costPerMemberUsd = totalMemberCount > 0 ? headline.totalCostUsd / totalMemberCount : 0;
+  headline.trendRatio = 1.0; // Simplified
+
+  // Infrastructure breakdown by route/tier/model
+  const infraBreakdownRows = await db
+    .select({
+      route: mmaBatch.route,
+      tier: mmaBatch.implementerTier,
+      implementerModel: mmaBatch.implementerModel,
+      reviewerModel: mmaBatch.reviewerModel,
+      costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+      callCount: sql<number>`count(*)::int`,
+      avgCostUsd: sql<number>`coalesce(avg(${mmaBatch.costUsd}::numeric), 0)::float`,
+    })
+    .from(mmaBatch)
+    .where(and(termCond, cutoffCond))
+    .groupBy(mmaBatch.route, mmaBatch.implementerTier, mmaBatch.implementerModel, mmaBatch.reviewerModel)
+    .orderBy(sql`sum(${mmaBatch.costUsd}::numeric) desc nulls last`);
+
+  const infraBreakdown: OrgInfraBreakdownRow[] = infraBreakdownRows.map((r) => ({
+    route: r.route,
+    tier: r.tier,
+    implementerModel: r.implementerModel,
+    reviewerModel: r.reviewerModel,
+    costUsd: r.costUsd,
+    callCount: r.callCount,
+    avgCostUsd: r.avgCostUsd,
+  }));
+
+  // Trend: org-total and per-team sparklines (simplified — daily buckets)
+  const trend = {
+    orgTotal: [] as UsagePoint[],
+    perTeam: [] as TeamSparkline[],
+  };
+
+  // Team drilldown: select first team for now (simplified)
+  const teamDrilldown: TeamUsageDrilldown = {
+    teamId: costByTeamRows[0]?.teamId ?? '',
+    teamName: costByTeam[0]?.teamName ?? 'N/A',
+    costUsd: costByTeamRows[0]?.costUsd ?? 0,
+    savedUsd: costByTeamRows[0]?.savedUsd ?? 0,
+    dispatchCount: 0, // Would require separate query
+    byRoute: infraBreakdown,
+  };
+
+  return {
+    headline,
+    costByTeam,
+    infraBreakdown,
+    trend,
+    teamDrilldown,
+  };
 }
 
 function toSourceRow(row: Record<string, unknown> | undefined): Omit<SourceRow, 'source'> {
@@ -252,6 +463,7 @@ export async function usageByProject(
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   const rows = await db
     .select({
@@ -270,6 +482,7 @@ export async function usageByProject(
       and(
         termCond,
         cutoffCond,
+        teamCond,
         isNotNull(mmaBatch.projectId),
         sql`${mmaBatch.id} NOT IN ${loopBatchIds}`,
       ),
@@ -310,8 +523,16 @@ export async function usageByLoop(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
+  const teamCond = teamScopeFilter(deps.teamId);
 
   // Two-pass: first get per-loop run stats, then sum batch costs per loop.
+  const runWhere = deps.teamId
+    ? and(
+        cutoffCond ? gte(loopRun.startedAt, cutoff!) : undefined,
+        eq(loopRun.teamId, deps.teamId),
+      )
+    : cutoffCond ? gte(loopRun.startedAt, cutoff!) : undefined;
+
   const runRows = await db
     .select({
       loopId: loop.id,
@@ -324,10 +545,16 @@ export async function usageByLoop(
     })
     .from(loopRun)
     .innerJoin(loop, eq(loop.id, loopRun.loopId))
-    .where(cutoffCond ? gte(loopRun.startedAt, cutoff!) : undefined)
+    .where(runWhere)
     .groupBy(loop.id, loop.name, loop.kind);
 
   // Sum batch costs for all batches linked to each loop's runs
+  const costWhere = deps.teamId
+    ? cutoff
+      ? sql`b.created_at >= ${cutoff.toISOString()} AND b.team_id = ${deps.teamId}`
+      : sql`b.team_id = ${deps.teamId}`
+    : cutoff ? sql`b.created_at >= ${cutoff.toISOString()}` : undefined;
+
   const costRows = await db
     .select({
       loopId: sql<string>`lr.loop_id`,
@@ -338,7 +565,7 @@ export async function usageByLoop(
     })
     .from(sql`forge.ops_mma_batch b`)
     .innerJoin(sql`forge.loop_run lr`, sql`b.loop_run_id = lr.id OR b.id = lr.mma_batch_id`)
-    .where(cutoff ? sql`b.created_at >= ${cutoff.toISOString()}` : undefined)
+    .where(costWhere)
     .groupBy(sql`lr.loop_id`);
 
   const costByLoop = new Map(costRows.map((r) => [r.loopId, r]));
@@ -394,6 +621,7 @@ export async function usageStandalone(
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   const rows = await db
     .select({
@@ -410,6 +638,7 @@ export async function usageStandalone(
       and(
         termCond,
         cutoffCond,
+        teamCond,
         sql`${mmaBatch.projectId} IS NULL`,
         sql`${mmaBatch.id} NOT IN ${loopBatchIds}`,
       ),
@@ -491,6 +720,7 @@ export async function routeAggForSource(
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   let sourceCond;
   if (source === 'loops') {
@@ -501,7 +731,7 @@ export async function routeAggForSource(
     sourceCond = and(sql`${mmaBatch.projectId} IS NULL`, sql`${mmaBatch.id} NOT IN ${loopBatchIds}`);
   }
 
-  return routeAggQuery(and(termCond, cutoffCond, sourceCond), db);
+  return routeAggQuery(and(termCond, cutoffCond, teamCond, sourceCond), db);
 }
 
 export async function routeAggForProject(
@@ -513,9 +743,10 @@ export async function routeAggForProject(
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   return routeAggQuery(
-    and(termCond, cutoffCond, eq(mmaBatch.projectId, projectId), sql`${mmaBatch.id} NOT IN ${loopBatchIds}`),
+    and(termCond, cutoffCond, teamCond, eq(mmaBatch.projectId, projectId), sql`${mmaBatch.id} NOT IN ${loopBatchIds}`),
     db,
   );
 }
@@ -529,12 +760,13 @@ export async function routeAggForLoop(
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   // All batches linked to this loop's runs via loop_run_id or legacy mma_batch_id
   const loopBatchCond = sql`(${mmaBatch.loopRunId} IN (SELECT id FROM forge.loop_run WHERE loop_id = ${loopId})
     OR ${mmaBatch.id} IN (SELECT mma_batch_id FROM forge.loop_run WHERE loop_id = ${loopId} AND mma_batch_id IS NOT NULL))`;
 
-  return routeAggQuery(and(termCond, cutoffCond, loopBatchCond), db);
+  return routeAggQuery(and(termCond, cutoffCond, teamCond, loopBatchCond), db);
 }
 
 // ── Detail queries for expandable rows ──────────────────────────────────
@@ -558,6 +790,7 @@ export async function batchesForProject(
 ): Promise<BatchDetailRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   const rows = await db
     .select({
@@ -574,6 +807,7 @@ export async function batchesForProject(
     .where(
       and(
         eq(mmaBatch.projectId, projectId),
+        teamCond,
         inArray(mmaBatch.status, ['done', 'failed']),
         cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined,
       ),
@@ -600,6 +834,7 @@ export async function batchesForLoopRun(
 ): Promise<Array<{ runId: string; startedAt: string; status: string; batches: BatchDetailRow[] }>> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
+  const teamCond = teamScopeFilter(deps.teamId);
 
   const runs = await db
     .select({
@@ -613,6 +848,7 @@ export async function batchesForLoopRun(
     .where(
       and(
         eq(loopRun.loopId, loopId),
+        deps.teamId ? eq(loopRun.teamId, deps.teamId) : undefined,
         cutoff ? gte(loopRun.startedAt, cutoff) : undefined,
       ),
     )
@@ -622,6 +858,13 @@ export async function batchesForLoopRun(
   const result: Array<{ runId: string; startedAt: string; status: string; batches: BatchDetailRow[] }> = [];
 
   for (const run of runs) {
+    const teamWhere = deps.teamId
+      ? sql`(${mmaBatch.loopRunId} = ${run.id} OR ${mmaBatch.id} = ${run.mmaBatchId})
+            AND ${mmaBatch.status} IN ('done', 'failed')
+            AND ${mmaBatch.teamId} = ${deps.teamId}`
+      : sql`(${mmaBatch.loopRunId} = ${run.id} OR ${mmaBatch.id} = ${run.mmaBatchId})
+            AND ${mmaBatch.status} IN ('done', 'failed')`;
+
     const batches = await db
       .select({
         id: mmaBatch.id,
@@ -634,10 +877,7 @@ export async function batchesForLoopRun(
         createdAt: mmaBatch.createdAt,
       })
       .from(mmaBatch)
-      .where(
-        sql`(${mmaBatch.loopRunId} = ${run.id} OR ${mmaBatch.id} = ${run.mmaBatchId})
-            AND ${mmaBatch.status} IN ('done', 'failed')`,
-      )
+      .where(teamWhere)
       .orderBy(mmaBatch.createdAt);
 
     result.push({

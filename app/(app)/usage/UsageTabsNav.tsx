@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BarChart3, FolderKanban, Repeat, Zap } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import type { ForgeRole } from '@/auth/auth-provider';
 
 export type UsageView = 'overview' | 'projects' | 'loops' | 'standalone';
 
@@ -11,7 +12,11 @@ const TABS: ReadonlyArray<{ key: UsageView; label: string; href: string; glyph: 
   { key: 'standalone', label: 'Standalone', href: '/usage/standalone', glyph: <Zap className="size-4" /> },
 ];
 
-export function UsageTabsNav({ active, period }: { active: UsageView; period?: string }) {
+export function UsageTabsNav({ active, period, role }: { active: UsageView; period?: string; role?: ForgeRole }) {
+  if (role === 'org_admin') {
+    return null; // Org admin sees no tabs
+  }
+
   const suffix = period && period !== 'month' ? `?period=${period}` : '';
   return (
     <div role="tablist" aria-label="Usage views" className="flex gap-1 border-b border-line">

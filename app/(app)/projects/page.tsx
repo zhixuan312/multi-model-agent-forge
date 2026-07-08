@@ -34,7 +34,9 @@ export default async function ProjectsPage() {
   const me = await currentMember();
   if (!me) redirect('/login');
   const actor = projectActorFromMember(me);
-  if (!actor) redirect('/');
+  // A team-less member (org_admin) has no project scope; send them to their
+  // org-level home rather than `/` (which would redirect back here and loop).
+  if (!actor) redirect('/usage');
   const projects = await dashboardProjects(actor);
   const metrics = dashboardMetrics(projects);
 

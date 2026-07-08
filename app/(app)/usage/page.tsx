@@ -10,6 +10,7 @@ import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/for
 import { UsageTabsNav } from './UsageTabsNav';
 import { PeriodSelect } from './PeriodSelect';
 import { UsageBatchTable, type BatchRowData } from './UsageBatchTable';
+import { OrgUsageDashboard } from './OrgUsageDashboard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,26 +38,21 @@ export default async function UsagePage({
   const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
 
   if (member.role === 'org_admin') {
+    const orgData = await usageOverview(period, { scope: 'org' });
     return (
-      <main>
-        <h1>Org Usage Dashboard</h1>
-        <section>
-          <h2>Headline</h2>
-          <p>Total cost, trend, saved cost, tokens, dispatches, failure rate, active teams.</p>
-        </section>
-        <section>
-          <h2>Cost by Team</h2>
-          <p>Per-team rankings with cost share, member count, and trend.</p>
-        </section>
-        <section>
-          <h2>Infrastructure Breakdown</h2>
-          <p>Cost by route, tier, and model.</p>
-        </section>
-        <section>
-          <h2>Trend</h2>
-          <p>Org-total series and per-team sparklines.</p>
-        </section>
-      </main>
+      <PageFrame
+        title="Organization usage"
+        subnav={<UsageTabsNav active="overview" role={member.role} />}
+        width="full"
+        fill
+        actions={
+          <Suspense>
+            <PeriodSelect />
+          </Suspense>
+        }
+      >
+        <OrgUsageDashboard data={orgData} />
+      </PageFrame>
     );
   }
 

@@ -2,24 +2,31 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, Title, Text, Field, Input, Button } from '@/components/ui';
+import { Field, Input, Mono } from '@/components/ui';
+import { SettingCard } from '@/components/forge/SettingCard';
 
 /**
  * Team settings → workspace path (FR-8/FR-9). Sets `team.workspace_root_path`
  * via PUT /api/team/workspace; the server validates the path is a direct sibling
  * child of the operator base and returns a 400 with the reason on rejection.
+ * Read-on-load credential card → Edit → Save, matching the org connection cards.
  */
 export function WorkspaceForm({ current }: { current: string }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState(current);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+
+  const cancel = () => {
+    setOpen(false);
+    setValue(current);
+    setError(null);
+  };
 
   const submit = async () => {
     setBusy(true);
     setError(null);
-    setSaved(false);
     try {
       const res = await fetch('/api/team/workspace', {
         method: 'PUT',
@@ -31,7 +38,7 @@ export function WorkspaceForm({ current }: { current: string }) {
         setError(body.error ?? 'Could not save the workspace path.');
         return;
       }
-      setSaved(true);
+      setOpen(false);
       router.refresh();
     } catch {
       setError('Network error — please retry.');
@@ -41,34 +48,26 @@ export function WorkspaceForm({ current }: { current: string }) {
   };
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3">
-        <Title>Workspace path</Title>
-        <Text>The local filesystem root for this team&apos;s repos and journal. Must sit directly under the operator workspace base.</Text>
-        <Field label="Workspace root path">
-          {(p) => (
-            <Input
-              {...p}
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                setSaved(false);
-              }}
-            />
-          )}
-        </Field>
-        {error ? (
-          <p role="alert" className="text-sm text-rose">
-            {error}
-          </p>
-        ) : null}
-        {saved ? <p className="text-sm text-sage">Saved.</p> : null}
-        <div className="flex justify-end">
-          <Button size="sm" onClick={submit} disabled={busy || !value.trim() || value === current}>
-            {busy ? 'Saving…' : 'Save path'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <SettingCard
+      title="Workspace path"
+      ariaLabel="Workspace path"
+      summary={<Mono className="!text-xs text-ink-soft">{current}</Mono>}
+      open={open}
+      busy={busy}
+      saveLabel="Save path"
+      canSave={value.trim() !== '' && value !== current}
+      error={error}
+      onEdit={() => {
+        setError(null);
+        setValue(current);
+        setOpen(true);
+      }}
+      onCancel={cancel}
+      onSubmit={submit}
+    >
+      <Field label="Workspace root path" hint="Must sit directly under the operator workspace base.">
+        {(p) => <Input {...p} value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />}
+      </Field>
+    </SettingCard>
   );
 }

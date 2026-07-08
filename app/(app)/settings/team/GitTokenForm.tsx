@@ -2,20 +2,28 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, Title, Text, Field, Input, Button, Badge } from '@/components/ui';
+import { Field, Input, Badge, Micro } from '@/components/ui';
+import { SettingCard } from '@/components/forge/SettingCard';
 
 /**
  * Team settings → git token (FR-6/FR-9). Sets/rotates the team's git credential
  * via PUT /api/connections (updateConnections writes `team.git_token_ref`). The
  * value is write-only — the server stores it encrypted and only ever reports
- * set / not set.
+ * set / not set. Read-on-load credential card → Edit → Save, matching the org
+ * connection cards.
  */
 export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const cancel = () => {
+    setOpen(false);
+    setToken('');
+    setError(null);
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -32,7 +40,7 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
         return;
       }
       setToken('');
-      setEditing(false);
+      setOpen(false);
       router.refresh();
     } catch {
       setError('Network error — please retry.');
@@ -42,58 +50,37 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
   };
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <Title>Git token</Title>
-          {tokenSet ? (
-            <Badge variant="sage" dot size="sm">
-              set
-            </Badge>
-          ) : (
-            <Badge size="sm">not set</Badge>
-          )}
-        </div>
-        <Text>Clones and pulls every repository for this team. Stored encrypted — shown only as set / not set.</Text>
-        {editing ? (
-          <>
-            <Field
-              label="Service token"
-              hint={tokenSet ? 'Saving replaces the current token.' : 'A personal access token with repo read access.'}
-            >
-              {(p) => <Input {...p} type="password" value={token} onChange={(e) => setToken(e.target.value)} />}
-            </Field>
-            {error ? (
-              <p role="alert" className="text-sm text-rose">
-                {error}
-              </p>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setEditing(false);
-                  setToken('');
-                  setError(null);
-                }}
-                disabled={busy}
-              >
-                Cancel
-              </Button>
-              <Button size="sm" onClick={submit} disabled={busy || !token.trim()}>
-                {busy ? 'Saving…' : 'Save token'}
-              </Button>
-            </div>
-          </>
+    <SettingCard
+      title="Git token"
+      ariaLabel="Git token"
+      indicator={
+        tokenSet ? (
+          <Badge variant="sage" dot size="sm">
+            set
+          </Badge>
         ) : (
-          <div>
-            <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-              {tokenSet ? 'Rotate token' : 'Set token'}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          <Badge size="sm">not set</Badge>
+        )
+      }
+      summary={<Micro className="!text-ink-soft">Clones and pulls every repository for this team</Micro>}
+      open={open}
+      busy={busy}
+      saveLabel="Save token"
+      canSave={token.trim() !== ''}
+      error={error}
+      onEdit={() => {
+        setError(null);
+        setOpen(true);
+      }}
+      onCancel={cancel}
+      onSubmit={submit}
+    >
+      <Field
+        label="Service token"
+        hint={tokenSet ? 'Saving replaces the current token.' : 'A personal access token with repo read access.'}
+      >
+        {(p) => <Input {...p} type="password" value={token} onChange={(e) => setToken(e.target.value)} className="font-mono" />}
+      </Field>
+    </SettingCard>
   );
 }

@@ -11,8 +11,11 @@ describe('WorkspaceForm', () => {
     refresh.mockClear();
   });
 
-  it('shows the current path and keeps Save disabled until it changes', () => {
+  it('shows the current path and, on Edit, keeps Save disabled until it changes', () => {
     render(<WorkspaceForm current="/forge/base/alpha" />);
+    // read view shows the current path as the summary
+    expect(screen.getByText('/forge/base/alpha')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /edit workspace path/i }));
     const input = screen.getByLabelText(/workspace root path/i) as HTMLInputElement;
     expect(input.value).toBe('/forge/base/alpha');
     expect(screen.getByRole('button', { name: /save path/i })).toBeDisabled();
@@ -23,6 +26,7 @@ describe('WorkspaceForm', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ workspaceRootPath: '/forge/base/beta' }), { status: 200 }));
     render(<WorkspaceForm current="/forge/base/alpha" />);
+    fireEvent.click(screen.getByRole('button', { name: /edit workspace path/i }));
     fireEvent.change(screen.getByLabelText(/workspace root path/i), { target: { value: '/forge/base/beta' } });
     fireEvent.click(screen.getByRole('button', { name: /save path/i }));
     await waitFor(() =>
@@ -36,6 +40,7 @@ describe('WorkspaceForm', () => {
       new Response(JSON.stringify({ error: 'must be a direct child of the operator workspace base' }), { status: 400 }),
     );
     render(<WorkspaceForm current="/forge/base/alpha" />);
+    fireEvent.click(screen.getByRole('button', { name: /edit workspace path/i }));
     fireEvent.change(screen.getByLabelText(/workspace root path/i), { target: { value: '/etc/evil' } });
     fireEvent.click(screen.getByRole('button', { name: /save path/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/direct child/i);

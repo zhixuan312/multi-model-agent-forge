@@ -84,10 +84,10 @@ export default async function TeamSettingsPage() {
           />
         </MetricRow>
 
-        {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as Connections / Models. The
-            two config cards sit side by side so neither stretches sparse. */}
+        {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as Connections / Models: the
+            credential cards stack one per row in the primary column. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-          <div className="grid gap-4 sm:grid-cols-2 sm:items-start lg:col-span-2">
+          <div className="flex flex-col gap-4 lg:col-span-2">
             <GitTokenForm tokenSet={teamRow.gitTokenRef !== null} />
             <WorkspaceForm current={teamRow.workspaceRootPath} />
           </div>

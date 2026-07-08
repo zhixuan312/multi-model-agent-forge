@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, Field, FieldGrid, Input, Button, Badge, TextStrong, Micro, Mono } from '@/components/ui';
-import { KeyRound, Pencil } from 'lucide-react';
+import { Field, Input, Badge, Micro, Mono } from '@/components/ui';
+import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
+import { SettingCard } from '@/components/forge/SettingCard';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -38,90 +38,6 @@ function SetIndicator({ set, testid }: { set: boolean; testid: string }) {
     <Badge data-testid={testid} size="sm">
       not set
     </Badge>
-  );
-}
-
-/**
- * One connection in its own card — read view on load (title + indicator/summary +
- * Edit), opening to a form (fields + Cancel · Validate · Save). Validate probes
- * the live connection so you know it works before (or without) saving.
- */
-function ConnectionCard({
-  title,
-  indicator,
-  summary,
-  ariaLabel,
-  open,
-  busy,
-  validating,
-  validateResult,
-  onEdit,
-  onCancel,
-  onValidate,
-  onSubmit,
-  children,
-}: {
-  title: string;
-  indicator?: React.ReactNode;
-  summary?: React.ReactNode;
-  ariaLabel: string;
-  open: boolean;
-  busy: boolean;
-  validating: boolean;
-  validateResult: ValidateResult | null;
-  onEdit: () => void;
-  onCancel: () => void;
-  onValidate: () => void;
-  onSubmit: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <TextStrong className="!text-sm !text-ink">{title}</TextStrong>
-              {indicator}
-            </div>
-            {!open && summary ? <div className="mt-1.5">{summary}</div> : null}
-          </div>
-          {!open ? (
-            <Button size="sm" variant="ghost" leftIcon={<Pencil />} aria-label={`Edit ${title}`} onClick={onEdit}>
-              Edit
-            </Button>
-          ) : null}
-        </div>
-        {open ? (
-          <form
-            aria-label={ariaLabel}
-            onSubmit={(e) => {
-              e.preventDefault();
-              onSubmit();
-            }}
-            className="flex flex-col gap-4 border-t border-line pt-4"
-          >
-            {children}
-            {validateResult ? (
-              <VerifyResultBox ok={validateResult.ok}>
-                <Micro className="block !text-ink-soft">{validateResult.detail}</Micro>
-              </VerifyResultBox>
-            ) : null}
-            <div className="flex items-center justify-end gap-2.5">
-              <Button type="button" variant="secondary" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button type="button" variant="secondary" onClick={onValidate} loading={validating}>
-                {validating ? 'Validating…' : 'Validate'}
-              </Button>
-              <Button type="submit" loading={busy}>
-                {busy ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -215,18 +131,20 @@ export function ConnectionsForm({
       {/* PRIMARY — one isolated card per connection */}
       <div className="flex flex-col gap-4 lg:col-span-2">
         {/* MMA — the local engine; bearer auto-resolved, advanced only for remote */}
-        <ConnectionCard
+        <SettingCard
           title="MMA"
           ariaLabel="MMA connection"
           indicator={<SetIndicator set={mmaBearer !== null} testid="mma-token-indicator" />}
           summary={<Mono className="!text-xs text-ink-soft">{mmaBaseUrl}</Mono>}
           open={open === 'mma'}
           busy={busy === 'mma'}
-          validating={validating === 'mma'}
-          validateResult={open === 'mma' ? validateResult : null}
+          validate={{
+            validating: validating === 'mma',
+            result: open === 'mma' ? validateResult : null,
+            onValidate: () => validate('mma'),
+          }}
           onEdit={() => edit('mma')}
           onCancel={cancel}
-          onValidate={() => validate('mma')}
           onSubmit={() => {
             void save('mma', { mmaBaseUrl });
           }}
@@ -256,20 +174,22 @@ export function ConnectionsForm({
               />
             )}
           </Field>
-        </ConnectionCard>
+        </SettingCard>
 
         {/* Speech-to-text (OpenAI key) */}
-        <ConnectionCard
+        <SettingCard
           title="Speech to text"
           ariaLabel="Speech to text"
           indicator={<SetIndicator set={initial.openaiTranscriptionKeySet} testid="openai-key-indicator" />}
           open={open === 'openai'}
           busy={busy === 'openai'}
-          validating={validating === 'openai'}
-          validateResult={open === 'openai' ? validateResult : null}
+          validate={{
+            validating: validating === 'openai',
+            result: open === 'openai' ? validateResult : null,
+            onValidate: () => validate('openai', openaiKey),
+          }}
           onEdit={() => edit('openai')}
           onCancel={cancel}
-          onValidate={() => validate('openai', openaiKey)}
           onSubmit={() => {
             if (openaiKey === '') {
               setError('Enter an OpenAI key to save.');
@@ -293,7 +213,7 @@ export function ConnectionsForm({
               />
             )}
           </Field>
-        </ConnectionCard>
+        </SettingCard>
 
         {error ? (
           <Micro id={errId} role="alert" className="block text-rose">

@@ -2,25 +2,26 @@ import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { connectionSettings } from '@/db/schema/identity';
+import { team } from '@/db/schema/team';
 import { PostgresSecretStore } from '@/secrets/secret-store';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
 import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
+import type { CurrentTeam } from '@/auth/team-scope';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 
 /**
  * Real `LoopRunDeps` wiring (spec §4 adapters). Reuses Forge's existing
  * infrastructure: `nodeGitRunner` (git), `nodeCommandRunner` (verify),
- * `buildMmaClient` (dispatch + journal), the Connections git token (push + PR).
+ * `buildMmaClient` (dispatch + journal), the team's git token (push + PR).
  * The orchestration that composes these is unit-tested in run-engine.test; this
  * module is the thin IO layer (integration-verified).
  */
 
-async function readGitToken(db: Db): Promise<string | null> {
-  const [row] = await db.select({ ref: connectionSettings.gitTokenRef }).from(connectionSettings).limit(1);
+async function readGitToken(teamId: string, db: Db): Promise<string | null> {
+  const [row] = await db.select({ ref: team.gitTokenRef }).from(team).where(eq(team.id, teamId)).limit(1);
   if (!row?.ref) return null;
   const secrets = await PostgresSecretStore.create({ db });
   return secrets.get(row.ref);
@@ -128,12 +129,12 @@ export function summarizeEnvelope(env: unknown): { keyChanges: string[]; filesCh
   return { keyChanges, filesChanged };
 }
 
-export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
+export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db } = {}): Promise<LoopRunDeps> {
   const db = deps.db ?? getDb();
 
   return {
     db,
-    hasGitToken: async () => !!(await readGitToken(db)),
+    hasGitToken: async () => !!(await readGitToken(currentTeam.id, db)),
     isGithubRepo: async (repo) => (await githubRemote(repo)) !== null,
     resolveCurrentBranch: async (repo) => {
       const r = await git(repo.pathOnDisk, ['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -157,7 +158,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       return { output: text, sessionId: null };
     },
     recall: async (_repo, query, loopRunId) => {
-      const workspaceRoot = resolveWorkspaceRoot();
+      const workspaceRoot = currentTeam.workspaceRootPath;
       if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
@@ -246,7 +247,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       await git(cwd, ['add', '-A']);
       await git(cwd, ['-c', 'user.email=loops@forge.local', '-c', 'user.name=Forge Loops', 'commit', '-m', message]);
       const sha = (await git(cwd, ['rev-parse', 'HEAD'])).stdout.trim();
-      const token = await readGitToken(db);
+      const token = await readGitToken(currentTeam.id, db);
       const gh = await githubRemote({ id: '', name: '', pathOnDisk: cwd });
       if (token && gh) {
         const authUrl = `https://x-access-token:${token}@github.com/${gh.owner}/${gh.repo}.git`;
@@ -257,7 +258,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       return { commitSha: sha };
     },
     openPr: async ({ repo, branch, base, title, body }) => {
-      const token = await readGitToken(db);
+      const token = await readGitToken(currentTeam.id, db);
       const gh = await githubRemote(repo);
       if (!token || !gh) throw new Error('cannot open PR: missing git token or non-GitHub remote');
       const res = await fetch(`https://api.github.com/repos/${gh.owner}/${gh.repo}/pulls`, {
@@ -277,7 +278,7 @@ export function buildLoopRunDeps(deps: { db?: Db } = {}): LoopRunDeps {
       try {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
-        const workspaceRoot = resolveWorkspaceRoot();
+        const workspaceRoot = currentTeam.workspaceRootPath;
         const prompt = `Role: You are the journal recorder for Forge, a software delivery harness. You write team learnings as durable journal nodes.
 
 Task: Record each learning below as a separate node in the team journal at .mma/journal/.

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { buildLoopRunDeps } from '@/loops/run-deps';
 import { createMockDb } from '../test-utils/mock-db';
 
@@ -24,7 +25,8 @@ describe('loop dispatch — inline-consume, no missing-handler throw (R2/AC5)', 
     const db = createMockDb({
       'insert:ops_mma_batch': [{ id: 'row-lw', createdAt: new Date() }],
     });
-    const deps = buildLoopRunDeps({ db });
+    const currentTeam = { id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/forge/base', gitTokenRef: null };
+    const deps = await buildLoopRunDeps(currentTeam, { db });
     const out = await deps.dispatch({
       repo: { id: 'r1', pathOnDisk: '/x', name: 'x', defaultBranch: 'main' },
       cwd: '/w', prompt: 'do the thing', workerTier: 'complex',

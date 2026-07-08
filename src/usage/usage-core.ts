@@ -372,7 +372,7 @@ async function usageOverviewOrg(
 
   // Update headline with computed values
   headline.costPerMemberUsd = totalMemberCount > 0 ? headline.totalCostUsd / totalMemberCount : 0;
-  headline.trendRatio = 1.0; // Simplified
+  // headline.trendRatio is computed from the daily series below.
 
   // Infrastructure breakdown by route/tier/model
   const infraBreakdownRows = await db
@@ -400,11 +400,32 @@ async function usageOverviewOrg(
     avgCostUsd: r.avgCostUsd,
   }));
 
-  // Trend: org-total and per-team sparklines (simplified — daily buckets)
-  const trend = {
-    orgTotal: [] as UsagePoint[],
-    perTeam: [] as TeamSparkline[],
-  };
+  // Trend: org-total daily cost series (SGT day buckets). Per-team sparklines
+  // are left empty until a per-team daily rollup is added — the dashboard renders
+  // only the org-total series, so no placeholder data is surfaced.
+  // Inline the timezone as a SQL literal (not a bind param) so the SELECT and
+  // GROUP BY day-bucket expressions are textually identical — Postgres rejects a
+  // parameterised timezone in GROUP BY as an ungrouped-column reference. TIMEZONE
+  // is a hardcoded constant, so raw interpolation is safe.
+  const dayBucket = sql`date_trunc('day', ${mmaBatch.createdAt} at time zone ${sql.raw(`'${TIMEZONE}'`)})`;
+  const trendRows = await db
+    .select({
+      date: sql<string>`to_char(${dayBucket}, 'YYYY-MM-DD')`,
+      costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+    })
+    .from(mmaBatch)
+    .where(and(termCond, cutoffCond))
+    .groupBy(dayBucket)
+    .orderBy(dayBucket);
+
+  const orgTotal: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd }));
+  const trend = { orgTotal, perTeam: [] as TeamSparkline[] };
+
+  // trendRatio: second-half spend vs first-half spend across the series (>1 = rising).
+  const mid = Math.floor(orgTotal.length / 2);
+  const firstHalf = orgTotal.slice(0, mid).reduce((s, p) => s + p.costUsd, 0);
+  const secondHalf = orgTotal.slice(mid).reduce((s, p) => s + p.costUsd, 0);
+  headline.trendRatio = firstHalf > 0 ? secondHalf / firstHalf : 1;
 
   // Team drilldown: select first team for now (simplified)
   const teamDrilldown: TeamUsageDrilldown = {

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import { formatCost, formatTokens, formatRoi } from '@/usage/format';
 import type { OrgOverviewResult } from '@/usage/usage-core';
+import { Sparkline } from './Sparkline';
 
 /**
  * Org-level global usage view (Spec 3, org_admin only). Numbers-only rollup
@@ -93,12 +94,34 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
       ]}
       primary={
         <div className="flex flex-col gap-4">
+          <OrgTrendCard trend={data.trend.orgTotal} />
           <OrgTeamTable rows={data.costByTeam} />
           <OrgInfraTable rows={data.infraBreakdown} />
         </div>
       }
       aside={<RailNote icon={<DollarSign />}>{ORG_NOTE}</RailNote>}
     />
+  );
+}
+
+function OrgTrendCard({ trend }: { trend: OrgOverviewResult['trend']['orgTotal'] }) {
+  return (
+    <Card>
+      <CardContent>
+        <Title as="h2" className="mb-3">Cost trend</Title>
+        {trend.length < 2 ? (
+          <EmptyState icon={<TrendingUp />} title="Not enough history yet" description="Daily org cost appears here once there are at least two days of activity." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Sparkline points={trend.map((p) => p.costUsd)} label="Daily org cost" />
+            <div className="flex justify-between text-xs text-ink-soft tabular-nums">
+              <span>{trend[0]?.date}</span>
+              <span>{trend[trend.length - 1]?.date}</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

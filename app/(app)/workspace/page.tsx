@@ -2,7 +2,7 @@ import { GitBranch, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
-import { currentMember } from '@/auth/current-member';
+import { requireTeamPage } from '@/auth/require-admin';
 import { listRepos, syncWorkspaceRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
 
@@ -27,8 +27,8 @@ const WORKSPACE_NOTE = `### Shared repositories
  * real git via the WorkspaceService.
  */
 export default async function WorkspacePage() {
-  const me = await currentMember();
-  const isAdmin = me?.role === 'team_admin';
+  const me = await requireTeamPage();
+  const isAdmin = me.role === 'team_admin';
   await syncWorkspaceRepos();
   const repos = await listRepos();
 

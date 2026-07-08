@@ -50,3 +50,16 @@ export async function requireAdminPage(): Promise<AuthedMember> {
   if (member.role !== 'org_admin' && member.role !== 'team_admin') redirect('/');
   return member;
 }
+
+/**
+ * For team-scoped RSC pages (projects, loops, journal, workspace): resolve the
+ * member; redirect to `/login` if unauthenticated, and to `/usage` if the caller
+ * has no team (the org admin, who owns shared infra but no team content).
+ * Returns the member with a guaranteed non-null `teamId`.
+ */
+export async function requireTeamPage(): Promise<AuthedMember & { teamId: string }> {
+  const member = await currentMember();
+  if (!member) redirect('/login');
+  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+  return member as AuthedMember & { teamId: string };
+}

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { Repeat, Power, Clock, CircleCheck } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
@@ -37,7 +38,9 @@ const LOOPS_NOTE = `### Setting up a loop
 - Admin-only`;
 
 export default async function LoopsPage() {
-  await requireAdminPage();
+  const me = await requireAdminPage();
+  // Loops are team-scoped maintenance jobs; the team-less org admin has none.
+  if (me.role === 'org_admin') redirect('/usage');
   const db = getDb();
   const [loops, repoOptions, latestByLoop, runningRows] = await Promise.all([
     listLoops({ db }),

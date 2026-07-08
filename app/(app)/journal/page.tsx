@@ -27,6 +27,7 @@ import { and, eq, desc } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { currentMember } from '@/auth/current-member';
+import { requireTeamPage } from '@/auth/require-admin';
 import { listPins } from '@/journal/pins-core';
 import { topFaqs } from '@/journal/faqs-core';
 import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
@@ -65,6 +66,8 @@ export default async function JournalPage({
 }: {
   searchParams: Promise<{ view?: string; node?: string }>;
 }) {
+  // The journal is a team's decision graph; the team-less org admin has none.
+  await requireTeamPage();
   const { view: rawView, node } = await searchParams;
   const view = normalizeView(rawView);
   const root = resolveWorkspaceRoot();

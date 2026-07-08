@@ -21,6 +21,9 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   adminOnly?: boolean | 'org_admin' | 'team_admin';
+  /** Team-scoped surfaces (projects, loops, journal, workspace). Hidden from the
+   *  org admin, who belongs to no team and only sees org-wide usage + settings. */
+  teamScoped?: boolean;
 }
 
 interface NavSection {
@@ -35,13 +38,13 @@ const SECTIONS: NavSection[] = [
   {
     id: 'main',
     items: [
-      { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/projects', label: 'Projects', icon: FolderKanban, teamScoped: true },
       // Loops sits directly below Projects. Still admin-only (the /loops pages are
       // admin-gated by require-admin.ts) — so it's hidden for non-admins, just no
       // longer grouped under the "Admin" eyebrow.
-      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
-      { href: '/journal', label: 'Journal', icon: NotebookPen },
-      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+      { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
+      { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
+      { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
       { href: '/usage', label: 'Usage', icon: BarChart3 },
     ],
   },
@@ -80,6 +83,8 @@ export function Sidebar({
       <nav aria-label="Primary" className="flex flex-col gap-5">
         {SECTIONS.map((section) => {
           const items = section.items.filter((i) => {
+            // The org admin has no team — hide every team-scoped surface from them.
+            if (i.teamScoped && member.role === 'org_admin') return false;
             if (!i.adminOnly) return true;
             if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
             return member.role === i.adminOnly;

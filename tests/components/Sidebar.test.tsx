@@ -32,6 +32,22 @@ describe('Sidebar role nav', () => {
     unmount();
   });
 
+  it('shows org_admin only Usage and Org settings — no team-scoped nav', () => {
+    render(<Sidebar member={orgAdmin} />);
+    expect(screen.getByText('Usage')).toBeInTheDocument();
+    expect(screen.getByText('Org settings')).toBeInTheDocument();
+    for (const label of ['Projects', 'Loops', 'Journal', 'Workspace', 'Team settings']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it('shows team members the team-scoped nav', () => {
+    render(<Sidebar member={teamAdmin} />);
+    for (const label of ['Projects', 'Journal', 'Workspace', 'Usage']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
   it('shows Team settings to team_admin but not member', () => {
     const { unmount: unmount1 } = render(<Sidebar member={teamAdmin} />);
     expect(screen.getByText('Team settings')).toBeInTheDocument();
@@ -43,7 +59,7 @@ describe('Sidebar role nav', () => {
   });
 
   it('marks the active route with aria-current', () => {
-    render(<Sidebar member={orgAdmin} />);
+    render(<Sidebar member={member} />);
     const projects = screen.getByText('Projects').closest('a');
     expect(projects).toHaveAttribute('aria-current', 'page');
     const workspace = screen.getByText('Workspace').closest('a');

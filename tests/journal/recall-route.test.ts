@@ -38,7 +38,7 @@ vi.mock('@/db/client', () => ({
 const { POST } = await import('../../app/api/journal/recall/route');
 
 function asMember(): AuthedMember {
-  return { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', isAdmin: false };
+  return { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
 }
 
 function recallReq(body: unknown, headers: Record<string, string> = {}): Request {

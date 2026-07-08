@@ -28,7 +28,7 @@ const WORKSPACE_NOTE = `### Shared repositories
  */
 export default async function WorkspacePage() {
   const me = await currentMember();
-  const isAdmin = me?.isAdmin ?? false;
+  const isAdmin = me?.role === 'team_admin';
   await syncWorkspaceRepos();
   const repos = await listRepos();
 

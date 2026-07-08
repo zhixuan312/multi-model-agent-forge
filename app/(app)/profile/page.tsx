@@ -18,12 +18,15 @@ export default async function ProfilePage() {
   if (!member) redirect('/login');
   const meta = await getProfileMeta(member.id);
 
+  const roleLabel = member.role === 'org_admin' ? 'Org admin' : member.role === 'team_admin' ? 'Team admin' : 'Member';
+  const roleSublabel = member.role === 'org_admin' ? 'Manages all teams & config' : member.role === 'team_admin' ? 'Manages this team & config' : 'Create & collaborate';
+
   return (
     <PageFrame title="Profile" width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — profile facts */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <MetricCard label="Role" value={member.isAdmin ? 'Admin' : 'Member'} sublabel={member.isAdmin ? 'Manages team & config' : 'Create & collaborate'} icon={<ShieldCheck />} iconTint="accent" />
+          <MetricCard label="Role" value={roleLabel} sublabel={roleSublabel} icon={<ShieldCheck />} iconTint="accent" />
           <MetricCard label="Member since" value={meta.createdAt ? formatDate(meta.createdAt) : '—'} muted={!meta.createdAt} sublabel={meta.createdAt ? formatRelative(meta.createdAt) : 'Joined the team'} icon={<CalendarClock />} iconTint="sage" />
           <MetricCard label="Active sessions" value={meta.activeSessions} muted={meta.activeSessions === 0} sublabel="Across your devices" icon={<Monitor />} iconTint="steel" />
         </div>

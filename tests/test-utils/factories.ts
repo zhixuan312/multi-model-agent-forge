@@ -10,14 +10,15 @@ const WARM_EMBER = '#9a6b4f';
 /** `team_member` row. */
 export function createBaseMember(over: Partial<{
   id: string; username: string; displayName: string; avatarTint: string;
-  isAdmin: boolean; createdAt: Date;
+  role: string; teamId: string | null; createdAt: Date;
 }> = {}) {
   return {
     id: 'member-1',
     username: 'ada',
     displayName: 'Ada Lovelace',
     avatarTint: WARM_EMBER,
-    isAdmin: false,
+    role: 'member',
+    teamId: 'team-1',
     createdAt: FIXED,
     ...over,
   };

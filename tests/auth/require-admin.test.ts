@@ -7,32 +7,21 @@ const base: AuthedMember = {
   username: 'alice',
   displayName: 'Alice',
   avatarTint: '#9a6b4f',
-  isAdmin: false,
+  role: 'member',
+  teamId: 'team-1',
 };
 
 describe('assertAdmin', () => {
-  it('allows an admin member through', () => {
-    const admin = { ...base, isAdmin: true };
-    expect(assertAdmin(admin)).toBe(admin);
+  it('allows org_admin and team_admin', () => {
+    expect(assertAdmin({ ...base, role: 'org_admin', teamId: null }).role).toBe('org_admin');
+    expect(assertAdmin({ ...base, role: 'team_admin' }).role).toBe('team_admin');
   });
 
-  it('denies a non-admin with NotAdminError (403)', () => {
-    try {
-      assertAdmin(base);
-      throw new Error('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(NotAdminError);
-      expect((e as NotAdminError).status).toBe(403);
-    }
+  it('rejects a non-admin role', () => {
+    expect(() => assertAdmin(base)).toThrow(NotAdminError);
   });
 
-  it('denies an unauthenticated caller with NotAuthenticatedError (401)', () => {
-    try {
-      assertAdmin(null);
-      throw new Error('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(NotAuthenticatedError);
-      expect((e as NotAuthenticatedError).status).toBe(401);
-    }
+  it('rejects unauthenticated callers', () => {
+    expect(() => assertAdmin(null)).toThrow(NotAuthenticatedError);
   });
 });

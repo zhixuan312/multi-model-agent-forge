@@ -30,10 +30,10 @@ vi.mock('@/mma/server-client', () => ({
 const { POST } = await import('../../app/api/configure-provider/route');
 
 function asAdmin(): AuthedMember {
-  return { id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', isAdmin: true };
+  return { id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'team_admin', teamId: 'team-1' };
 }
 function asMember(): AuthedMember {
-  return { id: 'm', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', isAdmin: false };
+  return { id: 'm', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
 }
 function req(body: unknown): Request {
   return new Request('http://localhost/api/configure-provider', {

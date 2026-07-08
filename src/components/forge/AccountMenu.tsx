@@ -87,9 +87,13 @@ export function AccountMenu({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <TextSm className="truncate font-semibold text-ink">{member.displayName}</TextSm>
-            {member.isAdmin ? (
+            {member.role === 'org_admin' ? (
               <Badge data-testid="admin-chip" variant="accent" size="sm">
-                Admin
+                Org admin
+              </Badge>
+            ) : member.role === 'team_admin' ? (
+              <Badge data-testid="admin-chip" variant="accent" size="sm">
+                Team admin
               </Badge>
             ) : null}
           </div>

@@ -25,8 +25,8 @@ vi.mock('@/loops/loops-core', () => ({
 const { GET: listGET, POST: createPOST } = await import('../../app/api/loops/route');
 const { GET: oneGET, PATCH, DELETE } = await import('../../app/api/loops/[id]/route');
 
-const admin = (): AuthedMember => ({ id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', isAdmin: true });
-const member = (): AuthedMember => ({ id: 'm', username: 'm', displayName: 'M', avatarTint: '#9a6b4f', isAdmin: false });
+const admin = (): AuthedMember => ({ id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'team_admin', teamId: 'team-1' });
+const member = (): AuthedMember => ({ id: 'm', username: 'm', displayName: 'M', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' });
 const req = (body: unknown) => new Request('http://localhost/api/loops', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 

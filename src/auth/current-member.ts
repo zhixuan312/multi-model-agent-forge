@@ -62,7 +62,8 @@ export async function resolveSessionFromToken(
       username: member.username,
       displayName: member.displayName,
       avatarTint: member.avatarTint,
-      isAdmin: member.isAdmin,
+      role: member.role,
+      teamId: member.teamId,
       passwordChangedAt: max(memberIdentity.passwordChangedAt),
     })
     .from(member)
@@ -88,7 +89,8 @@ export async function resolveSessionFromToken(
       username: row.username,
       displayName: row.displayName,
       avatarTint: row.avatarTint,
-      isAdmin: row.isAdmin,
+      role: row.role,
+      teamId: row.teamId,
     },
     session: sess,
   };

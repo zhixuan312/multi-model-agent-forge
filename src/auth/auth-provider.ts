@@ -3,13 +3,16 @@ import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { verifyPassword, DUMMY_ARGON2_HASH } from '@/auth/password';
 
+export type ForgeRole = 'org_admin' | 'team_admin' | 'member';
+
 /** A resolved authenticated member (no credentials). */
 export interface AuthedMember {
   id: string;
   username: string;
   displayName: string;
   avatarTint: string;
-  isAdmin: boolean;
+  role: ForgeRole;
+  teamId: string | null;
 }
 
 /**
@@ -41,7 +44,8 @@ export class LocalAuthProvider implements AuthProvider {
         username: member.username,
         displayName: member.displayName,
         avatarTint: member.avatarTint,
-        isAdmin: member.isAdmin,
+        role: member.role,
+        teamId: member.teamId,
         passwordHash: memberIdentity.passwordHash,
       })
       .from(member)
@@ -65,7 +69,8 @@ export class LocalAuthProvider implements AuthProvider {
       username: row.username,
       displayName: row.displayName,
       avatarTint: row.avatarTint,
-      isAdmin: row.isAdmin,
+      role: row.role,
+      teamId: row.teamId,
     };
   }
 }

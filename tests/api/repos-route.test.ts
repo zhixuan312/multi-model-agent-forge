@@ -21,10 +21,10 @@ const { PUT: repoPUT, DELETE: repoDELETE } = await import('../../app/api/repos/[
 const { GET: mpGET } = await import('../../app/api/model-profiles/route');
 
 function asAdmin(): AuthedMember {
-  return { id: 'a', username: 'admin', displayName: 'A', avatarTint: '#000', isAdmin: true };
+  return { id: 'a', username: 'admin', displayName: 'A', avatarTint: '#000', role: 'team_admin', teamId: 'team-1' };
 }
 function asMember(): AuthedMember {
-  return { id: 'm', username: 'mem', displayName: 'M', avatarTint: '#000', isAdmin: false };
+  return { id: 'm', username: 'mem', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' };
 }
 
 function req(body: unknown, method = 'POST', extraHeaders: Record<string, string> = {}): Request {

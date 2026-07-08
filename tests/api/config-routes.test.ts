@@ -13,7 +13,7 @@ vi.mock('@/auth/current-member', () => ({
 }));
 
 function asMember(): AuthedMember {
-  return { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', isAdmin: false };
+  return { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
 }
 
 // Import handlers AFTER the mock is registered.

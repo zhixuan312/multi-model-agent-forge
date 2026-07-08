@@ -28,11 +28,11 @@ export class NotAuthenticatedError extends Error {
 
 /**
  * Pure predicate — the testable core of the gate. Asserts the member is present
- * and `is_admin`. Throws `NotAuthenticatedError` / `NotAdminError` otherwise.
+ * and has org_admin or team_admin role. Throws `NotAuthenticatedError` / `NotAdminError` otherwise.
  */
 export function assertAdmin(member: AuthedMember | null): AuthedMember {
   if (!member) throw new NotAuthenticatedError();
-  if (!member.isAdmin) throw new NotAdminError();
+  if (member.role !== 'org_admin' && member.role !== 'team_admin') throw new NotAdminError();
   return member;
 }
 
@@ -47,6 +47,6 @@ export async function requireAdminMember(): Promise<AuthedMember> {
 export async function requireAdminPage(): Promise<AuthedMember> {
   const member = await currentMember();
   if (!member) redirect('/login');
-  if (!member.isAdmin) redirect('/');
+  if (member.role !== 'org_admin' && member.role !== 'team_admin') redirect('/');
   return member;
 }

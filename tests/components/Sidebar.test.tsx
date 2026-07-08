@@ -9,41 +9,41 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-const admin: AuthedMember = {
+const orgAdmin: AuthedMember = {
   id: 'a1',
   username: 'maya',
   displayName: 'Maya Adeyemi',
   avatarTint: '#6A6F8C',
-  isAdmin: true,
+  role: 'org_admin',
+  teamId: null,
 };
-const nonAdmin: AuthedMember = { ...admin, id: 'm1', username: 'devon', displayName: 'Devon Vance', isAdmin: false };
+const teamAdmin: AuthedMember = { ...orgAdmin, id: 'ta1', role: 'team_admin', teamId: 'team-1' };
+const member: AuthedMember = { ...orgAdmin, id: 'm1', username: 'devon', displayName: 'Devon Vance', role: 'member', teamId: 'team-1' };
 
-describe('Sidebar', () => {
-  it('renders the full primary nav for an admin', () => {
-    render(<Sidebar member={admin} />);
-    expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Loops')).toBeInTheDocument();
-    expect(screen.getByText('Journal')).toBeInTheDocument();
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Team settings')).toBeInTheDocument();
-    // The account menu + notification bell live in the global top-right cluster
-    // now, not the rail — so the sidebar carries no user-card / admin-chip.
-    expect(screen.queryByTestId('user-card')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('admin-chip')).not.toBeInTheDocument();
+describe('Sidebar role nav', () => {
+  it('shows Usage to every role', () => {
+    render(<Sidebar member={member} />);
+    expect(screen.getByText('Usage')).toBeInTheDocument();
   });
 
-  it('hides admin-only items (Loops, Team settings) for a non-admin', () => {
-    render(<Sidebar member={nonAdmin} />);
-    expect(screen.queryByText('Loops')).not.toBeInTheDocument();
+  it('shows Org settings only to org_admin', () => {
+    const { unmount } = render(<Sidebar member={orgAdmin} />);
+    expect(screen.getByText('Org settings')).toBeInTheDocument();
+    unmount();
+  });
+
+  it('shows Team settings to team_admin but not member', () => {
+    const { unmount: unmount1 } = render(<Sidebar member={teamAdmin} />);
+    expect(screen.getByText('Team settings')).toBeInTheDocument();
+    unmount1();
+
+    const { unmount: unmount2 } = render(<Sidebar member={member} />);
     expect(screen.queryByText('Team settings')).not.toBeInTheDocument();
-    // Non-admin still sees the everyone-items.
-    expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Journal')).toBeInTheDocument();
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    unmount2();
   });
 
   it('marks the active route with aria-current', () => {
-    render(<Sidebar member={admin} />);
+    render(<Sidebar member={orgAdmin} />);
     const projects = screen.getByText('Projects').closest('a');
     expect(projects).toHaveAttribute('aria-current', 'page');
     const workspace = screen.getByText('Workspace').closest('a');

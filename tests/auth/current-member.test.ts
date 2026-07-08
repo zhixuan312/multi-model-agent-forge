@@ -54,4 +54,26 @@ describe('resolveSessionFromToken', () => {
     expect(res?.member.id).toBe('m1');
     expect(st.touch).toHaveBeenCalledWith('s1');
   });
+
+  it('returns role + teamId on a valid session', async () => {
+    const sess = createBaseSession({ createdAt: new Date(NOW - 10_000), lastUsedAt: new Date(NOW - 1000) });
+    const db = createMockDb({
+      'select:team_member': [{
+        id: 'm1',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarTint: '#9a6b4f',
+        role: 'team_admin',
+        teamId: 'team-1',
+        passwordChangedAt: null,
+      }],
+    });
+    const res = await resolveSessionFromToken('t', {
+      store: store(sess),
+      db,
+      now: () => NOW,
+    });
+    expect(res?.member.role).toBe('team_admin');
+    expect(res?.member.teamId).toBe('team-1');
+  });
 });

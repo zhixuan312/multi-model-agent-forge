@@ -20,7 +20,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  adminOnly?: boolean;
+  adminOnly?: boolean | 'org_admin' | 'team_admin';
 }
 
 interface NavSection {
@@ -42,14 +42,15 @@ const SECTIONS: NavSection[] = [
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+      { href: '/usage', label: 'Usage', icon: BarChart3 },
     ],
   },
   {
     id: 'admin',
-    label: 'Admin',
+    label: 'Settings',
     items: [
-      { href: '/usage', label: 'Usage', icon: BarChart3, adminOnly: true },
-      { href: '/settings', label: 'Team settings', icon: Settings, adminOnly: true },
+      { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin' },
+      { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin' },
     ],
   },
 ];
@@ -78,7 +79,11 @@ export function Sidebar({
 
       <nav aria-label="Primary" className="flex flex-col gap-5">
         {SECTIONS.map((section) => {
-          const items = section.items.filter((i) => !i.adminOnly || member.isAdmin);
+          const items = section.items.filter((i) => {
+            if (!i.adminOnly) return true;
+            if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
+            return member.role === i.adminOnly;
+          });
           if (items.length === 0) return null;
           return (
             <div key={section.id} className="flex flex-col gap-0.5">

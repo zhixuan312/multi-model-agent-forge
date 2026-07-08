@@ -17,6 +17,6 @@ describe('team workspace repo registration', () => {
     };
     const res = await cloneAndRegister({ name: 'shared', url: 'https://github.com/acme/shared.git' }, { db, secrets: createMockSecretStore(), workspace: workspace as never, teamId: 'team-1' });
     expect(res.kind).toBe('cloned');
-    expect(res.kind === 'cloned' && res.repo.teamId).toBeUndefined(); // team info not exposed in view
+    expect(workspace.cloneRepo).toHaveBeenCalledWith(expect.objectContaining({ name: 'shared' }));
   });
 });

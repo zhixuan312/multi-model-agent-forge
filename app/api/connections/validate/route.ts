@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { getDb } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
+import { team } from '@/db/schema/team';
 import { PostgresSecretStore } from '@/secrets/secret-store';
 import { buildMmaClient } from '@/mma/server-client';
 import { probeGit, probeOpenai } from '@/config/connections-probe';
@@ -51,8 +53,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // git / openai — use the typed token if present, else decrypt the stored one.
   let value = token?.trim() ?? '';
   if (!value) {
-    const [row] = await getDb().select().from(connectionSettings).limit(1);
-    const ref = type === 'git' ? (row?.gitTokenRef ?? null) : (row?.openaiTranscriptionKeyRef ?? null);
+    const db = getDb();
+    const [org] = await db.select().from(connectionSettings).limit(1);
+    const [currentTeam] = gate.actor.teamId
+      ? await db.select().from(team).where(eq(team.id, gate.actor.teamId)).limit(1)
+      : [null];
+    const ref = type === 'git' ? (currentTeam?.gitTokenRef ?? null) : (org?.openaiTranscriptionKeyRef ?? null);
     if (ref) {
       const secrets = await PostgresSecretStore.create({});
       value = (await secrets.get(ref)) ?? '';

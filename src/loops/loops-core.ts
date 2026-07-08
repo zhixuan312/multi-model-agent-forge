@@ -56,6 +56,7 @@ export async function createLoop(input: unknown, deps: LoopsDeps = {}): Promise<
   const parsed = createLoopSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
   const { name, kind, config, workerTier, cron, targetBranch, repoIds, enabled } = parsed.data;
+  if (!deps.teamId) return { kind: 'invalid' };
 
   if (!parseLoopConfig(kind, config).ok) return { kind: 'invalid_config' };
   if (cron && !isValidCron(cron)) return { kind: 'invalid_cron' }; // only validate when scheduled
@@ -93,9 +94,8 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
   if (!parsed.success) return { kind: 'invalid' };
   const d = parsed.data;
 
-  let query = db.select().from(loop).where(eq(loop.id, id));
-  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
-  const [existing] = await query.limit(1);
+  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
+  const [existing] = await db.select().from(loop).where(where).limit(1);
   if (!existing) return { kind: 'not_found' };
 
   const kind = d.kind ?? existing.kind;
@@ -119,24 +119,23 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
 
 export async function listLoops(deps: LoopsDeps = {}): Promise<LoopRow[]> {
   const db = deps.db ?? getDb();
-  let query = db.select().from(loop);
-  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
+  const query = deps.teamId
+    ? db.select().from(loop).where(eq(loop.teamId, deps.teamId))
+    : db.select().from(loop);
   return query.orderBy(loop.createdAt);
 }
 
 export async function getLoop(id: string, deps: LoopsDeps = {}): Promise<LoopRow | null> {
   const db = deps.db ?? getDb();
-  let query = db.select().from(loop).where(eq(loop.id, id));
-  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
-  const [row] = await query.limit(1);
+  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
+  const [row] = await db.select().from(loop).where(where).limit(1);
   return row ?? null;
 }
 
 export async function deleteLoop(id: string, deps: LoopsDeps = {}): Promise<{ kind: 'deleted' | 'not_found' }> {
   const db = deps.db ?? getDb();
-  let query = db.delete(loop).where(eq(loop.id, id));
-  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
-  const deleted = await query.returning({ id: loop.id });
+  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
+  const deleted = await db.delete(loop).where(where).returning({ id: loop.id });
   return { kind: deleted.length > 0 ? 'deleted' : 'not_found' };
 }
 
@@ -146,11 +145,11 @@ export async function setLoopEnabled(
   deps: LoopsDeps = {},
 ): Promise<{ kind: 'updated' | 'not_found' }> {
   const db = deps.db ?? getDb();
-  let query = db
+  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
+  const updated = await db
     .update(loop)
     .set({ enabled, updatedAt: new Date() })
-    .where(eq(loop.id, id));
-  if (deps.teamId) query = query.where(eq(loop.teamId, deps.teamId)) as typeof query;
-  const updated = await query.returning({ id: loop.id });
+    .where(where)
+    .returning({ id: loop.id });
   return { kind: updated.length > 0 ? 'updated' : 'not_found' };
 }

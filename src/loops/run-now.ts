@@ -3,6 +3,7 @@ import { inArray, desc, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { loop as loopTable, loopRun, type LoopRunRow } from '@/db/schema/loop';
+import { team } from '@/db/schema/team';
 import type { LoopTrigger } from '@/db/enums';
 import { runLoop, type LoopRepoTarget, type LoopRunDeps } from '@/loops/run-engine';
 import { buildLoopRunDeps } from '@/loops/run-deps';
@@ -42,6 +43,8 @@ export async function startLoopRun(
   const db = deps.db ?? getDb();
   const loop = await getLoop(loopId, { db });
   if (!loop) return { kind: 'not_found' };
+  const [currentTeam] = await db.select().from(team).where(eq(team.id, loop.teamId)).limit(1);
+  if (!currentTeam) return { kind: 'not_found' };
 
   const repos = await loadRepos(db, loop.repoIds);
   const runId = deps.runId ?? randomUUID();
@@ -52,12 +55,12 @@ export async function startLoopRun(
   for (const r of repos) {
     const [row] = await db
       .insert(loopRun)
-      .values({ loopId, runId, repoId: r.id, trigger, status: 'running' })
+      .values({ teamId: loop.teamId, loopId, runId, repoId: r.id, trigger, status: 'running' })
       .returning({ id: loopRun.id });
     if (row?.id) runRowByRepoId.set(r.id, row.id);
   }
 
-  const runDeps = deps.runDeps ?? buildLoopRunDeps({ db });
+  const runDeps = deps.runDeps ?? await buildLoopRunDeps(currentTeam, { db });
   const runner = deps.runner ?? runLoop;
 
   const exec = runner(loop, repos, { runId, trigger, runRowByRepoId }, runDeps);

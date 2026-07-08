@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { execFileSync } from 'node:child_process';
 import type { Db } from '@/db/client';
 import { project, buildPr } from '@/db/schema/projects';
-import { connectionSettings } from '@/db/schema/identity';
+import { team } from '@/db/schema/team';
 import { createBuildPr } from '@/build/pr';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
@@ -25,7 +25,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
 
   // Look up the repo up front — needed to VERIFY committed code before recording
   // execute as done (the completion invariant's teeth).
-  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
+  const [projRow] = await db.select({ details: project.details, teamId: project.teamId }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
   if (!projRow?.details) throw new Error(`Project ${ctx.projectId} has no details`);
   const d = validateDetails(projRow.details);
   const repoMeta = d.repos.find((r) => r.id === repoId);
@@ -75,7 +75,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx, envelope: unknown
     const pr = await createBuildPr(
       {
         readGitToken: async () => {
-          const [row] = await db.select({ ref: connectionSettings.gitTokenRef }).from(connectionSettings).limit(1);
+          const [row] = await db.select({ ref: team.gitTokenRef }).from(team).where(eq(team.id, projRow.teamId)).limit(1);
           if (!row?.ref) return null;
           const { PostgresSecretStore } = await import('@/secrets/secret-store');
           const secrets = await PostgresSecretStore.create({ db });

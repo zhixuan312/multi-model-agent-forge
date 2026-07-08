@@ -159,7 +159,7 @@ export async function runLoopForRepo(
   if (!runRowId) {
     const [run] = await db
       .insert(loopRun)
-      .values({ loopId: loop.id, runId: ctx.runId, repoId: repo.id, trigger: ctx.trigger, status: 'running' })
+      .values({ teamId: loop.teamId, loopId: loop.id, runId: ctx.runId, repoId: repo.id, trigger: ctx.trigger, status: 'running' })
       .returning();
     runRowId = run.id;
   }

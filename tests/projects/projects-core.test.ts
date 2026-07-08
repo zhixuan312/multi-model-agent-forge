@@ -116,9 +116,9 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
       'select:project_participant': [],
     });
 
-    const visible = await visibleProjects({ id: strangerId }, { db: mockDb });
+    const visible = await visibleProjects({ id: strangerId, teamId: 'team-1' }, { db: mockDb });
     expect(visible.some((p) => p.id === projectId)).toBe(true);
-    await expect(assertProjectReadable(projectId, { id: strangerId }, { db: mockDb })).resolves.toBeUndefined();
+    await expect(assertProjectReadable(projectId, { id: strangerId, teamId: 'team-1' }, { db: mockDb })).resolves.toBeUndefined();
   });
 
   it('derives phase/currentStage from details — NOT the stale denormalized column', async () => {
@@ -139,7 +139,7 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
       'select:team_member': [{ id: 'owner-d', displayName: 'Owner', avatarTint: '#fff' }],
     });
 
-    const [proj] = await visibleProjects({ id: 'owner-d' }, { db: mockDb });
+    const [proj] = await visibleProjects({ id: 'owner-d', teamId: 'team-1' }, { db: mockDb });
     expect(proj.phase).toBe('completed'); // derived from details, not the 'design' column
     expect(proj.currentStage).toBe('journal');
   });
@@ -153,11 +153,31 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
       'select:project_participant': [],
     });
 
-    const visible = await visibleProjects({ id: strangerId }, { db: mockDb });
+    const visible = await visibleProjects({ id: strangerId, teamId: 'team-1' }, { db: mockDb });
     expect(visible.some((p) => p.id === projectId)).toBe(false);
-    await expect(assertProjectReadable(projectId, { id: strangerId }, { db: mockDb })).rejects.toBeInstanceOf(
+    await expect(assertProjectReadable(projectId, { id: strangerId, teamId: 'team-1' }, { db: mockDb })).rejects.toBeInstanceOf(
       ProjectAccessError,
     );
+  });
+
+  it('filters visibleProjects by actor.teamId', async () => {
+    const db = createMockDb({
+      'select:project': [{
+        id: 'proj-1',
+        teamId: 'team-a',
+        visibility: 'public',
+        ownerId: 'owner-a',
+        name: 'A',
+        summary: null,
+        phase: 'design',
+        currentStage: 'exploration',
+        updatedAt: new Date(),
+        details: null,
+      }],
+    });
+
+    await visibleProjects({ id: 'owner-a', teamId: 'team-b' }, { db });
+    expect(db._assertCalled('project', 'where')).toBe(true);
   });
 });
 

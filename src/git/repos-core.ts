@@ -7,7 +7,7 @@
  * git runner. The git token is resolved from `settings_connection.git_token_ref`
  * and passed to the service, never returned to callers, never logged.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
@@ -91,8 +91,18 @@ async function resolveSecrets(deps: ReposDeps): Promise<SecretStore> {
   return deps.secrets ?? (await PostgresSecretStore.create({ db: deps.db }));
 }
 
-async function resolveWorkspace(deps: ReposDeps): Promise<WorkspaceService> {
-  return deps.workspace ?? new WorkspaceService({ workspaceRoot: resolveWorkspaceRoot() });
+async function resolveTeamRow(db: Db, teamId?: string): Promise<typeof team.$inferSelect | null> {
+  if (!teamId) return null;
+  const [row] = await db.select().from(team).where(eq(team.id, teamId)).limit(1);
+  return row ?? null;
+}
+
+async function resolveWorkspace(db: Db, deps: ReposDeps): Promise<WorkspaceService> {
+  if (deps.workspace) return deps.workspace;
+  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  return new WorkspaceService({
+    workspaceRoot: currentTeam?.workspaceRootPath ?? resolveWorkspaceRoot(),
+  });
 }
 
 /** Resolve the git token from team.git_token_ref (null when unset). */
@@ -107,8 +117,9 @@ async function gitToken(db: Db, secrets: SecretStore, teamId?: string): Promise<
 /** List repos for the team (unfiltered by name — the filter runs client-side, Flow E). */
 export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
   const db = deps.db ?? getDb();
-  const query = db.select().from(repo);
-  if (deps.teamId) query.where(eq(repo.teamId, deps.teamId));
+  const query = deps.teamId
+    ? db.select().from(repo).where(eq(repo.teamId, deps.teamId))
+    : db.select().from(repo);
   const rows = await query.orderBy(repo.createdAt);
   return rows.map(toView);
 }
@@ -124,13 +135,12 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   const { name, url, tags } = parsed.data;
 
   // Duplicate-name guard (scoped by team when teamId is provided).
-  let query = db.select({ id: repo.id }).from(repo).where(eq(repo.name, name));
-  if (deps.teamId) query = query.where(eq(repo.teamId, deps.teamId)) as typeof query;
-  const [existing] = await query.limit(1);
+  const where = deps.teamId ? and(eq(repo.teamId, deps.teamId), eq(repo.name, name)) : eq(repo.name, name);
+  const [existing] = await db.select({ id: repo.id }).from(repo).where(where).limit(1);
   if (existing) return { kind: 'duplicate_name' };
 
   const secrets = await resolveSecrets(deps);
-  const workspace = await resolveWorkspace(deps);
+  const workspace = await resolveWorkspace(db, deps);
   const token = await gitToken(db, secrets, deps.teamId);
 
   // Insert the row at 'pulling' so the lifecycle is visible; a placeholder
@@ -138,8 +148,15 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   // we set status='error').
   let rowId: string;
   try {
-    const values: Record<string, unknown> = { name, pathOnDisk: name, defaultBranch: 'unknown', tags, status: 'pulling' };
-    if (deps.teamId) values.teamId = deps.teamId;
+    if (!deps.teamId) throw new Error('Team required for repo registration.');
+    const values: typeof repo.$inferInsert = {
+      teamId: deps.teamId,
+      name,
+      pathOnDisk: name,
+      defaultBranch: 'unknown',
+      tags,
+      status: 'pulling',
+    };
     const [row] = await db
       .insert(repo)
       .values(values)
@@ -183,13 +200,12 @@ export type PullResult =
 /** Re-pull an existing repo (Flow B pull variant). */
 export async function pullExisting(id: string, deps: ReposDeps = {}): Promise<PullResult> {
   const db = deps.db ?? getDb();
-  let query = db.select().from(repo).where(eq(repo.id, id));
-  if (deps.teamId) query = query.where(eq(repo.teamId, deps.teamId)) as typeof query;
-  const [row] = await query.limit(1);
+  const where = deps.teamId ? and(eq(repo.id, id), eq(repo.teamId, deps.teamId)) : eq(repo.id, id);
+  const [row] = await db.select().from(repo).where(where).limit(1);
   if (!row) return { kind: 'not_found' };
 
   const secrets = await resolveSecrets(deps);
-  const workspace = await resolveWorkspace(deps);
+  const workspace = await resolveWorkspace(db, deps);
   const token = await gitToken(db, secrets, deps.teamId);
 
   await db.update(repo).set({ status: 'pulling' }).where(eq(repo.id, id));
@@ -222,9 +238,8 @@ export async function updateRepo(id: string, input: unknown, deps: ReposDeps = {
   const parsed = updateRepoSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message ?? 'Invalid input.' };
 
-  let query = db.select({ id: repo.id }).from(repo).where(eq(repo.id, id));
-  if (deps.teamId) query = query.where(eq(repo.teamId, deps.teamId)) as typeof query;
-  const [existing] = await query.limit(1);
+  const where = deps.teamId ? and(eq(repo.id, id), eq(repo.teamId, deps.teamId)) : eq(repo.id, id);
+  const [existing] = await db.select({ id: repo.id }).from(repo).where(where).limit(1);
   if (!existing) return { kind: 'not_found' };
 
   const set: Record<string, unknown> = {};
@@ -232,9 +247,7 @@ export async function updateRepo(id: string, input: unknown, deps: ReposDeps = {
   if (parsed.data.defaultBranch) set.defaultBranch = parsed.data.defaultBranch;
 
   if (Object.keys(set).length === 0) {
-    let readQuery = db.select().from(repo).where(eq(repo.id, id));
-    if (deps.teamId) readQuery = readQuery.where(eq(repo.teamId, deps.teamId)) as typeof readQuery;
-    const [row] = await readQuery.limit(1);
+    const [row] = await db.select().from(repo).where(where).limit(1);
     return { kind: 'updated', repo: toView(row) };
   }
 
@@ -247,9 +260,8 @@ export type DeleteRepoResult = { kind: 'deleted' } | { kind: 'not_found' };
 /** Remove a repo row (does not delete files on disk in this slice). */
 export async function deleteRepo(id: string, deps: ReposDeps = {}): Promise<DeleteRepoResult> {
   const db = deps.db ?? getDb();
-  let query = db.delete(repo).where(eq(repo.id, id));
-  if (deps.teamId) query = query.where(eq(repo.teamId, deps.teamId)) as typeof query;
-  const rows = await query.returning({ id: repo.id });
+  const where = deps.teamId ? and(eq(repo.id, id), eq(repo.teamId, deps.teamId)) : eq(repo.id, id);
+  const rows = await db.delete(repo).where(where).returning({ id: repo.id });
   return rows.length > 0 ? { kind: 'deleted' } : { kind: 'not_found' };
 }
 
@@ -272,15 +284,16 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
   const { join } = await import('node:path');
 
   const db = deps.db ?? getDb();
-  const root = resolveWorkspaceRoot();
+  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  const root = currentTeam?.workspaceRootPath ?? resolveWorkspaceRoot();
   const added: string[] = [];
   const flagged: string[] = [];
 
   if (!existsSync(root)) return { added, flagged };
 
-  let query = db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo);
-  if (deps.teamId) query = query.where(eq(repo.teamId, deps.teamId)) as typeof query;
-  const dbRows = await query;
+  const dbRows = await (deps.teamId
+    ? db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo).where(eq(repo.teamId, deps.teamId))
+    : db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo));
   const dbByName = new Map(dbRows.map((r) => [r.name, r]));
 
   const entries = readdirSync(root, { withFileTypes: true });
@@ -304,14 +317,15 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
       } catch { /* use defaults */ }
 
       try {
-        const values: Record<string, unknown> = {
+        if (!deps.teamId) throw new Error('Team required for workspace sync registration.');
+        const values: typeof repo.$inferInsert = {
+          teamId: deps.teamId,
           name: entry.name,
           pathOnDisk: dirPath,
           defaultBranch,
           headSha,
           status: 'cloned',
         };
-        if (deps.teamId) values.teamId = deps.teamId;
         await db.insert(repo).values(values);
         added.push(entry.name);
       } catch (e) {

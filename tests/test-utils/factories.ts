@@ -42,13 +42,12 @@ export function createBaseSession(over: Partial<{
 
 /** `team_connection` singleton row. */
 export function createBaseConnection(over: Partial<{
-  id: string; mmaBaseUrl: string | null; gitTokenRef: string | null;
+  id: string; mmaBaseUrl: string | null;
   openaiTranscriptionKeyRef: string | null; createdAt: Date; updatedAt: Date;
 }> = {}) {
   return {
     id: 'conn-1',
     mmaBaseUrl: 'http://127.0.0.1:7337',
-    gitTokenRef: null,
     openaiTranscriptionKeyRef: null,
     createdAt: FIXED,
     updatedAt: FIXED,

@@ -48,13 +48,24 @@ describe('getConnections', () => {
 
   it('maps stored refs to "set" booleans (never the values)', async () => {
     const db = createMockDb({
-      team_connection: [createBaseConnection({ gitTokenRef: 'r1', openaiTranscriptionKeyRef: null })],
+      'select:team_connection': [createBaseConnection({ openaiTranscriptionKeyRef: null })],
     });
     expect(await getConnections({ db })).toEqual({
       mmaBaseUrl: 'http://127.0.0.1:7337',
-      gitTokenSet: true,
+      gitTokenSet: false,
       openaiTranscriptionKeySet: false,
     });
+  });
+
+  it('reads org-owned base URL and team-owned git token separately', async () => {
+    const db = createMockDb({
+      'select:team_connection': [{ id: 'conn-1', mmaBaseUrl: 'http://127.0.0.1:7337', openaiTranscriptionKeyRef: 'voice-ref' }],
+      'select:team': [{ id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/forge/base/alpha', gitTokenRef: 'git-ref' }],
+    });
+    const view = await getConnections({ db, teamId: 'team-1' });
+    expect(view.mmaBaseUrl).toBe('http://127.0.0.1:7337');
+    expect(view.gitTokenSet).toBe(true);
+    expect(view.openaiTranscriptionKeySet).toBe(true);
   });
 });
 
@@ -66,38 +77,44 @@ describe('updateConnections', () => {
     expect(db._calls).toHaveLength(0);
   });
 
-  it('first save INSERTs the singleton; tokens become refs, plaintext never reaches the row', async () => {
+  it('when no teamId is provided, git token is ignored (no-op)', async () => {
     const db = createMockDb({
-      'select:team_connection': seq([], [createBaseConnection({ gitTokenRef: 'secret-ref-1' })]),
+      'select:team_connection': seq([], [createBaseConnection()]),
     });
     const secrets = createMockSecretStore();
     const res = await updateConnections({ gitToken: 'ghs_SECRET' }, { db, secrets });
 
     expect(res.kind).toBe('saved');
     if (res.kind !== 'saved') return;
-    expect(res.connections.gitTokenSet).toBe(true);
-    expect(secrets.puts).toContainEqual(expect.objectContaining({ label: 'git-token', plaintext: 'ghs_SECRET' }));
-    expect(db._assertCalled('team_connection', 'insert')).toBe(true);
-
-    const values = db._callsFor('team_connection').find((c) => c.method === 'values');
-    expect(JSON.stringify(values?.args)).not.toContain('ghs_SECRET'); // ref, not plaintext
-    expect(JSON.stringify(values?.args)).toContain('secret-ref-1');
+    expect(res.connections.gitTokenSet).toBe(false); // no teamId provided, so git token not set
+    expect(secrets.puts).toHaveLength(0); // no secrets stored
+    expect(db._assertCalled('team', 'update')).toBe(false); // team not updated
   });
 
-  it('a git-only edit UPDATEs the existing row, rotates the git secret, and leaves speech-to-text untouched', async () => {
-    const existing = createBaseConnection({ gitTokenRef: 'old-git', openaiTranscriptionKeyRef: 'keep-openai' });
+  it('mma base URL alone (no git token, no team) UPDATEs the singleton', async () => {
+    const existing = createBaseConnection({ openaiTranscriptionKeyRef: 'keep-openai' });
     const db = createMockDb({
-      'select:team_connection': seq([existing], [{ ...existing, gitTokenRef: 'secret-ref-1' }]),
+      'select:team_connection': seq([existing], [{ ...existing, mmaBaseUrl: 'http://new-url' }]),
     });
     const secrets = createMockSecretStore();
-    await updateConnections({ gitToken: 'new-git' }, { db, secrets });
+    await updateConnections({ mmaBaseUrl: 'http://new-url' }, { db, secrets });
 
-    expect(secrets.puts.some((p) => p.label === 'git-token')).toBe(true);
-    expect(secrets.deleted).toContain('old-git'); // superseded secret dropped
+    expect(secrets.puts).toHaveLength(0); // no new secrets
     expect(db._assertCalled('team_connection', 'update')).toBe(true);
 
     const set = db._callsFor('team_connection').find((c) => c.method === 'set');
-    expect(JSON.stringify(set?.args)).toContain('secret-ref-1'); // git ref rotated
+    expect(JSON.stringify(set?.args)).toContain('http://new-url'); // url updated
     expect(JSON.stringify(set?.args)).not.toContain('openaiTranscriptionKeyRef'); // openai not in the patch
+  });
+
+  it('updates git token on the team row, not the singleton row', async () => {
+    const db = createMockDb({
+      'select:team_connection': seq([{ id: 'conn-1', mmaBaseUrl: 'http://127.0.0.1:7337', openaiTranscriptionKeyRef: null }], [{ id: 'conn-1', mmaBaseUrl: 'http://127.0.0.1:7337', openaiTranscriptionKeyRef: null }]),
+      'select:team': seq([{ id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/forge/base/alpha', gitTokenRef: 'old-ref' }], [{ id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/forge/base/alpha', gitTokenRef: 'secret-ref-1' }]),
+    });
+    const secrets = createMockSecretStore();
+    await updateConnections({ gitToken: 'ghs_secret' }, { db, teamId: 'team-1', secrets });
+    expect(db._assertCalled('team', 'update')).toBe(true);
+    expect(db._assertCalled('team_connection', 'update')).toBe(false);
   });
 });

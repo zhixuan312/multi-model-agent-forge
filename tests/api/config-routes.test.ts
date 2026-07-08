@@ -27,19 +27,19 @@ function putReq(body: unknown): Request {
   });
 }
 
-describe('connections API route — admin gate', () => {
+describe('connections API route — team gate', () => {
   beforeEach(() => {
     mockCaller = null;
   });
 
-  it('non-admin → 403 (GET + PUT)', async () => {
-    mockCaller = asMember();
-    expect((await connGET()).status).toBe(403);
-    expect((await connPUT(putReq({}) as never)).status).toBe(403);
-  });
-
   it('unauthenticated → 401 (GET + PUT)', async () => {
     mockCaller = null;
+    expect((await connGET()).status).toBe(401);
+    expect((await connPUT(putReq({}) as never)).status).toBe(401);
+  });
+
+  it('member without teamId → 401 (GET + PUT)', async () => {
+    mockCaller = { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
     expect((await connGET()).status).toBe(401);
     expect((await connPUT(putReq({}) as never)).status).toBe(401);
   });

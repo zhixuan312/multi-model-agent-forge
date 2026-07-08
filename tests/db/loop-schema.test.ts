@@ -12,6 +12,7 @@ describe('db/schema/loop — loop table', () => {
     expect(getTableName(loop)).toBe('loop_def');
     expect(columnNames(loop)).toEqual({
       id: 'id',
+      teamId: 'team_id',
       name: 'name',
       kind: 'kind',
       config: 'config',
@@ -44,6 +45,7 @@ describe('db/schema/loop — loop_run table', () => {
     expect(getTableName(loopRun)).toBe('loop_run');
     expect(columnNames(loopRun)).toEqual({
       id: 'id',
+      teamId: 'team_id',
       loopId: 'loop_id',
       runId: 'run_id',
       repoId: 'repo_id',

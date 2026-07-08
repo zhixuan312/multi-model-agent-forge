@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
+import { team } from '@/db/schema/team';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 
 /**
@@ -24,6 +25,8 @@ export interface ConnectionsDeps {
   secrets?: SecretStore;
   /** The admin saving this change — recorded on new secret rows (audit → settings_secret.created_by). */
   actorId?: string | null;
+  /** The team ID for team-owned settings (git token). */
+  teamId?: string | null;
 }
 
 async function resolveSecrets(deps: ConnectionsDeps): Promise<SecretStore> {
@@ -54,18 +57,13 @@ export const updateConnectionsSchema = z.object({
 /** Read the singleton row (or the empty view if no row exists yet). */
 export async function getConnections(deps: ConnectionsDeps = {}): Promise<ConnectionsView> {
   const db = deps.db ?? getDb();
-  const [row] = await db.select().from(connectionSettings).limit(1);
-  if (!row) {
-    return {
-      mmaBaseUrl: null,
-      gitTokenSet: false,
-      openaiTranscriptionKeySet: false,
-    };
-  }
+  const [org] = await db.select().from(connectionSettings).limit(1);
+  const [currentTeam] = deps.teamId ? await db.select().from(team).where(eq(team.id, deps.teamId)).limit(1) : [null];
+
   return {
-    mmaBaseUrl: row.mmaBaseUrl,
-    gitTokenSet: row.gitTokenRef !== null,
-    openaiTranscriptionKeySet: row.openaiTranscriptionKeyRef !== null,
+    mmaBaseUrl: org?.mmaBaseUrl ?? null,
+    gitTokenSet: currentTeam?.gitTokenRef != null,
+    openaiTranscriptionKeySet: org?.openaiTranscriptionKeyRef != null,
   };
 }
 
@@ -80,9 +78,10 @@ export type UpdateConnectionsResult =
   | { kind: 'invalid' };
 
 /**
- * Save (create-or-update) the singleton row. Only the provided fields are
- * touched: a token present is `put` and its ref replaces the old one; a token
- * absent leaves its ref as-is. The base URL is set when provided.
+ * Save (create-or-update) the singleton row for org-owned settings and the team
+ * row for team-owned settings (git token). Org fields (mmaBaseUrl,
+ * openaiTranscriptionKey) always go to the singleton. Git token goes to the
+ * team row when teamId is provided. Each section updates independently.
  */
 export async function updateConnections(
   input: unknown,
@@ -94,6 +93,7 @@ export async function updateConnections(
   const { mmaBaseUrl, gitToken, openaiTranscriptionKey } = parsed.data;
 
   const [existing] = await db.select().from(connectionSettings).limit(1);
+  const [currentTeam] = deps.teamId ? await db.select().from(team).where(eq(team.id, deps.teamId)).limit(1) : [null];
 
   // Resolve any provided secrets to refs (replacing the prior secret rows).
   let secrets: SecretStore | null = null;
@@ -111,26 +111,33 @@ export async function updateConnections(
     return ref;
   }
 
-  const gitTokenRef = await rotate(gitToken, 'git-token', existing?.gitTokenRef);
+  // Org-owned settings (mmaBaseUrl, openaiTranscriptionKey) go to singleton
   const openaiRef = await rotate(
     openaiTranscriptionKey,
     'openai-transcription',
     existing?.openaiTranscriptionKeyRef,
   );
 
-  if (existing) {
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
-    if (mmaBaseUrl !== undefined) patch.mmaBaseUrl = mmaBaseUrl;
-    if (gitTokenRef !== undefined) patch.gitTokenRef = gitTokenRef;
-    if (openaiRef !== undefined) patch.openaiTranscriptionKeyRef = openaiRef;
-    await db.update(connectionSettings).set(patch).where(eq(connectionSettings.id, existing.id));
-  } else {
-    await db.insert(connectionSettings).values({
-      mmaBaseUrl: mmaBaseUrl ?? null,
-      gitTokenRef: gitTokenRef ?? null,
-      openaiTranscriptionKeyRef: openaiRef ?? null,
-    });
+  if (mmaBaseUrl !== undefined || openaiRef !== undefined) {
+    if (existing) {
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (mmaBaseUrl !== undefined) patch.mmaBaseUrl = mmaBaseUrl;
+      if (openaiRef !== undefined) patch.openaiTranscriptionKeyRef = openaiRef;
+      await db.update(connectionSettings).set(patch).where(eq(connectionSettings.id, existing.id));
+    } else {
+      await db.insert(connectionSettings).values({
+        mmaBaseUrl: mmaBaseUrl ?? null,
+        openaiTranscriptionKeyRef: openaiRef ?? null,
+      });
+    }
   }
 
-  return { kind: 'saved', connections: await getConnections({ db }) };
+  // Team-owned git token goes to team row (only if teamId is provided)
+  if (gitToken !== undefined && deps.teamId) {
+    if (!currentTeam) throw new Error('Team required for git token update.');
+    const gitTokenRef = await rotate(gitToken, 'git-token', currentTeam.gitTokenRef);
+    await db.update(team).set({ gitTokenRef, updatedAt: new Date() }).where(eq(team.id, currentTeam.id));
+  }
+
+  return { kind: 'saved', connections: await getConnections({ db, teamId: deps.teamId ?? null }) };
 }

@@ -103,6 +103,7 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(getTableName(repo)).toBe('workspace_repo');
     expect(columnNames(repo)).toEqual({
       id: 'id',
+      teamId: 'team_id',
       name: 'name',
       pathOnDisk: 'path_on_disk',
       defaultBranch: 'default_branch',
@@ -112,8 +113,8 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
       createdAt: 'created_at',
     });
     const cols = getTableColumns(repo);
+    expect(cols.teamId.notNull).toBe(true);
     expect(cols.name.notNull).toBe(true);
-    expect(cols.name.isUnique).toBe(true);
     expect(cols.pathOnDisk.notNull).toBe(true);
     expect(cols.defaultBranch.notNull).toBe(true);
     expect(cols.status.enumValues).toEqual(['cloned', 'pulling', 'error']);

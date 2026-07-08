@@ -132,8 +132,8 @@ export function SummaryPhase({ summary, projectId, readOnly, onMarkComplete, com
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — stat cards (2/3) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
+      {/* LEFT — stat cards (2/3); own scroll so the column never clips */}
+      <div className="grid min-h-0 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2 lg:col-span-2">
         <StatCard icon={Clock} title="Timeline">
           {orderedStages.map((s) => (
             <StatRow key={s.kind} label={STAGE_LABELS[s.kind] ?? s.kind} value={stageDuration(s.startedAt, s.completedAt)} />

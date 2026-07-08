@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { DollarSign, TrendingUp, Clock, Cpu } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
-import { PageFrame } from '@/components/ui';
+import { PageFrame, Card, CardContent, Title } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { usageOverview, routeAggForSource, type Period, type RouteAggRow } from '@/usage/usage-core';
@@ -10,6 +10,7 @@ import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/for
 import { UsageTabsNav } from './UsageTabsNav';
 import { PeriodSelect } from './PeriodSelect';
 import { UsageBatchTable, type BatchRowData } from './UsageBatchTable';
+import { CostTrendChart } from './CostTrendChart';
 import { OrgUsageDashboard } from './OrgUsageDashboard';
 
 export const runtime = 'nodejs';
@@ -87,7 +88,6 @@ export default async function UsagePage({
       title="Usage"
       subnav={<UsageTabsNav active="overview" period={period} role={member.role} />}
       width="full"
-      fill
       actions={
         <Suspense>
           <PeriodSelect />
@@ -129,7 +129,19 @@ export default async function UsagePage({
             muted: data.metrics.totalTokens === 0,
           },
         ]}
-        primary={<UsageBatchTable data={tableRows} detailBySource={detailBySource} />}
+        primary={
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardContent>
+                <Title as="h2" className="mb-3">
+                  Cost &amp; volume
+                </Title>
+                <CostTrendChart points={data.trend} height={180} />
+              </CardContent>
+            </Card>
+            <UsageBatchTable data={tableRows} detailBySource={detailBySource} />
+          </div>
+        }
         aside={<RailNote icon={<DollarSign />}>{NOTE}</RailNote>}
       />
     </PageFrame>

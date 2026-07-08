@@ -92,6 +92,8 @@ export interface OverviewResult {
   metrics: OverviewMetrics;
   bySources: SourceRow[];
   byRoutes: RouteRow[];
+  /** Daily cost/volume series for this team over the period (chart input). */
+  trend: UsagePoint[];
 }
 
 // ── Org usage rollup types ──────────────────────────────────────────────────
@@ -299,7 +301,24 @@ async function usageOverviewTeam(
     avgDurationMs: r.avgDurationMs,
   }));
 
-  return { metrics, bySources, byRoutes };
+  // Daily cost/volume series for the chart. TIMEZONE is a hardcoded constant, so
+  // raw interpolation is safe — Postgres rejects a parameterised timezone in the
+  // GROUP BY (it reads as an ungrouped-column reference).
+  const dayBucket = sql`date_trunc('day', ${mmaBatch.createdAt} at time zone ${sql.raw(`'${TIMEZONE}'`)})`;
+  const trendRows = await db
+    .select({
+      date: sql<string>`to_char(${dayBucket}, 'YYYY-MM-DD')`,
+      costUsd: sql<number>`coalesce(sum(${mmaBatch.costUsd}::numeric), 0)::float`,
+      savedUsd: sql<number>`coalesce(sum(${mmaBatch.savedVsMainUsd}::numeric), 0)::float`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(mmaBatch)
+    .where(where)
+    .groupBy(dayBucket)
+    .orderBy(dayBucket);
+  const trend: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd, savedUsd: r.savedUsd, count: r.count }));
+
+  return { metrics, bySources, byRoutes, trend };
 }
 
 async function usageOverviewOrg(

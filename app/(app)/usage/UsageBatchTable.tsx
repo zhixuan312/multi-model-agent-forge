@@ -116,7 +116,7 @@ export function UsageBatchTable({
   }, [data, search, sourceFilter]);
 
   return (
-    <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <div className="forge-spotlight flex flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Activity breakdown</Title>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -138,7 +138,6 @@ export function UsageBatchTable({
       <DataTable
         columns={columns}
         data={filtered}
-        fill
         getRowId={(r) => `${r.source}-${r.route}`}
         expandedId={expandedId}
         renderExpanded={(row) => <RouteBreakdown routes={detailBySource[row.source] ?? []} />}

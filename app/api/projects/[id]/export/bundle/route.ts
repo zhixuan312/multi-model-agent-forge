@@ -28,7 +28,7 @@ export async function POST(
   const mermaidAsDiagram = parsed.success ? parsed.data.mermaidAsDiagram : true;
 
   try {
-    const { fileName, zip, includedKinds } = await exportBundle(id, { mermaidAsDiagram }, { id: me.id });
+    const { fileName, zip, includedKinds } = await exportBundle(id, { mermaidAsDiagram }, { id: me.id, teamId: me.teamId! });
     // Stream the zip body — no Content-Length (chunked).
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {

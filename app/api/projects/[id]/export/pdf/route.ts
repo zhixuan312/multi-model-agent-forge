@@ -39,7 +39,7 @@ export async function POST(
       id,
       kind,
       { includeComponents: parsed.data.includeComponents, mermaidAsDiagram: parsed.data.mermaidAsDiagram },
-      { id: me.id },
+      { id: me.id, teamId: me.teamId! },
     );
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

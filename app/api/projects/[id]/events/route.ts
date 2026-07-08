@@ -28,7 +28,7 @@ export async function GET(
   const me = await currentMember();
   if (!me) return new Response('Unauthorized', { status: 401 });
   try {
-    await assertProjectReadable(id, { id: me.id });
+    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
   } catch (e) {
     if (e instanceof ProjectAccessError) return new Response('Not found', { status: 404 });
     throw e;

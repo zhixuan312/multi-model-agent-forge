@@ -21,7 +21,7 @@ export async function GET(
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const result = await downloadStageArtifact({ projectId: id, kind: kind as DownloadableKind, actor: { id: me.id } });
+    const result = await downloadStageArtifact({ projectId: id, kind: kind as DownloadableKind, actor: { id: me.id, teamId: me.teamId! } });
     return new NextResponse(result.bodyMd, {
       status: 200,
       headers: {

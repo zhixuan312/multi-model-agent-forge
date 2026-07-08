@@ -24,7 +24,7 @@ export async function GET(
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { fileName, body } = await exportMd(id, kind, { id: me.id });
+    const { fileName, body } = await exportMd(id, kind, { id: me.id, teamId: me.teamId! });
     return new NextResponse(body, {
       status: 200,
       headers: {

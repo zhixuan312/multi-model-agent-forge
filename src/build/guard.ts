@@ -23,7 +23,7 @@ export async function guardBuildWrite(
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    await assertProjectReadable(projectId, { id: me.id });
+    await assertProjectReadable(projectId, { id: me.id, teamId: me.teamId! });
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

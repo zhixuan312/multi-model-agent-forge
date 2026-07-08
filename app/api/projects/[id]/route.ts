@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   // Precondition (2): read-guard FIRST — a hidden/unknown project → 404
   // (anti-enumeration), distinct from the write-authz 403 below.
   try {
-    await assertProjectReadable(id, { id: me.id });
+    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
@@ -64,9 +64,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   // is 403 (leaks nothing, the actor already knows the project exists).
   try {
     if (parsed.data.visibility !== undefined) {
-      await changeVisibility(id, parsed.data.visibility, { id: me.id });
+      await changeVisibility(id, parsed.data.visibility, { id: me.id, teamId: me.teamId! });
     } else {
-      await changeRepos(id, parsed.data.repoIds!, { id: me.id });
+      await changeRepos(id, parsed.data.repoIds!, { id: me.id, teamId: me.teamId! });
     }
   } catch (e) {
     if (e instanceof ProjectAccessError) {

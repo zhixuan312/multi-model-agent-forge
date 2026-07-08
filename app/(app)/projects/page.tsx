@@ -32,7 +32,7 @@ function attentionReason(p: DashboardProject): string {
 export default async function ProjectsPage() {
   const me = await currentMember();
   if (!me) redirect('/login');
-  const projects = await dashboardProjects({ id: me.id });
+  const projects = await dashboardProjects({ id: me.id, teamId: me.teamId! });
   const metrics = dashboardMetrics(projects);
 
   const attention = projects.filter((p) => p.awaitingHuman > 0 || p.openAuditIssues > 0);

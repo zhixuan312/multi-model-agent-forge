@@ -20,7 +20,7 @@ export async function GET(
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    const items = await collectMenu(id, { id: me.id });
+    const items = await collectMenu(id, { id: me.id, teamId: me.teamId! });
     return NextResponse.json({ artifacts: items });
   } catch (e) {
     const mapped = mapExportError(e);

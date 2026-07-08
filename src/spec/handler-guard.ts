@@ -28,7 +28,7 @@ export async function guardSpecWrite(
   // Membership predicate (public OR project_member). 403 on a write (the actor
   // already knows the project exists if they reached here).
   try {
-    await assertProjectReadable(projectId, { id: me.id });
+    await assertProjectReadable(projectId, { id: me.id, teamId: me.teamId! });
   } catch (e) {
     if (e instanceof ProjectAccessError) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

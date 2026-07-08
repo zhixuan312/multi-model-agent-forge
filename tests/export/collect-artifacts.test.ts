@@ -54,7 +54,7 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
       'select:project_artifact': [],  // plan query — no plan artifact
       'select:ops_mma_batch': [],
     });
-    const menu = await collectMenu(projectId, { id: ownerId }, { db });
+    const menu = await collectMenu(projectId, { id: ownerId, teamId: 'team-1' }, { db });
     const byKind = Object.fromEntries(menu.map((m) => [m.kind, m]));
     expect(byKind.spec.ready).toBe(true);
     expect(byKind.spec.version).toBe(1);
@@ -76,7 +76,7 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
       'select:project_audit_pass': [],
       'select:project_participant': [],
     });
-    const menu = await collectMenu(projectId, { id: ownerId }, { db });
+    const menu = await collectMenu(projectId, { id: ownerId, teamId: 'team-1' }, { db });
     expect(menu.find((m) => m.kind === 'journal')!.ready).toBe(true);
   });
 });
@@ -95,7 +95,7 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'build', details: d }],
       ),
     });
-    const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
+    const spec = (await collectMenu(projectId, { id: ownerId, teamId: 'team-1' }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.lockedAudited).toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe('collect-artifacts — locked·audited flag (F4)', () => {
         [{ ownerId, visibility: 'public', phase: 'design', details: d }],
       ),
     });
-    const spec = (await collectMenu(projectId, { id: ownerId }, { db })).find((m) => m.kind === 'spec')!;
+    const spec = (await collectMenu(projectId, { id: ownerId, teamId: 'team-1' }, { db })).find((m) => m.kind === 'spec')!;
     expect(spec.lockedAudited).toBe(false);
   });
 });
@@ -127,13 +127,13 @@ describe('collect-artifacts — visibility (F-visibility)', () => {
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
       'select:project_participant': [],
     });
-    await expect(collectMenu(projectId, { id: strangerId }, { db })).rejects.toBeInstanceOf(ProjectAccessError);
+    await expect(collectMenu(projectId, { id: strangerId, teamId: 'team-1' }, { db })).rejects.toBeInstanceOf(ProjectAccessError);
     readSpecFileMock.mockReturnValue(null);
     const db2 = createMockDb({
       'select:project': [{ id: projectId, visibility: 'private', ownerId }],
       'select:project_participant': [],
     });
-    await expect(collectArtifact(projectId, 'spec', { id: strangerId }, { db: db2 })).rejects.toBeInstanceOf(
+    await expect(collectArtifact(projectId, 'spec', { id: strangerId, teamId: 'team-1' }, { db: db2 })).rejects.toBeInstanceOf(
       ProjectAccessError,
     );
   });
@@ -163,7 +163,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
       ),
       'select:team_member': [{ displayName: 'Maya Adeyemi' }],
     });
-    const collected = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
+    const collected = await collectArtifact(projectId, 'spec', { id: ownerId, teamId: 'team-1' }, { db });
     expect(collected.meta.owner).toBe('Maya Adeyemi');
     expect(collected.meta.visibility).toBe('Public');
     expect(collected.meta.componentsApproved).toBe(3);
@@ -199,7 +199,7 @@ describe('collect-artifacts — cover meta + section headers (F1/F3)', () => {
       'select:project_audit_pass': [],
       'select:ops_mma_batch': [],
     });
-    const c = await collectArtifact(projectId, 'spec', { id: ownerId }, { db });
+    const c = await collectArtifact(projectId, 'spec', { id: ownerId, teamId: 'team-1' }, { db });
     expect(c.meta.version).toBe('v1');
   });
 });
@@ -214,7 +214,7 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
       'select:project_artifact': [],
       'select:ops_mma_batch': [],
     });
-    await expect(collectArtifact(projectId, 'plan', { id: ownerId }, { db })).rejects.toBeInstanceOf(
+    await expect(collectArtifact(projectId, 'plan', { id: ownerId, teamId: 'team-1' }, { db })).rejects.toBeInstanceOf(
       ArtifactNotReadyError,
     );
   });
@@ -237,7 +237,7 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
       'select:project_component': [],
       'select:project_audit_pass': [],
     });
-    const ready = await collectReadyArtifacts(projectId, { id: ownerId }, { db });
+    const ready = await collectReadyArtifacts(projectId, { id: ownerId, teamId: 'team-1' }, { db });
     expect(ready.map((a) => a.kind)).toEqual(['exploration']);
   });
 });
@@ -287,7 +287,7 @@ describe('md-export + review adapter (F19/F25)', () => {
       'select:project_component': [],
       'select:project_audit_pass': [],
     });
-    const c = await collectArtifact(projectId, 'journal', { id: ownerId }, { db });
+    const c = await collectArtifact(projectId, 'journal', { id: ownerId, teamId: 'team-1' }, { db });
     expect(c.bodyMd).toContain('Journal');
   });
 });

@@ -34,7 +34,7 @@ export default async function ExploreStagePage({
   if (!me) redirect('/login');
 
   try {
-    await assertProjectReadable(id, { id: me.id });
+    await assertProjectReadable(id, { id: me.id, teamId: me.teamId! });
   } catch (e) {
     if (e instanceof ProjectAccessError) notFound();
     throw e;

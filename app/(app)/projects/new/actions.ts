@@ -26,7 +26,7 @@ export async function createProjectAction(
   const visibility = String(formData.get('visibility') ?? 'public');
   const repoIds = formData.getAll('repoIds').map((v) => String(v));
 
-  const res = await createProject({ name, visibility, repoIds }, { id: me.id });
+  const res = await createProject({ name, visibility, repoIds }, { id: me.id, teamId: me.teamId! });
   if (!res.ok) {
     return { error: res.error };
   }

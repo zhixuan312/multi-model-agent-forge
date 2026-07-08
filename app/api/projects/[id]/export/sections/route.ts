@@ -27,7 +27,7 @@ export async function GET(
   if (kind !== 'spec') return NextResponse.json({ sections: [] });
 
   try {
-    const sections = await specSectionList(id, { id: me.id });
+    const sections = await specSectionList(id, { id: me.id, teamId: me.teamId! });
     return NextResponse.json({ sections });
   } catch (e) {
     const mapped = mapExportError(e);

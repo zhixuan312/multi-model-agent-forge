@@ -1,11 +1,13 @@
-import { uuid, text, boolean, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
+import { team } from '@/db/schema/team';
+import { TEAM_ROLE } from '@/db/enums';
 
 /**
  * `team_member` — pure identity, no credentials. Auth lives in `team_identity` so
- * Forge can grow to SSO without touching `member`. `is_admin` is a single
- * capability flag (gates Team Settings + repo cloning only), not RBAC.
+ * Forge can grow to SSO without touching `member`. Role-based access control via
+ * role + teamId (org_admin has null teamId, team_admin and member are bound to a team).
  */
 export const member = forge.table(
   'team_member',
@@ -14,7 +16,8 @@ export const member = forge.table(
     username: text('username').notNull(),
     displayName: text('display_name').notNull(),
     avatarTint: text('avatar_tint').notNull().default('#9a6b4f'),
-    isAdmin: boolean('is_admin').notNull().default(false),
+    role: text('role', { enum: TEAM_ROLE }).notNull(),
+    teamId: uuid('team_id').references(() => team.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -81,8 +84,8 @@ export const appSecrets = forge.table('team_secret', {
 });
 
 /**
- * `team_connection` — singleton (one row). Holds the Connections config: the
- * MMA base URL, the git token ref, and the speech-to-text (OpenAI) key ref.
+ * `team_connection` — singleton (one row). Holds the org-owned Connections config: the
+ * MMA base URL and the speech-to-text (OpenAI) key ref. Git token is per-team on `team.git_token_ref`.
  *
  * Bootstrap: `pnpm db:seed` creates the initial row. Reads must handle the
  * missing-row case gracefully (return NULL defaults). The unique-on-true index
@@ -93,7 +96,6 @@ export const connectionSettings = forge.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     mmaBaseUrl: text('mma_base_url'),
-    gitTokenRef: text('git_token_ref'),
     openaiTranscriptionKeyRef: text('openai_transcription_key_ref'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

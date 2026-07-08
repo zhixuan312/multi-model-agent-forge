@@ -1,6 +1,16 @@
 import { uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 
+export const team = forge.table('team', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  workspaceRootPath: text('workspace_root_path').notNull(),
+  gitTokenRef: text('git_token_ref'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const teamSpecTemplate = forge.table(
   'team_spec_template',
   {
@@ -14,4 +24,5 @@ export const teamSpecTemplate = forge.table(
   },
 );
 
+export type TeamRow = typeof team.$inferSelect;
 export type TeamSpecTemplateRow = typeof teamSpecTemplate.$inferSelect;

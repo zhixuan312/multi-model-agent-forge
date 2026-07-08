@@ -9,6 +9,9 @@
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
 export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
 
+export const TEAM_ROLE = ['org_admin', 'team_admin', 'member'] as const;
+export type TeamRole = (typeof TEAM_ROLE)[number];
+
 /* ── Spec 3: Projects ───────────────────────────────────────────────────── */
 
 /** project.visibility (schema.md §3). private = artifact-gated; public = all members. */

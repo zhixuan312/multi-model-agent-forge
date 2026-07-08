@@ -18,17 +18,19 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
       username: 'username',
       displayName: 'display_name',
       avatarTint: 'avatar_tint',
-      isAdmin: 'is_admin',
+      role: 'role',
+      teamId: 'team_id',
       createdAt: 'created_at',
     });
   });
 
-  it('member.avatar_tint is NOT NULL with the warm-ember default; is_admin defaults false', () => {
+  it('member.avatar_tint is NOT NULL with the warm-ember default; role NOT NULL, teamId nullable', () => {
     const cols = getTableColumns(member);
     expect(cols.avatarTint.notNull).toBe(true);
     expect(cols.avatarTint.default).toBe('#9a6b4f');
-    expect(cols.isAdmin.notNull).toBe(true);
-    expect(cols.isAdmin.default).toBe(false);
+    expect(cols.role.notNull).toBe(true);
+    expect(cols.role.enumValues).toEqual(['org_admin', 'team_admin', 'member']);
+    expect(cols.teamId.notNull).toBe(false);
     expect(cols.username.notNull).toBe(true);
     expect(cols.displayName.notNull).toBe(true);
   });
@@ -82,12 +84,11 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     expect(cols.createdBy.notNull).toBe(false);
   });
 
-  it('team_connection: singleton with nullable refs until configured (no bearer column)', () => {
+  it('team_connection: org-owned singleton with nullable refs until configured (git token on team table)', () => {
     expect(getTableName(connectionSettings)).toBe('team_connection');
     expect(columnNames(connectionSettings)).toEqual({
       id: 'id',
       mmaBaseUrl: 'mma_base_url',
-      gitTokenRef: 'git_token_ref',
       openaiTranscriptionKeyRef: 'openai_transcription_key_ref',
       createdAt: 'created_at',
       updatedAt: 'updated_at',
@@ -95,7 +96,6 @@ describe('db/schema — table objects expose the expected columns (no live DB)',
     const cols = getTableColumns(connectionSettings);
     // All configured columns nullable until configured.
     expect(cols.mmaBaseUrl.notNull).toBe(false);
-    expect(cols.gitTokenRef.notNull).toBe(false);
     expect(cols.openaiTranscriptionKeyRef.notNull).toBe(false);
   });
 

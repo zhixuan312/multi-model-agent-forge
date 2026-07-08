@@ -4,7 +4,8 @@ import { startLoopRun, listLoopRuns } from '@/loops/run-now';
 import type { LoopRunDeps } from '@/loops/run-engine';
 import { createMockDb } from '../test-utils/mock-db';
 
-const loopRow = { id: 'loop-1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'g' }, workerTier: 'complex', cron: '0 3 * * *', repoIds: ['r1', 'r2'], enabled: true, createdBy: null, createdAt: new Date(), updatedAt: new Date() };
+const loopRow = { id: 'loop-1', teamId: 'team-1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'g' }, workerTier: 'complex', cron: '0 3 * * *', repoIds: ['r1', 'r2'], enabled: true, createdBy: null, createdAt: new Date(), updatedAt: new Date() };
+const teamRow = { id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/w', gitTokenRef: null };
 
 describe('startLoopRun', () => {
   it('not_found when the loop is missing', async () => {
@@ -15,6 +16,7 @@ describe('startLoopRun', () => {
   it('loads the loop + its repos and fires the runner with a runId', async () => {
     const db = createMockDb({
       'select:loop_def': [loopRow],
+      'select:team': [teamRow],
       'select:workspace_repo': [
         { id: 'r1', name: 'forge', pathOnDisk: '/w/forge' },
         { id: 'r2', name: 'engine', pathOnDisk: '/w/engine' },

@@ -1,11 +1,24 @@
 // @vitest-environment node
 import { vi } from 'vitest';
 import type { AuthedMember } from '@/auth/auth-provider';
+import { createMockDb } from '../test-utils/mock-db';
 
 let mockCaller: AuthedMember | null = null;
 vi.mock('@/auth/current-member', () => ({
   currentMember: async () => mockCaller,
   currentSession: async () => null,
+}));
+
+// guardJournal resolves the current team via requireTeamScope -> getDb().select(team).
+// Provide the caller's team row so the scope resolves (anon cases still 401 earlier, on
+// the missing-actor check, before any DB access).
+vi.mock('@/db/client', () => ({
+  getDb: () =>
+    createMockDb({
+      'select:team': [
+        { id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/ws', gitTokenRef: null },
+      ],
+    }),
 }));
 
 // Mock the pins core + journal-rev + workspace root so the route test asserts the

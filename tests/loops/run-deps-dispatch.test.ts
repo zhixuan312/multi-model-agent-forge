@@ -24,6 +24,9 @@ describe('loop dispatch — inline-consume, no missing-handler throw (R2/AC5)', 
   it('loop-work dispatch returns a summary and marks the batch done, never failed', async () => {
     const db = createMockDb({
       'insert:ops_mma_batch': [{ id: 'row-lw', createdAt: new Date() }],
+      // dispatchMma resolves the batch's team from the loop_run row (run-now pre-creates
+      // it with teamId before firing dispatch) — provide it so team resolution succeeds.
+      'select:loop_run': [{ id: 'lr-1', teamId: 'team-1' }],
     });
     const currentTeam = { id: 'team-1', name: 'Alpha', slug: 'alpha', workspaceRootPath: '/forge/base', gitTokenRef: null };
     const deps = await buildLoopRunDeps(currentTeam, { db });

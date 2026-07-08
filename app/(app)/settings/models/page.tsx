@@ -42,7 +42,7 @@ export default async function ModelsPage() {
   const apiKeys = values.filter((t) => t?.authMode === 'api-key').length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="models" />} width="full">
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="org" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

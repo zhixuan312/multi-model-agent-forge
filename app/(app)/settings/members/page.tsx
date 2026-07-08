@@ -36,7 +36,7 @@ export default async function MembersPage() {
   const recent = rows.filter((m) => new Date(m.createdAt) > cutoff).length;
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="members" />} width="full" fill>
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="team" />} width="full" fill>
       <StatusDashboard
         metrics={[
           { label: 'Team members', value: total, sublabel: 'Total members', icon: <Users />, iconTint: 'rose' },

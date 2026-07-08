@@ -23,7 +23,7 @@ export default async function ConnectionsPage() {
     (mmaBearer ? 1 : 0) + (view.gitTokenSet ? 1 : 0) + (view.openaiTranscriptionKeySet ? 1 : 0);
 
   return (
-    <PageFrame title="Team settings" subnav={<SettingsTabs active="connections" />} width="full">
+    <PageFrame title="Team settings" subnav={<SettingsTabs active="team" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — four equal metric boxes */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

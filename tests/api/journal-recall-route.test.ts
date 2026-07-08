@@ -8,7 +8,6 @@ import type { AuthedMember } from '@/auth/auth-provider';
 let mockCaller: AuthedMember | null = { id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' };
 vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockCaller, currentSession: async () => null }));
 vi.mock('@/mma/server-client', () => ({ buildMmaClient: async () => ({ dispatch: async () => ({ batchId: 'b-1' }) }) }));
-vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
 vi.mock('@/dispatch/dispatch-helpers', () => ({
   dispatchMma: async () => ({ batchRowId: 'batch-row-1', batchId: 'ext-batch-1' }),
   findInflight: async () => null,
@@ -16,18 +15,31 @@ vi.mock('@/dispatch/dispatch-helpers', () => ({
 const logAction = vi.fn(async () => {});
 vi.mock('@/observability/action-log', () => ({ logAction }));
 
-function noopChain(): unknown {
-  return new Proxy(() => {}, {
+function mockDbChain(data: unknown) {
+  return new Proxy(function chainFn() { return Promise.resolve([data]); }, {
     get(_t, prop) {
       if (prop === 'then') return undefined;
-      if (prop === 'catch') return () => Promise.resolve();
-      return noopChain;
+      if (prop === Symbol.asyncIterator) return undefined;
+      if (prop === 'limit') return () => Promise.resolve([data]);
+      if (prop === 'where') return () => mockDbChain(data);
+      if (prop === 'select') return () => mockDbChain(data);
+      if (prop === 'from') return () => mockDbChain(data);
+      if (prop === 'set') return () => mockDbChain(data);
+      if (prop === 'update') return () => mockDbChain(data);
+      if (prop === 'insert') return () => mockDbChain(data);
+      if (prop === 'values') return () => mockDbChain(data);
+      if (prop === 'returning') return () => Promise.resolve([data]);
+      return mockDbChain(data);
     },
-    apply() { return noopChain(); },
   });
 }
+
 vi.mock('@/db/client', () => ({
-  getDb: () => ({ insert: noopChain, select: noopChain, update: noopChain }),
+  getDb: () => ({
+    select: () => mockDbChain({ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/ws', gitTokenRef: null }),
+    insert: mockDbChain({}),
+    update: mockDbChain({}),
+  }),
 }));
 
 const { POST: recallPOST } = await import('../../app/api/journal/recall/route');

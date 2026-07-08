@@ -10,10 +10,31 @@ vi.mock('@/auth/current-member', () => ({
 }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => FIXTURE_ROOT }));
 
+function mockDbChain(data: unknown) {
+  return new Proxy(() => {}, {
+    get(_t, prop) {
+      if (prop === 'then') return undefined;
+      if (prop === Symbol.asyncIterator) return undefined;
+      if (prop === 'limit') return () => [data];
+      if (prop === 'where') return () => mockDbChain(data);
+      if (prop === 'select') return () => mockDbChain(data);
+      if (prop === 'from') return () => mockDbChain(data);
+      return mockDbChain(data);
+    },
+    apply() { return Promise.resolve([data]); },
+  });
+}
+
+vi.mock('@/db/client', () => ({
+  getDb: () => ({
+    select: () => mockDbChain({ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: FIXTURE_ROOT, gitTokenRef: null }),
+  }),
+}));
+
 const { GET } = await import('../../app/api/journal/log/route');
 
 function asMember(): AuthedMember {
-  return { id: 'm-x', username: 'mem', displayName: 'M', avatarTint: '#9a6b4f', isAdmin: false };
+  return { id: 'm-x', username: 'mem', displayName: 'M', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
 }
 function req(): Request {
   return new Request('http://localhost/api/journal/log', { method: 'GET' });
@@ -28,7 +49,7 @@ describe('GET /api/journal/log', () => {
     const res = await GET(req() as never);
     expect(res.status).toBe(401);
   });
-  it('member → 200 with parsed log entries in file order', async () => {
+  it('member → 200 with parsed log entries from team workspace root', async () => {
     mockCaller = asMember();
     const res = await GET(req() as never);
     expect(res.status).toBe(200);

@@ -2,16 +2,14 @@ import Link from 'next/link';
 import { cn } from '@/lib/cn';
 
 /**
- * Team Settings tab bar. Members landed in Spec 1; Providers / Agent roster /
- * Connections land in Spec 2 (Part A). Workspace is a separate page (Part B).
+ * Settings tab bar — org and team settings surfaces.
  * Server component — the active tab is passed in.
  */
-export type SettingsTab = 'members' | 'models' | 'connections';
+export type SettingsTab = 'org' | 'team';
 
 const TABS: ReadonlyArray<{ key: SettingsTab; label: string; href: string }> = [
-  { key: 'members', label: 'Members', href: '/settings/members' },
-  { key: 'models', label: 'Models', href: '/settings/models' },
-  { key: 'connections', label: 'Connections', href: '/settings/connections' },
+  { key: 'org', label: 'Org settings', href: '/settings/org' },
+  { key: 'team', label: 'Team settings', href: '/settings/team' },
 ];
 
 export function SettingsTabs({ active }: { active: SettingsTab }) {

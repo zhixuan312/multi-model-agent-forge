@@ -10,6 +10,26 @@ vi.mock('@/auth/current-member', () => ({
 }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => FIXTURE_ROOT }));
 
+function mockDbChain(data: unknown) {
+  return new Proxy(function chainFn() { return Promise.resolve([data]); }, {
+    get(_t, prop) {
+      if (prop === 'then') return undefined;
+      if (prop === Symbol.asyncIterator) return undefined;
+      if (prop === 'limit') return () => Promise.resolve([data]);
+      if (prop === 'where') return () => mockDbChain(data);
+      if (prop === 'select') return () => mockDbChain(data);
+      if (prop === 'from') return () => mockDbChain(data);
+      return mockDbChain(data);
+    },
+  });
+}
+
+vi.mock('@/db/client', () => ({
+  getDb: () => ({
+    select: () => mockDbChain({ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: FIXTURE_ROOT, gitTokenRef: null }),
+  }),
+}));
+
 // Spy on the reader so the id-guard test can assert it is NOT invoked.
 const readNodeSpy = vi.fn();
 vi.mock('@/journal/store-reader', async () => {
@@ -29,7 +49,7 @@ const { GET: nodesGET } = await import('../../app/api/journal/nodes/route');
 const { GET: nodeGET } = await import('../../app/api/journal/nodes/[id]/route');
 
 function asMember(): AuthedMember {
-  return { id: 'm-x', username: 'mem', displayName: 'M', avatarTint: '#9a6b4f', isAdmin: false };
+  return { id: 'm-x', username: 'mem', displayName: 'M', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
 }
 function req(): Request {
   return new Request('http://localhost/api/journal/nodes', { method: 'GET' });

@@ -19,20 +19,29 @@ vi.mock('@/mma/server-client', () => ({
 }));
 
 vi.mock('@/observability/action-log', () => ({ logAction: async () => {} }));
-vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/workspace' }));
 
-function noopChain(): unknown {
+function mockDbChain(data: unknown) {
   return new Proxy(() => {}, {
     get(_t, prop) {
       if (prop === 'then') return undefined;
-      if (prop === 'catch') return () => Promise.resolve();
-      return noopChain;
+      if (prop === Symbol.asyncIterator) return undefined;
+      if (prop === 'limit') return () => [data];
+      if (prop === 'where') return () => mockDbChain(data);
+      if (prop === 'select') return () => mockDbChain(data);
+      if (prop === 'from') return () => mockDbChain(data);
+      if (prop === 'transaction') return (fn: any) => fn(mockDbChain(data));
+      return mockDbChain(data);
     },
-    apply() { return noopChain(); },
+    apply() { return Promise.resolve([data]); },
   });
 }
+
 vi.mock('@/db/client', () => ({
-  getDb: () => ({ insert: noopChain, select: noopChain, update: noopChain }),
+  getDb: () => ({
+    select: () => mockDbChain({ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/workspace', gitTokenRef: null }),
+    insert: mockDbChain({}),
+    update: mockDbChain({}),
+  }),
 }));
 
 const { POST } = await import('../../app/api/journal/recall/route');

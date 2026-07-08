@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { guardJournal } from '@/journal/guard';
 import { buildMmaClient } from '@/mma/server-client';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
@@ -44,7 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Journal recall is starting — retry in a moment.' }, { status: 503 });
   }
 
-  const workspaceRoot = resolveWorkspaceRoot();
+  const workspaceRoot = guard.team.workspaceRootPath;
   let mma;
   try {
     mma = await buildMmaClient();

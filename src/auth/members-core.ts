@@ -64,6 +64,7 @@ export interface MembersDeps {
  */
 export async function createMember(
   input: unknown,
+  teamId: string,
   deps: MembersDeps = {},
 ): Promise<CreateMemberResult> {
   const db = deps.db ?? getDb();
@@ -86,20 +87,20 @@ export async function createMember(
     const created = await db.transaction(async (tx) => {
       const [m] = await tx
         .insert(member)
-        .values({ username, displayName, isAdmin })
+        .values({ username, displayName, role: isAdmin ? 'team_admin' : 'member', teamId })
         .returning({
           id: member.id,
           username: member.username,
           displayName: member.displayName,
           avatarTint: member.avatarTint,
-          isAdmin: member.isAdmin,
+          role: member.role,
         });
       // Exactly one identity per member (the one-identity rule).
       await tx.insert(memberIdentity).values({
         memberId: m.id,
         passwordHash,
       });
-      return m;
+      return { ...m, isAdmin: m.role === 'team_admin' };
     });
     return { kind: 'created', member: created };
   } catch (err) {
@@ -135,19 +136,22 @@ export async function setMemberAdmin(
   const nextIsAdmin = parsed.data.isAdmin;
 
   const [target] = await db
-    .select({ id: member.id, isAdmin: member.isAdmin })
+    .select({ id: member.id, role: member.role })
     .from(member)
     .where(eq(member.id, memberId))
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
   // Last-admin guard: demoting the only remaining admin would lock out the team.
-  if (target.isAdmin && !nextIsAdmin) {
+  if (isAdminRole(target) && !nextIsAdmin) {
     const others = await countOtherAdmins(db, memberId);
     if (others === 0) return { kind: 'last_admin' };
   }
 
-  await db.update(member).set({ isAdmin: nextIsAdmin }).where(eq(member.id, memberId));
+  await db
+    .update(member)
+    .set({ role: nextIsAdmin ? 'team_admin' : 'member' })
+    .where(eq(member.id, memberId));
   return { kind: 'updated', id: memberId, isAdmin: nextIsAdmin };
 }
 
@@ -217,13 +221,13 @@ export async function deleteMember(
   if (isForgeSystemMember(memberId)) return { kind: 'not_found' };
 
   const [target] = await db
-    .select({ id: member.id, isAdmin: member.isAdmin })
+    .select({ id: member.id, role: member.role })
     .from(member)
     .where(eq(member.id, memberId))
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
-  if (target.isAdmin) {
+  if (isAdminRole(target)) {
     const others = await countOtherAdmins(db, memberId);
     if (others === 0) return { kind: 'last_admin' };
   }
@@ -246,17 +250,25 @@ export interface MemberListRow {
 /** List members for the admin Members surface (newest-derived ordering: by name). */
 export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow[]> {
   const db = deps.db ?? getDb();
-  return db
+  const rows = await db
     .select({
       id: member.id,
       username: member.username,
       displayName: member.displayName,
       avatarTint: member.avatarTint,
-      isAdmin: member.isAdmin,
+      role: member.role,
       createdAt: member.createdAt,
     })
     .from(member)
     .orderBy(member.createdAt);
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    displayName: row.displayName,
+    avatarTint: row.avatarTint,
+    isAdmin: row.role === 'team_admin' || row.role === 'org_admin',
+    createdAt: row.createdAt,
+  }));
 }
 
 /** Count sessions not past their absolute expiry — the "currently active" metric. */
@@ -275,8 +287,13 @@ async function countOtherAdmins(db: Db, exceptMemberId: string): Promise<number>
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(member)
-    .where(and(eq(member.isAdmin, true), ne(member.id, exceptMemberId)));
+    .where(and(eq(member.role, 'team_admin'), ne(member.id, exceptMemberId)));
   return count;
+}
+
+function isAdminRole(row: { role?: string; isAdmin?: boolean }): boolean {
+  if (typeof row.isAdmin === 'boolean') return row.isAdmin;
+  return row.role === 'team_admin' || row.role === 'org_admin';
 }
 
 /** Detect a Postgres unique-constraint violation (SQLSTATE 23505). */

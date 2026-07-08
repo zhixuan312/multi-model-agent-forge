@@ -36,10 +36,10 @@ describe('input schemas', () => {
 });
 
 describe('createMember', () => {
-  it('inserts member + one local identity; hashes the password (never stores plaintext)', async () => {
-    const created = createBaseMember({ id: 'm1', username: 'ada' });
+  it('inserts member + one local identity with teamId; hashes the password (never stores plaintext)', async () => {
+    const created = createBaseMember({ id: 'm1', username: 'ada', role: 'member', teamId: 'team-1' });
     const db = createMockDb({ 'select:team_member': [], 'insert:team_member': [created] });
-    const res = await createMember({ displayName: 'Ada', username: 'ada', password: STRONG }, { db });
+    const res = await createMember({ displayName: 'Ada', username: 'ada', password: STRONG }, 'team-1', { db });
 
     expect(res.kind).toBe('created');
     if (res.kind !== 'created') return;
@@ -52,13 +52,13 @@ describe('createMember', () => {
 
   it('rejects invalid input with no DB writes', async () => {
     const db = createMockDb();
-    expect((await createMember({ displayName: '', username: '', password: 'short' }, { db })).kind).toBe('invalid');
+    expect((await createMember({ displayName: '', username: '', password: 'short' }, 'team-1', { db })).kind).toBe('invalid');
     expect(db._calls).toHaveLength(0);
   });
 
   it('returns duplicate_username on the case-insensitive pre-check', async () => {
     const db = createMockDb({ 'select:team_member': [{ id: 'existing' }] });
-    expect((await createMember({ displayName: 'A', username: 'ADA', password: STRONG }, { db })).kind).toBe('duplicate_username');
+    expect((await createMember({ displayName: 'A', username: 'ADA', password: STRONG }, 'team-1', { db })).kind).toBe('duplicate_username');
     expect(db._assertCalled('team_member', 'insert')).toBe(false);
   });
 
@@ -67,7 +67,7 @@ describe('createMember', () => {
       'select:team_member': [],
       'insert:team_member': Object.assign(new Error('dup'), { code: '23505' }),
     });
-    expect((await createMember({ displayName: 'A', username: 'ada', password: STRONG }, { db })).kind).toBe('duplicate_username');
+    expect((await createMember({ displayName: 'A', username: 'ada', password: STRONG }, 'team-1', { db })).kind).toBe('duplicate_username');
   });
 });
 

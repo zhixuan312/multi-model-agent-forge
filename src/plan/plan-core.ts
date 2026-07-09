@@ -3,7 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
-import { readPlanFileAsync } from '@/projects/project-files';
+import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
 
 /**
@@ -81,7 +81,7 @@ export function groupTasksIntoPhases(tasks: PlanTaskView[]): PlanPhaseView[] {
 export async function loadPlanView(db: Db, projectId: string): Promise<PlanView> {
   const dbi = db ?? getDb();
 
-  const planFile = await readPlanFileAsync(projectId);
+  const planFile = await readPlanFile(projectId);
   const planMd = planFile?.bodyMd ?? null;
 
   // If plan.md was deleted but DB still has tasks, reset — same pattern as spec loadOutline

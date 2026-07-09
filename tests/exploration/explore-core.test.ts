@@ -74,7 +74,7 @@ describe('rail + summary reads', () => {
   it('latestExplorationArtifact reads from file', async () => {
     const projectId = 'proj-3';
     const { writeExplorationSummary } = await import('@/projects/project-files');
-    writeExplorationSummary(projectId, '## Background\n\nTest content');
+    await writeExplorationSummary(projectId, '## Background\n\nTest content');
     const a = await latestExplorationArtifact(projectId);
     expect(a).not.toBeNull();
     expect(a!.bodyMd).toContain('Test content');

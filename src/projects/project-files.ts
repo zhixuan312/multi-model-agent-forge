@@ -1,21 +1,20 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { formatTimestamp } from '@/lib/format-date';
+import type { Db } from '@/db/client';
+import { resolveProjectArtifactDir } from '@/projects/project-workspace';
 
 /**
- * File-based project artifact storage. Each project gets a directory under
- * `.forge-workspace/.mma/projects/<project-id>/`. Artifacts are stored as
- * markdown files with YAML frontmatter — the single source of truth for content.
+ * File-based project artifact storage. Each project's artifacts live under its
+ * OWNING TEAM's workspace root — `<teamRoot>/.mma/projects/<project-id>/` — beside
+ * the team journal (`<teamRoot>/.mma/journal/`), so all of a team's data sits
+ * under its own root. The directory is resolved via `resolveProjectArtifactDir`
+ * (project → team → workspace root), so every accessor is async and takes an
+ * optional `db` (defaults to the request DB; falls back to the global root when
+ * the DB is unavailable). Artifacts are markdown files with YAML frontmatter.
  *
- * Files: exploration.md, spec.md (more to come as stages migrate from DB).
+ * Files: exploration.md, spec.md, plan.md, journal.md.
  */
-
-function projectDir(projectId: string): string {
-  if (!/^[a-z0-9-]+$/i.test(projectId)) throw new Error(`Invalid projectId: ${projectId}`);
-  const root = resolveWorkspaceRoot();
-  return join(root, '.mma', 'projects', projectId);
-}
 
 /* ── Shared frontmatter ──────────────────────────────────────────────── */
 
@@ -42,39 +41,52 @@ function parseFrontmatter(content: string): ArtifactFile {
   return { version: 1, updatedAt: '', bodyMd: content };
 }
 
-import { formatTimestamp } from '@/lib/format-date';
-
 function stampFrontmatter(bodyMd: string, version: number): string {
   return `---\nversion: ${version}\nupdated_at: ${formatTimestamp(new Date())}\n---\n\n${bodyMd}`;
 }
 
-function readFileSync_(projectId: string, filename: string): string | null {
-  const filePath = join(projectDir(projectId), filename);
-  if (!existsSync(filePath)) return null;
-  return readFileSync(filePath, 'utf-8');
-}
+/* ── Generic artifact IO (team-scoped dir) ───────────────────────────── */
 
-async function readFileAsync_(projectId: string, filename: string): Promise<string | null> {
+async function readRaw(projectId: string, filename: string, db?: Db): Promise<string | null> {
   try {
-    return await readFile(join(projectDir(projectId), filename), 'utf-8');
-  } catch { return null; }
+    return await readFile(join(await resolveProjectArtifactDir(projectId, db), filename), 'utf-8');
+  } catch {
+    return null;
+  }
 }
 
-function readArtifact(projectId: string, filename: string): ArtifactFile | null {
-  const raw = readFileSync_(projectId, filename);
-  if (!raw) return null;
-  return parseFrontmatter(raw);
+async function readArtifact(projectId: string, filename: string, db?: Db): Promise<ArtifactFile | null> {
+  const raw = await readRaw(projectId, filename, db);
+  return raw ? parseFrontmatter(raw) : null;
 }
 
-async function readArtifactAsync(projectId: string, filename: string): Promise<ArtifactFile | null> {
-  const raw = await readFileAsync_(projectId, filename);
-  if (!raw) return null;
-  return parseFrontmatter(raw);
+async function writeArtifact(
+  projectId: string,
+  filename: string,
+  bodyMd: string,
+  db?: Db,
+): Promise<{ filePath: string; version: number }> {
+  const dir = await resolveProjectArtifactDir(projectId, db);
+  await mkdir(dir, { recursive: true });
+  const filePath = join(dir, filename);
+  let prevVersion = 0;
+  try {
+    prevVersion = parseFrontmatter(await readFile(filePath, 'utf-8')).version;
+  } catch {
+    /* file doesn't exist yet */
+  }
+  const nextVersion = prevVersion + 1;
+  await writeFile(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
+  return { filePath, version: nextVersion };
+}
+
+async function artifactFilePath(projectId: string, filename: string, db?: Db): Promise<string> {
+  return join(await resolveProjectArtifactDir(projectId, db), filename);
 }
 
 /** Back up the current version of an artifact file before it changes. */
-export async function backupArtifact(projectId: string, filename: string): Promise<void> {
-  const dir = projectDir(projectId);
+export async function backupArtifact(projectId: string, filename: string, db?: Db): Promise<void> {
+  const dir = await resolveProjectArtifactDir(projectId, db);
   const filePath = join(dir, filename);
   try {
     const raw = await readFile(filePath, 'utf-8');
@@ -83,31 +95,9 @@ export async function backupArtifact(projectId: string, filename: string): Promi
     await mkdir(backupDir, { recursive: true });
     const name = filename.replace(/\.md$/, '');
     await writeFile(join(backupDir, `${name}_v${version}.md`), raw, 'utf-8');
-  } catch { /* file doesn't exist yet — nothing to back up */ }
-}
-
-function writeArtifact(projectId: string, filename: string, bodyMd: string): string {
-  const dir = projectDir(projectId);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const filePath = join(dir, filename);
-  const prev = existsSync(filePath) ? parseFrontmatter(readFileSync(filePath, 'utf-8')) : null;
-  const nextVersion = (prev?.version ?? 0) + 1;
-  writeFileSync(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
-  return filePath;
-}
-
-async function writeArtifactAsync(projectId: string, filename: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
-  const dir = projectDir(projectId);
-  await mkdir(dir, { recursive: true });
-  const filePath = join(dir, filename);
-  let prevVersion = 0;
-  try {
-    const raw = await readFile(filePath, 'utf-8');
-    prevVersion = parseFrontmatter(raw).version;
-  } catch { /* file doesn't exist yet */ }
-  const nextVersion = prevVersion + 1;
-  await writeFile(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
-  return { filePath, version: nextVersion };
+  } catch {
+    /* file doesn't exist yet — nothing to back up */
+  }
 }
 
 /* ── Exploration ─────────────────────────────────────────────────────── */
@@ -116,28 +106,16 @@ const EXPLORATION_FILE = 'exploration.md';
 
 export type ExplorationFile = ArtifactFile;
 
-export function readExplorationSummary(projectId: string): string | null {
-  return readFileSync_(projectId, EXPLORATION_FILE);
+export async function readExplorationSummary(projectId: string, db?: Db): Promise<string | null> {
+  return readRaw(projectId, EXPLORATION_FILE, db);
 }
 
-export function readExplorationFile(projectId: string): ExplorationFile | null {
-  return readArtifact(projectId, EXPLORATION_FILE);
+export async function readExplorationFile(projectId: string, db?: Db): Promise<ExplorationFile | null> {
+  return readArtifact(projectId, EXPLORATION_FILE, db);
 }
 
-export async function readExplorationSummaryAsync(projectId: string): Promise<string | null> {
-  return readFileAsync_(projectId, EXPLORATION_FILE);
-}
-
-export async function readExplorationFileAsync(projectId: string): Promise<ExplorationFile | null> {
-  return readArtifactAsync(projectId, EXPLORATION_FILE);
-}
-
-export function writeExplorationSummary(projectId: string, bodyMd: string): string {
-  return writeArtifact(projectId, EXPLORATION_FILE, bodyMd);
-}
-
-export async function writeExplorationSummaryAsync(projectId: string, bodyMd: string): Promise<string> {
-  const { filePath } = await writeArtifactAsync(projectId, EXPLORATION_FILE, bodyMd);
+export async function writeExplorationSummary(projectId: string, bodyMd: string, db?: Db): Promise<string> {
+  const { filePath } = await writeArtifact(projectId, EXPLORATION_FILE, bodyMd, db);
   return filePath;
 }
 
@@ -145,64 +123,52 @@ export async function writeExplorationSummaryAsync(projectId: string, bodyMd: st
 
 const SPEC_FILE = 'spec.md';
 
-export function specFilePath(projectId: string): string {
-  return join(projectDir(projectId), SPEC_FILE);
-}
-
 export type SpecFile = ArtifactFile;
 
-export function readSpecFile(projectId: string): SpecFile | null {
-  return readArtifact(projectId, SPEC_FILE);
+export async function specFilePath(projectId: string, db?: Db): Promise<string> {
+  return artifactFilePath(projectId, SPEC_FILE, db);
 }
 
-export async function readSpecFileAsync(projectId: string): Promise<SpecFile | null> {
-  return readArtifactAsync(projectId, SPEC_FILE);
+export async function readSpecFile(projectId: string, db?: Db): Promise<SpecFile | null> {
+  return readArtifact(projectId, SPEC_FILE, db);
 }
 
-export async function writeSpecAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
-  return writeArtifactAsync(projectId, SPEC_FILE, bodyMd);
+export async function writeSpec(projectId: string, bodyMd: string, db?: Db): Promise<{ filePath: string; version: number }> {
+  return writeArtifact(projectId, SPEC_FILE, bodyMd, db);
 }
 
 /* ── Plan ───────────────────────────────────────────────────────────── */
 
 const PLAN_FILE = 'plan.md';
 
-export function planFilePath(projectId: string): string {
-  return join(projectDir(projectId), PLAN_FILE);
-}
-
 export type PlanFile = ArtifactFile;
 
-export function readPlanFile(projectId: string): PlanFile | null {
-  return readArtifact(projectId, PLAN_FILE);
+export async function planFilePath(projectId: string, db?: Db): Promise<string> {
+  return artifactFilePath(projectId, PLAN_FILE, db);
 }
 
-export async function readPlanFileAsync(projectId: string): Promise<PlanFile | null> {
-  return readArtifactAsync(projectId, PLAN_FILE);
+export async function readPlanFile(projectId: string, db?: Db): Promise<PlanFile | null> {
+  return readArtifact(projectId, PLAN_FILE, db);
 }
 
-export async function writePlanAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
-  return writeArtifactAsync(projectId, PLAN_FILE, bodyMd);
+export async function writePlan(projectId: string, bodyMd: string, db?: Db): Promise<{ filePath: string; version: number }> {
+  return writeArtifact(projectId, PLAN_FILE, bodyMd, db);
 }
 
 /* ── Journal ─────────────────────────────────────────────────────── */
 
 const JOURNAL_FILE = 'journal.md';
 
-export function journalFilePath(projectId: string): string {
-  return join(projectDir(projectId), JOURNAL_FILE);
-}
-
 export type JournalFile = ArtifactFile;
 
-export function readJournalFile(projectId: string): JournalFile | null {
-  return readArtifact(projectId, JOURNAL_FILE);
+export async function journalFilePath(projectId: string, db?: Db): Promise<string> {
+  return artifactFilePath(projectId, JOURNAL_FILE, db);
 }
 
-export async function readJournalFileAsync(projectId: string): Promise<JournalFile | null> {
-  return readArtifactAsync(projectId, JOURNAL_FILE);
+export async function readJournalFile(projectId: string, db?: Db): Promise<JournalFile | null> {
+  return readArtifact(projectId, JOURNAL_FILE, db);
 }
 
-export async function writeJournalAsync(projectId: string, bodyMd: string): Promise<{ filePath: string; version: number }> {
-  return writeArtifactAsync(projectId, JOURNAL_FILE, bodyMd);
+export async function writeJournal(projectId: string, bodyMd: string, db?: Db): Promise<{ filePath: string; version: number }> {
+  return writeArtifact(projectId, JOURNAL_FILE, bodyMd, db);
 }

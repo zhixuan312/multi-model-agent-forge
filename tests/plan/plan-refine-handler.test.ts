@@ -5,11 +5,9 @@ vi.mock('@/sse/event-bus', () => ({
   projectEventBus: { publish: vi.fn(), subscribe: () => () => {} },
 }));
 vi.mock('@/projects/project-files', () => ({
-  readSpecFileAsync: vi.fn().mockResolvedValue(null),
-  readSpecFile: vi.fn().mockReturnValue(null),
-  writeSpecAsync: vi.fn().mockResolvedValue({ filePath: '/fake', version: 1 }),
-  readExplorationSummary: vi.fn().mockReturnValue(null),
-  readExplorationSummaryAsync: vi.fn().mockResolvedValue(null),
+  readSpecFile: vi.fn().mockResolvedValue(null),
+  writeSpec: vi.fn().mockResolvedValue({ filePath: '/fake', version: 1 }),
+  readExplorationSummary: vi.fn().mockResolvedValue(null),
 }));
 
 describe('plan-refine handler — response parsing', () => {

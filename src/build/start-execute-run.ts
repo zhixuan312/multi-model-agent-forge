@@ -4,7 +4,7 @@ import type { Db } from '@/db/client';
 import type { MmaClient } from '@/mma/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { planFilePath, readPlanFileAsync } from '@/projects/project-files';
+import { planFilePath, readPlanFile } from '@/projects/project-files';
 import { projectShortId } from '@/build/slug';
 import { buildForgeBranch } from '@/build/execute-core';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
@@ -54,7 +54,7 @@ export async function startExecuteRun(
     : d.repos.map((r) => ({ repoId: r.id, targetBranch: r.defaultBranch }));
   if (repos.length === 0) throw new Error('No repos linked to project');
 
-  const planArtifact = await readPlanFileAsync(projectId);
+  const planArtifact = await readPlanFile(projectId);
   if (!planArtifact?.bodyMd) throw new Error('No plan artifact');
   const planPath = planFilePath(projectId);
   const forgeBranch = buildForgeBranch(proj.name ?? projectId, projectShortId(projectId));

@@ -20,7 +20,7 @@ import { RecallTab } from '@/components/forge/journal/RecallTab';
 import { NodesTab } from '@/components/forge/journal/NodesTab';
 import { GraphTab } from '@/components/forge/journal/GraphTab';
 import { LogTab } from '@/components/forge/journal/LogTab';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRootById } from '@/projects/project-workspace';
 import { readAllNodes, readNodeFrontmatters } from '@/journal/store-reader';
 import { buildGraphEdges, type GraphNode, type GraphEdge } from '@/journal/graph';
 import { and, eq, desc } from 'drizzle-orm';
@@ -67,10 +67,10 @@ export default async function JournalPage({
   searchParams: Promise<{ view?: string; node?: string }>;
 }) {
   // The journal is a team's decision graph; the team-less org admin has none.
-  await requireTeamPage();
+  const member = await requireTeamPage();
   const { view: rawView, node } = await searchParams;
   const view = normalizeView(rawView);
-  const root = resolveWorkspaceRoot();
+  const root = await resolveTeamWorkspaceRootById(member.teamId);
 
   let read: JournalReadOutcome;
   if (!existsSync(root)) {

@@ -8,7 +8,10 @@ vi.mock('@/auth/current-member', () => ({
   currentMember: async () => mockCaller,
   currentSession: async () => null,
 }));
-vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => FIXTURE_ROOT }));
+vi.mock('@/git/workspace-root', () => ({
+  resolveWorkspaceRoot: () => FIXTURE_ROOT,
+  resolveTeamWorkspaceRoot: (t: { workspaceRootPath: string }) => t.workspaceRootPath,
+}));
 
 function mockDbChain(data: unknown) {
   return new Proxy(function chainFn() { return Promise.resolve([data]); }, {

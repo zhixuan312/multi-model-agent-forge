@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { guardBuildWrite } from '@/build/guard';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { getLatestSpec } from '@/spec/assemble';
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     projectId: id,
     route: 'orchestrate',
     handler: 'plan-refine',
-    cwd: resolveWorkspaceRoot(),
+    cwd: await resolveProjectWorkspaceRoot(id, db),
     body: {
       prompt: `${system}\n\n${user}`,
       reviewPolicy: 'none',

@@ -6,7 +6,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
-import { readJournalFileAsync } from '@/projects/project-files';
+import { readJournalFile } from '@/projects/project-files';
 import { parseJournalSections } from '@/journal/journal-file-ops';
 import { JournalStageClient, type JournalLearningView } from '@/components/forge/JournalStageClient';
 import { findInflight } from '@/dispatch/dispatch-helpers';
@@ -41,7 +41,7 @@ export default async function JournalStagePage({ params, searchParams }: { param
   // is owned by the auto-driver and the /advance route. The learnings file↔details
   // sync below is journal-content only (guarded so it no-ops during a healthy run).
   // Check if journal.md exists (source of truth for content)
-  const journalFile = await readJournalFileAsync(id);
+  const journalFile = await readJournalFile(id);
   const journalMd = journalFile?.bodyMd ?? '';
   const fileSections = journalFile ? parseJournalSections(journalFile.bodyMd) : [];
 

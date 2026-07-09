@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { parseRefineResponse } from '@/spec/refine-prompt';
-import { backupArtifact, readSpecFileAsync, writeSpecAsync } from '@/projects/project-files';
+import { backupArtifact, readSpecFile, writeSpec } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 
 function splitByHeadings(md: string): Array<{ heading: string; body: string }> {
@@ -46,7 +46,7 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
       }
 
       await backupArtifact(ctx.projectId, 'spec.md');
-      const file = await readSpecFileAsync(ctx.projectId);
+      const file = await readSpecFile(ctx.projectId);
       if (file) {
         const allSections = parseSpecSections(file.bodyMd);
         const lines = file.bodyMd.split('\n');
@@ -60,7 +60,7 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
           const replacement = [sec.heading, '', newBody.trim(), ''];
           lines.splice(sec.startLine, sec.endLine - sec.startLine + 1, ...replacement);
         }
-        await writeSpecAsync(ctx.projectId, lines.join('\n'));
+        await writeSpec(ctx.projectId, lines.join('\n'));
       }
     }
   }

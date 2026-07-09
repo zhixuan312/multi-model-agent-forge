@@ -6,7 +6,7 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/projects/project-files')>();
   return {
     ...orig,
-    readSpecFileAsync: vi.fn().mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '### Background\n\nOriginal draft' }),
+    readSpecFile: vi.fn().mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '### Background\n\nOriginal draft' }),
   };
 });
 

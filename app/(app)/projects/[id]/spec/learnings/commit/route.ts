@@ -5,7 +5,7 @@ import { allCandidates } from '@/spec/learnings';
 import { buildRecordPrompt } from '@/journal/record-prompt';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const prompt = await buildRecordPrompt(id, db);
     await dispatchMma({
       db, mma, projectId: id, route: 'journal_record', handler: 'journal-record',
-      cwd: resolveWorkspaceRoot(),
+      cwd: await resolveProjectWorkspaceRoot(id, db),
       body: { prompt },
       actorId: guard.memberId,
       await: true,

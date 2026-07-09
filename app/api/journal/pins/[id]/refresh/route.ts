@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { guardJournal } from '@/journal/guard';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { refreshPin } from '@/journal/pins-core';
 import { currentJournalLogCount } from '@/journal/journal-rev';
 import { pinFindingsSchema } from '@/journal/pin-payload';
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const json = await req.json().catch(() => null);
   const parsed = refreshSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid refresh.' }, { status: 400 });
-  const journalLogCount = await currentJournalLogCount(resolveWorkspaceRoot());
+  const journalLogCount = await currentJournalLogCount(resolveTeamWorkspaceRoot(guard.team));
   const result = await refreshPin(guard.memberId, id, { ...parsed.data, journalLogCount });
   if (result.kind === 'not_found') return NextResponse.json({ error: 'Pin not found.' }, { status: 404 });
   return NextResponse.json({ ...result.pin, stale: false });

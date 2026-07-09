@@ -1,10 +1,10 @@
 import type { Db } from '@/db/client';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-import { readSpecFileAsync } from '@/projects/project-files';
+import { readSpecFile } from '@/projects/project-files';
 import { updateDetails } from '@/details/write';
 
 async function handleSpecAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
-  const specFile = await readSpecFileAsync(ctx.projectId);
+  const specFile = await readSpecFile(ctx.projectId);
   if (!specFile) {
     throw new Error('spec.md not found after audit-apply — MMA may have failed to write it.');
   }

@@ -17,7 +17,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { readExplorationSummary as readExplorationSummarySync, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
+import { readExplorationSummary, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
 import { project } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
@@ -55,24 +55,25 @@ function pad2(n: number): string {
 }
 
 /** Latest artifact for a deliverable kind. All read from physical files. */
-function latestArtifact(
+async function latestArtifact(
   projectId: string,
   kind: 'exploration' | 'spec' | 'plan' | 'journal',
-): { id: string; bodyMd: string; version: number } | null {
+  db?: Db,
+): Promise<{ id: string; bodyMd: string; version: number } | null> {
   if (kind === 'exploration') {
-    const bodyMd = readExplorationSummarySync(projectId);
+    const bodyMd = await readExplorationSummary(projectId, db);
     return bodyMd ? { id: projectId, bodyMd, version: 1 } : null;
   }
   if (kind === 'spec') {
-    const file = readSpecFile(projectId);
+    const file = await readSpecFile(projectId, db);
     return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
   if (kind === 'plan') {
-    const file = readPlanFile(projectId);
+    const file = await readPlanFile(projectId, db);
     return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
   if (kind === 'journal') {
-    const file = readJournalFile(projectId);
+    const file = await readJournalFile(projectId, db);
     return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
   return null;
@@ -158,7 +159,7 @@ export async function collectMenu(
 
   const items: ArtifactMenuItem[] = [];
   for (const kind of DELIVERABLE_KINDS) {
-    const art = latestArtifact(projectId, kind);
+    const art = await latestArtifact(projectId, kind, db);
     const lockedAudited = kind === 'spec' && lockedPhase && cleanSpecAudits >= 1;
     items.push({
       kind,
@@ -203,7 +204,7 @@ export async function collectArtifact(
   const db = deps.db ?? getDb();
   await assertProjectReadable(projectId, actor, { db });
 
-  const art = latestArtifact(projectId, kind);
+  const art = await latestArtifact(projectId, kind, db);
   if (!art) throw new ArtifactNotReadyError(kind);
   const { meta, sectionHeaders } = await buildMeta(db, projectId, art.version);
   return { kind, bodyMd: art.bodyMd, version: art.version, meta, sectionHeaders };

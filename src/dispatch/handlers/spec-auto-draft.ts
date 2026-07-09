@@ -5,7 +5,7 @@ import { project } from '@/db/schema/projects';
 import { FullSpecDraftSchema } from '@/spec/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import type { OutlineEntry } from '@/spec/auto-draft';
-import { backupArtifact, writeSpecAsync } from '@/projects/project-files';
+import { backupArtifact, writeSpec } from '@/projects/project-files';
 import { templateForKind } from '@/spec/components';
 import type { ComponentKind } from '@/db/enums';
 
@@ -92,7 +92,7 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
     }
   }
   await backupArtifact(ctx.projectId, 'spec.md');
-  await writeSpecAsync(ctx.projectId, out.join('\n'));
+  await writeSpec(ctx.projectId, out.join('\n'));
 
   // Component status is derived from details.approvals — no legacy table update needed
 

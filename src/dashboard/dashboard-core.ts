@@ -116,11 +116,11 @@ export async function dashboardProjects(
   // Latest artifact: furthest-along kind — all checked via file existence.
   const artByP = new Map<string, { kind: ArtifactKind; version: number }>();
   for (const pid of ids) {
-    if (readPlanFile(pid)) {
+    if (await readPlanFile(pid)) {
       artByP.set(pid, { kind: 'plan', version: 1 });
-    } else if (readSpecFile(pid)) {
+    } else if (await readSpecFile(pid)) {
       artByP.set(pid, { kind: 'spec', version: 1 });
-    } else if (readExplorationSummary(pid)) {
+    } else if (await readExplorationSummary(pid)) {
       artByP.set(pid, { kind: 'exploration', version: 1 });
     }
   }

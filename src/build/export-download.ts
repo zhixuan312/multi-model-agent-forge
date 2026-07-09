@@ -23,21 +23,21 @@ export class ArtifactNotFoundError extends Error {
 
 type DownloadableKind = 'exploration' | 'spec' | 'plan' | 'journal';
 
-function readArtifactFile(projectId: string, kind: DownloadableKind): { bodyMd: string; version: number } | null {
+async function readArtifactFile(projectId: string, kind: DownloadableKind, db?: Db): Promise<{ bodyMd: string; version: number } | null> {
   if (kind === 'exploration') {
-    const file = readExplorationFile(projectId);
+    const file = await readExplorationFile(projectId, db);
     return file ? { bodyMd: file.bodyMd, version: file.version } : null;
   }
   if (kind === 'spec') {
-    const file = readSpecFile(projectId);
+    const file = await readSpecFile(projectId, db);
     return file ? { bodyMd: file.bodyMd, version: file.version } : null;
   }
   if (kind === 'plan') {
-    const file = readPlanFile(projectId);
+    const file = await readPlanFile(projectId, db);
     return file ? { bodyMd: file.bodyMd, version: file.version } : null;
   }
   if (kind === 'journal') {
-    const file = readJournalFile(projectId);
+    const file = await readJournalFile(projectId, db);
     return file ? { bodyMd: file.bodyMd, version: file.version } : null;
   }
   return null;
@@ -50,7 +50,7 @@ export async function downloadStageArtifact(
   const db = deps.db ?? getDb();
   await assertProjectReadable(args.projectId, args.actor, { db });
 
-  const art = readArtifactFile(args.projectId, args.kind);
+  const art = await readArtifactFile(args.projectId, args.kind, db);
   if (!art) throw new ArtifactNotFoundError(args.kind);
 
   const fileName = `${args.kind}-v${art.version}.md`;

@@ -6,7 +6,7 @@ import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildLearningsPrompt } from '@/spec/learnings';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { validateDetails } from '@/details/schema';
 import '@/dispatch/handler-registry';
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     projectId: id,
     route: 'orchestrate',
     handler: 'spec-learnings',
-    cwd: resolveWorkspaceRoot(),
+    cwd: await resolveProjectWorkspaceRoot(id, db),
     body: { prompt: `${system}\n\n${user}` },
     actorId: guard.memberId,
   });

@@ -14,7 +14,7 @@ import { repo } from '@/db/schema/workspace';
 import { team } from '@/db/schema/team';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 
 export interface ReposDeps {
   db?: Db;
@@ -101,7 +101,7 @@ async function resolveWorkspace(db: Db, deps: ReposDeps): Promise<WorkspaceServi
   if (deps.workspace) return deps.workspace;
   const currentTeam = await resolveTeamRow(db, deps.teamId);
   return new WorkspaceService({
-    workspaceRoot: currentTeam?.workspaceRootPath ?? resolveWorkspaceRoot(),
+    workspaceRoot: currentTeam ? resolveTeamWorkspaceRoot(currentTeam) : resolveWorkspaceRoot(),
   });
 }
 
@@ -285,7 +285,7 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
 
   const db = deps.db ?? getDb();
   const currentTeam = await resolveTeamRow(db, deps.teamId);
-  const root = currentTeam?.workspaceRootPath ?? resolveWorkspaceRoot();
+  const root = currentTeam ? resolveTeamWorkspaceRoot(currentTeam) : resolveWorkspaceRoot();
   const added: string[] = [];
   const flagged: string[] = [];
 

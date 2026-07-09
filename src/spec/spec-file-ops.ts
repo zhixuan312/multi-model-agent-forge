@@ -4,7 +4,7 @@
  * only (component status, approvals, participants).
  */
 
-import { readSpecFileAsync } from '@/projects/project-files';
+import { readSpecFile } from '@/projects/project-files';
 
 const COMPONENT_HEADING_RE = /^## .+/;
 const SECTION_HEADING_RE = /^### .+/;
@@ -75,7 +75,7 @@ export async function readComponentSections(
   projectId: string,
   sectionLabels: string[],
 ): Promise<{ heading: string; body: string }[]> {
-  const file = await readSpecFileAsync(projectId);
+  const file = await readSpecFile(projectId);
   if (!file) return [];
   const sections = parseSpecSections(file.bodyMd);
   const labelSet = new Set(sectionLabels.map((l) => l.toLowerCase()));

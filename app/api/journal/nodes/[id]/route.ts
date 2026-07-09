@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardJournal } from '@/journal/guard';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { readNode, readNodeFrontmatters, computeInbound } from '@/journal/store-reader';
 
 /**
@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid node id.' }, { status: 400 });
   }
 
-  const root = resolveWorkspaceRoot();
+  const root = resolveTeamWorkspaceRoot(guard.team);
   const result = await readNode(root, id);
   if (!result.ok) {
     // Unparseable / missing node → a marker the detail pane renders, not a crash.

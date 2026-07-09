@@ -4,7 +4,7 @@ import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';
-import { backupArtifact, writeExplorationSummaryAsync } from '@/projects/project-files';
+import { backupArtifact, writeExplorationSummary } from '@/projects/project-files';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -59,7 +59,7 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   const bodyMd = composeExplorationMarkdown({ ...synthesis, currentState });
 
   await backupArtifact(ctx.projectId, 'exploration.md');
-  const filePath = await writeExplorationSummaryAsync(ctx.projectId, bodyMd);
+  const filePath = await writeExplorationSummary(ctx.projectId, bodyMd);
 
   // Record the synthesized artifact path on the phase — this is what gates the
   // "Continue to Spec" advance: allowedActions offers advance_stage only once

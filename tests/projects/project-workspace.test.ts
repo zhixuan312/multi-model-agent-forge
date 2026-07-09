@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { isAbsolute } from 'node:path';
-import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
+import { resolveProjectWorkspaceRoot, resolveProjectArtifactDir } from '@/projects/project-workspace';
 import { createMockDb } from '../test-utils/mock-db';
 
 describe('resolveProjectWorkspaceRoot (the team-scoped cwd for a project dispatch)', () => {
@@ -22,5 +22,18 @@ describe('resolveProjectWorkspaceRoot (the team-scoped cwd for a project dispatc
     const db = createMockDb({ 'select:project': [] });
     const r = await resolveProjectWorkspaceRoot('missing', db as never);
     expect(isAbsolute(r)).toBe(true);
+  });
+});
+
+describe('resolveProjectArtifactDir (<teamRoot>/.mma/projects/<id>)', () => {
+  it('places artifacts under the team root, beside the team journal', async () => {
+    const db = createMockDb({ 'select:project': [{ workspaceRootPath: '/forge/base/team-alpha' }] });
+    const dir = await resolveProjectArtifactDir('proj-1', db as never);
+    expect(dir).toBe('/forge/base/team-alpha/.mma/projects/proj-1');
+  });
+
+  it('rejects a malformed projectId (path-injection guard)', async () => {
+    const db = createMockDb({ 'select:project': [{ workspaceRootPath: '/forge/base/team-alpha' }] });
+    await expect(resolveProjectArtifactDir('../evil', db as never)).rejects.toThrow(/Invalid projectId/);
   });
 });

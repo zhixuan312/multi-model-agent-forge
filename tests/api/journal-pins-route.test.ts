@@ -30,7 +30,10 @@ const removePin = vi.fn(async () => ({ kind: 'removed' }) as { kind: 'removed' |
 const refreshPin = vi.fn(async () => ({ kind: 'refreshed', pin }) as { kind: 'refreshed'; pin: typeof pin } | { kind: 'not_found' });
 vi.mock('@/journal/pins-core', () => ({ listPins, addPin, removePin, refreshPin }));
 vi.mock('@/journal/journal-rev', () => ({ currentJournalLogCount: async () => 9, isPinStale: (a: number, b: number) => a < b }));
-vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
+vi.mock('@/git/workspace-root', () => ({
+  resolveWorkspaceRoot: () => '/ws',
+  resolveTeamWorkspaceRoot: (t: { workspaceRootPath: string }) => t.workspaceRootPath,
+}));
 
 const { GET: pinsGET, POST: pinsPOST } = await import('../../app/api/journal/pins/route');
 const { DELETE: pinDELETE } = await import('../../app/api/journal/pins/[id]/route');

@@ -5,9 +5,8 @@ import { createMockDb } from '../test-utils/mock-db';
 import { vi } from 'vitest';
 
 vi.mock('@/projects/project-files', () => ({
-  readExplorationSummary: vi.fn().mockReturnValue(null),
-  readExplorationSummaryAsync: vi.fn().mockResolvedValue(null),
-  readExplorationFileAsync: vi.fn().mockResolvedValue(null),
+  readExplorationSummary: vi.fn().mockResolvedValue(null),
+  readExplorationFile: vi.fn().mockResolvedValue(null),
 }));
 
 describe('buildProposeRequest', () => {

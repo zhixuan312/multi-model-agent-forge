@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardJournal } from '@/journal/guard';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { readAllNodes } from '@/journal/store-reader';
 
 /**
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = await guardJournal(req, { checkCsrf: false });
   if (guard instanceof NextResponse) return guard;
 
-  const root = resolveWorkspaceRoot();
+  const root = resolveTeamWorkspaceRoot(guard.team);
   const outcome = await readAllNodes(root);
   return NextResponse.json(outcome);
 }

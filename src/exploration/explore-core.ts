@@ -5,7 +5,7 @@ import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
-import { readExplorationFileAsync } from '@/projects/project-files';
+import { readExplorationFile } from '@/projects/project-files';
 import { setBriefText } from '@/details/write';
 import { getBriefText, getRepos } from '@/details/read';
 import { validateDetails } from '@/details/schema';
@@ -126,7 +126,7 @@ export interface ExploreArtifact {
 export async function latestExplorationArtifact(
   projectId: string,
 ): Promise<ExploreArtifact | null> {
-  const file = await readExplorationFileAsync(projectId);
+  const file = await readExplorationFile(projectId);
   if (!file) return null;
   return { id: projectId, version: file.version, bodyMd: file.bodyMd };
 }

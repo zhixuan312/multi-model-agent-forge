@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
-import { readSpecFileAsync, readPlanFileAsync } from '@/projects/project-files';
+import { readSpecFile, readPlanFile } from '@/projects/project-files';
 import { validateDetails, type ProjectEvent } from '@/details/schema';
 
 export interface StageTiming {
@@ -43,8 +43,8 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
     .from(mmaBatch)
     .where(eq(mmaBatch.projectId, projectId));
 
-  const specFile = await readSpecFileAsync(projectId);
-  const planFile = await readPlanFileAsync(projectId);
+  const specFile = await readSpecFile(projectId);
+  const planFile = await readPlanFile(projectId);
 
   const doneBatches = batches.filter((b) => b.status === 'done');
   const totalUsd = doneBatches.reduce((sum, b) => sum + Number(b.costUsd ?? 0), 0);

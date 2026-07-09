@@ -4,7 +4,7 @@
  * are surgical section replacements, never full rewrites.
  */
 
-import { backupArtifact, readPlanFileAsync, writePlanAsync } from '@/projects/project-files';
+import { backupArtifact, readPlanFile, writePlan } from '@/projects/project-files';
 
 const writeLocks = new Map<string, Promise<unknown>>();
 async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -82,7 +82,7 @@ export async function readTaskSection(
   projectId: string,
   taskTitle: string,
 ): Promise<{ heading: string; body: string } | null> {
-  const file = await readPlanFileAsync(projectId);
+  const file = await readPlanFile(projectId);
   if (!file) return null;
   const sections = parsePlanSections(file.bodyMd);
   const match = sections.find((s) => s.heading.includes(taskTitle));
@@ -96,7 +96,7 @@ export async function replaceTaskSection(
   newBody: string,
 ): Promise<boolean> {
   return withFileLock(projectId, async () => {
-    const file = await readPlanFileAsync(projectId);
+    const file = await readPlanFile(projectId);
     if (!file) return false;
 
     const lines = file.bodyMd.split('\n');
@@ -110,7 +110,7 @@ export async function replaceTaskSection(
 
     const updated = [...before, ...replacement, ...after].join('\n');
     await backupArtifact(projectId, 'plan.md');
-    await writePlanAsync(projectId, updated);
+    await writePlan(projectId, updated);
     return true;
   });
 }

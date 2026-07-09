@@ -1,11 +1,11 @@
 import type { Db } from '@/db/client';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-import { readPlanFileAsync } from '@/projects/project-files';
+import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
 import { updateDetails } from '@/details/write';
 
 async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
-  const planFile = await readPlanFileAsync(ctx.projectId);
+  const planFile = await readPlanFile(ctx.projectId);
   if (!planFile) {
     throw new Error('plan.md not found after audit-apply — MMA may have failed to write it.');
   }

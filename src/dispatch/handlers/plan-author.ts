@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { readPlanFileAsync } from '@/projects/project-files';
+import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
 import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
@@ -12,7 +12,7 @@ import { validateDetails } from '@/details/schema';
 import { getRepos } from '@/details/read';
 
 async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
-  const planFile = await readPlanFileAsync(ctx.projectId);
+  const planFile = await readPlanFile(ctx.projectId);
   if (!planFile) {
     throw new Error('MMA did not write plan.md. The plan-author task may have failed.');
   }

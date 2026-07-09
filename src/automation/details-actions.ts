@@ -3,7 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { specFilePath, planFilePath, readSpecFileAsync, readPlanFileAsync, backupArtifact } from '@/projects/project-files';
+import { specFilePath, planFilePath, readSpecFile, readPlanFile, backupArtifact } from '@/projects/project-files';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
@@ -129,7 +129,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
   switch (action.kind) {
     case 'dispatch_audit': {
       const scope = action.stage === 'spec' ? 'spec' : 'plan';
-      const filePath = scope === 'spec' ? specFilePath(projectId) : planFilePath(projectId);
+      const filePath = await (scope === 'spec' ? specFilePath(projectId, db) : planFilePath(projectId, db));
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       const passes = pRow?.details
         ? (scope === 'spec'
@@ -147,7 +147,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
 
     case 'apply_findings': {
       const scope = action.stage === 'spec' ? 'spec' : 'plan';
-      const filePath = scope === 'spec' ? specFilePath(projectId) : planFilePath(projectId);
+      const filePath = await (scope === 'spec' ? specFilePath(projectId, db) : planFilePath(projectId, db));
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       if (!pRow?.details) break;
       const d = validateDetails(pRow.details);
@@ -228,14 +228,14 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     case 'dispatch_plan_author': {
       // In-flight already ruled out by the top-of-function guard. Dispatch async
       // (below) and record a running attempt so the resolver WAITs cleanly.
-      const specFile = await readSpecFileAsync(projectId);
+      const specFile = await readSpecFile(projectId);
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       const d = pRow?.details ? validateDetails(pRow.details) : null;
       const repos = d?.repos ?? [];
       if (repos.length === 0) break;
       const repoList = repos.map((r) => `- ${r.name} (${r.pathOnDisk})`).join('\n');
       const { PLAN_AUTHOR_SYSTEM_PROMPT } = await import('@/build/plan-author');
-      const planPath = planFilePath(projectId);
+      const planPath = await planFilePath(projectId, db);
       const prompt = PLAN_AUTHOR_SYSTEM_PROMPT.replace('PLAN_FILE_PATH', planPath)
         + `\n\n# Target repositories\n\n${repoList}`
         + `\n\n# Locked Specification\n\n${specFile?.bodyMd ?? '(no spec)'}`;

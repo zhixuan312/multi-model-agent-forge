@@ -5,10 +5,9 @@ import { createMockDb } from '../test-utils/mock-db';
 import { vi } from 'vitest';
 
 vi.mock('@/projects/project-files', () => ({
-  readExplorationSummary: vi.fn().mockReturnValue(null),
-  readExplorationSummaryAsync: vi.fn().mockResolvedValue(null),
-  readExplorationFileAsync: vi.fn().mockResolvedValue(null),
-  writeExplorationSummaryAsync: vi.fn().mockResolvedValue('/fake/exploration.md'),
+  readExplorationSummary: vi.fn().mockResolvedValue(null),
+  readExplorationFile: vi.fn().mockResolvedValue(null),
+  writeExplorationSummary: vi.fn().mockResolvedValue('/fake/exploration.md'),
 }));
 
 function makeDetails(tasks: Array<{ kind: string; prompt: string; status: string; repoId?: string; batchId: string }>) {

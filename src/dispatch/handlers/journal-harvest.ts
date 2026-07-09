@@ -1,11 +1,11 @@
 import type { Db } from '@/db/client';
-import { readJournalFileAsync } from '@/projects/project-files';
+import { readJournalFile } from '@/projects/project-files';
 import { parseJournalSections } from '@/journal/journal-file-ops';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
 
 async function handleJournalHarvest(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
-  const file = await readJournalFileAsync(ctx.projectId);
+  const file = await readJournalFile(ctx.projectId);
   if (!file) throw new Error('journal.md not found after harvest — MMA may have failed to write it.');
 
   const sections = parseJournalSections(file.bodyMd);

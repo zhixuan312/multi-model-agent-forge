@@ -3,7 +3,7 @@ import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildAutoDraftRequest } from '@/spec/auto-draft';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { getDb } from '@/db/client';
 import '@/dispatch/handler-registry';
 
@@ -34,7 +34,7 @@ export async function POST(
     projectId: id,
     route: 'orchestrate',
     handler: 'spec-auto-draft',
-    cwd: resolveWorkspaceRoot(),
+    cwd: await resolveProjectWorkspaceRoot(id, db),
     body: {
       prompt: `${request.system}\n\n${request.user}`,
       reviewPolicy: 'none',

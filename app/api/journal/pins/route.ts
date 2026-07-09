@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { guardJournal } from '@/journal/guard';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { listPins, addPin } from '@/journal/pins-core';
 import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
 import { pinFindingsSchema } from '@/journal/pin-payload';
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = await guardJournal(req, { checkCsrf: false });
   if (guard instanceof NextResponse) return guard;
   const pins = await listPins(guard.memberId);
-  const current = await currentJournalLogCount(resolveWorkspaceRoot());
+  const current = await currentJournalLogCount(resolveTeamWorkspaceRoot(guard.team));
   return NextResponse.json(pins.map((p) => ({ ...p, stale: isPinStale(p.journalLogCount, current) })));
 }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const json = await req.json().catch(() => null);
   const parsed = addSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid pin.' }, { status: 400 });
-  const journalLogCount = await currentJournalLogCount(resolveWorkspaceRoot());
+  const journalLogCount = await currentJournalLogCount(resolveTeamWorkspaceRoot(guard.team));
   const pin = await addPin(guard.memberId, { ...parsed.data, journalLogCount });
   return NextResponse.json({ ...pin, stale: false }, { status: 201 });
 }

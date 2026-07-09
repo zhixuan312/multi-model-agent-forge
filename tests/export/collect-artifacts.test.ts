@@ -224,7 +224,7 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
     const { writeExplorationSummary } = await import('@/projects/project-files');
-    writeExplorationSummary(projectId, '## Background\n\nExploration content');
+    await writeExplorationSummary(projectId, '## Background\n\nExploration content');
     readSpecFileMock.mockReturnValue(null);
     readJournalFileMock.mockReturnValue(null);
     const db = createMockDb({

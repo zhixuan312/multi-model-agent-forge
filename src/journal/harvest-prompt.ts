@@ -2,7 +2,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { readExplorationSummaryAsync, readSpecFileAsync, readPlanFileAsync, journalFilePath } from '@/projects/project-files';
+import { readExplorationSummary, readSpecFile, readPlanFile, journalFilePath } from '@/projects/project-files';
 import { getProject } from '@/projects/projects-core';
 
 export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): Promise<string> {
@@ -19,13 +19,13 @@ export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): P
     sections.push(`## Intent\n${proj.intentMd}`);
   }
 
-  const explorationMd = await readExplorationSummaryAsync(projectId);
+  const explorationMd = await readExplorationSummary(projectId);
   if (explorationMd) sections.push(`## Exploration\n${explorationMd.slice(0, 6000)}`);
 
-  const specFile = await readSpecFileAsync(projectId);
+  const specFile = await readSpecFile(projectId);
   if (specFile) sections.push(`## Specification\n${specFile.bodyMd.slice(0, 8000)}`);
 
-  const planFile = await readPlanFileAsync(projectId);
+  const planFile = await readPlanFile(projectId);
   if (planFile) sections.push(`## Plan\n${planFile.bodyMd.slice(0, 8000)}`);
 
   const batches = await db.select({ route: mmaBatch.route, result: mmaBatch.result })

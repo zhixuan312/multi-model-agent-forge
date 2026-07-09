@@ -3,7 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
 import { teamSpecTemplate, type TeamSpecTemplateRow } from '@/db/schema/team';
-import { readSpecFileAsync } from '@/projects/project-files';
+import { readSpecFile } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import { templateForKind } from '@/spec/components';
 import type { ComponentStatus } from '@/db/enums';
@@ -92,7 +92,7 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
 
   let fileComponentContent: Map<string, string> = new Map();
   let specFileExists = false;
-  const specFile = await readSpecFileAsync(projectId);
+  const specFile = await readSpecFile(projectId);
   if (specFile) {
     specFileExists = true;
     const parsed = parseSpecSections(specFile.bodyMd);

@@ -2,7 +2,7 @@ import { eq, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
-import { readSpecFileAsync } from '@/projects/project-files';
+import { readSpecFile } from '@/projects/project-files';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { validateDetails, type Details } from '@/details/schema';
 import { updateDetails } from '@/details/write';
@@ -30,7 +30,7 @@ export async function buildLearningsPrompt(
     intentText = getBriefText(validateDetails(proj.details));
   }
 
-  const specFile = await readSpecFileAsync(projectId);
+  const specFile = await readSpecFile(projectId);
   const spec = specFile ? { bodyMd: specFile.bodyMd } : null;
 
   const rawMsgs = await db

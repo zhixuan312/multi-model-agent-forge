@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { ComponentKind } from '@/db/enums';
-import { readExplorationSummaryAsync } from '@/projects/project-files';
+import { readExplorationSummary } from '@/projects/project-files';
 import { updateDetails } from '@/details/write';
 import { validateDetails } from '@/details/schema';
 import { project } from '@/db/schema/projects';
@@ -28,7 +28,7 @@ export interface OrchestratorDeps {
 export async function getLatestExploration(
   projectId: string,
 ): Promise<{ bodyMd: string } | null> {
-  const bodyMd = await readExplorationSummaryAsync(projectId);
+  const bodyMd = await readExplorationSummary(projectId);
   return bodyMd ? { bodyMd } : null;
 }
 

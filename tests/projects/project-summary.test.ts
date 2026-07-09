@@ -4,8 +4,8 @@ import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', () => ({
-  readSpecFileAsync: vi.fn().mockResolvedValue({ version: 5, updatedAt: '2026-07-01', bodyMd: '' }),
-  readPlanFileAsync: vi.fn().mockResolvedValue({ version: 3, updatedAt: '2026-07-01', bodyMd: '' }),
+  readSpecFile: vi.fn().mockResolvedValue({ version: 5, updatedAt: '2026-07-01', bodyMd: '' }),
+  readPlanFile: vi.fn().mockResolvedValue({ version: 3, updatedAt: '2026-07-01', bodyMd: '' }),
 }));
 
 const PROJECT_ID = 'proj-1';

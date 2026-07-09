@@ -6,10 +6,9 @@ import { buildInitialDetails } from '@/details/schema';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', () => ({
-  readExplorationSummary: vi.fn().mockReturnValue(null),
-  readExplorationSummaryAsync: vi.fn().mockResolvedValue(null),
-  readExplorationFileAsync: vi.fn().mockResolvedValue(null),
-  writeExplorationSummaryAsync: vi.fn().mockResolvedValue('/fake/exploration.md'),
+  readExplorationSummary: vi.fn().mockResolvedValue(null),
+  readExplorationFile: vi.fn().mockResolvedValue(null),
+  writeExplorationSummary: vi.fn().mockResolvedValue('/fake/exploration.md'),
   resolveWorkspaceRoot: vi.fn().mockReturnValue('/fake/workspace'),
 }));
 

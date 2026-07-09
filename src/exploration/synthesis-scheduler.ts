@@ -6,7 +6,7 @@ import { validateDetails } from '@/details/schema';
 import { buildSynthesizeRequest } from '@/exploration/synthesize';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { readExplorationSummary } from '@/projects/project-files';
 import '@/dispatch/handler-registry';
 
@@ -103,7 +103,7 @@ export class SynthesisScheduler {
         projectId,
         route: 'orchestrate',
         handler: 'explore-synthesize',
-        cwd: resolveWorkspaceRoot(),
+        cwd: await resolveProjectWorkspaceRoot(projectId, this.db),
         body: {
           prompt: `${request.system}\n\n${request.user}`,
           reviewPolicy: 'none',

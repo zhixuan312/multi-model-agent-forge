@@ -5,7 +5,7 @@ import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { updateDetails } from '@/details/write';
 import { logAction } from '@/observability/action-log';
@@ -97,7 +97,10 @@ export async function dispatchTasks(
 ): Promise<TaskDispatchOutcome[]> {
   const db = deps.db ?? getDb();
   const client = deps.client ?? (await buildMmaClient({ db }));
-  const workspaceRoot = deps.workspaceRoot ?? resolveWorkspaceRoot();
+  // research/journal tasks run at the project's TEAM workspace root (its journal
+  // + repos live there), not a shared global root. investigate overrides with the
+  // target repo's path in resolveCwd.
+  const workspaceRoot = deps.workspaceRoot ?? (await resolveProjectWorkspaceRoot(projectId, db));
   const statPath = deps.statPath ?? defaultStat;
 
   // Read draft tasks from details

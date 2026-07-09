@@ -4,7 +4,7 @@ import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
 import { specFilePath, planFilePath, readSpecFileAsync, readPlanFileAsync, backupArtifact } from '@/projects/project-files';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { projectEventBus } from '@/sse/event-bus';
@@ -111,7 +111,10 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
 }
 
 export async function executeDetailsAction(projectId: string, action: AutoAction, db: Db = getDb()): Promise<ActionResult> {
-  const cwd = resolveWorkspaceRoot();
+  // Every project dispatch runs at the project's TEAM workspace root — the team's
+  // journal + repos live there. Repo-scoped dispatches still override with the
+  // repo's own path_on_disk (also under the team root).
+  const cwd = await resolveProjectWorkspaceRoot(projectId, db);
   const mma = await buildMmaClient({ db });
 
   // DB (ops_mma_batch) is the source of truth: before firing ANY MMA request for

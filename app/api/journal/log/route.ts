@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardJournal } from '@/journal/guard';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { readLog } from '@/journal/store-reader';
 
 /**
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = await guardJournal(req, { checkCsrf: false });
   if (guard instanceof NextResponse) return guard;
 
-  const root = guard.team.workspaceRootPath;
+  const root = resolveTeamWorkspaceRoot(guard.team);
   try {
     const log = await readLog(root);
     return NextResponse.json({ log });

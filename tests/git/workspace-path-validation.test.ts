@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { validateTeamWorkspacePath } from '@/git/workspace-root';
+import { isAbsolute } from 'node:path';
+import { validateTeamWorkspacePath, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 
 /**
  * FR-8: a team workspace root must be a direct sibling child of the operator base
@@ -55,5 +56,17 @@ describe('validateTeamWorkspacePath', () => {
     const realpath = (p: string) => (p === '/forge/base/alpha' ? '/somewhere/else/alpha' : p);
     const r = validateTeamWorkspacePath('/forge/base/alpha', { base, realpath });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('resolveTeamWorkspaceRoot (the absolute cwd MMA receives)', () => {
+  it('returns an absolute stored path unchanged', () => {
+    expect(resolveTeamWorkspaceRoot({ workspaceRootPath: '/forge/base/alpha' })).toBe('/forge/base/alpha');
+  });
+
+  it('resolves a legacy relative stored path to absolute — MMA rejects a relative cwd', () => {
+    const r = resolveTeamWorkspaceRoot({ workspaceRootPath: '.forge-workspace' });
+    expect(isAbsolute(r)).toBe(true);
+    expect(r.endsWith('.forge-workspace')).toBe(true);
   });
 });

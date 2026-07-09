@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { PostgresSecretStore } from '@/secrets/secret-store';
-import { resolveWorkspaceRoot } from '@/git/workspace-root';
+import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
@@ -158,7 +158,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       return { output: text, sessionId: null };
     },
     recall: async (_repo, query, loopRunId) => {
-      const workspaceRoot = currentTeam.workspaceRootPath;
+      const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);
       if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
         const mma = await buildMmaClient({ db });
@@ -278,7 +278,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       try {
         const mma = await buildMmaClient({ db });
         const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
-        const workspaceRoot = currentTeam.workspaceRootPath;
+        const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);
         const prompt = `Role: You are the journal recorder for Forge, a software delivery harness. You write team learnings as durable journal nodes.
 
 Task: Record each learning below as a separate node in the team journal at .mma/journal/.

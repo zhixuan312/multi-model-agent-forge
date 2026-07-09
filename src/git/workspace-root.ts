@@ -5,7 +5,6 @@
  */
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import type { CurrentTeam } from '@/auth/team-scope';
 
 export function resolveWorkspaceRoot(): string {
   const env = process.env.FORGE_WORKSPACE_ROOT?.trim();
@@ -19,8 +18,18 @@ export function resolveWorkspaceBase(): string {
   return dirname(resolveWorkspaceRoot());
 }
 
-export function resolveTeamWorkspaceRoot(team: CurrentTeam): string {
-  return team.workspaceRootPath;
+/**
+ * The absolute workspace root for a team — what MMA receives as `?cwd=` and what
+ * the journal filesystem reads sit under. Stored team paths are normally absolute
+ * (updateTeam persists the resolved path), but a bare/relative value (legacy seed
+ * data) is resolved against the operator base so callers never hand MMA a
+ * relative cwd (MMA rejects it with `invalid_cwd`). An empty value falls back to
+ * the global workspace root.
+ */
+export function resolveTeamWorkspaceRoot(team: { workspaceRootPath: string }): string {
+  const p = team.workspaceRootPath?.trim() ?? '';
+  if (!p) return resolveWorkspaceRoot();
+  return isAbsolute(p) ? p : resolve(resolveWorkspaceBase(), p);
 }
 
 export interface TeamWorkspacePathValidation {

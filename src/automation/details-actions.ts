@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import { eq, and, inArray, sql, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -232,12 +233,15 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       const d = pRow?.details ? validateDetails(pRow.details) : null;
       const repos = d?.repos ?? [];
+      // mma-plan (>=5.8.7) requires outputPath RELATIVE to the task cwd (absolute
+      // or `..` is rejected). specPath (target.paths) is likewise relativized so
+      // the worker resolves it against the same cwd.
       const planPath = await planFilePath(projectId, db);
       const request = await (await import('@/automation/plan-author-input')).buildPlanAuthoringRequest({
         repos,
-        specPath: await specFilePath(projectId, db),
+        specPath: relative(cwd, await specFilePath(projectId, db)),
         specMd: specFile?.bodyMd ?? '',
-        outputPath: planPath,
+        outputPath: relative(cwd, planPath),
       });
 
       // Async (no `await`): plan authoring can take many minutes. Blocking the

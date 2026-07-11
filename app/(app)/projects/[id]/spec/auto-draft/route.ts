@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardSpecWrite } from '@/spec/handler-guard';
 import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
@@ -22,7 +23,11 @@ export async function POST(
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const outputPath = await specFilePath(id, db);
+  // mma-spec (>=5.8.7) requires outputPath RELATIVE to the task cwd (absolute or
+  // `..` paths are rejected). cwd is the workspace root; the spec file lives at
+  // `<root>/.mma/projects/<id>/spec.md`, so the relative path is well-formed.
+  const cwd = await resolveProjectWorkspaceRoot(id, db);
+  const outputPath = relative(cwd, await specFilePath(id, db));
   const request = await buildSpecAuthoringRequest({ db, projectId: id, outputPath });
   if ('error' in request) {
     return NextResponse.json({ ok: false, error: request.error }, { status: 409 });
@@ -35,7 +40,7 @@ export async function POST(
     projectId: id,
     route: 'spec',
     handler: 'spec-auto-draft',
-    cwd: await resolveProjectWorkspaceRoot(id, db),
+    cwd,
     body: request,
     actorId: guard.memberId,
   });

@@ -235,6 +235,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const planPath = await planFilePath(projectId, db);
       const request = await (await import('@/automation/plan-author-input')).buildPlanAuthoringRequest({
         repos,
+        specPath: await specFilePath(projectId, db),
         specMd: specFile?.bodyMd ?? '',
         outputPath: planPath,
       });

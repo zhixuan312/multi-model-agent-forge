@@ -14,6 +14,7 @@ describe('buildPlanAuthoringRequest', () => {
     const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     await expect(buildPlanAuthoringRequest({
       repos: [],
+      specPath: '/tmp/spec.md',
       specMd: '# Locked Specification',
       outputPath: '/tmp/plan.md',
     })).rejects.toThrow(/requires at least one linked repository/i);
@@ -23,6 +24,7 @@ describe('buildPlanAuthoringRequest', () => {
     const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     await expect(buildPlanAuthoringRequest({
       repos: [{ id: 'r1', name: 'forge', pathOnDisk: '   ', defaultBranch: 'main' }],
+      specPath: '/tmp/spec.md',
       specMd: '# Locked Specification',
       outputPath: '/tmp/plan.md',
     })).rejects.toThrow(/forge.*non-empty/i);
@@ -37,12 +39,13 @@ describe('buildPlanAuthoringRequest', () => {
 
     await expect(buildPlanAuthoringRequest({
       repos: [{ id: 'r1', name: 'forge', pathOnDisk: filePath, defaultBranch: 'main' }],
+      specPath: '/tmp/spec.md',
       specMd: '# Locked Specification',
       outputPath: '/tmp/plan.md',
     })).rejects.toThrow(/forge.*not a directory/i);
   });
 
-  it('builds the inline plan payload from spec + validated repos + output path', async () => {
+  it('passes the spec by path and carries the validated repo list in the prompt', async () => {
     const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     const repoDir = await mkdtemp(join(tmpdir(), 'forge-plan-author-repo-'));
     const normalizedRepoDir = await realpath(repoDir);
@@ -50,15 +53,16 @@ describe('buildPlanAuthoringRequest', () => {
 
     const result = await buildPlanAuthoringRequest({
       repos: [{ id: 'r1', name: 'forge', pathOnDisk: repoDir, defaultBranch: 'main' }],
+      specPath: '/team/.mma/projects/p1/spec.md',
       specMd: '# Locked Specification\n\n## Context\n\n...',
       outputPath: '/tmp/plan.md',
     });
 
     expect(result).toEqual({
-      prompt: 'Locked Specification',
-      target: {
-        inline: `# Locked Specification\n\n## Context\n\n...\n\n# Linked repositories\n\n- forge (${normalizedRepoDir})\n\n# Output path\n\n/tmp/plan.md`,
-      },
+      // Title from the spec H1 + the validated repo list (Phase A's input).
+      prompt: `Locked Specification\n\n# Linked repositories\n\n- forge (${normalizedRepoDir})`,
+      // The spec is delivered by path, not inlined.
+      target: { paths: ['/team/.mma/projects/p1/spec.md'] },
       outputPath: '/tmp/plan.md',
     });
   });

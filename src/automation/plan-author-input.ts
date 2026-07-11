@@ -9,9 +9,10 @@ interface RepoInput {
 
 export async function buildPlanAuthoringRequest(input: {
   repos: RepoInput[];
+  specPath: string;
   specMd: string;
   outputPath: string;
-}): Promise<{ prompt: string; target: { inline: string }; outputPath: string }> {
+}): Promise<{ prompt: string; target: { paths: string[] }; outputPath: string }> {
   if (input.repos.length === 0) {
     throw new Error('Plan authoring requires at least one linked repository.');
   }
@@ -41,15 +42,23 @@ export async function buildPlanAuthoringRequest(input: {
     lines.push(`- ${repo.name} (${normalized})`);
   }
 
-  // mma-plan (>=5.8.7) requires a non-empty `prompt` (the feature title) under a
-  // strict schema. Derive it from the spec's H1 title, falling back to a generic.
+  // The spec is passed by PATH so the worker reads the live file and can grep
+  // sections during Phase A (lighter payload than embedding the whole body).
+  // `target` is paths-XOR-inline, so the repo list — Phase A's other essential
+  // input — rides in the prompt alongside the feature title. mma-plan (>=5.8.7)
+  // requires a non-empty `prompt` under a strict schema; derive the title from
+  // the spec's H1, falling back to a generic.
   const specTitle = input.specMd.match(/^#\s+(.+)$/m)?.[1]?.trim();
 
   return {
-    prompt: specTitle || 'Implementation plan',
-    target: {
-      inline: `${input.specMd}\n\n# Linked repositories\n\n${lines.join('\n')}\n\n# Output path\n\n${input.outputPath}`,
-    },
+    prompt: [
+      specTitle || 'Implementation plan',
+      '',
+      '# Linked repositories',
+      '',
+      ...lines,
+    ].join('\n'),
+    target: { paths: [input.specPath] },
     outputPath: input.outputPath,
   };
 }

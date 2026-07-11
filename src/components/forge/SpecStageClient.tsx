@@ -783,6 +783,10 @@ function CraftStage({
     setConstructedDrafts(drafts);
   }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
+  // Live document-level open-questions messages (scope: 'spec_project') that
+  // arrive over SSE after mount — merged with the initial server payload so
+  // collaborators see notes appear live, not only on reload.
+  const [liveProjectMessages, setLiveProjectMessages] = useState<Array<{ id: string; bodyMd: string }>>([]);
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
     const allPool = [currentMember, ...projectMembers];
@@ -866,6 +870,14 @@ function CraftStage({
         targetId?: string;
         message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
       } | undefined;
+      if (detail?.scope === 'spec_project' && detail.targetId === projectId && detail.message && typeof detail.message.bodyMd === 'string') {
+        const pm = detail.message;
+        if (!seenMsgIds.current.has(pm.id)) {
+          seenMsgIds.current.add(pm.id);
+          setLiveProjectMessages((prev) => prev.some((m) => m.id === pm.id) ? prev : [...prev, { id: pm.id, bodyMd: pm.bodyMd }]);
+        }
+        return;
+      }
       if (detail?.scope !== 'spec_component' || !detail.targetId || !detail.message) return;
       const cid = detail.targetId;
       const msg = detail.message;
@@ -1149,7 +1161,11 @@ function CraftStage({
     onConsolidate();
   }
 
-  const projectMessages = initialMessages[projectId] ?? [];
+  const initialProject = initialMessages[projectId] ?? [];
+  const projectMessages: Array<{ id: string; bodyMd: string }> = [
+    ...initialProject.map((m) => ({ id: m.id, bodyMd: m.bodyMd })),
+    ...liveProjectMessages.filter((lm) => !initialProject.some((im) => im.id === lm.id)),
+  ];
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">

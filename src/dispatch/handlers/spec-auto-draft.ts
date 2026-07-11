@@ -8,9 +8,17 @@ import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/di
 import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
 
 function extractNotes(envelope: unknown): string {
-  const output = (envelope as { output?: { summary?: unknown } } | null)?.output?.summary;
-  if (!output || typeof output !== 'object') return '';
-  const notes = (output as { notes?: unknown }).notes;
+  // The MMA terminal summary may arrive as an object, a JSON string, or a
+  // fenced ```json block. Normalize all three via extractJsonFromEnvelope, and
+  // fall back to a direct object read if there is nothing JSON-shaped to parse.
+  let obj: unknown;
+  try {
+    obj = JSON.parse(extractJsonFromEnvelope(envelope));
+  } catch {
+    obj = (envelope as { output?: { summary?: unknown } } | null)?.output?.summary;
+  }
+  if (!obj || typeof obj !== 'object') return '';
+  const notes = (obj as { notes?: unknown }).notes;
   return typeof notes === 'string' ? notes.trim() : '';
 }
 
@@ -18,7 +26,6 @@ function extractNotes(envelope: unknown): string {
 async function publishDormantComponentQuestions(): Promise<void> {}
 
 async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  void extractJsonFromEnvelope;
 
   const specFile = await readSpecFile(ctx.projectId);
   if (!specFile) {
@@ -38,7 +45,7 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
       .where(eq(qaMessage.targetId, ctx.projectId));
 
     const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
-    await db.insert(qaMessage).values({
+    const [row] = await db.insert(qaMessage).values({
       targetId: ctx.projectId,
       projectId: ctx.projectId,
       targetKind: 'spec_project',
@@ -46,6 +53,18 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown):
       authorId: FORGE_MEMBER_ID,
       bodyMd,
       meta: { source: 'mma-spec-notes' },
+    }).returning({ id: qaMessage.id });
+
+    // Publish the widened chat.message event so active collaborators see the
+    // document-level open questions appear live (SpecStageClient listens for
+    // scope 'spec_project'). Without this the row lands in the DB but never
+    // reaches an open session until reload.
+    const { projectEventBus } = await import('@/sse/event-bus');
+    projectEventBus.publish(ctx.projectId, {
+      type: 'chat.message',
+      scope: 'spec_project',
+      targetId: ctx.projectId,
+      message: { id: row.id, sender: 'forge', authorId: FORGE_MEMBER_ID, authorName: 'Forge', bodyMd },
     });
   }
 

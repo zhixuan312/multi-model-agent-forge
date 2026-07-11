@@ -78,6 +78,10 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
   // Plan Refine — author + validate + approve tasks
   if (plan.status === 'active' && plan.phases.refine.status === 'active') {
     if (!plan.phases.refine.file) {
+      // Plan authoring hard-fails with no linked repository (buildPlanAuthoringRequest
+      // throws), so auto mode must WAIT for repo linkage rather than dispatch into an
+      // error every tick.
+      if ((details.repos ?? []).length === 0) return WAIT;
       const authorAttempts = plan.phases.refine.attempts;
       const last = authorAttempts[authorAttempts.length - 1];
       if (last?.status === 'running') return WAIT;

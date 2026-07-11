@@ -72,8 +72,19 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.spec.status = 'done';
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
+    d.repos = [{ id: 'r1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
     const action = resolveNextActionFromDetails(d);
     expect(action.kind).toBe('dispatch_plan_author');
+  });
+
+  it('WAITs (does not dispatch plan author) when no repository is linked', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    d.repos = []; // no linked repo → plan authoring would hard-fail
+    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
   });
 
   it('validates first unapproved task', () => {
@@ -401,6 +412,7 @@ describe('resolver edge-case fixes', () => {
     d.stages.spec.status = 'done';
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
+    d.repos = [{ id: 'r1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
     // 4 failed → still re-dispatches
     d.stages.plan.phases.refine.attempts = Array.from({ length: 4 }, (_, i) => ({ batchId: `b${i}`, status: 'failed' as const, at: '' }));
     expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');

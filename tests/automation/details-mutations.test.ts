@@ -45,6 +45,7 @@ describe('details-mutations — record the resolver gating state', () => {
     d.stages.spec.status = 'done';
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
+    d.repos = [{ id: 'r1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
     recordAuthorAttempt(d, 'b1', AT);
     // the centralized reconcile flips a stuck running attempt to failed
     d.stages.plan.phases.refine.attempts.at(-1)!.status = 'failed';

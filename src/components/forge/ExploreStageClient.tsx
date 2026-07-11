@@ -410,7 +410,10 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               <p className="max-h-40 overflow-y-auto pr-1 text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
             </div>
           ) : null}
-          <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
+          {/* key by the selected task so switching tasks remounts the scroll
+              container — the output always starts at the top, never stranded at
+              the previous task's scroll position. */}
+          <CardContent key={selectedTaskId ?? 'none'} className="min-h-0 flex-1 overflow-y-auto !py-4">
             {!selectedTask ? (
               <div className="grid h-full place-items-center">
                 <p className="text-sm text-ink-faint">Select a task from the list to view its output.</p>

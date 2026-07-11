@@ -251,6 +251,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     // auto-draft has no ACTION_KIND. `mma.dispatch(url, handler)` is on the centralized
     // client path (same SSE wait as transitions); the backend uses dispatchMma + the
     // registered `spec-auto-draft` handler.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear any stale error banner before retrying the auto-draft dispatch
     setError(null); // clear any stale banner from a prior failed draft before retrying
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
@@ -774,6 +775,7 @@ function CraftStage({
   const firstOpen = components.find((c) => c.status !== 'approved') ?? components[0];
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const activeIdRef = useRef(activeId);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest activeId into a ref so long-lived handlers read it without re-subscribing
   activeIdRef.current = activeId;
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
@@ -789,6 +791,7 @@ function CraftStage({
       const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
       if (md) drafts[c.id] = md;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- rebuild drafts from server components after each MMA re-render
     setConstructedDrafts(drafts);
   }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
@@ -909,6 +912,7 @@ function CraftStage({
         if (typing) next.add(cid); else next.delete(cid);
         return next;
       });
+      // eslint-disable-next-line react-hooks/immutability -- setCraftView is a stable useCallback declared below; captured here via closure inside a one-time listener
       if (cid === activeIdRef.current && typing) setCraftView('conversation');
     };
     window.addEventListener('chat:message', handler);
@@ -917,6 +921,7 @@ function CraftStage({
       window.removeEventListener('chat:message', handler);
       window.removeEventListener('chat:typing', typingHandler);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: attach window listeners once on mount; referenced values are read via refs/stable callbacks
   }, []);
 
   const [nudge, setNudge] = useState(false);
@@ -956,6 +961,7 @@ function CraftStage({
   // `if (!active)` early return below, or hook order changes between renders
   // (rules of hooks). Their inputs are computed defensively for the null case.
   const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- reads activeIdRef.current (a ref) inside a stable callback; empty deps are intentional
   const setCraftView = useCallback((v: 'spec' | 'conversation') => {
     setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
   }, []);
@@ -1459,7 +1465,9 @@ function DocumentScreen({
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
   // Auto-select latest pass when new audit completes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select the newest audit pass when rounds grow
     if (rounds.length > 0) setSelectedPass(rounds[rounds.length - 1].passNo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
 
@@ -1529,6 +1537,7 @@ function DocumentScreen({
   // Manual subset selection — indices into the active round's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual finding selection when the viewed pass changes
   useEffect(() => { setSelectedFindings([]); }, [selectedPass]);
 
   function apply(passNo: number, indices: number[]): void {

@@ -232,6 +232,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
       synthFired.current = true;
       resynthesize();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: fires once when entering synthesis; resynthesize is stable and adding it would retrigger
   }, [phase, bodyMd, synthesizing, locked]);
 
   useEffect(() => {
@@ -243,6 +244,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? tasks[0]?.id ?? null);
   useEffect(() => {
     if (!selectedTaskId && tasks.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- default the selection to the first task once tasks arrive
       setSelectedTaskId(tasks[0].id);
     }
   }, [selectedTaskId, tasks]);

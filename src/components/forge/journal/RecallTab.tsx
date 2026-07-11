@@ -90,6 +90,7 @@ export function RecallTab({
   // reference would loop. The signature only changes when the recorded list actually does.
   const serverSig = recentRecalls.map((r) => `${r.id}:${r.status}:${r.batchId ?? ''}`).join('|');
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile server recents with optimistic local entries when the stable signature changes
     setRecents((local) => {
       const serverKeys = new Set(recentRecalls.map((r) => r.batchId).filter(Boolean));
       const pendingOptimistic = local.filter((r) => r._optimistic && r.batchId && !serverKeys.has(r.batchId));
@@ -133,6 +134,7 @@ export function RecallTab({
         setStatus('error');
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: resume keys off the inflight batchId only; question/status are read at resume time and adding them would re-fire
   }, [inflight?.batchId]);
 
   async function pollUntilTerminal(batchId: string): Promise<ParsedRecall> {
@@ -512,6 +514,7 @@ function RecentSection({
   useEffect(() => {
     if (!autoExpandKey) return;
     const match = recalls.find((r) => r.batchId === autoExpandKey);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-expand the just-run recall matched by batchId
     if (match) setExpanded((prev) => (prev.has(match.id) ? prev : new Set(prev).add(match.id)));
   }, [autoExpandKey, recalls]);
   const toggle = (id: string) =>

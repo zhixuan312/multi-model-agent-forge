@@ -36,6 +36,7 @@ export function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id
 
   useEffect(() => {
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading before fetching the node for the new id
     setState({ phase: 'loading' });
     fetch(`/api/journal/nodes/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('load failed'))))

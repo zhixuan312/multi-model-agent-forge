@@ -138,7 +138,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
   );
   const prevServerRef = useRef(serverStatus);
   const [localOverrides, setLocalOverrides] = useState<Record<string, TaskStatus>>({});
+  // eslint-disable-next-line react-hooks/refs -- prop-sync: compare prev server value to reset local overrides during render (React docs pattern)
   if (prevServerRef.current !== serverStatus) {
+    // eslint-disable-next-line react-hooks/refs -- prop-sync: store latest server value so the comparison above runs once per change (React docs pattern)
     prevServerRef.current = serverStatus;
     if (Object.keys(localOverrides).length > 0) setLocalOverrides({});
   }
@@ -220,6 +222,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
       stagePhaseStore.onNavigate((key) => {
         if (key === 'refine' || key === 'validate') setPhase(key as PlanPhase);
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: subscribe once on mount; setPhase is a stable setter
     [],
   );
 
@@ -260,6 +263,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
         setApplyingPass(null);
         showToast({ type: 'error', message: 'Couldn’t apply findings — try again.' });
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- projectId is stable for the component's life; kept so the compiler can preserve this memoization
   }, [props.projectId, mma, refresh]);
 
   // ── Automated-mode driver. The on-screen plan IS the shared state, so Stop
@@ -436,6 +440,7 @@ function DetailStage({
   useEffect(() => {
     if (active && status[active.id] === 'approved') {
       const next = allTasks.find((t) => status[t.id] !== 'approved');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- follow the AI's auto-approval by advancing the active task from status changes
       if (next) setActiveId(next.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -879,10 +884,13 @@ function ValidateStage({
   // Manual subset selection — indices into the active round's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual finding selection when the viewed pass changes
   useEffect(() => { setSelectedFindings([]); }, [selectedPass]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- jump to the newest audit pass when rounds grow
     if (rounds.length > 0) { setSelectedPass(rounds[rounds.length - 1].passNo); setDocView('audit'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
 
   function apply(passNo: number, indices: number[]) {

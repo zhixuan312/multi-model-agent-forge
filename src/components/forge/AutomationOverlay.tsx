@@ -153,6 +153,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
   // Mirror countdown into a ref so the (long-lived) SSE handlers can read it
   // without re-subscribing — used to hold server refreshes until the intro ends.
   const countdownRef = useRef(countdown);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest countdown into a ref so long-lived SSE handlers read it without re-subscribing
   countdownRef.current = countdown;
   const [liveStage, setLiveStage] = useState(currentStage);
   const [, setLivePhase] = useState(stagePhase ?? phase);
@@ -160,7 +161,9 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
   // lossless (elapsed is seeded from automationStartedAt below, so the timer
   // doesn't reset either). Live SSE lines carry the same records and stream on top.
   const [logs, setLogs] = useState<LogLine[]>(() => seedLogs(events ?? []));
+  // eslint-disable-next-line react-hooks/purity -- one-time lazy init of the elapsed-clock start; Date.now() is the intended fallback "now"
   const startTime = useRef(automationStartedAt ? new Date(automationStartedAt).getTime() : Date.now());
+  // eslint-disable-next-line react-hooks/purity -- lazy initial elapsed value; Date.now() is the intended "now" at mount
   const [elapsed, setElapsed] = useState(automationStartedAt ? Date.now() - new Date(automationStartedAt).getTime() : 0);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -199,6 +202,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
     return () => clearInterval(t);
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot sync of live stage from server prop
   useEffect(() => { setLiveStage(currentStage); }, [currentStage]);
 
   // One line per activity: an `action` line spins with a live-ticking duration
@@ -352,6 +356,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             ) : (
               <>
                 {logs.map((l, i) => {
+                  // eslint-disable-next-line react-hooks/purity -- live-ticking duration for an in-progress log line; re-render is driven by the elapsed ticker
                   const dur = l.done ? l.durationMs : elapsed >= 0 ? Date.now() - l.startedAt : 0;
                   return (
                     <div key={i} className="flex items-start gap-3 border-b border-line/40 py-2 last:border-0">

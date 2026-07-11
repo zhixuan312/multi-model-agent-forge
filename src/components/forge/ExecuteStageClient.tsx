@@ -183,6 +183,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       stagePhaseStore.onNavigate((key) => {
         if (key === 'configure' || key === 'implement') setExecPhase(key as ExecutePhase);
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: subscribe once on mount; setExecPhase is a stable setter
     [],
   );
 
@@ -346,6 +347,7 @@ function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGr
           let lastPhase: string | null = null;
           return group.tasks.map((t, i) => {
             const phaseChanged = t.phase && t.phase !== lastPhase;
+            // eslint-disable-next-line react-hooks/immutability -- local loop accumulator to detect phase changes while rendering the list; not external state
             if (t.phase) lastPhase = t.phase;
             return (
               <div key={t.id}>

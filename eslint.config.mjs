@@ -42,23 +42,6 @@ const eslintConfig = defineConfig([
       }],
     },
   },
-  // React Compiler advisory rules (eslint-plugin-react-hooks v6). This codebase
-  // has not adopted the React Compiler, and these rules flag many pre-existing,
-  // functionally-correct patterns across the component layer. Run them as `warn`
-  // (visible, not blocking) rather than a risky blanket refactor. The genuine
-  // correctness rule — `rules-of-hooks` — stays at ERROR, and real bugs it and
-  // `refs` surfaced (e.g. the SpecStageClient dedup race) were fixed, not muted.
-  {
-    rules: {
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/purity": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/incompatible-library": "warn",
-      "react-hooks/static-components": "warn",
-    },
-  },
 ]);
 
 export default eslintConfig;

@@ -203,7 +203,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
   );
   const [localOverrides, setLocalOverrides] = useState<Record<string, LearningStatus>>({});
   const prevServerRef = useRef(serverStatus);
+  // eslint-disable-next-line react-hooks/refs -- prop-sync: compare prev server value to reset local overrides during render (React docs pattern)
   if (prevServerRef.current !== serverStatus) {
+    // eslint-disable-next-line react-hooks/refs -- prop-sync: store latest server value so the comparison above runs once per change (React docs pattern)
     prevServerRef.current = serverStatus;
     if (Object.keys(localOverrides).length > 0) setLocalOverrides({});
   }

@@ -405,7 +405,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           {selectedTask ? (
             <div className="border-b border-line px-5 py-3">
               <Eyebrow className="mb-1 !text-ink-faint">Prompt</Eyebrow>
-              <p className="text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
+              {/* Cap the prompt so a very long one scrolls in place instead of
+                  growing the pane and squeezing the output area below it. */}
+              <p className="max-h-40 overflow-y-auto pr-1 text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
             </div>
           ) : null}
           <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">

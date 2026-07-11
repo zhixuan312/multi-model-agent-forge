@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -201,9 +201,16 @@ export function SpecStageClient(props: SpecStageClientProps) {
 
   const setPhase = (p: SpecPhase) => {
     setPhaseRaw(p);
+    // Persist the phase in the URL WITHOUT a soft navigation. A `router.push`
+    // here kicks off an RSC fetch that can be served from the client router cache
+    // captured while the phase had 0 components — which then races with, and can
+    // clobber, the explicit `router.refresh()` callers run after a transition,
+    // leaving a blank "No components yet" view until a hard reload. Updating the
+    // URL only (like the Explore stage does) makes `router.refresh()` the single,
+    // deterministic source of fresh data.
     const url = new URL(window.location.href);
     url.searchParams.set('phase', p);
-    router.push(url.pathname + url.search, { scroll: false });
+    window.history.replaceState(null, '', url.pathname + url.search);
   };
   const advancePhase = async (p: SpecPhase) => {
     // Spec phase status gates the resolver (finalize.status==='active' runs the audit
@@ -213,7 +220,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
     });
     setPhase(p);
   };
-  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  // Wrap refresh in a transition so callers can show a loading state while the
+  // fresh RSC data (e.g. the freshly-created components after "Continue to
+  // Craft") is being fetched — instead of flashing an empty view.
+  const [isRefreshing, startRefreshTransition] = useTransition();
+  const refresh = useCallback(() => { startRefreshTransition(() => router.refresh()); }, [router]);
   const mma = useMmaDispatch(props.projectId, {
     onDone: {
       'spec-auto-draft': refresh,
@@ -330,6 +341,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         <CraftStage
           projectId={props.projectId}
           components={components}
+          loading={isRefreshing}
           readOnly={readOnly}
           autoDrafting={autoDrafting}
           allApproved={allApproved}
@@ -725,6 +737,8 @@ function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved' || (c.approvedBy as string[]).length > 0)
     return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
+    // Drafted components arrive Ready. They flip to "Needs input" only when Forge
+    // raises a clarifying question during the Q&A (aiSatisfied=false).
     return c.aiSatisfied
       ? { label: 'Ready', cls: 'bg-sage-tint text-[var(--sage-deep)]' }
       : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
@@ -735,6 +749,7 @@ function componentDisplayState(c: ComponentView): DisplayState {
 function CraftStage({
   projectId,
   components,
+  loading,
   readOnly,
   allApproved,
   autoDrafting,
@@ -749,6 +764,7 @@ function CraftStage({
 }: {
   projectId: string;
   components: ComponentView[];
+  loading?: boolean;
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
@@ -783,10 +799,6 @@ function CraftStage({
     setConstructedDrafts(drafts);
   }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
-  // Live document-level open-questions messages (scope: 'spec_project') that
-  // arrive over SSE after mount — merged with the initial server payload so
-  // collaborators see notes appear live, not only on reload.
-  const [liveProjectMessages, setLiveProjectMessages] = useState<Array<{ id: string; bodyMd: string }>>([]);
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
     const allPool = [currentMember, ...projectMembers];
@@ -874,14 +886,6 @@ function CraftStage({
         targetId?: string;
         message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
       } | undefined;
-      if (detail?.scope === 'spec_project' && detail.targetId === projectId && detail.message && typeof detail.message.bodyMd === 'string') {
-        const pm = detail.message;
-        if (!seenMsgIds.current.has(pm.id)) {
-          seenMsgIds.current.add(pm.id);
-          setLiveProjectMessages((prev) => prev.some((m) => m.id === pm.id) ? prev : [...prev, { id: pm.id, bodyMd: pm.bodyMd }]);
-        }
-        return;
-      }
       if (detail?.scope !== 'spec_component' || !detail.targetId || !detail.message) return;
       const cid = detail.targetId;
       const msg = detail.message;
@@ -978,6 +982,16 @@ function CraftStage({
   }, [activeId, collab, craftView]);
 
   if (!active) {
+    // While a refresh is in flight (e.g. right after "Continue to Craft", when the
+    // freshly-created components are still being fetched), show a loader instead of
+    // the empty state — the components are on their way, not absent.
+    if (loading) {
+      return (
+        <div className="grid min-h-40 place-items-center">
+          <Loader2 className="size-6 animate-spin text-accent" />
+        </div>
+      );
+    }
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
   }
 
@@ -1175,26 +1189,8 @@ function CraftStage({
     onConsolidate();
   }
 
-  const initialProject = initialMessages[projectId] ?? [];
-  const projectMessages: Array<{ id: string; bodyMd: string }> = [
-    ...initialProject.map((m) => ({ id: m.id, bodyMd: m.bodyMd })),
-    ...liveProjectMessages.filter((lm) => !initialProject.some((im) => im.id === lm.id)),
-  ];
-
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {projectMessages.length > 0 ? (
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Open Questions</CardTitle>
-          </CardHeader>
-          <div className="space-y-3 px-5 pb-5">
-            {projectMessages.map((msg) => (
-              <ProseBlock key={msg.id} variant="chat">{msg.bodyMd}</ProseBlock>
-            ))}
-          </div>
-        </Card>
-      ) : null}
       {/* LEFT — the conversation that crafts the active component (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>

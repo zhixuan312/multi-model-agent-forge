@@ -89,7 +89,7 @@ describe('SpecStageClient', () => {
     expect(screen.getByRole('button', { name: /Approve/ })).toBeInTheDocument();
   });
 
-  it('renders project-level open questions when the initial draft stored spec_project notes', () => {
+  it('does NOT render an Open Questions section — sections arrive drafted; questions come from the refine Q&A', () => {
     wrap(
       <SpecStageClient
         projectId="proj-1"
@@ -113,8 +113,7 @@ describe('SpecStageClient', () => {
       />,
     );
 
-    const allMatches = screen.queryAllByText(/Open Questions/);
-    expect(allMatches.length).toBeGreaterThan(0);
-    expect(screen.getByText(/Who owns rollout/)).toBeInTheDocument();
+    expect(screen.queryByText(/Open Questions/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Who owns rollout/)).not.toBeInTheDocument();
   });
 });

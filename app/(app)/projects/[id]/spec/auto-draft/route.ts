@@ -5,7 +5,7 @@ import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
-import { specFilePath } from '@/projects/project-files';
+import { specFilePath, explorationFilePath } from '@/projects/project-files';
 import { getDb } from '@/db/client';
 import '@/dispatch/handler-registry';
 
@@ -28,7 +28,8 @@ export async function POST(
   // `<root>/.mma/projects/<id>/spec.md`, so the relative path is well-formed.
   const cwd = await resolveProjectWorkspaceRoot(id, db);
   const outputPath = relative(cwd, await specFilePath(id, db));
-  const request = await buildSpecAuthoringRequest({ db, projectId: id, outputPath });
+  const explorationPath = relative(cwd, await explorationFilePath(id, db));
+  const request = await buildSpecAuthoringRequest({ db, projectId: id, outputPath, explorationPath });
   if ('error' in request) {
     return NextResponse.json({ ok: false, error: request.error }, { status: 409 });
   }

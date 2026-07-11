@@ -119,6 +119,10 @@ export async function writeExplorationSummary(projectId: string, bodyMd: string,
   return filePath;
 }
 
+export async function explorationFilePath(projectId: string, db?: Db): Promise<string> {
+  return artifactFilePath(projectId, EXPLORATION_FILE, db);
+}
+
 /* ── Spec ────────────────────────────────────────────────────────────── */
 
 const SPEC_FILE = 'spec.md';

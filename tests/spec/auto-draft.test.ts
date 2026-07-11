@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
+import { readExplorationSummary } from '@/projects/project-files';
 import { createMockDb } from '../test-utils/mock-db';
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
@@ -12,40 +13,52 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
 
 const projectId = 'proj-1';
 
-describe('buildSpecAuthoringRequest', () => {
-  it('fails when project intent is blank', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
+function mockDbWith(intentMd: string) {
+  return import('@/details/schema').then(({ buildInitialDetails }) => {
     const d = buildInitialDetails();
     d.stages.spec.phases.craft.components = [{ id: 'comp-ctx', templateId: 't-context', approvals: [] }];
-    const mockDb = createMockDb({
-      'select:project': [{ details: d, intentMd: '   ' }],
+    return createMockDb({
+      'select:project': [{ name: 'My Project', details: d, intentMd }],
       'select:team_spec_template': [{ id: 't-context', kind: 'context', label: 'Context', orderIndex: 0, sections: [{ key: 'background', label: 'Background' }] }],
     });
+  });
+}
 
-    const result = await buildSpecAuthoringRequest({ db: mockDb, projectId, outputPath: '/tmp/spec.md' });
+describe('buildSpecAuthoringRequest', () => {
+  it('fails when project intent is blank', async () => {
+    const mockDb = await mockDbWith('   ');
+    const result = await buildSpecAuthoringRequest({ db: mockDb, projectId, outputPath: 'spec.md', explorationPath: 'exploration.md' });
     expect(result).toEqual({ error: 'Spec drafting requires captured intent.' });
   });
 
-  it('builds inline input with intent, exploration, selected component labels, and output path', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
-    const d = buildInitialDetails();
-    d.stages.spec.phases.craft.components = [{ id: 'comp-ctx', templateId: 't-context', approvals: [] }];
-    const mockDb = createMockDb({
-      'select:project': [{ details: d, intentMd: '# Intent\n\nShip the first draft.' }],
-      'select:team_spec_template': [{ id: 't-context', kind: 'context', label: 'Context', orderIndex: 0, sections: [{ key: 'background', label: 'Background' }] }],
+  it('passes exploration.md by path, with intent + title in the prompt and the component subset', async () => {
+    const mockDb = await mockDbWith('# Intent\n\nShip the first draft.');
+    const result = await buildSpecAuthoringRequest({
+      db: mockDb, projectId, outputPath: 'spec.md', explorationPath: '.mma/projects/p1/exploration.md',
     });
-
-    const result = await buildSpecAuthoringRequest({ db: mockDb, projectId, outputPath: '/tmp/spec.md' });
     expect('error' in result).toBe(false);
     if (!('error' in result)) {
-      expect(result.target.inline).toContain('# Captured intent');
-      expect(result.target.inline).toContain('# Exploration summary');
-      // Selected components are now the structured `components` field (mma-spec
-      // subset), not prose in the inline body.
-      expect(result.target.inline).not.toContain('# Selected components');
+      // Exploration is the grounding artifact → delivered by path (symmetric to plan).
+      expect(result.target).toEqual({ paths: ['.mma/projects/p1/exploration.md'] });
+      // Intent (never a file) + the feature title ride in the prompt.
+      expect(result.prompt).toContain('# Captured intent');
+      expect(result.prompt).toContain('Ship the first draft.');
+      // The subset is the structured `components` field.
       expect(result.components).toContain('Context');
-      expect(result.prompt.length).toBeGreaterThan(0);
-      expect(result.outputPath).toBe('/tmp/spec.md');
+      expect(result.outputPath).toBe('spec.md');
+    }
+  });
+
+  it('falls back to an inline note when no exploration file exists', async () => {
+    vi.mocked(readExplorationSummary).mockResolvedValueOnce(null);
+    const mockDb = await mockDbWith('# Intent\n\nShip it.');
+    const result = await buildSpecAuthoringRequest({ db: mockDb, projectId, outputPath: 'spec.md', explorationPath: 'exploration.md' });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect('inline' in result.target).toBe(true);
+      if ('inline' in result.target) expect(result.target.inline).toContain('No exploration summary');
+      // Intent is still delivered in the prompt.
+      expect(result.prompt).toContain('# Captured intent');
     }
   });
 });

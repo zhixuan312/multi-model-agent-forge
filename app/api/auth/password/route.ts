@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { currentSession } from '@/auth/current-member';

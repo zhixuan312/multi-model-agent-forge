@@ -27,7 +27,6 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-  CardFooter,
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -139,7 +138,7 @@ function seedLogs(events: Array<{ detail: string; kind?: LineKind; durationMs?: 
   });
 }
 
-export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
+export function AutomationOverlay({ projectId, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
   const router = useRouter();
   const optimistic = useOptimisticAction();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
@@ -155,7 +154,6 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
   // without re-subscribing — used to hold server refreshes until the intro ends.
   const countdownRef = useRef(countdown);
   countdownRef.current = countdown;
-  const [liveNote, setLiveNote] = useState(autoMode ? autoNote : 'Starting in 3...');
   const [liveStage, setLiveStage] = useState(currentStage);
   const [livePhase, setLivePhase] = useState(stagePhase ?? phase);
   // The project-level event log IS the feed — seeding from it makes a refresh
@@ -201,7 +199,6 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => { if (autoNote) setLiveNote(autoNote); }, [autoNote]);
   useEffect(() => { setLiveStage(currentStage); }, [currentStage]);
 
   // One line per activity: an `action` line spins with a live-ticking duration
@@ -238,7 +235,7 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
   useEffect(() => {
     function onProgress(e: Event) {
       const d = (e as CustomEvent).detail as { note?: string; stage?: string; phase?: string; kind?: LineKind; durationMs?: number };
-      if (d?.note) { setLiveNote(d.note); addLog(d.note, d.kind ?? 'action', d.durationMs); }
+      if (d?.note) { addLog(d.note, d.kind ?? 'action', d.durationMs); }
       if (d?.stage) setLiveStage(d.stage);
       if (d?.phase) setLivePhase(d.phase);
     }
@@ -256,7 +253,6 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
       // The driver already emitted the error as a persisted progress line — don't
       // duplicate it; just note it and re-pull (auto-mode is now off server-side).
       const d = (e as CustomEvent).detail as { error?: string };
-      if (d?.error) setLiveNote(`Error: ${d.error}`);
       if (countdownRef.current <= 0) router.refresh();
     }
     window.addEventListener('automation:progress', onProgress);
@@ -289,26 +285,6 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
     learnings: count(/kept learning|Recorded learnings/i),
     issues: logs.filter((l) => l.error).length,
   };
-
-  function stageStatus(key: string): 'done' | 'active' | 'pending' {
-    const idx = STAGE_ORDER.indexOf(key as StageKey);
-    if (idx < currentIdx) return 'done';
-    if (idx === currentIdx) return 'active';
-    return 'pending';
-  }
-
-  function phaseStatus(stgKey: string, phKey: string, phIdx: number, stg: 'done' | 'active' | 'pending') {
-    if (stg === 'done') return 'done' as const;
-    if (stg === 'pending') return 'pending' as const;
-    // Active stage — check if current phase matches
-    const stgDef = STAGES.find((s) => s.key === stgKey);
-    if (!stgDef) return 'pending' as const;
-    const livePIdx = stgDef.phases.findIndex((p) => p.key === livePhase);
-    if (livePIdx < 0) return phIdx === 0 ? 'active' as const : 'pending' as const;
-    if (phIdx < livePIdx) return 'done' as const;
-    if (phIdx === livePIdx) return 'active' as const;
-    return 'pending' as const;
-  }
 
   function handleStop() {
     void optimistic.run({

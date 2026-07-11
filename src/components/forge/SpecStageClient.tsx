@@ -305,7 +305,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
             ? 'Spec is ready — let Forge finalize it and run Plan → Build → Journal to the end.'
             : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
         }
-        runningHint="Forge finalizes the spec and drives the whole flow to the end. Stop anytime."
         projectId={props.projectId}
       />
 

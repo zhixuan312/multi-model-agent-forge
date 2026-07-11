@@ -24,8 +24,6 @@ import {
   CardContent,
   CardFooter,
   Badge,
-  Banner,
-  TextSm,
   Eyebrow,
   Select,
   SelectTrigger,
@@ -51,17 +49,6 @@ const CONFIGURE_NOTE = `### Configure — set up for execution
 - A forge branch is created from your target
 - Each task runs sequentially in an isolated worktree
 - A pull request is created per repo when complete`;
-
-const IMPLEMENT_NOTE = `### Implement — watching execution
-
-- **Progress** — each repo shows implementing → reviewing → PR
-- **Isolated** — agents work in a worktree, never touch your working tree
-- **Sequential** — tasks run one at a time, reviewed after each
-
-### When to advance
-
-- All repos must complete (done or failed)
-- Continue to Review to check the code changes`;
 
 /* ── Props ───────────────────────────────────────────────────────────── */
 
@@ -230,8 +217,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     const j = jobs[g.repoId];
     return j?.status === 'done' || j?.status === 'failed';
   });
-  const allFailed = props.repoGroups.length > 0 && props.repoGroups.every((g) => jobs[g.repoId]?.status === 'failed');
-
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">
@@ -241,7 +226,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
         note={autoNote}
         disabled={readOnly}
         idleHint="Pick target branches and start execution, or let Forge drive."
-        runningHint="Forge dispatches the plan, runs every task, creates PRs, then hands off to review."
       />
 
       {execPhase === 'configure' ? (
@@ -257,7 +241,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       ) : (
         <MonitorPhase
           projectId={props.projectId}
-          projectName={props.projectName}
           repoGroups={props.repoGroups}
           jobs={jobs}
           buildPrs={props.buildPrs}
@@ -391,10 +374,9 @@ function RepoConfigCard({ group, targetBranch, onBranchChange }: { group: RepoGr
 /* ── Monitor Phase ───────────────────────────────────────────────────── */
 
 function MonitorPhase({
-  projectId, projectName, repoGroups, jobs, buildPrs, allTerminal, readOnly,
+  projectId, repoGroups, jobs, buildPrs, allTerminal, readOnly,
 }: {
   projectId: string;
-  projectName: string;
   repoGroups: RepoGroup[];
   jobs: Record<string, RepoJobState>;
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;

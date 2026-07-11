@@ -4,7 +4,6 @@ import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { mmaBatch } from '@/db/schema/ops';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { readJournalFile } from '@/projects/project-files';
 import { parseJournalSections } from '@/journal/journal-file-ops';

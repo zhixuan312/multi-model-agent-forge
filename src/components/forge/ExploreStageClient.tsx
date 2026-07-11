@@ -26,7 +26,6 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
   Badge,
-  Banner,
   Textarea,
   Select,
   SelectTrigger,
@@ -638,12 +637,9 @@ function FanOutCard(props: {
     props.onChanged();
   }
 
-  // Run is disabled while any draft prompt is sub-floor (Short-prompt rule).
-  const anySubFloor = props.drafts.some((t) => t.prompt.trim().length < promptFloor(t.kind as never));
   const repoName = (id: string | null): string =>
     props.repoOptions.find((r) => r.id === id)?.name ?? 'unassigned';
   const recorded = props.allTasks.filter((t) => t.status !== 'draft');
-  const totalCount = props.drafts.length + recorded.length;
 
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Proposed fan-out">

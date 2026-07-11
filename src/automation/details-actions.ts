@@ -4,7 +4,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { specFilePath, planFilePath, readSpecFile, readPlanFile, backupArtifact } from '@/projects/project-files';
+import { specFilePath, planFilePath, readSpecFile, backupArtifact } from '@/projects/project-files';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';

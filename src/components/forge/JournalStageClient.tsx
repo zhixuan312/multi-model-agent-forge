@@ -210,7 +210,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const status: Record<string, LearningStatus> = { ...serverStatus, ...localOverrides };
 
   const approvedCount = props.learnings.filter((l) => status[l.id] === 'kept' || status[l.id] === 'recorded').length;
-  const allApproved = props.learnings.length > 0 && approvedCount === props.learnings.length;
   const allRecorded = props.learnings.length > 0 && props.learnings.every((l) => status[l.id] === 'recorded');
   const isApproved = active ? (status[active.id] === 'kept' || status[active.id] === 'recorded') : false;
 
@@ -394,7 +393,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
         note={autoNote}
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
-        runningHint="Forge harvests, validates, and records learnings, then marks the project complete."
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — learning content / discussion (like Plan Refine) */}

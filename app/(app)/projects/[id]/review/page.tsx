@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Bot, Hand } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
@@ -13,7 +12,6 @@ export type AutoMode = 'off' | 'running';
 export function AutomationBar({
   projectId,
   mode,
-  note,
   disabled,
   idleHint,
 }: {
@@ -23,7 +21,6 @@ export function AutomationBar({
   disabled: boolean;
   idleHint?: string;
 }) {
-  const router = useRouter();
   const optimistic = useOptimisticAction();
   const running = mode === 'running';
 

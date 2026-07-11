@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { parseAuditEnvelope, nextPassNo } from '@/spec/audit-loop';
 import type { AuditVerdict } from '@/db/enums';

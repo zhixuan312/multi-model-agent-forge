@@ -116,7 +116,7 @@ export interface SummaryPhaseProps {
   completing?: boolean;
 }
 
-export function SummaryPhase({ summary, projectId, readOnly, onMarkComplete, completing }: SummaryPhaseProps) {
+export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: SummaryPhaseProps) {
   const orderedStages = STAGE_ORDER
     .map((kind) => summary.timeline.stages.find((s) => s.kind === kind))
     .filter(Boolean) as typeof summary.timeline.stages;

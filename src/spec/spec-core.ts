@@ -2,7 +2,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
-import { teamSpecTemplate, type TeamSpecTemplateRow } from '@/db/schema/team';
+import { teamSpecTemplate } from '@/db/schema/team';
 import { readSpecFile } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import { templateForKind } from '@/spec/components';

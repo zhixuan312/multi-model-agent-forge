@@ -1,5 +1,4 @@
 import type { Db } from '@/db/client';
-import { project } from '@/db/schema/projects';
 import { ProposalSchema, PROMPT_FLOORS, type ProposedTask } from '@/exploration/schemas';
 import { logAction } from '@/observability/action-log';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';

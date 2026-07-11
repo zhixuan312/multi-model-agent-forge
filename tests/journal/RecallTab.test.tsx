@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { RecallTab } from '@/components/forge/journal/RecallTab';
 import type { PinnedView, FaqView } from '@/journal/recall-content';
 

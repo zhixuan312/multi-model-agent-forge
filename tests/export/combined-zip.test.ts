@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { buildCombinedJob, renderCombinedHtml } from '@/export/combined-html';
 import { buildBundleZip, streamToBuffer } from '@/export/zip';
-import { SpecHeadingContractError } from '@/export/sections';
 import type { CollectedArtifact } from '@/export/collect-artifacts';
 import type { CoverMeta } from '@/export/types';
 

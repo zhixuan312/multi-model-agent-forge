@@ -11,7 +11,6 @@ import {
   type AnthropicCallDiagnostics,
 } from '@/anthropic/client';
 import { z } from 'zod';
-import { FullSpecDraftSchema } from '@/spec/schemas';
 
 const TestSchema = z.object({ aiSatisfied: z.boolean(), missingInfo: z.array(z.string()), followUpQuestions: z.array(z.string()) });
 const DraftSchema = z.object({ draftMd: z.string() });

@@ -1,5 +1,4 @@
-import { vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { NodeDetail } from '@/components/forge/journal/NodeDetail';
 import type { JournalNode, InboundEdge } from '@/journal/types';
 

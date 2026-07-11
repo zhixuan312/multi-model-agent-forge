@@ -56,7 +56,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
       'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
-    const res = await recordExport(
+    await recordExport(
       {
         projectId,
         kind: null,

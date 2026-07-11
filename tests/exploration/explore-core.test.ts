@@ -9,13 +9,9 @@ afterAll(() => {
 });
 import {
   saveBrief,
-  latestBrief,
   readRailTasks,
   latestExplorationArtifact,
   addTask,
-  editTask,
-  removeTask,
-  TaskLockedError,
 } from '@/exploration/explore-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 

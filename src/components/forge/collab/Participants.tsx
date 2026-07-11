@@ -14,7 +14,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/ui';
-import { approvers, pending } from '@/collab/section-approval';
 import type { MemberRef, Participant } from '@/collab/types';
 
 /**
@@ -111,8 +110,6 @@ export function ParticipantStrip({
   onAdd: (m: MemberRef) => void;
   disabled?: boolean;
 }) {
-  const ok = approvers(participants);
-  const wait = pending(participants);
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
@@ -140,7 +137,6 @@ export function ApproverCluster({ participants }: { participants: Participant[] 
   const max = 4;
   const shown = participants.slice(0, max);
   const extra = participants.length - shown.length;
-  const wait = pending(participants).length;
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="flex items-center">

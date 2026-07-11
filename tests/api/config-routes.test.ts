@@ -12,10 +12,6 @@ vi.mock('@/auth/current-member', () => ({
   currentSession: async () => null,
 }));
 
-function asMember(): AuthedMember {
-  return { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
-}
-
 // Import handlers AFTER the mock is registered.
 const { GET: connGET, PUT: connPUT } = await import('../../app/api/connections/route');
 

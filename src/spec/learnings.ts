@@ -4,7 +4,7 @@ import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
 import { readSpecFile } from '@/projects/project-files';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
-import { validateDetails, type Details } from '@/details/schema';
+import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 
 export interface LearningCandidateView {

@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { PostgresSecretStore } from '@/secrets/secret-store';
-import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
+import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
@@ -199,7 +199,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
         if (r.code !== 0) throw new Error(`git worktree add failed: ${r.stderr}`);
         return { path };
       }),
-    dispatch: async ({ repo, cwd, prompt, workerTier, priorJournalContext, loopRunId }) => {
+    dispatch: async ({ repo, cwd, prompt, priorJournalContext, loopRunId }) => {
       const mma = await buildMmaClient({ db });
       const fullPrompt = priorJournalContext
         ? `${prompt}\n\n## Prior journal context\n\n${priorJournalContext}`

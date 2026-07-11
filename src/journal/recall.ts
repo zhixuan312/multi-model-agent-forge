@@ -17,7 +17,6 @@
  * The recall ROUTE only dispatches (→ `202 {batchId}`); the browser polls and
  * parses CLIENT-SIDE.
  */
-import type { MmaClient } from '@/mma/client';
 import { extractNodeIdFromCitationFile } from '@/journal/citations';
 import type { PinnedFinding } from '@/journal/recall-content';
 

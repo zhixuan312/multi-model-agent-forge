@@ -32,13 +32,12 @@ import {
   Banner,
   TextSm,
   Micro,
-  Eyebrow,
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
-import type { PlanPhaseSeed, PlanTaskSeed, PlanAuditFinding } from '@/build/plan-types';
+import type { PlanPhaseSeed, PlanAuditFinding } from '@/build/plan-types';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
@@ -105,9 +104,6 @@ export interface PlanStageClientProps {
 
 let _id = 0;
 const nid = () => `pm${_id++}`;
-
-/** The task's number (id `t8` → 8) -- matches the "Task N" used in dependsOn. */
-const taskNum = (id: string) => Number(id.replace(/\D/g, '')) || 0;
 
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
@@ -433,7 +429,6 @@ function DetailStage({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const active = allTasks.find((t) => t.id === activeId) ?? allTasks[0];
-  const phaseOf = phases.find((p) => p.tasks.some((t) => t.id === active?.id));
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -845,12 +840,10 @@ function DetailStage({
 
 /* ── Validate -- the Spec audit chat, applied to the plan ────────────────────── */
 function ValidateStage({
-  projectId,
   projectName,
   planMd,
   readOnly,
   mmaReady,
-  driving,
   auditing,
   applying,
   applyingPass,
@@ -859,7 +852,6 @@ function ValidateStage({
   onApplyFindings,
   rounds,
   locked,
-  auditClean,
   onRunAudit,
   onLock,
 }: {

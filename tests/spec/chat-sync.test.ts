@@ -3,7 +3,7 @@
  * Covers: message persistence, SSE event publishing, dedup, @Forge detection,
  * author attribution, and the full message lifecycle.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // ── @Forge regex matching ────────────────────────────────────────────
 

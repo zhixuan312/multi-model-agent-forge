@@ -138,7 +138,7 @@ function seedLogs(events: Array<{ detail: string; kind?: LineKind; durationMs?: 
   });
 }
 
-export function AutomationOverlay({ projectId, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
+export function AutomationOverlay({ projectId, autoMode, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
   const router = useRouter();
   const optimistic = useOptimisticAction();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
@@ -155,7 +155,7 @@ export function AutomationOverlay({ projectId, autoMode, autoNote, currentStage,
   const countdownRef = useRef(countdown);
   countdownRef.current = countdown;
   const [liveStage, setLiveStage] = useState(currentStage);
-  const [livePhase, setLivePhase] = useState(stagePhase ?? phase);
+  const [, setLivePhase] = useState(stagePhase ?? phase);
   // The project-level event log IS the feed — seeding from it makes a refresh
   // lossless (elapsed is seeded from automationStartedAt below, so the timer
   // doesn't reset either). Live SSE lines carry the same records and stream on top.
@@ -249,10 +249,9 @@ export function AutomationOverlay({ projectId, autoMode, autoNote, currentStage,
       if (d?.phase) setLivePhase(d.phase);
       if (countdownRef.current <= 0) router.refresh();
     }
-    function onError(e: Event) {
+    function onError(_e: Event) {
       // The driver already emitted the error as a persisted progress line — don't
       // duplicate it; just note it and re-pull (auto-mode is now off server-side).
-      const d = (e as CustomEvent).detail as { error?: string };
       if (countdownRef.current <= 0) router.refresh();
     }
     window.addEventListener('automation:progress', onProgress);

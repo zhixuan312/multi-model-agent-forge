@@ -38,7 +38,6 @@ import { showToast } from '@/components/ui/toast';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
-  Avatar,
   Button,
   Card,
   CardHeader,
@@ -48,17 +47,13 @@ import {
   Badge,
   Banner,
   Input,
-  Heading,
   Text,
   TextSm,
-  Micro,
-  Eyebrow,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { COMPONENT_TEMPLATES, DOC_TEMPLATES, templateForKind, type DocTemplate } from '@/spec/components';
+import { COMPONENT_TEMPLATES, DOC_TEMPLATES, type DocTemplate } from '@/spec/components';
 import { ParticipantStrip, ApproverCluster } from '@/components/forge/collab/Participants';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
-import { MentionComposer } from '@/components/forge/collab/MentionComposer';
 import {
   addParticipant,
   recordApproval,
@@ -68,7 +63,7 @@ import {
 } from '@/collab/section-approval';
 import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
-import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
+import type { ComponentKind, ProjectPhase } from '@/db/enums';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -183,7 +178,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
   const auto: AutoMode = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
   // Intent carried forward from the Exploration brief (no longer hand-typed here).
   const [intent] = useState(props.intentMd ?? '');
   const [picked, setPicked] = useState<Set<ComponentKind>>(
@@ -995,10 +989,8 @@ function CraftStage({
   }
 
   const drafted = active.status === 'drafted' || active.status === 'approved';
-  const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const showingDraft = constructedDrafts[active.id] ?? null;
-  const hasQuestions = drafted && !active.aiSatisfied;
   // craftView + setCraftView are computed above the early return (hooks must run
   // unconditionally); showingDraft/hasQuestions here are plain derived values.
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
@@ -1010,7 +1002,7 @@ function CraftStage({
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   const inChatMembers = [forgeMember, ...otherMembers];
   // Live: does the current draft message address teammates (→ them, AI silent)?
-  const liveMentions = parseMentions(input, inChatMembers);
+  parseMentions(input, inChatMembers);
 
   /** Patch the active component's collaborative state. */
   function patchCollab(updater: (u: UnitCollab) => UnitCollab): void {
@@ -1423,16 +1415,13 @@ function DocumentScreen({
   mmaReady,
   initialAuditHistory,
   initialCanFreeze,
-  voiceEnabled,
   pendingApply,
-  driving,
   mma,
   currentMember,
   projectMembers,
   components,
   specApprovers,
   setSpecApprovers,
-  onAdvance,
   onAssembled,
   onError,
 }: {
@@ -1465,7 +1454,7 @@ function DocumentScreen({
     [initialAuditHistory],
   );
   const [rounds] = useServerState(initialRounds);
-  const [canFreeze] = useServerState(initialCanFreeze);
+  useServerState(initialCanFreeze);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
   // Auto-select latest pass when new audit completes
@@ -1478,7 +1467,7 @@ function DocumentScreen({
   // below fires from an effect, and an effect-triggered mutation gets its observer
   // torn down during next-dev Strict-Mode remounts — leaving isPending stuck true.
   // A useState flag has a stable setter, so it always settles.
-  const [assembling, setAssembling] = useState(false);
+  const [, setAssembling] = useState(false);
   const assemblingRef = useRef(false);
   async function runAssemble(): Promise<void> {
     if (assemblingRef.current) return;

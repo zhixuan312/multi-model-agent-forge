@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe('spec-auto-draft handler publishes chat.message events', () => {
   it('publishes a chat.message for each component after auto-draft', async () => {
-    const { registerHandler } = await import('@/dispatch/handler-registry');
+    await import('@/dispatch/handler-registry');
 
     // The handler is registered as a side effect of import
     await import('@/dispatch/handlers/spec-auto-draft');

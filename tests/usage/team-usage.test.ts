@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { usageOverview, usageByProject, usageByLoop, usageStandalone } from '@/usage/usage-core';
+import { usageOverview } from '@/usage/usage-core';
 import { createMockDb } from '../test-utils/mock-db';
 
 const batch = { id: 'b1', teamId: 'team-a', route: 'delegate', status: 'done', costUsd: 1.25, savedVsMainUsd: 2.5, inputTokens: 100, outputTokens: 50, durationMs: 1200, createdAt: new Date(), projectId: null };

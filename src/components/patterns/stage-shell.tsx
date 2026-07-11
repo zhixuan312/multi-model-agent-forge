@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Eyebrow } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge } from '@/components/ui';
 
 /**
  * StageShell — the universal master-detail layout for all project stages.

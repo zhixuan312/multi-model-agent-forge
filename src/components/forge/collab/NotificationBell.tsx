@@ -1,25 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Bell, AlertTriangle, AtSign, Check, CheckCheck } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
-  Avatar,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '@/components/ui';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import type { NotificationRow } from '@/db/schema/ops';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function shortDate(iso: string): string {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return '';
-  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
-}
 
 import { formatTime } from '@/lib/format-date';
 

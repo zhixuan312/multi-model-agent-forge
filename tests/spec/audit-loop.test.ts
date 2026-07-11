@@ -6,7 +6,7 @@ import {
 
 } from '@/spec/audit-loop';
 import { auditEnvelope } from './mock-mma';
-import { createMockDb, seq } from '../test-utils/mock-db';
+import { createMockDb } from '../test-utils/mock-db';
 
 describe('parseAuditEnvelope (pure)', () => {
   it('parses findings + flags critical/high', () => {

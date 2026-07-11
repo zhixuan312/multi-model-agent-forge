@@ -3,7 +3,7 @@
  * Verifies: session reuse, delta prompt, dual output (chatReply + updatedSectionMd),
  * DB persistence, and SSE event publishing.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   getMessagesSinceLastForge,
   buildRefinePrompt,

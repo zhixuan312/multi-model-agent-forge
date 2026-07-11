@@ -1,5 +1,4 @@
 import { parseRecallEnvelope } from '@/journal/recall';
-import type { MmaClient } from '@/mma/client';
 
 /**
  * Wrap a recall answer as the v5.4 terminal envelope. For journal_recall,

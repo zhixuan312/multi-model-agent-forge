@@ -232,21 +232,26 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       const d = pRow?.details ? validateDetails(pRow.details) : null;
       const repos = d?.repos ?? [];
-      if (repos.length === 0) break;
-      const repoList = repos.map((r) => `- ${r.name} (${r.pathOnDisk})`).join('\n');
-      const { PLAN_AUTHOR_SYSTEM_PROMPT } = await import('@/build/plan-author');
       const planPath = await planFilePath(projectId, db);
-      const prompt = PLAN_AUTHOR_SYSTEM_PROMPT.replace('PLAN_FILE_PATH', planPath)
-        + `\n\n# Target repositories\n\n${repoList}`
-        + `\n\n# Locked Specification\n\n${specFile?.bodyMd ?? '(no spec)'}`;
+      const request = await (await import('@/automation/plan-author-input')).buildPlanAuthoringRequest({
+        repos,
+        specMd: specFile?.bodyMd ?? '',
+        outputPath: planPath,
+      });
+
       // Async (no `await`): plan authoring can take many minutes. Blocking the
       // driver risks the 15-min sync wait-timeout marking the row `failed` while
       // the LLM task is still alive — which used to re-fire a fresh author every
       // retry. PollManager owns the poll loop, fires the terminal handler, and
       // rehydrates on boot, so async is both correct and non-blocking.
       const { batchRowId } = await dispatchMma({
-        db, mma, projectId, route: 'orchestrate', handler: 'plan-author', cwd,
-        body: { prompt, reviewPolicy: 'none' },
+        db,
+        mma,
+        projectId,
+        route: 'plan',
+        handler: 'plan-author',
+        cwd,
+        body: request,
         actorId: FORGE_MEMBER_ID,
       });
       // Record the running attempt so the resolver returns WAIT (not re-dispatch)

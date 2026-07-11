@@ -15,6 +15,27 @@
 
 import type { ConfigureProviderRequest, ConfigureProviderResponse } from '@/mma/configure-provider';
 
+type MmaAuthoringTarget =
+  | { inline: string; paths?: never }
+  | { paths: string[]; inline?: never };
+
+function assertAuthoringTarget(
+  route: 'spec' | 'plan',
+  target: MmaAuthoringTarget,
+): asserts target is MmaAuthoringTarget {
+  const hasInline = typeof (target as { inline?: unknown }).inline === 'string';
+  const hasPaths = Array.isArray((target as { paths?: unknown }).paths);
+  if (hasInline === hasPaths) {
+    throw new Error(`${route} requires exactly one target arm: { inline } or { paths }`);
+  }
+  if (hasInline && !(target as { inline: string }).inline.trim()) {
+    throw new Error(`${route}.target.inline must be a non-empty string`);
+  }
+  if (hasPaths && !(target as { paths: string[] }).paths.length) {
+    throw new Error(`${route}.target.paths must contain at least one path`);
+  }
+}
+
 export interface MmaClientConfig {
   baseUrl: string;
   token: string;
@@ -431,6 +452,36 @@ export class MmaClient {
       body.contextBlockIds = input.contextBlockIds;
     }
     return this.dispatch('review', { cwd, body });
+  }
+
+  async spec(
+    cwd: string,
+    input: { target: MmaAuthoringTarget; outputPath: string; contextBlockIds?: string[] },
+  ): Promise<{ batchId: string }> {
+    assertAuthoringTarget('spec', input.target);
+    if (!input.outputPath.trim()) throw new Error('spec.outputPath must be a non-empty string');
+    const body: Record<string, unknown> = {
+      type: 'spec',
+      target: input.target,
+      outputPath: input.outputPath,
+    };
+    if (input.contextBlockIds?.length) body.contextBlockIds = input.contextBlockIds;
+    return this.dispatch('spec', { cwd, body });
+  }
+
+  async plan(
+    cwd: string,
+    input: { target: MmaAuthoringTarget; outputPath: string; contextBlockIds?: string[] },
+  ): Promise<{ batchId: string }> {
+    assertAuthoringTarget('plan', input.target);
+    if (!input.outputPath.trim()) throw new Error('plan.outputPath must be a non-empty string');
+    const body: Record<string, unknown> = {
+      type: 'plan',
+      target: input.target,
+      outputPath: input.outputPath,
+    };
+    if (input.contextBlockIds?.length) body.contextBlockIds = input.contextBlockIds;
+    return this.dispatch('plan', { cwd, body });
   }
 
   /**

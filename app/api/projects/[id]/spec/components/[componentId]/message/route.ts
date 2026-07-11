@@ -36,7 +36,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   projectEventBus.publish(id, {
     type: 'chat.message',
-    componentId,
+    scope: 'spec_component',
+    targetId: componentId,
     message: {
       id: row.id,
       sender: 'member',

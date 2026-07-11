@@ -88,4 +88,33 @@ describe('SpecStageClient', () => {
     expect(screen.getByText('Discussion')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Approve/ })).toBeInTheDocument();
   });
+
+  it('renders project-level open questions when the initial draft stored spec_project notes', () => {
+    wrap(
+      <SpecStageClient
+        projectId="proj-1"
+        projectName="Proj"
+        intentMd="Intent"
+        phase="design"
+        mainTierReady={true}
+        mmaReady={true}
+        defaultKinds={['context']}
+        initialComponents={draftedComponents}
+        initialSpec={null}
+        initialAuditHistory={[]}
+        initialCanFreeze={false}
+        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
+        projectMembers={[]}
+        initialMessages={{
+          'proj-1': [{ id: 'msg-project', sender: 'forge', bodyMd: '**Open Questions**\n\nWho owns rollout?', authorId: null }],
+        }}
+        voiceEnabled={false}
+        specApprovers={[]}
+      />,
+    );
+
+    const allMatches = screen.queryAllByText(/Open Questions/);
+    expect(allMatches.length).toBeGreaterThan(0);
+    expect(screen.getByText(/Who owns rollout/)).toBeInTheDocument();
+  });
 });

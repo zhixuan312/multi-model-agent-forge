@@ -99,4 +99,23 @@ Background content.
     expect(sections[0].component).toBe('Context');
     expect(sections[0].body).toContain('Background content');
   });
+
+  it('parses a subset-formatted spec whose selected component has body text but no explicit ### subsections', () => {
+    const md = `# Spec
+
+## Context
+
+### Background
+
+Background content.
+
+## Risks & Mitigations
+
+_No additional sections were required for this draft._
+`;
+    const sections = parseSpecSections(md);
+    expect(sections).toHaveLength(2);
+    expect(sections[1].component).toBe('Risks & Mitigations');
+    expect(sections[1].body).toContain('No additional sections');
+  });
 });

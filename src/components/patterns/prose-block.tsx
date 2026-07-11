@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/cn';
+import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
 import { MermaidDiagram } from '@/components/forge/MermaidDiagram';
 
 const VARIANT_CLASSES = {
@@ -69,7 +70,7 @@ export function ProseBlock({ children, variant = 'document', className }: ProseB
         remarkPlugins={[remarkGfm]}
         components={{ code: CodeBlock as never, pre: Pre as never }}
       >
-        {children}
+        {sanitizeUserVisibleMarkdown(children)}
       </ReactMarkdown>
     </div>
   );

@@ -91,9 +91,11 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const { projectEventBus } = await import('@/sse/event-bus');
   projectEventBus.publish(ctx.projectId, {
     type: 'chat.message',
-    componentId,
+    scope: 'spec_component',
+    targetId: componentId,
     message: {
       id: msgRow.id,
+      sender: 'forge',
       authorId: 'forge',
       authorName: 'Forge',
       bodyMd: forgeReply,

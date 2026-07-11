@@ -91,7 +91,9 @@ export const MMA_ROUTE = [
   'review',
   'journal_record',
   'delegate',
-  'orchestrate', // orchestrator brain — used by Loops' plan + journal stages
+  'orchestrate',
+  'spec',
+  'plan',
 ] as const;
 export type MmaRoute = (typeof MMA_ROUTE)[number];
 

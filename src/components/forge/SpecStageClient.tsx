@@ -783,6 +783,10 @@ function CraftStage({
     setConstructedDrafts(drafts);
   }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
+  // Live document-level open-questions messages (scope: 'spec_project') that
+  // arrive over SSE after mount — merged with the initial server payload so
+  // collaborators see notes appear live, not only on reload.
+  const [liveProjectMessages, setLiveProjectMessages] = useState<Array<{ id: string; bodyMd: string }>>([]);
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
     const allPool = [currentMember, ...projectMembers];
@@ -861,10 +865,22 @@ function CraftStage({
   }
   useEffect(() => {
     const handler = (e: Event) => {
-      const { componentId: cid, message: msg } = (e as CustomEvent).detail as {
-        componentId: string;
-        message: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
-      };
+      const detail = (e as CustomEvent).detail as {
+        scope?: 'spec_component' | 'spec_project' | 'plan_task';
+        targetId?: string;
+        message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
+      } | undefined;
+      if (detail?.scope === 'spec_project' && detail.targetId === projectId && detail.message && typeof detail.message.bodyMd === 'string') {
+        const pm = detail.message;
+        if (!seenMsgIds.current.has(pm.id)) {
+          seenMsgIds.current.add(pm.id);
+          setLiveProjectMessages((prev) => prev.some((m) => m.id === pm.id) ? prev : [...prev, { id: pm.id, bodyMd: pm.bodyMd }]);
+        }
+        return;
+      }
+      if (detail?.scope !== 'spec_component' || !detail.targetId || !detail.message) return;
+      const cid = detail.targetId;
+      const msg = detail.message;
       // Skip own messages — sender already has them from optimistic append.
       // This eliminates the race between SSE echo and POST response.
       if (msg.authorId === currentMember.id) return;
@@ -1145,8 +1161,26 @@ function CraftStage({
     onConsolidate();
   }
 
+  const initialProject = initialMessages[projectId] ?? [];
+  const projectMessages: Array<{ id: string; bodyMd: string }> = [
+    ...initialProject.map((m) => ({ id: m.id, bodyMd: m.bodyMd })),
+    ...liveProjectMessages.filter((lm) => !initialProject.some((im) => im.id === lm.id)),
+  ];
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+      {projectMessages.length > 0 ? (
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Open Questions</CardTitle>
+          </CardHeader>
+          <div className="space-y-3 px-5 pb-5">
+            {projectMessages.map((msg) => (
+              <ProseBlock key={msg.id} variant="chat">{msg.bodyMd}</ProseBlock>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       {/* LEFT — the conversation that crafts the active component (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>

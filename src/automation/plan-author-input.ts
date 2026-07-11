@@ -11,7 +11,7 @@ export async function buildPlanAuthoringRequest(input: {
   repos: RepoInput[];
   specMd: string;
   outputPath: string;
-}): Promise<{ target: { inline: string }; outputPath: string }> {
+}): Promise<{ prompt: string; target: { inline: string }; outputPath: string }> {
   if (input.repos.length === 0) {
     throw new Error('Plan authoring requires at least one linked repository.');
   }
@@ -41,7 +41,12 @@ export async function buildPlanAuthoringRequest(input: {
     lines.push(`- ${repo.name} (${normalized})`);
   }
 
+  // mma-plan (>=5.8.7) requires a non-empty `prompt` (the feature title) under a
+  // strict schema. Derive it from the spec's H1 title, falling back to a generic.
+  const specTitle = input.specMd.match(/^#\s+(.+)$/m)?.[1]?.trim();
+
   return {
+    prompt: specTitle || 'Implementation plan',
     target: {
       inline: `${input.specMd}\n\n# Linked repositories\n\n${lines.join('\n')}\n\n# Output path\n\n${input.outputPath}`,
     },

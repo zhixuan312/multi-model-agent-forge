@@ -456,27 +456,33 @@ export class MmaClient {
 
   async spec(
     cwd: string,
-    input: { target: MmaAuthoringTarget; outputPath: string; contextBlockIds?: string[] },
+    input: { prompt: string; target: MmaAuthoringTarget; outputPath: string; components?: string[]; contextBlockIds?: string[] },
   ): Promise<{ batchId: string }> {
     assertAuthoringTarget('spec', input.target);
+    if (!input.prompt.trim()) throw new Error('spec.prompt must be a non-empty string');
     if (!input.outputPath.trim()) throw new Error('spec.outputPath must be a non-empty string');
     const body: Record<string, unknown> = {
       type: 'spec',
+      prompt: input.prompt,
       target: input.target,
       outputPath: input.outputPath,
     };
+    // Subset support (mma-spec >=5.8.7): omit to draft all 8 components.
+    if (input.components?.length) body.components = input.components;
     if (input.contextBlockIds?.length) body.contextBlockIds = input.contextBlockIds;
     return this.dispatch('spec', { cwd, body });
   }
 
   async plan(
     cwd: string,
-    input: { target: MmaAuthoringTarget; outputPath: string; contextBlockIds?: string[] },
+    input: { prompt: string; target: MmaAuthoringTarget; outputPath: string; contextBlockIds?: string[] },
   ): Promise<{ batchId: string }> {
     assertAuthoringTarget('plan', input.target);
+    if (!input.prompt.trim()) throw new Error('plan.prompt must be a non-empty string');
     if (!input.outputPath.trim()) throw new Error('plan.outputPath must be a non-empty string');
     const body: Record<string, unknown> = {
       type: 'plan',
+      prompt: input.prompt,
       target: input.target,
       outputPath: input.outputPath,
     };

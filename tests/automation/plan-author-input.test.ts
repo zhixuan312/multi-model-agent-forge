@@ -55,6 +55,7 @@ describe('buildPlanAuthoringRequest', () => {
     });
 
     expect(result).toEqual({
+      prompt: 'Locked Specification',
       target: {
         inline: `# Locked Specification\n\n## Context\n\n...\n\n# Linked repositories\n\n- forge (${normalizedRepoDir})\n\n# Output path\n\n/tmp/plan.md`,
       },

@@ -40,7 +40,11 @@ describe('buildSpecAuthoringRequest', () => {
     if (!('error' in result)) {
       expect(result.target.inline).toContain('# Captured intent');
       expect(result.target.inline).toContain('# Exploration summary');
-      expect(result.target.inline).toContain('- Context');
+      // Selected components are now the structured `components` field (mma-spec
+      // subset), not prose in the inline body.
+      expect(result.target.inline).not.toContain('# Selected components');
+      expect(result.components).toContain('Context');
+      expect(result.prompt.length).toBeGreaterThan(0);
       expect(result.outputPath).toBe('/tmp/spec.md');
     }
   });

@@ -339,8 +339,10 @@ describe('MmaClient.spec', () => {
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
 
     const res = await client.spec('/work/spec', {
+      prompt: 'Draft the spec',
       target: { inline: '# Captured intent\n\nBuild the draft.\n\n# Exploration summary\n\nSummary.' },
       outputPath: '/work/spec/.mma/projects/proj-1/spec.md',
+      components: ['Context', 'Problem'],
     });
 
     expect(res.batchId).toBe('spec-1');
@@ -348,9 +350,24 @@ describe('MmaClient.spec', () => {
     expect(c.url).toBe('http://127.0.0.1:7337/task?cwd=%2Fwork%2Fspec');
     expect(JSON.parse(String(c.init?.body))).toEqual({
       type: 'spec',
+      prompt: 'Draft the spec',
       target: { inline: '# Captured intent\n\nBuild the draft.\n\n# Exploration summary\n\nSummary.' },
       outputPath: '/work/spec/.mma/projects/proj-1/spec.md',
+      components: ['Context', 'Problem'],
     });
+  });
+
+  it('omits components when drafting the full spec', async () => {
+    const { fn, calls } = stubFetch(() =>
+      new Response(JSON.stringify({ taskId: 'spec-full', statusUrl: '/task/spec-full' }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    await client.spec('/w', { prompt: 'Full spec', target: { inline: 'draft' }, outputPath: '/w/spec.md' });
+    const body = JSON.parse(String(calls[0]!.init?.body));
+    expect('components' in body).toBe(false);
   });
 
   it('rejects a malformed 202 response without a string taskId', async () => {
@@ -363,6 +380,7 @@ describe('MmaClient.spec', () => {
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
 
     await expect(client.spec('/w', {
+      prompt: 'x',
       target: { inline: 'draft me' },
       outputPath: '/w/spec.md',
     })).rejects.toThrow(/spec.*taskId/i);
@@ -380,6 +398,7 @@ describe('MmaClient.plan', () => {
     const client = new MmaClient(baseCfg, { fetchImpl: fn });
 
     const res = await client.plan('/work/plan', {
+      prompt: 'Author the plan',
       target: { inline: '# Locked Specification\n\n## Context\n\n...' },
       outputPath: '/work/plan/.mma/projects/proj-1/plan.md',
     });
@@ -387,6 +406,7 @@ describe('MmaClient.plan', () => {
     expect(res.batchId).toBe('plan-1');
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
       type: 'plan',
+      prompt: 'Author the plan',
       target: { inline: '# Locked Specification\n\n## Context\n\n...' },
       outputPath: '/work/plan/.mma/projects/proj-1/plan.md',
     });
@@ -396,6 +416,7 @@ describe('MmaClient.plan', () => {
     const client = new MmaClient(baseCfg, { fetchImpl: stubFetch(() => new Response()).fn });
 
     await expect(client.plan('/w', {
+      prompt: 'x',
       target: { inline: '', paths: ['/tmp/spec.md'] } as unknown as { inline: string } | { paths: string[] },
       outputPath: '/w/plan.md',
     })).rejects.toThrow(/exactly one target/i);

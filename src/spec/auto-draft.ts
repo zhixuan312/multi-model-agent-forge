@@ -7,8 +7,12 @@ import { templateForKind } from '@/spec/components';
 import { readExplorationSummary } from '@/projects/project-files';
 
 export interface SpecAuthoringRequest {
+  prompt: string;
   target: { inline: string };
   outputPath: string;
+  /** Canonical component labels to emit — mma-spec (>=5.8.7) drafts only these
+   * (the subset). Empty is never sent; omitting the field would default to all 8. */
+  components: string[];
 }
 
 export async function buildSpecAuthoringRequest(
@@ -16,7 +20,7 @@ export async function buildSpecAuthoringRequest(
 ): Promise<SpecAuthoringRequest | { error: string }> {
   const db = deps.db ?? getDb();
   const [projRow] = await db
-    .select({ details: project.details, intentMd: project.intentMd })
+    .select({ name: project.name, details: project.details, intentMd: project.intentMd })
     .from(project)
     .where(eq(project.id, deps.projectId))
     .limit(1);
@@ -50,17 +54,20 @@ export async function buildSpecAuthoringRequest(
     '',
     explorationMd || '_No exploration summary was found._',
     '',
-    '# Selected components',
-    '',
-    ...selectedLabels.map((label) => `- ${label}`),
-    '',
     '# Output path',
     '',
     deps.outputPath,
   ].join('\n');
 
+  // The selected component labels are passed as the structured `components` field
+  // (mma-spec >=5.8.7 subset support), NOT as prose — the engine injects the
+  // canonical `## Requested Spec Components` block from it. Labels are the 8
+  // canonical SPEC_COMPONENTS values (templateForKind(kind).label), so the
+  // engine's `z.enum(SPEC_COMPONENTS)` accepts them.
   return {
+    prompt: projRow?.name?.trim() || 'Project specification',
     target: { inline },
     outputPath: deps.outputPath,
+    components: selectedLabels,
   };
 }

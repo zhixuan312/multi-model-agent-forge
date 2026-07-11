@@ -141,6 +141,6 @@ export function seedJournal(root = resolveWorkspaceRoot()): { dir: string; nodes
 // Run when invoked directly (tsx src/journal/seed-journal.ts).
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { dir, nodes, log } = seedJournal();
-  // eslint-disable-next-line no-console
+   
   console.log(`Seeded ${nodes} nodes + ${log} log entries → ${dir}`);
 }

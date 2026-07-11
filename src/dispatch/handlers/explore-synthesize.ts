@@ -33,7 +33,7 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
   }
   const request = ctx.request as { actorId: string };
 
-  let failureMarkers: string[] = [];
+  const failureMarkers: string[] = [];
   const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
   if (pRow?.details) {
     const d = validateDetails(pRow.details);

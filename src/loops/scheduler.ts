@@ -72,7 +72,7 @@ export function startLoopWorker(intervalMs = 60_000): () => void {
     try {
       await tickScheduler();
     } catch (e) {
-      // eslint-disable-next-line no-console
+       
       console.error('[loops] scheduler tick failed:', (e as Error)?.message);
     } finally {
       running = false;

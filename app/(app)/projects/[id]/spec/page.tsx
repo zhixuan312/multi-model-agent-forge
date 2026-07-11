@@ -48,7 +48,7 @@ export default async function SpecStagePage({
   type SpecPhase = typeof validSpecPhases[number];
   const { getLastPhase } = await import('@/projects/phase-tracker');
   const lastPhase = await getLastPhase(db, id, 'spec') as SpecPhase | null;
-  const initialPhase: SpecPhase | undefined = validSpecPhases.includes(phaseParam as any)
+  const initialPhase: SpecPhase | undefined = phaseParam != null && (validSpecPhases as readonly string[]).includes(phaseParam)
     ? (phaseParam as SpecPhase)
     : lastPhase ?? undefined;
   const [proj] = await db

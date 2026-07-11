@@ -328,7 +328,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               <CardHeader>
                 <CardTitle>Brain-dump</CardTitle>
                 {hasAnalyzed ? (
-                  <ViewToggle active="input" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
+                  <ViewToggle active="input" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
                 ) : (
                   <Micro className="!text-ink-faint">Text · voice · files</Micro>
                 )}
@@ -351,7 +351,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Exploration tasks</CardTitle>
-                <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
+                <ViewToggle active="tasks" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center !py-5">
                 <Loader2 className="size-5 animate-spin text-accent" />
@@ -370,7 +370,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               canRun={drafts.length > 0 && !proposing && !locked}
               disabled={proposing || locked}
               headerAction={
-                <ViewToggle active="tasks" onSwitch={setBriefView} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
+                <ViewToggle active="tasks" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               }
             />
           )}
@@ -482,7 +482,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   );
 }
 
-function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSwitch: (v: any) => void; labels: string[]; values: string[] }) {
+function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSwitch: (v: string) => void; labels: string[]; values: string[] }) {
   return (
     <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
       {values.map((v, i) => (

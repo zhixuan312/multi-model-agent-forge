@@ -40,6 +40,8 @@ export interface ExportConfig {
   pdfMaxQueue: number;
   puppeteerExecutablePath: string | null;
   pdfNoSandbox: boolean;
+  /** Absolute path to the standalone PDF worker script (spawned as a subprocess). */
+  pdfWorkerPath: string;
 }
 
 /** Resolve the export root to an absolute path (default `<cwd>/.forge-exports`). */
@@ -65,6 +67,10 @@ export function loadExportConfig(env: ExportEnv = process.env): ExportConfig {
     env.PUPPETEER_EXECUTABLE_PATH?.trim() ? env.PUPPETEER_EXECUTABLE_PATH.trim() : null;
   const pdfNoSandbox =
     env.FORGE_PDF_NO_SANDBOX === undefined ? true : boolEnv.parse(env.FORGE_PDF_NO_SANDBOX);
+  const pdfWorkerRaw = env.FORGE_PDF_WORKER_PATH?.trim();
+  const pdfWorkerPath = pdfWorkerRaw
+    ? (isAbsolute(pdfWorkerRaw) ? pdfWorkerRaw : resolve(process.cwd(), pdfWorkerRaw))
+    : join(process.cwd(), 'scripts', 'pdf-worker.mjs');
 
   return {
     exportRoot,
@@ -73,5 +79,6 @@ export function loadExportConfig(env: ExportEnv = process.env): ExportConfig {
     pdfMaxQueue,
     puppeteerExecutablePath,
     pdfNoSandbox,
+    pdfWorkerPath,
   };
 }

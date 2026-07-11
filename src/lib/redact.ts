@@ -21,10 +21,10 @@ const GENERIC = 'Something went wrong.';
 const TOKEN_RE = /[a-f0-9]{20,}|secret|password|api[_-]?key|token|bearer/gi;
 
 /** ANSI escape sequences (e.g. color codes) — dropped whole. */
-// eslint-disable-next-line no-control-regex
+ 
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 /** Any remaining control characters. */
-// eslint-disable-next-line no-control-regex
+ 
 const CONTROL_RE = /[\x00-\x1f\x7f]/g;
 
 export function redactMessage(input: unknown): string {

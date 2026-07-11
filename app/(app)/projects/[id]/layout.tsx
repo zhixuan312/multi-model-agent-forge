@@ -69,7 +69,7 @@ export default async function ProjectLayout({
           projectName={project.name}
           phase={project.phase}
           eventCount={(() => {
-            try { return ((project.details as any)?.events?.length as number) ?? 0; } catch { return 0; }
+            try { return ((project.details as { events?: unknown[] })?.events?.length) ?? 0; } catch { return 0; }
           })()}
         />
       </ShellHeader>
@@ -96,13 +96,13 @@ export default async function ProjectLayout({
           automationStartedAt={(() => {
             if (!project.details) return undefined;
             try {
-              const d = (project.details as any);
+              const d = project.details as { automation?: { startedAt?: string } };
               return d?.automation?.startedAt ?? undefined;
             } catch { return undefined; }
           })()}
           events={(() => {
             if (!project.details) return undefined;
-            try { return (project.details as any)?.events ?? []; } catch { return []; }
+            try { return (project.details as { events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }> })?.events ?? []; } catch { return []; }
           })()}
         >
           {children}

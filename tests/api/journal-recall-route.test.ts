@@ -5,7 +5,7 @@ import type { AuthedMember } from '@/auth/auth-provider';
 // AC-6: the recall route writes the original query to ops_action_log.target — the
 // invariant the auto-derived FAQ aggregation depends on.
 
-let mockCaller: AuthedMember | null = { id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' };
+const mockCaller: AuthedMember | null = { id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 'team-1' };
 vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockCaller, currentSession: async () => null }));
 vi.mock('@/mma/server-client', () => ({ buildMmaClient: async () => ({ dispatch: async () => ({ batchId: 'b-1' }) }) }));
 vi.mock('@/dispatch/dispatch-helpers', () => ({

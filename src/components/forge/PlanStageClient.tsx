@@ -500,6 +500,41 @@ function DetailStage({
     return () => window.removeEventListener('plan:updated', onPlanUpdated);
   }, []);
 
+  // These hooks MUST run unconditionally, before the early returns below, or
+  // hook order changes between renders (rules of hooks). None of them depend on
+  // `active` or anything computed after the returns.
+  const forgeMentionPool = useMemo(() => {
+    const forge = { id: 'forge', displayName: 'Forge', avatarTint: '#8B6914' };
+    return [forge, ...projectMembers];
+  }, [projectMembers]);
+
+  const seenMsgIds = useRef(new Set(
+    Object.values(initialMessages).flatMap((msgs) => msgs.map((m) => m.id)),
+  ));
+
+  useEffect(() => {
+    function onChatMessage(e: Event) {
+      const detail = (e as CustomEvent).detail as {
+        scope?: 'spec_component' | 'spec_project' | 'plan_task';
+        targetId?: string;
+        message?: { id: string; sender: string; authorId: string; bodyMd: string };
+      } | undefined;
+      if (detail?.scope !== 'plan_task' || !detail.targetId || !detail.message) return;
+      if (detail.message.authorId === currentMember?.id) return;
+      if (seenMsgIds.current.has(detail.message.id)) return;
+      seenMsgIds.current.add(detail.message.id);
+      setThreads((th) => ({
+        ...th,
+        [detail.targetId!]: [
+          ...(th[detail.targetId!] ?? []),
+          { id: detail.message!.id, role: detail.message!.sender === 'forge' ? 'forge' as const : 'user' as const, text: detail.message!.bodyMd },
+        ],
+      }));
+    }
+    window.addEventListener('chat:message', onChatMessage);
+    return () => window.removeEventListener('chat:message', onChatMessage);
+  }, [currentMember?.id]);
+
   if (authoring && allTasks.length === 0) {
     return (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
@@ -565,38 +600,6 @@ function DetailStage({
   }
   const approved = status[active?.id ?? ''] === 'approved';
   const msgs = threads[active?.id ?? ''] ?? [];
-
-  const forgeMentionPool = useMemo(() => {
-    const forge = { id: 'forge', displayName: 'Forge', avatarTint: '#8B6914' };
-    return [forge, ...projectMembers];
-  }, [projectMembers]);
-
-  const seenMsgIds = useRef(new Set(
-    Object.values(initialMessages).flatMap((msgs) => msgs.map((m) => m.id)),
-  ));
-
-  useEffect(() => {
-    function onChatMessage(e: Event) {
-      const detail = (e as CustomEvent).detail as {
-        scope?: 'spec_component' | 'spec_project' | 'plan_task';
-        targetId?: string;
-        message?: { id: string; sender: string; authorId: string; bodyMd: string };
-      } | undefined;
-      if (detail?.scope !== 'plan_task' || !detail.targetId || !detail.message) return;
-      if (detail.message.authorId === currentMember?.id) return;
-      if (seenMsgIds.current.has(detail.message.id)) return;
-      seenMsgIds.current.add(detail.message.id);
-      setThreads((th) => ({
-        ...th,
-        [detail.targetId!]: [
-          ...(th[detail.targetId!] ?? []),
-          { id: detail.message!.id, role: detail.message!.sender === 'forge' ? 'forge' as const : 'user' as const, text: detail.message!.bodyMd },
-        ],
-      }));
-    }
-    window.addEventListener('chat:message', onChatMessage);
-    return () => window.removeEventListener('chat:message', onChatMessage);
-  }, [currentMember?.id]);
 
   function send() {
     const text = input.trim();

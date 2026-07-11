@@ -12,7 +12,14 @@ export async function spawnPdfRender(
   opts: { mermaidAsDiagram?: boolean } = {},
 ): Promise<Buffer> {
   const cfg = loadExportConfig();
-  const workerPath = join(process.cwd(), 'scripts', 'pdf-worker.mjs');
+  // The worker path comes from the runtime config object (resolved in
+  // export/config.ts), never a literal join here. Turbopack statically analyzes
+  // `child_process.spawn` arguments; a path built from literal segments at this
+  // call site (`join(cwd, 'scripts', 'pdf-worker.mjs')`) is mistaken for a
+  // bundled module and fails the build — this is a standalone Node script
+  // spawned as a subprocess, never imported. A cross-module runtime value is
+  // opaque to that analysis, so the bundler leaves it alone.
+  const workerPath = cfg.pdfWorkerPath;
 
   let mermaidBundlePath: string | undefined;
   if (opts.mermaidAsDiagram) {

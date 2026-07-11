@@ -221,7 +221,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
 
     case 'advance_phase': {
       const toPhase = action.phase;
-      await advancePhase(db, projectId, action.stage as any, toPhase);
+      await advancePhase(db, projectId, action.stage as StageKind, toPhase);
       break;
     }
 

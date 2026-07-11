@@ -90,7 +90,7 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
   const comps = d.stages.spec.phases.craft.components;
   if (comps.length === 0) return [];
 
-  let fileComponentContent: Map<string, string> = new Map();
+  const fileComponentContent: Map<string, string> = new Map();
   let specFileExists = false;
   const specFile = await readSpecFile(projectId);
   if (specFile) {

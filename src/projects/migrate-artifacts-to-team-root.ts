@@ -125,16 +125,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .then((reports) => {
       for (const r of reports) {
         const extra = r.conflicts?.length ? ` conflicts=[${r.conflicts.join(', ')}]` : '';
-        // eslint-disable-next-line no-console
+         
         console.log(`${r.result.padEnd(18)} ${r.projectId}  ${r.from} -> ${r.to}${extra}`);
       }
       const moved = reports.filter((r) => r.result === 'moved' || r.result === 'merged').length;
-      // eslint-disable-next-line no-console
+       
       console.log(`\n${dryRun ? '[dry-run] ' : ''}${reports.length} project(s), ${moved} relocated.`);
       process.exit(0);
     })
     .catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(err);
       process.exit(1);
     });

@@ -109,7 +109,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   type ExecPhase = typeof validPhases[number];
   const { inferExecutePhase } = await import('@/build/execute-types');
   const derivedPhase = inferExecutePhase(groups);
-  const initialPhase: ExecPhase | undefined = validPhases.includes(urlPhase as any)
+  const initialPhase: ExecPhase | undefined = urlPhase != null && (validPhases as readonly string[]).includes(urlPhase)
     ? (urlPhase as ExecPhase)
     : derivedPhase;
 
@@ -117,7 +117,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     <ExecuteStageClient
       projectId={id}
       projectName={proj.name}
-      phase={proj.phase as any}
+      phase={proj.phase}
       repoGroups={groups}
       buildPrs={Object.fromEntries(
         (await db.select({ repoId: buildPr.repoId, url: buildPr.url, branch: buildPr.branch, targetBranch: buildPr.targetBranch })

@@ -21,7 +21,7 @@ const USAGE = { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens:
 function sdkReturning(out: unknown, stop = 'end_turn'): AnthropicLike {
   return {
     messages: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       async parse() {
         return { parsed_output: out, stop_reason: stop, usage: USAGE };
       },

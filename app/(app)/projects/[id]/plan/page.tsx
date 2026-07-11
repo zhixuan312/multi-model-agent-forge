@@ -32,7 +32,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
   type PlanPhase = typeof validPlanPhases[number];
   const { getLastPhase } = await import('@/projects/phase-tracker');
   const lastPhase = await getLastPhase(db, id, 'plan') as PlanPhase | null;
-  const initialPhase: PlanPhase | undefined = validPlanPhases.includes(phaseParam as any)
+  const initialPhase: PlanPhase | undefined = phaseParam != null && (validPlanPhases as readonly string[]).includes(phaseParam)
     ? (phaseParam as PlanPhase)
     : lastPhase ?? undefined;
   const [proj] = await db

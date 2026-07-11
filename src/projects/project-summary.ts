@@ -51,7 +51,7 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
   const savedUsd = doneBatches.reduce((sum, b) => sum + Number(b.savedVsMainUsd ?? 0), 0);
 
   let stages: StageTiming[] = [];
-  let auditPasses: Array<{ scope: string; passNo: number; status: string }> = [];
+  const auditPasses: Array<{ scope: string; passNo: number; status: string }> = [];
   let tasks: Array<{ status: string }> = [];
   let learnings: Array<{ type: string; status: string }> = [];
   let events: ProjectEvent[] = [];

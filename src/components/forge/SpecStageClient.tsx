@@ -855,15 +855,19 @@ function CraftStage({
   // Real-time chat: listen for chat.message SSE events and append to discussion
   // Seed from initial messages AND from current collab state (covers re-renders)
   const seenMsgIds = useRef(new Set<string>());
-  if (seenMsgIds.current.size === 0) {
+  useEffect(() => {
+    // Seed the dedup set on (re)mount from the initial payload + seeded collab,
+    // INSIDE the effect — never mutate a ref during render (that both races with
+    // SSE events arriving before mount and, on remount, carries a stale set that
+    // would silently drop re-delivered messages). Clearing first gives every
+    // mount a correct baseline.
+    seenMsgIds.current.clear();
     for (const msgs of Object.values(initialMessages)) {
       for (const m of msgs) seenMsgIds.current.add(m.id);
     }
     for (const u of Object.values(collab)) {
       for (const d of u.discussion) seenMsgIds.current.add(d.id);
     }
-  }
-  useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
         scope?: 'spec_component' | 'spec_project' | 'plan_task';
@@ -951,6 +955,28 @@ function CraftStage({
     );
   }
 
+  // Spec/Discussion toggle — these hooks MUST run unconditionally, before the
+  // `if (!active)` early return below, or hook order changes between renders
+  // (rules of hooks). Their inputs are computed defensively for the null case.
+  const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
+  const setCraftView = useCallback((v: 'spec' | 'conversation') => {
+    setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
+  }, []);
+  const craftView: 'spec' | 'conversation' = (() => {
+    if (!active) return 'conversation';
+    const draftedNow = active.status === 'drafted' || active.status === 'approved';
+    const showing = constructedDrafts[active.id] ?? null;
+    const hasQ = draftedNow && !active.aiSatisfied;
+    return craftViewOverride[active.id] ?? (hasQ ? 'conversation' : showing ? 'spec' : 'conversation');
+  })();
+  useEffect(() => {
+    if (craftView === 'conversation') {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    } else {
+      contentRef.current?.scrollTo?.(0, 0);
+    }
+  }, [activeId, collab, craftView]);
+
   if (!active) {
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
   }
@@ -959,21 +985,9 @@ function CraftStage({
   const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const showingDraft = constructedDrafts[active.id] ?? null;
-
-  // Spec/Discussion toggle: default to spec view when drafted, discussion when needs input
-  const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
   const hasQuestions = drafted && !active.aiSatisfied;
-  const craftView = craftViewOverride[active.id] ?? (hasQuestions ? 'conversation' : showingDraft ? 'spec' : 'conversation');
-  const setCraftView = useCallback((v: 'spec' | 'conversation') => {
-    setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
-  }, []);
-  useEffect(() => {
-    if (craftView === 'conversation') {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    } else {
-      contentRef.current?.scrollTo?.(0, 0);
-    }
-  }, [activeId, collab, craftView]);
+  // craftView + setCraftView are computed above the early return (hooks must run
+  // unconditionally); showingDraft/hasQuestions here are plain derived values.
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
   const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };

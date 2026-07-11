@@ -28,12 +28,12 @@ export async function runMigrations(databaseUrl?: string): Promise<void> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMigrations()
     .then(() => {
-      // eslint-disable-next-line no-console
+       
       console.log('Migrations applied.');
       process.exit(0);
     })
     .catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.error('Migration failed:', err);
       process.exit(1);
     });

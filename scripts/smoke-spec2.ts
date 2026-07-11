@@ -33,7 +33,7 @@ let failures = 0;
 function report(name: string, ok: boolean, detail: string) {
   const tag = ok ? 'PASS' : 'FAIL';
   if (!ok) failures += 1;
-  // eslint-disable-next-line no-console
+   
   console.log(`[${tag}] ${name} — ${detail}`);
 }
 
@@ -106,13 +106,13 @@ async function main(): Promise<void> {
     report('audit dispatch/poll', false, (e as Error).message);
   }
 
-  // eslint-disable-next-line no-console
+   
   console.log(failures === 0 ? '\nSMOKE PASS' : `\nSMOKE FAIL (${failures} step(s) failed)`);
   process.exit(failures === 0 ? 0 : 1);
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
+   
   console.error('SMOKE FAIL (uncaught):', (e as Error).message);
   process.exit(1);
 });

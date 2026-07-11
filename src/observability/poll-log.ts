@@ -39,13 +39,13 @@ export type PollLogSink = (record: PollLogRecord) => void;
 let sink: PollLogSink = (record) => {
   const line = JSON.stringify(record);
   if (record.level === 'error') {
-    // eslint-disable-next-line no-console
+     
     console.error(line);
   } else if (record.level === 'warn') {
-    // eslint-disable-next-line no-console
+     
     console.warn(line);
   } else {
-    // eslint-disable-next-line no-console
+     
     console.log(line);
   }
 };

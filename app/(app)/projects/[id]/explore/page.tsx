@@ -68,7 +68,7 @@ export default async function ExploreStagePage({
   const lastPhase = await getLastPhase(db, id, 'exploration') as 'brief' | 'discover' | 'synthesize' | null;
   const validPhases = ['brief', 'discover', 'synthesize'] as const;
   const dbFurthestIdx = lastPhase ? validPhases.indexOf(lastPhase) : 0;
-  const urlPhaseIdx = phaseParam && validPhases.includes(phaseParam as any)
+  const urlPhaseIdx = phaseParam && (validPhases as readonly string[]).includes(phaseParam)
     ? validPhases.indexOf(phaseParam as typeof validPhases[number])
     : -1;
   const initialPhase = urlPhaseIdx >= 0 && urlPhaseIdx <= dbFurthestIdx

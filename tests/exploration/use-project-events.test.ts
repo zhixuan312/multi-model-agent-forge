@@ -40,14 +40,18 @@ describe('useProjectEvents cache patching (F8)', () => {
     expect(tasks.find((t) => t.id === 't2')!.headline).toBeNull();
   });
 
-  it('task.done flips the task to recorded/done', () => {
+  it('task.done flips the task to recorded/done AND invalidates the task list so outputMd loads', () => {
     const qc = new QueryClient();
     seedTasks(qc, 'p1', [baseTask('t1')]);
+    const spy = vi.spyOn(qc, 'invalidateQueries');
     applyProjectEvent(qc, 'p1', { type: 'task.done', taskId: 't1', mmaBatchId: 'b', route: 'investigate', status: 'recorded' });
     expect(qc.getQueryData<RailTask[]>(explorationKeys.tasks('p1'))![0]).toMatchObject({
       status: 'recorded',
       batchStatus: 'done',
     });
+    // The event has no findings — refetch so the joined outputMd loads per task,
+    // not only when the whole phase completes.
+    expect(spy).toHaveBeenCalledWith({ queryKey: explorationKeys.tasks('p1') });
   });
 
   it('task.failed records the error and failed batch status', () => {

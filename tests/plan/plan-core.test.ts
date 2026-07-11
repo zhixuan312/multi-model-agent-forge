@@ -59,6 +59,30 @@ Do it.
     const sections = parsePlanSections(md);
     expect(sections[0].body).toContain('src/foo.ts');
   });
+
+  it('parses mma-plan headings grouped under ## track headings', () => {
+    const md = `# Plan
+
+## Track 1 — Contract
+
+### Task I-1: Extend the route surface
+
+**Files:**
+- Modify: \`src/mma/client.ts\`
+
+- [ ] **Step 1: Write the failing test**
+
+## Track 2 — Authoring
+
+### Task I-2: Swap the route
+
+Detail.
+`;
+    const sections = parsePlanSections(md);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].phase).toBe('Track 1 — Contract');
+    expect(sections[1].phase).toBe('Track 2 — Authoring');
+  });
 });
 
 describe('groupTasksIntoPhases', () => {

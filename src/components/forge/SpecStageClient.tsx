@@ -861,10 +861,14 @@ function CraftStage({
   }
   useEffect(() => {
     const handler = (e: Event) => {
-      const { componentId: cid, message: msg } = (e as CustomEvent).detail as {
-        componentId: string;
-        message: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
-      };
+      const detail = (e as CustomEvent).detail as {
+        scope?: 'spec_component' | 'spec_project' | 'plan_task';
+        targetId?: string;
+        message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
+      } | undefined;
+      if (detail?.scope !== 'spec_component' || !detail.targetId || !detail.message) return;
+      const cid = detail.targetId;
+      const msg = detail.message;
       // Skip own messages — sender already has them from optimistic append.
       // This eliminates the race between SSE echo and POST response.
       if (msg.authorId === currentMember.id) return;
@@ -1145,8 +1149,22 @@ function CraftStage({
     onConsolidate();
   }
 
+  const projectMessages = initialMessages[projectId] ?? [];
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+      {projectMessages.length > 0 ? (
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Open Questions</CardTitle>
+          </CardHeader>
+          <div className="space-y-3 px-5 pb-5">
+            {projectMessages.map((msg) => (
+              <ProseBlock key={msg.id} variant="chat">{msg.bodyMd}</ProseBlock>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       {/* LEFT — the conversation that crafts the active component (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>

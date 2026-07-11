@@ -577,15 +577,19 @@ function DetailStage({
 
   useEffect(() => {
     function onChatMessage(e: Event) {
-      const detail = (e as CustomEvent).detail as { componentId?: string; message?: { id: string; sender: string; authorId: string; bodyMd: string } } | undefined;
-      if (!detail?.componentId || !detail?.message) return;
+      const detail = (e as CustomEvent).detail as {
+        scope?: 'spec_component' | 'spec_project' | 'plan_task';
+        targetId?: string;
+        message?: { id: string; sender: string; authorId: string; bodyMd: string };
+      } | undefined;
+      if (detail?.scope !== 'plan_task' || !detail.targetId || !detail.message) return;
       if (detail.message.authorId === currentMember?.id) return;
       if (seenMsgIds.current.has(detail.message.id)) return;
       seenMsgIds.current.add(detail.message.id);
       setThreads((th) => ({
         ...th,
-        [detail.componentId!]: [
-          ...(th[detail.componentId!] ?? []),
+        [detail.targetId!]: [
+          ...(th[detail.targetId!] ?? []),
           { id: detail.message!.id, role: detail.message!.sender === 'forge' ? 'forge' as const : 'user' as const, text: detail.message!.bodyMd },
         ],
       }));

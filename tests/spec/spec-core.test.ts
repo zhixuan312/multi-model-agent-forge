@@ -5,6 +5,7 @@ import {
   loadOutline,
   loadComponentMessages,
   buildSectionRepaint,
+  loadAllMessages,
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
@@ -104,5 +105,22 @@ describe('loadOutline', () => {
     expect(outline.map((c) => c.kind)).toEqual(['context', 'problem']);
     expect(outline[0].label).toBe('Context');
     expect(outline[0].sections.map((s) => s.key)).toEqual(['background']);
+  });
+});
+
+describe('loadAllMessages', () => {
+  it('includes project-level spec questions under the project id key', async () => {
+    const FORGE_ID = '00000000-0000-0000-0000-000000000000';
+    const mockDb = createMockDb({
+      'select:project_qa_message': [
+        { id: 'msg-project', targetId: 'proj-1', bodyMd: '**Open Questions**\n\nNeed an owner.', authorId: FORGE_ID },
+        { id: 'msg-component', targetId: 'comp-1', bodyMd: 'Looks good.', authorId: FORGE_ID },
+      ],
+    });
+
+    const result = await loadAllMessages(mockDb, 'ignored', 'proj-1');
+    expect(result['proj-1']).toHaveLength(1);
+    expect(result['proj-1'][0].bodyMd).toContain('Open Questions');
+    expect(result['comp-1']).toHaveLength(1);
   });
 });

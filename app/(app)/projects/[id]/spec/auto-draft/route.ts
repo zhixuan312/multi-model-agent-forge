@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardSpecWrite } from '@/spec/handler-guard';
-import { buildAutoDraftRequest } from '@/spec/auto-draft';
+import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
+import { specFilePath } from '@/projects/project-files';
 import { getDb } from '@/db/client';
 import '@/dispatch/handler-registry';
 
@@ -16,13 +17,13 @@ export async function POST(
   if (guard instanceof NextResponse) return guard;
 
   const db = getDb();
-
   const existing = await findInflight(db, id, 'spec-auto-draft');
   if (existing) {
     return NextResponse.json({ batchId: existing, status: 'already_running' }, { status: 202 });
   }
 
-  const request = await buildAutoDraftRequest({ db, projectId: id });
+  const outputPath = await specFilePath(id, db);
+  const request = await buildSpecAuthoringRequest({ db, projectId: id, outputPath });
   if ('error' in request) {
     return NextResponse.json({ ok: false, error: request.error }, { status: 409 });
   }
@@ -32,15 +33,11 @@ export async function POST(
     db,
     mma,
     projectId: id,
-    route: 'orchestrate',
+    route: 'spec',
     handler: 'spec-auto-draft',
     cwd: await resolveProjectWorkspaceRoot(id, db),
-    body: {
-      prompt: `${request.system}\n\n${request.user}`,
-      reviewPolicy: 'none',
-    },
+    body: request,
     actorId: guard.memberId,
-    meta: { outline: request.outline },
   });
 
   return NextResponse.json({ batchId: batchRowId }, { status: 202 });

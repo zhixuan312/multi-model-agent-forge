@@ -1,122 +1,51 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { project } from '@/db/schema/projects';
-import { FullSpecDraftSchema } from '@/spec/schemas';
+import { readSpecFile } from '@/projects/project-files';
+import { parseSpecSections } from '@/spec/spec-file-ops';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
-import type { OutlineEntry } from '@/spec/auto-draft';
-import { backupArtifact, writeSpec } from '@/projects/project-files';
-import { templateForKind } from '@/spec/components';
-import type { ComponentKind } from '@/db/enums';
+import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
 
-
-function normalizeSections(data: unknown): unknown {
-  if (!data || typeof data !== 'object') return data;
-  const obj = data as Record<string, unknown>;
-  const sections = Array.isArray(obj.sections) ? obj.sections : [];
-  return {
-    sections: sections.map((s: unknown) => {
-      if (!s || typeof s !== 'object') return s;
-      const sec = s as Record<string, unknown>;
-      const draftMd = (sec.draftMd ?? sec.draft_md ?? sec.draft ?? sec.content ?? sec.body ?? sec.text ?? sec.markdown ?? '') as string;
-      const questions = Array.isArray(sec.questions)
-        ? sec.questions.map((q: unknown) => typeof q === 'string' ? q : typeof q === 'object' && q ? (q as Record<string, unknown>).question ?? (q as Record<string, unknown>).text ?? JSON.stringify(q) : String(q))
-        : [];
-      return {
-        componentKind: (sec.componentKind ?? sec.component_kind ?? '') as string,
-        sectionKey: (sec.sectionKey ?? sec.section_key ?? '') as string,
-        draftMd,
-        questions,
-      };
-    }),
-  };
+function extractNotes(envelope: unknown): string {
+  const output = (envelope as { output?: { summary?: unknown } } | null)?.output?.summary;
+  if (!output || typeof output !== 'object') return '';
+  const notes = (output as { notes?: unknown }).notes;
+  return typeof notes === 'string' ? notes.trim() : '';
 }
 
+// Preserved for future per-component AI Q&A recovery, but intentionally unused.
+async function publishDormantComponentQuestions(): Promise<void> {}
+
 async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
-  const raw = extractJsonFromEnvelope(envelope);
-  const parsed = FullSpecDraftSchema.parse(normalizeSections(JSON.parse(raw)));
-  const request = ctx.request as { outline?: OutlineEntry[] };
-  const outline = request.outline ?? [];
+  void extractJsonFromEnvelope;
 
-  const questionsByComponent = new Map<string, { questions: string[] }>();
-  const draftByKey = new Map<string, string>();
-
-  for (const drafted of parsed.sections) {
-    const match = outline.find(
-      (o) => o.componentKind === drafted.componentKind && o.sectionKey === drafted.sectionKey,
-    );
-    if (!match) continue;
-
-    draftByKey.set(`${match.componentKind}:${match.sectionKey}`, drafted.draftMd);
-
-    const existing = questionsByComponent.get(match.componentId);
-    if (existing) {
-      existing.questions.push(...drafted.questions);
-    } else {
-      questionsByComponent.set(match.componentId, { questions: [...drafted.questions] });
-    }
+  const specFile = await readSpecFile(ctx.projectId);
+  if (!specFile) {
+    throw new Error('MMA did not write spec.md. The spec task may have failed.');
+  }
+  const parsed = parseSpecSections(specFile.bodyMd);
+  if (parsed.length === 0) {
+    throw new Error('Spec file has no parseable sections.');
   }
 
-  // Build full structured markdown with ## Component → ### Section nesting
-  const compOrder = new Map<string, { kind: string; label: string; sections: { key: string; label: string; draftMd: string | null }[] }>();
-  for (const entry of outline) {
-    let comp = compOrder.get(entry.componentId);
-    if (!comp) {
-      comp = { kind: entry.componentKind, label: entry.componentLabel, sections: [] };
-      compOrder.set(entry.componentId, comp);
-    }
-    comp.sections.push({
-      key: entry.sectionKey,
-      label: entry.sectionLabel,
-      draftMd: draftByKey.get(`${entry.componentKind}:${entry.sectionKey}`) ?? null,
-    });
-  }
+  const notes = extractNotes(envelope);
+  if (notes) {
+    const bodyMd = sanitizeUserVisibleMarkdown(`**Open Questions**\n\n${notes}`);
+    const [{ maxSeq }] = await db
+      .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
+      .from(qaMessage)
+      .where(eq(qaMessage.targetId, ctx.projectId));
 
-  const components = [...compOrder.values()].map((c) => ({
-    kind: c.kind as ComponentKind,
-    label: c.label,
-    sections: c.sections,
-  }));
-
-  const out: string[] = [];
-  for (const comp of components) {
-    out.push(`## ${comp.label}`);
-    out.push('');
-    const tpl = templateForKind(comp.kind);
-    for (const sec of comp.sections) {
-      const draftHeading = tpl.sections.find((s) => s.key === sec.key)?.draftHeading ?? sec.label;
-      out.push(`### ${draftHeading}`);
-      out.push('');
-      out.push(sec.draftMd ?? '');
-      out.push('');
-    }
-  }
-  await backupArtifact(ctx.projectId, 'spec.md');
-  await writeSpec(ctx.projectId, out.join('\n'));
-
-  // Component status is derived from details.approvals — no legacy table update needed
-
-  const { projectEventBus } = await import('@/sse/event-bus');
-  for (const [compId, { questions }] of questionsByComponent) {
-    await db.delete(qaMessage).where(eq(qaMessage.targetId, compId));
-    const forgeBody = questions.length > 0
-      ? `❓ I've drafted this but would like to clarify:\n\n${questions.map((q) => `• ${q}`).join('\n\n')}`
-      : '✅ This looks complete. You can approve it, or tell me what to change.';
     const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
-    const [msgRow] = await db.insert(qaMessage).values({
-      targetId: compId,
+    await db.insert(qaMessage).values({
+      targetId: ctx.projectId,
       projectId: ctx.projectId,
-      targetKind: 'spec_component',
-      seq: 0,
+      targetKind: 'spec_project',
+      seq: (maxSeq ?? -1) + 1,
       authorId: FORGE_MEMBER_ID,
-      bodyMd: forgeBody,
-      meta: { autoDraft: true, questions },
-    }).returning({ id: qaMessage.id });
-
-    projectEventBus.publish(ctx.projectId, {
-      type: 'chat.message',
-      componentId: compId,
-      message: { id: msgRow.id, sender: 'forge', authorId: FORGE_MEMBER_ID, authorName: 'Forge', bodyMd: forgeBody },
+      bodyMd,
+      meta: { source: 'mma-spec-notes' },
     });
   }
 

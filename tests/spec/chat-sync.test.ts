@@ -129,7 +129,8 @@ describe('chat.message SSE event shape', () => {
   it('has the correct structure', () => {
     const event = {
       type: 'chat.message' as const,
-      componentId: 'comp-1',
+      scope: 'spec_component' as const,
+      targetId: 'comp-1',
       message: {
         id: 'msg-1',
         sender: 'member' as const,
@@ -140,7 +141,8 @@ describe('chat.message SSE event shape', () => {
     };
 
     expect(event.type).toBe('chat.message');
-    expect(event.componentId).toBeTruthy();
+    expect(event.scope).toBe('spec_component');
+    expect(event.targetId).toBeTruthy();
     expect(event.message.id).toBeTruthy();
     expect(event.message.sender).toMatch(/^(forge|member)$/);
     expect(event.message.authorId).toBeTruthy();
@@ -151,7 +153,8 @@ describe('chat.message SSE event shape', () => {
   it('forge message has authorId=forge', () => {
     const event = {
       type: 'chat.message' as const,
-      componentId: 'comp-1',
+      scope: 'spec_component' as const,
+      targetId: 'comp-1',
       message: {
         id: 'msg-2',
         sender: 'forge' as const,

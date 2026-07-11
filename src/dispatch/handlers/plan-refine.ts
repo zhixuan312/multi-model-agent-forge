@@ -43,9 +43,11 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   const { projectEventBus } = await import('@/sse/event-bus');
   projectEventBus.publish(ctx.projectId, {
     type: 'chat.message',
-    componentId: request.taskId,
+    scope: 'plan_task',
+    targetId: request.taskId,
     message: {
       id: msgRow.id,
+      sender: 'forge',
       authorId: FORGE_MEMBER_ID,
       authorName: 'Forge',
       bodyMd: forgeReply,

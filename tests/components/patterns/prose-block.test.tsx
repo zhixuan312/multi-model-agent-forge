@@ -1,5 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { ProseBlock } from '@/components/patterns/prose-block';
+import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
+
+describe('sanitizeUserVisibleMarkdown', () => {
+  it('normalizes newlines and escapes raw HTML tags before storage/render', () => {
+    expect(sanitizeUserVisibleMarkdown('line 1\r\n<script>alert(1)</script>\r\n')).toBe(
+      'line 1\n&lt;script&gt;alert(1)&lt;/script&gt;',
+    );
+  });
+});
 
 describe('ProseBlock', () => {
   it('renders markdown content as HTML', () => {
@@ -47,5 +56,12 @@ describe('ProseBlock', () => {
     const { container } = render(<ProseBlock>Hi</ProseBlock>);
     const wrapper = container.firstElementChild!;
     expect(wrapper.className).toContain('max-w-none');
+  });
+
+  it('renders escaped raw HTML as text, not DOM nodes', () => {
+    render(<ProseBlock variant="chat">{'hello <script>alert(1)</script>'}</ProseBlock>);
+    expect(document.querySelector('script')).toBeNull();
+    expect(screen.getByText(/hello/)).toBeInTheDocument();
+    expect(screen.getByText(/alert\(1\)/)).toBeInTheDocument();
   });
 });

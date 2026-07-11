@@ -63,7 +63,8 @@ describe('chat.message event structure validation', () => {
     // Simulate what the message endpoint publishes
     const event = {
       type: 'chat.message' as const,
-      componentId,
+      scope: 'spec_component' as const,
+      targetId: componentId,
       message: {
         id: msgId,
         sender: 'member' as const,
@@ -75,7 +76,8 @@ describe('chat.message event structure validation', () => {
 
     // Verify shape
     expect(event.type).toBe('chat.message');
-    expect(event.componentId).toBe(componentId);
+    expect(event.scope).toBe('spec_component');
+    expect(event.targetId).toBe(componentId);
     expect(event.message.id).toBe(msgId);
     expect(event.message.sender).toBe('member');
     expect(event.message.authorId).toBe(memberId);
@@ -94,7 +96,8 @@ describe('chat.message event structure validation', () => {
   it('forge response publishes correct event shape', () => {
     const event = {
       type: 'chat.message' as const,
-      componentId: 'comp-1',
+      scope: 'spec_component' as const,
+      targetId: 'comp-1',
       message: {
         id: 'forge-msg-1',
         sender: 'forge' as const,

@@ -12,7 +12,7 @@ import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
 
 // db with NO team_connection row; the main model comes from config.json,
 // injected as an unconfigured tier set (`noTiers`) below.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function dbNoSettings(): any {
   return { select: () => ({ from: () => ({ limit: async () => [] }) }) };
 }

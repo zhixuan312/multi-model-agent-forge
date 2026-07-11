@@ -30,6 +30,18 @@ const eslintConfig = defineConfig([
     files: ["tests/**/*.ts", "tests/**/*.tsx"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
+  // A leading underscore marks an intentionally-unused binding (e.g. a
+  // signature-required handler arg). This is the standard convention.
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
   // React Compiler advisory rules (eslint-plugin-react-hooks v6). This codebase
   // has not adopted the React Compiler, and these rules flag many pre-existing,
   // functionally-correct patterns across the component layer. Run them as `warn`

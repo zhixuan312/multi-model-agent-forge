@@ -10,6 +10,9 @@ import type { ComponentStatus } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
 import type { ComponentKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
+import { member } from '@/db/schema/identity';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /**
  * Spec-stage core — RSC-facing reads, lazy stage lifecycle, and intent capture.
@@ -45,6 +48,24 @@ export async function captureIntent(
   const dbi = db ?? getDb();
   const { setBriefText } = await import('@/details/write');
   await setBriefText(dbi, projectId, intentMd);
+  const [actor] = await dbi
+    .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.id, actorId))
+    .limit(1);
+  // Universal attribution: capture_intent is reachable from the auto driver (actorId=FORGE)
+  // as well as a human, so derive source from the actor. See FR-7 "Universal actor resolution".
+  await recordActivity({
+    db: dbi,
+    projectId,
+    stage: 'exploration',
+    phase: 'brief',
+    label: 'Captured project intent',
+    kind: 'done',
+    actor: { id: actorId, name: actor?.displayName ?? 'Forge', tint: actor?.avatarTint ?? '#9a6b4f' },
+    source: actorId === FORGE_MEMBER_ID ? 'mma' : 'user',
+    eventKey: `capture_intent:${projectId}`,
+  });
   await logAction(
     { projectId, memberId: actorId, action: 'capture_intent', target: `project:${projectId}` },
     dbi,

@@ -239,3 +239,26 @@ describe('getProjectRepos — reads from details', () => {
     expect(badView?.available).toBe(false);
   });
 });
+
+describe('createProject activity row', () => {
+  it('records create_project with actor display fields loaded inside the transaction', async () => {
+    const db = createMockDb({
+      'select:workspace_repo': [{ id: '11111111-1111-4111-8111-111111111111', name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'select:team_member': [{ id: 'owner-1', displayName: 'Owner', avatarTint: '#f60' }],
+      'insert:project': [{ id: 'proj-1' }],
+      'insert:project_activity': [{ id: 'activity-1' }],
+    });
+    await createProject(
+      { name: 'Demo', visibility: 'public', repoIds: ['11111111-1111-4111-8111-111111111111'] },
+      { id: 'owner-1', teamId: 'team-1' },
+      { db },
+    );
+    const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
+    expect(valuesCall?.args[0]).toMatchObject({
+      label: 'Created project',
+      actorName: 'Owner',
+      actorTint: '#f60',
+      eventKey: 'create_project:proj-1',
+    });
+  });
+});

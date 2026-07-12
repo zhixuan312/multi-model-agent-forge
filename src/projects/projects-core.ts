@@ -25,6 +25,7 @@ import {
   type ProjectPhase,
 } from '@/db/enums';
 import { logAction } from '@/observability/action-log';
+import { recordActivity } from '@/activity/project-activity';
 
 /** The acting member (id and teamId are load-bearing for the data layer). */
 export interface ProjectActor {
@@ -140,6 +141,28 @@ export async function createProject(
       .returning({ id: project.id });
 
     // All project state is in details — no legacy table inserts needed
+
+    const [actorRow] = await tx
+      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+      .from(member)
+      .where(eq(member.id, actor.id))
+      .limit(1);
+
+    await recordActivity({
+      db: tx as unknown as Db,
+      projectId: row.id,
+      stage: 'exploration',
+      phase: 'brief',
+      label: 'Created project',
+      kind: 'done',
+      actor: {
+        id: actor.id,
+        name: actorRow?.displayName ?? 'Unknown',
+        tint: actorRow?.avatarTint ?? '#9a6b4f',
+      },
+      source: 'user',
+      eventKey: `create_project:${row.id}`,
+    });
 
     await logAction(
       {

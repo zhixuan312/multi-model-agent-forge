@@ -1,20 +1,25 @@
 // @vitest-environment node
 import { vi } from 'vitest';
-import { buildInitialDetails } from '@/details/schema';
-import { createMockDb } from '../test-utils/mock-db';
 
 // R4: dispatchTasks fans out discover tasks through the CENTRALIZED dispatchMma
 // path (async, handler:null + taskId). We mock dispatchMma to assert the contract
 // dispatchTasks hands it, plus the task-link flip it does on success.
 
-const dispatchMma = vi.fn(async (_opts: Record<string, unknown>) => ({ batchRowId: 'row-1', batchId: 'ext-1' }));
-vi.mock('@/dispatch/dispatch-helpers', () => ({ dispatchMma }));
+const { dispatchMma, updateDetails, recordActivity } = vi.hoisted(() => ({
+  dispatchMma: vi.fn(async (_opts: Record<string, unknown>) => ({ batchRowId: 'row-1', batchId: 'ext-1' })),
+  updateDetails: vi.fn(async (_db: unknown, _pid: string, fn: (d: unknown) => unknown) => fn),
+  recordActivity: vi.fn(async () => {}),
+}));
 
-const updateDetails = vi.fn(async (_db: unknown, _pid: string, fn: (d: unknown) => unknown) => fn);
+vi.mock('@/dispatch/dispatch-helpers', () => ({ dispatchMma }));
 vi.mock('@/details/write', () => ({ updateDetails }));
+vi.mock('@/activity/project-activity', () => ({ recordActivity }));
 vi.mock('@/observability/action-log', () => ({ logAction: vi.fn(async () => {}) }));
 vi.mock('@/observability/poll-log', () => ({ logPoll: vi.fn() }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
+
+import { buildInitialDetails } from '@/details/schema';
+import { createMockDb } from '../test-utils/mock-db';
 
 const { dispatchTasks } = await import('@/exploration/dispatch');
 
@@ -32,6 +37,24 @@ const okStat = async () => {};
 beforeEach(() => { dispatchMma.mockClear(); updateDetails.mockClear(); dispatchMma.mockResolvedValue({ batchRowId: 'row-1', batchId: 'ext-1' }); });
 
 describe('dispatchTasks — centralized fan-out (R4)', () => {
+  it('writes a discover roll-up row at dispatch time', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.discover.tasks = [
+      { kind: 'investigate', prompt: 'Repo', repoId: 'repo-1', status: 'draft', attempts: [] },
+      { kind: 'research', prompt: 'Research', status: 'draft', attempts: [] },
+      { kind: 'journal', prompt: 'Recall', status: 'draft', attempts: [] },
+    ] as never;
+    const db = createMockDb({
+      'select:project': [{ details: d }],
+      'select:workspace_repo': [{ pathOnDisk: '/repo/path' }],
+    });
+    await dispatchTasks('proj-1', { id: 'm1' }, { db, client: {} as never, workspaceRoot: '/ws', statPath: async () => {} });
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'Analysed 3 tasks — 1 investigate · 1 research · 1 recall',
+      eventKey: expect.stringMatching(/^discover-rollup:proj-1:[0-9a-f]{16}$/),
+    }));
+  });
+
   it('dispatches each draft via dispatchMma with handler:null + taskId, then links the task', async () => {
     const d = detailsWith([
       { kind: 'investigate', prompt: 'How does auth work?', repoId: 'repo-1' },

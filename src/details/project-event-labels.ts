@@ -1,4 +1,6 @@
+import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
+import { repo } from '@/db/schema/workspace';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
@@ -53,6 +55,24 @@ export function phaseKeyForHandler(handler: string | null | undefined): string |
   if (!handler) return null;
   const m = HANDLER_EVENT[handler];
   return m ? `${m.stage}/${m.phase}` : null;
+}
+
+export async function buildDiscoverTerminalLabel(
+  db: Db,
+  batchRequest: Record<string, unknown>,
+): Promise<string> {
+  const taskKind = typeof batchRequest.taskKind === 'string' ? batchRequest.taskKind : null;
+  if (taskKind === 'research') return 'Researched';
+  if (taskKind === 'journal') return 'Recalled learnings';
+  const targetRepoId = typeof batchRequest.targetRepoId === 'string' ? batchRequest.targetRepoId : null;
+  if (!targetRepoId) return 'Investigated a repository';
+  const [row] = await db
+    .select({ name: repo.name })
+    .from(repo)
+    .where(eq(repo.id, targetRepoId))
+    .limit(1);
+  const name = row?.name?.trim();
+  return name ? `Investigated ${name}` : 'Investigated a repository';
 }
 
 /**

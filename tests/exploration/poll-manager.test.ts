@@ -1,4 +1,11 @@
 // @vitest-environment node
+import { vi } from 'vitest';
+
+const { recordActivity } = vi.hoisted(() => ({
+  recordActivity: vi.fn(async () => {}),
+}));
+vi.mock('@/activity/project-activity', () => ({ recordActivity }));
+
 import { MmaClient, type MmaClientConfig } from '@/mma/client';
 import { PollManager, backoffMs, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
@@ -218,6 +225,38 @@ describe('PollManager', () => {
     const out = await pm.pollOnce(staleBatchId);
     expect(out.kind).toBe('timeout');
     pm.shutdown();
+  });
+
+  it('records one discover-task terminal row with repo label resolution fallback', async () => {
+    const db = createMockDb({
+      'select:ops_mma_batch': [{
+        handler: null,
+        projectId: 'proj-1',
+        request: { taskKind: 'investigate', targetRepoId: null },
+        dispatchedBy: '00000000-0000-0000-0000-000000000000',
+      }],
+      'update:ops_mma_batch': [{ id: 'row-1' }],
+    });
+    const pm = new PollManager({
+      db,
+      client: { poll: async () => ({ state: 'done', envelope: { error: null } }) } as never,
+      now: () => new Date('2026-07-10T00:00:05.000Z').getTime(),
+    });
+    pm.disableTimers();
+    pm.register({
+      batchId: 'row-1',
+      mmaBatchId: 'mma-1',
+      projectId: 'proj-1',
+      route: 'investigate',
+      taskId: 'task-1',
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+    });
+    await pm.pollOnce('row-1');
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'proj-1',
+      label: 'Investigated a repository',
+      eventKey: 'discover-task:row-1',
+    }));
   });
 
   it('emits a structured log for each terminal done (observability F7)', async () => {

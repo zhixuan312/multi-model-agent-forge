@@ -1,13 +1,17 @@
 import { stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
+import { member } from '@/db/schema/identity';
 import { MmaClient } from '@/mma/client';
 import { buildMmaClient } from '@/mma/server-client';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { updateDetails } from '@/details/write';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 import type { MmaRoute } from '@/db/enums';
@@ -32,6 +36,25 @@ const ROUTE_BY_KIND: Record<'investigate' | 'research' | 'journal', MmaRoute> = 
   research: 'research',
   journal: 'journal_recall',
 };
+
+/** Dedup-safe roll-up key: a hash of the confirmed task set (kind:prompt:repoId, sorted).
+ * Re-dispatching the SAME set collapses to one row; a DIFFERENT set is a distinct row.
+ */
+function discoverTaskSetHash(tasks: Array<{ kind: string; prompt: string; repoId?: string | null }>): string {
+  return createHash('sha256')
+    .update([...tasks].map((t) => `${t.kind}:${t.prompt}:${t.repoId ?? ''}`).sort().join('\n'))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function rollupLabel(tasks: Array<{ kind: 'investigate' | 'research' | 'journal' }>): string {
+  const counts = {
+    investigate: tasks.filter((t) => t.kind === 'investigate').length,
+    research: tasks.filter((t) => t.kind === 'research').length,
+    journal: tasks.filter((t) => t.kind === 'journal').length,
+  };
+  return `Analysed ${tasks.length} tasks — ${counts.investigate} investigate · ${counts.research} research · ${counts.journal} recall`;
+}
 
 export type TaskDispatchOutcome =
   | { taskId: string; ok: true; batchId: string }
@@ -114,6 +137,27 @@ export async function dispatchTasks(
     .filter((t) => allTasks[t.index].status === 'draft');
 
   const outcomes: TaskDispatchOutcome[] = [];
+
+  // before the loop — load the triggering member so the roll-up row is actor-aware, and
+  // derive source from the actor (auto driver → Forge/'mma', human → member/'user'), per FR-7.
+  if (drafts.length > 0) {
+    const [rollupActor] = await db
+      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+      .from(member)
+      .where(eq(member.id, actor.id))
+      .limit(1);
+    await recordActivity({
+      db,
+      projectId,
+      stage: 'exploration',
+      phase: 'discover',
+      label: rollupLabel(drafts),
+      kind: 'done',
+      actor: { id: actor.id, name: rollupActor?.displayName ?? 'Forge', tint: rollupActor?.avatarTint ?? '#9a6b4f' },
+      source: actor.id === FORGE_MEMBER_ID ? 'mma' : 'user',
+      eventKey: `discover-rollup:${projectId}:${discoverTaskSetHash(drafts)}`,
+    });
+  }
 
   for (const task of drafts) {
     const route = ROUTE_BY_KIND[task.kind];

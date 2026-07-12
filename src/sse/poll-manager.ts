@@ -13,7 +13,9 @@ import {
 import { logPoll } from '@/observability/poll-log';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
-import { appendBatchTerminalEvent } from '@/details/project-event-labels';
+import { appendBatchTerminalEvent, buildDiscoverTerminalLabel } from '@/details/project-event-labels';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 
 /**
@@ -322,6 +324,29 @@ export class PollManager {
     // itself have mutated details via the handler) so it's a clean, isolated
     // update. Duration = wall-clock from dispatch. Best-effort.
     await appendBatchTerminalEvent(this.db, entry.projectId, entry.handler, entry.batchId, effectiveState.status, this.now() - entry.createdAt.getTime());
+
+    // Record discover-task terminal row for taskId entries (FR-9/FR-10)
+    if (entry.taskId && entry.projectId) {
+      const [batchRow] = await this.db
+        .select({ request: mmaBatch.request })
+        .from(mmaBatch)
+        .where(eq(mmaBatch.id, entry.batchId))
+        .limit(1);
+      const label = await buildDiscoverTerminalLabel(this.db, (batchRow?.request ?? {}) as Record<string, unknown>);
+      await recordActivity({
+        db: this.db,
+        projectId: entry.projectId,
+        stage: 'exploration',
+        phase: 'discover',
+        label,
+        kind: effectiveState.status === 'failed' ? 'error' : 'done',
+        actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+        source: 'mma',
+        durationMs: this.now() - entry.createdAt.getTime(),
+        eventKey: `discover-task:${entry.batchId}`,
+      });
+    }
+
     this.emitTerminal(entry, effectiveState);
     this.deregister(entry.batchId);
   }

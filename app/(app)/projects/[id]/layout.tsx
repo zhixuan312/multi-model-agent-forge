@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { notFound, redirect } from 'next/navigation';
+import { eq, asc } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
@@ -14,6 +15,8 @@ import {
 } from '@/projects/projects-core';
 import { getStagePermissions } from '@/projects/stage-gate';
 import { getDb } from '@/db/client';
+import { projectActivity } from '@/db/schema/activity';
+import { mapActivityRowToEvent } from '@/activity/project-activity';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
 
 export default async function ProjectLayout({
@@ -43,10 +46,16 @@ export default async function ProjectLayout({
   // (including a refresh of a stale URL) must not mutate stage state.
   const project = await getProject(id);
   if (!project) notFound();
-  const [stages, perms] = await Promise.all([
+  const [stages, perms, activityRows] = await Promise.all([
     getProjectStages(id),
     getStagePermissions(db, id),
+    db
+      .select()
+      .from(projectActivity)
+      .where(eq(projectActivity.projectId, id))
+      .orderBy(asc(projectActivity.seq)),
   ]);
+  const events = activityRows.map(mapActivityRowToEvent);
 
   const PERM_KEY: Record<string, keyof typeof perms> = {
     exploration: 'explore', spec: 'spec', plan: 'plan',
@@ -100,10 +109,7 @@ export default async function ProjectLayout({
               return d?.automation?.startedAt ?? undefined;
             } catch { return undefined; }
           })()}
-          events={(() => {
-            if (!project.details) return undefined;
-            try { return (project.details as { events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }> })?.events ?? []; } catch { return []; }
-          })()}
+          events={events}
         >
           {children}
         </AutomationGate>

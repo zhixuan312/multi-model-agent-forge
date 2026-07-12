@@ -95,20 +95,29 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
   const failed = new Set(failedRows.map((r) => r.id));
   const toFlip = open.filter((x) => failed.has(x.attempt.batchId!));
   if (toFlip.length === 0) return;
-  const at = new Date().toISOString();
-  // Flip in ONE updateDetails (re-find the live attempts on the fresh details) and
-  // append a durable error line; mirror it live so the UI shows the retry at once.
+
   await updateDetails(db, projectId, (det) => {
     const stuck = new Set(toFlip.map((x) => x.attempt.batchId));
-    for (const { stage, phase, label, attempt } of openRunningAttempts(det)) {
+    for (const { attempt } of openRunningAttempts(det)) {
       if (attempt.batchId && stuck.has(attempt.batchId)) {
         attempt.status = 'failed';
-        det.events.push({ stage, phase, detail: `${label} failed — retrying`, kind: 'error', at });
       }
     }
     return det;
   });
+
   for (const { stage, phase, label } of toFlip) {
+    await recordActivity({
+      db,
+      projectId,
+      stage,
+      phase,
+      label: `${label} failed — retrying`,
+      kind: 'error',
+      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      source: 'mma',
+      eventKey: `retry-error:${projectId}:${stage}:${phase}:${label}`,
+    });
     projectEventBus.publish(projectId, { type: 'automation.progress', note: `${label} failed — retrying`, stage, phase, kind: 'error' });
   }
 }

@@ -1,9 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
+import { projectActivity } from '@/db/schema/activity';
 import { readSpecFile, readPlanFile } from '@/projects/project-files';
-import { validateDetails, type ProjectEvent } from '@/details/schema';
+import { validateDetails } from '@/details/schema';
+import { mapActivityRowToEvent, type ProjectActivityEvent } from '@/activity/project-activity';
 
 export interface StageTiming {
   kind: string;
@@ -23,7 +25,7 @@ export interface ProjectSummary {
   delivery: { totalTasks: number; approved: number };
   knowledge: { recorded: number; byType: Record<string, number> };
   /** The full project activity timeline (explore→journal) for the Summary rail. */
-  events: ProjectEvent[];
+  events: ProjectActivityEvent[];
 }
 
 export async function loadProjectSummary(db: Db, projectId: string): Promise<ProjectSummary> {
@@ -54,11 +56,17 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
   const auditPasses: Array<{ scope: string; passNo: number; status: string }> = [];
   let tasks: Array<{ status: string }> = [];
   let learnings: Array<{ type: string; status: string }> = [];
-  let events: ProjectEvent[] = [];
+  let events: ProjectActivityEvent[] = [];
+
+  const activityRows = await dbi
+    .select()
+    .from(projectActivity)
+    .where(eq(projectActivity.projectId, projectId))
+    .orderBy(asc(projectActivity.seq));
+  events = activityRows.map(mapActivityRowToEvent);
 
   if (proj?.details) {
     const d = validateDetails(proj.details);
-    events = d.events;
     stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
       kind, status: d.stages[kind].status,
       startedAt: d.stages[kind].startedAt ?? null,

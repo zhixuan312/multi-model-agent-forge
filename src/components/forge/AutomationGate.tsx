@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore, type ReactNode } from 'react';
+import type { ProjectActivityEvent } from '@/activity/project-activity';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
 
 let overlayVisible = false;
@@ -29,7 +30,7 @@ interface Props {
   phase: string;
   stagePhase?: string;
   automationStartedAt?: string;
-  events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }>;
+  events?: ProjectActivityEvent[];
   children: ReactNode;
 }
 

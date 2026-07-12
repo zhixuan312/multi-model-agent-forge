@@ -43,6 +43,8 @@ describe('acceptLoopEvent', () => {
   });
 
   it('returns the existing runId for duplicates without starting again', async () => {
+    // A duplicate delivery must NEVER re-run — a code-changing agent must not double-execute
+    // one incident. We always ack the existing runId and start nothing.
     const db = createMockDb({
       'select:loop_def': [loopRow],
       'insert:loop_event_delivery': [],

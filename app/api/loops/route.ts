@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
-import { listLoops, createLoop } from '@/loops/loops-core';
+import { listLoops, createLoop, toPublicLoop } from '@/loops/loops-core';
 
 /**
  * Admin Loops API (spec §6). `GET` lists loops; `POST` creates one. Admin-gated.
@@ -10,7 +10,7 @@ import { listLoops, createLoop } from '@/loops/loops-core';
 export async function GET(): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
-  return NextResponse.json({ loops: await listLoops() });
+  return NextResponse.json({ loops: (await listLoops()).map(toPublicLoop) });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const result = await createLoop(json, { actorId: gate.actor.id, teamId: gate.actor.teamId ?? undefined });
   switch (result.kind) {
     case 'created':
-      return NextResponse.json({ loop: result.loop, eventToken: result.eventToken }, { status: 201 });
+      return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken }, { status: 201 });
     case 'duplicate_name':
       return NextResponse.json({ error: 'duplicate_name', message: 'A loop with that name already exists.' }, { status: 409 });
     case 'invalid_config':

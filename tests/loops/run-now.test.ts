@@ -29,6 +29,25 @@ describe('startLoopRun', () => {
     expect((await startLoopRun('x', 'manual', { db })).kind).toBe('not_found');
   });
 
+  it('wrong_mode when a manual/scheduled trigger targets an event-mode loop (no run started)', async () => {
+    const runner = vi.fn(async () => []);
+    for (const trigger of ['manual', 'schedule'] as const) {
+      const db = createMockDb({ 'select:loop_def': [loopEventRow] });
+      const res = await startLoopRun('loop-1', trigger, { db, runner: runner as never, background: false });
+      expect(res.kind).toBe('wrong_mode');
+    }
+    // The event-mode loop is fired only through the authenticated event endpoint, so the
+    // manual/scheduled paths must never reach run creation.
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it('wrong_mode when an event trigger targets a non-event loop', async () => {
+    const manualLoop = { ...loopEventRow, mode: 'manual', eventTokenHash: null };
+    const db = createMockDb({ 'select:loop_def': [manualLoop] });
+    const res = await startLoopRun('loop-1', 'event', { db, background: false });
+    expect(res.kind).toBe('wrong_mode');
+  });
+
   it('threads goal override, idempotency, reference, and context into the runner context', async () => {
     const db = createMockDb({
       'select:loop_def': [loopEventRow],

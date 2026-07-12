@@ -199,6 +199,18 @@ export async function getLoop(id: string, deps: LoopsDeps = {}): Promise<LoopRow
   return row ?? null;
 }
 
+export type PublicLoop = Omit<LoopRow, 'eventTokenHash'>;
+
+/**
+ * Strip the hashed event credential before a loop leaves the API. `eventTokenHash`
+ * is a stored secret — only the one-time plaintext token is ever exposed (on create /
+ * rotate), never the hash. Apply this to every loop object returned by an HTTP route.
+ */
+export function toPublicLoop(row: LoopRow): PublicLoop {
+  const { eventTokenHash: _eventTokenHash, ...rest } = row;
+  return rest;
+}
+
 export async function deleteLoop(id: string, deps: LoopsDeps = {}): Promise<{ kind: 'deleted' | 'not_found' }> {
   const db = deps.db ?? getDb();
   const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);

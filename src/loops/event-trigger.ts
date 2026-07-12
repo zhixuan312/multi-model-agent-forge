@@ -52,23 +52,33 @@ export async function acceptLoopEvent(args: {
   const starter = args.deps?.starter ?? startLoopRun;
   const body = parsed.data;
 
+  const dupWhere = and(eq(loopEventDelivery.loopId, loopRow.id), eq(loopEventDelivery.idempotencyKey, idempotencyKey));
+
+  const deliveryValues = {
+    teamId: loopRow.teamId,
+    loopId: loopRow.id,
+    idempotencyKey,
+    runId,
+    reference: body.reference ?? null,
+  };
+
   const inserted = await db
     .insert(loopEventDelivery)
-    .values({
-      teamId: loopRow.teamId,
-      loopId: loopRow.id,
-      idempotencyKey,
-      runId,
-      reference: body.reference ?? null,
-    })
+    .values(deliveryValues)
     .onConflictDoNothing()
     .returning({ runId: loopEventDelivery.runId });
 
   if (inserted.length === 0) {
+    // Duplicate delivery: return the existing run's id and start nothing. This is deliberately
+    // simple and safe: we never re-run on a duplicate, because a code-changing agent must never
+    // double-execute one incident. The narrow cost is that a first request that crashed between
+    // this insert and its loop_run creation leaves an orphaned dedup row (a benign lost-ack on a
+    // hard crash) — tracked in the deferred backlog; the correct fix is a transactional
+    // started-marker, not an in-flight-vs-crashed guess, which would risk double-starts.
     const [existing] = await db
       .select({ runId: loopEventDelivery.runId })
       .from(loopEventDelivery)
-      .where(and(eq(loopEventDelivery.loopId, loopRow.id), eq(loopEventDelivery.idempotencyKey, idempotencyKey)))
+      .where(dupWhere)
       .limit(1);
     return existing ? { kind: 'accepted', runId: existing.runId } : { kind: 'internal_error' };
   }

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
-import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop } from '@/loops/loops-core';
+import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop, toPublicLoop } from '@/loops/loops-core';
 
 /**
  * Admin per-loop API (spec §6). `GET` reads, `PATCH` updates (incl. enable/pause
@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const loop = await getLoop(id, { teamId: gate.actor.teamId ?? undefined });
-  return loop ? NextResponse.json(loop) : NextResponse.json({ error: 'not_found' }, { status: 404 });
+  return loop ? NextResponse.json(toPublicLoop(loop)) : NextResponse.json({ error: 'not_found' }, { status: 404 });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const rotated = await rotateLoopEventToken(id, { teamId: gate.actor.teamId ?? undefined });
     switch (rotated.kind) {
       case 'rotated':
-        return NextResponse.json({ loop: rotated.loop, eventToken: rotated.eventToken });
+        return NextResponse.json({ loop: toPublicLoop(rotated.loop), eventToken: rotated.eventToken });
       case 'wrong_mode':
         return NextResponse.json({ error: 'wrong_mode', message: 'Only event-mode loops can rotate an event token.' }, { status: 409 });
       case 'not_found':
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const result = await updateLoop(id, json, { teamId: gate.actor.teamId ?? undefined });
   switch (result.kind) {
     case 'updated':
-      return NextResponse.json({ loop: result.loop, eventToken: result.eventToken });
+      return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken });
     case 'not_found':
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     case 'duplicate_name':

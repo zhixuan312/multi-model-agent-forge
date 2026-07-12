@@ -7,6 +7,7 @@ import {
   deleteLoop,
   setLoopEnabled,
   rotateLoopEventToken,
+  toPublicLoop,
 } from '@/loops/loops-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
@@ -128,5 +129,13 @@ describe('reads + toggles', () => {
   it('rejects duplicate names case-insensitively on rename', async () => {
     const db = createMockDb({ 'select:loop_def': seq([loopRow()], [{ id: 'other' }]) });
     expect((await updateLoop('loop-1', { name: 'Taken' }, { db, teamId: 'team-1' })).kind).toBe('duplicate_name');
+  });
+
+  it('toPublicLoop strips the hashed event credential and keeps every other field', () => {
+    const row = { ...loopRow(), eventTokenHash: 'secret-hash', mode: 'event' } as never;
+    const pub = toPublicLoop(row) as Record<string, unknown>;
+    expect('eventTokenHash' in pub).toBe(false);
+    expect(pub.id).toBe((row as Record<string, unknown>).id);
+    expect(pub.mode).toBe('event');
   });
 });

@@ -18,17 +18,22 @@ vi.mock('@/auth/admin-gate-handler', () => ({
 }));
 
 let createResult: unknown = { kind: 'created', loop: { id: 'l1' }, eventToken: null };
-const getResult: unknown = { id: 'l1' };
+const getResult: unknown = { id: 'l1', eventTokenHash: 'stored-hash' };
 let updateResult: unknown = { kind: 'updated', loop: { id: 'l1' }, eventToken: null };
 let rotateResult: unknown = { kind: 'rotated', loop: { id: 'l1' }, eventToken: 'new-token' };
 const deleteResult: unknown = { kind: 'deleted' };
 vi.mock('@/loops/loops-core', () => ({
-  listLoops: async () => [{ id: 'l1' }],
+  listLoops: async () => [{ id: 'l1', eventTokenHash: 'stored-hash' }],
   createLoop: async () => createResult,
   getLoop: async () => getResult,
   updateLoop: async () => updateResult,
   rotateLoopEventToken: async () => rotateResult,
   deleteLoop: async () => deleteResult,
+  // Real strip behavior: the route sanitizes eventTokenHash out of every loop it returns.
+  toPublicLoop: (row: Record<string, unknown>) => {
+    const { eventTokenHash: _omit, ...rest } = row;
+    return rest;
+  },
 }));
 
 const { GET: listGET, POST: createPOST } = await import('../../app/api/loops/route');
@@ -79,5 +84,22 @@ describe('Loops routes — event token mapping', () => {
     expect((await PATCH(req({ name: 'Retitled' }) as never, ctx('l1') as never)).status).toBe(200);
     updateResult = { kind: 'invalid_mode' };
     expect((await PATCH(req({ mode: 'event', cron: '0 3 * * *' }) as never, ctx('l1') as never)).status).toBe(400);
+  });
+
+  it('never leaks eventTokenHash from list / get / create responses', async () => {
+    // Source loops carry eventTokenHash; the routes must strip it via toPublicLoop. If a route
+    // ever stops calling the sanitizer, the hashed credential leaks and these assertions fail.
+    const listBody = (await (await listGET()).json()) as { loops: Record<string, unknown>[] };
+    expect(listBody.loops[0]).not.toHaveProperty('eventTokenHash');
+    expect(listBody.loops[0].id).toBe('l1');
+
+    const getBody = (await (await oneGET(req({}) as never, ctx('l1') as never)).json()) as Record<string, unknown>;
+    expect(getBody).not.toHaveProperty('eventTokenHash');
+    expect(getBody.id).toBe('l1');
+
+    createResult = { kind: 'created', loop: { id: 'l1', eventTokenHash: 'stored-hash' }, eventToken: 'plain-token' };
+    const createBody = (await (await createPOST(req({ mode: 'event', cron: null }) as never)).json()) as { loop: Record<string, unknown>; eventToken: string };
+    expect(createBody.loop).not.toHaveProperty('eventTokenHash');
+    expect(createBody.eventToken).toBe('plain-token');
   });
 });

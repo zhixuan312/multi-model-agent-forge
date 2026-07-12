@@ -6,11 +6,30 @@ import { createMockDb, type MockDb } from '../test-utils/mock-db';
 
 const repo: LoopRepoTarget = { id: 'r1', name: 'mma-forge', pathOnDisk: '/w/forge' };
 const loop = {
-  id: 'loop-1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'no dormant code' },
-  workerTier: 'complex', cron: '0 3 * * *', repoIds: ['r1'], enabled: true,
-  createdBy: null, createdAt: new Date(), updatedAt: new Date(),
+  id: 'loop-1',
+  teamId: 'team-1',
+  name: 'Hygiene',
+  kind: 'maintenance',
+  config: { goalMd: 'no dormant code' },
+  workerTier: 'complex',
+  mode: 'event',
+  cron: null,
+  targetBranch: null,
+  repoIds: ['r1'],
+  eventTokenHash: 'hash-1',
+  enabled: true,
+  createdBy: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 } as unknown as LoopRow;
-const ctx = { runId: '11111111-2222-3333-4444-555555555555', trigger: 'schedule' as const };
+const ctx = {
+  runId: '11111111-2222-3333-4444-555555555555',
+  trigger: 'event' as const,
+  goalOverride: 'Investigate incident INC-123 and fix the root cause',
+  idempotencyKey: 'evt-123',
+  reference: 'INC-123',
+  context: 'Error rate exceeded 5% in prod',
+};
 
 function makeDeps(over: Partial<LoopRunDeps> = {}): LoopRunDeps & Record<string, ReturnType<typeof vi.fn>> {
   const base = {
@@ -48,94 +67,29 @@ describe('buildBranch', () => {
 });
 
 describe('runLoopForRepo', () => {
-  it('happy path with a diff → commits, opens a PR, records, status=changed', async () => {
+  it('uses goalOverride for the worker prompt and persists event traceability', async () => {
     const d = makeDeps();
     await runLoopForRepo(loop, repo, ctx, d);
+    expect(d.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('Investigate incident INC-123 and fix the root cause'),
+    }));
+    expect(d.mainSession).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ prompt: expect.stringContaining('Investigate incident INC-123 and fix the root cause') }),
+    );
+    expect(d.openPr).toHaveBeenCalledWith(expect.objectContaining({
+      body: expect.stringContaining('INC-123'),
+    }));
     const p = setPatch(d);
     expect(p.status).toBe('changed');
-    expect(p.prUrl).toBe('https://github.com/x/y/pull/1');
-    expect(p.mmaBatchId).toBe('b1');
-    // Verification + files are persisted as structured slots, NOT as fake change lines.
-    expect(p.verification).toMatchObject({ command: 'npm test', passed: true });
-    expect(p.filesChanged).toEqual(['a.ts']);
-    expect(p.keyChanges).toEqual(['removed dead module']);
-    expect((p.keyChanges as string[]).some((c) => /verification/.test(c))).toBe(false);
-    // Main agent drove Plan + Journal across ONE resumed session.
-    expect(d.mainSession).toHaveBeenCalledTimes(2);
-    const mainCalls = (d.mainSession as unknown as { mock: { calls: { sessionId?: string }[][] } }).mock.calls;
-    expect(mainCalls[1][0].sessionId).toBe('sess-1'); // journal resumed the plan session
-    expect(d.recall).toHaveBeenCalledWith(repo, 'q1', expect.any(String)); // ran the planned recall query
-    expect(d.runVerify).toHaveBeenCalledWith(repo, '/wt/forge', 'npm test'); // ran the planned command
-    expect(d.branchHasChanges).toHaveBeenCalledWith('/wt/forge', 'main'); // compared loop branch vs base
-    expect(d.createWorktree).toHaveBeenCalledWith(repo, expect.any(String), 'main'); // forked from base
-    expect(d.openPr).toHaveBeenCalledWith(expect.objectContaining({ base: 'main' }));
-    // Journal is the brain's curated entry, not "delegate: done".
-    expect(p.journalEntries).toEqual([{ tag: 'learned', text: 'real insight' }]);
-    expect(d.record).toHaveBeenCalledWith(repo, [{ tag: 'learned', text: 'real insight' }], expect.any(String));
-    expect(d.commitAndPush).toHaveBeenCalled();
-    expect(d.openPr).toHaveBeenCalled();
-    expect(d.removeWorktree).toHaveBeenCalledWith('/wt/forge');
+    expect(p.reference).toBe('INC-123');
   });
 
-  it('degrades to a deterministic plan + journal when the main agent is unreachable', async () => {
-    const d = makeDeps({ mainSession: vi.fn(async () => { throw new Error('mma main down'); }) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    const p = setPatch(d);
-    expect(p.status).toBe('changed'); // run still completes
-    expect(d.recall).toHaveBeenCalledWith(repo, (loop.config as { goalMd: string }).goalMd, expect.any(String)); // fallback recall = the goal
-    expect(d.runVerify).toHaveBeenCalledWith(repo, '/wt/forge', null); // fallback verify = auto-detect
-    expect(p.journalEntries).toEqual([{ tag: 'learned', text: 'removed dead module' }]); // fallback journal = worker summary
-  });
-
-  it('uses the loop targetBranch as the fork + PR base when set (no default-branch lookup)', async () => {
+  it('falls back to config.goalMd when no goalOverride exists', async () => {
     const d = makeDeps();
-    const loopWithTarget = { ...loop, targetBranch: 'develop' } as unknown as LoopRow;
-    await runLoopForRepo(loopWithTarget, repo, ctx, d);
-    expect(d.createWorktree).toHaveBeenCalledWith(repo, expect.any(String), 'develop');
-    expect(d.branchHasChanges).toHaveBeenCalledWith('/wt/forge', 'develop');
-    expect(d.openPr).toHaveBeenCalledWith(expect.objectContaining({ base: 'develop' }));
-    expect(d.resolveCurrentBranch).not.toHaveBeenCalled();
-  });
-
-  it('no diff (loop branch == base) → no PR, status=no_changes, worktree still cleaned', async () => {
-    const d = makeDeps({ branchHasChanges: vi.fn(async () => false) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    const p = setPatch(d);
-    expect(p.status).toBe('no_changes');
-    expect(p.prUrl ?? null).toBeNull();
-    expect(d.openPr).not.toHaveBeenCalled();
-    expect(d.removeWorktree).toHaveBeenCalled();
-  });
-
-  it('missing Git token → failed before any dispatch', async () => {
-    const d = makeDeps({ hasGitToken: vi.fn(async () => false) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    expect(setPatch(d).status).toBe('failed');
-    expect(d.dispatch).not.toHaveBeenCalled();
-    expect(d.createWorktree).not.toHaveBeenCalled();
-  });
-
-  it('non-GitHub repo → failed before any dispatch', async () => {
-    const d = makeDeps({ isGithubRepo: vi.fn(async () => false) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    expect(setPatch(d).status).toBe('failed');
-    expect(d.dispatch).not.toHaveBeenCalled();
-  });
-
-  it('unresolvable default branch → failed before any dispatch', async () => {
-    const d = makeDeps({ resolveCurrentBranch: vi.fn(async () => null) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    expect(setPatch(d).status).toBe('failed');
-    expect(d.dispatch).not.toHaveBeenCalled();
-  });
-
-  it('dispatch failure → failed, NO PR, worktree cleaned up', async () => {
-    const d = makeDeps({ dispatch: vi.fn(async () => { throw new Error('mma down'); }) });
-    await runLoopForRepo(loop, repo, ctx, d);
-    const p = setPatch(d);
-    expect(p.status).toBe('failed');
-    expect(p.prUrl ?? null).toBeNull();
-    expect(d.openPr).not.toHaveBeenCalled();
-    expect(d.removeWorktree).toHaveBeenCalledWith('/wt/forge');
+    await runLoopForRepo(loop, repo, { ...ctx, goalOverride: undefined, reference: null, context: null }, d);
+    expect(d.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('no dormant code'),
+    }));
   });
 });

@@ -64,6 +64,27 @@
       "when": 1783400000000,
       "tag": "0008_add_cache_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783500000000,
+      "tag": "0009_project_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783600000000,
+      "tag": "0010_drop_ops_action_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783900000000,
+      "tag": "0011_loop_event_triggers",
+      "breakpoints": true
     }
   ]
 }

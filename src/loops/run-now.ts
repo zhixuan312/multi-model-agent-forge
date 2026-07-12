@@ -20,6 +20,10 @@ export interface StartRunDeps {
   db?: Db;
   runDeps?: LoopRunDeps;
   runId?: string;
+  goalOverride?: string;
+  idempotencyKey?: string;
+  reference?: string | null;
+  context?: string | null;
   background?: boolean;
   runner?: typeof runLoop;
 }
@@ -55,7 +59,16 @@ export async function startLoopRun(
   for (const r of repos) {
     const [row] = await db
       .insert(loopRun)
-      .values({ teamId: loop.teamId, loopId, runId, repoId: r.id, trigger, status: 'running' })
+      .values({
+        teamId: loop.teamId,
+        loopId,
+        runId,
+        repoId: r.id,
+        trigger,
+        status: 'running',
+        idempotencyKey: deps.idempotencyKey ?? null,
+        reference: deps.reference ?? null,
+      })
       .returning({ id: loopRun.id });
     if (row?.id) runRowByRepoId.set(r.id, row.id);
   }
@@ -63,7 +76,20 @@ export async function startLoopRun(
   const runDeps = deps.runDeps ?? await buildLoopRunDeps(currentTeam, { db });
   const runner = deps.runner ?? runLoop;
 
-  const exec = runner(loop, repos, { runId, trigger, runRowByRepoId }, runDeps);
+  const exec = runner(
+    loop,
+    repos,
+    {
+      runId,
+      trigger,
+      goalOverride: deps.goalOverride,
+      idempotencyKey: deps.idempotencyKey,
+      reference: deps.reference ?? null,
+      context: deps.context ?? null,
+      runRowByRepoId,
+    },
+    runDeps,
+  );
   if (deps.background === false) await exec;
   else void Promise.resolve(exec).catch(() => {});
 
@@ -76,5 +102,4 @@ export async function listLoopRuns(loopId: string, deps: { db?: Db } = {}): Prom
   return db.select().from(loopRun).where(eq(loopRun.loopId, loopId)).orderBy(desc(loopRun.startedAt));
 }
 
-// Re-export so route handlers import the loop table type if needed.
 export { loopTable };

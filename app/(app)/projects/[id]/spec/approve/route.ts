@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { updateDetails, appendProjectEvent } from '@/details/write';
+import { updateDetails } from '@/details/write';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
+import { member } from '@/db/schema/identity';
+import { recordActivity } from '@/activity/project-activity';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,12 +24,20 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     });
   } else {
     await updateDetails(db, id, (d) => {
-      if (!d.stages.spec.phases.finalize.approvals.includes(me.id)) {
-        d.stages.spec.phases.finalize.approvals.push(me.id);
-      }
+      if (!d.stages.spec.phases.finalize.approvals.includes(me.id)) d.stages.spec.phases.finalize.approvals.push(me.id);
       return d;
     });
-    await appendProjectEvent(db, id, { stage: 'spec', phase: 'finalize', detail: `${me.displayName} approved the spec`, kind: 'done' });
+    await recordActivity({
+      db,
+      projectId: id,
+      stage: 'spec',
+      phase: 'finalize',
+      label: `${me.displayName} approved the spec`,
+      kind: 'done',
+      actor: { id: me.id, name: me.displayName, tint: me.avatarTint },
+      source: 'user',
+      eventKey: `approve_spec:${id}:${me.id}`,
+    });
   }
 
   projectEventBus.publish(id, { type: 'spec.updated' });

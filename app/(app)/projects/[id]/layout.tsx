@@ -77,9 +77,7 @@ export default async function ProjectLayout({
           projectId={project.id}
           projectName={project.name}
           phase={project.phase}
-          eventCount={(() => {
-            try { return ((project.details as { events?: unknown[] })?.events?.length) ?? 0; } catch { return 0; }
-          })()}
+          eventCount={events.length}
         />
       </ShellHeader>
       <ShellSubNav className="!h-auto !py-3 !px-8 md:!px-12 lg:!px-16">

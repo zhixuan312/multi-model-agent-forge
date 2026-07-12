@@ -351,6 +351,70 @@ export class PollManager {
     this.deregister(entry.batchId);
   }
 
+  /**
+   * Settle the durable timeline + discover-task state for a terminal that did NOT
+   * pass through `markTerminal`'s handler path (a 404 or the 1-hour hard timeout).
+   * Without this, a tracked batch that dies via 404/timeout leaves its running
+   * `project_activity` line unresolved forever and its owning discover task stuck
+   * `running` in details — mirroring what `markTerminal` does on a normal terminal.
+   * Best-effort: polling must never throw on settle.
+   */
+  private async settleAbandonedTerminal(entry: RegisteredBatch): Promise<void> {
+    // Whole body is best-effort: a DB failure here must NEVER escape into the
+    // caller (markNotFound / markTimeout), or the batch would never emit its
+    // terminal SSE or deregister — leaking it in `inFlight` forever with a dead
+    // timer. Swallow + log; the batch is still failed in the DB regardless.
+    try {
+      const durationMs = this.now() - entry.createdAt.getTime();
+      // Flip the owning discover task to 'recorded' (it reached a terminal — failed).
+      // Independently guarded: a details-flip failure must not block the activity
+      // settle below (the two are unrelated writes).
+      if (entry.taskId && entry.projectId) {
+        try {
+          await updateDetails(this.db, entry.projectId, (d) => {
+            const task = d.stages.exploration.phases.discover.tasks.find((t) =>
+              t.attempts.some((a) => a.batchId === entry.batchId));
+            if (task) task.status = 'recorded';
+            return d;
+          });
+        } catch { /* best-effort during poll */ }
+      }
+      // Resolve the running project_activity line for tracked handlers (no-op when
+      // there is no running line, e.g. an untracked handler).
+      await appendBatchTerminalEvent(this.db, entry.projectId, entry.handler, entry.batchId, 'failed', durationMs);
+      // Record the discover-task terminal row (error) for taskId entries (FR-9/FR-10).
+      if (entry.taskId && entry.projectId) {
+        const [batchRow] = await this.db
+          .select({ request: mmaBatch.request })
+          .from(mmaBatch)
+          .where(eq(mmaBatch.id, entry.batchId))
+          .limit(1);
+        const label = await buildDiscoverTerminalLabel(this.db, (batchRow?.request ?? {}) as Record<string, unknown>);
+        await recordActivity({
+          db: this.db,
+          projectId: entry.projectId,
+          stage: 'exploration',
+          phase: 'discover',
+          label,
+          kind: 'error',
+          actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+          source: 'mma',
+          durationMs,
+          eventKey: `discover-task:${entry.batchId}`,
+        });
+      }
+    } catch (err) {
+      logPoll({
+        level: 'error',
+        event: 'settle.failed',
+        projectId: entry.projectId ?? undefined,
+        batchId: entry.mmaBatchId,
+        taskId: entry.taskId ?? undefined,
+        detail: String(err),
+      });
+    }
+  }
+
   /** MMA returned 404 — task no longer exists (server restarted). Fail immediately. */
   private async markNotFound(entry: RegisteredBatch): Promise<void> {
     const state: TerminalState = {
@@ -366,6 +430,7 @@ export class PollManager {
         terminalAt: new Date(),
       })
       .where(eq(mmaBatch.id, entry.batchId));
+    await this.settleAbandonedTerminal(entry);
     logPoll({
       level: 'error',
       event: 'poll.not_found',
@@ -395,6 +460,7 @@ export class PollManager {
         })
         .where(eq(mmaBatch.id, entry.batchId));
     });
+    await this.settleAbandonedTerminal(entry);
     logPoll({
       level: 'error',
       event: 'poll.timeout',

@@ -1,13 +1,22 @@
 // @vitest-environment node
+import { describe, expect, it, vi } from 'vitest';
 import { dispatchMma, findInflight, PhaseBusyError } from '@/dispatch/dispatch-helpers';
-import { phaseKeyForHandler } from '@/details/project-event-labels';
+import { appendBatchTerminalEvent, phaseKeyForHandler, SINGLETON_HANDLERS } from '@/details/project-event-labels';
 import { registerHandler } from '@/dispatch/handler-registry';
 import type { MmaClient } from '@/mma/client';
 import { createMockDb } from '../test-utils/mock-db';
 
-// Stub the PollManager so the async path doesn't construct a real DB-backed singleton.
-const { registerMock } = vi.hoisted(() => ({ registerMock: vi.fn() }));
+// Stub the PollManager and activity functions so they don't construct real dependencies.
+const { registerMock, recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
+  registerMock: vi.fn(),
+  recordActivity: vi.fn(async () => {}),
+  resolveRunningActivity: vi.fn(async () => {}),
+}));
 vi.mock('@/sse/poll-manager', () => ({ getPollManager: () => ({ register: registerMock }) }));
+vi.mock('@/activity/project-activity', () => ({
+  recordActivity,
+  resolveRunningActivity,
+}));
 
 /**
  * G2 — per-(project, phase) single-flight. A dispatch is REFUSED (PhaseBusyError)
@@ -349,5 +358,60 @@ describe('dispatchMma — async + handler:null is fire-and-row-poll [AC3]', () =
       cwd: '/w', body: { prompt: 'q' }, actorId: 'm1', taskId: 'task-0', await: false,
     });
     expect(registerMock).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'task-0', batchId: 'row-d', mmaBatchId: 'ext-d' }));
+  });
+});
+
+describe('dispatchMma activity integration', () => {
+  it('creates a running row for tracked handlers including spec-auto-draft', async () => {
+    recordActivity.mockClear();
+    // Register a no-op handler to prevent the real handler from running
+    const { registerHandler } = await import('@/dispatch/handler-registry');
+    registerHandler('spec-auto-draft', async () => {});
+
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'select:ops_mma_batch': [],
+      'insert:ops_mma_batch': [{ id: 'batch-row-1', createdAt: new Date('2026-07-10T00:00:00.000Z') }],
+    });
+    await dispatchMma({
+      db,
+      mma: { dispatchAndWait: async () => ({ batchId: 'mma-1', envelope: { error: null } }) } as unknown as MmaClient,
+      projectId: 'proj-1',
+      route: 'spec',
+      handler: 'spec-auto-draft',
+      cwd: '/tmp',
+      body: { prompt: 'draft' },
+      actorId: '00000000-0000-0000-0000-000000000000',
+      await: true,
+    });
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'proj-1',
+      label: 'Drafted spec',
+      kind: 'running',
+      source: 'mma',
+      eventKey: 'spec-auto-draft:batch-row-1',
+    }));
+  });
+
+  it('resolves tracked terminal rows by batch row id', async () => {
+    resolveRunningActivity.mockClear();
+    const db = createMockDb();
+    await appendBatchTerminalEvent(db, 'proj-1', 'plan-author', 'batch-row-9', 'done', 4400);
+    expect(resolveRunningActivity).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'proj-1',
+      eventKey: 'plan-author:batch-row-9',
+      status: 'done',
+      durationMs: 4400,
+      label: 'Authored plan',
+    }));
+  });
+
+  it('exports the frozen singleton handler set', () => {
+    expect([...SINGLETON_HANDLERS]).toEqual([
+      'spec-auto-draft',
+      'explore-synthesize',
+      'plan-author',
+      'journal-harvest',
+    ]);
   });
 });

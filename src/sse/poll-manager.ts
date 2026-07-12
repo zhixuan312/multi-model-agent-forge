@@ -321,7 +321,7 @@ export class PollManager {
     // Resolve the running timeline line AFTER the terminal transaction (which may
     // itself have mutated details via the handler) so it's a clean, isolated
     // update. Duration = wall-clock from dispatch. Best-effort.
-    await appendBatchTerminalEvent(this.db, entry.projectId, entry.handler, effectiveState.status, this.now() - entry.createdAt.getTime());
+    await appendBatchTerminalEvent(this.db, entry.projectId, entry.handler, entry.batchId, effectiveState.status, this.now() - entry.createdAt.getTime());
     this.emitTerminal(entry, effectiveState);
     this.deregister(entry.batchId);
   }

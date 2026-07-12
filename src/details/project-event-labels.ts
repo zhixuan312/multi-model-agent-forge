@@ -1,17 +1,18 @@
 import type { Db } from '@/db/client';
-import { resolveRunningEvent } from '@/details/write';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
 
 /**
  * Friendly project-event label + stage/phase for each MMA handler. This is the
  * single source that turns a batch's terminal into one human line on the
- * project-level activity log (`details.events`), so the log reads as a full
+ * project-level activity log (`project_activity`), so the log reads as a full
  * timeline across every stage (explore→journal) — regardless of whether the
  * batch was fired by the manual UI or the auto driver.
  *
  * Handlers absent from this map (none today) simply produce no timeline line.
  */
-const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: string }> = {
+export const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: string }> = {
   'explore-propose':    { stage: 'exploration', phase: 'discover',   label: 'Proposed exploration tasks' },
   'explore-synthesize': { stage: 'exploration', phase: 'synthesize', label: 'Synthesized exploration brief' },
   'spec-auto-draft':    { stage: 'spec',        phase: 'craft',      label: 'Drafted spec' },
@@ -29,6 +30,17 @@ const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: strin
   'journal-harvest':    { stage: 'journal',     phase: 'journal',    label: 'Harvested learnings' },
   'journal-record':     { stage: 'journal',     phase: 'journal',    label: 'Recorded learnings to journal' },
 };
+
+/**
+ * Singleton handlers that reject concurrent dispatch of the same handler.
+ * These represent unique orchestration steps that should not run in parallel.
+ */
+export const SINGLETON_HANDLERS = new Set([
+  'spec-auto-draft',
+  'explore-synthesize',
+  'plan-author',
+  'journal-harvest',
+]);
 
 /**
  * The `(stage, phase)` an MMA handler belongs to — the SINGLE source (shared with
@@ -56,17 +68,48 @@ export async function appendBatchTerminalEvent(
   db: Db,
   projectId: string | null | undefined,
   handler: string | null | undefined,
+  batchRowId: string,
   status: 'done' | 'failed',
   durationMs?: number,
 ): Promise<void> {
   if (!projectId || !handler) return;
   const meta = HANDLER_EVENT[handler];
   if (!meta) return;
-  const detail = status === 'failed' ? `${meta.label} — failed` : meta.label;
+  const label = status === 'failed' ? `${meta.label} — failed` : meta.label;
   const kind = status === 'failed' ? 'error' : 'done';
-  // resolveRunningEvent returns the RESOLVED label (with any preserved pass number,
-  // e.g. "Audited plan (pass 3)") — publish THAT live so the overlay shows the pass
-  // number immediately, not only after a refresh that re-seeds from details.events.
-  const resolved = await resolveRunningEvent(db, projectId, { stage: meta.stage, phase: meta.phase, detail, kind, durationMs });
-  projectEventBus.publish(projectId, { type: 'automation.progress', note: resolved, stage: meta.stage, phase: meta.phase, kind, durationMs });
+  const eventKey = `${handler}:${batchRowId}`;
+  const resolved = await resolveRunningActivity({
+    db,
+    projectId,
+    eventKey,
+    status: kind,
+    durationMs,
+    label,
+  });
+  // Narrow, tracked-batch-only fallback (FR-4/FR-6): if no running row existed for this
+  // key (e.g. a legacy/manual dispatch whose running row was never written), insert ONE
+  // terminal row under the SAME event_key rather than letting the terminal vanish. This
+  // path is reachable only here — never from user seams or discover rows.
+  if (resolved === 0) {
+    await recordActivity({
+      db,
+      projectId,
+      stage: meta.stage,
+      phase: meta.phase,
+      label,
+      kind,
+      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      source: 'mma',
+      durationMs,
+      eventKey,
+    });
+  }
+  projectEventBus.publish(projectId, {
+    type: 'automation.progress',
+    note: label,
+    stage: meta.stage,
+    phase: meta.phase,
+    kind,
+    durationMs,
+  });
 }

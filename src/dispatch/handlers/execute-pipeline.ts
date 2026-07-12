@@ -4,7 +4,6 @@ import type { Db } from '@/db/client';
 import { project, buildPr } from '@/db/schema/projects';
 import { team } from '@/db/schema/team';
 import { createBuildPr } from '@/build/pr';
-import { logAction } from '@/observability/action-log';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
@@ -106,7 +105,6 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
           target: [buildPr.projectId, buildPr.repoId],
           set: { url: pr.url, branch: forgeBranch, targetBranch },
         });
-      await logAction({ projectId: ctx.projectId, memberId: actorId, action: 'create_pr', target: `repo:${repoMeta.name}` }, db);
     }
   } catch (prErr) {
     console.error(`[forge] PR creation failed for ${repoMeta.name}:`, prErr);

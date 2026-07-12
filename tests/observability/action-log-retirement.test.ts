@@ -16,3 +16,18 @@ describe('action-log retirement — group B seams', () => {
     }
   });
 });
+
+describe('action-log retirement — group C handlers', () => {
+  it('the six MMA dispatch handlers no longer reference logAction', () => {
+    for (const path of [
+      'src/dispatch/handlers/execute-pipeline.ts',
+      'src/dispatch/handlers/explore-synthesize.ts',
+      'src/dispatch/handlers/explore-propose.ts',
+      'src/dispatch/handlers/plan-author.ts',
+      'src/dispatch/handlers/plan-audit.ts',
+      'src/dispatch/handlers/spec-audit.ts',
+    ]) {
+      expect(readFileSync(path, 'utf8')).not.toMatch(/logAction/);
+    }
+  });
+});

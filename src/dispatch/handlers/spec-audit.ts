@@ -1,7 +1,6 @@
 import type { Db } from '@/db/client';
 import { parseAuditEnvelope, nextPassNo } from '@/spec/audit-loop';
 import type { AuditVerdict } from '@/db/enums';
-import { logAction } from '@/observability/action-log';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
 import { recordAuditPass } from '@/automation/details-mutations';
@@ -19,13 +18,6 @@ export async function handleSpecAudit(db: Db, ctx: MmaBatchCtx, envelope: unknow
   await updateDetails(db, ctx.projectId, (d) =>
     recordAuditPass(d, 'spec', passNo, verdict, ctx.batchRowId, new Date().toISOString(), parsed.contextBlockId),
   );
-
-  if (ctx.actorId) {
-    await logAction(
-      { projectId: ctx.projectId, memberId: ctx.actorId, action: 'audit', target: `pass:${passNo}` },
-      db,
-    );
-  }
 
   // Notify subscribed clients so the audit pass appears without a manual refresh.
   // Auto-driven audits are dispatched server-side, so the client's onDone tracking

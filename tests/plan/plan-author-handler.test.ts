@@ -34,7 +34,6 @@ describe('plan-author handler', () => {
     const db = createMockDb({
       'select:project': [{ details }],
       'update:project': [{ id: 'proj-1' }],
-      'insert:ops_action_log': [],
     });
 
     await import('@/dispatch/handlers/plan-author');

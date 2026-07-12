@@ -38,30 +38,6 @@ export const mmaBatch = forge.table(
 export type MmaBatchRow = typeof mmaBatch.$inferSelect;
 
 /**
- * `ops_action_log` — the domain accountability trail. One row per state-changing
- * user action (mutations and dispatches only — page navigation and read-only
- * actions are NOT logged). Failure policy: log write failure degrades gracefully
- * (log the error, do NOT abort the user's mutation).
- */
-export const actionLog = forge.table(
-  'ops_action_log',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    projectId: uuid('project_id').references(() => project.id),
-    memberId: uuid('member_id')
-      .notNull()
-      .references(() => member.id),
-    action: text('action').notNull(),
-    target: text('target'),
-    meta: jsonb('meta'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index('action_log_project_created_idx').on(t.projectId, t.createdAt.desc())],
-);
-
-export type ActionLogRow = typeof actionLog.$inferSelect;
-
-/**
  * `ops_notification` — user-facing alerts. Currently two kinds:
  * `dispatch_failed` (MMA batch failed) and `section_invite` (invited to review).
  */

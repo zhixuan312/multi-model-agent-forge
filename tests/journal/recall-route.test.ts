@@ -18,8 +18,6 @@ vi.mock('@/mma/server-client', () => ({
   buildMmaClient: async () => ({ dispatch: async () => ({ batchId: 'b-1' }) }),
 }));
 
-vi.mock('@/observability/action-log', () => ({ logAction: async () => {} }));
-
 function mockDbChain(data: unknown) {
   return new Proxy(() => {}, {
     get(_t, prop) {

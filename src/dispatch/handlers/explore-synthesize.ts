@@ -5,7 +5,6 @@ import { repo } from '@/db/schema/workspace';
 import { SynthesisSchema, composeExplorationMarkdown } from '@/exploration/schemas';
 import { gapMarker } from '@/exploration/synthesize';
 import { backupArtifact, writeExplorationSummary } from '@/projects/project-files';
-import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
@@ -68,11 +67,6 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
     d.stages.exploration.phases.synthesize.file = filePath;
     return d;
   });
-
-  await logAction(
-    { projectId: ctx.projectId, memberId: request.actorId || 'system', action: 'synthesize', target: `file:${filePath}` },
-    db,
-  );
 
   projectEventBus.publish(ctx.projectId, { type: 'synthesis.updated', artifactId: ctx.projectId, version: 1 });
 }

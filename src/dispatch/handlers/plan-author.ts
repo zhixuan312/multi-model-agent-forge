@@ -4,7 +4,6 @@ import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
-import { logAction } from '@/observability/action-log';
 import { projectEventBus } from '@/sse/event-bus';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
@@ -45,11 +44,6 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
     if (last && last.status === 'running') last.status = 'done';
     return d;
   });
-
-  await logAction(
-    { projectId: ctx.projectId, memberId: actorId, action: 'author_plan', target: `plan:v${planFile.version}` },
-    db,
-  );
 
   projectEventBus.publish(ctx.projectId, {
     type: 'plan.authored',

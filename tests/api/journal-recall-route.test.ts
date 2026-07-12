@@ -12,8 +12,6 @@ vi.mock('@/dispatch/dispatch-helpers', () => ({
   dispatchMma: async () => ({ batchRowId: 'batch-row-1', batchId: 'ext-batch-1' }),
   findInflight: async () => null,
 }));
-const logAction = vi.fn(async () => {});
-vi.mock('@/observability/action-log', () => ({ logAction }));
 
 function mockDbChain(data: unknown) {
   return new Proxy(function chainFn() { return Promise.resolve([data]); }, {

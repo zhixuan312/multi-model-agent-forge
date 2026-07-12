@@ -244,19 +244,16 @@ export function SpecStageClient(props: SpecStageClientProps) {
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
   useEffect(() => {
-    if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
-    if (props.pendingAutoDraft) { autoDraftFired.current = true; return; }
+    if (phase !== 'craft') return;
+    if (!needsAutoDraft) return;
+    if (autoDrafting) return;
+    if (autoDraftFired.current) return;
     autoDraftFired.current = true;
-    // Sanctioned non-transition content op (see CLAUDE.md route exceptions): whole-spec
-    // auto-draft has no ACTION_KIND. `mma.dispatch(url, handler)` is on the centralized
-    // client path (same SSE wait as transitions); the backend uses dispatchMma + the
-    // registered `spec-auto-draft` handler.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear any stale error banner before retrying the auto-draft dispatch
-    setError(null); // clear any stale banner from a prior failed draft before retrying
+    setError(null);
+    // Correct hook signature is dispatch(url, handler, body?) — mirror the existing HEAD call.
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, needsAutoDraft]);
+  }, [phase, needsAutoDraft, autoDrafting, mma, props.projectId]);
 
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);

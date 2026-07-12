@@ -4,7 +4,6 @@ import { member } from '@/db/schema/identity';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { loopRun } from '@/db/schema/loop';
-import { logAction } from '@/observability/action-log';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
 import { getPollManager } from '@/sse/poll-manager';
@@ -280,14 +279,6 @@ export async function dispatchMma(
       eventKey: `${opts.handler}:${batchRowId}`,
       createdAt: row.createdAt,
     });
-  }
-
-  // Best-effort action log
-  if (opts.actorId) {
-    await logAction(
-      { projectId: opts.projectId, memberId: opts.actorId, action: 'dispatch', target: `batch:${batchRowId}` },
-      opts.db,
-    ).catch(() => {});
   }
 
   if (opts.await) {

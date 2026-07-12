@@ -13,7 +13,6 @@
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { getDb, type Db } from '@/db/client';
 import { exportRecord } from '@/db/schema/build';
-import { logAction } from '@/observability/action-log';
 import { loadExportConfig, type ExportConfig } from '@/export/config';
 import { resolveProjectExportPath, projectExportDir } from '@/export/export-root';
 import { slug, kindNoun, type ExportArtifactKind } from '@/export/slug';
@@ -86,16 +85,6 @@ export async function recordExport(
       })
       .returning({ id: exportRecord.id });
 
-    await logAction(
-      {
-        projectId: input.projectId,
-        memberId: input.createdBy,
-        action: 'export.created',
-        target,
-        meta: { format: input.format, artifactKind: input.kind, filePath },
-      },
-      tx as unknown as Db,
-    );
     return row.id;
   });
 

@@ -12,7 +12,6 @@ import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { updateDetails } from '@/details/write';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
-import { logAction } from '@/observability/action-log';
 import { logPoll } from '@/observability/poll-log';
 import type { MmaRoute } from '@/db/enums';
 
@@ -215,10 +214,6 @@ export async function dispatchTasks(
         }
         return det;
       });
-      await logAction(
-        { projectId, memberId: actor.id, action: 'explore_run', target: `exploration_task:${task.id}`, meta: { route } },
-        tx as unknown as Db,
-      );
     });
 
     outcomes.push({ taskId: task.id, ok: true, batchId: batchId! });

@@ -49,7 +49,6 @@ describe('captureIntent', () => {
     const mockDb = createMockDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: projectId }],
-      'insert:ops_action_log': [],
     });
 
     await captureIntent(mockDb, projectId, '  We need a faster checkout flow.  ', ownerId);

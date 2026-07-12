@@ -7,7 +7,6 @@ import { readSpecFile } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import { templateForKind } from '@/spec/components';
 import type { ComponentStatus } from '@/db/enums';
-import { logAction } from '@/observability/action-log';
 import type { ComponentKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
 import { member } from '@/db/schema/identity';
@@ -66,10 +65,6 @@ export async function captureIntent(
     source: actorId === FORGE_MEMBER_ID ? 'mma' : 'user',
     eventKey: `capture_intent:${projectId}`,
   });
-  await logAction(
-    { projectId, memberId: actorId, action: 'capture_intent', target: `project:${projectId}` },
-    dbi,
-  );
 }
 
 /* ── Read DTOs for the interview islands ────────────────────────────────── */

@@ -13,14 +13,13 @@ function tmpRoot(): string {
 }
 
 describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
-  it('writes an export row + ops_action_log entry; file lands under <root>/<project_id>/', async () => {
+  it('writes an export row; file lands under <root>/<project_id>/', async () => {
     const projectId = 'proj-1';
     const createdBy = 'member-1';
     const cfg = loadExportConfig({ FORGE_EXPORT_ROOT: tmpRoot() });
 
     const db = createMockDb({
       'insert:project_export': [{ id: 'exp-1' }],
-      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(
@@ -38,7 +37,6 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
 
     expect(res.filePath.startsWith(join(cfg.exportRoot, projectId) + sep)).toBe(true);
     expect(db._assertCalled('project_export', 'insert')).toBe(true);
-    expect(db._assertCalled('ops_action_log', 'insert')).toBe(true);
 
     const insertCalls = db._callsFor('project_export');
     const valueCall = insertCalls.find((c) => c.method === 'values');
@@ -53,7 +51,6 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
 
     const db = createMockDb({
       'insert:project_export': [{ id: 'exp-1' }],
-      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     await recordExport(
@@ -80,15 +77,6 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
         projectId,
       }),
     ]);
-
-    const logValueCall = db._callsFor('ops_action_log').find((c) => c.method === 'values');
-    expect(logValueCall?.args).toEqual([
-      expect.objectContaining({
-        action: 'export.created',
-        target: 'bundle',
-        meta: expect.objectContaining({ artifactKind: null, format: 'bundle' }),
-      }),
-    ]);
   });
 
   it('created dirs are 0700 and the file is 0600 (F17)', async () => {
@@ -99,7 +87,6 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
 
     const db = createMockDb({
       'insert:project_export': [{ id: 'exp-1' }],
-      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(
@@ -130,7 +117,6 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
 
     const db = createMockDb({
       'insert:project_export': [{ id: 'exp-1' }],
-      'insert:ops_action_log': [{ id: 'log-1' }],
     });
 
     const res = await recordExport(

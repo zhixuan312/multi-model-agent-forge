@@ -24,7 +24,6 @@ import {
   type ProjectVisibility,
   type ProjectPhase,
 } from '@/db/enums';
-import { logAction } from '@/observability/action-log';
 import { recordActivity } from '@/activity/project-activity';
 
 /** The acting member (id and teamId are load-bearing for the data layer). */
@@ -163,17 +162,6 @@ export async function createProject(
       source: 'user',
       eventKey: `create_project:${row.id}`,
     });
-
-    await logAction(
-      {
-        projectId: row.id,
-        memberId: actor.id,
-        action: 'create_project',
-        target: `project:${row.id}`,
-        meta: { visibility, repoCount: uniqueRepoIds.length },
-      },
-      tx as unknown as Db,
-    );
 
     return row.id;
   });
@@ -405,16 +393,6 @@ export async function changeVisibility(
       .update(project)
       .set({ visibility, updatedAt: new Date() })
       .where(eq(project.id, projectId));
-    await logAction(
-      {
-        projectId,
-        memberId: actor.id,
-        action: 'change_visibility',
-        target: `project:${projectId}`,
-        meta: { visibility },
-      },
-      tx as unknown as Db,
-    );
   });
 }
 
@@ -450,15 +428,5 @@ export async function changeRepos(
       .update(project)
       .set({ updatedAt: new Date() })
       .where(eq(project.id, projectId));
-    await logAction(
-      {
-        projectId,
-        memberId: actor.id,
-        action: 'change_repos',
-        target: `project:${projectId}`,
-        meta: { repoCount: unique.length },
-      },
-      tx as unknown as Db,
-    );
   });
 }

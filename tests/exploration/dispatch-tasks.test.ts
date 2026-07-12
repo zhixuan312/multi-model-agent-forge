@@ -14,7 +14,6 @@ const { dispatchMma, updateDetails, recordActivity } = vi.hoisted(() => ({
 vi.mock('@/dispatch/dispatch-helpers', () => ({ dispatchMma }));
 vi.mock('@/details/write', () => ({ updateDetails }));
 vi.mock('@/activity/project-activity', () => ({ recordActivity }));
-vi.mock('@/observability/action-log', () => ({ logAction: vi.fn(async () => {}) }));
 vi.mock('@/observability/poll-log', () => ({ logPoll: vi.fn() }));
 vi.mock('@/git/workspace-root', () => ({ resolveWorkspaceRoot: () => '/ws' }));
 

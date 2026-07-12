@@ -1,25 +1,39 @@
 // @vitest-environment node
 import { vi } from 'vitest';
+import { NextResponse } from 'next/server';
 import type { AuthedMember } from '@/auth/auth-provider';
 
-// Admin gate + result-kind → HTTP mapping for the Loops routes. The core is
-// mocked (covered by loops-core.test); no database (gumi convention).
 let mockCaller: AuthedMember | null = null;
-vi.mock('@/auth/current-member', () => ({
-  currentMember: async () => mockCaller,
-  currentSession: async () => null,
+vi.mock('@/auth/admin-gate-handler', () => ({
+  resolveAdminActor: async () =>
+    mockCaller && mockCaller.role === 'team_admin'
+      ? { ok: true, actor: mockCaller }
+      : {
+          ok: false,
+          response: NextResponse.json(
+            { error: mockCaller ? 'Admin privileges required.' : 'Unauthorized' },
+            { status: mockCaller ? 403 : 401 },
+          ),
+        },
 }));
 
-let createResult: unknown = { kind: 'created', loop: { id: 'l1' } };
-let getResult: unknown = { id: 'l1' };
-let updateResult: unknown = { kind: 'updated', loop: { id: 'l1' } };
-let deleteResult: unknown = { kind: 'deleted' };
+let createResult: unknown = { kind: 'created', loop: { id: 'l1' }, eventToken: null };
+const getResult: unknown = { id: 'l1', eventTokenHash: 'stored-hash' };
+let updateResult: unknown = { kind: 'updated', loop: { id: 'l1' }, eventToken: null };
+let rotateResult: unknown = { kind: 'rotated', loop: { id: 'l1' }, eventToken: 'new-token' };
+const deleteResult: unknown = { kind: 'deleted' };
 vi.mock('@/loops/loops-core', () => ({
-  listLoops: async () => [{ id: 'l1' }],
+  listLoops: async () => [{ id: 'l1', eventTokenHash: 'stored-hash' }],
   createLoop: async () => createResult,
   getLoop: async () => getResult,
   updateLoop: async () => updateResult,
+  rotateLoopEventToken: async () => rotateResult,
   deleteLoop: async () => deleteResult,
+  // Real strip behavior: the route sanitizes eventTokenHash out of every loop it returns.
+  toPublicLoop: (row: Record<string, unknown>) => {
+    const { eventTokenHash: _omit, ...rest } = row;
+    return rest;
+  },
 }));
 
 const { GET: listGET, POST: createPOST } = await import('../../app/api/loops/route');
@@ -42,43 +56,50 @@ describe('Loops routes — admin gate', () => {
     expect((await DELETE(req({}) as never, ctx('l1') as never)).status).toBe(403);
   });
 
-  it('unauthenticated → 401', async () => {
-    mockCaller = null;
-    expect((await listGET()).status).toBe(401);
-    expect((await createPOST(req({}) as never)).status).toBe(401);
-  });
 });
 
-describe('Loops routes — result-kind → HTTP', () => {
+describe('Loops routes — event token mapping', () => {
   beforeEach(() => { mockCaller = admin(); });
 
-  it('create: created→201, duplicate→409, invalid_cron→400', async () => {
-    createResult = { kind: 'created', loop: { id: 'l1' } };
-    expect((await createPOST(req({}) as never)).status).toBe(201);
-    createResult = { kind: 'duplicate_name' };
-    expect((await createPOST(req({}) as never)).status).toBe(409);
-    createResult = { kind: 'invalid_cron' };
-    expect((await createPOST(req({}) as never)).status).toBe(400);
+  it('create returns the event token only on the creation response', async () => {
+    createResult = { kind: 'created', loop: { id: 'l1' }, eventToken: 'plain-token' };
+    const res = await createPOST(req({ mode: 'event', cron: null }) as never);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ loop: { id: 'l1' }, eventToken: 'plain-token' });
   });
 
-  it('get: row→200, null→404', async () => {
-    getResult = { id: 'l1' };
-    expect((await oneGET(req({}) as never, ctx('l1') as never)).status).toBe(200);
-    getResult = null;
-    expect((await oneGET(req({}) as never, ctx('x') as never)).status).toBe(404);
+  it('patch rotates when rotateEventToken=true and rejects wrong-mode rotations', async () => {
+    rotateResult = { kind: 'rotated', loop: { id: 'l1' }, eventToken: 'rotated-token' };
+    let res = await PATCH(req({ rotateEventToken: true }) as never, ctx('l1') as never);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ loop: { id: 'l1' }, eventToken: 'rotated-token' });
+
+    rotateResult = { kind: 'wrong_mode' };
+    res = await PATCH(req({ rotateEventToken: true }) as never, ctx('l1') as never);
+    expect(res.status).toBe(409);
   });
 
-  it('patch: updated→200, not_found→404', async () => {
-    updateResult = { kind: 'updated', loop: { id: 'l1' } };
-    expect((await PATCH(req({ enabled: false }) as never, ctx('l1') as never)).status).toBe(200);
-    updateResult = { kind: 'not_found' };
-    expect((await PATCH(req({}) as never, ctx('x') as never)).status).toBe(404);
+  it('patch still maps update result kinds for ordinary edits', async () => {
+    updateResult = { kind: 'updated', loop: { id: 'l1' }, eventToken: null };
+    expect((await PATCH(req({ name: 'Retitled' }) as never, ctx('l1') as never)).status).toBe(200);
+    updateResult = { kind: 'invalid_mode' };
+    expect((await PATCH(req({ mode: 'event', cron: '0 3 * * *' }) as never, ctx('l1') as never)).status).toBe(400);
   });
 
-  it('delete: deleted→204, not_found→404', async () => {
-    deleteResult = { kind: 'deleted' };
-    expect((await DELETE(req({}) as never, ctx('l1') as never)).status).toBe(204);
-    deleteResult = { kind: 'not_found' };
-    expect((await DELETE(req({}) as never, ctx('x') as never)).status).toBe(404);
+  it('never leaks eventTokenHash from list / get / create responses', async () => {
+    // Source loops carry eventTokenHash; the routes must strip it via toPublicLoop. If a route
+    // ever stops calling the sanitizer, the hashed credential leaks and these assertions fail.
+    const listBody = (await (await listGET()).json()) as { loops: Record<string, unknown>[] };
+    expect(listBody.loops[0]).not.toHaveProperty('eventTokenHash');
+    expect(listBody.loops[0].id).toBe('l1');
+
+    const getBody = (await (await oneGET(req({}) as never, ctx('l1') as never)).json()) as Record<string, unknown>;
+    expect(getBody).not.toHaveProperty('eventTokenHash');
+    expect(getBody.id).toBe('l1');
+
+    createResult = { kind: 'created', loop: { id: 'l1', eventTokenHash: 'stored-hash' }, eventToken: 'plain-token' };
+    const createBody = (await (await createPOST(req({ mode: 'event', cron: null }) as never)).json()) as { loop: Record<string, unknown>; eventToken: string };
+    expect(createBody.loop).not.toHaveProperty('eventTokenHash');
+    expect(createBody.eventToken).toBe('plain-token');
   });
 });

@@ -54,6 +54,10 @@ export interface VerifyOutcome {
 export interface RunContext {
   runId: string;
   trigger: LoopTrigger;
+  goalOverride?: string;
+  idempotencyKey?: string;
+  reference?: string | null;
+  context?: string | null;
   runRowByRepoId?: Map<string, string>;
 }
 
@@ -111,7 +115,21 @@ export function buildBranch(loopName: string, date: Date, runId: string): string
   return `loop/${kebab(loopName)}/${day}-${runId.slice(0, 8)}`;
 }
 
-function prBody(goal: string, verify: VerifyOutcome, keyChanges: string[]): string {
+function resolveGoalMd(loop: LoopRow, ctx: RunContext): string {
+  const override = ctx.goalOverride?.trim();
+  if (override) return override;
+  const configGoal = (loop.config as { goalMd?: string } | null)?.goalMd?.trim();
+  if (configGoal) return configGoal;
+  return getLoopKind(loop.kind).buildPrompt(loop.config);
+}
+
+function buildWorkerPrompt(loop: LoopRow, ctx: RunContext, goalMd: string): string {
+  const prompt = getLoopKind(loop.kind).buildPrompt({ ...(loop.config as object), goalMd });
+  if (!ctx.context?.trim()) return prompt;
+  return `${prompt}\n\n--- Context ---\n${ctx.context.trim()}\n--- End Context ---`;
+}
+
+function prBody(goal: string, verify: VerifyOutcome, keyChanges: string[], reference?: string | null, context?: string | null): string {
   const verifyLine =
     verify.command === null
       ? 'Verification: not configured.'
@@ -119,14 +137,19 @@ function prBody(goal: string, verify: VerifyOutcome, keyChanges: string[]): stri
   return [
     '_Opened by a Forge maintenance loop. Review before merging — never auto-merged._',
     '',
+    reference ? `Reference: ${reference}` : null,
+    '',
     '## Goal',
     goal,
+    '',
+    context ? '## Context' : null,
+    context ?? null,
     '',
     '## Key changes',
     ...keyChanges.map((c) => `- ${c}`),
     '',
     verifyLine,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -151,27 +174,36 @@ export async function runLoopForRepo(
 ): Promise<LoopRunRow> {
   const db = deps.db ?? getDb();
   const now = deps.now ?? (() => new Date());
-  const goal = getLoopKind(loop.kind).buildPrompt(loop.config); // deterministic worker prompt
-  const goalMd = (loop.config as { goalMd?: string } | null)?.goalMd?.trim() || goal; // raw goal for the brain
+  const goalMd = resolveGoalMd(loop, ctx);
+  const goal = buildWorkerPrompt(loop, ctx, goalMd);
 
   // Use the caller's pre-created running row when present; else insert one now.
   let runRowId = ctx.runRowByRepoId?.get(repo.id);
   if (!runRowId) {
     const [run] = await db
       .insert(loopRun)
-      .values({ teamId: loop.teamId, loopId: loop.id, runId: ctx.runId, repoId: repo.id, trigger: ctx.trigger, status: 'running' })
+      .values({
+        teamId: loop.teamId,
+        loopId: loop.id,
+        runId: ctx.runId,
+        repoId: repo.id,
+        trigger: ctx.trigger,
+        status: 'running',
+        idempotencyKey: ctx.idempotencyKey ?? null,
+        reference: ctx.reference ?? null,
+      })
       .returning();
     runRowId = run.id;
   }
 
   const finish = async (
     patch: Partial<
-      Pick<LoopRunRow, 'status' | 'branch' | 'prUrl' | 'mmaBatchId' | 'keyChanges' | 'verification' | 'filesChanged' | 'journalEntries'>
+      Pick<LoopRunRow, 'status' | 'branch' | 'prUrl' | 'mmaBatchId' | 'keyChanges' | 'verification' | 'filesChanged' | 'journalEntries' | 'reference'>
     >,
   ): Promise<LoopRunRow> => {
     const [updated] = await db
       .update(loopRun)
-      .set({ ...patch, finishedAt: now() })
+      .set({ ...patch, reference: ctx.reference ?? null, finishedAt: now() })
       .where(eq(loopRun.id, runRowId))
       .returning();
     return updated;
@@ -204,7 +236,7 @@ export async function runLoopForRepo(
       sessionId = planTurn.sessionId;
       const parsed = parsePlan(planTurn.output);
       if (parsed) plan = parsed.recalls.length || parsed.verifyCommand ? parsed : plan;
-    } catch { /* keep the fallback plan */ }
+    } catch {}
 
     // Stage 4 — recall (worker fan-out of the planned queries).
     const recallTexts: string[] = [];
@@ -230,7 +262,13 @@ export async function runLoopForRepo(
     let branchOut: string | null = null;
     if (await deps.branchHasChanges(worktree, baseBranch)) {
       await deps.commitAndPush(worktree, branch, `loop(${loop.name}): ${repo.name}`);
-      const pr = await deps.openPr({ repo, branch, base: baseBranch, title: `loop(${loop.name}): ${repo.name}`, body: prBody(goalMd, verify, keyChanges) });
+      const pr = await deps.openPr({
+        repo,
+        branch,
+        base: baseBranch,
+        title: ctx.reference ? `loop(${loop.name}): ${ctx.reference}` : `loop(${loop.name}): ${repo.name}`,
+        body: prBody(goalMd, verify, keyChanges, ctx.reference, ctx.context),
+      });
       status = 'changed';
       prUrl = pr.prUrl;
       branchOut = branch;
@@ -248,8 +286,8 @@ export async function runLoopForRepo(
         loopRunId: runRowId,
       });
       const parsed = parseJournal(jTurn.output);
-      if (parsed) journalEntries = parsed.entries; // respect "nothing worth recording" (empty)
-    } catch { /* keep the fallback entry */ }
+      if (parsed) journalEntries = parsed.entries;
+    } catch {}
 
     // Stage 9 — record + report.
     if (journalEntries.length) await deps.record(repo, journalEntries, runRowId);
@@ -264,10 +302,9 @@ export async function runLoopForRepo(
       journalEntries,
     });
   } catch (e) {
-    return failed(`error: ${(e as Error)?.message ?? 'loop run failed'}`);
+    return failed((e as Error)?.message ?? 'loop_run_failed');
   } finally {
-    // Stage 10 — cleanup (every outcome).
-    if (worktree) await deps.removeWorktree(worktree).catch(() => {});
+    if (worktree) await deps.removeWorktree(worktree);
   }
 }
 

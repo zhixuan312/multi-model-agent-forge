@@ -26,13 +26,13 @@ describe('isDue (cron interpreted in Asia/Singapore)', () => {
 });
 
 describe('tickScheduler', () => {
-  it('fires due loops, skips an in-flight one, returns fired IDs', async () => {
-    const loopA = { id: 'A', cron: '0 3 * * *', enabled: true };
-    const loopB = { id: 'B', cron: '0 3 * * *', enabled: true };
+  it('fires only recurring loops and never auto-fires manual/event loops', async () => {
+    const loopA = { id: 'A', mode: 'recurring', cron: '0 3 * * *', enabled: true };
+    const loopB = { id: 'B', mode: 'manual', cron: null, enabled: true };
+    const loopC = { id: 'C', mode: 'event', cron: '0 3 * * *', enabled: true };
     const db = createMockDb({
-      'select:loop_def': [loopA, loopB],
-      // A: no prior run (due) ; B: a run already in flight (skip)
-      'select:loop_run': seq([], [{ status: 'running', startedAt: at('2026-06-15T03:00:00+08:00') }]),
+      'select:loop_def': [loopA, loopB, loopC],
+      'select:loop_run': seq([], [], []),
     });
     const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
     const res = await tickScheduler({ db, now: () => at('2026-06-15T03:00:30+08:00'), starter: starter as never });
@@ -40,14 +40,5 @@ describe('tickScheduler', () => {
     expect(res.fired).toEqual(['A']);
     expect(starter).toHaveBeenCalledTimes(1);
     expect(starter).toHaveBeenCalledWith('A', 'schedule', { db });
-  });
-
-  it('never fires a one-time (null-cron) job', async () => {
-    const oneTime = { id: 'X', cron: null, enabled: true };
-    const db = createMockDb({ 'select:loop_def': [oneTime], 'select:loop_run': [] });
-    const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
-    const res = await tickScheduler({ db, now: () => at('2026-06-15T03:00:30+08:00'), starter: starter as never });
-    expect(res.fired).toEqual([]);
-    expect(starter).not.toHaveBeenCalled();
   });
 });

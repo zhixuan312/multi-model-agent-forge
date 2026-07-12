@@ -15,7 +15,10 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const result = await startLoopRun(id, 'manual');
-  return result.kind === 'started'
-    ? NextResponse.json({ runId: result.runId }, { status: 202 })
-    : NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (result.kind === 'started') return NextResponse.json({ runId: result.runId }, { status: 202 });
+  // Event-mode loops are fired only via the authenticated event endpoint, never "Run now".
+  if (result.kind === 'wrong_mode') {
+    return NextResponse.json({ error: 'event_loops_run_via_event_endpoint' }, { status: 409 });
+  }
+  return NextResponse.json({ error: 'not_found' }, { status: 404 });
 }

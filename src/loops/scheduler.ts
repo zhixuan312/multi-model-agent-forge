@@ -53,8 +53,9 @@ export async function tickScheduler(deps: TickDeps = {}): Promise<{ fired: strin
       .where(eq(loopRun.loopId, l.id))
       .orderBy(desc(loopRun.startedAt))
       .limit(1);
-    if (!l.cron) continue; // one-time (adhoc) jobs never auto-fire — Run now only
-    if (latest?.status === 'running') continue; // one in-flight per loop
+    if (l.mode !== 'recurring') continue;
+    if (!l.cron) continue;
+    if (latest?.status === 'running') continue;
     if (isDue(l.cron, latest?.startedAt ?? null, now, deps.windowMs)) {
       await starter(l.id, 'schedule', { db });
       fired.push(l.id);
@@ -72,7 +73,6 @@ export function startLoopWorker(intervalMs = 60_000): () => void {
     try {
       await tickScheduler();
     } catch (e) {
-       
       console.error('[loops] scheduler tick failed:', (e as Error)?.message);
     } finally {
       running = false;

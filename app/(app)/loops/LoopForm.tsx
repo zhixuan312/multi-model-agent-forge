@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
+import { Trash2, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Input, Field, Textarea, Label, Micro } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
@@ -34,6 +34,7 @@ export function Segmented({
           key={o.value}
           type="button"
           role="radio"
+          aria-label={o.label}
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
@@ -48,10 +49,8 @@ export function Segmented({
   );
 }
 
-/**
- * The create / edit form for a loop. Shared by the index (add) and the loop
- * detail page (edit). On success it calls `onDone()` and refreshes the route.
- */
+type LoopMode = 'recurring' | 'manual' | 'event';
+
 export function LoopForm({
   mode,
   loop,
@@ -67,33 +66,69 @@ export function LoopForm({
   const [name, setName] = useState(loop?.name ?? '');
   const [goalMd, setGoalMd] = useState((loop?.config as { goalMd?: string } | null)?.goalMd ?? '');
   const [workerTier, setWorkerTier] = useState<'standard' | 'complex'>(loop?.workerTier ?? 'complex');
-  const [recurring, setRecurring] = useState(loop ? loop.cron != null : true);
+  const [loopMode, setLoopMode] = useState((loop?.mode as LoopMode | undefined) ?? 'recurring');
   const [cron, setCron] = useState(loop?.cron ?? '0 3 * * *');
   const [targetBranch, setTargetBranch] = useState(loop?.targetBranch ?? '');
   const [repoIds, setRepoIds] = useState<string[]>(loop?.repoIds ?? []);
   const [enabled, setEnabled] = useState(loop?.enabled ?? true);
+  const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const preview = nextRuns(cron, 3).map((d) => formatDateTime(d));
+  const recurring = loopMode === 'recurring';
+  const eventMode = loopMode === 'event';
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      // One-time jobs have no enable/disable — they're always runnable via Run now.
-      const payload = { name, kind: 'maintenance', config: { goalMd }, workerTier, cron: recurring ? cron : null, targetBranch: targetBranch.trim() || null, repoIds, enabled: recurring ? enabled : true };
+      const payload = {
+        name,
+        kind: 'maintenance',
+        config: { goalMd },
+        workerTier,
+        mode: loopMode,
+        cron: recurring ? cron : null,
+        targetBranch: targetBranch.trim() || null,
+        repoIds,
+        enabled: recurring ? enabled : true,
+      };
       const res = loop
         ? await fetch(`/api/loops/${loop.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
         : await fetch('/api/loops', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const body = (await res.json().catch(() => null)) as { message?: string; eventToken?: string } | null;
       if (!res.ok) {
-        const b = (await res.json().catch(() => null)) as { message?: string } | null;
-        setError(b?.message ?? 'Could not save the loop.');
+        setError(body?.message ?? 'Could not save the loop.');
         return;
       }
-      onDone();
+      const revealed = body?.eventToken ?? null;
+      setRevealedToken(revealed);
+      router.refresh();
+      if (!revealed) onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRotateToken() {
+    if (!loop) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/loops/${loop.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rotateEventToken: true }),
+      });
+      const body = (await res.json().catch(() => null)) as { message?: string; eventToken?: string } | null;
+      if (!res.ok) {
+        setError(body?.message ?? 'Could not rotate the token.');
+        return;
+      }
+      setRevealedToken(body?.eventToken ?? null);
       router.refresh();
     } finally {
       setBusy(false);
@@ -125,8 +160,8 @@ export function LoopForm({
           <Segmented label="Worker tier" value={workerTier} onChange={(v) => setWorkerTier(v as 'standard' | 'complex')} options={[{ value: 'standard', label: 'standard' }, { value: 'complex', label: 'complex' }]} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label as="span">Trigger</Label>
-          <Segmented label="Trigger" value={recurring ? 'recurring' : 'oneoff'} onChange={(v) => setRecurring(v === 'recurring')} options={[{ value: 'recurring', label: 'Recurring' }, { value: 'oneoff', label: 'One-time' }]} />
+          <Label as="span">Mode</Label>
+          <Segmented label="Mode" value={loopMode} onChange={(v) => setLoopMode(v as LoopMode)} options={[{ value: 'recurring', label: 'Recurring' }, { value: 'manual', label: 'Manual' }, { value: 'event', label: 'Event' }]} />
         </div>
         {recurring ? (
           <div className="flex flex-col gap-1.5">
@@ -148,20 +183,35 @@ export function LoopForm({
         </div>
       </fieldset>
 
-      <Field label="Goal">{(p) => <Textarea {...p} value={goalMd} onChange={(e) => setGoalMd(e.target.value)} className="min-h-20" placeholder="What should this loop keep true?" />}</Field>
+      <Field label="Goal">{(p) => <Textarea {...p} value={goalMd} onChange={(e) => setGoalMd(e.target.value)} className="min-h-20" placeholder={eventMode ? 'What should each incoming event make this loop do?' : 'What should this loop keep true?'} />}</Field>
 
       {recurring ? (
         <Field label="Schedule (cron)" hint={preview.length ? `Next (SGT): ${preview.join(' · ')}` : 'Enter a valid cron expression'}>
           {(p) => <Input {...p} value={cron} onChange={(e) => setCron(e.target.value)} className="font-mono" />}
         </Field>
+      ) : eventMode ? (
+        <Micro className="block text-ink-soft">Event mode runs only when an external caller presents the loop token plus an idempotency key.</Micro>
       ) : (
-        <Micro className="block text-ink-soft">One-time job — it runs only when you click Run now, and never on a schedule.</Micro>
+        <Micro className="block text-ink-soft">Manual mode runs only when you click Run now, and never on a schedule.</Micro>
       )}
 
       <Field label="Target branch (optional)" hint="Branch to fork from and open the PR into. Blank = the branch the repo is currently on.">
         {(p) => <Input {...p} value={targetBranch} onChange={(e) => setTargetBranch(e.target.value)} placeholder="current branch" className="font-mono" />}
       </Field>
 
+      {eventMode && loop ? (
+        <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+          <Micro className="flex-1 text-ink-soft">Rotate the event token to invalidate the previous machine credential immediately.</Micro>
+          <Button type="button" variant="secondary" leftIcon={<KeyRound />} onClick={onRotateToken} disabled={busy}>Rotate token</Button>
+        </div>
+      ) : null}
+
+      {revealedToken ? (
+        <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+          <Micro className="flex-1 text-sage">Event token (shown once — copy it now): <span className="font-mono">{revealedToken}</span></Micro>
+          <Button type="button" variant="secondary" onClick={onDone}>Done</Button>
+        </div>
+      ) : null}
       {error ? <Micro role="alert" className="block text-rose">{error}</Micro> : null}
 
       <div className="flex items-center justify-between gap-2">

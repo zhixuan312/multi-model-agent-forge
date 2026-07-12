@@ -26,7 +26,6 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
   const repos = details ? getRepos(details) : [];
   if (repos.length === 0) throw new Error('No repos linked to this project.');
 
-  const actorId = (ctx.request as { actorId?: string })?.actorId ?? ctx.actorId ?? 'system';
   const tasks: Array<{ id: string; title: string }> = [];
 
   await updateDetails(db, ctx.projectId, (d) => {

@@ -6,7 +6,7 @@ import { automationOverlayStore } from '@/components/forge/AutomationGate';
 
 /**
  * Opens the activity overlay READ-ONLY to show the project's full event timeline
- * (`details.events`) — the way a completed (non-auto) project surfaces its record.
+ * (`project_activity`) — the way a completed (non-auto) project surfaces its record.
  * Renders nothing when there's no activity yet. The overlay itself reads the
  * events from server state, so this only flips it visible.
  */

@@ -154,8 +154,9 @@ export async function setAutomationStatus(
   return updateDetails(db, projectId, (d) => {
     d.automation.status = status;
     if (status === 'running') {
-      // A fresh run resets only the auto-run clock. The event log is project-level
-      // (`details.events`) and is NEVER cleared — it's the full project timeline.
+      // A fresh run resets only the auto-run clock. The activity timeline is
+      // project-level (`project_activity`) and is NEVER cleared — it's the full
+      // project timeline, independent of any single automation run.
       d.automation.startedAt = new Date().toISOString();
       d.automation.stoppedAt = undefined;
     } else {

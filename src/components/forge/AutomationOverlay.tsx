@@ -180,8 +180,8 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
   }, [countdown, router]);
 
   // Adopt the current run's start time for the elapsed clock. The activity log is
-  // project-level (details.events) and is NEVER cleared — a new run keeps the full
-  // timeline and only restarts the elapsed timer (startedAt is per-run).
+  // project-level (`project_activity`) and is NEVER cleared — a new run keeps the
+  // full timeline and only restarts the elapsed timer (startedAt is per-run).
   const adoptedStartRef = useRef<string | undefined>(automationStartedAt);
   useEffect(() => {
     if (!automationStartedAt) return;

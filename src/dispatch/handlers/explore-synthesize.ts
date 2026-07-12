@@ -30,8 +30,6 @@ async function handleExploreSynthesize(db: Db, ctx: MmaBatchCtx, envelope: unkno
       synthesis = { background: bg || text, currentState: cs, roughDirection: rd };
     }
   }
-  const request = ctx.request as { actorId: string };
-
   const failureMarkers: string[] = [];
   const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
   if (pRow?.details) {

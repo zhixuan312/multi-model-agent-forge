@@ -5,7 +5,6 @@ import {
   resolveRunningActivity,
   type ProjectActivityEvent,
 } from '@/activity/project-activity';
-import { projectActivity } from '@/db/schema/activity';
 import { createMockDb } from '../test-utils/mock-db';
 
 describe('project activity core', () => {

@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { vi } from 'vitest';
 import {
   PdfRenderer,
   PdfTimeoutError,

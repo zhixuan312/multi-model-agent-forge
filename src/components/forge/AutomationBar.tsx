@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Bot, Hand } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
@@ -13,46 +12,19 @@ export type AutoMode = 'off' | 'running';
 export function AutomationBar({
   projectId,
   mode,
-  note,
   disabled,
   idleHint,
-  runningHint,
 }: {
   projectId?: string;
   mode: AutoMode;
   note: string;
   disabled: boolean;
   idleHint?: string;
-  runningHint?: string;
 }) {
-  const router = useRouter();
   const optimistic = useOptimisticAction();
   const running = mode === 'running';
-  const [liveNote, setLiveNote] = useState(note);
 
-  useEffect(() => { setLiveNote(note); }, [note]);
   useEffect(() => { automationThemeStore.set(running); return () => { automationThemeStore.set(false); }; }, [running]);
-
-  useEffect(() => {
-    function onProgress(e: Event) {
-      const detail = (e as CustomEvent).detail as { note?: string };
-      if (detail?.note) setLiveNote(detail.note);
-    }
-    function onStepDone() { router.refresh(); }
-    function onError(e: Event) {
-      const detail = (e as CustomEvent).detail as { error?: string };
-      if (detail?.error) setLiveNote(`Error: ${detail.error}`);
-      router.refresh();
-    }
-    window.addEventListener('automation:progress', onProgress);
-    window.addEventListener('automation:step_done', onStepDone);
-    window.addEventListener('automation:error', onError);
-    return () => {
-      window.removeEventListener('automation:progress', onProgress);
-      window.removeEventListener('automation:step_done', onStepDone);
-      window.removeEventListener('automation:error', onError);
-    };
-  }, [router]);
 
   function handleRun() {
     if (!projectId) return;
@@ -76,25 +48,7 @@ export function AutomationBar({
     });
   }
 
-  function handleStop() {
-    if (!projectId) return;
-    void optimistic.run({
-      apply: () => automationOverlayStore.hide(),
-      commit: async () => {
-        const r = await fetch(`/api/projects/${projectId}/transition`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'take_over' }),
-        });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
-      },
-      rollback: () => automationOverlayStore.show(),
-      onSettled: () => router.refresh(),
-      error: 'Couldn’t stop automation — try again.',
-      retryable: true,
-    });
-  }
-
-  // If already running (server state), don't render the bar — overlay handles it
+  // If already running (server state), don’t render the bar — overlay handles it
   if (running) return null;
 
   return (

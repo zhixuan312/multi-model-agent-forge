@@ -26,7 +26,6 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
   Badge,
-  Banner,
   Textarea,
   Select,
   SelectTrigger,
@@ -233,6 +232,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
       synthFired.current = true;
       resynthesize();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: fires once when entering synthesis; resynthesize is stable and adding it would retrigger
   }, [phase, bodyMd, synthesizing, locked]);
 
   useEffect(() => {
@@ -244,6 +244,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(tasks.find((t) => t.status !== 'draft')?.id ?? tasks[0]?.id ?? null);
   useEffect(() => {
     if (!selectedTaskId && tasks.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- default the selection to the first task once tasks arrive
       setSelectedTaskId(tasks[0].id);
     }
   }, [selectedTaskId, tasks]);
@@ -405,10 +406,15 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           {selectedTask ? (
             <div className="border-b border-line px-5 py-3">
               <Eyebrow className="mb-1 !text-ink-faint">Prompt</Eyebrow>
-              <p className="text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
+              {/* Cap the prompt so a very long one scrolls in place instead of
+                  growing the pane and squeezing the output area below it. */}
+              <p className="max-h-40 overflow-y-auto pr-1 text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
             </div>
           ) : null}
-          <CardContent className="min-h-0 flex-1 overflow-y-auto !py-4">
+          {/* key by the selected task so switching tasks remounts the scroll
+              container — the output always starts at the top, never stranded at
+              the previous task's scroll position. */}
+          <CardContent key={selectedTaskId ?? 'none'} className="min-h-0 flex-1 overflow-y-auto !py-4">
             {!selectedTask ? (
               <div className="grid h-full place-items-center">
                 <p className="text-sm text-ink-faint">Select a task from the list to view its output.</p>
@@ -633,12 +639,9 @@ function FanOutCard(props: {
     props.onChanged();
   }
 
-  // Run is disabled while any draft prompt is sub-floor (Short-prompt rule).
-  const anySubFloor = props.drafts.some((t) => t.prompt.trim().length < promptFloor(t.kind as never));
   const repoName = (id: string | null): string =>
     props.repoOptions.find((r) => r.id === id)?.name ?? 'unassigned';
   const recorded = props.allTasks.filter((t) => t.status !== 'draft');
-  const totalCount = props.drafts.length + recorded.length;
 
   return (
     <Card className={cn('flex flex-col', props.className)} aria-label="Proposed fan-out">

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { ComponentKind } from '@/db/enums';
@@ -8,6 +8,9 @@ import { validateDetails } from '@/details/schema';
 import { project } from '@/db/schema/projects';
 import { teamSpecTemplate } from '@/db/schema/team';
 import { projectEventBus } from '@/sse/event-bus';
+import { member } from '@/db/schema/identity';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /**
  * Spec orchestrator — component lifecycle helpers for the Craft + Outline phases.
@@ -20,6 +23,16 @@ import { projectEventBus } from '@/sse/event-bus';
 
 export interface OrchestratorDeps {
   db?: Db;
+}
+
+async function loadActor(db: Db, actorId: string | undefined) {
+  if (!actorId) return null;
+  const [actor] = await db
+    .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.id, actorId))
+    .limit(1);
+  return actor ?? null;
 }
 
 /* ── Grounding ────────────────────────────────────────────────────────── */
@@ -61,6 +74,23 @@ export async function onHumanSatisfied(deps: OrchestratorDeps, projectId: string
     return det;
   });
 
+  const actor = await loadActor(db, memberId);
+  if (memberId && actor) {
+    // Universal attribution: approve_component is reachable from the auto driver
+    // (memberId=FORGE via details-actions) as well as a human. See FR-7.
+    await recordActivity({
+      db,
+      projectId,
+      stage: 'spec',
+      phase: 'craft',
+      label: 'Approved spec component',
+      kind: 'done',
+      actor: { id: memberId, name: actor.displayName, tint: actor.avatarTint },
+      source: memberId === FORGE_MEMBER_ID ? 'mma' : 'user',
+      eventKey: `approve_component:${projectId}:${componentId}`,
+    });
+  }
+
   // Notify subscribed clients so the approval reflects without a manual refresh —
   // same pattern as the revoke and invite routes (client refreshes on 'spec.updated').
   projectEventBus.publish(projectId, { type: 'spec.updated' });
@@ -71,11 +101,17 @@ export async function onHumanSatisfied(deps: OrchestratorDeps, projectId: string
 /**
  * Store the selected component kinds in details with generated UUIDs. Additive:
  * already-approved components are kept; unapproved ones are replaced.
+ * `opts` is optional so the existing auto-mode caller in details-actions.ts (which
+ * invokes the 3-arg form) keeps compiling. When no actorId is supplied the action is
+ * automation-triggered, so it attributes to Forge with source='mma'; a human confirming
+ * in manual mode passes their id and gets source='user'. Same shared-seam rule as the
+ * transition seams in FR-7.
  */
 export async function confirmComponents(
   db: Db,
   projectId: string,
   kinds: ComponentKind[],
+  opts?: { actorId?: string },
 ): Promise<void> {
   const tplRows = await db.select({ id: teamSpecTemplate.id, kind: teamSpecTemplate.kind })
     .from(teamSpecTemplate).where(inArray(teamSpecTemplate.kind, kinds));
@@ -101,6 +137,22 @@ export async function confirmComponents(
     ];
     d.stages.spec.phases.outline.selectedTemplateIds = selectedIds;
     return d;
+  });
+
+  const actorId = opts?.actorId ?? FORGE_MEMBER_ID;
+  const source = actorId === FORGE_MEMBER_ID ? 'mma' : 'user';
+  const actor = await loadActor(db, actorId);
+  const selectionHash = createHash('sha256').update([...selectedIds].sort().join(',')).digest('hex');
+  await recordActivity({
+    db,
+    projectId,
+    stage: 'spec',
+    phase: 'outline',
+    label: 'Confirmed spec components',
+    kind: 'done',
+    actor: { id: actorId, name: actor?.displayName ?? 'Forge', tint: actor?.avatarTint ?? '#9a6b4f' },
+    source,
+    eventKey: `confirm_components:${projectId}:${selectionHash}`,
   });
 }
 

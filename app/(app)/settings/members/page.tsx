@@ -35,6 +35,7 @@ export default async function MembersPage() {
     createdAt: m.createdAt.toISOString(),
   }));
 
+  // eslint-disable-next-line react-hooks/purity -- server-side render computing a 30-day cutoff; Date.now() is the intended "now"
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const total = rows.length;
   const admins = rows.filter((m) => m.isAdmin).length;

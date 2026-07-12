@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
-import { logAction } from '@/observability/action-log';
 import { PROMPT_FLOORS } from '@/exploration/schemas';
 import { readExplorationFile } from '@/projects/project-files';
 import { setBriefText } from '@/details/write';
@@ -28,10 +27,6 @@ export async function saveBrief(
   db: Db = getDb(),
 ): Promise<void> {
   await setBriefText(db, projectId, text);
-  await logAction(
-    { projectId, memberId: actor.id, action: 'explore_brief', target: `project:${projectId}` },
-    db,
-  );
 }
 
 export async function latestBrief(projectId: string, db: Db = getDb()): Promise<string> {
@@ -174,10 +169,6 @@ export async function addTask(
     idx = d.stages.exploration.phases.discover.tasks.length - 1;
     return d;
   });
-  await logAction(
-    { projectId, memberId: actor.id, action: 'explore_add_task', target: `project:${projectId}`, meta: { kind: input.kind } },
-    db,
-  );
   return { id: `task-${idx}` };
 }
 
@@ -199,10 +190,6 @@ export async function editTask(
     }
     return d;
   });
-  await logAction(
-    { projectId, memberId: actor.id, action: 'explore_edit_task', target: `project:${projectId}` },
-    db,
-  );
 }
 
 /** Remove a draft task via details. */
@@ -219,8 +206,4 @@ export async function removeTask(
     d.stages.exploration.phases.discover.tasks.splice(taskIndex, 1);
     return d;
   });
-  await logAction(
-    { projectId, memberId: actor.id, action: 'explore_remove_task', target: `project:${projectId}` },
-    db,
-  );
 }

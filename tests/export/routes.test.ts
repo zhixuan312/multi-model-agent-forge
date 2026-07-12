@@ -207,7 +207,6 @@ describe('GET /export/md (Key flow B)', () => {
       'select:project_audit_pass': [],
       'select:ops_mma_batch': [],
       'insert:project_export': [{ id: 'exp-1' }],
-      'insert:ops_action_log': [{ id: 'log-1' }],
     });
     const res = await mdRoute.GET(new NextRequest('http://x/md?artifact=spec'), {
       params: Promise.resolve({ id: projectId }),

@@ -11,3 +11,4 @@ export * from '@/db/schema/ops';
 export * from '@/db/schema/loop';
 export * from '@/db/schema/journal';
 export * from '@/db/schema/team';
+export * from '@/db/schema/activity';

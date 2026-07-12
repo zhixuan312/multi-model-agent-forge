@@ -6,7 +6,6 @@ import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 import { STAGE_ORDER } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
 import { computeAllStages, type ComputedStageView } from '@/projects/stage-lifecycle';
-import { STAGE_SUBSTEPS } from '@/components/forge/stage-substeps';
 
 const STAGE_LAST_FALLBACK: Partial<Record<StageKind, string>> = {
   exploration: 'synthesize',
@@ -203,7 +202,6 @@ export function StageStepper({
   projectId,
   stages,
   currentStage,
-  phase,
   lockedStages,
   condensed = false,
   subSteps,

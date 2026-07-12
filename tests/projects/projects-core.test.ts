@@ -23,7 +23,6 @@ describe('createProject — seeding + validation', () => {
         { id: repo2, name: 'repo-b', pathOnDisk: '/tmp/b', defaultBranch: 'main' },
       ],
       'insert:project': [{ id: projectId, name: 'test-proj', visibility: 'public', phase: 'design', currentStage: 'exploration', ownerId }],
-      'insert:ops_action_log': [{ projectId, action: 'create_project', memberId: ownerId }],
     });
 
     const res = await createProject(
@@ -41,7 +40,6 @@ describe('createProject — seeding + validation', () => {
     const mockDb = createMockDb({
       'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
       'insert:project': [{ id: projectId, phase: 'design', currentStage: 'exploration', ownerId, summary: null }],
-      'insert:ops_action_log': [{ projectId, action: 'create_project' }],
     });
 
     const res = await createProject(
@@ -85,7 +83,6 @@ describe('createProject — seeding + validation', () => {
       'insert:project_stage': [],
       'insert:project_participant': [],
       'insert:project_repo': [],
-      'insert:ops_action_log': [],
     });
 
     const a = await createProject(
@@ -182,14 +179,13 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
 });
 
 describe('mutation authorization', () => {
-  it('changeVisibility by the owner succeeds and writes one log row', async () => {
+  it('changeVisibility by the owner succeeds', async () => {
     const projectId = 'proj-8';
     const ownerId = 'owner-8';
     const mockDb = createMockDb({
       'select:project': [{ id: projectId, visibility: 'public', ownerId }],
       'select:project_participant': [{ projectId, memberId: ownerId, role: 'owner' }],
       'update:project': [{ id: projectId, visibility: 'private' }],
-      'insert:ops_action_log': [{ projectId, action: 'change_visibility', memberId: ownerId }],
     });
 
     await changeVisibility(projectId, 'private', { id: ownerId, teamId: 'team-1' }, { db: mockDb });
@@ -206,7 +202,6 @@ describe('mutation authorization', () => {
       'select:project': seq([{ id: projectId, ownerId }], [{ details: d, detailsVersion: 0 }]),
       'select:workspace_repo': [{ id: 'repo-2', name: 'new', pathOnDisk: '/tmp/2', defaultBranch: 'main' }],
       'update:project': [{ id: projectId }],
-      'insert:ops_action_log': [],
     });
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId, teamId: 'team-1' }, { db: mockDb });
@@ -237,5 +232,28 @@ describe('getProjectRepos — reads from details', () => {
     const badView = views.find((v) => v.repoId === 'bad-repo');
     expect(goodView?.available).toBe(true);
     expect(badView?.available).toBe(false);
+  });
+});
+
+describe('createProject activity row', () => {
+  it('records create_project with actor display fields loaded inside the transaction', async () => {
+    const db = createMockDb({
+      'select:workspace_repo': [{ id: '11111111-1111-4111-8111-111111111111', name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'select:team_member': [{ id: 'owner-1', displayName: 'Owner', avatarTint: '#f60' }],
+      'insert:project': [{ id: 'proj-1' }],
+      'insert:project_activity': [{ id: 'activity-1' }],
+    });
+    await createProject(
+      { name: 'Demo', visibility: 'public', repoIds: ['11111111-1111-4111-8111-111111111111'] },
+      { id: 'owner-1', teamId: 'team-1' },
+      { db },
+    );
+    const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
+    expect(valuesCall?.args[0]).toMatchObject({
+      label: 'Created project',
+      actorName: 'Owner',
+      actorTint: '#f60',
+      eventKey: 'create_project:proj-1',
+    });
   });
 });

@@ -61,6 +61,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = useState<SortingState>([]);
   // In fill mode show every row (no pagination) — the body scrolls instead.
   const effectivePageSize = fill ? 100_000 : pageSize;
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React-Compiler-compatible; this hook usage is correct
   const table = useReactTable({
     data,
     columns,

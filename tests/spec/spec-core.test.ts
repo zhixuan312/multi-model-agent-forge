@@ -4,7 +4,6 @@ import {
   captureIntent,
   loadOutline,
   loadComponentMessages,
-  buildSectionRepaint,
   loadAllMessages,
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
@@ -50,7 +49,6 @@ describe('captureIntent', () => {
     const mockDb = createMockDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: projectId }],
-      'insert:ops_action_log': [],
     });
 
     await captureIntent(mockDb, projectId, '  We need a faster checkout flow.  ', ownerId);
@@ -58,9 +56,28 @@ describe('captureIntent', () => {
   });
 });
 
+describe('captureIntent activity row', () => {
+  it('records the capture_intent action in project_activity', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
+    const d = buildInitialDetails();
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+      'select:team_member': [{ id: 'member-1', displayName: 'Avery', avatarTint: '#09f' }],
+      'insert:project_activity': [{ id: 'activity-1' }],
+    });
+    await captureIntent(db, 'proj-1', 'Ship it', 'member-1');
+    const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
+    expect(valuesCall?.args[0]).toMatchObject({
+      label: 'Captured project intent',
+      eventKey: 'capture_intent:proj-1',
+      actorName: 'Avery',
+    });
+  });
+});
+
 describe('section + project_qa_message persistence (DB integration)', () => {
   it('an answer persists a member project_qa_message, and loadComponentMessages returns them in seq order', async () => {
-    const projectId = 'proj-4';
     const sectionId = 'sec-1';
     const ownerId = 'owner-4';
     const FORGE_ID = '00000000-0000-0000-0000-000000000000';

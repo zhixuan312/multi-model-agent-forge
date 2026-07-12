@@ -30,21 +30,16 @@ const eslintConfig = defineConfig([
     files: ["tests/**/*.ts", "tests/**/*.tsx"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
-  // React Compiler advisory rules (eslint-plugin-react-hooks v6). This codebase
-  // has not adopted the React Compiler, and these rules flag many pre-existing,
-  // functionally-correct patterns across the component layer. Run them as `warn`
-  // (visible, not blocking) rather than a risky blanket refactor. The genuine
-  // correctness rule — `rules-of-hooks` — stays at ERROR, and real bugs it and
-  // `refs` surfaced (e.g. the SpecStageClient dedup race) were fixed, not muted.
+  // A leading underscore marks an intentionally-unused binding (e.g. a
+  // signature-required handler arg). This is the standard convention.
   {
     rules: {
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/purity": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/incompatible-library": "warn",
-      "react-hooks/static-components": "warn",
+      "@typescript-eslint/no-unused-vars": ["error", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        ignoreRestSiblings: true,
+      }],
     },
   },
 ]);

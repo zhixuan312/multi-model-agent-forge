@@ -9,13 +9,9 @@ afterAll(() => {
 });
 import {
   saveBrief,
-  latestBrief,
   readRailTasks,
   latestExplorationArtifact,
   addTask,
-  editTask,
-  removeTask,
-  TaskLockedError,
 } from '@/exploration/explore-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
@@ -32,7 +28,6 @@ describe('brief persistence', () => {
         [{ details: { ...d, stages: { ...d.stages, exploration: { ...d.stages.exploration, phases: { ...d.stages.exploration.phases, brief: { status: 'done', text: 'first dump' } } } } } }],
       ),
       'update:project': [{ id: projectId }],
-      'insert:ops_action_log': [],
     });
 
     await saveBrief(projectId, 'first dump', { id: ownerId }, mockDb);
@@ -90,7 +85,6 @@ describe('task editing via details', () => {
     const mockDb = createMockDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: projectId }],
-      'insert:ops_action_log': [],
     });
 
     const { id } = await addTask(projectId, { kind: 'research', prompt: 'what external options exist for this?' }, { id: ownerId }, mockDb);

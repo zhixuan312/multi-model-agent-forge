@@ -2,7 +2,7 @@
  * Usage aggregation core — four query functions, one per tab.
  * All accept a period and return structured results for the Usage page.
  */
-import { sql, and, eq, isNotNull, gte, inArray, not } from 'drizzle-orm';
+import { sql, and, eq, isNotNull, gte, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
@@ -185,15 +185,6 @@ export const STAGE_LABELS: Record<string, string> = {
   journal: 'Learning',
   other: 'Other',
 };
-
-function resolveStage(route: string, subtype: string | null): string {
-  if (route === 'audit') {
-    if (subtype === 'spec') return 'spec';
-    if (subtype === 'plan') return 'plan';
-    return 'other';
-  }
-  return ROUTE_TO_STAGE[route] ?? 'other';
-}
 
 export function usageOverview(period: Period, deps: UsageDeps & { scope: 'org' }): Promise<OrgOverviewResult>;
 export function usageOverview(period: Period, deps?: UsageDeps): Promise<OverviewResult>;
@@ -568,7 +559,6 @@ export async function usageByLoop(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const teamCond = teamScopeFilter(deps.teamId);
 
   // Two-pass: first get per-loop run stats, then sum batch costs per loop.
   const runWhere = deps.teamId
@@ -873,7 +863,6 @@ export async function batchesForLoopRun(
 ): Promise<Array<{ runId: string; startedAt: string; status: string; batches: BatchDetailRow[] }>> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
-  const teamCond = teamScopeFilter(deps.teamId);
 
   const runs = await db
     .select({

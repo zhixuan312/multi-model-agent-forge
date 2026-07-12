@@ -24,7 +24,7 @@ import {
   type ProjectVisibility,
   type ProjectPhase,
 } from '@/db/enums';
-import { logAction } from '@/observability/action-log';
+import { recordActivity } from '@/activity/project-activity';
 
 /** The acting member (id and teamId are load-bearing for the data layer). */
 export interface ProjectActor {
@@ -141,16 +141,27 @@ export async function createProject(
 
     // All project state is in details — no legacy table inserts needed
 
-    await logAction(
-      {
-        projectId: row.id,
-        memberId: actor.id,
-        action: 'create_project',
-        target: `project:${row.id}`,
-        meta: { visibility, repoCount: uniqueRepoIds.length },
+    const [actorRow] = await tx
+      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+      .from(member)
+      .where(eq(member.id, actor.id))
+      .limit(1);
+
+    await recordActivity({
+      db: tx as unknown as Db,
+      projectId: row.id,
+      stage: 'exploration',
+      phase: 'brief',
+      label: 'Created project',
+      kind: 'done',
+      actor: {
+        id: actor.id,
+        name: actorRow?.displayName ?? 'Unknown',
+        tint: actorRow?.avatarTint ?? '#9a6b4f',
       },
-      tx as unknown as Db,
-    );
+      source: 'user',
+      eventKey: `create_project:${row.id}`,
+    });
 
     return row.id;
   });
@@ -382,16 +393,6 @@ export async function changeVisibility(
       .update(project)
       .set({ visibility, updatedAt: new Date() })
       .where(eq(project.id, projectId));
-    await logAction(
-      {
-        projectId,
-        memberId: actor.id,
-        action: 'change_visibility',
-        target: `project:${projectId}`,
-        meta: { visibility },
-      },
-      tx as unknown as Db,
-    );
   });
 }
 
@@ -427,15 +428,5 @@ export async function changeRepos(
       .update(project)
       .set({ updatedAt: new Date() })
       .where(eq(project.id, projectId));
-    await logAction(
-      {
-        projectId,
-        memberId: actor.id,
-        action: 'change_repos',
-        target: `project:${projectId}`,
-        meta: { repoCount: unique.length },
-      },
-      tx as unknown as Db,
-    );
   });
 }

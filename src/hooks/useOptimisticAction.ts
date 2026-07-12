@@ -114,6 +114,7 @@ export function useOptimisticAction(): UseOptimisticAction {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest run into a ref so long-lived callers read it without re-subscribing
   runRef.current = run;
 
   return { run, pending: count > 0 };

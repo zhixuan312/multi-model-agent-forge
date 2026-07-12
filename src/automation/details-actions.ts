@@ -4,7 +4,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { specFilePath, planFilePath, readSpecFile, readPlanFile, backupArtifact } from '@/projects/project-files';
+import { specFilePath, planFilePath, readSpecFile, backupArtifact } from '@/projects/project-files';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
@@ -22,6 +22,8 @@ import { startExecuteRun } from '@/build/start-execute-run';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
 import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } from '@/review/review-findings';
 import type { AutoAction } from '@/automation/details-resolver';
+import { member } from '@/db/schema/identity';
+import { recordActivity } from '@/activity/project-activity';
 
 /** Outcome of an action: `inflight` means an MMA batch for this (project, handler)
  * is already dispatched/running, so the driver must WAIT rather than record a step. */
@@ -93,22 +95,98 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
   const failed = new Set(failedRows.map((r) => r.id));
   const toFlip = open.filter((x) => failed.has(x.attempt.batchId!));
   if (toFlip.length === 0) return;
-  const at = new Date().toISOString();
-  // Flip in ONE updateDetails (re-find the live attempts on the fresh details) and
-  // append a durable error line; mirror it live so the UI shows the retry at once.
+
   await updateDetails(db, projectId, (det) => {
     const stuck = new Set(toFlip.map((x) => x.attempt.batchId));
-    for (const { stage, phase, label, attempt } of openRunningAttempts(det)) {
+    for (const { attempt } of openRunningAttempts(det)) {
       if (attempt.batchId && stuck.has(attempt.batchId)) {
         attempt.status = 'failed';
-        det.events.push({ stage, phase, detail: `${label} failed — retrying`, kind: 'error', at });
       }
     }
     return det;
   });
+
   for (const { stage, phase, label } of toFlip) {
+    await recordActivity({
+      db,
+      projectId,
+      stage,
+      phase,
+      label: `${label} failed — retrying`,
+      kind: 'error',
+      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      source: 'mma',
+      eventKey: `retry-error:${projectId}:${stage}:${phase}:${label}`,
+    });
     projectEventBus.publish(projectId, { type: 'automation.progress', note: `${label} failed — retrying`, stage, phase, kind: 'error' });
   }
+}
+
+async function loadActivityActor(db: Db, actorId: string) {
+  const [actor] = await db
+    .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.id, actorId))
+    .limit(1);
+  return {
+    id: actorId,
+    name: actor?.displayName ?? 'Unknown',
+    tint: actor?.avatarTint ?? '#9a6b4f',
+  };
+}
+
+// keep the existing switch logic, and add this helper call to the three frozen seams:
+async function recordTransitionActivity(
+  db: Db,
+  projectId: string,
+  action: AutoAction,
+): Promise<void> {
+  if (!['approve_task', 'advance_phase', 'advance_stage'].includes(action.kind)) return;
+  const actorId = typeof action.data?.actorId === 'string' ? action.data.actorId : FORGE_MEMBER_ID;
+  const actor = await loadActivityActor(db, actorId);
+  const source = actorId === FORGE_MEMBER_ID ? 'mma' : 'user';
+
+  if (action.kind === 'approve_task') {
+    await recordActivity({
+      db,
+      projectId,
+      stage: action.stage,
+      phase: action.phase,
+      label: 'Approved plan task',
+      kind: 'done',
+      actor,
+      source,
+      eventKey: `approve_task:${projectId}:${String(action.data?.taskId)}`,
+    });
+    return;
+  }
+
+  if (action.kind === 'advance_phase') {
+    await recordActivity({
+      db,
+      projectId,
+      stage: action.stage,
+      phase: action.phase,
+      label: action.note,
+      kind: 'done',
+      actor,
+      source,
+      eventKey: `phase_advance:${projectId}:${action.stage}:${action.phase}`,
+    });
+    return;
+  }
+
+  await recordActivity({
+    db,
+    projectId,
+    stage: action.stage,
+    phase: action.phase,
+    label: action.note,
+    kind: 'done',
+    actor,
+    source,
+    eventKey: `stage_advance:${projectId}:${action.stage}`,
+  });
 }
 
 export async function executeDetailsAction(projectId: string, action: AutoAction, db: Db = getDb()): Promise<ActionResult> {
@@ -527,7 +605,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const { confirmComponents } = await import('@/spec/orchestrator');
       await ensureSpecStage(db, projectId);
       if (intentMd) await captureIntent(db, projectId, intentMd, actorId);
-      await confirmComponents(db, projectId, kinds as never);
+      await confirmComponents(db, projectId, kinds as never, { actorId });
       break;
     }
 
@@ -597,6 +675,17 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     default:
       break;
   }
+  // Wiring: call `await recordTransitionActivity(db, projectId, action)` once at the end of
+  // executeDetailsAction, AFTER the switch has committed the effect for the approve_task /
+  // advance_phase / advance_stage cases (the helper's own kind-guard makes it a no-op for
+  // every other action kind, so a single tail call is sufficient and cannot double-write).
+  //
+  // ALSO: the existing confirm_components case in executeDetailsAction currently calls the
+  // 3-arg `confirmComponents(db, projectId, kinds as never)` while it already computes
+  // `const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;`. Update that call
+  // to `confirmComponents(db, projectId, kinds as never, { actorId })` so the confirm-selection
+  // activity row is attributed to the triggering member (or Forge in auto mode) per FR-7.
+  await recordTransitionActivity(db, projectId, action);
   return 'ok';
 }
 

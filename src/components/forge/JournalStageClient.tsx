@@ -203,14 +203,15 @@ export function JournalStageClient(props: JournalStageClientProps) {
   );
   const [localOverrides, setLocalOverrides] = useState<Record<string, LearningStatus>>({});
   const prevServerRef = useRef(serverStatus);
+  // eslint-disable-next-line react-hooks/refs -- prop-sync: compare prev server value to reset local overrides during render (React docs pattern)
   if (prevServerRef.current !== serverStatus) {
+    // eslint-disable-next-line react-hooks/refs -- prop-sync: store latest server value so the comparison above runs once per change (React docs pattern)
     prevServerRef.current = serverStatus;
     if (Object.keys(localOverrides).length > 0) setLocalOverrides({});
   }
   const status: Record<string, LearningStatus> = { ...serverStatus, ...localOverrides };
 
   const approvedCount = props.learnings.filter((l) => status[l.id] === 'kept' || status[l.id] === 'recorded').length;
-  const allApproved = props.learnings.length > 0 && approvedCount === props.learnings.length;
   const allRecorded = props.learnings.length > 0 && props.learnings.every((l) => status[l.id] === 'recorded');
   const isApproved = active ? (status[active.id] === 'kept' || status[active.id] === 'recorded') : false;
 
@@ -394,7 +395,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
         note={autoNote}
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
-        runningHint="Forge harvests, validates, and records learnings, then marks the project complete."
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — learning content / discussion (like Plan Refine) */}

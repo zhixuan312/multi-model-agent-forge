@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, CircleAlert, CheckCircle2, Loader2, Lightbulb } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, CircleAlert, Loader2, Lightbulb } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } from '@/components/ui';

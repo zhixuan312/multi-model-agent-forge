@@ -1,10 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import {
-  PROMPT_FLOORS,
-  type ProposedTask,
-} from '@/exploration/schemas';
 
 /**
  * Fan-out prompt builder + validation. Builds the propose prompt for async
@@ -44,24 +40,6 @@ function buildProposeUser(args: {
     '',
     repoLines || '(none)',
   ].join('\n');
-}
-
-/** Validate one proposed task's shape against the repo subset + floors. */
-function classify(
-  t: ProposedTask,
-  repoIds: Set<string>,
-): { ok: true; task: ProposedTask } | { ok: false; reason: 'kind' | 'repo' | 'sub_floor' } {
-  if (t.kind !== 'investigate' && t.kind !== 'research' && t.kind !== 'journal') {
-    return { ok: false, reason: 'kind' };
-  }
-  if (t.kind === 'investigate') {
-    if (!t.targetRepoId || !repoIds.has(t.targetRepoId)) return { ok: false, reason: 'repo' };
-  } else if (t.targetRepoId != null) {
-    return { ok: false, reason: 'repo' }; // non-null repo on research/journal
-  }
-  const floor = PROMPT_FLOORS[t.kind];
-  if (t.prompt.trim().length < floor) return { ok: false, reason: 'sub_floor' };
-  return { ok: true, task: t };
 }
 
 export async function buildProposeRequest(

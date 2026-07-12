@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
-import { resolveRunningEventInPlace, reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
+import { reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
 import { STAGE_ORDER, type StageKind, type ProjectPhase } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
@@ -163,50 +163,6 @@ export async function setAutomationStatus(
     }
     return d;
   });
-}
-
-/**
- * Append one line to the project-level event log (`details.events`) — the single
- * writer for the full activity timeline across every stage and both triggers
- * (manual UI + auto driver). De-dupes a line identical to the immediately previous
- * one (e.g. a poll loop). Best-effort: never throws into the caller.
- */
-export async function appendProjectEvent(
-  db: Db, projectId: string,
-  event: { stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number },
-): Promise<void> {
-  try {
-    await updateDetails(db, projectId, (d) => {
-      const last = d.events[d.events.length - 1];
-      if (last && last.detail === event.detail && (last.kind ?? 'action') === (event.kind ?? 'action')) return d;
-      d.events.push({ stage: event.stage, phase: event.phase, detail: event.detail, kind: event.kind ?? 'action', durationMs: event.durationMs, at: new Date().toISOString() });
-      return d;
-    });
-  } catch { /* the durable log is best-effort — never block the caller */ }
-}
-
-/**
- * Resolve the current `running` activity line to a terminal state (`done`/`error`),
- * IN PLACE, with the real work duration — so each activity is ONE line that ticks
- * live while running and lands settled with its measured time (no start/finish
- * pair). Finds the most-recent unresolved `action` line for `stage` and finalizes
- * it. If none exists (e.g. a manual dispatch the driver never announced), appends a
- * fresh terminal line instead. Best-effort: never throws into the caller. RETURNS
- * the resolved detail (with any preserved pass number) so callers publish the exact
- * same label live over SSE.
- */
-export async function resolveRunningEvent(
-  db: Db, projectId: string,
-  opts: { stage: string; phase: string; detail: string; kind?: 'done' | 'error'; durationMs?: number },
-): Promise<string> {
-  let resolved = opts.detail;
-  try {
-    await updateDetails(db, projectId, (d) => {
-      resolved = resolveRunningEventInPlace(d, { ...opts, at: new Date().toISOString() });
-      return d;
-    });
-  } catch { /* the durable log is best-effort — never block the caller */ }
-  return resolved;
 }
 
 /**

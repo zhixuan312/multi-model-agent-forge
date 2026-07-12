@@ -5,7 +5,7 @@ import {
   recordAuthorAttempt, recordTaskValidation,
   recordExecuteAttempt, recordImplementAttempt, openRunningAttempts,
   recordAuditPass, recordReviewPass, recordReviewFix, recordHarvestAttempt,
-  resolveRunningEventInPlace, reopenStageInPlace, passAugmentedDetail,
+  reopenStageInPlace,
 } from '@/automation/details-mutations';
 
 const AT = '2026-07-04T00:00:00.000Z';
@@ -181,63 +181,6 @@ describe('details-mutations — record the resolver gating state', () => {
     recordHarvestAttempt(d, 'h1', AT);
     expect(d.stages.journal.phases.journal.attempts).toEqual([{ batchId: 'h1', status: 'done', at: AT }]);
     expect(resolveNextActionFromDetails(d).kind).toBe('approve_learning');
-  });
-});
-
-/**
- * The activity log is "one line per activity": a running `action` line is resolved
- * IN PLACE by its terminal (real duration stamped), never duplicated into a
- * start/finish pair. `resolveRunningEventInPlace` is the pure core of that.
- */
-describe('resolveRunningEventInPlace — one line per activity', () => {
-  const running = (stage: string, detail: string) => ({ stage, phase: 'p', detail, kind: 'action' as const, at: AT });
-
-  it('resolves the running line in place, preserving the pass number + duration (no new line)', () => {
-    const d = buildInitialDetails();
-    d.events = [running('spec', 'Running spec audit pass 3')];
-    const resolved = resolveRunningEventInPlace(d, { stage: 'spec', phase: 'finalize', detail: 'Audited spec', kind: 'done', durationMs: 192000, at: '2026-07-04T00:05:00.000Z' });
-    expect(d.events).toHaveLength(1);
-    // pass number carried from the running line so passes stay distinguishable
-    expect(d.events[0]).toMatchObject({ kind: 'done', detail: 'Audited spec (pass 3)', durationMs: 192000, at: AT });
-    // and the RESOLVED label is returned so the live SSE line shows the number too
-    expect(resolved).toBe('Audited spec (pass 3)');
-  });
-
-  it('passAugmentedDetail carries the running pass number onto the base label', () => {
-    expect(passAugmentedDetail('Running plan audit pass 2', 'Audited plan')).toBe('Audited plan (pass 2)');
-    expect(passAugmentedDetail('Authoring plan from spec', 'Authored plan')).toBe('Authored plan'); // no pass → unchanged
-    expect(passAugmentedDetail('Running review pass 5', 'Reviewed code — failed')).toBe('Reviewed code — failed (pass 5)');
-  });
-
-  it('resolves without a pass suffix when the running line has none', () => {
-    const d = buildInitialDetails();
-    d.events = [running('journal', 'Harvesting learnings')];
-    resolveRunningEventInPlace(d, { stage: 'journal', phase: 'journal', detail: 'Harvested learnings', kind: 'done', durationMs: 4000, at: AT });
-    expect(d.events[0]).toMatchObject({ kind: 'done', detail: 'Harvested learnings' });
-  });
-
-  it('appends a fresh terminal line when there is no running line to resolve (manual dispatch)', () => {
-    const d = buildInitialDetails();
-    d.events = [{ stage: 'spec', phase: 'craft', detail: 'Drafted spec', kind: 'done', at: AT }];
-    resolveRunningEventInPlace(d, { stage: 'plan', phase: 'refine', detail: 'Authored plan', kind: 'done', durationMs: 5000, at: '2026-07-04T00:10:00.000Z' });
-    expect(d.events).toHaveLength(2);
-    expect(d.events[1]).toMatchObject({ stage: 'plan', detail: 'Authored plan', kind: 'done', durationMs: 5000, at: '2026-07-04T00:10:00.000Z' });
-  });
-
-  it('resolves only the matching stage — a running line for another stage is left alone', () => {
-    const d = buildInitialDetails();
-    d.events = [running('plan', 'Authoring plan from spec')];
-    resolveRunningEventInPlace(d, { stage: 'review', phase: 'review', detail: 'Reviewed code', kind: 'done', durationMs: 3000, at: '2026-07-04T00:20:00.000Z' });
-    expect(d.events).toHaveLength(2);
-    expect(d.events[0]).toMatchObject({ kind: 'action', detail: 'Authoring plan from spec' }); // untouched
-    expect(d.events[1]).toMatchObject({ stage: 'review', detail: 'Reviewed code', kind: 'done' });
-  });
-
-  it('resolves to error on a failed terminal', () => {
-    const d = buildInitialDetails();
-    d.events = [running('plan', 'Running plan audit pass 1')];
-    resolveRunningEventInPlace(d, { stage: 'plan', phase: 'validate', detail: 'Audited plan — failed', kind: 'error', durationMs: 1000, at: AT });
-    expect(d.events[0]).toMatchObject({ kind: 'error', detail: 'Audited plan — failed (pass 1)' });
   });
 });
 

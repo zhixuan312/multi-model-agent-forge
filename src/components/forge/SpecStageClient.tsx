@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -38,7 +38,6 @@ import { showToast } from '@/components/ui/toast';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import {
-  Avatar,
   Button,
   Card,
   CardHeader,
@@ -48,17 +47,13 @@ import {
   Badge,
   Banner,
   Input,
-  Heading,
   Text,
   TextSm,
-  Micro,
-  Eyebrow,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { COMPONENT_TEMPLATES, DOC_TEMPLATES, templateForKind, type DocTemplate } from '@/spec/components';
+import { COMPONENT_TEMPLATES, DOC_TEMPLATES, type DocTemplate } from '@/spec/components';
 import { ParticipantStrip, ApproverCluster } from '@/components/forge/collab/Participants';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
-import { MentionComposer } from '@/components/forge/collab/MentionComposer';
 import {
   addParticipant,
   recordApproval,
@@ -68,7 +63,7 @@ import {
 } from '@/collab/section-approval';
 import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
-import type { ComponentKind, ComponentStatus, ProjectPhase } from '@/db/enums';
+import type { ComponentKind, ProjectPhase } from '@/db/enums';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -183,7 +178,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
   const auto: AutoMode = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
   // Intent carried forward from the Exploration brief (no longer hand-typed here).
   const [intent] = useState(props.intentMd ?? '');
   const [picked, setPicked] = useState<Set<ComponentKind>>(
@@ -201,9 +195,16 @@ export function SpecStageClient(props: SpecStageClientProps) {
 
   const setPhase = (p: SpecPhase) => {
     setPhaseRaw(p);
+    // Persist the phase in the URL WITHOUT a soft navigation. A `router.push`
+    // here kicks off an RSC fetch that can be served from the client router cache
+    // captured while the phase had 0 components — which then races with, and can
+    // clobber, the explicit `router.refresh()` callers run after a transition,
+    // leaving a blank "No components yet" view until a hard reload. Updating the
+    // URL only (like the Explore stage does) makes `router.refresh()` the single,
+    // deterministic source of fresh data.
     const url = new URL(window.location.href);
     url.searchParams.set('phase', p);
-    router.push(url.pathname + url.search, { scroll: false });
+    window.history.replaceState(null, '', url.pathname + url.search);
   };
   const advancePhase = async (p: SpecPhase) => {
     // Spec phase status gates the resolver (finalize.status==='active' runs the audit
@@ -213,7 +214,11 @@ export function SpecStageClient(props: SpecStageClientProps) {
     });
     setPhase(p);
   };
-  const refresh = useCallback(() => { router.refresh(); }, [router]);
+  // Wrap refresh in a transition so callers can show a loading state while the
+  // fresh RSC data (e.g. the freshly-created components after "Continue to
+  // Craft") is being fetched — instead of flashing an empty view.
+  const [isRefreshing, startRefreshTransition] = useTransition();
+  const refresh = useCallback(() => { startRefreshTransition(() => router.refresh()); }, [router]);
   const mma = useMmaDispatch(props.projectId, {
     onDone: {
       'spec-auto-draft': refresh,
@@ -239,18 +244,16 @@ export function SpecStageClient(props: SpecStageClientProps) {
 
   // Auto-trigger drafting when landing on craft with undrafted sections.
   useEffect(() => {
-    if (phase !== 'craft' || !needsAutoDraft || autoDraftFired.current) return;
-    if (props.pendingAutoDraft) { autoDraftFired.current = true; return; }
+    if (phase !== 'craft') return;
+    if (!needsAutoDraft) return;
+    if (autoDrafting) return;
+    if (autoDraftFired.current) return;
     autoDraftFired.current = true;
-    // Sanctioned non-transition content op (see CLAUDE.md route exceptions): whole-spec
-    // auto-draft has no ACTION_KIND. `mma.dispatch(url, handler)` is on the centralized
-    // client path (same SSE wait as transitions); the backend uses dispatchMma + the
-    // registered `spec-auto-draft` handler.
-    setError(null); // clear any stale banner from a prior failed draft before retrying
+    setError(null);
+    // Correct hook signature is dispatch(url, handler, body?) — mirror the existing HEAD call.
     void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, needsAutoDraft]);
+  }, [phase, needsAutoDraft, autoDrafting, mma, props.projectId]);
 
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
   useEffect(() => stagePhaseStore.set(phase), [phase]);
@@ -294,7 +297,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
             ? 'Spec is ready — let Forge finalize it and run Plan → Build → Journal to the end.'
             : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
         }
-        runningHint="Forge finalizes the spec and drives the whole flow to the end. Stop anytime."
         projectId={props.projectId}
       />
 
@@ -330,6 +332,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         <CraftStage
           projectId={props.projectId}
           components={components}
+          loading={isRefreshing}
           readOnly={readOnly}
           autoDrafting={autoDrafting}
           allApproved={allApproved}
@@ -725,6 +728,8 @@ function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved' || (c.approvedBy as string[]).length > 0)
     return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
   if (c.status === 'drafted') {
+    // Drafted components arrive Ready. They flip to "Needs input" only when Forge
+    // raises a clarifying question during the Q&A (aiSatisfied=false).
     return c.aiSatisfied
       ? { label: 'Ready', cls: 'bg-sage-tint text-[var(--sage-deep)]' }
       : { label: 'Needs input', cls: 'bg-amber-tint text-[var(--amber)]' };
@@ -735,6 +740,7 @@ function componentDisplayState(c: ComponentView): DisplayState {
 function CraftStage({
   projectId,
   components,
+  loading,
   readOnly,
   allApproved,
   autoDrafting,
@@ -749,6 +755,7 @@ function CraftStage({
 }: {
   projectId: string;
   components: ComponentView[];
+  loading?: boolean;
   readOnly: boolean;
   allApproved: boolean;
   autoDrafting?: boolean;
@@ -765,6 +772,7 @@ function CraftStage({
   const firstOpen = components.find((c) => c.status !== 'approved') ?? components[0];
   const [activeId, setActiveId] = useState<string | null>(firstOpen?.id ?? null);
   const activeIdRef = useRef(activeId);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest activeId into a ref so long-lived handlers read it without re-subscribing
   activeIdRef.current = activeId;
   const [input, setInput] = useState('');
   // Per-component: null = dialogue, string = showing fetched draft markdown
@@ -780,13 +788,10 @@ function CraftStage({
       const md = c.sections.filter((s) => s.draftMd).map((s) => s.draftMd!).join('\n\n');
       if (md) drafts[c.id] = md;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- rebuild drafts from server components after each MMA re-render
     setConstructedDrafts(drafts);
   }, [components, autoDrafting]);
   // Collaborative state per component (participants + group chat), seeded by kind.
-  // Live document-level open-questions messages (scope: 'spec_project') that
-  // arrive over SSE after mount — merged with the initial server payload so
-  // collaborators see notes appear live, not only on reload.
-  const [liveProjectMessages, setLiveProjectMessages] = useState<Array<{ id: string; bodyMd: string }>>([]);
   const [collab, setCollab] = useState<Record<string, UnitCollab>>(() => {
     const out: Record<string, UnitCollab> = {};
     const allPool = [currentMember, ...projectMembers];
@@ -874,14 +879,6 @@ function CraftStage({
         targetId?: string;
         message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
       } | undefined;
-      if (detail?.scope === 'spec_project' && detail.targetId === projectId && detail.message && typeof detail.message.bodyMd === 'string') {
-        const pm = detail.message;
-        if (!seenMsgIds.current.has(pm.id)) {
-          seenMsgIds.current.add(pm.id);
-          setLiveProjectMessages((prev) => prev.some((m) => m.id === pm.id) ? prev : [...prev, { id: pm.id, bodyMd: pm.bodyMd }]);
-        }
-        return;
-      }
       if (detail?.scope !== 'spec_component' || !detail.targetId || !detail.message) return;
       const cid = detail.targetId;
       const msg = detail.message;
@@ -912,6 +909,7 @@ function CraftStage({
         if (typing) next.add(cid); else next.delete(cid);
         return next;
       });
+      // eslint-disable-next-line react-hooks/immutability -- setCraftView is a stable useCallback declared below; captured here via closure inside a one-time listener
       if (cid === activeIdRef.current && typing) setCraftView('conversation');
     };
     window.addEventListener('chat:message', handler);
@@ -920,6 +918,7 @@ function CraftStage({
       window.removeEventListener('chat:message', handler);
       window.removeEventListener('chat:typing', typingHandler);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: attach window listeners once on mount; referenced values are read via refs/stable callbacks
   }, []);
 
   const [nudge, setNudge] = useState(false);
@@ -959,6 +958,7 @@ function CraftStage({
   // `if (!active)` early return below, or hook order changes between renders
   // (rules of hooks). Their inputs are computed defensively for the null case.
   const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- reads activeIdRef.current (a ref) inside a stable callback; empty deps are intentional
   const setCraftView = useCallback((v: 'spec' | 'conversation') => {
     setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
   }, []);
@@ -978,14 +978,22 @@ function CraftStage({
   }, [activeId, collab, craftView]);
 
   if (!active) {
+    // While a refresh is in flight (e.g. right after "Continue to Craft", when the
+    // freshly-created components are still being fetched), show a loader instead of
+    // the empty state — the components are on their way, not absent.
+    if (loading) {
+      return (
+        <div className="grid min-h-40 place-items-center">
+          <Loader2 className="size-6 animate-spin text-accent" />
+        </div>
+      );
+    }
     return <Text className="!text-sm !text-ink-faint">No components yet — confirm the outline.</Text>;
   }
 
   const drafted = active.status === 'drafted' || active.status === 'approved';
-  const approved = active.status === 'approved';
   const Icon = KIND_ICON[active.kind];
   const showingDraft = constructedDrafts[active.id] ?? null;
-  const hasQuestions = drafted && !active.aiSatisfied;
   // craftView + setCraftView are computed above the early return (hooks must run
   // unconditionally); showingDraft/hasQuestions here are plain derived values.
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
@@ -997,7 +1005,7 @@ function CraftStage({
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   const inChatMembers = [forgeMember, ...otherMembers];
   // Live: does the current draft message address teammates (→ them, AI silent)?
-  const liveMentions = parseMentions(input, inChatMembers);
+  parseMentions(input, inChatMembers);
 
   /** Patch the active component's collaborative state. */
   function patchCollab(updater: (u: UnitCollab) => UnitCollab): void {
@@ -1175,26 +1183,8 @@ function CraftStage({
     onConsolidate();
   }
 
-  const initialProject = initialMessages[projectId] ?? [];
-  const projectMessages: Array<{ id: string; bodyMd: string }> = [
-    ...initialProject.map((m) => ({ id: m.id, bodyMd: m.bodyMd })),
-    ...liveProjectMessages.filter((lm) => !initialProject.some((im) => im.id === lm.id)),
-  ];
-
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {projectMessages.length > 0 ? (
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Open Questions</CardTitle>
-          </CardHeader>
-          <div className="space-y-3 px-5 pb-5">
-            {projectMessages.map((msg) => (
-              <ProseBlock key={msg.id} variant="chat">{msg.bodyMd}</ProseBlock>
-            ))}
-          </div>
-        </Card>
-      ) : null}
       {/* LEFT — the conversation that crafts the active component (2/3) */}
       <Card className="flex min-h-0 flex-col lg:col-span-2">
         <CardHeader>
@@ -1428,16 +1418,13 @@ function DocumentScreen({
   mmaReady,
   initialAuditHistory,
   initialCanFreeze,
-  voiceEnabled,
   pendingApply,
-  driving,
   mma,
   currentMember,
   projectMembers,
   components,
   specApprovers,
   setSpecApprovers,
-  onAdvance,
   onAssembled,
   onError,
 }: {
@@ -1470,12 +1457,14 @@ function DocumentScreen({
     [initialAuditHistory],
   );
   const [rounds] = useServerState(initialRounds);
-  const [canFreeze] = useServerState(initialCanFreeze);
+  useServerState(initialCanFreeze);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
   // Auto-select latest pass when new audit completes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select the newest audit pass when rounds grow
     if (rounds.length > 0) setSelectedPass(rounds[rounds.length - 1].passNo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
 
@@ -1483,7 +1472,7 @@ function DocumentScreen({
   // below fires from an effect, and an effect-triggered mutation gets its observer
   // torn down during next-dev Strict-Mode remounts — leaving isPending stuck true.
   // A useState flag has a stable setter, so it always settles.
-  const [assembling, setAssembling] = useState(false);
+  const [, setAssembling] = useState(false);
   const assemblingRef = useRef(false);
   async function runAssemble(): Promise<void> {
     if (assemblingRef.current) return;
@@ -1545,6 +1534,7 @@ function DocumentScreen({
   // Manual subset selection — indices into the active round's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual finding selection when the viewed pass changes
   useEffect(() => { setSelectedFindings([]); }, [selectedPass]);
 
   function apply(passNo: number, indices: number[]): void {

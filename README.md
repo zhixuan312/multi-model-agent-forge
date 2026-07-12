@@ -119,6 +119,9 @@ src/
 - **Project**: a unit of work flowing through explore → plan → build → review
 - **Loop**: a recurring automated maintenance job (scheduled, governed, always PR-for-review)
 - **Journal**: team-level knowledge graph — decisions, designs, behaviors, processes, learnings, style conventions
+- **Project Activity**: a durable timeline of all events in a project — spec drafts, approvals, component confirmations, user transitions, and discover tasks. Stored in the `project_activity` table with actor attribution and source tracking (user vs. MMA)
+
+The project timeline lives in `project_activity`. Team-level FAQ suggestions come from `topFaqs(...)`, which reads recent `ops_mma_batch` `journal_recall` history rather than any project-local event store.
 
 ## Relationship to MMA
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ProjectActivityEvent } from '@/activity/project-activity';
 import { useProjectEvents } from '@/hooks/useProjectEvents';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import {
@@ -27,7 +28,6 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-  CardFooter,
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -109,37 +109,32 @@ interface Props {
   phase: string;
   stagePhase?: string;
   automationStartedAt?: string;
-  events?: Array<{ stage: string; phase: string; detail: string; kind?: 'action' | 'error' | 'done'; durationMs?: number; at: string }>;
+  events?: ProjectActivityEvent[];
 }
 
-type LineKind = 'action' | 'error' | 'done';
-type LogLine = { time: string; startedAt: number; text: string; kind: LineKind; done: boolean; error?: boolean; durationMs?: number };
+type LineKind = 'action' | 'running' | 'error' | 'done';
+type LogLine = { time: string; startedAt: number; text: string; actorName: string; actorTint: string; kind: LineKind; done: boolean; error?: boolean; durationMs?: number };
 
-/** The project-level event log (`details.events`) IS the activity feed — the same
+/** The project-level event log (project_activity) IS the activity feed — the same
  * records the live stream emits, plus a milestone line per completed MMA batch
  * across every stage. Seeding from it makes a refresh lossless and shows the FULL
  * project timeline (explore→journal), not just this automation run. Duration comes
  * from the gap to the next line; the final `action` line stays open (running). */
-function seedLogs(events: Array<{ detail: string; kind?: LineKind; durationMs?: number; at: string }>): LogLine[] {
-  return events.map((s, i) => {
-    const startedAt = new Date(s.at).getTime();
-    const kind: LineKind = s.kind ?? 'action';
-    const running = i === events.length - 1 && kind === 'action'; // last action = still in progress
-    return {
-      time: formatTime(new Date(startedAt)),
-      startedAt,
-      text: s.detail,
-      kind,
-      done: !running,
-      error: kind === 'error',
-      // Completed lines show their measured work time (absent for instantaneous
-      // approvals). The running line has no stored duration — the UI ticks it live.
-      durationMs: running ? undefined : s.durationMs,
-    };
-  });
+function seedLogs(events: ProjectActivityEvent[]): LogLine[] {
+  return events.map((e) => ({
+    time: e.createdAt.slice(11, 19),
+    startedAt: Date.parse(e.createdAt),
+    text: e.label,
+    actorName: e.actorName,
+    actorTint: e.actorTint,
+    kind: e.kind,
+    done: e.kind === 'done' || e.kind === 'error',
+    error: e.kind === 'error',
+    durationMs: e.durationMs,
+  }));
 }
 
-export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
+export function AutomationOverlay({ projectId, autoMode, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
   const router = useRouter();
   const optimistic = useOptimisticAction();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
@@ -154,15 +149,17 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
   // Mirror countdown into a ref so the (long-lived) SSE handlers can read it
   // without re-subscribing — used to hold server refreshes until the intro ends.
   const countdownRef = useRef(countdown);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest countdown into a ref so long-lived SSE handlers read it without re-subscribing
   countdownRef.current = countdown;
-  const [liveNote, setLiveNote] = useState(autoMode ? autoNote : 'Starting in 3...');
   const [liveStage, setLiveStage] = useState(currentStage);
-  const [livePhase, setLivePhase] = useState(stagePhase ?? phase);
+  const [, setLivePhase] = useState(stagePhase ?? phase);
   // The project-level event log IS the feed — seeding from it makes a refresh
   // lossless (elapsed is seeded from automationStartedAt below, so the timer
   // doesn't reset either). Live SSE lines carry the same records and stream on top.
   const [logs, setLogs] = useState<LogLine[]>(() => seedLogs(events ?? []));
+  // eslint-disable-next-line react-hooks/purity -- one-time lazy init of the elapsed-clock start; Date.now() is the intended fallback "now"
   const startTime = useRef(automationStartedAt ? new Date(automationStartedAt).getTime() : Date.now());
+  // eslint-disable-next-line react-hooks/purity -- lazy initial elapsed value; Date.now() is the intended "now" at mount
   const [elapsed, setElapsed] = useState(automationStartedAt ? Date.now() - new Date(automationStartedAt).getTime() : 0);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -201,7 +198,7 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => { if (autoNote) setLiveNote(autoNote); }, [autoNote]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot sync of live stage from server prop
   useEffect(() => { setLiveStage(currentStage); }, [currentStage]);
 
   // One line per activity: an `action` line spins with a live-ticking duration
@@ -220,13 +217,13 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
         }
         const now = Date.now();
         const closed = prev.map((l) => (l.done ? l : { ...l, done: true, durationMs: l.durationMs ?? now - l.startedAt }));
-        return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, kind, done: true, error: kind === 'error', durationMs }];
+        return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: 'Forge', actorTint: '#9a6b4f', kind, done: true, error: kind === 'error', durationMs }];
       }
       const last = prev[prev.length - 1];
       if (last && last.text === text && !last.done) return prev; // no duplicate running line
       const now = Date.now();
       const closed = prev.map((l) => (l.done ? l : { ...l, done: true, durationMs: l.durationMs ?? now - l.startedAt }));
-      return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, kind: 'action', done: false }];
+      return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: 'Forge', actorTint: '#9a6b4f', kind: 'action', done: false }];
     });
   }, []);
 
@@ -238,7 +235,7 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
   useEffect(() => {
     function onProgress(e: Event) {
       const d = (e as CustomEvent).detail as { note?: string; stage?: string; phase?: string; kind?: LineKind; durationMs?: number };
-      if (d?.note) { setLiveNote(d.note); addLog(d.note, d.kind ?? 'action', d.durationMs); }
+      if (d?.note) { addLog(d.note, d.kind ?? 'action', d.durationMs); }
       if (d?.stage) setLiveStage(d.stage);
       if (d?.phase) setLivePhase(d.phase);
     }
@@ -252,11 +249,9 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
       if (d?.phase) setLivePhase(d.phase);
       if (countdownRef.current <= 0) router.refresh();
     }
-    function onError(e: Event) {
+    function onError(_e: Event) {
       // The driver already emitted the error as a persisted progress line — don't
       // duplicate it; just note it and re-pull (auto-mode is now off server-side).
-      const d = (e as CustomEvent).detail as { error?: string };
-      if (d?.error) setLiveNote(`Error: ${d.error}`);
       if (countdownRef.current <= 0) router.refresh();
     }
     window.addEventListener('automation:progress', onProgress);
@@ -289,26 +284,6 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
     learnings: count(/kept learning|Recorded learnings/i),
     issues: logs.filter((l) => l.error).length,
   };
-
-  function stageStatus(key: string): 'done' | 'active' | 'pending' {
-    const idx = STAGE_ORDER.indexOf(key as StageKey);
-    if (idx < currentIdx) return 'done';
-    if (idx === currentIdx) return 'active';
-    return 'pending';
-  }
-
-  function phaseStatus(stgKey: string, phKey: string, phIdx: number, stg: 'done' | 'active' | 'pending') {
-    if (stg === 'done') return 'done' as const;
-    if (stg === 'pending') return 'pending' as const;
-    // Active stage — check if current phase matches
-    const stgDef = STAGES.find((s) => s.key === stgKey);
-    if (!stgDef) return 'pending' as const;
-    const livePIdx = stgDef.phases.findIndex((p) => p.key === livePhase);
-    if (livePIdx < 0) return phIdx === 0 ? 'active' as const : 'pending' as const;
-    if (phIdx < livePIdx) return 'done' as const;
-    if (phIdx === livePIdx) return 'active' as const;
-    return 'pending' as const;
-  }
 
   function handleStop() {
     void optimistic.run({
@@ -377,6 +352,7 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
             ) : (
               <>
                 {logs.map((l, i) => {
+                  // eslint-disable-next-line react-hooks/purity -- live-ticking duration for an in-progress log line; re-render is driven by the elapsed ticker
                   const dur = l.done ? l.durationMs : elapsed >= 0 ? Date.now() - l.startedAt : 0;
                   return (
                     <div key={i} className="flex items-start gap-3 border-b border-line/40 py-2 last:border-0">
@@ -388,8 +364,12 @@ export function AutomationOverlay({ projectId, projectName, autoMode, autoNote, 
                       ) : (
                         <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-accent" />
                       )}
-                      <span className={cn('flex-1 text-sm', l.error ? 'text-[var(--danger,#c0492f)]' : l.done ? 'text-ink' : 'font-medium text-accent')}>
-                        {l.text}
+                      <span className="flex flex-1 items-start gap-1.5 text-sm">
+                        <span className="mt-1 size-2 shrink-0 rounded-full" style={{ backgroundColor: l.actorTint }} />
+                        <span className="shrink-0 font-medium text-ink">{l.actorName}</span>
+                        <span className={cn('min-w-0 break-words', l.error ? 'text-[var(--danger,#c0492f)]' : l.done ? 'text-ink' : 'font-medium text-accent')}>
+                          {l.text}
+                        </span>
                       </span>
                       {dur != null && (
                         <span className={cn('mt-0.5 shrink-0 font-mono text-[10px] tabular-nums', l.done ? 'text-ink-faint' : 'text-accent/70')}>

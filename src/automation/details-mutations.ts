@@ -82,46 +82,6 @@ export function reopenStageInPlace(d: Details, toStage: StageKind, at: string): 
 }
 
 /**
- * Resolve the current `running` activity line IN PLACE — the core of the "one line
- * per activity" log. Scans from the end for the most-recent unresolved `action`
- * line for `stage` and finalizes it (kind → done/error, detail → milestone label,
- * stamped duration). If none exists (e.g. a manual dispatch the driver never
- * announced), appends a fresh terminal line. Pure: `at` is passed in, never read
- * from the clock, so it's deterministic and unit-testable. RETURNS the resolved
- * detail (with any preserved pass number) so the caller can publish the exact same
- * label live over SSE — otherwise the live line shows the number-less label and
- * only a refresh (which seeds from these events) shows the pass number.
- */
-export function resolveRunningEventInPlace(
-  d: Details,
-  opts: { stage: string; phase: string; detail: string; kind?: 'done' | 'error'; durationMs?: number; at: string },
-): string {
-  for (let i = d.events.length - 1; i >= 0; i--) {
-    const e = d.events[i];
-    if ((e.kind ?? 'action') === 'action' && e.stage === opts.stage) {
-      const detail = passAugmentedDetail(e.detail, opts.detail);
-      e.kind = opts.kind ?? 'done';
-      e.detail = detail;
-      if (opts.durationMs != null) e.durationMs = opts.durationMs;
-      return detail;
-    }
-  }
-  d.events.push({ stage: opts.stage, phase: opts.phase, detail: opts.detail, kind: opts.kind ?? 'done', durationMs: opts.durationMs, at: opts.at });
-  return opts.detail;
-}
-
-/**
- * Preserve the pass/iteration number from a running line's note onto the resolved
- * milestone label, so a loop stays distinguishable: "Running spec audit pass 3" +
- * "Audited spec" → "Audited spec (pass 3)". No-op when the running line has no
- * pass number or the base label already carries one.
- */
-export function passAugmentedDetail(runningDetail: string, baseDetail: string): string {
-  const m = runningDetail.match(/\bpass (\d+)\b/i);
-  return m && !/\bpass\b/i.test(baseDetail) ? `${baseDetail} (pass ${m[1]})` : baseDetail;
-}
-
-/**
  * Pure details mutators for the automation driver — one per unit of gating state
  * that an action records so the resolver can advance. Each is a `(Details, …) =>
  * Details` that mutates in place and returns the same object, so it slots

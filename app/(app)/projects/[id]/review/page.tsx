@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
@@ -11,7 +11,7 @@ import { extractReviewFindings } from '@/review/review-findings';
 
 export default async function ReviewStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
-  const { phase: urlPhase } = await searchParams;
+  await searchParams;
   const me = await currentMember();
   if (!me) redirect('/login');
   const actor = projectActorFromMember(me);

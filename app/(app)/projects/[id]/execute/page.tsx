@@ -4,7 +4,6 @@ import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
-import { repo } from '@/db/schema/workspace';
 import { buildPr, project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSpecSections, type SpecSection } from '@/spec/spec-file-ops';
+import { parseSpecSections } from '@/spec/spec-file-ops';
 
 describe('parseSpecSections', () => {
   it('parses ### headings under ## components', () => {

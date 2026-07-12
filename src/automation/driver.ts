@@ -6,7 +6,8 @@ import { projectEventBus } from '@/sse/event-bus';
 import { isBatchBackedAction } from '@/automation/details-actions';
 import { performTransition, TransitionRejected } from '@/automation/perform-transition';
 import { allowedActions } from '@/automation/allowed-actions';
-import { appendProjectEvent, resolveRunningEvent } from '@/details/write';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
 
 const activeDrivers = new Map<string, boolean>();
@@ -18,6 +19,29 @@ function sleep(ms: number): Promise<void> {
 /** Turn a resolver note ("Running spec audit pass 1...") into a clean log label. */
 function cleanLabel(note: string): string {
   return note.replace(/\.\.\.$/, '').trim();
+}
+
+// Exported so the cutover test can assert it writes through recordActivity (project_activity)
+// and never touches the legacy details.events helpers. Its live caller is driveProject below.
+export async function recordDriverOnlyLine(
+  db: ReturnType<typeof getDb>,
+  projectId: string,
+  stage: string,
+  phase: string,
+  label: string,
+  kind: 'done' | 'error',
+): Promise<void> {
+  await recordActivity({
+    db,
+    projectId,
+    stage,
+    phase,
+    label,
+    kind,
+    actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+    source: 'mma',
+  });
+  projectEventBus.publish(projectId, { type: 'automation.progress', note: label, stage, phase, kind });
 }
 
 export async function driveProject(projectId: string): Promise<void> {
@@ -43,13 +67,8 @@ export async function driveProject(projectId: string): Promise<void> {
     leaseLost = true;
   });
 
-  // One persisted, meaningful line per action, appended to the project-level event
-  // log (`details.events`). The SAME record drives the live SSE stream AND the
-  // durable log, so a refresh shows exactly what was live. Decorative/transient
-  // lines (location, "dispatching", "waiting", a redundant "done") are gone: the
-  // running action line's spinner + ticking duration already conveys "in progress".
+  // emit() now publishes SSE only; it must not write durable rows.
   const emit = async (label: string, kind: 'action' | 'error' | 'done', stage: string, phase: string) => {
-    await appendProjectEvent(db, projectId, { stage, phase, detail: label, kind });
     projectEventBus.publish(projectId, { type: 'automation.progress', note: label, stage, phase, kind });
   };
 
@@ -86,7 +105,7 @@ export async function driveProject(projectId: string): Promise<void> {
       if (!action) { await sleep(5000); continue; }
 
       if (action.kind === 'complete') {
-        await emit('All stages complete — project finished', 'done', '', '');
+        await recordDriverOnlyLine(db, projectId, '', '', 'All stages complete — project finished', 'done');
         projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
         await db.update(project).set({ autoMode: false, autoNote: 'Project complete' }).where(eq(project.id, projectId));
         return;
@@ -133,10 +152,8 @@ export async function driveProject(projectId: string): Promise<void> {
       if (result === 'inflight') { await sleep(5000); continue; }
 
       if (lastErr) {
-        // Resolve the running line to a failed state in place (one line per activity).
-        await resolveRunningEvent(db, projectId, { stage: action.stage, phase: action.phase, detail: `Failed — ${lastErr}`, kind: 'error' });
+        await recordDriverOnlyLine(db, projectId, action.stage, action.phase, `Failed — ${lastErr}`, 'error');
         await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
-        projectEventBus.publish(projectId, { type: 'automation.progress', note: `Failed — ${lastErr}`, stage: action.stage, phase: action.phase, kind: 'error' });
         projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });
         return;
       }
@@ -146,8 +163,7 @@ export async function driveProject(projectId: string): Promise<void> {
       // milestone. Batch-backed actions leave the line running; their batch terminal
       // resolves it in place with the measured duration.
       if (!isBatchBackedAction(action.kind)) {
-        await resolveRunningEvent(db, projectId, { stage: action.stage, phase: action.phase, detail: cleanLabel(action.note), kind: 'done' });
-        projectEventBus.publish(projectId, { type: 'automation.progress', note: cleanLabel(action.note), stage: action.stage, phase: action.phase, kind: 'done' });
+        await recordDriverOnlyLine(db, projectId, action.stage, action.phase, cleanLabel(action.note), 'done');
       }
 
       // Success — nudge the client to re-pull server state (stepper/summary).

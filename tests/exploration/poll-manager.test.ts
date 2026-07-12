@@ -1,4 +1,12 @@
 // @vitest-environment node
+import { vi } from 'vitest';
+
+const { recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
+  recordActivity: vi.fn(async () => {}),
+  resolveRunningActivity: vi.fn(async () => 1),
+}));
+vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningActivity }));
+
 import { MmaClient, type MmaClientConfig } from '@/mma/client';
 import { PollManager, backoffMs, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
@@ -218,6 +226,117 @@ describe('PollManager', () => {
     const out = await pm.pollOnce(staleBatchId);
     expect(out.kind).toBe('timeout');
     pm.shutdown();
+  });
+
+  it('records one discover-task terminal row with repo label resolution fallback', async () => {
+    const db = createMockDb({
+      'select:ops_mma_batch': [{
+        handler: null,
+        projectId: 'proj-1',
+        request: { taskKind: 'investigate', targetRepoId: null },
+        dispatchedBy: '00000000-0000-0000-0000-000000000000',
+      }],
+      'update:ops_mma_batch': [{ id: 'row-1' }],
+    });
+    const pm = new PollManager({
+      db,
+      client: { poll: async () => ({ state: 'done', envelope: { error: null } }) } as never,
+      now: () => new Date('2026-07-10T00:00:05.000Z').getTime(),
+    });
+    pm.disableTimers();
+    pm.register({
+      batchId: 'row-1',
+      mmaBatchId: 'mma-1',
+      projectId: 'proj-1',
+      route: 'investigate',
+      taskId: 'task-1',
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+    });
+    await pm.pollOnce('row-1');
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'proj-1',
+      label: 'Investigated a repository',
+      eventKey: 'discover-task:row-1',
+    }));
+  });
+
+  it('404 terminal settles the discover-task row (no stuck-running activity)', async () => {
+    // Regression (B6): markNotFound used to skip the activity/task settle that
+    // markTerminal does, leaving a tracked project_activity row stuck `running`
+    // and the discover task stuck `running` forever.
+    recordActivity.mockClear();
+    const projectId = 'proj-nf';
+    const mmaBatchId = 'batch-nf';
+    const taskId = 'task-nf';
+    const mockDb = createMockDb({
+      'select:ops_mma_batch': [{ handler: null, projectId, request: { taskKind: 'investigate', targetRepoId: null } }],
+      'update:ops_mma_batch': [{ id: mmaBatchId }],
+    });
+    const pm = new PollManager({
+      client: { poll: async () => ({ state: 'not_found' }) } as never,
+      bus: new ProjectEventBus(),
+      db: mockDb,
+    });
+    pm.disableTimers();
+    pm.register({ batchId: mmaBatchId, mmaBatchId, projectId, route: 'investigate', taskId, createdAt: new Date() });
+
+    const out = await pm.pollOnce(mmaBatchId);
+    expect(out.kind).toBe('terminal');
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      eventKey: `discover-task:${mmaBatchId}`,
+      kind: 'error',
+    }));
+    expect(pm.isRegistered(mmaBatchId)).toBe(false);
+  });
+
+  it('a throwing settle does not leak the batch — terminal still emits + deregisters', async () => {
+    // Regression (B6 round 2): settleAbandonedTerminal must be best-effort. If it
+    // threw, markNotFound skipped emitTerminal + deregister and the batch leaked
+    // in `inFlight` forever with a dead timer.
+    recordActivity.mockClear();
+    recordActivity.mockRejectedValueOnce(new Error('db down'));
+    const projectId = 'proj-leak';
+    const mmaBatchId = 'batch-leak';
+    const taskId = 'task-leak';
+    const mockDb = createMockDb({
+      'select:ops_mma_batch': [{ handler: null, projectId, request: { taskKind: 'investigate', targetRepoId: null } }],
+      'update:ops_mma_batch': [{ id: mmaBatchId }],
+    });
+    const bus = new ProjectEventBus();
+    const events: ProjectEvent[] = [];
+    bus.subscribe(projectId, (e) => events.push(e));
+    const pm = new PollManager({ client: { poll: async () => ({ state: 'not_found' }) } as never, bus, db: mockDb });
+    pm.disableTimers();
+    pm.register({ batchId: mmaBatchId, mmaBatchId, projectId, route: 'investigate', taskId, createdAt: new Date() });
+
+    const out = await pm.pollOnce(mmaBatchId);
+    expect(out.kind).toBe('terminal');
+    expect(events.some((e) => e.type === 'task.failed')).toBe(true);
+    expect(pm.isRegistered(mmaBatchId)).toBe(false);
+  });
+
+  it('hard timeout resolves the running activity line for a tracked handler', async () => {
+    // Regression (B6): markTimeout used to skip the running-line resolve, so a
+    // tracked handler batch that timed out left its `running` line unresolved.
+    resolveRunningActivity.mockClear();
+    const projectId = 'proj-to';
+    const mmaBatchId = 'batch-to';
+    const past = new Date(Date.now() - (POLL_HARD_TIMEOUT_MS + 60_000));
+    const mockDb = createMockDb({
+      'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: past }],
+      'update:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'failed', terminalAt: new Date() }],
+    });
+    const pm = new PollManager({ client: scriptedClient(() => terminalRes(doneEnvelope)), bus: new ProjectEventBus(), db: mockDb });
+    pm.disableTimers();
+    pm.register({ batchId: mmaBatchId, mmaBatchId, projectId, route: 'plan', handler: 'plan-author', taskId: null, createdAt: past });
+
+    const out = await pm.pollOnce(mmaBatchId);
+    expect(out.kind).toBe('timeout');
+    expect(resolveRunningActivity).toHaveBeenCalledWith(expect.objectContaining({
+      eventKey: `plan-author:${mmaBatchId}`,
+      status: 'error',
+    }));
+    expect(pm.isRegistered(mmaBatchId)).toBe(false);
   });
 
   it('emits a structured log for each terminal done (observability F7)', async () => {

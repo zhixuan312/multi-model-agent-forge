@@ -65,7 +65,6 @@ export async function dashboardProjects(
     .select({ id: project.id, details: project.details, ownerId: project.ownerId })
     .from(project)
     .where(inArray(project.id, ids));
-  const detailsById = new Map(detailsRows.map((r) => [r.id, r.details]));
 
   // Awaiting-human: components with approvals from details
   const awaitingByP = new Map<string, number>();

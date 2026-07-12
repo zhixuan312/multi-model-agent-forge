@@ -1,3 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
+  recordActivity: vi.fn(async () => {}),
+  resolveRunningActivity: vi.fn(async () => 0),
+}));
+vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningActivity }));
+
 import { executeDetailsAction } from '@/automation/details-actions';
 import type { AutoAction } from '@/automation/details-resolver';
 import { createMockDb } from '../test-utils/mock-db';
@@ -32,6 +40,8 @@ describe('executeDetailsAction — approve_learning (monotonic, behavioral)', ()
     kind: 'approve_learning', note: '', stage: 'journal', phase: 'journal', data: { learningIndex: 0 },
   } as unknown as AutoAction;
 
+  beforeEach(() => recordActivity.mockClear());
+
   it('sets the learning status to kept and returns ok', async () => {
     const db = createMockDb({
       'select:project': [{ details: journalWithLearning('proposed'), detailsVersion: 1 }],
@@ -49,5 +59,82 @@ describe('executeDetailsAction — approve_learning (monotonic, behavioral)', ()
     });
     await executeDetailsAction('p', action, db);
     expect(writtenDetails(db).stages.journal.phases.journal.learnings[0].status).toBe('kept');
+  });
+});
+
+describe('executeDetailsAction activity attribution', () => {
+  beforeEach(() => recordActivity.mockClear());
+
+  it('attributes advance_phase to the manual actor as source=user', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.status = 'active';
+    d.stages.spec.phases.outline.status = 'active';
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1 }],
+      'select:team_member': [{ id: 'member-1', displayName: 'Avery', avatarTint: '#09f' }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    await executeDetailsAction('proj-1', {
+      kind: 'advance_phase',
+      note: 'Continue to Craft',
+      stage: 'spec',
+      phase: 'craft',
+      data: { actorId: 'member-1' },
+    } as never, db);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'user',
+      eventKey: 'phase_advance:proj-1:spec:craft',
+      actor: expect.objectContaining({ id: 'member-1', name: 'Avery' }),
+    }));
+    // Single-owner proof (FR-18): the transition writes EXACTLY one activity row. Combined with
+    // I-6's assertion that the driver's emit is publish-only, no logical action double-writes.
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('attributes advance_stage to Forge when actorId is omitted', async () => {
+    const d = buildInitialDetails();
+    d.stages.execute.status = 'active';
+    d.stages.execute.phases.implement.status = 'active';
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1 }],
+      'select:team_member': [{ id: '00000000-0000-0000-0000-000000000000', displayName: 'Forge', avatarTint: '#9a6b4f' }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    await executeDetailsAction('proj-1', {
+      kind: 'advance_stage',
+      note: 'Continue to Review',
+      stage: 'review',
+      phase: 'review',
+    } as never, db);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'mma',
+      eventKey: 'stage_advance:proj-1:review',
+      actor: expect.objectContaining({ id: '00000000-0000-0000-0000-000000000000' }),
+    }));
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('attributes approve_task to the manual actor', async () => {
+    const d = buildInitialDetails();
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'active';
+    d.stages.plan.phases.refine.tasks = [{ id: 'task-1', title: 'Task 1', status: 'pending', approvals: [], attempts: [], reviewPolicy: 'reviewed' }];
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1 }],
+      'select:team_member': [{ id: 'member-1', displayName: 'Avery', avatarTint: '#09f' }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    await executeDetailsAction('proj-1', {
+      kind: 'approve_task',
+      note: 'Approve task',
+      stage: 'plan',
+      phase: 'refine',
+      data: { actorId: 'member-1', taskId: 'task-1' },
+    } as never, db);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      eventKey: 'approve_task:proj-1:task-1',
+      source: 'user',
+    }));
+    expect(recordActivity).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createHash } from 'node:crypto';
 import {
   onHumanSatisfied,
   confirmComponents,
@@ -101,5 +102,36 @@ describe('onHumanSatisfied', () => {
     const written = (mockDb._callsFor('project').find((c) => c.method === 'set')!.args[0] as { details: typeof d }).details;
     expect(written.stages.spec.phases.craft.components[0].approvals).toContain('member-1');
     expect(written.stages.spec.participants).toContain('member-1'); // the gap this closes
+  });
+});
+
+describe('spec orchestrator activity rows', () => {
+  it('records confirm_components with a stable selection hash', async () => {
+    const d = buildInitialDetails();
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1 }],
+      'select:team_spec_template': [{ id: 'tpl-a', kind: 'context' }, { id: 'tpl-b', kind: 'problem' }],
+      'select:team_member': [{ id: 'member-1', displayName: 'Avery', avatarTint: '#09f' }],
+      'update:project': [{ id: 'proj-1' }],
+      'insert:project_activity': [{ id: 'activity-1' }],
+    });
+    await confirmComponents(db, 'proj-1', ['context', 'problem'], { actorId: 'member-1' });
+    const selectionHash = createHash('sha256').update(['tpl-a', 'tpl-b'].sort().join(',')).digest('hex');
+    const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
+    expect(valuesCall?.args[0]).toMatchObject({ eventKey: `confirm_components:proj-1:${selectionHash}` });
+  });
+
+  it('records approve_component for the approved component id', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.phases.craft.components = [{ id: 'comp-1', templateId: 'tpl-a', approvals: [] }];
+    const db = createMockDb({
+      'select:project': seq([{ id: 'proj-1', details: d }], [{ details: d, detailsVersion: 1 }]),
+      'select:team_member': [{ id: 'member-1', displayName: 'Avery', avatarTint: '#09f' }],
+      'update:project': [{ id: 'proj-1' }],
+      'insert:project_activity': [{ id: 'activity-1' }],
+    });
+    await onHumanSatisfied({ db }, 'proj-1', 'comp-1', 'member-1');
+    const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
+    expect(valuesCall?.args[0]).toMatchObject({ eventKey: 'approve_component:proj-1:comp-1' });
   });
 });

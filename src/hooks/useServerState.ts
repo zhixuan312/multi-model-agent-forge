@@ -24,7 +24,9 @@ import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 export function useServerState<T>(serverValue: T): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState(serverValue);
   const prevRef = useRef(serverValue);
+  // eslint-disable-next-line react-hooks/refs -- prop-sync: compare prev server value to adjust state during render (React docs pattern)
   if (prevRef.current !== serverValue) {
+    // eslint-disable-next-line react-hooks/refs -- prop-sync: store latest server value so the comparison runs once per change (React docs pattern)
     prevRef.current = serverValue;
     setValue(serverValue);
   }

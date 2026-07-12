@@ -57,8 +57,10 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
   );
   const [error, setError] = useState<string | null>(null);
   const eventsRef = useRef(opts?.events);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest events callback into a ref so long-lived dispatch handlers read it without re-subscribing
   eventsRef.current = opts?.events;
   const onDoneRef = useRef(opts?.onDone);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest onDone callback into a ref so long-lived dispatch handlers read it without re-subscribing
   onDoneRef.current = opts?.onDone;
 
   const pendingRef = useRef<Map<string, PendingDispatch>>(new Map());

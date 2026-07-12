@@ -11,7 +11,6 @@ import {
   type AnthropicCallDiagnostics,
 } from '@/anthropic/client';
 import { z } from 'zod';
-import { FullSpecDraftSchema } from '@/spec/schemas';
 
 const TestSchema = z.object({ aiSatisfied: z.boolean(), missingInfo: z.array(z.string()), followUpQuestions: z.array(z.string()) });
 const DraftSchema = z.object({ draftMd: z.string() });
@@ -52,7 +51,7 @@ describe('AnthropicClient.parse', () => {
   it('uses BASE_MAX_TOKENS (16000) on the base call', async () => {
     let seen = 0;
     const sdk: AnthropicLike = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       messages: { async parse(p: any) { seen = p.max_tokens; return { parsed_output: { draftMd: 'x' }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
     await new AnthropicClient(sdk, 'm').parse(DraftSchema, { ...ctx, call: 'draftSection' });
@@ -64,13 +63,13 @@ describe('AnthropicClient.parse', () => {
     const usedStream: boolean[] = [];
     const sdk: AnthropicLike = {
       messages: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         async parse(p: any) {
           maxTokensSeen.push(p.max_tokens);
           usedStream.push(false);
           return { parsed_output: null, stop_reason: 'max_tokens', usage: USAGE };
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         stream(p: any) {
           maxTokensSeen.push(p.max_tokens);
           usedStream.push(true);
@@ -174,10 +173,10 @@ describe('AnthropicClient — server Claude Code OAuth', () => {
   const ctx = { system: 'real-system', user: 'u', call: 'assessAnswers' };
 
   it('OAuth mode injects the Claude Code identity as the FIRST system block', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let seen: any;
     const sdk: AnthropicLike = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
     await new AnthropicClient(sdk, 'm', true).parse(TestSchema, ctx);
@@ -187,10 +186,10 @@ describe('AnthropicClient — server Claude Code OAuth', () => {
   });
 
   it('API-key mode keeps a plain-string system (no identity block)', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let seen: any;
     const sdk: AnthropicLike = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       messages: { async parse(p: any) { seen = p.system; return { parsed_output: { aiSatisfied: true, missingInfo: [], followUpQuestions: [] }, stop_reason: 'end_turn', usage: USAGE }; } },
     };
     await new AnthropicClient(sdk, 'm', false).parse(TestSchema, ctx);

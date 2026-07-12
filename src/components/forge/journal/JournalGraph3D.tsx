@@ -37,6 +37,7 @@ export function JournalGraph3D({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const onOpenRef = useRef(onOpen);
+  // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest onOpen into a ref so the long-lived 3D handlers read it without re-subscribing
   onOpenRef.current = onOpen;
   const [hovered, setHovered] = useState<{ id: string; title: string; status: string; source?: string | null; type?: string | null } | null>(null);
 

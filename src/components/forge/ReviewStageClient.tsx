@@ -106,12 +106,15 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
 
   // Sync to latest pass when new passes arrive
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync to the newest pass when passes arrive
     if (props.passes.length > 0) setActivePassNo(props.passes[props.passes.length - 1].passNo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off passes.length; reading full props.passes only to index the latest, not to retrigger
   }, [props.passes.length]);
 
   // Manual subset selection — indices into the active pass's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual finding selection when the active pass changes
   useEffect(() => { setSelectedFindings([]); }, [activePassNo]);
 
   function apply(passNo: number, indices: number[]) {
@@ -136,7 +139,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
         note={autoNote}
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
-        runningHint="Forge reviews the code, applies fixes, then advances to Reflect."
       />
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
       {/* LEFT — findings content */}

@@ -4,12 +4,18 @@ import { member } from '@/db/schema/identity';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { loopRun } from '@/db/schema/loop';
-import { logAction } from '@/observability/action-log';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
 import { getPollManager } from '@/sse/poll-manager';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
-import { appendBatchTerminalEvent, phaseKeyForHandler } from '@/details/project-event-labels';
+import {
+  appendBatchTerminalEvent,
+  HANDLER_EVENT,
+  phaseKeyForHandler,
+  SINGLETON_HANDLERS,
+} from '@/details/project-event-labels';
+import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /**
  * Thrown by the G2 guard when a project already has MMA in flight for a DIFFERENT
@@ -240,7 +246,15 @@ export async function dispatchMma(
         .select({ handler: mmaBatch.handler })
         .from(mmaBatch)
         .where(and(eq(mmaBatch.projectId, pid), inArray(mmaBatch.status, ['dispatched', 'running'])));
-      const conflict = inflight.map((b) => phaseKeyForHandler(b.handler)).find((p): p is string => !!p && p !== myPhase);
+
+      const singletonConflict = inflight.find((b) => b.handler && opts.handler && b.handler === opts.handler && SINGLETON_HANDLERS.has(opts.handler));
+      if (singletonConflict) {
+        throw new PhaseBusyError(pid, myPhase, myPhase);
+      }
+
+      const conflict = inflight
+        .map((b) => phaseKeyForHandler(b.handler))
+        .find((phase): phase is string => !!phase && phase !== myPhase);
       if (conflict) throw new PhaseBusyError(pid, myPhase, conflict);
       const [inserted] = await tx.insert(mmaBatch).values(values).returning({ id: mmaBatch.id, createdAt: mmaBatch.createdAt });
       return inserted;
@@ -251,12 +265,20 @@ export async function dispatchMma(
 
   const batchRowId = row.id;
 
-  // Best-effort action log
-  if (opts.actorId) {
-    await logAction(
-      { projectId: opts.projectId, memberId: opts.actorId, action: 'dispatch', target: `batch:${batchRowId}` },
-      opts.db,
-    ).catch(() => {});
+  if (opts.projectId && opts.handler && HANDLER_EVENT[opts.handler]) {
+    const meta = HANDLER_EVENT[opts.handler];
+    await recordActivity({
+      db: opts.db,
+      projectId: opts.projectId,
+      stage: meta.stage,
+      phase: meta.phase,
+      label: meta.label,
+      kind: 'running',
+      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      source: 'mma',
+      eventKey: `${opts.handler}:${batchRowId}`,
+      createdAt: row.createdAt,
+    });
   }
 
   if (opts.await) {
@@ -271,7 +293,7 @@ export async function dispatchMma(
         .update(mmaBatch)
         .set({ status: 'failed', result: { error: { code: 'dispatch_failed', message: String(err) } } as object, terminalAt: new Date() })
         .where(eq(mmaBatch.id, batchRowId));
-      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'failed', Date.now() - row.createdAt.getTime());
       throw err;
     }
 
@@ -302,7 +324,7 @@ export async function dispatchMma(
     if (taskFailed) {
       // Do NOT fire the success handler — record a failed milestone and throw so the
       // driver retries (bounded) and then stops with a clear error, instead of looping.
-      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'failed', Date.now() - row.createdAt.getTime());
       const e = envErr as { code?: string; message?: string };
       throw new Error(`MMA task failed: ${e.code ?? 'error'}${e.message ? `: ${e.message}` : ''}`);
     }
@@ -336,14 +358,14 @@ export async function dispatchMma(
       } catch (handlerErr) {
         console.error(`[forge] terminal handler '${opts.handler}' threw:`, handlerErr);
         await opts.db.update(mmaBatch).set({ status: 'failed', terminalAt: new Date() }).where(eq(mmaBatch.id, batchRowId));
-        await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'failed', Date.now() - row.createdAt.getTime());
+        await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'failed', Date.now() - row.createdAt.getTime());
         throw handlerErr;
       }
     }
 
     // Resolve the running timeline line to its milestone + measured duration —
     // one line per activity, covering manual-UI dispatches too.
-    await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, 'done', Date.now() - row.createdAt.getTime());
+    await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'done', Date.now() - row.createdAt.getTime());
 
     return { batchRowId, envelope };
   } else {

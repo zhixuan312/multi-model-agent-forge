@@ -8,7 +8,6 @@ import { insertNotification } from '@/collab/notification-store';
 import { currentMember } from '@/auth/current-member';
 import { teamSpecTemplate } from '@/db/schema/team';
 import { projectEventBus } from '@/sse/event-bus';
-import type { ComponentKind } from '@/db/enums';
 
 export async function POST(
   req: NextRequest,

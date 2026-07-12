@@ -1,7 +1,5 @@
 import type { Db } from '@/db/client';
-import { project } from '@/db/schema/projects';
 import { ProposalSchema, PROMPT_FLOORS, type ProposedTask } from '@/exploration/schemas';
-import { logAction } from '@/observability/action-log';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
 
@@ -38,11 +36,6 @@ async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown)
     d.stages.exploration.phases.discover.tasks = [...kept, ...newTasks];
     return d;
   });
-
-  await logAction(
-    { projectId: ctx.projectId, memberId: request.actorId, action: 'explore_analyze', target: `project:${ctx.projectId}`, meta: { taskCount: conformant.length } },
-    db,
-  );
 }
 
 registerHandler('explore-propose', handleExplorePropose);

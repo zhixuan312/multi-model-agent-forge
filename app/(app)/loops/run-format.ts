@@ -1,5 +1,3 @@
-import { LOOP_TIMEZONE } from '@/loops/cron';
-
 /** Badge tint per run status. */
 export const RUN_STATUS_VARIANT: Record<string, 'sage' | 'rose' | 'steel' | 'neutral'> = {
   changed: 'sage',

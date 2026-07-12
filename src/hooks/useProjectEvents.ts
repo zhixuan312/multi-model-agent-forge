@@ -64,6 +64,11 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
         status: 'recorded',
         batchStatus: 'done',
       }));
+      // The event carries only status, not the findings. Refetch the tasks so the
+      // joined `outputMd` loads NOW (per task) — otherwise the task shows
+      // `recorded` with a blank "No output available" pane until some later refetch
+      // (e.g. the whole phase completing) fills it in.
+      void qc.invalidateQueries({ queryKey: explorationKeys.tasks(projectId) });
       break;
     }
     case 'task.failed': {
@@ -73,6 +78,7 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
         batchStatus: 'failed',
         error: e.error,
       }));
+      void qc.invalidateQueries({ queryKey: explorationKeys.tasks(projectId) });
       break;
     }
     case 'synthesis.updated': {

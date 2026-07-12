@@ -1,11 +1,11 @@
-import { uuid, text, jsonb, boolean, timestamp, index } from 'drizzle-orm/pg-core';
+import { uuid, text, jsonb, boolean, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import { mmaBatch } from '@/db/schema/ops';
 import { team } from '@/db/schema/team';
-import { LOOP_KIND, LOOP_WORKER_TIER, LOOP_TRIGGER, LOOP_RUN_STATUS } from '@/db/enums';
+import { LOOP_KIND, LOOP_MODE, LOOP_WORKER_TIER, LOOP_TRIGGER, LOOP_RUN_STATUS } from '@/db/enums';
 
 export const loop = forge.table(
   'loop_def',
@@ -16,9 +16,11 @@ export const loop = forge.table(
     kind: text('kind', { enum: LOOP_KIND }).notNull(),
     config: jsonb('config').notNull(),
     workerTier: text('worker_tier', { enum: LOOP_WORKER_TIER }).notNull().default('complex'),
+    mode: text('mode', { enum: LOOP_MODE }).notNull().default('manual'),
     cron: text('cron'),
     targetBranch: text('target_branch'),
     repoIds: uuid('repo_ids').array().notNull().default(sql`'{}'`),
+    eventTokenHash: text('event_token_hash'),
     enabled: boolean('enabled').notNull().default(true),
     createdBy: uuid('created_by').references(() => member.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -44,12 +46,32 @@ export const loopRun = forge.table(
     verification: jsonb('verification'),
     filesChanged: jsonb('files_changed'),
     journalEntries: jsonb('journal_entries'),
+    idempotencyKey: text('idempotency_key'),
+    reference: text('reference'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
   (t) => [index('loop_run_team_started_idx').on(t.teamId, t.startedAt), index('loop_run_loop_started_idx').on(t.loopId, t.startedAt), index('loop_run_run_id_idx').on(t.runId)],
 );
 
+export const loopEventDelivery = forge.table(
+  'loop_event_delivery',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    teamId: uuid('team_id').notNull().references(() => team.id),
+    loopId: uuid('loop_id').notNull().references(() => loop.id, { onDelete: 'cascade' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    runId: uuid('run_id').notNull(),
+    reference: text('reference'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('loop_event_delivery_loop_key_idx').on(t.loopId, t.idempotencyKey),
+    index('loop_event_delivery_team_created_idx').on(t.teamId, t.createdAt),
+  ],
+);
+
 export type LoopRow = typeof loop.$inferSelect;
 export type LoopRunRow = typeof loopRun.$inferSelect;
+export type LoopEventDeliveryRow = typeof loopEventDelivery.$inferSelect;
 export interface RunVerification { command: string | null; passed: boolean | null; detail: string; }

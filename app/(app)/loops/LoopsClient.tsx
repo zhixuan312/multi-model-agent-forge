@@ -35,7 +35,7 @@ export function LoopsClient({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [trigger, setTrigger] = useState<'all' | 'recurring' | 'oneoff'>('all');
+  const [trigger, setTrigger] = useState<'all' | 'recurring' | 'manual' | 'event'>('all');
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -65,8 +65,7 @@ export function LoopsClient({
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return initialLoops.filter((l) => {
-      if (trigger === 'recurring' && l.cron == null) return false;
-      if (trigger === 'oneoff' && l.cron != null) return false;
+      if (trigger !== 'all' && l.mode !== trigger) return false;
       if (q && !l.name.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -84,6 +83,7 @@ export function LoopsClient({
               <TextStrong className="block truncate !text-sm !text-ink" title={l.name}>{l.name}</TextStrong>
               <div className="mt-0.5 flex items-center gap-1.5">
                 <Badge size="sm" variant={l.workerTier === 'complex' ? 'steel' : 'accent'}>{l.workerTier}</Badge>
+                <Badge size="sm" variant="neutral">{l.mode}</Badge>
               </div>
             </div>
           );
@@ -94,12 +94,16 @@ export function LoopsClient({
         header: 'Schedule',
         size: 180,
         cell: ({ row }) => {
-          const c = row.original.cron;
+          const l = row.original;
           return (
             <div className="min-w-0">
-              <span className="block truncate text-sm text-ink">{c ? describeCron(c) : 'One-time'}</span>
-              {c ? (
-                <Mono className="block truncate !text-[0.6875rem] text-ink-faint" title={c}>{c}</Mono>
+              {l.mode === 'recurring' ? (
+                <>
+                  <span className="block truncate text-sm text-ink">{describeCron(l.cron ?? '')}</span>
+                  <Mono className="block truncate !text-[0.6875rem] text-ink-faint" title={l.cron ?? ''}>{l.cron}</Mono>
+                </>
+              ) : l.mode === 'event' ? (
+                <Micro className="text-ink-faint">External events only</Micro>
               ) : (
                 <Micro className="text-ink-faint">Run now only</Micro>
               )}
@@ -118,8 +122,8 @@ export function LoopsClient({
         header: 'Status',
         size: 100,
         cell: ({ row }) =>
-          row.original.cron == null ? (
-            <Micro className="text-ink-faint">—</Micro> // one-time has no enable/disable
+          row.original.mode !== 'recurring' ? (
+            <Micro className="text-ink-faint">—</Micro>
           ) : (
             <Badge size="sm" variant={row.original.enabled ? 'sage' : 'neutral'} dot={row.original.enabled}>
               {row.original.enabled ? 'enabled' : 'paused'}
@@ -182,12 +186,13 @@ export function LoopsClient({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
             <Input aria-label="Search loops" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search loops…" className="pl-9" />
           </div>
-          <Select value={trigger} onValueChange={(v) => setTrigger(v as 'all' | 'recurring' | 'oneoff')}>
+          <Select value={trigger} onValueChange={(v) => setTrigger(v as 'all' | 'recurring' | 'manual' | 'event')}>
             <SelectTrigger aria-label="Filter by trigger" className="w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All triggers</SelectItem>
+              <SelectItem value="all">All modes</SelectItem>
               <SelectItem value="recurring">Recurring</SelectItem>
-              <SelectItem value="oneoff">One-time</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="event">Event</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -202,7 +207,7 @@ export function LoopsClient({
         expandedId={editingId}
         leadingRow={adding ? <LoopForm mode="add" repoOptions={repoOptions} onDone={close} /> : null}
         renderExpanded={(l) => <LoopForm key={l.id} mode="edit" loop={l} repoOptions={repoOptions} onDone={close} />}
-        emptyState={<EmptyState icon={<Repeat />} title="No loops yet" description="Create a loop to run a goal against your repos on a schedule." />}
+        emptyState={<EmptyState icon={<Repeat />} title="No loops yet" description="Create a loop to run a goal against your repos on a schedule or on demand." />}
       />
     </Card>
   );

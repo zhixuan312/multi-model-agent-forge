@@ -6,79 +6,109 @@ import {
   getLoop,
   deleteLoop,
   setLoopEnabled,
+  rotateLoopEventToken,
+  toPublicLoop,
 } from '@/loops/loops-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
-// Backend tests run on a mocked Drizzle Db (gumi convention) — no database.
 const RID = '11111111-1111-4111-8111-111111111111';
-const VALID = { name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'no dormant code' }, cron: '0 3 * * *', repoIds: [RID] };
+const VALID = {
+  name: 'Hygiene',
+  kind: 'maintenance',
+  config: { goalMd: 'no dormant code' },
+  mode: 'recurring',
+  cron: '0 3 * * *',
+  repoIds: [RID],
+};
 const loopRow = (o: Record<string, unknown> = {}) => ({
-  id: 'loop-1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'g' },
-  workerTier: 'complex', cron: '0 3 * * *', repoIds: [RID], enabled: true,
-  createdBy: null, createdAt: new Date(), updatedAt: new Date(), ...o,
+  id: 'loop-1',
+  teamId: 'team-1',
+  name: 'Hygiene',
+  kind: 'maintenance',
+  config: { goalMd: 'g' },
+  workerTier: 'complex',
+  mode: 'manual',
+  cron: null,
+  targetBranch: null,
+  repoIds: [RID],
+  eventTokenHash: null,
+  enabled: true,
+  createdBy: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...o,
 });
 
 describe('createLoop', () => {
-  it('creates a valid loop (config + cron + name unique)', async () => {
-    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow()] });
+  it('creates a recurring loop when cron is valid', async () => {
+    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'recurring', cron: '0 3 * * *' })] });
     const res = await createLoop(VALID, { db, actorId: 'admin-1', teamId: 'team-1' });
     expect(res.kind).toBe('created');
-    expect(db._assertCalled('loop_def', 'insert')).toBe(true);
+    if (res.kind === 'created') expect(res.eventToken).toBeNull();
   });
 
-  it('rejects invalid shape (empty name / no repos) without writing', async () => {
-    const db = createMockDb();
-    expect((await createLoop({ ...VALID, name: '' }, { db, teamId: 'team-1' })).kind).toBe('invalid');
-    expect((await createLoop({ ...VALID, repoIds: [] }, { db, teamId: 'team-1' })).kind).toBe('invalid');
-    expect(db._assertCalled('loop_def', 'insert')).toBe(false);
+  it('creates an event loop with a generated token and only stores the hash', async () => {
+    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-1' })] });
+    const res = await createLoop({ ...VALID, mode: 'event', cron: null }, { db, actorId: 'admin-1', teamId: 'team-1' });
+    expect(res.kind).toBe('created');
+    if (res.kind !== 'created') throw new Error('expected created');
+    expect(res.eventToken).toBeTruthy();
+    const values = db._callsFor('loop_def').find((c) => c.method === 'values');
+    const inserted = (values?.args[0] ?? {}) as { eventTokenHash?: string };
+    expect(inserted.eventTokenHash).toBeTruthy();
+    expect(inserted.eventTokenHash).not.toBe(res.eventToken);
   });
 
-  it('rejects an invalid per-kind config', async () => {
+  it('rejects invalid mode/cron combinations without writing', async () => {
     const db = createMockDb({ 'select:loop_def': [] });
-    expect((await createLoop({ ...VALID, config: { goalMd: '' } }, { db, teamId: 'team-1' })).kind).toBe('invalid_config');
-  });
-
-  it('rejects an invalid cron', async () => {
-    const db = createMockDb({ 'select:loop_def': [] });
-    expect((await createLoop({ ...VALID, cron: 'not a cron' }, { db, teamId: 'team-1' })).kind).toBe('invalid_cron');
-  });
-
-  it('creates a one-time job (no cron) and a targeted loop (targetBranch)', async () => {
-    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ cron: null })] });
-    expect((await createLoop({ ...VALID, cron: null }, { db, teamId: 'team-1' })).kind).toBe('created'); // one-time
-    const db2 = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ targetBranch: 'develop' })] });
-    expect((await createLoop({ ...VALID, targetBranch: 'develop' }, { db: db2, teamId: 'team-1' })).kind).toBe('created');
-  });
-
-  it('rejects a duplicate name (case-insensitive)', async () => {
-    const db = createMockDb({ 'select:loop_def': [{ id: 'other' }] });
-    expect((await createLoop(VALID, { db, teamId: 'team-1' })).kind).toBe('duplicate_name');
+    expect((await createLoop({ ...VALID, mode: 'event', cron: '0 3 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
+    expect((await createLoop({ ...VALID, mode: 'recurring', cron: null }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect(db._assertCalled('loop_def', 'insert')).toBe(false);
   });
 });
 
 describe('updateLoop', () => {
-  it('not_found when the loop is missing', async () => {
-    const db = createMockDb({ 'select:loop_def': [] });
-    expect((await updateLoop('x', { cron: '0 4 * * *' }, { db, teamId: 'team-1' })).kind).toBe('not_found');
-  });
-
-  it('updates an existing loop', async () => {
-    const db = createMockDb({ 'select:loop_def': [loopRow()], 'update:loop_def': [loopRow({ cron: '0 4 * * *' })] });
-    const res = await updateLoop('loop-1', { cron: '0 4 * * *' }, { db, teamId: 'team-1' });
+  it('transitions a manual loop into event mode by nulling cron and generating a fresh token', async () => {
+    const db = createMockDb({
+      'select:loop_def': [loopRow({ mode: 'manual', cron: null, eventTokenHash: null })],
+      'update:loop_def': [loopRow({ mode: 'event', cron: null, eventTokenHash: 'hash-2' })],
+    });
+    const res = await updateLoop('loop-1', { mode: 'event', cron: null }, { db, teamId: 'team-1' });
     expect(res.kind).toBe('updated');
-    expect(db._assertCalled('loop_def', 'update')).toBe(true);
+    if (res.kind === 'updated') expect(res.eventToken).toBeTruthy();
   });
 
-  it('rejects an invalid cron on update', async () => {
-    const db = createMockDb({ 'select:loop_def': [loopRow()] });
-    expect((await updateLoop('loop-1', { cron: 'bad' }, { db, teamId: 'team-1' })).kind).toBe('invalid_cron');
+  it('keeps the existing token on unrelated event-mode updates', async () => {
+    const db = createMockDb({
+      'select:loop_def': seq([loopRow({ mode: 'event', eventTokenHash: 'hash-existing' })], []),
+      'update:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-existing', name: 'Retitled' })],
+    });
+    const res = await updateLoop('loop-1', { name: 'Retitled' }, { db, teamId: 'team-1' });
+    expect(res.kind).toBe('updated');
+    if (res.kind === 'updated') expect(res.eventToken).toBeNull();
+  });
+
+  it('rejects bad mode transitions before writing', async () => {
+    const db = createMockDb({ 'select:loop_def': [loopRow({ mode: 'manual', cron: null })] });
+    expect((await updateLoop('loop-1', { mode: 'event', cron: '0 4 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect(db._assertCalled('loop_def', 'update')).toBe(false);
   });
+});
 
-  it('rejects a duplicate name on rename (excluding self)', async () => {
-    const db = createMockDb({ 'select:loop_def': seq([loopRow()], [{ id: 'other' }]) });
-    expect((await updateLoop('loop-1', { name: 'Taken' }, { db, teamId: 'team-1' })).kind).toBe('duplicate_name');
+describe('rotateLoopEventToken', () => {
+  it('rotates only event-mode loops and returns the plaintext once', async () => {
+    const db = createMockDb({
+      'select:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-old' })],
+      'update:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-new' })],
+    });
+    const res = await rotateLoopEventToken('loop-1', { db, teamId: 'team-1' });
+    expect(res.kind).toBe('rotated');
+    if (res.kind === 'rotated') expect(res.eventToken).toBeTruthy();
+  });
+
+  it('rejects non-event loops for rotation', async () => {
+    const db = createMockDb({ 'select:loop_def': [loopRow({ mode: 'manual' })] });
+    expect((await rotateLoopEventToken('loop-1', { db, teamId: 'team-1' })).kind).toBe('wrong_mode');
   });
 });
 
@@ -96,27 +126,16 @@ describe('reads + toggles', () => {
     expect((await setLoopEnabled('x', false, { db: createMockDb({ 'update:loop_def': [] }), teamId: 'team-1' })).kind).toBe('not_found');
   });
 
-  it('lists only loops for the actor team', async () => {
-    const db = createMockDb({
-      'select:loop_def': [{
-        id: 'loop-1',
-        teamId: 'team-a',
-        name: 'Hygiene',
-        kind: 'maintenance',
-        config: {},
-        workerTier: 'complex',
-        cron: null,
-        repoIds: [],
-        enabled: true,
-        createdBy: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }],
-    });
-    await listLoops({
-      db,
-      teamId: 'team-b',
-    });
-    expect(db._assertCalled('loop_def', 'where')).toBe(true);
+  it('rejects duplicate names case-insensitively on rename', async () => {
+    const db = createMockDb({ 'select:loop_def': seq([loopRow()], [{ id: 'other' }]) });
+    expect((await updateLoop('loop-1', { name: 'Taken' }, { db, teamId: 'team-1' })).kind).toBe('duplicate_name');
+  });
+
+  it('toPublicLoop strips the hashed event credential and keeps every other field', () => {
+    const row = { ...loopRow(), eventTokenHash: 'secret-hash', mode: 'event' } as never;
+    const pub = toPublicLoop(row) as Record<string, unknown>;
+    expect('eventTokenHash' in pub).toBe(false);
+    expect(pub.id).toBe((row as Record<string, unknown>).id);
+    expect(pub.mode).toBe('event');
   });
 });

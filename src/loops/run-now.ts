@@ -20,11 +20,18 @@ export interface StartRunDeps {
   db?: Db;
   runDeps?: LoopRunDeps;
   runId?: string;
+  goalOverride?: string;
+  idempotencyKey?: string;
+  reference?: string | null;
+  context?: string | null;
   background?: boolean;
   runner?: typeof runLoop;
 }
 
-export type StartRunResult = { kind: 'started'; runId: string } | { kind: 'not_found' };
+export type StartRunResult =
+  | { kind: 'started'; runId: string }
+  | { kind: 'not_found' }
+  | { kind: 'wrong_mode' };
 
 async function loadRepos(db: Db, repoIds: string[]): Promise<LoopRepoTarget[]> {
   if (repoIds.length === 0) return [];
@@ -43,6 +50,14 @@ export async function startLoopRun(
   const db = deps.db ?? getDb();
   const loop = await getLoop(loopId, { db });
   if (!loop) return { kind: 'not_found' };
+  // Mode/trigger guard: event-mode loops may ONLY be fired via the authenticated event
+  // endpoint (trigger 'event'); firing one through the manual "Run now" or scheduler path
+  // would bypass the per-loop bearer-token gate. Conversely, an 'event' trigger is only
+  // valid against an event-mode loop. Reject the mismatch here so the invariant holds no
+  // matter which caller reaches this seam.
+  if (trigger === 'event' ? loop.mode !== 'event' : loop.mode === 'event') {
+    return { kind: 'wrong_mode' };
+  }
   const [currentTeam] = await db.select().from(team).where(eq(team.id, loop.teamId)).limit(1);
   if (!currentTeam) return { kind: 'not_found' };
 
@@ -55,7 +70,16 @@ export async function startLoopRun(
   for (const r of repos) {
     const [row] = await db
       .insert(loopRun)
-      .values({ teamId: loop.teamId, loopId, runId, repoId: r.id, trigger, status: 'running' })
+      .values({
+        teamId: loop.teamId,
+        loopId,
+        runId,
+        repoId: r.id,
+        trigger,
+        status: 'running',
+        idempotencyKey: deps.idempotencyKey ?? null,
+        reference: deps.reference ?? null,
+      })
       .returning({ id: loopRun.id });
     if (row?.id) runRowByRepoId.set(r.id, row.id);
   }
@@ -63,7 +87,20 @@ export async function startLoopRun(
   const runDeps = deps.runDeps ?? await buildLoopRunDeps(currentTeam, { db });
   const runner = deps.runner ?? runLoop;
 
-  const exec = runner(loop, repos, { runId, trigger, runRowByRepoId }, runDeps);
+  const exec = runner(
+    loop,
+    repos,
+    {
+      runId,
+      trigger,
+      goalOverride: deps.goalOverride,
+      idempotencyKey: deps.idempotencyKey,
+      reference: deps.reference ?? null,
+      context: deps.context ?? null,
+      runRowByRepoId,
+    },
+    runDeps,
+  );
   if (deps.background === false) await exec;
   else void Promise.resolve(exec).catch(() => {});
 
@@ -76,5 +113,4 @@ export async function listLoopRuns(loopId: string, deps: { db?: Db } = {}): Prom
   return db.select().from(loopRun).where(eq(loopRun.loopId, loopId)).orderBy(desc(loopRun.startedAt));
 }
 
-// Re-export so route handlers import the loop table type if needed.
 export { loopTable };

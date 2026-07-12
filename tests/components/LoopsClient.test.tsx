@@ -8,7 +8,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push: vi.fn() }
 
 const loop = {
   id: 'l1', name: 'Hygiene', kind: 'maintenance', config: { goalMd: 'no dormant code' },
-  workerTier: 'complex', cron: '0 3 * * *', repoIds: ['r1'], enabled: true,
+  workerTier: 'complex', mode: 'recurring', cron: '0 3 * * *', repoIds: ['r1'], enabled: true,
   createdBy: null, createdAt: new Date(), updatedAt: new Date(),
 } as unknown as LoopRow;
 const repoOptions = [{ id: 'r1', name: 'forge' }, { id: 'r2', name: 'engine' }];
@@ -28,10 +28,10 @@ describe('LoopsClient', () => {
     expect(screen.getByRole('button', { name: /run hygiene now/i })).toBeInTheDocument();
   });
 
-  it('shows "One-time" for a one-time (null-cron) job + a trigger filter', () => {
-    const oneTime = { ...loop, id: 'l2', name: 'Adhoc cleanup', cron: null } as unknown as LoopRow;
+  it('shows "External events only" for an event-mode loop + a trigger filter', () => {
+    const oneTime = { ...loop, id: 'l2', name: 'Adhoc cleanup', mode: 'event', cron: null } as unknown as LoopRow;
     render(<LoopsClient initialLoops={[oneTime]} repoOptions={repoOptions} />);
-    expect(screen.getByText('One-time')).toBeInTheDocument();
+    expect(screen.getByText('External events only')).toBeInTheDocument();
     expect(screen.getByText('Adhoc cleanup')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /filter by trigger/i })).toBeInTheDocument();
   });

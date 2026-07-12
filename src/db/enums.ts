@@ -124,8 +124,12 @@ export type LoopKind = (typeof LOOP_KIND)[number];
 /** loop.worker_tier — which MMA worker the loop dispatches (maps to agentType). `main` is the orchestrator, never a worker. */
 export const LOOP_WORKER_TIER = ['standard', 'complex'] as const;
 
+/** loop.mode — recurring scheduler, manual run-now, or machine-driven event trigger. */
+export const LOOP_MODE = ['recurring', 'manual', 'event'] as const;
+export type LoopMode = (typeof LOOP_MODE)[number];
+
 /** loop_run.trigger — how a fire was activated. */
-export const LOOP_TRIGGER = ['schedule', 'manual'] as const;
+export const LOOP_TRIGGER = ['schedule', 'manual', 'event'] as const;
 export type LoopTrigger = (typeof LOOP_TRIGGER)[number];
 
 /** loop_run.status — per-repo outcome of a fire. A failed run never opens a PR. */

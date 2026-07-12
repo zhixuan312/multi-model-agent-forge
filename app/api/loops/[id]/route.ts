@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
-import { getLoop, updateLoop, deleteLoop } from '@/loops/loops-core';
+import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop, toPublicLoop } from '@/loops/loops-core';
 
 /**
  * Admin per-loop API (spec §6). `GET` reads, `PATCH` updates (incl. enable/pause
@@ -12,19 +12,32 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const loop = await getLoop(id);
-  return loop ? NextResponse.json(loop) : NextResponse.json({ error: 'not_found' }, { status: 404 });
+  const loop = await getLoop(id, { teamId: gate.actor.teamId ?? undefined });
+  return loop ? NextResponse.json(toPublicLoop(loop)) : NextResponse.json({ error: 'not_found' }, { status: 404 });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const json = await req.json().catch(() => null);
-  const result = await updateLoop(id, json);
+  const json = (await req.json().catch(() => null)) as { rotateEventToken?: boolean } | null;
+
+  if (json?.rotateEventToken) {
+    const rotated = await rotateLoopEventToken(id, { teamId: gate.actor.teamId ?? undefined });
+    switch (rotated.kind) {
+      case 'rotated':
+        return NextResponse.json({ loop: toPublicLoop(rotated.loop), eventToken: rotated.eventToken });
+      case 'wrong_mode':
+        return NextResponse.json({ error: 'wrong_mode', message: 'Only event-mode loops can rotate an event token.' }, { status: 409 });
+      case 'not_found':
+        return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    }
+  }
+
+  const result = await updateLoop(id, json, { teamId: gate.actor.teamId ?? undefined });
   switch (result.kind) {
     case 'updated':
-      return NextResponse.json(result.loop);
+      return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken });
     case 'not_found':
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     case 'duplicate_name':
@@ -33,6 +46,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       return NextResponse.json({ error: 'invalid_config' }, { status: 400 });
     case 'invalid_cron':
       return NextResponse.json({ error: 'invalid_cron' }, { status: 400 });
+    case 'invalid_mode':
+      return NextResponse.json({ error: 'invalid_mode' }, { status: 400 });
     case 'invalid':
       return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
   }

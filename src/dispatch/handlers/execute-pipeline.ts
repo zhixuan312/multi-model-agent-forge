@@ -18,7 +18,6 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
     actorId?: string;
   };
   const { forgeBranch, targetBranch, repoId } = request;
-  const actorId = request.actorId ?? ctx.actorId ?? 'system';
   if (!repoId) return; // can't correlate this terminal to a repo/attempt
 
   // Look up the repo up front — needed to VERIFY committed code before recording

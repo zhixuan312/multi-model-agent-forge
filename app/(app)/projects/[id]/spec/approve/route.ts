@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { updateDetails } from '@/details/write';
 import { currentMember } from '@/auth/current-member';
 import { projectEventBus } from '@/sse/event-bus';
-import { member } from '@/db/schema/identity';
 import { recordActivity } from '@/activity/project-activity';
 
 type Ctx = { params: Promise<{ id: string }> };

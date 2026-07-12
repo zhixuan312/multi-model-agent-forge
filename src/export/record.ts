@@ -71,7 +71,6 @@ export async function recordExport(
   await writeFile(filePath, input.content, { mode: 0o600 });
   await chmod(filePath, 0o600).catch(() => {});
 
-  const target = input.kind ?? 'bundle';
   const exportId = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(exportRecord)

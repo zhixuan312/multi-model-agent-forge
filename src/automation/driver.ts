@@ -21,8 +21,8 @@ function cleanLabel(note: string): string {
   return note.replace(/\.\.\.$/, '').trim();
 }
 
-// Exported so the cutover test can assert it writes through recordActivity (project_activity)
-// and never touches the legacy details.events helpers. Its live caller is driveProject below.
+// Exported so the cutover test can assert it writes the driver's own lines through
+// recordActivity (the `project_activity` timeline). Its live caller is driveProject below.
 export async function recordDriverOnlyLine(
   db: ReturnType<typeof getDb>,
   projectId: string,

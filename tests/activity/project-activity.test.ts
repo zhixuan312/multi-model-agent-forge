@@ -30,6 +30,15 @@ describe('project activity core', () => {
       eventKey: 'draft:p1',
     });
     expect(db._assertCalled('project_activity', 'onConflictDoNothing')).toBe(true);
+    // The idempotency index is PARTIAL (UNIQUE ... WHERE event_key IS NOT NULL). The
+    // ON CONFLICT arbiter MUST carry the same `where` predicate, or Postgres rejects it
+    // at runtime with 42P10 (no matching unique/exclusion constraint). Asserting the
+    // config includes `where` guards against dropping the predicate (or misnaming it
+    // `targetWhere`, which onConflictDoNothing silently ignores).
+    const conflictCall = db._callsFor('project_activity').find((c) => c.method === 'onConflictDoNothing');
+    const conflictConfig = conflictCall?.args[0] as { target?: unknown; where?: unknown } | undefined;
+    expect(conflictConfig?.target).toBeDefined();
+    expect(conflictConfig?.where).toBeDefined();
   });
 
   it('resolves an existing running row in place', async () => {

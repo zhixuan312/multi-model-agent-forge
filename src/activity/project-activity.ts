@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { projectActivity, type ProjectActivityRow } from '@/db/schema/activity';
 
@@ -66,8 +66,12 @@ export async function recordActivity(input: RecordActivityInput): Promise<void> 
   });
 
   if (input.eventKey) {
+    // The idempotency index is PARTIAL (UNIQUE ... WHERE event_key IS NOT NULL),
+    // so the ON CONFLICT arbiter must carry the same predicate or Postgres rejects
+    // it with 42P10 (no matching unique/exclusion constraint).
     await query.onConflictDoNothing({
       target: [projectActivity.projectId, projectActivity.eventKey],
+      where: isNotNull(projectActivity.eventKey),
     });
     return;
   }

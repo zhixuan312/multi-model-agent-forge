@@ -169,3 +169,78 @@ describe('allowedActions — manual audit-loop early exit', () => {
     expect(allowedActions(d, 'manual').every((a) => a.kind !== 'approve_stage')).toBe(true);
   });
 });
+
+describe('allowedActions — manual in-place refinement (refine forever)', () => {
+  // A CLEAN pass (0 critical/high — only advisory medium/low findings). Auto advances;
+  // manual must still be able to apply the advisory findings AND re-audit, staying on
+  // the phase indefinitely. The state machine gates *advancing*, never *refining*.
+  function stateFinalizeOneCleanPass() {
+    const d = stateFinalizeFresh();
+    d.stages.spec.phases.finalize.auditPasses = [
+      { passNo: 1, status: 'clean', audit: { attempts: [{ status: 'done', at: 'x' }] } },
+    ] as unknown as typeof d.stages.spec.phases.finalize.auditPasses;
+    return d;
+  }
+  function statePlanValidateOneCleanPass() {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'done';
+    d.stages.plan.phases.validate.status = 'active';
+    d.stages.plan.phases.validate.auditPasses = [
+      { passNo: 1, status: 'clean', audit: { attempts: [{ status: 'done', at: 'x' }] } },
+    ] as unknown as typeof d.stages.plan.phases.validate.auditPasses;
+    return d;
+  }
+  function stateReviewOneCleanPass() {
+    const d = buildInitialDetails();
+    for (const s of ['exploration', 'spec', 'plan', 'execute'] as const) d.stages[s].status = 'done';
+    d.stages.review.status = 'active';
+    d.stages.review.phases.review.repos = [
+      { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ status: 'done', at: 'x' }] } }] },
+    ] as never;
+    return d;
+  }
+
+  it('spec finalize clean pass → manual can apply_findings AND re-run dispatch_audit; auto cannot', () => {
+    const d = stateFinalizeOneCleanPass();
+    const manual = allowedActions(d, 'manual').map((a) => a.kind);
+    const auto = allowedActions(d, 'auto').map((a) => a.kind);
+    expect(manual).toContain('apply_findings');
+    expect(manual).toContain('dispatch_audit');
+    expect(manual).toContain('approve_stage'); // advancing still permitted
+    expect(auto).not.toContain('apply_findings'); // auto advances a clean pass, never applies
+    expect(auto).toContain('approve_stage');
+  });
+
+  it('plan validate clean pass → manual can apply_findings AND re-audit', () => {
+    const manual = allowedActions(statePlanValidateOneCleanPass(), 'manual').map((a) => a.kind);
+    expect(manual).toContain('apply_findings');
+    expect(manual).toContain('dispatch_audit');
+  });
+
+  it('review clean pass → manual can apply_review_findings AND re-run dispatch_review (per repo)', () => {
+    const acts = allowedActions(stateReviewOneCleanPass(), 'manual');
+    const kinds = acts.map((a) => a.kind);
+    expect(kinds).toContain('apply_review_findings');
+    expect(kinds).toContain('dispatch_review');
+    expect(acts.find((a) => a.kind === 'apply_review_findings')?.data?.repoId).toBe('r1');
+  });
+
+  it('an in-flight pass suppresses BOTH apply and re-audit (nothing while a batch runs)', () => {
+    const d = stateFinalizeOneCleanPass();
+    (d.stages.spec.phases.finalize.auditPasses[0] as { audit: { attempts: { status: string }[] } }).audit.attempts.push({ status: 'running' });
+    const manual = allowedActions(d, 'manual').map((a) => a.kind);
+    expect(manual).not.toContain('apply_findings');
+    expect(manual).not.toContain('dispatch_audit');
+  });
+
+  it('no duplicates when auto already offers dispatch_audit (fresh finalize, 0 passes)', () => {
+    const d = stateFinalizeFresh();
+    const manual = allowedActions(d, 'manual').map((a) => a.kind);
+    expect(manual.filter((k) => k === 'dispatch_audit')).toHaveLength(1);
+    // 0 passes → nothing to apply yet
+    expect(manual).not.toContain('apply_findings');
+  });
+});

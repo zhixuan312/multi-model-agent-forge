@@ -101,31 +101,65 @@ function addManualExtras(details: Details, set: Action[]): void {
     }
   }
 
-  const auditPhases: Array<{ passes: AuditPassLike[]; advance: Action }> = [];
+  // Each active audit-loop phase carries three manual affordances: `advance` (gated —
+  // the early-exit after ≥1 pass), and the in-place `refine` actions (re-audit + apply
+  // findings) which are NOT gated on the pass verdict. A human in manual mode may sit
+  // on a clean pass and apply its advisory (medium/low) findings, or re-run the audit,
+  // as many times as they like — the state machine only says advancing is *permitted*,
+  // never that refining is *forbidden*. Everything here is suppressed while a pass is
+  // in flight (a batch is running).
+  const auditPhases: Array<{ passes: AuditPassLike[]; advance: Action; refine: Action[] }> = [];
   if (stages.spec.status === 'active' && stages.spec.phases.finalize.status === 'active') {
+    const passes = stages.spec.phases.finalize.auditPasses as unknown as AuditPassLike[];
     auditPhases.push({
-      passes: stages.spec.phases.finalize.auditPasses as unknown as AuditPassLike[],
+      passes,
       advance: { kind: 'approve_stage', note: 'Advance spec (manual)', stage: 'spec', phase: 'finalize' },
+      refine: [
+        { kind: 'dispatch_audit', note: 'Re-run spec audit', stage: 'spec', phase: 'finalize' },
+        ...(passes.length >= 1
+          ? [{ kind: 'apply_findings', note: 'Apply spec audit findings', stage: 'spec', phase: 'finalize', data: { passNo: passes.length } } as Action]
+          : []),
+      ],
     });
   }
   if (stages.plan.status === 'active' && stages.plan.phases.validate.status === 'active') {
+    const passes = stages.plan.phases.validate.auditPasses as unknown as AuditPassLike[];
     auditPhases.push({
-      passes: stages.plan.phases.validate.auditPasses as unknown as AuditPassLike[],
+      passes,
       advance: { kind: 'approve_stage', note: 'Advance plan (manual)', stage: 'plan', phase: 'validate' },
+      refine: [
+        { kind: 'dispatch_audit', note: 'Re-run plan audit', stage: 'plan', phase: 'validate' },
+        ...(passes.length >= 1
+          ? [{ kind: 'apply_findings', note: 'Apply plan audit findings', stage: 'plan', phase: 'validate', data: { passNo: passes.length } } as Action]
+          : []),
+      ],
     });
   }
   if (stages.review.status === 'active') {
     for (const repo of stages.review.phases.review.repos) {
+      const passes = repo.reviewPasses.map((p) => ({ ...p, audit: p.review })) as unknown as AuditPassLike[];
       auditPhases.push({
-        passes: repo.reviewPasses as unknown as AuditPassLike[],
+        passes,
         advance: { kind: 'advance_stage', note: 'Advance review (manual)', stage: 'journal', phase: 'journal' },
+        refine: [
+          { kind: 'dispatch_review', note: 'Re-run code review', stage: 'review', phase: 'review', data: { repoId: repo.repoId } },
+          ...(passes.length >= 1
+            ? [{ kind: 'apply_review_findings', note: 'Apply review findings', stage: 'review', phase: 'review', data: { repoId: repo.repoId } } as Action]
+            : []),
+        ],
       });
     }
   }
 
+  const sameAction = (a: Action, b: Action): boolean =>
+    a.kind === b.kind && (a.data?.repoId ?? null) === (b.data?.repoId ?? null);
   for (const ap of auditPhases) {
-    if (ap.passes.length >= 1 && !auditInFlight(ap.passes) && !set.some((a) => a.kind === ap.advance.kind)) {
+    if (auditInFlight(ap.passes)) continue; // nothing while a batch runs for this phase
+    if (ap.passes.length >= 1 && !set.some((a) => a.kind === ap.advance.kind)) {
       set.push(ap.advance);
+    }
+    for (const r of ap.refine) {
+      if (!set.some((a) => sameAction(a, r))) set.push(r);
     }
   }
 

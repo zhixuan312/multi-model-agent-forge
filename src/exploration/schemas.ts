@@ -16,6 +16,7 @@ export const PROMPT_FLOORS = { investigate: 1, research: 20, journal: 10 } as co
  */
 const RawProposedTaskSchema = z.object({
   kind: z.enum(['investigate', 'research', 'journal']),
+  title: z.string().optional(),
   targetRepoId: z.string().nullable().optional(),
   target_repo_id: z.string().nullable().optional(),
   prompt: z.string(),
@@ -23,6 +24,7 @@ const RawProposedTaskSchema = z.object({
 
 export const ProposedTaskSchema = RawProposedTaskSchema.transform((t) => ({
   kind: t.kind,
+  title: t.title,
   targetRepoId: t.targetRepoId ?? t.target_repo_id ?? null,
   prompt: t.prompt,
 }));

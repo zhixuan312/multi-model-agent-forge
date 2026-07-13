@@ -30,6 +30,7 @@ async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown)
         kind: t.kind as 'investigate' | 'research' | 'journal',
         prompt: t.prompt.trim(),
         status: 'draft' as const,
+        ...(t.title?.trim() ? { title: t.title.trim() } : {}),
         ...(t.kind === 'investigate' && t.targetRepoId ? { repoId: t.targetRepoId } : {}),
         attempts: [],
       }));

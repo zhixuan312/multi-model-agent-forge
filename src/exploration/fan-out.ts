@@ -21,9 +21,10 @@ Constraints:
 - research (0–2 tasks): web search for external tech, libraries, or approaches. Skip for internal refactors.
 - journal (1–2 tasks): recall prior team decisions. Always propose at least 1.
 - Each prompt must meet its floor: investigate ≥20 chars, research ≥20 chars, journal ≥10 chars.
+- Each task MUST include a "title": a distinct 3–6 word focus (e.g. "DB connection & config", "data-access seam"). Sibling tasks of the same kind must have clearly different titles — the title is how a reader tells them apart. Do not repeat a repo name in the title.
 - Do not propose tasks for information obvious from the brief itself.
 
-Output format: Return a JSON object with a "tasks" array. Each task has: kind, prompt, target_repo_id (required for investigate, null for others).`;
+Output format: Return a JSON object with a "tasks" array. Each task has: kind, title, prompt, target_repo_id (required for investigate, null for others).`;
 
 /** Build the brief + repo-subset prompt the orchestrator reads. */
 function buildProposeUser(args: {

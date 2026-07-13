@@ -53,6 +53,7 @@ const automationSchema = z.object({
 
 const discoverTaskSchema = z.object({
   kind: z.enum(['investigate', 'research', 'journal']),
+  title: z.string().optional(),
   prompt: z.string(),
   status: discoverTaskStatus,
   repoId: z.string().optional(),

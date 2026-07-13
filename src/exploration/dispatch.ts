@@ -132,7 +132,7 @@ export async function dispatchTasks(
   const d = validateDetails(pRow.details);
   const allTasks = d.stages.exploration.phases.discover.tasks;
   const drafts = allTasks
-    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as 'investigate' | 'research' | 'journal', prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
+    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as 'investigate' | 'research' | 'journal', title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
     .filter((t) => allTasks[t.index].status === 'draft');
 
   const outcomes: TaskDispatchOutcome[] = [];
@@ -193,7 +193,7 @@ export async function dispatchTasks(
         body,
         actorId: actor.id,
         taskId: task.id,
-        meta: { taskKind: task.kind, targetRepoId: task.kind === 'investigate' ? task.targetRepoId : null },
+        meta: { taskKind: task.kind, title: task.title, targetRepoId: task.kind === 'investigate' ? task.targetRepoId : null },
         await: false,
       }));
     } catch (err) {

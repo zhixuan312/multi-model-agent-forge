@@ -57,22 +57,49 @@ export function phaseKeyForHandler(handler: string | null | undefined): string |
   return m ? `${m.stage}/${m.phase}` : null;
 }
 
+const FOCUS_MAX = 60;
+
+/**
+ * Distill a compact focus for the activity label — the short `title` the propose
+ * orchestrator now emits per task, or, when absent (manual-add tasks, and discover
+ * tasks predating the title field), the first sentence of the prompt trimmed to a
+ * label-sized fragment. Returns null when there is nothing usable, so the caller
+ * falls back to the bare verb.
+ */
+function deriveFocus(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const text = raw.trim().replace(/\s+/g, ' ');
+  if (!text) return null;
+  const firstSentence = text.split(/(?<=[.?!])\s/)[0] ?? text;
+  const clipped = firstSentence.length <= FOCUS_MAX
+    ? firstSentence
+    : `${firstSentence.slice(0, FOCUS_MAX - 1).trimEnd()}…`;
+  const focus = clipped.replace(/[.?!]+$/, '').trim();
+  return focus || null;
+}
+
 export async function buildDiscoverTerminalLabel(
   db: Db,
   batchRequest: Record<string, unknown>,
 ): Promise<string> {
   const taskKind = typeof batchRequest.taskKind === 'string' ? batchRequest.taskKind : null;
-  if (taskKind === 'research') return 'Researched';
-  if (taskKind === 'journal') return 'Recalled learnings';
+  // Prefer the propose-time title; fall back to a focus derived from the prompt so
+  // sibling tasks of the same kind never collapse into identical lines.
+  const focus = deriveFocus(batchRequest.title) ?? deriveFocus(batchRequest.prompt);
+  if (taskKind === 'research') return focus ? `Researched — ${focus}` : 'Researched';
+  if (taskKind === 'journal') return focus ? `Recalled — ${focus}` : 'Recalled learnings';
   const targetRepoId = typeof batchRequest.targetRepoId === 'string' ? batchRequest.targetRepoId : null;
-  if (!targetRepoId) return 'Investigated a repository';
-  const [row] = await db
-    .select({ name: repo.name })
-    .from(repo)
-    .where(eq(repo.id, targetRepoId))
-    .limit(1);
-  const name = row?.name?.trim();
-  return name ? `Investigated ${name}` : 'Investigated a repository';
+  let base = 'Investigated a repository';
+  if (targetRepoId) {
+    const [row] = await db
+      .select({ name: repo.name })
+      .from(repo)
+      .where(eq(repo.id, targetRepoId))
+      .limit(1);
+    const name = row?.name?.trim();
+    if (name) base = `Investigated ${name}`;
+  }
+  return focus ? `${base} — ${focus}` : base;
 }
 
 /**

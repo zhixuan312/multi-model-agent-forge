@@ -92,6 +92,13 @@
       "when": 1784000000000,
       "tag": "0012_dedupe_backfilled_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784500000000,
+      "tag": "0013_archive_projects",
+      "breakpoints": true
     }
   ]
 }

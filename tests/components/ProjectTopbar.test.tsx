@@ -1,5 +1,10 @@
+import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 describe('ProjectTopbar', () => {
   it('renders the phase kicker reflecting project.phase and a disabled Export stub', () => {
@@ -35,5 +40,31 @@ describe('ProjectTopbar', () => {
   it('renders the no-project placeholder when no name', () => {
     render(<ProjectTopbar />);
     expect(screen.getByText('No active project')).toBeInTheDocument();
+  });
+
+  it('shows an owner-only archive action with an accessible name', () => {
+    render(
+      <ProjectTopbar
+        projectId="proj-1"
+        projectName="Payments"
+        phase="build"
+        canArchive
+        archived={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Archive project' })).toBeInTheDocument();
+  });
+
+  it('switches the label when the project is already archived', () => {
+    render(
+      <ProjectTopbar
+        projectId="proj-1"
+        projectName="Payments"
+        phase="build"
+        canArchive
+        archived
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Unarchive project' })).toBeInTheDocument();
   });
 });

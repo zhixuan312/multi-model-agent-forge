@@ -6,18 +6,9 @@ import { Title } from '@/components/ui/typography';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { ExportMenu } from '@/components/forge/export/ExportMenu';
 import { ViewActivityButton } from '@/components/forge/ViewActivityButton';
+import { ProjectArchiveButton } from '@/components/forge/ProjectArchiveButton';
 import type { ProjectPhase } from '@/db/enums';
 
-/**
- * ProjectTopbar (Spec 3 flow 3) — REAL. The locked project header lockup,
- * following the shell's left→right grammar: WAYFINDING on the left (a
- * `Projects ⁄ <name>` breadcrumb baseline-aligned with the serif title + a
- * phase status pill), ACTION on the right (presence avatars + the `Export ▾`
- * menu). The breadcrumb's `Projects` is a one-click route back to the list —
- * the wayfinding the nested project routes previously lacked. Presence avatars
- * are a static stub (live presence is Spec 5 SSE); `Export ▾` mounts the real
- * `ExportMenu` (Spec 8) when a `projectId` is present, else the inert stub.
- */
 export interface ProjectTopbarPresence {
   memberId: string;
   displayName: string;
@@ -26,15 +17,13 @@ export interface ProjectTopbarPresence {
 
 export interface ProjectTopbarProps {
   projectName?: string;
-  /** The project id — mounts the real `ExportMenu` when present. */
   projectId?: string;
-  /** Drives the phase kicker (`● Design`, etc.). Omitted → no kicker. */
   phase?: ProjectPhase;
   presence?: ProjectTopbarPresence[];
-  /** Force the inert stub even with a projectId (no-active-project shell). */
   exportDisabled?: boolean;
-  /** Number of project-timeline events — drives the read-only "Activity" button. */
   eventCount?: number;
+  canArchive?: boolean;
+  archived?: boolean;
 }
 
 export function ProjectTopbar({
@@ -44,6 +33,8 @@ export function ProjectTopbar({
   presence = [],
   exportDisabled = false,
   eventCount = 0,
+  canArchive = false,
+  archived = false,
 }: ProjectTopbarProps) {
   return (
     <div data-testid="project-topbar" className="flex w-full items-center gap-4">
@@ -70,6 +61,8 @@ export function ProjectTopbar({
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
+        {canArchive && projectId ? <ProjectArchiveButton projectId={projectId} archived={archived} /> : null}
+
         <div data-testid="presence" className="flex">
           {presence.map((p, i) => (
             <Avatar

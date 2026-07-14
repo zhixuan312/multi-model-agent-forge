@@ -4,33 +4,26 @@ import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import {
+  archiveProject,
   changeVisibility,
   changeRepos,
   getProject,
-  getProjectRepos,
   assertProjectReadable,
   ProjectAccessError,
+  unarchiveProject,
 } from '@/projects/projects-core';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/**
- * Project mutations (Spec 3 flow 5). `PATCH /api/projects/[id]` — body branches:
- * exactly ONE of `{ visibility }` (owner-only) or `{ repoIds }` (equal-rights,
- * ≥1). Preconditions in order: auth → read-guard (404, anti-enumeration) → authz
- * (403). The mutation + its `action_log` row are atomic (in `mutate.ts`). On
- * success returns 200 `{ id, visibility, phase, repoCount }`.
- *
- * Create has NO POST route — it is a server action (flow 1).
- */
 const patchSchema = z
   .object({
     visibility: z.enum(['public', 'private']).optional(),
     repoIds: z.array(z.string().uuid()).min(1).optional(),
+    archived: z.boolean().optional(),
   })
   .refine(
-    (b) => (b.visibility !== undefined) !== (b.repoIds !== undefined),
-    { message: 'Provide exactly one of `visibility` or `repoIds`.' },
+    (b) => [b.visibility !== undefined, b.repoIds !== undefined, b.archived !== undefined].filter(Boolean).length === 1,
+    { message: 'Provide exactly one of `visibility`, `repoIds`, or `archived`.' },
   );
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -52,8 +45,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     );
   }
 
-  // Precondition (2): read-guard FIRST — a hidden/unknown project → 404
-  // (anti-enumeration), distinct from the write-authz 403 below.
   try {
     await assertProjectReadable(id, actor);
   } catch (e) {
@@ -63,13 +54,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     throw e;
   }
 
-  // Precondition (3): write-authz — on a KNOWN-readable project, a gate failure
-  // is 403 (leaks nothing, the actor already knows the project exists).
   try {
     if (parsed.data.visibility !== undefined) {
       await changeVisibility(id, parsed.data.visibility, actor);
+    } else if (parsed.data.repoIds !== undefined) {
+      await changeRepos(id, parsed.data.repoIds, actor);
+    } else if (parsed.data.archived) {
+      await archiveProject(id, actor);
     } else {
-      await changeRepos(id, parsed.data.repoIds!, actor);
+      await unarchiveProject(id, actor);
     }
   } catch (e) {
     if (e instanceof ProjectAccessError) {
@@ -80,13 +73,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const project = await getProject(id);
   if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
-  const repos = await getProjectRepos(id);
-  const repoCount = repos.filter((r) => r.available).length;
 
   return NextResponse.json({
     id: project.id,
+    archived: project.archivedAt !== null,
+    archivedAt: project.archivedAt ? project.archivedAt.toISOString() : null,
     visibility: project.visibility,
     phase: project.phase,
-    repoCount,
   });
 }

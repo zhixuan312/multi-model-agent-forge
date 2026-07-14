@@ -51,6 +51,12 @@ function toStepperStages(
 function StageIndicator({ s }: { s: StepperStage }) {
   const base = 'flex size-6 items-center justify-center rounded-full';
   switch (s.visual) {
+    case 'skipped':
+      return (
+        <span className={cn(base, 'border-2 border-dashed border-line-strong opacity-60')}>
+          <span className="h-px w-2 bg-line-strong" />
+        </span>
+      );
     case 'not_started':
       return <span className={cn(base, 'border-2 border-line-strong')} />;
     case 'ongoing':
@@ -93,8 +99,8 @@ function TrackLine({ status }: { status: 'done' | 'active' | 'pending' }) {
 }
 
 function trackLineStatus(left: StepperStage, right: StepperStage): 'done' | 'active' | 'pending' {
-  const lReached = left.visual === 'done' || left.visual === 'locked' || left.visual === 'ongoing';
-  const rReached = right.visual === 'done' || right.visual === 'locked' || right.visual === 'ongoing';
+  const lReached = left.visual === 'done' || left.visual === 'locked' || left.visual === 'ongoing' || left.visual === 'skipped';
+  const rReached = right.visual === 'done' || right.visual === 'locked' || right.visual === 'ongoing' || right.visual === 'skipped';
   if (lReached && rReached) return 'done';
   if (lReached) return 'active';
   return 'pending';
@@ -110,6 +116,7 @@ function StageNode({ s, condensed }: { s: StepperStage; condensed: boolean }) {
     !s.isCurrent && (s.visual === 'done' || s.visual === 'locked') && 'text-[var(--sage-deep)]',
     !s.isCurrent && s.visual === 'ongoing' && 'text-accent-deep',
     !s.isCurrent && s.visual === 'not_started' && 'text-ink-faint',
+    !s.isCurrent && s.visual === 'skipped' && 'text-ink-faint line-through',
   );
 
   const inner = (

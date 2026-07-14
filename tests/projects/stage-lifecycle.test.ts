@@ -157,4 +157,20 @@ describe('computeAllStages', () => {
       journal: 'not_started',
     });
   });
+
+  it('treats skipped stages as reachable passed stages', () => {
+    const result = computeAllStages(
+      [
+        { kind: 'exploration', status: 'done' },
+        { kind: 'spec', status: 'active' },
+        { kind: 'plan', status: 'pending' },
+        { kind: 'execute', status: 'skipped' },
+        { kind: 'review', status: 'skipped' },
+        { kind: 'journal', status: 'pending' },
+      ] as StageRow[],
+      'spec',
+    );
+    expect(result.find((s) => s.kind === 'execute')!.visual).toBe('skipped');
+    expect(result.find((s) => s.kind === 'review')!.visual).toBe('skipped');
+  });
 });

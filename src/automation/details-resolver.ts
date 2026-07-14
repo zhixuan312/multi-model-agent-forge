@@ -17,12 +17,15 @@ const STAGE_LABEL: Record<StageKind, string> = {
   exploration: 'Explore', spec: 'Spec', plan: 'Plan', execute: 'Execute', review: 'Review', journal: 'Journal',
 };
 
+const isSkipped = (d: Details, stage: StageKind) => d.stages[stage].status === 'skipped';
+
 /**
  * A stage's DEFINING work — the record that proves it actually ran (not just that
  * its `status` says `done`). This is the completion invariant: a stage marked
  * `done` without this record is a corrupted/skipped stage, not a finished one.
  */
 function stageWorkDone(d: Details, stage: StageKind): boolean {
+  if (isSkipped(d, stage)) return true;
   const s = d.stages;
   switch (stage) {
     case 'exploration':
@@ -52,6 +55,7 @@ function stageWorkDone(d: Details, stage: StageKind): boolean {
  */
 export function firstUnderdoneStage(d: Details): StageKind | null {
   for (const stage of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) {
+    if (isSkipped(d, stage)) continue;
     if (!stageWorkDone(d, stage)) return stage;
   }
   return null;

@@ -1,6 +1,8 @@
 import { performTransition, TransitionRejected, isForeignLeaseFresh } from '@/automation/perform-transition';
 import { createMockDb } from '../test-utils/mock-db';
-import { buildInitialDetails, type Details } from '@/details/schema';
+import { buildInitialDetails, buildSubsetDetails, validateDetails, type Details } from '@/details/schema';
+import { executeDetailsAction } from '@/automation/details-actions';
+import { repairActiveStage } from '@/automation/stage-repair';
 
 function finalizeActive(): Details {
   const d = buildInitialDetails();
@@ -87,5 +89,72 @@ describe('performTransition — persists the exactly-one-active repair (AC16)', 
     ).rejects.toBeInstanceOf(TransitionRejected);
     const projectSets = db._callsFor('project').filter((c) => c.method === 'set');
     expect(projectSets.length).toBeGreaterThan(0); // the repair write happened
+  });
+});
+
+describe('mark_complete', () => {
+  it('preserves skipped execute/review statuses on subset completion', async () => {
+    const d = buildSubsetDetails({
+      selectedDesignStages: ['spec', 'plan'],
+      uploadedExplorationFile: '/tmp/exploration.md',
+    });
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'done';
+    d.stages.journal.status = 'active';
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: 'p1' }],
+    });
+    await executeDetailsAction('p1', { kind: 'mark_complete', note: '', stage: 'journal', phase: 'summary' }, db);
+    const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
+    const updated = validateDetails((setCalls[0].args[0] as { details: unknown }).details);
+    expect(updated.stages.execute.status).toBe('skipped');
+    expect(updated.stages.review.status).toBe('skipped');
+  });
+});
+
+describe('repairActiveStage', () => {
+  it('activates the first non-skipped, non-done stage when no stage is active', () => {
+    const d = buildSubsetDetails({
+      selectedDesignStages: ['plan'],
+      uploadedSpec: {
+        filePath: '/tmp/spec.md',
+        selectedTemplateIds: ['tpl-context'],
+        components: [{ id: 'comp-1', templateId: 'tpl-context', approvals: [] }],
+      },
+      forgeApprovalMemberId: '00000000-0000-0000-0000-000000000000',
+    });
+    d.stages.plan.status = 'pending';
+    const result = repairActiveStage(d);
+    expect(result.changed).toBe(true);
+    expect(d.stages.plan.status).toBe('active');
+    expect(d.stages.execute.status).toBe('skipped');
+  });
+});
+
+describe('approve_stage hop-over (advanceStage skips skipped stages)', () => {
+  it('advances a spec+plan subset from Plan straight to Journal, never re-activating skipped execute/review', async () => {
+    const d = buildSubsetDetails({
+      selectedDesignStages: ['spec', 'plan'],
+      uploadedExplorationFile: '/tmp/exploration.md',
+    });
+    // Spec already done (uploaded exploration seeds spec active → drive it done), Plan active+validated.
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    d.stages.plan.phases.refine.status = 'done';
+    d.stages.plan.phases.validate.status = 'active';
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: 'p1' }],
+    });
+    // approve_stage on plan calls advanceStage(db, id, 'execute'); execute+review are
+    // skipped, so the hop-over must land on journal (active), not execute.
+    await executeDetailsAction('p1', { kind: 'approve_stage', note: '', stage: 'plan', phase: 'validate' }, db);
+    const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
+    const updated = validateDetails((setCalls[setCalls.length - 1].args[0] as { details: unknown }).details);
+    expect(updated.stages.execute.status).toBe('skipped');
+    expect(updated.stages.review.status).toBe('skipped');
+    expect(updated.stages.journal.status).toBe('active');
+    expect(updated.stages.plan.status).toBe('done');
   });
 });

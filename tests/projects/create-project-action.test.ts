@@ -30,4 +30,22 @@ describe('createProjectAction', () => {
 
     await expect(createProjectAction({}, formData)).rejects.toThrow('REDIRECT:/projects/proj-1/plan');
   });
+
+  it('rejects a non-UTF-8 (binary) upload at the boundary without redirecting (FR-18)', async () => {
+    const { createProject } = await import('@/projects/projects-core');
+    (createProject as unknown as { mockClear: () => void }).mockClear();
+    redirect.mockClear();
+    const formData = new FormData();
+    formData.set('name', 'Subset');
+    formData.set('visibility', 'public');
+    formData.append('repoIds', '00000000-0000-4000-8000-000000000001');
+    formData.append('selectedDesignStages', 'plan');
+    // Invalid UTF-8 bytes → decodeUploadedArtifact throws → action returns error, no redirect.
+    formData.set('artifact', new File([new Uint8Array([0xff, 0xfe, 0xfd])], 'spec.md'));
+
+    const res = await createProjectAction({}, formData);
+    expect(res).toEqual({ error: { field: 'artifact', message: 'file failed to load or parse — re-upload' } });
+    expect(createProject).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
 });

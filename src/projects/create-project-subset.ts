@@ -40,16 +40,19 @@ export function decodeUploadedArtifact(bytes: Uint8Array): string {
  * Remove a leading YAML frontmatter block from uploaded content. The artifact writer
  * (`writeArtifact` → `stampFrontmatter`) prepends fresh `version`/`updated_at`
  * frontmatter on every write, so the stored body must NOT already carry its own —
- * otherwise the file ends up with two frontmatter blocks. Uploads are validated to
- * REQUIRE frontmatter (proof they are standard artifacts), then stripped here before
- * writing so the writer owns the single canonical frontmatter.
+ * otherwise the file ends up with two frontmatter blocks. An exploration upload is
+ * validated to REQUIRE frontmatter (FR-6, proof it is a standard artifact); a spec
+ * upload is validated by section parsing (`parseSpecSections`) and MAY carry
+ * frontmatter. Either way, any leading frontmatter is stripped here before writing so
+ * the writer owns the single canonical frontmatter. Handles both LF and CRLF.
  */
 export function stripFrontmatter(content: string): string {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n+/, '');
 }
 
 export function parseExplorationUpload(content: string) {
-  const hasFrontmatter = /^---\n[\s\S]+?\n---\n/m.test(content);
+  // Accept both LF and CRLF line endings (consistent with stripFrontmatter).
+  const hasFrontmatter = /^---\r?\n[\s\S]+?\r?\n---\r?\n/m.test(content);
   const hasBackground = /^## Background\s*$/m.test(content);
   return hasFrontmatter && hasBackground
     ? { ok: true, value: content } as const

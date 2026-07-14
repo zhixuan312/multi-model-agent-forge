@@ -141,6 +141,19 @@ export async function createProject(
   const db = deps.db ?? getDb();
   const entryStage = (selectedDesignStages[0] ?? 'exploration') as 'exploration' | 'spec' | 'plan';
 
+  // Entry-stage upload prerequisite (FR-3/FR-4): a subset that starts below Exploration
+  // must supply the upstream artifact — spec-start needs an exploration file, plan-start
+  // needs a spec file. Exploration-start / Full SDLC take no upload.
+  if (entryStage === 'spec' && uploadedArtifact?.kind !== 'exploration') {
+    return { ok: false, error: { field: 'artifact', message: 'Starting at Specification requires an uploaded exploration file.' } };
+  }
+  if (entryStage === 'plan' && uploadedArtifact?.kind !== 'spec') {
+    return { ok: false, error: { field: 'artifact', message: 'Starting at Planning requires an uploaded spec file.' } };
+  }
+  if (entryStage === 'exploration' && uploadedArtifact) {
+    return { ok: false, error: { field: 'artifact', message: 'An exploration-start project does not take an uploaded artifact.' } };
+  }
+
   let parsedExploration: string | undefined;
   let parsedSpec: { filePath: string; selectedTemplateIds: string[]; components: Array<{ id: string; templateId: string; approvals: string[] }> } | undefined;
 

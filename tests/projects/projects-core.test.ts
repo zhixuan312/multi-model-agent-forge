@@ -465,4 +465,37 @@ describe('createProject — subset creation', () => {
     });
     expect(db._assertCalled('project', 'insert')).toBe(false);
   });
+
+  it('rejects a spec-start subset with no uploaded exploration and creates no row (FR-3)', async () => {
+    const db = createMockDb({});
+    const res = await createProject({
+      name: 'subset', visibility: 'public', repoIds: [repo1],
+      selectedDesignStages: ['spec'],
+      // no uploadedArtifact
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
+    expect(db._assertCalled('project', 'insert')).toBe(false);
+  });
+
+  it('rejects a plan-start subset with no uploaded spec and creates no row (FR-4)', async () => {
+    const db = createMockDb({});
+    const res = await createProject({
+      name: 'subset', visibility: 'public', repoIds: [repo1],
+      selectedDesignStages: ['plan'],
+      // no uploadedArtifact
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
+    expect(db._assertCalled('project', 'insert')).toBe(false);
+  });
+
+  it('rejects a spec-start subset whose upload is a spec (wrong upstream kind) (FR-3)', async () => {
+    const db = createMockDb({});
+    const res = await createProject({
+      name: 'subset', visibility: 'public', repoIds: [repo1],
+      selectedDesignStages: ['spec'],
+      uploadedArtifact: { kind: 'spec', filename: 'x.md', content: '## Context\n\ntext' },
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
+    expect(db._assertCalled('project', 'insert')).toBe(false);
+  });
 });

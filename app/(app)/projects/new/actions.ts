@@ -5,6 +5,7 @@ import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { createProject } from '@/projects/projects-core';
 import { stageRoute } from '@/projects/stage-route';
+import { CREATE_PROJECT_FILE_ERROR, decodeUploadedArtifact } from '@/projects/create-project-subset';
 
 export interface NewProjectState {
   error?: {
@@ -35,14 +36,24 @@ export async function createProjectAction(
   const repoIds = formData.getAll('repoIds').map((v) => String(v));
   const selectedDesignStages = formData.getAll('selectedDesignStages').map((v) => String(v));
 
+  // Validate the raw upload bytes (size + strict UTF-8) at the boundary where the File
+  // still exists — decoding via File.text() first would lossily replace invalid bytes and
+  // defeat the binary-rejection guard (FR-18). Reject binary/oversized uploads here.
   const artifactFile = formData.get('artifact');
-  const uploadedArtifact = artifactFile instanceof File && artifactFile.size > 0
-    ? {
+  let uploadedArtifact: { kind: 'exploration' | 'spec'; filename: string; content: string } | undefined;
+  if (artifactFile instanceof File && artifactFile.size > 0) {
+    let content: string;
+    try {
+      content = decodeUploadedArtifact(new Uint8Array(await artifactFile.arrayBuffer()));
+    } catch {
+      return { error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
+    }
+    uploadedArtifact = {
       kind: selectedDesignStages[0] === 'plan' ? 'spec' : 'exploration',
       filename: artifactFile.name,
-      content: await artifactFile.text(),
-    }
-    : undefined;
+      content,
+    };
+  }
 
   const res = await createProject({ name, visibility, repoIds, selectedDesignStages, uploadedArtifact }, actor);
   if (!res.ok) return { error: res.error };

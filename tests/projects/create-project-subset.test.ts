@@ -44,6 +44,15 @@ describe('parseExplorationUpload', () => {
     const parsed = parseExplorationUpload(body);
     expect(parsed.ok).toBe(true);
   });
+
+  it('accepts CRLF line endings (Windows uploads)', () => {
+    const body = `---\r\nversion: 1\r\nupdated_at: 2026-07-14\r\n---\r\n\r\n## Background\r\n\r\nContext`;
+    expect(parseExplorationUpload(body).ok).toBe(true);
+  });
+
+  it('rejects content missing frontmatter', () => {
+    expect(parseExplorationUpload('## Background\n\nContext').ok).toBe(false);
+  });
 });
 
 describe('stripFrontmatter', () => {

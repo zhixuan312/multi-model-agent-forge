@@ -64,4 +64,25 @@ describe('deriveCurrentStage (single mirror of currentStage/phase, AC8)', () => 
     const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
     expect(setCalls.some((c) => (c.args[0] as Record<string, unknown>)?.currentStage === 'plan')).toBe(true);
   });
+
+  it('mirrors the phase group from the active stage (plan → design)', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'active';
+    const db = createMockDb({ 'select:project': [{ details: d }] });
+    await deriveCurrentStage(db, 'p');
+    const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
+    expect(setCalls.some((c) => (c.args[0] as Record<string, unknown>)?.phase === 'design')).toBe(true);
+  });
+
+  it('writes phase=completed on a finished project (no active stage) — the mark_complete heal', async () => {
+    const d = buildInitialDetails();
+    for (const s of STAGES) d.stages[s].status = 'done';
+    const db = createMockDb({ 'select:project': [{ details: d }] });
+    await deriveCurrentStage(db, 'p');
+    const set = db._callsFor('project').filter((c) => c.method === 'set').map((c) => c.args[0] as Record<string, unknown>);
+    // Before the fix this bailed (no active stage) and left the stale phase on disk.
+    expect(set.some((a) => a.phase === 'completed' && a.currentStage === 'journal')).toBe(true);
+  });
 });

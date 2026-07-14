@@ -65,7 +65,7 @@ describe('PATCH /api/projects/[id]', () => {
       id: 'p1',
       visibility: 'public',
       phase: 'build',
-      archivedAt: new Date('2026-07-14T10:00:00.000Z'),
+      archived: true,
     });
     getProjectRepos.mockResolvedValue([]);
   });
@@ -92,25 +92,24 @@ describe('PATCH /api/projects/[id]', () => {
   });
 
   it('archives on { archived: true } and returns the archive fields', async () => {
-    archiveProject.mockResolvedValueOnce({ archivedAt: new Date('2026-07-14T10:00:00.000Z') });
+    archiveProject.mockResolvedValueOnce({ archived: true });
     const res = await PATCH(req({ archived: true }) as never, ctx);
     expect(res.status).toBe(200);
     expect(archiveProject).toHaveBeenCalledWith('p1', { id: 'm1', teamId: 'team-1' });
     expect(await res.json()).toEqual({
       id: 'p1',
       archived: true,
-      archivedAt: '2026-07-14T10:00:00.000Z',
       visibility: 'public',
       phase: 'build',
     });
   });
 
-  it('unarchives on { archived: false } and returns archived=false with archivedAt null', async () => {
+  it('unarchives on { archived: false } and returns archived=false', async () => {
     getProject.mockResolvedValueOnce({
       id: 'p1',
       visibility: 'public',
       phase: 'build',
-      archivedAt: null,
+      archived: false,
     });
     const res = await PATCH(req({ archived: false }) as never, ctx);
     expect(res.status).toBe(200);
@@ -118,7 +117,6 @@ describe('PATCH /api/projects/[id]', () => {
     expect(await res.json()).toEqual({
       id: 'p1',
       archived: false,
-      archivedAt: null,
       visibility: 'public',
       phase: 'build',
     });

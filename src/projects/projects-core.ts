@@ -9,7 +9,7 @@
  * Every project-scoped artifact/stage/qa read routes through the guard; code
  * reads (`readProjectRepos`) intentionally do not.
  */
-import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -67,10 +67,8 @@ export interface ProjectListItem {
   repoCount: number;
   /** Count of UNAVAILABLE repos (dangling join OR status='error') — drives the chip. */
   unavailableRepoCount: number;
-}
-
-export interface ArchivedProjectListItem extends ProjectListItem {
-  archivedAt: Date;
+  /** Visibility overlay: `false` = active list, `true` = archived list. */
+  archived: boolean;
 }
 
 export interface ProjectsDeps {
@@ -185,16 +183,17 @@ export async function visibleProjects(
 export async function archivedProjects(
   actor: ProjectActor,
   deps: ProjectsDeps = {},
-): Promise<ArchivedProjectListItem[]> {
-  return listProjects(actor, 'archived', deps) as Promise<ArchivedProjectListItem[]>;
+): Promise<ProjectListItem[]> {
+  return listProjects(actor, 'archived', deps);
 }
 
 async function listProjects(
   actor: ProjectActor,
   mode: 'active' | 'archived',
   deps: ProjectsDeps = {},
-): Promise<ProjectListItem[] | ArchivedProjectListItem[]> {
+): Promise<ProjectListItem[]> {
   const db = deps.db ?? getDb();
+  const wantArchived = mode === 'archived';
   const rows = await db
     .select({
       id: project.id,
@@ -205,16 +204,16 @@ async function listProjects(
       currentStage: project.currentStage,
       ownerId: project.ownerId,
       updatedAt: project.updatedAt,
-      archivedAt: project.archivedAt,
+      archived: project.archived,
       details: project.details,
     })
     .from(project)
     .where(and(
       eq(project.teamId, actor.teamId),
       or(eq(project.visibility, 'public'), eq(project.ownerId, actor.id)),
-      mode === 'active' ? isNull(project.archivedAt) : isNotNull(project.archivedAt),
+      eq(project.archived, wantArchived),
     ))
-    .orderBy(mode === 'active' ? sql`${project.updatedAt} desc` : sql`${project.archivedAt} desc`);
+    .orderBy(sql`${project.updatedAt} desc`);
 
   if (rows.length === 0) return [];
 
@@ -267,14 +266,8 @@ async function listProjects(
       stages: orderedStages,
       repoCount: repoCountByProject.get(r.id) ?? 0,
       unavailableRepoCount: unavailableByProject.get(r.id) ?? 0,
+      archived: r.archived,
     };
-
-    if (mode === 'archived') {
-      return {
-        ...base,
-        archivedAt: r.archivedAt!,
-      };
-    }
 
     return base;
   });
@@ -454,14 +447,14 @@ async function assertProjectOwner(
   projectId: string,
   actor: ProjectActor,
   deps: ProjectsDeps = {},
-): Promise<{ archivedAt: Date | null }> {
+): Promise<{ archived: boolean }> {
   const db = deps.db ?? getDb();
   await assertProjectReadable(projectId, actor, deps);
 
   const [row] = await db
     .select({
       ownerId: project.ownerId,
-      archivedAt: project.archivedAt,
+      archived: project.archived,
     })
     .from(project)
     .where(eq(project.id, projectId))
@@ -471,7 +464,7 @@ async function assertProjectOwner(
     throw new ProjectAccessError('Only the owner may change archive state.');
   }
 
-  return { archivedAt: row.archivedAt };
+  return { archived: row.archived };
 }
 
 async function recordArchiveActivityBestEffort(
@@ -503,7 +496,7 @@ async function recordArchiveActivityBestEffort(
       eventKey: `${label === 'Archived project' ? 'archive' : 'unarchive'}:${projectId}:${actor.id}`,
     });
   } catch {
-    // Best-effort only: the durable state is forge.project.archived_at.
+    // Best-effort only: the durable state is forge.project.archived.
   }
 }
 
@@ -511,48 +504,48 @@ export async function archiveProject(
   projectId: string,
   actor: ProjectActor,
   deps: ProjectsDeps = {},
-): Promise<{ archivedAt: Date }> {
+): Promise<{ archived: boolean }> {
   const db = deps.db ?? getDb();
   const ownerCheck = await assertProjectOwner(projectId, actor, { db });
-  if (ownerCheck.archivedAt) {
-    return { archivedAt: ownerCheck.archivedAt };
+  if (ownerCheck.archived) {
+    return { archived: true };
   }
 
-  const archivedAt = new Date();
   await db.transaction(async (tx) => {
     await tx
       .update(project)
       .set({
-        archivedAt,
-        updatedAt: archivedAt,
+        archived: true,
+        updatedAt: new Date(),
       })
       .where(eq(project.id, projectId));
   });
 
   await recordArchiveActivityBestEffort(db, projectId, actor, 'Archived project');
-  return { archivedAt };
+  return { archived: true };
 }
 
 export async function unarchiveProject(
   projectId: string,
   actor: ProjectActor,
   deps: ProjectsDeps = {},
-): Promise<void> {
+): Promise<{ archived: boolean }> {
   const db = deps.db ?? getDb();
   const ownerCheck = await assertProjectOwner(projectId, actor, { db });
-  if (!ownerCheck.archivedAt) {
-    return;
+  if (!ownerCheck.archived) {
+    return { archived: false };
   }
 
   await db.transaction(async (tx) => {
     await tx
       .update(project)
       .set({
-        archivedAt: null,
+        archived: false,
         updatedAt: new Date(),
       })
       .where(eq(project.id, projectId));
   });
 
   await recordArchiveActivityBestEffort(db, projectId, actor, 'Unarchived project');
+  return { archived: false };
 }

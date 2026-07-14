@@ -58,7 +58,7 @@ describe('project layout archive wiring', () => {
       currentStage: 'execute',
       autoMode: false,
       autoNote: null,
-      archivedAt: new Date('2026-07-14T09:00:00.000Z'),
+      archived: true,
       details: null,
     });
     getProjectStages.mockResolvedValue([{ kind: 'execute', status: 'active', lastPhase: 'build' }]);

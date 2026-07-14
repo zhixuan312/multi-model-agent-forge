@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 
 vi.mock('next/navigation', () => ({
@@ -42,7 +42,7 @@ describe('ProjectTopbar', () => {
     expect(screen.getByText('No active project')).toBeInTheDocument();
   });
 
-  it('shows an owner-only archive action with an accessible name', () => {
+  it('exposes an owner-only archive action inside the overflow menu', () => {
     render(
       <ProjectTopbar
         projectId="proj-1"
@@ -52,7 +52,10 @@ describe('ProjectTopbar', () => {
         archived={false}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Archive project' })).toBeInTheDocument();
+    // Collapsed by default — the archive action lives behind the ⋯ menu.
+    expect(screen.queryByRole('menuitem', { name: 'Archive project' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Archive project' })).toBeInTheDocument();
   });
 
   it('switches the label when the project is already archived', () => {
@@ -65,6 +68,12 @@ describe('ProjectTopbar', () => {
         archived
       />,
     );
-    expect(screen.getByRole('button', { name: 'Unarchive project' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Unarchive project' })).toBeInTheDocument();
+  });
+
+  it('offers no overflow menu when the actor can neither archive nor view activity', () => {
+    render(<ProjectTopbar projectId="proj-1" projectName="Payments" phase="build" />);
+    expect(screen.queryByRole('button', { name: 'Project actions' })).not.toBeInTheDocument();
   });
 });

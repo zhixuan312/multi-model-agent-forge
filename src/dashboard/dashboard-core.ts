@@ -15,6 +15,7 @@ import { member } from '@/db/schema/identity';
 import type { ArtifactKind } from '@/db/enums';
 import {
   visibleProjects,
+  archivedProjects,
   type ProjectListItem,
   type ProjectActor,
   type ProjectsDeps,
@@ -170,6 +171,35 @@ export async function dashboardProjects(
       }),
     };
   });
+}
+
+/**
+ * Archived projects, shaped as `DashboardProject` for the shared card + filter
+ * bar. Archive is a visibility overlay orthogonal to lifecycle, so the gate /
+ * activity / audit signals are intentionally zeroed — an archived project isn't
+ * a live control-tower row, it's a shelved one. `nextAction` still derives from
+ * the frozen phase/stage so the card reads sensibly.
+ */
+export async function dashboardArchivedProjects(
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<DashboardProject[]> {
+  const db: Db = deps.db ?? getDb();
+  const rows = await archivedProjects(actor, { db });
+  return rows.map((p) => ({
+    ...p,
+    awaitingHuman: 0,
+    openAuditIssues: 0,
+    agentsRunning: 0,
+    latestArtifact: null,
+    collaborators: [],
+    nextAction: deriveNextAction({
+      phase: p.phase,
+      currentStage: p.currentStage,
+      awaitingHuman: 0,
+      openAuditIssues: 0,
+    }),
+  }));
 }
 
 /** The five flow-health metrics — reduced from the enriched list (no extra round-trips). */

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderArchive, FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -27,7 +27,6 @@ const SECTIONS: NavSection[] = [
     id: 'main',
     items: [
       { href: '/projects', label: 'Projects', icon: FolderKanban, teamScoped: true },
-      { href: '/projects/archived', label: 'Archived', icon: FolderArchive, teamScoped: true },
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
@@ -53,6 +52,40 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
+  function visibleTo(i: NavItem): boolean {
+    if (i.teamScoped && member.role === 'org_admin') return false;
+    if (!i.adminOnly) return true;
+    if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
+    return member.role === i.adminOnly;
+  }
+
+  function renderLink(item: NavItem, active: boolean) {
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'group relative flex items-center gap-2.5 rounded-[var(--r)] px-2.5 py-2 text-sm',
+          'transition-colors duration-150 ease-[var(--ease-out)]',
+          active
+            ? 'bg-accent-tint font-semibold text-accent-deep [&_svg]:text-accent'
+            : 'text-ink-soft hover:bg-bg-sunk hover:text-ink [&_svg]:text-ink-faint',
+        )}
+      >
+        {active ? (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent"
+          />
+        ) : null}
+        <Icon className="size-[18px] shrink-0" strokeWidth={2} aria-hidden />
+        <span className="truncate">{item.label}</span>
+      </Link>
+    );
+  }
+
   return (
     <aside
       data-testid="sidebar"
@@ -67,12 +100,7 @@ export function Sidebar({
 
       <nav aria-label="Primary" className="flex flex-col gap-5">
         {SECTIONS.map((section) => {
-          const items = section.items.filter((i) => {
-            if (i.teamScoped && member.role === 'org_admin') return false;
-            if (!i.adminOnly) return true;
-            if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
-            return member.role === i.adminOnly;
-          });
+          const items = section.items.filter(visibleTo);
           if (items.length === 0) return null;
           return (
             <div key={section.id} className="flex flex-col gap-0.5">
@@ -83,30 +111,7 @@ export function Sidebar({
               ) : null}
               {items.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'group relative flex items-center gap-2.5 rounded-[var(--r)] px-2.5 py-2 text-sm',
-                      'transition-colors duration-150 ease-[var(--ease-out)]',
-                      active
-                        ? 'bg-accent-tint font-semibold text-accent-deep [&_svg]:text-accent'
-                        : 'text-ink-soft hover:bg-bg-sunk hover:text-ink [&_svg]:text-ink-faint',
-                    )}
-                  >
-                    {active ? (
-                      <span
-                        aria-hidden
-                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent"
-                      />
-                    ) : null}
-                    <Icon className="size-[18px] shrink-0" strokeWidth={2} aria-hidden />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
+                return renderLink(item, active);
               })}
             </div>
           );

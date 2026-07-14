@@ -6,7 +6,7 @@ export interface StageRow {
   lastPhase?: string | null;
 }
 
-export type VisualState = 'not_started' | 'ongoing' | 'done' | 'locked';
+export type VisualState = 'not_started' | 'ongoing' | 'done' | 'locked' | 'skipped';
 
 export interface ComputedStageView {
   kind: StageKind;
@@ -34,6 +34,8 @@ const STAGE_LABEL: Record<StageKind, string> = {
 // stepper's "this path is done" appearance is computed read-only by
 // `computeAllStages` (the `viewingStage` argument), with the DB left untouched.
 
+const isPassed = (status: StageStatus | undefined) => status === 'done' || status === 'skipped';
+
 export function computeAllStages(
   stages: StageRow[],
   viewingStage: StageKind | null,
@@ -44,7 +46,7 @@ export function computeAllStages(
 
   const furthestIdx = STAGE_ORDER.reduce((max, kind, i) => {
     const s = statusByKind.get(kind);
-    return (s === 'active' || s === 'done') ? Math.max(max, i) : max;
+    return (s === 'active' || isPassed(s)) ? Math.max(max, i) : max;
   }, viewingStage ? STAGE_ORDER.indexOf(viewingStage) : -1);
 
   const viewIdx = viewingStage ? STAGE_ORDER.indexOf(viewingStage) : -1;
@@ -56,7 +58,8 @@ export function computeAllStages(
     const implicitlyDone = beforeViewing && i <= furthestIdx;
 
     let visual: VisualState;
-    if ((status === 'done' || implicitlyDone) && lockedSet.has(kind)) visual = 'locked';
+    if (status === 'skipped') visual = 'skipped';
+    else if ((status === 'done' || implicitlyDone) && lockedSet.has(kind)) visual = 'locked';
     else if (status === 'done' || implicitlyDone) visual = 'done';
     else if (status === 'active' || isCurrent) visual = 'ongoing';
     else visual = 'not_started';

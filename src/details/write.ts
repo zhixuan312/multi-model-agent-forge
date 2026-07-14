@@ -50,25 +50,27 @@ const STAGE_PHASE: Record<StageKind, 'design' | 'build' | 'learn'> = {
   execute: 'build', review: 'build', journal: 'learn',
 };
 
+const isPassed = (status: string) => status === 'done' || status === 'skipped';
+
 /**
  * The pure projection of `details.stages` onto the denormalized (currentStage, phase)
  * pair — the SINGLE source of the derivation rule, shared by the DB writer below and
  * by any read that needs the columns (e.g. the dashboard list). Cases:
  *  - a stage is active → that stage + its phase (the normal mid-flow state);
- *  - all six stages done → journal / `completed` (a finished project — this is what
+ *  - all six stages done/skipped → journal / `completed` (a finished project — this is what
  *    activates the otherwise-dormant `completed` phase, since `mark_complete` only
  *    stamps `completedAt`, not the phase);
- *  - otherwise (a transient between-stages state) → the furthest done stage, or the
+ *  - otherwise (a transient between-stages state) → the furthest passed stage, or the
  *    initial exploration / design when nothing has started.
  */
 export function deriveStageAndPhase(d: Details): { currentStage: StageKind; phase: ProjectPhase } {
   const active = STAGE_ORDER.find((k) => d.stages[k].status === 'active');
   if (active) return { currentStage: active, phase: STAGE_PHASE[active] };
-  if (STAGE_ORDER.every((k) => d.stages[k].status === 'done')) {
+  if (STAGE_ORDER.every((k) => isPassed(d.stages[k].status))) {
     return { currentStage: 'journal', phase: 'completed' };
   }
-  const lastDone = [...STAGE_ORDER].reverse().find((k) => d.stages[k].status === 'done');
-  if (lastDone) return { currentStage: lastDone, phase: STAGE_PHASE[lastDone] };
+  const lastPassed = [...STAGE_ORDER].reverse().find((k) => isPassed(d.stages[k].status));
+  if (lastPassed) return { currentStage: lastPassed, phase: STAGE_PHASE[lastPassed] };
   return { currentStage: 'exploration', phase: 'design' };
 }
 
@@ -99,11 +101,16 @@ export async function advanceStage(
         }
       }
     }
-    const target = d.stages[toStage];
+    let toIdx = STAGE_ORDER.indexOf(toStage);
+    while (toIdx < STAGE_ORDER.length - 1 && d.stages[STAGE_ORDER[toIdx]].status === 'skipped') {
+      toIdx += 1;
+    }
+    const resolvedStage = STAGE_ORDER[toIdx];
+    const target = d.stages[resolvedStage];
     target.status = 'active';
     if (!target.startedAt) target.startedAt = now;
     // Activate the target stage's first phase so the resolver enters its branch.
-    const firstPhase = STAGE_FIRST_PHASE[toStage];
+    const firstPhase = STAGE_FIRST_PHASE[resolvedStage];
     const phases = target.phases as Record<string, { status: string }>;
     if (phases[firstPhase] && phases[firstPhase].status === 'pending') {
       phases[firstPhase].status = 'active';

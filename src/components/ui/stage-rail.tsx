@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn';
  * an `aria-label` text alternative. Generic: the caller maps its domain stages
  * to `{status, label}` segments.
  */
-export type StageRailStatus = 'done' | 'active' | 'pending';
+export type StageRailStatus = 'done' | 'active' | 'pending' | 'skipped';
 
 export interface StageRailSegment {
   status: StageRailStatus;
@@ -19,6 +19,7 @@ const SEG: Record<StageRailStatus, string> = {
   done: 'bg-[var(--rail-done,var(--sage))]',
   active: 'bg-[var(--rail-active,var(--accent))]',
   pending: 'bg-[var(--rail-pending,var(--line-strong))]',
+  skipped: 'bg-[repeating-linear-gradient(135deg,var(--line-strong),var(--line-strong)_4px,var(--surface-elevated)_4px,var(--surface-elevated)_8px)]',
 };
 
 export function StageRail({

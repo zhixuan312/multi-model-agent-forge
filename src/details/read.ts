@@ -3,7 +3,7 @@ import type { Details } from '@/details/schema';
 
 export function getCurrentPhase(details: Details, stageKind: StageKind): string | null {
   const stg = details.stages[stageKind];
-  if (!stg) return null;
+  if (!stg || stg.status === 'skipped') return null;
   for (const [key, phase] of Object.entries(stg.phases)) {
     if ((phase as { status: string }).status === 'active') return key;
   }

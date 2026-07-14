@@ -26,11 +26,14 @@ export function repairActiveStage(d: Details): { changed: boolean } {
       changed = true;
     }
   } else if (active.length === 0) {
-    const firstNotDone = STAGE_ORDER.find((k) => d.stages[k].status !== 'done') as StageKind | undefined;
-    if (!firstNotDone) return { changed: false };
-    d.stages[firstNotDone].status = 'active';
-    const first = STAGE_FIRST_PHASE[firstNotDone];
-    const phases = d.stages[firstNotDone].phases as Record<string, { status: string }>;
+    const firstRunnable = STAGE_ORDER.find((k) => {
+      const status = d.stages[k].status;
+      return status !== 'done' && status !== 'skipped';
+    }) as StageKind | undefined;
+    if (!firstRunnable) return { changed: false };
+    d.stages[firstRunnable].status = 'active';
+    const first = STAGE_FIRST_PHASE[firstRunnable];
+    const phases = d.stages[firstRunnable].phases as Record<string, { status: string }>;
     if (phases[first] && phases[first].status === 'pending') phases[first].status = 'active';
     return { changed: true };
   }

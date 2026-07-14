@@ -9,6 +9,7 @@
  * Every project-scoped artifact/stage/qa read routes through the guard; code
  * reads (`readProjectRepos`) intentionally do not.
  */
+import { rm } from 'node:fs/promises';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
@@ -25,6 +26,19 @@ import {
   type ProjectPhase,
 } from '@/db/enums';
 import { recordActivity } from '@/activity/project-activity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import {
+  CREATE_PROJECT_FILE_ERROR,
+  decodeUploadedArtifact,
+  parseExplorationUpload,
+  parseSpecUpload,
+  stripFrontmatter,
+  validateSubsetSelection,
+  type DesignStageSelection,
+} from '@/projects/create-project-subset';
+import { buildInitialDetails, buildSubsetDetails, type UploadedSpecProof } from '@/details/schema';
+import { writeExplorationSummary, writeSpec } from '@/projects/project-files';
+import { STAGE_FIRST_PHASE } from '@/automation/details-mutations';
 
 /** The acting member (id and teamId are load-bearing for the data layer). */
 export interface ProjectActor {
@@ -81,12 +95,18 @@ const createProjectSchema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
   visibility: z.enum(['public', 'private']),
   repoIds: z.array(z.string().uuid()).min(1, 'Pick at least one repository.'),
+  selectedDesignStages: z.array(z.enum(['exploration', 'spec', 'plan'])).default([]),
+  uploadedArtifact: z.object({
+    kind: z.enum(['exploration', 'spec']),
+    filename: z.string(),
+    content: z.string(),
+  }).optional(),
 });
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
 export type CreateProjectResult =
-  | { ok: true; id: string }
-  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility'; message: string } };
+  | { ok: true; id: string; entryStage: 'exploration' | 'spec' | 'plan' }
+  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string } };
 
 /**
  * Create a project + seed the five-stage skeleton + repo subset + owner row +
@@ -106,69 +126,148 @@ export async function createProject(
     return {
       ok: false,
       error: {
-        field: field === 'name' || field === 'repoIds' || field === 'visibility' ? field : undefined,
+        field: typeof field === 'string' ? (field as never) : undefined,
         message: issue?.message ?? 'Invalid input.',
       },
     };
   }
-  const { name, visibility, repoIds } = parsed.data;
-  const uniqueRepoIds = [...new Set(repoIds)];
+
+  const { name, visibility, repoIds, selectedDesignStages, uploadedArtifact } = parsed.data;
+  const subsetValidation = validateSubsetSelection(selectedDesignStages as DesignStageSelection[]);
+  if (!subsetValidation.ok) {
+    return { ok: false, error: { field: 'selectedDesignStages', message: subsetValidation.message } };
+  }
+
   const db = deps.db ?? getDb();
+  const entryStage = (selectedDesignStages[0] ?? 'exploration') as 'exploration' | 'spec' | 'plan';
 
-  const id = await db.transaction(async (tx) => {
-    const { buildInitialDetails } = await import('@/details/schema');
-    const initialDetails = buildInitialDetails();
-    // Populate repos in initial details
-    if (uniqueRepoIds.length > 0) {
-      const { repo } = await import('@/db/schema/workspace');
-      const { inArray } = await import('drizzle-orm');
-      const repos = await tx.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
-        .from(repo).where(inArray(repo.id, uniqueRepoIds));
-      initialDetails.repos = repos.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
+  // Entry-stage upload prerequisite (FR-3/FR-4): a subset that starts below Exploration
+  // must supply the upstream artifact — spec-start needs an exploration file, plan-start
+  // needs a spec file. Exploration-start / Full SDLC take no upload.
+  if (entryStage === 'spec' && uploadedArtifact?.kind !== 'exploration') {
+    return { ok: false, error: { field: 'artifact', message: 'Starting at Specification requires an uploaded exploration file.' } };
+  }
+  if (entryStage === 'plan' && uploadedArtifact?.kind !== 'spec') {
+    return { ok: false, error: { field: 'artifact', message: 'Starting at Planning requires an uploaded spec file.' } };
+  }
+  if (entryStage === 'exploration' && uploadedArtifact) {
+    return { ok: false, error: { field: 'artifact', message: 'An exploration-start project does not take an uploaded artifact.' } };
+  }
+
+  let parsedExploration: string | undefined;
+  let parsedSpec: { filePath: string; selectedTemplateIds: string[]; components: Array<{ id: string; templateId: string; approvals: string[] }> } | undefined;
+
+  // Pre-parse + validate all uploads BEFORE any persistence
+  if (uploadedArtifact?.content) {
+    try {
+      const decoded = decodeUploadedArtifact(new TextEncoder().encode(uploadedArtifact.content));
+      if (uploadedArtifact.kind === 'exploration') {
+        const exploration = parseExplorationUpload(decoded);
+        if (!exploration.ok) return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
+        parsedExploration = decoded;
+      } else {
+        const spec = await parseSpecUpload(db, decoded);
+        if (!spec.ok) return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
+        parsedSpec = spec.value;
+      }
+    } catch {
+      return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
     }
+  }
 
-    const [row] = await tx
-      .insert(project)
-      .values({
+  let projectId = '';
+  const cleanupPaths: string[] = [];
+  try {
+    projectId = await db.transaction(async (tx) => {
+      // Base seed. buildSubsetDetails/buildInitialDetails is the ONLY stage-seeding
+      // implementation — the upload proof is applied through the SAME helper below
+      // (via its uploadedExplorationFile / uploadedSpec branches), never re-seeded by
+      // hand here, so there is exactly one seeding code path.
+      const seed = (uploadedExploration?: string, uploadedSpec?: UploadedSpecProof) =>
+        selectedDesignStages.length === 0
+          ? buildInitialDetails()
+          : buildSubsetDetails({
+              selectedDesignStages: selectedDesignStages as DesignStageSelection[],
+              uploadedExplorationFile: uploadedExploration,
+              uploadedSpec,
+              forgeApprovalMemberId: FORGE_MEMBER_ID,
+            });
+
+      // Load repos once (used for whichever seed we persist).
+      const repos = await tx
+        .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
+        .from(repo)
+        .where(inArray(repo.id, [...new Set(repoIds)]));
+      const repoDetails = repos.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
+
+      // Insert the row first (base seed) to obtain the id the canonical artifact path
+      // needs. Details are finalized below only when there is an upload to ingest.
+      const baseDetails = seed();
+      baseDetails.repos = repoDetails;
+      const [row] = await tx.insert(project).values({
         teamId: actor.teamId,
         name,
         visibility,
         phase: 'design',
-        currentStage: 'exploration',
+        currentStage: entryStage,
         ownerId: actor.id,
-        details: initialDetails,
+        details: baseDetails,
         detailsReady: true,
-      })
-      .returning({ id: project.id });
+      }).returning({ id: project.id });
 
-    // All project state is in details — no legacy table inserts needed
+      // Preserve the existing "Created project" activity row (existing tests assert it).
+      // Attribute it to the true entry stage so a subset logs its real starting stage;
+      // for Full SDLC entryStage is 'exploration', so this matches today's behavior.
+      const [actorRow] = await tx
+        .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+        .from(member)
+        .where(eq(member.id, actor.id))
+        .limit(1);
+      await recordActivity({
+        db: tx as unknown as Db,
+        projectId: row.id,
+        stage: entryStage,
+        phase: STAGE_FIRST_PHASE[entryStage],
+        label: 'Created project',
+        kind: 'done',
+        actor: { id: actor.id, name: actorRow?.displayName ?? 'Unknown', tint: actorRow?.avatarTint ?? '#9a6b4f' },
+        source: 'user',
+        eventKey: `create_project:${row.id}`,
+      });
 
-    const [actorRow] = await tx
-      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
-      .from(member)
-      .where(eq(member.id, actor.id))
-      .limit(1);
+      // Ingest an upload (if any) and finalize details through the SAME seeding helper.
+      // NOTE: writeExplorationSummary/writeSpec are typed `db?: Db`; the transaction
+      // handle is passed with the established `tx as unknown as Db` cast. The writers
+      // return the canonical `<teamRoot>/.mma/projects/<id>/<kind>.md` path — which becomes
+      // the single seeding helper's proof input, so no proof field is set by hand here.
+      // The uploaded body is stripped of its own frontmatter first, because the writer
+      // re-stamps fresh frontmatter (else the stored file would have two blocks).
+      if (parsedExploration) {
+        const filePath = await writeExplorationSummary(row.id, stripFrontmatter(parsedExploration), tx as unknown as Db);
+        cleanupPaths.push(filePath);
+        const finalDetails = seed(filePath);
+        finalDetails.repos = repoDetails;
+        await tx.update(project).set({ details: finalDetails, currentStage: entryStage }).where(eq(project.id, row.id));
+      } else if (parsedSpec) {
+        const { filePath } = await writeSpec(row.id, stripFrontmatter(uploadedArtifact!.content), tx as unknown as Db);
+        cleanupPaths.push(filePath);
+        const finalDetails = seed(undefined, { ...parsedSpec, filePath });
+        finalDetails.repos = repoDetails;
+        await tx.update(project).set({ details: finalDetails, currentStage: entryStage }).where(eq(project.id, row.id));
+      }
 
-    await recordActivity({
-      db: tx as unknown as Db,
-      projectId: row.id,
-      stage: 'exploration',
-      phase: 'brief',
-      label: 'Created project',
-      kind: 'done',
-      actor: {
-        id: actor.id,
-        name: actorRow?.displayName ?? 'Unknown',
-        tint: actorRow?.avatarTint ?? '#9a6b4f',
-      },
-      source: 'user',
-      eventKey: `create_project:${row.id}`,
+      return row.id;
     });
+  } catch {
+    // Rollback: clean up files and delete project row on any failure post-insert
+    await Promise.all(cleanupPaths.map((path) => rm(path, { force: true }).catch(() => undefined)));
+    if (projectId) {
+      await db.delete(project).where(eq(project.id, projectId)).catch(() => undefined);
+    }
+    return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
+  }
 
-    return row.id;
-  });
-
-  return { ok: true, id };
+  return { ok: true, id: projectId, entryStage };
 }
 
 /* ── Visibility guard + list ────────────────────────────────────────────── */

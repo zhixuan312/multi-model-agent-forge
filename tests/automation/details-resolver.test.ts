@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildInitialDetails, type Details } from '@/details/schema';
-import { resolveNextActionFromDetails } from '@/automation/details-resolver';
+import { buildInitialDetails, buildSubsetDetails, type Details } from '@/details/schema';
+import { firstUnderdoneStage, resolveNextActionFromDetails } from '@/automation/details-resolver';
 
 /** Populate the DEFINING work record of every stage — the proof each ran. Without
  * these, the completion invariant treats a status-only "done" as a skipped stage. */
@@ -448,5 +448,49 @@ describe('resolver edge-case fixes', () => {
     const action = resolveNextActionFromDetails(d);
     expect(action.kind).toBe('apply_review_findings'); // NOT advance_stage
     expect(action.data?.repoId).toBe('r1');
+  });
+});
+
+function withSubsetJournalBoundary(): Details {
+  const d = buildSubsetDetails({
+    selectedDesignStages: ['spec', 'plan'],
+    uploadedExplorationFile: '/tmp/exploration.md',
+  });
+  d.stages.spec.status = 'done';
+  d.stages.spec.phases.finalize.approvals = ['m1'];
+  d.stages.plan.status = 'done';
+  d.stages.plan.phases.refine.tasks = [{ id: 't1', title: 'Task 1', status: 'committed', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' }];
+  d.stages.plan.phases.validate.auditPasses = [{ passNo: 1, status: 'clean' }];
+  d.stages.journal.status = 'active';
+  d.stages.journal.phases.journal.status = 'active';
+  d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
+  d.stages.journal.phases.journal.learnings = [{ heading: 'L1', type: 'decision', status: 'recorded' }];
+  d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
+  return d;
+}
+
+describe('firstUnderdoneStage', () => {
+  it('ignores skipped execute/review on subset projects', () => {
+    const d = withSubsetJournalBoundary();
+    expect(firstUnderdoneStage(d)).toBeNull();
+  });
+});
+
+describe('resolveNextActionFromDetails', () => {
+  it('marks a subset project complete once all in-scope stages are done and execute/review are skipped', () => {
+    const d = withSubsetJournalBoundary();
+    expect(resolveNextActionFromDetails(d).kind).toBe('mark_complete');
+  });
+
+  it('advances from review to journal only through the next non-skipped stage', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'done';
+    d.stages.plan.status = 'done';
+    d.stages.execute.status = 'skipped';
+    d.stages.review.status = 'skipped';
+    d.stages.journal.status = 'active';
+    d.stages.journal.phases.journal.status = 'active';
+    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_harvest');
   });
 });

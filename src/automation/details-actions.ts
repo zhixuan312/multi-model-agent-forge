@@ -518,6 +518,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const now = new Date();
       await updateDetails(db, projectId, (d) => {
         for (const stg of Object.values(d.stages)) {
+          if (stg.status === 'skipped') continue;
           if (stg.status !== 'done') {
             stg.status = 'done';
             if (!stg.completedAt) stg.completedAt = now.toISOString();

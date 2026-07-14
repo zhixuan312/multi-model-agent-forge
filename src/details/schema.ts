@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const stageStatus = z.enum(['pending', 'active', 'done']);
+const stageStatus = z.enum(['pending', 'active', 'done', 'skipped']);
 const phaseStatus = z.enum(['pending', 'active', 'done']);
 const attemptStatus = z.enum(['running', 'done', 'failed']);
 const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
@@ -304,4 +304,72 @@ export function buildInitialDetails(): Details {
       },
     },
   };
+}
+
+export interface UploadedSpecProof {
+  filePath: string;
+  selectedTemplateIds: string[];
+  components: Array<{ id: string; templateId: string; approvals: string[] }>;
+}
+
+export interface BuildSubsetDetailsArgs {
+  selectedDesignStages: Array<'exploration' | 'spec' | 'plan'>;
+  uploadedExplorationFile?: string;
+  uploadedSpec?: UploadedSpecProof;
+  forgeApprovalMemberId?: string;
+}
+
+export function buildSubsetDetails(args: BuildSubsetDetailsArgs): Details {
+  // Clone the base initial details
+  const d = buildInitialDetails();
+  const selected = new Set(args.selectedDesignStages);
+  const entry = args.selectedDesignStages[0] ?? 'exploration';
+
+  // Mark design stages: in-scope or skipped
+  for (const stage of ['exploration', 'spec', 'plan'] as const) {
+    d.stages[stage].status = selected.has(stage)
+      ? (stage === entry ? 'active' : 'pending')
+      : 'skipped';
+  }
+
+  // Always skip build stages and keep journal pending
+  d.stages.execute.status = 'skipped';
+  d.stages.review.status = 'skipped';
+  d.stages.journal.status = 'pending';
+
+  // When a design stage is skipped, its first phase remains pending (not active)
+  if (d.stages.exploration.status !== 'active') {
+    d.stages.exploration.phases.brief.status = 'pending';
+  }
+
+  if (d.stages.spec.status !== 'active') {
+    d.stages.spec.phases.outline.status = 'pending';
+  }
+
+  if (d.stages.plan.status !== 'active') {
+    d.stages.plan.phases.refine.status = 'pending';
+  }
+
+  // Apply uploaded exploration (sets to done if provided)
+  if (args.uploadedExplorationFile) {
+    d.stages.exploration.status = 'done';
+    d.stages.exploration.phases.brief.status = 'done';
+    d.stages.exploration.phases.discover.status = 'done';
+    d.stages.exploration.phases.synthesize.status = 'done';
+    d.stages.exploration.phases.synthesize.file = args.uploadedExplorationFile;
+  }
+
+  // Apply uploaded spec (sets to done if provided)
+  if (args.uploadedSpec) {
+    d.stages.spec.status = 'done';
+    d.stages.spec.phases.outline.status = 'done';
+    d.stages.spec.phases.outline.selectedTemplateIds = args.uploadedSpec.selectedTemplateIds;
+    d.stages.spec.phases.craft.status = 'done';
+    d.stages.spec.phases.craft.file = args.uploadedSpec.filePath;
+    d.stages.spec.phases.craft.components = args.uploadedSpec.components;
+    d.stages.spec.phases.finalize.status = 'done';
+    d.stages.spec.phases.finalize.approvals = args.forgeApprovalMemberId ? [args.forgeApprovalMemberId] : [];
+  }
+
+  return d;
 }

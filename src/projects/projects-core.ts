@@ -9,7 +9,7 @@
  * Every project-scoped artifact/stage/qa read routes through the guard; code
  * reads (`readProjectRepos`) intentionally do not.
  */
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -211,7 +211,7 @@ async function listProjects(
     .from(project)
     .where(and(
       eq(project.teamId, actor.teamId),
-      sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`,
+      or(eq(project.visibility, 'public'), eq(project.ownerId, actor.id)),
       mode === 'active' ? isNull(project.archivedAt) : isNotNull(project.archivedAt),
     ))
     .orderBy(mode === 'active' ? sql`${project.updatedAt} desc` : sql`${project.archivedAt} desc`);

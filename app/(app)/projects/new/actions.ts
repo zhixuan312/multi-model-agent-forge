@@ -16,8 +16,10 @@ export interface NewProjectState {
 /**
  * New-project server action (Spec 3 flow 1, transport = server action only — no
  * POST /api/projects). Validates + creates in one transaction, then redirects to
- * the project's current stage (`/projects/<id>/explore`). On validation failure
- * returns a field-level error to the form (no row created).
+ * the chosen entry stage (`stageRoute(entryStage, id)`): Full SDLC and
+ * exploration-start subsets enter at `/explore`, a spec-start subset at `/spec`, a
+ * plan-start subset at `/plan`. On validation or upload-parse failure it returns a
+ * field-level error to the form (no row created).
  */
 export async function createProjectAction(
   _prev: NewProjectState,

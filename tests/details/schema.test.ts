@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { validateDetails, type Details, buildInitialDetails } from '@/details/schema';
+import {
+  validateDetails,
+  type Details,
+  buildInitialDetails,
+  buildSubsetDetails,
+} from '@/details/schema';
 
 describe('validateDetails', () => {
   it('accepts a valid initial (empty) details', () => {
@@ -9,6 +14,18 @@ describe('validateDetails', () => {
     expect(result.repos).toEqual([]);
     expect(result.stages.exploration.status).toBe('active');
     expect(result.stages.spec.status).toBe('pending');
+  });
+
+  it('accepts skipped stage status on subset projects', () => {
+    const subset = buildSubsetDetails({
+      selectedDesignStages: ['spec', 'plan'],
+      uploadedExplorationFile: '/tmp/exploration.md',
+    });
+    const result = validateDetails(subset);
+    expect(result.stages.exploration.status).toBe('done');
+    expect(result.stages.execute.status).toBe('skipped');
+    expect(result.stages.review.status).toBe('skipped');
+    expect(result.stages.journal.status).toBe('pending');
   });
 
   it('accepts a completed project details', () => {
@@ -42,15 +59,15 @@ describe('validateDetails', () => {
           },
         },
         execute: {
-          status: 'done', startedAt: '2026-07-01T03:00:00Z', completedAt: '2026-07-01T04:00:00Z',
+          status: 'skipped',
           phases: {
-            configure: { status: 'done', repos: [] },
-            implement: { status: 'done', repos: [] },
+            configure: { status: 'pending', repos: [] },
+            implement: { status: 'pending', repos: [] },
           },
         },
         review: {
-          status: 'done', startedAt: '2026-07-01T04:00:00Z', completedAt: '2026-07-01T05:00:00Z',
-          phases: { review: { status: 'done', repos: [] } },
+          status: 'skipped',
+          phases: { review: { status: 'pending', repos: [] } },
         },
         journal: {
           status: 'done', startedAt: '2026-07-01T05:00:00Z', completedAt: '2026-07-01T06:00:00Z',
@@ -63,7 +80,7 @@ describe('validateDetails', () => {
       },
     };
     const result = validateDetails(completed);
-    expect(result.stages.exploration.status).toBe('done');
+    expect(result.stages.execute.status).toBe('skipped');
   });
 
   it('rejects invalid automation status', () => {
@@ -162,5 +179,44 @@ describe('buildInitialDetails', () => {
   it('validates through the Zod schema', () => {
     const d = buildInitialDetails();
     expect(() => validateDetails(d)).not.toThrow();
+  });
+});
+
+describe('buildSubsetDetails', () => {
+  it('seeds a spec-plan subset from an uploaded exploration artifact', () => {
+    const d = buildSubsetDetails({
+      selectedDesignStages: ['spec', 'plan'],
+      uploadedExplorationFile: '/tmp/exploration.md',
+    });
+    expect(d.stages.exploration.status).toBe('done');
+    expect(d.stages.exploration.phases.synthesize.file).toBe('/tmp/exploration.md');
+    expect(d.stages.spec.status).toBe('active');
+    expect(d.stages.plan.status).toBe('pending');
+    expect(d.stages.execute.status).toBe('skipped');
+    expect(d.stages.review.status).toBe('skipped');
+    expect(d.stages.journal.status).toBe('pending');
+  });
+
+  it('seeds a plan-only subset from uploaded spec proof', () => {
+    const d = buildSubsetDetails({
+      selectedDesignStages: ['plan'],
+      uploadedSpec: {
+        filePath: '/tmp/spec.md',
+        selectedTemplateIds: ['tpl-context', 'tpl-problem'],
+        components: [
+          { id: 'comp-context', templateId: 'tpl-context', approvals: [] },
+          { id: 'comp-problem', templateId: 'tpl-problem', approvals: [] },
+        ],
+      },
+      forgeApprovalMemberId: '00000000-0000-0000-0000-000000000000',
+    });
+    expect(d.stages.exploration.status).toBe('skipped');
+    expect(d.stages.spec.status).toBe('done');
+    expect(d.stages.spec.phases.outline.selectedTemplateIds).toEqual(['tpl-context', 'tpl-problem']);
+    expect(d.stages.spec.phases.finalize.approvals).toEqual(['00000000-0000-0000-0000-000000000000']);
+    expect(d.stages.plan.status).toBe('active');
+    expect(d.stages.execute.status).toBe('skipped');
+    expect(d.stages.review.status).toBe('skipped');
+    expect(d.stages.journal.status).toBe('pending');
   });
 });

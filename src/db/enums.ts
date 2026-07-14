@@ -33,8 +33,8 @@ export type StageKind = (typeof STAGE_KIND)[number];
 /** The fixed seed + render order — same tuple as STAGE_KIND, named for intent. */
 export const STAGE_ORDER = STAGE_KIND;
 
-/** stage.status (schema.md §5). pending→active→done. */
-export const STAGE_STATUS = ['pending', 'active', 'done'] as const;
+/** stage.status (schema.md §5). pending→active→done/skipped. */
+export const STAGE_STATUS = ['pending', 'active', 'done', 'skipped'] as const;
 export type StageStatus = (typeof STAGE_STATUS)[number];
 
 /* ── Spec 4: Spec stage ─────────────────────────────────────────────────── */

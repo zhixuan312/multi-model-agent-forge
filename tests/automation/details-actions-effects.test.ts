@@ -10,6 +10,8 @@ import { executeDetailsAction } from '@/automation/details-actions';
 import type { AutoAction } from '@/automation/details-resolver';
 import { createMockDb } from '../test-utils/mock-db';
 import { buildInitialDetails, type Details } from '@/details/schema';
+import { deriveSummary } from '@/spec/summary';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /**
  * Behavioral coverage of the executeDetailsAction switch (beyond the static
@@ -59,6 +61,60 @@ describe('executeDetailsAction — approve_learning (monotonic, behavioral)', ()
     });
     await executeDetailsAction('p', action, db);
     expect(writtenDetails(db).stages.journal.phases.journal.learnings[0].status).toBe('kept');
+  });
+});
+
+describe('executeDetailsAction — set_brief (intent + derived summary)', () => {
+  beforeEach(() => recordActivity.mockClear());
+
+  function briefState(): Details {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'active';
+    d.stages.exploration.phases.brief.status = 'active';
+    return d;
+  }
+
+  /** Find the direct project-column write (the `.set({ intentMd, summary })`),
+   *  distinct from updateDetails' `.set({ details })` write. */
+  function intentColumnWrite(db: ReturnType<typeof createMockDb>): { intentMd?: string; summary?: string } {
+    const call = db._callsFor('project').find(
+      (c) => c.method === 'set' && typeof c.args[0] === 'object' && c.args[0] !== null && 'intentMd' in (c.args[0] as object),
+    );
+    return (call?.args[0] ?? {}) as { intentMd?: string; summary?: string };
+  }
+
+  it('captures intent_md verbatim and the deterministically-derived summary together', async () => {
+    const db = createMockDb({
+      'select:project': [{ details: briefState(), detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    const longText = `now our self service demo backend require a db as a dependency, but as demo itself we should be able to be independent of any external database ${'x'.repeat(80)}`;
+    await executeDetailsAction('proj-1', {
+      kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief',
+      data: { text: longText, actorId: FORGE_MEMBER_ID },
+    } as never, db);
+
+    const write = intentColumnWrite(db);
+    expect(write.intentMd).toBe(longText);
+    expect(write.summary).toBe(deriveSummary(longText));
+    // >120 chars → truncated with a single ellipsis (matches the card budget).
+    expect(write.summary!.endsWith('…')).toBe(true);
+  });
+
+  it('stores a short brief as its own summary, no ellipsis', async () => {
+    const db = createMockDb({
+      'select:project': [{ details: briefState(), detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    const shortText = 'Remove the DB dependency from the demo backend.';
+    await executeDetailsAction('proj-1', {
+      kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief',
+      data: { text: shortText, actorId: FORGE_MEMBER_ID },
+    } as never, db);
+
+    const write = intentColumnWrite(db);
+    expect(write.summary).toBe(shortText);
+    expect(write.summary!.includes('…')).toBe(false);
   });
 });
 

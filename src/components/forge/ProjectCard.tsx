@@ -49,7 +49,7 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
 
           <Text className="min-h-[2.4em] !text-sm">
             {project.summary ?? (
-              <span className="italic text-ink-faint">No summary yet — set during Spec.</span>
+              <span className="italic text-ink-faint">No summary yet — set from the brief.</span>
             )}
           </Text>
 

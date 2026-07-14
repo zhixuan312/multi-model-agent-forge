@@ -588,8 +588,14 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (text == null) break;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const { saveBrief } = await import('@/exploration/explore-core');
-      await saveBrief(projectId, text, { id: actorId });
-      await db.update(project).set({ intentMd: text, updatedAt: new Date() }).where(eq(project.id, projectId));
+      const { deriveSummary } = await import('@/spec/summary');
+      await saveBrief(projectId, text, { id: actorId }, db);
+      // The brief IS the intent — persist it verbatim and derive the one-line card
+      // summary from it in the same write (deterministic truncation, no LLM). This is
+      // the single home for summary generation: it lands the moment the brief is saved.
+      await db.update(project)
+        .set({ intentMd: text, summary: deriveSummary(text), updatedAt: new Date() })
+        .where(eq(project.id, projectId));
       break;
     }
 
@@ -598,9 +604,9 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       if (!kinds || kinds.length === 0) break;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const intentMd = action.data?.intentMd as string | undefined;
-      // Outline confirm: capture intent (derive summary) THEN create the selected
-      // components + their sections — the single implementation, ported whole from
-      // the spec/confirm route (which did captureIntent + confirmComponents).
+      // Outline confirm: re-capture the (possibly edited) intent into the details
+      // brief THEN create the selected components + their sections. The card summary
+      // is derived once at brief-save (set_brief), not here.
       const { captureIntent, ensureSpecStage } = await import('@/spec/spec-core');
       const { confirmComponents } = await import('@/spec/orchestrator');
       await ensureSpecStage(db, projectId);

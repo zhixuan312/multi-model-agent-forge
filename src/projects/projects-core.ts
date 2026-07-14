@@ -9,7 +9,7 @@
  * Every project-scoped artifact/stage/qa read routes through the guard; code
  * reads (`readProjectRepos`) intentionally do not.
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -67,6 +67,10 @@ export interface ProjectListItem {
   repoCount: number;
   /** Count of UNAVAILABLE repos (dangling join OR status='error') — drives the chip. */
   unavailableRepoCount: number;
+}
+
+export interface ArchivedProjectListItem extends ProjectListItem {
+  archivedAt: Date;
 }
 
 export interface ProjectsDeps {
@@ -171,18 +175,26 @@ export async function createProject(
 
 /* ── Visibility guard + list ────────────────────────────────────────────── */
 
-/**
- * `visibleProjects` — the SOLE owner of the list read. ONE query returning each
- * visible project (public OR the actor is a project_member) joined to its five
- * stage rows + a resolvable-repo count. No per-card N+1.
- */
 export async function visibleProjects(
   actor: ProjectActor,
   deps: ProjectsDeps = {},
 ): Promise<ProjectListItem[]> {
-  const db = deps.db ?? getDb();
+  return listProjects(actor, 'active', deps) as Promise<ProjectListItem[]>;
+}
 
-  // All project state from details — no legacy table joins.
+export async function archivedProjects(
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<ArchivedProjectListItem[]> {
+  return listProjects(actor, 'archived', deps) as Promise<ArchivedProjectListItem[]>;
+}
+
+async function listProjects(
+  actor: ProjectActor,
+  mode: 'active' | 'archived',
+  deps: ProjectsDeps = {},
+): Promise<ProjectListItem[] | ArchivedProjectListItem[]> {
+  const db = deps.db ?? getDb();
   const rows = await db
     .select({
       id: project.id,
@@ -193,14 +205,16 @@ export async function visibleProjects(
       currentStage: project.currentStage,
       ownerId: project.ownerId,
       updatedAt: project.updatedAt,
+      archivedAt: project.archivedAt,
       details: project.details,
     })
     .from(project)
     .where(and(
       eq(project.teamId, actor.teamId),
-      sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`
+      sql`${project.visibility} = 'public' OR ${project.ownerId} = ${actor.id}`,
+      mode === 'active' ? isNull(project.archivedAt) : isNotNull(project.archivedAt),
     ))
-    .orderBy(sql`${project.updatedAt} desc`);
+    .orderBy(mode === 'active' ? sql`${project.updatedAt} desc` : sql`${project.archivedAt} desc`);
 
   if (rows.length === 0) return [];
 
@@ -212,29 +226,25 @@ export async function visibleProjects(
   const ownerById = new Map(owners.map((o) => [o.id, o]));
 
   const memberSet = new Set(rows.filter((r) => r.ownerId === actor.id).map((r) => r.id));
-
   const stagesByProject = new Map<string, StageView[]>();
   const repoCountByProject = new Map<string, number>();
   const unavailableByProject = new Map<string, number>();
-  // Derive (phase, currentStage) from details — the source of truth — NOT the
-  // denormalized columns, which can drift for legacy/externally-modified rows. The
-  // card's rail already reads details, so reading the badge/CTA from the same place
-  // makes the card internally consistent by construction.
   const derivedByProject = new Map<string, { currentStage: StageKind | null; phase: ProjectPhase }>();
 
   const { deriveStageAndPhase } = await import('@/details/write');
   for (const r of rows) {
-    if (r.details) {
-      try {
-        const { validateDetails } = await import('@/details/schema');
-        const d = validateDetails(r.details);
-        const stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
-          kind, status: d.stages[kind].status,
-        }));
-        stagesByProject.set(r.id, stages);
-        repoCountByProject.set(r.id, d.repos.length);
-        derivedByProject.set(r.id, deriveStageAndPhase(d));
-      } catch { /* invalid details — skip */ }
+    if (!r.details) continue;
+    try {
+      const d = validateDetails(r.details);
+      const stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
+        kind,
+        status: d.stages[kind].status,
+      }));
+      stagesByProject.set(r.id, stages);
+      repoCountByProject.set(r.id, d.repos.length);
+      derivedByProject.set(r.id, deriveStageAndPhase(d));
+    } catch {
+      // ignore invalid details rows; preserve current behavior
     }
   }
 
@@ -242,7 +252,7 @@ export async function visibleProjects(
     const owner = ownerById.get(r.ownerId);
     const orderedStages = orderStages(stagesByProject.get(r.id) ?? []);
     const derived = derivedByProject.get(r.id);
-    return {
+    const base: ProjectListItem = {
       id: r.id,
       name: r.name,
       summary: r.summary,
@@ -258,6 +268,15 @@ export async function visibleProjects(
       repoCount: repoCountByProject.get(r.id) ?? 0,
       unavailableRepoCount: unavailableByProject.get(r.id) ?? 0,
     };
+
+    if (mode === 'archived') {
+      return {
+        ...base,
+        archivedAt: r.archivedAt!,
+      };
+    }
+
+    return base;
   });
 }
 
@@ -429,4 +448,111 @@ export async function changeRepos(
       .set({ updatedAt: new Date() })
       .where(eq(project.id, projectId));
   });
+}
+
+async function assertProjectOwner(
+  projectId: string,
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<{ archivedAt: Date | null }> {
+  const db = deps.db ?? getDb();
+  await assertProjectReadable(projectId, actor, deps);
+
+  const [row] = await db
+    .select({
+      ownerId: project.ownerId,
+      archivedAt: project.archivedAt,
+    })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+
+  if (!row || row.ownerId !== actor.id) {
+    throw new ProjectAccessError('Only the owner may change archive state.');
+  }
+
+  return { archivedAt: row.archivedAt };
+}
+
+async function recordArchiveActivityBestEffort(
+  db: Db,
+  projectId: string,
+  actor: ProjectActor,
+  label: 'Archived project' | 'Unarchived project',
+): Promise<void> {
+  try {
+    const [actorRow] = await db
+      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+      .from(member)
+      .where(eq(member.id, actor.id))
+      .limit(1);
+
+    await recordActivity({
+      db,
+      projectId,
+      stage: 'journal',
+      phase: 'archive',
+      label,
+      kind: 'done',
+      actor: {
+        id: actor.id,
+        name: actorRow?.displayName ?? 'Unknown',
+        tint: actorRow?.avatarTint ?? '#9a6b4f',
+      },
+      source: 'user',
+      eventKey: `${label === 'Archived project' ? 'archive' : 'unarchive'}:${projectId}:${actor.id}`,
+    });
+  } catch {
+    // Best-effort only: the durable state is forge.project.archived_at.
+  }
+}
+
+export async function archiveProject(
+  projectId: string,
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<{ archivedAt: Date }> {
+  const db = deps.db ?? getDb();
+  const ownerCheck = await assertProjectOwner(projectId, actor, { db });
+  if (ownerCheck.archivedAt) {
+    return { archivedAt: ownerCheck.archivedAt };
+  }
+
+  const archivedAt = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(project)
+      .set({
+        archivedAt,
+        updatedAt: archivedAt,
+      })
+      .where(eq(project.id, projectId));
+  });
+
+  await recordArchiveActivityBestEffort(db, projectId, actor, 'Archived project');
+  return { archivedAt };
+}
+
+export async function unarchiveProject(
+  projectId: string,
+  actor: ProjectActor,
+  deps: ProjectsDeps = {},
+): Promise<void> {
+  const db = deps.db ?? getDb();
+  const ownerCheck = await assertProjectOwner(projectId, actor, { db });
+  if (!ownerCheck.archivedAt) {
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(project)
+      .set({
+        archivedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(project.id, projectId));
+  });
+
+  await recordArchiveActivityBestEffort(db, projectId, actor, 'Unarchived project');
 }

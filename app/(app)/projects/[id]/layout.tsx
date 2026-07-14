@@ -78,6 +78,8 @@ export default async function ProjectLayout({
           projectName={project.name}
           phase={project.phase}
           eventCount={events.length}
+          canArchive={project.ownerId === actor.id}
+          archived={project.archivedAt !== null}
         />
       </ShellHeader>
       <ShellSubNav className="!h-auto !py-3 !px-8 md:!px-12 lg:!px-16">

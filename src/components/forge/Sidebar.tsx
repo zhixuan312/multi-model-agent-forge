@@ -2,34 +2,22 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
+import { FolderArchive, FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import type { AuthedMember } from '@/auth/auth-provider';
 
-/**
- * Sidebar — the locked dashboard rail: brand lockup, grouped primary nav, and
- * the account menu footer (`shell.html`). Nav icons come from the Lucide family
- * (one icon language across the app — no Unicode glyphs). Active route gets an
- * ember left-rail + tint via `usePathname`. The Admin section is shown only to
- * admins (the page itself is admin-gated by `require-admin.ts`; hiding it is UX,
- * not the security boundary).
- */
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
   adminOnly?: boolean | 'org_admin' | 'team_admin';
-  /** Team-scoped surfaces (projects, loops, journal, workspace). Hidden from the
-   *  org admin, who belongs to no team and only sees org-wide usage + settings. */
   teamScoped?: boolean;
 }
 
 interface NavSection {
   id: string;
-  /** Section eyebrow. Omitted for the primary group — it's the obvious top-level
-   *  menu, and a "Workspace" label above a "Workspace" item just reads twice. */
   label?: string;
   items: NavItem[];
 }
@@ -39,9 +27,7 @@ const SECTIONS: NavSection[] = [
     id: 'main',
     items: [
       { href: '/projects', label: 'Projects', icon: FolderKanban, teamScoped: true },
-      // Loops sits directly below Projects. Still admin-only (the /loops pages are
-      // admin-gated by require-admin.ts) — so it's hidden for non-admins, just no
-      // longer grouped under the "Admin" eyebrow.
+      { href: '/projects/archived', label: 'Archived', icon: FolderArchive, teamScoped: true },
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
@@ -51,8 +37,6 @@ const SECTIONS: NavSection[] = [
     id: 'admin',
     label: 'Settings',
     items: [
-      // Usage leads the Settings group — visible to every role, above the
-      // role-gated settings surfaces.
       { href: '/usage', label: 'Usage', icon: BarChart3 },
       { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin' },
       { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin' },
@@ -65,7 +49,6 @@ export function Sidebar({
   forceVisible = false,
 }: {
   member: AuthedMember;
-  /** When true, render even below md (used inside the mobile drawer). */
   forceVisible?: boolean;
 }) {
   const pathname = usePathname();
@@ -85,7 +68,6 @@ export function Sidebar({
       <nav aria-label="Primary" className="flex flex-col gap-5">
         {SECTIONS.map((section) => {
           const items = section.items.filter((i) => {
-            // The org admin has no team — hide every team-scoped surface from them.
             if (i.teamScoped && member.role === 'org_admin') return false;
             if (!i.adminOnly) return true;
             if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
@@ -100,8 +82,7 @@ export function Sidebar({
                 </Eyebrow>
               ) : null}
               {items.map((item) => {
-                const active =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 const Icon = item.icon;
                 return (
                   <Link

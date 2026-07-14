@@ -257,3 +257,152 @@ describe('createProject activity row', () => {
     });
   });
 });
+
+describe('archive list reads', () => {
+  it('visibleProjects excludes archived rows and archivedProjects returns only archived rows newest-first', async () => {
+    const { buildInitialDetails } = await import('@/details/schema');
+    const activeDetails = buildInitialDetails();
+    const archivedOlderDetails = buildInitialDetails();
+    const archivedNewerDetails = buildInitialDetails();
+
+    const mockDb = createMockDb({
+      'select:project': seq(
+        [
+          {
+            id: 'active-1',
+            name: 'Active',
+            summary: null,
+            visibility: 'public',
+            phase: 'design',
+            currentStage: 'exploration',
+            ownerId: 'owner-1',
+            updatedAt: new Date('2026-07-14T08:00:00.000Z'),
+            archivedAt: null,
+            details: activeDetails,
+          },
+        ],
+        [
+          {
+            id: 'archived-2',
+            name: 'Archived newer',
+            summary: null,
+            visibility: 'public',
+            phase: 'completed',
+            currentStage: 'journal',
+            ownerId: 'owner-1',
+            updatedAt: new Date('2026-07-14T07:00:00.000Z'),
+            archivedAt: new Date('2026-07-14T09:00:00.000Z'),
+            details: archivedNewerDetails,
+          },
+          {
+            id: 'archived-1',
+            name: 'Archived older',
+            summary: null,
+            visibility: 'public',
+            phase: 'build',
+            currentStage: 'execute',
+            ownerId: 'owner-1',
+            updatedAt: new Date('2026-07-14T06:00:00.000Z'),
+            archivedAt: new Date('2026-07-14T05:00:00.000Z'),
+            details: archivedOlderDetails,
+          },
+        ],
+      ),
+      'select:team_member': [{ id: 'owner-1', displayName: 'Owner', avatarTint: '#fff' }],
+    });
+
+    const { archivedProjects } = await import('@/projects/projects-core');
+    const active = await visibleProjects({ id: 'owner-1', teamId: 'team-1' }, { db: mockDb });
+    const archived = await archivedProjects({ id: 'owner-1', teamId: 'team-1' }, { db: mockDb });
+
+    expect(active.map((p) => p.id)).toEqual(['active-1']);
+    expect(archived.map((p) => p.id)).toEqual(['archived-2', 'archived-1']);
+    expect(archived.every((p) => p.archivedAt instanceof Date)).toBe(true);
+  });
+});
+
+describe('archive mutations', () => {
+  it('archiveProject stamps archivedAt once, updates only archivedAt/updatedAt, and swallows activity failures', async () => {
+    const projectId = 'proj-archive';
+    const ownerId = 'owner-archive';
+    const archivedAt = new Date('2026-07-14T10:00:00.000Z');
+
+    const mockDb = createMockDb({
+      'select:project': seq(
+        [{ id: projectId, visibility: 'public', ownerId, teamId: 'team-1' }],
+        [{ ownerId, archivedAt: null, phase: 'build', currentStage: 'execute', completedAt: new Date('2026-07-01T00:00:00.000Z'), details: { keep: true } }],
+      ),
+      'update:project': [{ id: projectId, archivedAt }],
+      'insert:project_activity': new Error('activity insert failed'),
+    });
+
+    const { archiveProject } = await import('@/projects/projects-core');
+    const result = await archiveProject(projectId, { id: ownerId, teamId: 'team-1' }, { db: mockDb });
+
+    expect(result.archivedAt).toBeInstanceOf(Date);
+    const setCall = mockDb._callsFor('project').find((call) => call.method === 'set');
+    expect(setCall?.args[0]).toEqual(expect.objectContaining({
+      archivedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    }));
+    expect(setCall?.args[0]).not.toHaveProperty('phase');
+    expect(setCall?.args[0]).not.toHaveProperty('currentStage');
+    expect(setCall?.args[0]).not.toHaveProperty('completedAt');
+    expect(setCall?.args[0]).not.toHaveProperty('details');
+  });
+
+  it('archiveProject is idempotent for an already archived row', async () => {
+    const archivedAt = new Date('2026-07-14T09:00:00.000Z');
+    const mockDb = createMockDb({
+      'select:project': seq(
+        [{ id: 'proj-a', visibility: 'public', ownerId: 'owner-a', teamId: 'team-1' }],
+        [{ ownerId: 'owner-a', archivedAt }],
+      ),
+    });
+
+    const { archiveProject } = await import('@/projects/projects-core');
+    const result = await archiveProject('proj-a', { id: 'owner-a', teamId: 'team-1' }, { db: mockDb });
+
+    expect(result.archivedAt).toEqual(archivedAt);
+    expect(mockDb._assertCalled('project', 'update')).toBe(false);
+  });
+
+  it('unarchiveProject clears archivedAt for the owner and is a no-op for an active row', async () => {
+    const archivedDb = createMockDb({
+      'select:project': seq(
+        [{ id: 'proj-u', visibility: 'public', ownerId: 'owner-u', teamId: 'team-1' }],
+        [{ ownerId: 'owner-u', archivedAt: new Date('2026-07-14T09:00:00.000Z') }],
+      ),
+      'update:project': [{ id: 'proj-u', archivedAt: null }],
+      'insert:project_activity': [],
+    });
+
+    const { unarchiveProject } = await import('@/projects/projects-core');
+    await unarchiveProject('proj-u', { id: 'owner-u', teamId: 'team-1' }, { db: archivedDb });
+    expect(archivedDb._assertCalled('project', 'update')).toBe(true);
+
+    const activeDb = createMockDb({
+      'select:project': seq(
+        [{ id: 'proj-u2', visibility: 'public', ownerId: 'owner-u', teamId: 'team-1' }],
+        [{ ownerId: 'owner-u', archivedAt: null }],
+      ),
+    });
+
+    await unarchiveProject('proj-u2', { id: 'owner-u', teamId: 'team-1' }, { db: activeDb });
+    expect(activeDb._assertCalled('project', 'update')).toBe(false);
+  });
+
+  it('archiveProject rejects a readable non-owner with ProjectAccessError', async () => {
+    const mockDb = createMockDb({
+      'select:project': seq(
+        [{ id: 'proj-forbidden', visibility: 'public', ownerId: 'owner-1', teamId: 'team-1' }],
+        [{ ownerId: 'owner-1', archivedAt: null }],
+      ),
+    });
+
+    const { archiveProject } = await import('@/projects/projects-core');
+    await expect(
+      archiveProject('proj-forbidden', { id: 'reader-1', teamId: 'team-1' }, { db: mockDb }),
+    ).rejects.toThrow(ProjectAccessError);
+  });
+});

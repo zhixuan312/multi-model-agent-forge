@@ -47,7 +47,7 @@ describe('validateDetails', () => {
           phases: {
             outline: { status: 'done', selectedTemplateIds: ['t1'] },
             craft: { status: 'done', file: 'spec.md', components: [], attempts: [] },
-            finalize: { status: 'done', auditPasses: [], approvals: [] },
+            finalize: { status: 'done', auditPasses: [], approvals: ['m1'] },
           },
         },
         plan: {

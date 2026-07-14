@@ -65,14 +65,4 @@ describe('Sidebar role nav', () => {
     const workspace = screen.getByText('Workspace').closest('a');
     expect(workspace).not.toHaveAttribute('aria-current');
   });
-
-  it('shows Archived to team-scoped roles and hides it from the org admin with no team', () => {
-    const { unmount } = render(<Sidebar member={teamAdmin} />);
-    expect(screen.getByText('Archived')).toBeInTheDocument();
-    expect(screen.getByText('Archived').closest('a')).toHaveAttribute('href', '/projects/archived');
-    unmount();
-
-    render(<Sidebar member={orgAdmin} />);
-    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
-  });
 });

@@ -24,6 +24,7 @@ function item(over: Partial<DashboardProject> = {}): DashboardProject {
     ],
     repoCount: 6,
     unavailableRepoCount: 0,
+    archived: false,
     awaitingHuman: 0,
     openAuditIssues: 0,
     agentsRunning: 0,

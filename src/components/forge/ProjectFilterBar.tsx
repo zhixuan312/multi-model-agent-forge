@@ -6,24 +6,22 @@ import { cn } from '@/lib/cn';
 import { Input, EmptyState, Separator, Toolbar, Grid } from '@/components/ui';
 import { ProjectCard } from '@/components/forge/ProjectCard';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
-import type { ProjectPhase } from '@/db/enums';
 
 /**
  * ProjectFilterBar (Spec 3 flow 2) — the Controls + Primary client island over
- * the RSC-hydrated dashboard set. Filters in-memory (bounded → instant, no
+ * the RSC-hydrated dashboard sets. Filters in-memory (bounded → instant, no
  * per-keystroke server query):
  *   - search       : substring over name + summary
- *   - phase        : All · Design · Build · Done
+ *   - view         : Active · Archived (visibility overlay, default Active)
  *   - needs-action : projects blocked on a human gate or an open audit finding
  *   - mine|all     : Mine = owner-or-collaborator; All team = the full visible set
  *
- * The pure predicate is exported as `filterProjects` so it is unit-testable.
+ * Phase filtering was removed — a project's lifecycle phase is shown on its card
+ * and no longer a top-level filter axis. The pure predicate is exported as
+ * `filterProjects` so it stays unit-testable.
  */
-export type PhaseFilter = 'all' | 'design' | 'build' | 'learn' | 'completed';
-
 export interface ProjectFilterState {
   search: string;
-  phase: PhaseFilter;
   needsAction: boolean;
   mine: boolean;
 }
@@ -32,18 +30,10 @@ export interface ProjectFilterState {
 export interface FilterableProject {
   name: string;
   summary: string | null;
-  phase: ProjectPhase;
   isMember: boolean;
   awaitingHuman: number;
   openAuditIssues: number;
 }
-
-const PHASE_BUCKET: Record<ProjectPhase, Exclude<PhaseFilter, 'all'>> = {
-  design: 'design',
-  build: 'build',
-  learn: 'learn',
-  completed: 'completed',
-};
 
 const needsAction = (p: FilterableProject) => p.awaitingHuman > 0 || p.openAuditIssues > 0;
 
@@ -55,7 +45,6 @@ export function filterProjects<T extends FilterableProject>(
   const q = state.search.trim().toLowerCase();
   return items.filter((p) => {
     if (state.mine && !p.isMember) return false;
-    if (state.phase !== 'all' && PHASE_BUCKET[p.phase] !== state.phase) return false;
     if (state.needsAction && !needsAction(p)) return false;
     if (q !== '') {
       const hay = `${p.name} ${p.summary ?? ''}`.toLowerCase();
@@ -65,37 +54,26 @@ export function filterProjects<T extends FilterableProject>(
   });
 }
 
-function bucketCount(items: FilterableProject[], bucket: Exclude<PhaseFilter, 'all'>): number {
-  return items.filter((p) => PHASE_BUCKET[p.phase] === bucket).length;
-}
-
-const PHASE_CHIPS: { value: PhaseFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'design', label: 'Design' },
-  { value: 'build', label: 'Build' },
-  { value: 'learn', label: 'Learn' },
-  { value: 'completed', label: 'Completed' },
-];
-
-export function ProjectFilterBar({ projects }: { projects: DashboardProject[] }) {
+export function ProjectFilterBar({
+  activeProjects,
+  archivedProjects,
+}: {
+  activeProjects: DashboardProject[];
+  archivedProjects: DashboardProject[];
+}) {
   const [search, setSearch] = useState('');
-  const [phase, setPhase] = useState<PhaseFilter>('all');
+  const [view, setView] = useState<'active' | 'archived'>('active');
   const [needs, setNeeds] = useState(false);
   const [mine, setMine] = useState(false);
 
+  const source = view === 'active' ? activeProjects : archivedProjects;
+
   const shown = useMemo(
-    () => filterProjects(projects, { search, phase, needsAction: needs, mine }),
-    [projects, search, phase, needs, mine],
+    () => filterProjects(source, { search, needsAction: needs, mine }),
+    [source, search, needs, mine],
   );
 
-  const counts: Record<PhaseFilter, number> = {
-    all: projects.length,
-    design: bucketCount(projects, 'design'),
-    build: bucketCount(projects, 'build'),
-    learn: bucketCount(projects, 'learn'),
-    completed: bucketCount(projects, 'completed'),
-  };
-  const needsCount = projects.filter(needsAction).length;
+  const needsCount = source.filter(needsAction).length;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -137,23 +115,27 @@ export function ProjectFilterBar({ projects }: { projects: DashboardProject[] })
           />
         </div>
         <Separator orientation="vertical" className="h-5" />
-        <div role="group" aria-label="Filter by phase" className="flex items-center gap-1.5">
-          {PHASE_CHIPS.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              aria-pressed={phase === chip.value}
-              onClick={() => setPhase(chip.value)}
-              className={cn(
-                'focus-ring rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                phase === chip.value
-                  ? 'bg-ink text-bg'
-                  : 'border border-line-strong bg-surface text-ink-soft hover:text-ink',
-              )}
-            >
-              {chip.label} {counts[chip.value]}
-            </button>
-          ))}
+        <div
+          role="group"
+          aria-label="Filter by archive state"
+          className="flex overflow-hidden rounded-[var(--r)] border border-line-strong text-xs"
+        >
+          <button
+            type="button"
+            aria-pressed={view === 'active'}
+            onClick={() => setView('active')}
+            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', view === 'active' ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
+          >
+            Active {activeProjects.length}
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === 'archived'}
+            onClick={() => setView('archived')}
+            className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', view === 'archived' ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
+          >
+            Archived {archivedProjects.length}
+          </button>
         </div>
         {needsCount > 0 ? (
           <button
@@ -175,7 +157,11 @@ export function ProjectFilterBar({ projects }: { projects: DashboardProject[] })
 
       <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
         {shown.length === 0 ? (
-          <EmptyState icon={<Search />} title="No projects match" description="Try a different phase, owner, or search term." />
+          <EmptyState
+            icon={<Search />}
+            title={view === 'archived' ? 'No archived projects match' : 'No projects match'}
+            description="Try a different owner, archive state, or search term."
+          />
         ) : (
           <Grid min="320px" data-testid="project-grid">
             {shown.map((p) => (

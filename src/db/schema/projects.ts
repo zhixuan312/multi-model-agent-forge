@@ -21,7 +21,7 @@ export const project = forge.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
-    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    archived: boolean('archived').notNull().default(false),
     autoMode: boolean('auto_mode').notNull().default(false),
     autoNote: text('auto_note'),
     details: jsonb('details'),

@@ -7,7 +7,7 @@ import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } 
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { RailCard, RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
-import { dashboardProjects, dashboardMetrics, type DashboardProject } from '@/dashboard/dashboard-core';
+import { dashboardProjects, dashboardArchivedProjects, dashboardMetrics, type DashboardProject } from '@/dashboard/dashboard-core';
 
 const PROJECTS_NOTE = `### The pipeline
 
@@ -37,7 +37,10 @@ export default async function ProjectsPage() {
   // A team-less member (org_admin) has no project scope; send them to their
   // org-level home rather than `/` (which would redirect back here and loop).
   if (!actor) redirect('/usage');
-  const projects = await dashboardProjects(actor);
+  const [projects, archived] = await Promise.all([
+    dashboardProjects(actor),
+    dashboardArchivedProjects(actor),
+  ]);
   const metrics = dashboardMetrics(projects);
 
   const attention = projects.filter((p) => p.awaitingHuman > 0 || p.openAuditIssues > 0);
@@ -54,8 +57,8 @@ export default async function ProjectsPage() {
   const primary = (
     <Card className="flex min-h-0 flex-1 flex-col">
       <CardContent className="flex min-h-0 flex-1 flex-col">
-        {projects.length > 0 ? (
-          <ProjectFilterBar projects={projects} />
+        {projects.length + archived.length > 0 ? (
+          <ProjectFilterBar activeProjects={projects} archivedProjects={archived} />
         ) : (
           <EmptyState
             icon={<LayoutGrid />}

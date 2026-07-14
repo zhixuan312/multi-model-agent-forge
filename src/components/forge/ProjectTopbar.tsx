@@ -5,8 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Title } from '@/components/ui/typography';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { ExportMenu } from '@/components/forge/export/ExportMenu';
-import { ViewActivityButton } from '@/components/forge/ViewActivityButton';
-import { ProjectArchiveButton } from '@/components/forge/ProjectArchiveButton';
+import { ProjectActionsMenu } from '@/components/forge/ProjectActionsMenu';
 import type { ProjectPhase } from '@/db/enums';
 
 export interface ProjectTopbarPresence {
@@ -61,8 +60,6 @@ export function ProjectTopbar({
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
-        {canArchive && projectId ? <ProjectArchiveButton projectId={projectId} archived={archived} /> : null}
-
         <div data-testid="presence" className="flex">
           {presence.map((p, i) => (
             <Avatar
@@ -77,7 +74,14 @@ export function ProjectTopbar({
           ))}
         </div>
 
-        <ViewActivityButton eventCount={eventCount} />
+        {projectId ? (
+          <ProjectActionsMenu
+            projectId={projectId}
+            canArchive={canArchive}
+            archived={archived}
+            eventCount={eventCount}
+          />
+        ) : null}
 
         {projectId && !exportDisabled ? (
           <ExportMenu projectId={projectId} />

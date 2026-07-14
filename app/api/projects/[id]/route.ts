@@ -76,8 +76,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   return NextResponse.json({
     id: project.id,
-    archived: project.archivedAt !== null,
-    archivedAt: project.archivedAt ? project.archivedAt.toISOString() : null,
+    archived: project.archived,
     visibility: project.visibility,
     phase: project.phase,
   });

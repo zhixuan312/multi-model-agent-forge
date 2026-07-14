@@ -407,3 +407,62 @@ describe('archive mutations', () => {
     ).rejects.toThrow(ProjectAccessError);
   });
 });
+
+describe('createProject — subset creation', () => {
+  it('creates a spec-plan subset and redirects from spec entry state', async () => {
+    const { SPEC_TEMPLATE_SEEDS } = await import('@/db/seed/team-spec-template');
+    const db = createMockDb({
+      'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'select:team_spec_template': SPEC_TEMPLATE_SEEDS.map((seed, i) => ({ id: `tpl-${i}`, kind: seed.kind, label: seed.label })),
+      'insert:project': [{ id: 'subset-test-1' }],
+    });
+    const res = await createProject({
+      name: 'subset',
+      visibility: 'public',
+      repoIds: [repo1],
+      selectedDesignStages: ['spec', 'plan'],
+      uploadedArtifact: {
+        kind: 'exploration',
+        filename: 'ignored.md',
+        content: `---\nversion: 1\nupdated_at: 2026-07-14\n---\n\n## Background\n\nContext`,
+      },
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toMatchObject({ ok: true, id: 'subset-test-1', entryStage: 'spec' });
+  });
+
+  it('fails when repoIds is empty in subset mode', async () => {
+    const db = createMockDb({});
+    const res = await createProject({
+      name: 'subset',
+      visibility: 'public',
+      repoIds: [],
+      selectedDesignStages: ['spec'],
+      uploadedArtifact: {
+        kind: 'exploration',
+        filename: 'ignored.md',
+        content: `---\nversion: 1\nupdated_at: 2026-07-14\n---\n\n## Background\n\nContext`,
+      },
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toMatchObject({ ok: false, error: { field: 'repoIds' } });
+  });
+
+  it('returns the inline file error and creates no row on parse failure', async () => {
+    const db = createMockDb({});
+    const res = await createProject({
+      name: 'subset',
+      visibility: 'public',
+      repoIds: [repo1],
+      selectedDesignStages: ['spec'],
+      uploadedArtifact: {
+        kind: 'exploration',
+        filename: 'ignored.md',
+        content: `## Missing frontmatter`,
+      },
+    }, { id: 'owner-1', teamId: 'team-1' }, { db });
+    expect(res).toEqual({
+      ok: false,
+      error: { field: 'artifact', message: 'file failed to load or parse — re-upload' },
+    });
+    expect(db._assertCalled('project', 'insert')).toBe(false);
+  });
+});

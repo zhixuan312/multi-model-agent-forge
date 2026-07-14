@@ -7,7 +7,10 @@ import { createProject } from '@/projects/projects-core';
 import { stageRoute } from '@/projects/stage-route';
 
 export interface NewProjectState {
-  error?: { field?: 'name' | 'repoIds' | 'visibility'; message: string };
+  error?: {
+    field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact';
+    message: string;
+  };
 }
 
 /**
@@ -28,10 +31,18 @@ export async function createProjectAction(
   const name = String(formData.get('name') ?? '');
   const visibility = String(formData.get('visibility') ?? 'public');
   const repoIds = formData.getAll('repoIds').map((v) => String(v));
+  const selectedDesignStages = formData.getAll('selectedDesignStages').map((v) => String(v));
 
-  const res = await createProject({ name, visibility, repoIds }, actor);
-  if (!res.ok) {
-    return { error: res.error };
-  }
-  redirect(stageRoute('exploration', res.id));
+  const artifactFile = formData.get('artifact');
+  const uploadedArtifact = artifactFile instanceof File && artifactFile.size > 0
+    ? {
+      kind: selectedDesignStages[0] === 'plan' ? 'spec' : 'exploration',
+      filename: artifactFile.name,
+      content: await artifactFile.text(),
+    }
+    : undefined;
+
+  const res = await createProject({ name, visibility, repoIds, selectedDesignStages, uploadedArtifact }, actor);
+  if (!res.ok) return { error: res.error };
+  redirect(stageRoute(res.entryStage, res.id));
 }

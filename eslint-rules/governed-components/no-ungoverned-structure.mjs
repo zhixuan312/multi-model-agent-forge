@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const allowlistPath = join(__dirname, '../../.mma/governance/component-governance-allowlist.json');
+const allowlistPath = join(__dirname, 'allowlist.json');
 const allowlist = JSON.parse(readFileSync(allowlistPath, 'utf8'));
 
 const PATTERN = 'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch';

@@ -49,4 +49,26 @@ describe('GET/PUT /api/governance', () => {
     updateComponentGovernance.mockResolvedValueOnce({ kind: 'invalid' as const, message: 'Invalid governance fields.' });
     expect((await PUT(req({ slots: { badge: { locked: true, knobs: { variant: 'nope' } } } }) as never)).status).toBe(400);
   });
+
+  it('GET returns 200 with the governance view for an org_admin', async () => {
+    mockCaller = { id: 'a1', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
+    const slots = [{ slotId: 'badge' }];
+    getComponentGovernanceView.mockResolvedValueOnce({ slots } as never);
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(getComponentGovernanceView).toHaveBeenCalled();
+    expect(await res.json()).toEqual({ slots });
+  });
+
+  it('PUT persists a valid slot patch for an org_admin and returns 200', async () => {
+    mockCaller = { id: 'a1', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
+    const governance = { slots: [{ slotId: 'stageFlow', locked: true, knobs: { condensed: true } }] };
+    updateComponentGovernance.mockResolvedValueOnce({ kind: 'saved' as const, governance });
+    const res = await PUT(req({ slots: { stageFlow: { locked: true, knobs: { condensed: true } } } }) as never);
+    expect(res.status).toBe(200);
+    expect(updateComponentGovernance).toHaveBeenCalledWith(
+      { slots: { stageFlow: { locked: true, knobs: { condensed: true } } } },
+    );
+    expect(await res.json()).toEqual(governance);
+  });
 });

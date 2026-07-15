@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComponentsGovernancePanel } from '../../app/(app)/settings/components/ComponentsGovernancePanel';
 import type { ComponentGovernanceView } from '@/components/governance/registry';
@@ -65,10 +65,42 @@ describe('ComponentsGovernancePanel', () => {
     expect(screen.getByText('Custom badge')).toBeInTheDocument();
   });
 
-  it('submits lock and knob updates through the /api/governance route', async () => {
+  it('sends a lock-only patch (no knobs) when toggling the lock', async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     render(<ComponentsGovernancePanel initialView={initialView} />);
     await user.click(screen.getByRole('switch', { name: 'Lock Stage flow' }));
-    expect(fetch).toHaveBeenCalledWith('/api/governance', expect.objectContaining({ method: 'PUT' }));
+    const lastCall = (fetch as unknown as { mock: { calls: [string, { method?: string; body?: string }][] } }).mock.calls.at(-1)!;
+    expect(lastCall[0]).toBe('/api/governance');
+    expect(lastCall[1].method).toBe('PUT');
+    // locked was true → toggled to false; NO knobs field so unrelated knobs can't be clobbered.
+    expect(JSON.parse(lastCall[1].body!)).toEqual({ slots: { stageFlow: { locked: false } } });
+  });
+
+  it('sends a single-knob patch when editing one knob', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<ComponentsGovernancePanel initialView={initialView} />);
+    await user.click(screen.getByRole('switch', { name: 'Stage flow condensed' }));
+    const lastCall = (fetch as unknown as { mock: { calls: [string, { body?: string }][] } }).mock.calls.at(-1)!;
+    // Only the changed knob is sent; the server deep-merges it onto the stored state.
+    expect(JSON.parse(lastCall[1].body!)).toEqual({ slots: { stageFlow: { locked: true, knobs: { condensed: true } } } });
+  });
+
+  it('falls back to a GET refresh when the PUT request rejects', async () => {
+    const fetchMock = vi.fn((_url: string, opts?: { method?: string }) => {
+      if (opts?.method === 'PUT') return Promise.reject(new Error('network down'));
+      return Promise.resolve(
+        new Response(JSON.stringify(initialView), { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<ComponentsGovernancePanel initialView={initialView} />);
+    await user.click(screen.getByRole('switch', { name: 'Lock Stage flow' }));
+    // The rejected PUT must not surface as an unhandled rejection; it reconciles via GET.
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url, opts]) => url === '/api/governance' && (!opts || opts.method === undefined)),
+      ).toBe(true);
+    });
   });
 });

@@ -36,7 +36,7 @@ describe('component governance registry', () => {
   });
 
   it('ships the baseline allowlist artifact seeded from every known deviation', async () => {
-    const list = await import('../../../.mma/governance/component-governance-allowlist.json');
+    const list = await import('../../../eslint-rules/governed-components/allowlist.json');
     expect([...list.default].sort()).toEqual([
       'app/(app)/projects/new/page.tsx',
       'src/components/forge/AutomationOverlay.tsx',

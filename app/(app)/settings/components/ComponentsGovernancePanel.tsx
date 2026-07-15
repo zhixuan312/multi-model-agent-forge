@@ -17,7 +17,7 @@ function SlotRow({
   onChange,
 }: {
   slot: GovernanceSlotView;
-  onChange: (next: { locked: boolean; knobs: Record<string, string | boolean> }) => void;
+  onChange: (next: { locked: boolean; knobs?: Record<string, string | boolean> }) => void;
 }) {
   const previewState: ResolvedGovernanceSlotState = {
     slotId: slot.slotId,
@@ -38,7 +38,7 @@ function SlotRow({
             <Switch
               aria-label={`Lock ${slot.label}`}
               checked={slot.locked}
-              onCheckedChange={(checked) => onChange({ locked: checked, knobs: slot.knobs })}
+              onCheckedChange={(checked) => onChange({ locked: checked })}
             />
           </label>
         </div>
@@ -55,12 +55,12 @@ function SlotRow({
                 <Switch
                   aria-label={`${slot.label} ${knob.name}`}
                   checked={Boolean(slot.knobs[knob.name])}
-                  onCheckedChange={(checked) => onChange({ locked: slot.locked, knobs: { ...slot.knobs, [knob.name]: checked } })}
+                  onCheckedChange={(checked) => onChange({ locked: slot.locked, knobs: { [knob.name]: checked } })}
                 />
               ) : (
                 <Select
                   value={String(slot.knobs[knob.name])}
-                  onValueChange={(value) => onChange({ locked: slot.locked, knobs: { ...slot.knobs, [knob.name]: value } })}
+                  onValueChange={(value) => onChange({ locked: slot.locked, knobs: { [knob.name]: value } })}
                 >
                   <SelectTrigger aria-label={`${slot.label} ${knob.name}`}>
                     <SelectValue />
@@ -106,19 +106,26 @@ export function ComponentsGovernancePanel({ initialView }: { initialView: Compon
 
   // Save a single slot edit through the route (PUT), then adopt the returned view;
   // fall back to a GET refresh if the save is rejected.
-  const persist = (slot: GovernanceSlotView, next: { locked: boolean; knobs: Record<string, string | boolean> }) => {
+  const persist = (slot: GovernanceSlotView, next: { locked: boolean; knobs?: Record<string, string | boolean> }) => {
     startTransition(() => {
       void fetch('/api/governance', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slots: { [slot.slotId]: next } }),
-      }).then(async (res) => {
-        if (res.ok) {
-          setView((await res.json()) as ComponentGovernanceView);
-        } else {
-          await refresh();
-        }
-      });
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            setView((await res.json()) as ComponentGovernanceView);
+          } else {
+            await refresh();
+          }
+        })
+        // A failed/aborted request must not surface as an unhandled rejection; fall
+        // back to a GET refresh so the UI reconciles to server truth instead of
+        // silently showing a stale optimistic value.
+        .catch(() => {
+          void refresh();
+        });
     });
   };
 

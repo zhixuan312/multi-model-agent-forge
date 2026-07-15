@@ -20,8 +20,19 @@ export interface GovernanceDeps {
   db?: Db;
 }
 
+/**
+ * A per-slot patch. `locked` is always sent; `knobs` is a PARTIAL set of only the
+ * changed knobs. The server deep-merges these onto the existing stored knobs, so a
+ * partial payload never drops the omitted knobs (no silent data loss) and two edits
+ * to different knobs of the same slot don't clobber each other.
+ */
+export interface GovernanceSlotPatch {
+  locked: boolean;
+  knobs?: Partial<GovernanceKnobValues>;
+}
+
 export interface UpdateComponentGovernanceInput {
-  slots: Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>;
+  slots: Partial<Record<GovernanceSlotId, GovernanceSlotPatch>>;
 }
 
 export type UpdateComponentGovernanceResult =
@@ -75,14 +86,17 @@ function validateUpdate(input: unknown): input is UpdateComponentGovernanceInput
   for (const [slotId, state] of Object.entries(payload.slots)) {
     if (!(slotId in GOVERNANCE_REGISTRY)) return false;
     if (!state || typeof state !== 'object' || typeof state.locked !== 'boolean') return false;
-    if (!state.knobs || typeof state.knobs !== 'object') return false;
-
-    const schema = GOVERNANCE_REGISTRY[slotId as GovernanceSlotId].knobs;
-    const defs = new Map(schema.map((def) => [def.name, def]));
-    for (const [name, value] of Object.entries(state.knobs)) {
-      const def = defs.get(name);
-      if (!def) return false;
-      if (!isAllowed(def, value)) return false;
+    // `knobs` is an optional partial patch. When present, every provided knob must be
+    // a real knob for this slot with an allowed value; omitted knobs are left untouched.
+    if (state.knobs !== undefined) {
+      if (typeof state.knobs !== 'object' || state.knobs === null) return false;
+      const schema = GOVERNANCE_REGISTRY[slotId as GovernanceSlotId].knobs;
+      const defs = new Map(schema.map((def) => [def.name, def]));
+      for (const [name, value] of Object.entries(state.knobs)) {
+        const def = defs.get(name);
+        if (!def) return false;
+        if (!isAllowed(def, value)) return false;
+      }
     }
   }
 
@@ -118,20 +132,55 @@ export async function updateComponentGovernance(
   if (!validateUpdate(input)) return { kind: 'invalid', message: 'Invalid governance fields.' };
 
   const db = deps.db ?? getDb();
-  const [existing] = await db.select().from(componentGovernanceSettings).limit(1);
-  const merged = {
-    ...(existing?.slotStateJson ?? {}),
-    ...input.slots,
-  } as Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>;
 
-  if (existing) {
-    await db
-      .update(componentGovernanceSettings)
-      .set({ slotStateJson: merged, updatedAt: new Date() })
-      .where(eq(componentGovernanceSettings.id, existing.id));
-  } else {
-    await db.insert(componentGovernanceSettings).values({ slotStateJson: merged });
-  }
+  // Deep-merge each patch onto a base: keep the base's other slots, and for each
+  // patched slot keep its unmentioned knobs — only the provided knobs change. This
+  // makes partial payloads safe (no silent knob loss) and reduces clobbering between
+  // concurrent single-knob edits.
+  const mergeInto = (
+    base: Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>,
+  ): Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>> => {
+    const next = { ...base };
+    for (const [slotId, patch] of Object.entries(input.slots) as [GovernanceSlotId, GovernanceSlotPatch][]) {
+      next[slotId] = {
+        locked: patch.locked,
+        // Validated patches never carry undefined values, so the spread of a partial
+        // knob map is safe to treat as a full GovernanceKnobValues.
+        knobs: { ...(base[slotId]?.knobs ?? {}), ...(patch.knobs ?? {}) } as GovernanceKnobValues,
+      };
+    }
+    return next;
+  };
+
+  const asStored = (v: unknown) => (v ?? {}) as Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>;
+
+  // Serialize concurrent writers: lock the singleton row FOR UPDATE inside a
+  // transaction so the read-merge-write is atomic and cannot lose a concurrent
+  // writer's changes (the previous non-transactional read-merge-write allowed two
+  // requests to read the same base and clobber each other). On the very first write
+  // (no row yet) a lost insert race surfaces as a unique-violation on the
+  // unique-on-(true) index, which we recover by re-reading the now-locked row and
+  // updating instead of surfacing a 500.
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(componentGovernanceSettings).for('update').limit(1);
+    if (existing) {
+      await tx
+        .update(componentGovernanceSettings)
+        .set({ slotStateJson: mergeInto(asStored(existing.slotStateJson)), updatedAt: new Date() })
+        .where(eq(componentGovernanceSettings.id, existing.id));
+      return;
+    }
+    try {
+      await tx.insert(componentGovernanceSettings).values({ slotStateJson: mergeInto({}) });
+    } catch (err) {
+      const [now] = await tx.select().from(componentGovernanceSettings).for('update').limit(1);
+      if (!now) throw err;
+      await tx
+        .update(componentGovernanceSettings)
+        .set({ slotStateJson: mergeInto(asStored(now.slotStateJson)), updatedAt: new Date() })
+        .where(eq(componentGovernanceSettings.id, now.id));
+    }
+  });
 
   return {
     kind: 'saved',

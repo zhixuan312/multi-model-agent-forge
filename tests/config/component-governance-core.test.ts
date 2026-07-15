@@ -53,6 +53,52 @@ describe('component-governance core', () => {
     });
   });
 
+  it('deep-merges a partial knob patch onto existing stored knobs without dropping the others', async () => {
+    const stored = createBaseComponentGovernance({
+      slotStateJson: {
+        badge: { locked: false, knobs: { variant: 'neutral', size: 'md', dot: true, icon: false } },
+      },
+    });
+    const db = createMockDb({ 'select:component_governance': [stored] });
+
+    await updateComponentGovernance({ slots: { badge: { locked: true, knobs: { variant: 'accent' } } } }, { db });
+
+    const setCall = db._calls.find((c) => c.op === 'update' && c.method === 'set');
+    expect((setCall?.args[0] as { slotStateJson: Record<string, unknown> }).slotStateJson.badge).toEqual({
+      locked: true,
+      knobs: { variant: 'accent', size: 'md', dot: true, icon: false },
+    });
+  });
+
+  it('locks the singleton row FOR UPDATE so concurrent writers serialize', async () => {
+    const stored = createBaseComponentGovernance({ slotStateJson: {} });
+    const db = createMockDb({ 'select:component_governance': [stored] });
+
+    await updateComponentGovernance({ slots: { stageFlow: { locked: true, knobs: { condensed: true } } } }, { db });
+
+    const forCall = db._calls.find((c) => c.method === 'for');
+    expect(forCall?.args[0]).toBe('update');
+  });
+
+  it('recovers from a lost singleton-insert race by re-reading and updating', async () => {
+    const created = createBaseComponentGovernance({
+      slotStateJson: { stageFlow: { locked: true, knobs: { condensed: true } } },
+    });
+    const db = createMockDb({
+      // 1st read (no row) → insert throws unique-violation → 2nd read (now present) → getView read
+      'select:component_governance': seq([], [created], [created]),
+      'insert:component_governance': new Error('duplicate key value violates unique constraint'),
+    });
+
+    const result = await updateComponentGovernance(
+      { slots: { stageFlow: { locked: true, knobs: { condensed: true } } } },
+      { db },
+    );
+
+    expect(result.kind).toBe('saved');
+    expect(db._assertCalled('component_governance', 'update')).toBe(true);
+  });
+
   it('drops stale persisted slot ids and falls back to registry defaults on read', async () => {
     const db = createMockDb({
       'select:component_governance': [

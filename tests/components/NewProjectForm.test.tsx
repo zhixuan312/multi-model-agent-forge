@@ -39,22 +39,41 @@ describe('NewProjectForm a11y', () => {
 });
 
 describe('NewProjectForm subset creation', () => {
-  it('reveals exploration upload when spec is the entry stage', () => {
+  it('reveals the exploration upload when a spec-start preset is chosen', () => {
     render(<NewProjectForm repos={repos} />);
-    fireEvent.click(screen.getByLabelText('Start at spec'));
-    expect(screen.getByLabelText('Exploration artifact')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Spec'));
+    expect(screen.getByLabelText('Your exploration file')).toBeInTheDocument();
   });
 
-  it('prevents non-contiguous exploration+plan selection', async () => {
+  it('offers mutually-exclusive design-run presets (non-contiguous combos are impossible)', () => {
     render(<NewProjectForm repos={repos} />);
-    fireEvent.click(screen.getByLabelText('Include exploration'));
-    fireEvent.click(screen.getByLabelText('Include plan'));
-    expect(await screen.findByText('Choose a contiguous design run.')).toBeInTheDocument();
+    const spec = screen.getByLabelText('Spec') as HTMLInputElement;
+    const specPlan = screen.getByLabelText('Spec → Plan') as HTMLInputElement;
+    fireEvent.click(spec);
+    expect(spec.checked).toBe(true);
+    // Picking another preset deselects the first — a non-contiguous set can never be expressed.
+    fireEvent.click(specPlan);
+    expect(specPlan.checked).toBe(true);
+    expect(spec.checked).toBe(false);
   });
 
-  it('renders server artifact errors through the existing action-state channel', async () => {
+  it('gates submit until the required upstream file is attached', () => {
+    render(<NewProjectForm repos={repos} />);
+    fireEvent.click(screen.getByLabelText('Spec'));
+    // Spec-start needs an exploration file; until one is attached, Create is disabled.
+    expect(screen.getByRole('button', { name: /Create/i })).toBeDisabled();
+    expect(screen.getByText('Upload your exploration file to continue')).toBeInTheDocument();
+  });
+
+  it('renders a server artifact error inline once a file enables submit', async () => {
     mockActionResult = { error: { field: 'artifact', message: 'file failed to load or parse — re-upload' } };
     render(<NewProjectForm repos={repos} />);
+    fireEvent.click(screen.getByLabelText('Spec'));
+    const input = screen.getByLabelText('Your exploration file');
+    const file = new File(['# Exploration: x\n\n## Background\n\nhi'], 'e.md', { type: 'text/markdown' });
+    fireEvent.change(input, { target: { files: [file] } });
+    // The file is read + encoded asynchronously; wait for the gate to clear, then submit.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Create/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
     await waitFor(() => screen.getByText('file failed to load or parse — re-upload'));
     expect(screen.getByText('file failed to load or parse — re-upload')).toBeInTheDocument();

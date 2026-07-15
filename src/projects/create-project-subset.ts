@@ -51,10 +51,13 @@ export function stripFrontmatter(content: string): string {
 }
 
 export function parseExplorationUpload(content: string) {
-  // Accept both LF and CRLF line endings (consistent with stripFrontmatter).
-  const hasFrontmatter = /^---\r?\n[\s\S]+?\r?\n---\r?\n/m.test(content);
+  // A standard exploration artifact is `mma-explore` output: it opens with
+  // `# Exploration: <title>` and carries the canonical `## Background` section. It does
+  // NOT carry YAML frontmatter — the artifact writer stamps that on write, so source
+  // files never have it. Proof of a real exploration is therefore the `## Background`
+  // heading (LF or CRLF); frontmatter, if present, is optional and stripped before write.
   const hasBackground = /^## Background\s*$/m.test(content);
-  return hasFrontmatter && hasBackground
+  return hasBackground
     ? { ok: true, value: content } as const
     : { ok: false, message: CREATE_PROJECT_FILE_ERROR } as const;
 }

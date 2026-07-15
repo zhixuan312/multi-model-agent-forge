@@ -52,11 +52,13 @@ export function StageAdvance({
         const res = await fetch(`/api/projects/${projectId}/transition`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: FROM_ACTION[from] }),
+          // `from` lets the server treat an advance of an ALREADY-advanced (done) stage
+          // as an idempotent success (→ we navigate). A genuine "can't advance yet"
+          // (from-stage still active/unready) is still a 409 and we stay put — routing
+          // forward there is the read-a-half-advanced-project bug.
+          body: JSON.stringify({ action: FROM_ACTION[from], from }),
         });
         if (!res.ok) {
-          // Do NOT navigate on a rejected transition — routing forward without an
-          // actual stage advance is exactly the read-a-half-advanced-project bug.
           const d = (await res.json().catch(() => ({}))) as { error?: string };
           setErr(d.error ?? 'Cannot advance yet.');
           setBusy(false);

@@ -18,6 +18,7 @@ import { getDb } from '@/db/client';
 import { projectActivity } from '@/db/schema/activity';
 import { mapActivityRowToEvent } from '@/activity/project-activity';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
+import type { StageKind } from '@/db/enums';
 
 export default async function ProjectLayout({
   children,
@@ -70,6 +71,23 @@ export default async function ProjectLayout({
   const activeStage = stages.find((s) => s.status === 'active')?.kind ?? project.currentStage;
   const activePhase = stages.find((s) => s.kind === activeStage)?.lastPhase ?? undefined;
 
+  // Per-stage → per-phase status straight from the details JSON, so the stepper's
+  // sub-phase track can render skipped phases (subset runs) and block navigating to them.
+  const detailStages = (project.details as {
+    stages?: Record<string, { phases?: Record<string, { status?: string }> }>;
+  } | null)?.stages;
+  const phaseStatusByStage: Partial<Record<StageKind, Record<string, string>>> = {};
+  if (detailStages) {
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      const phases = detailStages[kind]?.phases;
+      if (phases) {
+        phaseStatusByStage[kind] = Object.fromEntries(
+          Object.entries(phases).map(([k, v]) => [k, v.status ?? 'pending']),
+        );
+      }
+    }
+  }
+
   return (
     <PhaseFromRoute>
       <ShellHeader>
@@ -91,6 +109,7 @@ export default async function ProjectLayout({
           lockedStages={lockedStages}
           autoMode={project.autoMode}
           activePhase={activePhase}
+          phaseStatusByStage={phaseStatusByStage}
         />
       </ShellSubNav>
       <ShellBody width="full" fill>

@@ -68,7 +68,9 @@ export function computeAllStages(
       kind,
       label: STAGE_LABEL[kind],
       visual,
-      reachable: i <= furthestIdx || isCurrent,
+      // A skipped stage is never navigable — it was intentionally not run and must not
+      // be entered (even though it sits before the furthest-reached stage).
+      reachable: visual === 'skipped' ? false : (i <= furthestIdx || isCurrent),
       isCurrent,
     };
   });

@@ -172,7 +172,11 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 export function SpecStageClient(props: SpecStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
-  const [components, setComponents] = useServerState<ComponentView[]>(props.initialComponents);
+  // Components are client-owned (plain useState), NOT RSC-synced. A `router.refresh()`
+  // (needed after an advance so the server-rendered layout stepper updates) must not reset
+  // this list to a stale RSC snapshot — the "No components yet" blank-view bug. Every
+  // component update instead flows through `refreshComponents()` (a direct fetch).
+  const [components, setComponents] = useState<ComponentView[]>(props.initialComponents);
   const [spec, setSpec] = useServerState(props.initialSpec);
   const [messages] = useServerState(props.initialMessages ?? {});
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
@@ -219,14 +223,26 @@ export function SpecStageClient(props: SpecStageClientProps) {
   // Craft") is being fetched — instead of flashing an empty view.
   const [isRefreshing, startRefreshTransition] = useTransition();
   const refresh = useCallback(() => { startRefreshTransition(() => router.refresh()); }, [router]);
+  // Load spec components with a DIRECT client fetch (the Explore stage's pattern) rather
+  // than router.refresh() — the RSC round-trip races the Outline→Craft phase switch and
+  // can serve a stale 0-component snapshot ("No components yet" until a hard reload). All
+  // component-data updates (confirm, auto-draft, refine, server push) route through here.
+  const refreshComponents = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/projects/${props.projectId}/spec/components`);
+      if (r.ok) setComponents((await r.json()) as ComponentView[]);
+    } catch {
+      /* a later event/refresh reconciles */
+    }
+  }, [props.projectId, setComponents]);
   const mma = useMmaDispatch(props.projectId, {
     onDone: {
-      'spec-auto-draft': refresh,
-      'spec-refine': refresh,
+      'spec-auto-draft': () => void refreshComponents(),
+      'spec-refine': () => void refreshComponents(),
       'spec-audit': refresh,
     },
     events: {
-      'spec.updated': refresh,
+      'spec.updated': () => void refreshComponents(),
       'chat.message': (data) => {
         window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
       },
@@ -312,14 +328,19 @@ export function SpecStageClient(props: SpecStageClientProps) {
           readOnly={readOnly}
           mma={mma}
           onConfirmed={async () => {
-            // select_components created the components server-side. Order matters:
-            // advancePhase does the transition THEN router.push(?phase=craft), which
-            // can be served from the client router cache captured while there were 0
-            // components. So AWAIT the advance (its push happens first), then refresh
-            // LAST — the fresh RSC fetch (8 components, craft active) wins over any
-            // stale cached push. Firing refresh first let the late push clobber it,
-            // leaving a blank "No components yet" view.
-            await advancePhase('craft');
+            // select_components created the components server-side. Advance the phase, then
+            // load the fresh components with a DIRECT client fetch, and only THEN switch the
+            // view — so Craft renders already populated. This deliberately does NOT use
+            // router.refresh(): that RSC round-trip raced the phase switch + replaceState and
+            // served a stale 0-component snapshot, leaving a blank "No components yet" view.
+            await mma.transition('advance_phase').catch(() => {
+              showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
+            });
+            await refreshComponents();
+            setPhase('craft');
+            // Re-render the server layout so its stepper reflects the advance (Outline → done,
+            // Craft → active). Safe now that components are client-owned: this refresh updates
+            // the layout + other RSC props WITHOUT resetting the freshly-fetched component list.
             refresh();
           }}
           // Outline already confirmed & locked server-side (components exist) — the

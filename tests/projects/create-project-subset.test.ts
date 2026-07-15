@@ -39,19 +39,23 @@ describe('decodeUploadedArtifact', () => {
 });
 
 describe('parseExplorationUpload', () => {
-  it('accepts frontmatter plus background section', () => {
-    const body = `---\nversion: 1\nupdated_at: 2026-07-14\n---\n\n## Background\n\nContext`;
-    const parsed = parseExplorationUpload(body);
-    expect(parsed.ok).toBe(true);
-  });
-
-  it('accepts CRLF line endings (Windows uploads)', () => {
-    const body = `---\r\nversion: 1\r\nupdated_at: 2026-07-14\r\n---\r\n\r\n## Background\r\n\r\nContext`;
+  it('accepts a standard mma-explore artifact (no frontmatter, ## Background section)', () => {
+    const body = `# Exploration: Thing\n\n## Background\n\nContext\n\n## Current State\n\nStuff`;
     expect(parseExplorationUpload(body).ok).toBe(true);
   });
 
-  it('rejects content missing frontmatter', () => {
-    expect(parseExplorationUpload('## Background\n\nContext').ok).toBe(false);
+  it('also accepts a file that happens to carry frontmatter', () => {
+    const body = `---\nversion: 1\nupdated_at: 2026-07-14\n---\n\n## Background\n\nContext`;
+    expect(parseExplorationUpload(body).ok).toBe(true);
+  });
+
+  it('accepts CRLF line endings (Windows uploads)', () => {
+    const body = `# Exploration: Thing\r\n\r\n## Background\r\n\r\nContext`;
+    expect(parseExplorationUpload(body).ok).toBe(true);
+  });
+
+  it('rejects content missing the Background section', () => {
+    expect(parseExplorationUpload('# Exploration: Thing\n\n## Current State\n\nStuff').ok).toBe(false);
   });
 });
 

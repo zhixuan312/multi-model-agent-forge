@@ -60,6 +60,29 @@ describe('performTransition — gate (spec §2.4, AC4/AC17)', () => {
     expect(isForeignLeaseFresh(d.automation, 'other')).toBe(true);
   });
 
+  it('treats an advance of an already-done from-stage as an idempotent no-op (client navigates, no error)', async () => {
+    // Subset run: exploration done (satisfied at creation), spec active. The "Continue to
+    // Spec" button posts advance_stage from exploration — not in the allowed set — but the
+    // stage is already past, so it must resolve (no throw) instead of "not allowed now".
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    d.stages.spec.status = 'active';
+    d.stages.spec.phases.outline.status = 'active';
+    const db = createMockDb({ 'select:project': [projRow(d, 1, 'off')] });
+    await expect(
+      performTransition(db, 'p', { kind: 'advance_stage', from: 'exploration' }, { mode: 'manual', actorId: 'u1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('still rejects an advance when the from-stage is NOT done (genuinely cannot advance yet)', async () => {
+    // Fresh project: exploration active, brief active — advance_stage is not allowed AND the
+    // stage is not done, so it must still reject (never route into a half-advanced project).
+    const db = createMockDb({ 'select:project': [projRow(buildInitialDetails(), 1, 'off')] });
+    await expect(
+      performTransition(db, 'p', { kind: 'advance_stage', from: 'exploration' }, { mode: 'manual', actorId: 'u1' }),
+    ).rejects.toBeInstanceOf(TransitionRejected);
+  });
+
   it('translates an effect "inflight" result into a TransitionRejected (never a silent no-op)', async () => {
     // executeDetailsAction returns 'inflight' when its per-target guard finds a batch
     // already dispatched/running for the handler. performTransition must surface that

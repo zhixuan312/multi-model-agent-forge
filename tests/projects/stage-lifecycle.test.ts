@@ -32,6 +32,21 @@ describe('computeAllStages', () => {
     expect(reachables(result)).toEqual(['exploration']);
   });
 
+  it('subset run: skipped stages are never reachable (non-navigable)', () => {
+    // Spec+Plan from an uploaded exploration: exploration done, execute/review skipped.
+    const result = computeAllStages(
+      makeStages({ exploration: 'done', spec: 'active', plan: 'pending', execute: 'skipped', review: 'skipped' }),
+      'spec',
+    );
+    const byKind = Object.fromEntries(result.map((s) => [s.kind, s]));
+    expect(byKind.execute.visual).toBe('skipped');
+    expect(byKind.review.visual).toBe('skipped');
+    // The done upstream stage stays navigable (view the uploaded artifact); skipped ones do not.
+    expect(reachables(result)).toContain('exploration');
+    expect(reachables(result)).not.toContain('execute');
+    expect(reachables(result)).not.toContain('review');
+  });
+
   it('mid-flow: explore+spec done, plan active, viewing plan', () => {
     const result = computeAllStages(
       makeStages({ exploration: 'done', spec: 'done', plan: 'active' }),

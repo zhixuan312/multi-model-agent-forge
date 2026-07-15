@@ -189,6 +189,11 @@ describe('buildSubsetDetails', () => {
       uploadedExplorationFile: '/tmp/exploration.md',
     });
     expect(d.stages.exploration.status).toBe('done');
+    // Only the artifact-bearing phase is done; the phases that never actually ran are
+    // skipped (not done) so the stepper tells the truth and locks them from navigation.
+    expect(d.stages.exploration.phases.brief.status).toBe('skipped');
+    expect(d.stages.exploration.phases.discover.status).toBe('skipped');
+    expect(d.stages.exploration.phases.synthesize.status).toBe('done');
     expect(d.stages.exploration.phases.synthesize.file).toBe('/tmp/exploration.md');
     expect(d.stages.spec.status).toBe('active');
     expect(d.stages.plan.status).toBe('pending');
@@ -211,7 +216,16 @@ describe('buildSubsetDetails', () => {
       forgeApprovalMemberId: '00000000-0000-0000-0000-000000000000',
     });
     expect(d.stages.exploration.status).toBe('skipped');
+    // A fully skipped design stage skips all of its phases.
+    expect(d.stages.exploration.phases.brief.status).toBe('skipped');
+    expect(d.stages.exploration.phases.discover.status).toBe('skipped');
+    expect(d.stages.exploration.phases.synthesize.status).toBe('skipped');
     expect(d.stages.spec.status).toBe('done');
+    // The uploaded spec file lives in `craft` → that is the done phase; the outline and
+    // finalize phases were not performed → skipped (their derived data is still kept).
+    expect(d.stages.spec.phases.outline.status).toBe('skipped');
+    expect(d.stages.spec.phases.craft.status).toBe('done');
+    expect(d.stages.spec.phases.finalize.status).toBe('skipped');
     expect(d.stages.spec.phases.outline.selectedTemplateIds).toEqual(['tpl-context', 'tpl-problem']);
     expect(d.stages.spec.phases.finalize.approvals).toEqual(['00000000-0000-0000-0000-000000000000']);
     expect(d.stages.plan.status).toBe('active');

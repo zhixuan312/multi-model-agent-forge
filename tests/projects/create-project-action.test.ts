@@ -26,7 +26,8 @@ describe('createProjectAction', () => {
     formData.set('visibility', 'public');
     formData.append('repoIds', '00000000-0000-4000-8000-000000000001');
     formData.append('selectedDesignStages', 'plan');
-    formData.set('artifact', new File(['## Context'], 'spec.md', { type: 'text/markdown' }));
+    formData.set('artifactData', Buffer.from('## Context').toString('base64'));
+    formData.set('artifactName', 'spec.md');
 
     await expect(createProjectAction({}, formData)).rejects.toThrow('REDIRECT:/projects/proj-1/plan');
   });
@@ -41,7 +42,8 @@ describe('createProjectAction', () => {
     formData.append('repoIds', '00000000-0000-4000-8000-000000000001');
     formData.append('selectedDesignStages', 'plan');
     // Invalid UTF-8 bytes → decodeUploadedArtifact throws → action returns error, no redirect.
-    formData.set('artifact', new File([new Uint8Array([0xff, 0xfe, 0xfd])], 'spec.md'));
+    formData.set('artifactData', Buffer.from(new Uint8Array([0xff, 0xfe, 0xfd])).toString('base64'));
+    formData.set('artifactName', 'spec.md');
 
     const res = await createProjectAction({}, formData);
     expect(res).toEqual({ error: { field: 'artifact', message: 'file failed to load or parse — re-upload' } });

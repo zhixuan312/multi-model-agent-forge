@@ -23,6 +23,7 @@ export function LiveStageStepper({
   lockedStages,
   autoMode,
   activePhase,
+  phaseStatusByStage,
 }: {
   projectId: string;
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
@@ -31,6 +32,9 @@ export function LiveStageStepper({
   lockedStages?: StageKind[];
   autoMode?: boolean;
   activePhase?: string;
+  /** Per-stage → per-phase status, from the project details, so the sub-phase track can
+   *  render skipped phases and block navigating to them (subset runs). */
+  phaseStatusByStage?: Partial<Record<StageKind, Record<string, string>>>;
 }) {
   const seg = useSelectedLayoutSegment();
   const subPhaseLive = useStageSubPhase();
@@ -49,6 +53,7 @@ export function LiveStageStepper({
       phase={phase}
       lockedStages={lockedStages}
       subSteps={STAGE_SUBSTEPS[viewingStage]}
+      subStepStatuses={phaseStatusByStage?.[viewingStage]}
       activeSubPhase={subPhase}
       onSubStepClick={stagePhaseStore.navigate}
     />

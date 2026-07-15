@@ -55,7 +55,14 @@ export function isForeignLeaseFresh(
 export interface ActionInput {
   kind: string;
   data?: Record<string, unknown>;
+  /** The stage a "Continue to X" advance button is leaving (client-supplied). Used only
+   *  to recognise an idempotent advance of an already-`done` stage — see the `!match`
+   *  branch below. */
+  from?: string;
 }
+
+/** Advance/approve actions whose "not allowed" is idempotent when the from-stage is done. */
+const ADVANCE_KINDS = new Set(['advance_stage', 'approve_stage']);
 
 export async function performTransition(db: Db, projectId: string, input: ActionInput, trigger: Trigger): Promise<void> {
   const [row] = await db
@@ -88,6 +95,18 @@ export async function performTransition(db: Db, projectId: string, input: Action
   const allowed = allowedActions(details, trigger.mode);
   const match = allowed.find((a) => a.kind === input.kind);
   if (!match) {
+    // Idempotent advance: a "Continue to X" button is advancing/approving a stage that is
+    // ALREADY past (`done`) — the transition happened earlier, or was satisfied by an
+    // uploaded artifact at creation. Treat it as a successful no-op so the client just
+    // navigates forward, instead of surfacing "action … not allowed now" (meaningless to
+    // a user). Only `done` qualifies — never an `active`-but-unready stage — so this can
+    // never route into a half-advanced project (the bug StageAdvance guards against).
+    const fromStatus = input.from
+      ? (details.stages as Record<string, { status?: string }>)[input.from]?.status
+      : undefined;
+    if (ADVANCE_KINDS.has(input.kind) && fromStatus === 'done') {
+      return;
+    }
     throw new TransitionRejected(`action ${input.kind} not allowed now`);
   }
   // Thread the human's member id into the effect payload for MANUAL touches, so

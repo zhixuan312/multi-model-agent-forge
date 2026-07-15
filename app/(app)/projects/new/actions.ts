@@ -36,21 +36,24 @@ export async function createProjectAction(
   const repoIds = formData.getAll('repoIds').map((v) => String(v));
   const selectedDesignStages = formData.getAll('selectedDesignStages').map((v) => String(v));
 
-  // Validate the raw upload bytes (size + strict UTF-8) at the boundary where the File
-  // still exists — decoding via File.text() first would lossily replace invalid bytes and
-  // defeat the binary-rejection guard (FR-18). Reject binary/oversized uploads here.
-  const artifactFile = formData.get('artifact');
+  // The upload arrives as base64 in a hidden field (the client reads the file's bytes and
+  // encodes them) rather than a multipart File — this is submission-path agnostic (browse
+  // or drag-drop) and never silently drops on the server-action boundary. Decode to raw
+  // bytes and run the size + strict-UTF-8 guard so binary/oversized uploads are still
+  // rejected here (FR-18), before any parse or persistence.
+  const artifactData = formData.get('artifactData');
+  const artifactName = String(formData.get('artifactName') ?? '');
   let uploadedArtifact: { kind: 'exploration' | 'spec'; filename: string; content: string } | undefined;
-  if (artifactFile instanceof File && artifactFile.size > 0) {
+  if (typeof artifactData === 'string' && artifactData.length > 0) {
     let content: string;
     try {
-      content = decodeUploadedArtifact(new Uint8Array(await artifactFile.arrayBuffer()));
+      content = decodeUploadedArtifact(Uint8Array.from(Buffer.from(artifactData, 'base64')));
     } catch {
       return { error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
     }
     uploadedArtifact = {
       kind: selectedDesignStages[0] === 'plan' ? 'spec' : 'exploration',
-      filename: artifactFile.name,
+      filename: artifactName,
       content,
     };
   }

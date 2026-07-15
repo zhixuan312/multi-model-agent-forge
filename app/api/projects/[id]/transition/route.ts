@@ -45,7 +45,7 @@ export async function POST(
     await performTransition(
       getDb(),
       id,
-      { kind: parsed.data.action, data: parsed.data.data },
+      { kind: parsed.data.action, data: parsed.data.data, from: parsed.data.from },
       { mode: 'manual', actorId: me.id },
     );
     return NextResponse.json({ ok: true });

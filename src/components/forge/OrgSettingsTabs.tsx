@@ -1,19 +1,14 @@
 import Link from 'next/link';
-import { Users, Plug, Cpu } from 'lucide-react';
+import { Boxes, Cpu, Plug, Users } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-/**
- * Org settings sub-nav (org_admin only) — the three shared-infrastructure
- * surfaces: the teams in this deployment, the MMA/voice connection, and the
- * provider model tiers. Same tab-bar theme as the rest of the app; the active
- * tab is passed in by each server page.
- */
-export type OrgSettingsTab = 'teams' | 'connections' | 'models';
+export type OrgSettingsTab = 'teams' | 'connections' | 'models' | 'components';
 
 const TABS: ReadonlyArray<{ key: OrgSettingsTab; label: string; href: string; glyph: React.ReactNode }> = [
   { key: 'teams', label: 'Teams', href: '/settings/org', glyph: <Users className="size-4" /> },
   { key: 'connections', label: 'Connections', href: '/settings/connections', glyph: <Plug className="size-4" /> },
   { key: 'models', label: 'Models', href: '/settings/models', glyph: <Cpu className="size-4" /> },
+  { key: 'components', label: 'Components', href: '/settings/components', glyph: <Boxes className="size-4" /> },
 ];
 
 export function OrgSettingsTabs({ active }: { active: OrgSettingsTab }) {

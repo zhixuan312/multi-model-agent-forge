@@ -3,9 +3,15 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
 
 describe('sanitizeUserVisibleMarkdown', () => {
-  it('normalizes newlines and escapes raw HTML tags before storage/render', () => {
+  it('normalizes CRLF to LF and trims, without touching < or >', () => {
     expect(sanitizeUserVisibleMarkdown('line 1\r\n<script>alert(1)</script>\r\n')).toBe(
-      'line 1\n&lt;script&gt;alert(1)&lt;/script&gt;',
+      'line 1\n<script>alert(1)</script>',
+    );
+  });
+
+  it('preserves angle brackets in code spans (react-markdown renders them safely)', () => {
+    expect(sanitizeUserVisibleMarkdown('use `<projectId>` and `a -> b`')).toBe(
+      'use `<projectId>` and `a -> b`',
     );
   });
 });

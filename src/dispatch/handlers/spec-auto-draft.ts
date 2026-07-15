@@ -4,6 +4,7 @@ import { project } from '@/db/schema/projects';
 import { readSpecFile } from '@/projects/project-files';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { projectEventBus } from '@/sse/event-bus';
 
 /**
  * Terminal handler for the mma-spec initial draft. The worker has already written
@@ -23,6 +24,13 @@ async function handleSpecAutoDraft(db: Db, ctx: MmaBatchCtx, _envelope: unknown)
   }
 
   await db.update(project).set({ updatedAt: new Date() }).where(eq(project.id, ctx.projectId));
+
+  // Broadcast completion so EVERY connected client refetches the freshly-drafted sections
+  // (the Spec client refreshes its components on 'spec.updated'). Without this, a client
+  // that didn't dispatch this batch — or that lost its onDone tracking (SSE reconnect,
+  // navigation) — shows empty sections until a manual reload. Mirrors spec-audit /
+  // spec-refine, which already publish this event on completion.
+  projectEventBus.publish(ctx.projectId, { type: 'spec.updated' });
 }
 
 registerHandler('spec-auto-draft', handleSpecAutoDraft);

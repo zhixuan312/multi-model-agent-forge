@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 const stageStatus = z.enum(['pending', 'active', 'done', 'skipped']);
-const phaseStatus = z.enum(['pending', 'active', 'done']);
+// `skipped` phases exist for subset runs: a phase that was never performed (an
+// intermediate phase of a stage satisfied by an uploaded artifact, or any phase of a
+// skipped stage). It is distinct from `done` (the phase produced output) — the stepper
+// renders it struck-through and non-navigable.
+const phaseStatus = z.enum(['pending', 'active', 'done', 'skipped']);
 const attemptStatus = z.enum(['running', 'done', 'failed']);
 const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
 const planTaskStatus = z.enum(['pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed']);
@@ -325,49 +329,71 @@ export function buildSubsetDetails(args: BuildSubsetDetailsArgs): Details {
   const selected = new Set(args.selectedDesignStages);
   const entry = args.selectedDesignStages[0] ?? 'exploration';
 
-  // Mark design stages: in-scope or skipped
+  // Design stages: active (the entry) / pending (in-scope, later) / skipped (out of scope).
   for (const stage of ['exploration', 'spec', 'plan'] as const) {
     d.stages[stage].status = selected.has(stage)
       ? (stage === entry ? 'active' : 'pending')
       : 'skipped';
   }
 
-  // Always skip build stages and keep journal pending
-  d.stages.execute.status = 'skipped';
-  d.stages.review.status = 'skipped';
-  d.stages.journal.status = 'pending';
-
-  // When a design stage is skipped, its first phase remains pending (not active)
-  if (d.stages.exploration.status !== 'active') {
+  // Phase statuses must follow the stage so the stepper tells the truth:
+  //  - a SKIPPED stage skips ALL its phases (nothing ran, nothing is navigable);
+  //  - a PENDING in-scope stage leaves its phases pending;
+  //  - the ACTIVE entry stage keeps the initial layout (its first phase active).
+  if (d.stages.exploration.status === 'skipped') {
+    d.stages.exploration.phases.brief.status = 'skipped';
+    d.stages.exploration.phases.discover.status = 'skipped';
+    d.stages.exploration.phases.synthesize.status = 'skipped';
+  } else if (d.stages.exploration.status === 'pending') {
     d.stages.exploration.phases.brief.status = 'pending';
   }
-
-  if (d.stages.spec.status !== 'active') {
+  if (d.stages.spec.status === 'skipped') {
+    d.stages.spec.phases.outline.status = 'skipped';
+    d.stages.spec.phases.craft.status = 'skipped';
+    d.stages.spec.phases.finalize.status = 'skipped';
+  } else if (d.stages.spec.status === 'pending') {
     d.stages.spec.phases.outline.status = 'pending';
   }
-
-  if (d.stages.plan.status !== 'active') {
+  if (d.stages.plan.status === 'skipped') {
+    d.stages.plan.phases.refine.status = 'skipped';
+    d.stages.plan.phases.validate.status = 'skipped';
+  } else if (d.stages.plan.status === 'pending') {
     d.stages.plan.phases.refine.status = 'pending';
   }
 
-  // Apply uploaded exploration (sets to done if provided)
+  // Build (execute + review) is never part of a subset — skip the stages AND their phases.
+  d.stages.execute.status = 'skipped';
+  d.stages.execute.phases.configure.status = 'skipped';
+  d.stages.execute.phases.implement.status = 'skipped';
+  d.stages.review.status = 'skipped';
+  d.stages.review.phases.review.status = 'skipped';
+  // Journal (Reflect) is the universal terminal — always kept pending.
+  d.stages.journal.status = 'pending';
+
+  // A BYO upstream artifact SATISFIES its stage: the stage becomes done and the phase
+  // that stores the artifact is done, but the interactive/agentic phases that never
+  // actually ran are marked skipped (not done). "We only keep the very last phase; the
+  // first two are skipped." Skipped phases are non-navigable in the stepper.
   if (args.uploadedExplorationFile) {
     d.stages.exploration.status = 'done';
-    d.stages.exploration.phases.brief.status = 'done';
-    d.stages.exploration.phases.discover.status = 'done';
+    d.stages.exploration.phases.brief.status = 'skipped';
+    d.stages.exploration.phases.discover.status = 'skipped';
     d.stages.exploration.phases.synthesize.status = 'done';
     d.stages.exploration.phases.synthesize.file = args.uploadedExplorationFile;
   }
 
-  // Apply uploaded spec (sets to done if provided)
+  // Uploaded spec: the spec file lives in the `craft` phase, so that is the done
+  // (artifact) phase; the outline (template pick) and finalize (audit/approval) phases
+  // were not interactively performed → skipped. Their derived data (templates, the
+  // auto-approval) is still recorded on the skipped phases for downstream reads.
   if (args.uploadedSpec) {
     d.stages.spec.status = 'done';
-    d.stages.spec.phases.outline.status = 'done';
+    d.stages.spec.phases.outline.status = 'skipped';
     d.stages.spec.phases.outline.selectedTemplateIds = args.uploadedSpec.selectedTemplateIds;
     d.stages.spec.phases.craft.status = 'done';
     d.stages.spec.phases.craft.file = args.uploadedSpec.filePath;
     d.stages.spec.phases.craft.components = args.uploadedSpec.components;
-    d.stages.spec.phases.finalize.status = 'done';
+    d.stages.spec.phases.finalize.status = 'skipped';
     d.stages.spec.phases.finalize.approvals = args.forgeApprovalMemberId ? [args.forgeApprovalMemberId] : [];
   }
 

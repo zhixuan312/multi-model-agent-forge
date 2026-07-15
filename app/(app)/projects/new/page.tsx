@@ -7,15 +7,21 @@ import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
 
-const NOTE = `### Creating a project
+const NOTE = `### Project
 
 - **Name** — a short label for the work; you can change it later
-- **Visibility** — public projects are visible to the whole team; private hides work artifacts (specs, plans, drafts) but not code
-- **Repositories** — pick the repos this project touches; agents read and build against them
+- **Visibility** — public shows artifacts to the whole team; private hides specs, plans, and drafts (never code)
+- **Repositories** — the repos this project touches; agents read and build against them
+
+### Design run
+
+- **Full SDLC** runs every stage, from idea to merged code
+- A **subset** runs a contiguous slice of the design chain — Exploration → Spec → Plan — then skips Build and ends at Reflect
+- Starting past Exploration needs the upstream file — a **Spec** run wants your exploration, a **Plan** run wants your spec
 
 ### What happens next
 
-- Forge opens the **Exploration** stage where you describe the idea, attach context, and let agents research before writing a spec`;
+- Forge opens the run's first stage — you describe the idea, or we ingest your uploaded file as the real artifact, and agents take it forward`;
 
 export default async function NewProjectPage() {
   const me = await currentMember();

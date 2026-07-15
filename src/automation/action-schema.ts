@@ -27,4 +27,8 @@ export const ACTION_KINDS = [
 export const transitionSchema = z.object({
   action: z.enum(ACTION_KINDS),
   data: z.record(z.string(), z.unknown()).optional(),
+  // The stage a "Continue to X" advance button is leaving. Lets `performTransition`
+  // treat an advance/approve of an already-`done` stage as an idempotent no-op (the
+  // client then just navigates forward) instead of a confusing "not allowed" error.
+  from: z.string().optional(),
 });

@@ -38,6 +38,7 @@ import {
 } from '@/projects/create-project-subset';
 import { buildInitialDetails, buildSubsetDetails, type UploadedSpecProof } from '@/details/schema';
 import { writeExplorationSummary, writeSpec } from '@/projects/project-files';
+import { deriveSummary } from '@/spec/summary';
 import { STAGE_FIRST_PHASE } from '@/automation/details-mutations';
 
 /** The acting member (id and teamId are load-bearing for the data layer). */
@@ -247,13 +248,25 @@ export async function createProject(
         cleanupPaths.push(filePath);
         const finalDetails = seed(filePath);
         finalDetails.repos = repoDetails;
-        await tx.update(project).set({ details: finalDetails, currentStage: entryStage }).where(eq(project.id, row.id));
+        // Capture the uploaded exploration as the project's intent. A normal explore run
+        // sets `intentMd` during its brief phase; a subset skips that phase, so without
+        // this the Spec outline gate (needs non-empty intent) and the spec drafter (hard-
+        // requires intent) would both be permanently stuck with no UI to unblock them.
+        const intent = stripFrontmatter(parsedExploration);
+        await tx.update(project)
+          .set({ details: finalDetails, currentStage: entryStage, intentMd: intent, summary: deriveSummary(intent) })
+          .where(eq(project.id, row.id));
       } else if (parsedSpec) {
-        const { filePath } = await writeSpec(row.id, stripFrontmatter(uploadedArtifact!.content), tx as unknown as Db);
+        const spec = stripFrontmatter(uploadedArtifact!.content);
+        const { filePath } = await writeSpec(row.id, spec, tx as unknown as Db);
         cleanupPaths.push(filePath);
         const finalDetails = seed(undefined, { ...parsedSpec, filePath });
         finalDetails.repos = repoDetails;
-        await tx.update(project).set({ details: finalDetails, currentStage: entryStage }).where(eq(project.id, row.id));
+        // Same reasoning for a plan-start: capture the uploaded spec as intent so the Plan
+        // stage has the grounding a normal spec run would have captured.
+        await tx.update(project)
+          .set({ details: finalDetails, currentStage: entryStage, intentMd: spec, summary: deriveSummary(spec) })
+          .where(eq(project.id, row.id));
       }
 
       return row.id;

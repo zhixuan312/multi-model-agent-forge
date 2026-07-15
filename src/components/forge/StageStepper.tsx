@@ -21,6 +21,8 @@ export interface StageStepperProps {
   lockedStages?: StageKind[];
   condensed?: boolean;
   subSteps?: { key: string; label: string }[];
+  /** Per-phase status for the viewed stage (drives skipped/done sub-phase rendering). */
+  subStepStatuses?: Record<string, string>;
   activeSubPhase?: string;
   onSubStepClick?: (key: string) => void;
 }
@@ -84,7 +86,7 @@ function StageIndicator({ s }: { s: StepperStage }) {
 
 /* ── Track line ────────────────────────────────────────────────────────── */
 
-function TrackLine({ status }: { status: 'done' | 'active' | 'pending' }) {
+function TrackLine({ status }: { status: 'done' | 'active' | 'pending' | 'skipped' }) {
   return (
     <span
       aria-hidden="true"
@@ -93,14 +95,19 @@ function TrackLine({ status }: { status: 'done' | 'active' | 'pending' }) {
         status === 'done' && 'bg-[var(--sage)]',
         status === 'active' && 'bg-accent/30',
         status === 'pending' && 'bg-line',
+        status === 'skipped' && 'bg-line-strong/30',
       )}
     />
   );
 }
 
-function trackLineStatus(left: StepperStage, right: StepperStage): 'done' | 'active' | 'pending' {
-  const lReached = left.visual === 'done' || left.visual === 'locked' || left.visual === 'ongoing' || left.visual === 'skipped';
-  const rReached = right.visual === 'done' || right.visual === 'locked' || right.visual === 'ongoing' || right.visual === 'skipped';
+function trackLineStatus(left: StepperStage, right: StepperStage): 'done' | 'active' | 'pending' | 'skipped' {
+  // A connector touching a skipped stage never represents completed work — grey it out
+  // rather than drawing the green "done" line, which would read as real progress across
+  // a stage the run bypassed.
+  if (left.visual === 'skipped' || right.visual === 'skipped') return 'skipped';
+  const lReached = left.visual === 'done' || left.visual === 'locked' || left.visual === 'ongoing';
+  const rReached = right.visual === 'done' || right.visual === 'locked' || right.visual === 'ongoing';
   if (lReached && rReached) return 'done';
   if (lReached) return 'active';
   return 'pending';
@@ -154,11 +161,16 @@ function SubPhaseTrack({
   steps,
   active,
   furthest,
+  statuses,
   onClick,
 }: {
   steps: { key: string; label: string }[];
   active?: string;
   furthest?: string | null;
+  /** Per-phase status from the project details. When present it is authoritative —
+   *  `skipped` phases render struck-through and are non-navigable; only `done`/`active`
+   *  phases are revisitable. Absent (a normal full-SDLC stage) → the index rule applies. */
+  statuses?: Record<string, string>;
   onClick?: (key: string) => void;
 }) {
   const activeIdx = steps.findIndex((s) => s.key === active);
@@ -168,10 +180,16 @@ function SubPhaseTrack({
   return (
     <div className="inline-flex items-center gap-1.5">
       {steps.map((st, i) => {
-        const isActive = st.key === active;
-        const isDone = highIdx >= 0 && i <= highIdx && !isActive;
-        const reachable = i <= highIdx || isActive;
-        const canClick = onClick && reachable && !isActive;
+        const status = statuses?.[st.key];
+        const isSkipped = status === 'skipped';
+        const isActive = !isSkipped && st.key === active;
+        const isDone = !isSkipped && !isActive && (status ? status === 'done' : highIdx >= 0 && i <= highIdx);
+        const reachable = isSkipped
+          ? false
+          : status
+            ? status === 'done' || status === 'active'
+            : i <= highIdx || isActive;
+        const canClick = Boolean(onClick) && reachable && !isActive;
         const Tag = canClick ? 'button' : 'span';
         return (
           <Fragment key={st.key}>
@@ -181,16 +199,27 @@ function SubPhaseTrack({
             <Tag
               {...(Tag === 'button' ? { type: 'button' as const, onClick: () => onClick?.(st.key) } : {})}
               data-substep={st.key}
+              data-substate={status ?? undefined}
               aria-current={isActive ? 'step' : undefined}
+              aria-disabled={isSkipped ? 'true' : undefined}
               className={cn(
                 'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
                 isActive && 'bg-accent/10 text-accent-deep',
                 isDone && 'text-[var(--sage-deep)]',
-                !isActive && !isDone && 'text-ink-faint',
+                isSkipped && 'text-ink-faint line-through opacity-70',
+                !isActive && !isDone && !isSkipped && 'text-ink-faint',
                 canClick && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
               )}
             >
-              <span aria-hidden="true" className={cn('size-1.5 rounded-full', isActive && 'bg-accent', isDone && 'bg-[var(--sage)]', !isActive && !isDone && 'bg-line-strong')} />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'size-1.5 rounded-full',
+                  isActive && 'bg-accent',
+                  isDone && 'bg-[var(--sage)]',
+                  (isSkipped || (!isActive && !isDone)) && 'bg-line-strong',
+                )}
+              />
               {st.label}
             </Tag>
           </Fragment>
@@ -212,6 +241,7 @@ export function StageStepper({
   lockedStages,
   condensed = false,
   subSteps,
+  subStepStatuses,
   activeSubPhase,
   onSubStepClick,
 }: StageStepperProps) {
@@ -257,6 +287,7 @@ export function StageStepper({
         >
           <SubPhaseTrack
             steps={subSteps}
+            statuses={subStepStatuses}
             active={activeSubPhase || (currentStage ? lastPhaseByKind.get(currentStage) ?? undefined : undefined)}
             furthest={(() => {
               const viewing = computed.find((s) => s.isCurrent);

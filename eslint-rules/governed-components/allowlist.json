@@ -1,0 +1,11 @@
+[
+  "app/(app)/projects/new/page.tsx",
+  "src/components/forge/AutomationOverlay.tsx",
+  "src/components/forge/ExecuteStageClient.tsx",
+  "src/components/forge/JournalStageClient.tsx",
+  "src/components/forge/PlanStageClient.tsx",
+  "src/components/forge/ReviewStageClient.tsx",
+  "src/components/forge/SpecStageClient.tsx",
+  "src/components/forge/SummaryPhase.tsx",
+  "src/components/patterns/status-dashboard.tsx"
+]

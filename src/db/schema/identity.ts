@@ -1,14 +1,10 @@
-import { uuid, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { team } from '@/db/schema/team';
 import { TEAM_ROLE } from '@/db/enums';
+import type { GovernanceSlotId, PersistedGovernanceSlotState } from '@/components/governance/registry';
 
-/**
- * `team_member` — pure identity, no credentials. Auth lives in `team_identity` so
- * Forge can grow to SSO without touching `member`. Role-based access control via
- * role + teamId (org_admin has null teamId, team_admin and member are bound to a team).
- */
 export const member = forge.table(
   'team_member',
   {
@@ -20,15 +16,9 @@ export const member = forge.table(
     teamId: uuid('team_id').references(() => team.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    uniqueIndex('member_username_lower_uniq').on(sql`lower(${t.username})`),
-  ],
+  (t) => [uniqueIndex('member_username_lower_uniq').on(sql`lower(${t.username})`)],
 );
 
-/**
- * `team_identity` — auth for a member. v1: every member has exactly one identity
- * (password_hash set), `local` password auth only.
- */
 export const memberIdentity = forge.table(
   'team_identity',
   {
@@ -43,12 +33,6 @@ export const memberIdentity = forge.table(
   (t) => [index('member_identity_member_idx').on(t.memberId)],
 );
 
-/**
- * `team_session` — auth-method-agnostic, opaque, server-stored. Store the sha256
- * hash, never the token. Sliding idle-expiry via last_used_at; absolute max
- * lifetime via expires_at (30 days). Idle sessions older than 24 hours are
- * rejected regardless of last_used_at.
- */
 export const session = forge.table(
   'team_session',
   {
@@ -61,19 +45,9 @@ export const session = forge.table(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('session_member_idx').on(t.memberId),
-    index('session_token_idx').on(t.tokenHash),
-  ],
+  (t) => [index('session_member_idx').on(t.memberId), index('session_token_idx').on(t.tokenHash)],
 );
 
-/**
- * `team_secret` — encrypted secret store; the target of every `*_ref`.
- *
- * `value_enc` is base64(nonce ‖ ciphertext) from libsodium `crypto_secretbox`,
- * keyed by the single 32-byte `FORGE_SECRET_KEY` master key. Decryption is
- * server-side only, on demand, never reaching the browser.
- */
 export const appSecrets = forge.table('team_secret', {
   id: uuid('id').primaryKey().defaultRandom(),
   label: text('label').notNull(),
@@ -83,14 +57,6 @@ export const appSecrets = forge.table('team_secret', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * `team_connection` — singleton (one row). Holds the org-owned Connections config: the
- * MMA base URL and the speech-to-text (OpenAI) key ref. Git token is per-team on `team.git_token_ref`.
- *
- * Bootstrap: `pnpm db:seed` creates the initial row. Reads must handle the
- * missing-row case gracefully (return NULL defaults). The unique-on-true index
- * prevents duplicate rows from concurrent bootstrap attempts.
- */
 export const connectionSettings = forge.table(
   'team_connection',
   {
@@ -101,4 +67,18 @@ export const connectionSettings = forge.table(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [uniqueIndex('settings_connection_singleton').on(sql`(true)`)],
+);
+
+export const componentGovernanceSettings = forge.table(
+  'component_governance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slotStateJson: jsonb('slot_state_json')
+      .$type<Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [uniqueIndex('settings_component_governance_singleton').on(sql`(true)`)],
 );

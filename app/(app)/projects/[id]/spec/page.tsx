@@ -9,7 +9,6 @@ import { readMmaBearer } from '@/mma/client-config';
 import { ensureSpecStage, loadOutline, loadAllMessages } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
-import { canFreeze } from '@/spec/freeze';
 import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import { isVoiceEnabled } from '@/config/connections-core';
@@ -68,7 +67,6 @@ export default async function SpecStagePage({
   const mainTierReady = hasMmaToken();
   const mmaReady = hasMmaToken();
   const auditHistory = await auditPassHistory(db, id);
-  const freezeReady = await canFreeze(db, id);
   const voiceEnabled = await isVoiceEnabled({ db });
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
@@ -98,7 +96,6 @@ export default async function SpecStagePage({
       initialComponents={components}
       initialSpec={latestSpec ? { version: latestSpec.version, bodyMd: latestSpec.bodyMd } : null}
       initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings.map((f) => ({ severity: f.severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion })) }))}
-      initialCanFreeze={freezeReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}
       initialMessages={initialMessages}

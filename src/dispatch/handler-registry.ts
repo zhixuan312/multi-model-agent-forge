@@ -89,7 +89,6 @@ export function ensureHandlersRegistered(): Promise<void> {
       import('./handlers/plan-author'),
       import('./handlers/explore-propose'),
       import('./handlers/explore-synthesize'),
-      import('./handlers/spec-learnings'),
       import('./handlers/spec-audit-apply'),
       import('./handlers/plan-audit-apply'),
       import('./handlers/plan-refine'),

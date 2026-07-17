@@ -15,7 +15,7 @@ describe('handler registration is awaitable (no cold-start race)', () => {
     for (const key of [
       'spec-audit', 'plan-audit', 'spec-audit-apply', 'plan-audit-apply',
       'spec-auto-draft', 'spec-refine', 'plan-author', 'plan-refine',
-      'explore-propose', 'explore-synthesize', 'spec-learnings',
+      'explore-propose', 'explore-synthesize',
       'execute-pipeline', 'code-review', 'review-apply',
       'journal-harvest', 'journal-record',
     ]) {

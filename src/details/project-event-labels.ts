@@ -19,7 +19,6 @@ export const HANDLER_EVENT: Record<string, { stage: string; phase: string; label
   'explore-synthesize': { stage: 'exploration', phase: 'synthesize', label: 'Synthesized exploration brief' },
   'spec-auto-draft':    { stage: 'spec',        phase: 'craft',      label: 'Drafted spec' },
   'spec-refine':        { stage: 'spec',        phase: 'craft',      label: 'Refined spec component' },
-  'spec-learnings':     { stage: 'spec',        phase: 'craft',      label: 'Recalled relevant learnings' },
   'spec-audit':         { stage: 'spec',        phase: 'finalize',   label: 'Audited spec' },
   'spec-audit-apply':   { stage: 'spec',        phase: 'finalize',   label: 'Applied spec audit findings' },
   'plan-author':        { stage: 'plan',        phase: 'refine',     label: 'Authored plan' },

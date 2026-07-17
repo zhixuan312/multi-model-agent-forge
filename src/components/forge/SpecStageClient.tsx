@@ -91,7 +91,6 @@ interface SpecStageClientProps {
   initialComponents: ComponentView[];
   initialSpec: { version: number; bodyMd: string } | null;
   initialAuditHistory: AuditPassView[];
-  initialCanFreeze: boolean;
   /** The signed-in member — drives "you" attribution and approvals. */
   currentMember: MemberRef;
   /** Teammates who can be @-mentioned into a section for co-approval. */
@@ -377,7 +376,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           readOnly={readOnly}
           mmaReady={props.mmaReady}
           initialAuditHistory={props.initialAuditHistory}
-          initialCanFreeze={props.initialCanFreeze}
           voiceEnabled={props.voiceEnabled ?? false}
           pendingApply={props.pendingApply}
           driving={auto === 'running'}
@@ -1438,7 +1436,6 @@ function DocumentScreen({
   readOnly,
   mmaReady,
   initialAuditHistory,
-  initialCanFreeze,
   pendingApply,
   mma,
   currentMember,
@@ -1456,7 +1453,6 @@ function DocumentScreen({
   readOnly: boolean;
   mmaReady: boolean;
   initialAuditHistory: AuditPassView[];
-  initialCanFreeze: boolean;
   voiceEnabled: boolean;
   pendingApply?: string | null;
   driving: boolean;
@@ -1478,7 +1474,6 @@ function DocumentScreen({
     [initialAuditHistory],
   );
   const [rounds] = useServerState(initialRounds);
-  useServerState(initialCanFreeze);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
   // Auto-select latest pass when new audit completes

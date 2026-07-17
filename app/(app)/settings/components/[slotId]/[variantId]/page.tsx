@@ -3,34 +3,36 @@ import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
 import { getComponentGovernanceView } from '@/config/component-governance-core';
 import { GOVERNANCE_SLOT_IDS, GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
-import { SlotEditor } from '../SlotEditor';
+import { SlotEditor } from '../../SlotEditor';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * One governed component on its own page (developer mode). Reached from the nested
- * "Components" list in the left rail. Org-admin only; an unknown slot id is a 404.
- * A slot that HAS variants has no overview of its own — it lands on its first variant.
+ * A single variant of a governed component — the 3rd sidebar layer (e.g. one App-shell
+ * header layout, one Content-area page layout). Org-admin only; unknown slot/variant → 404.
  */
-export default async function ComponentSlotPage({ params }: { params: Promise<{ slotId: string }> }) {
-  const { slotId } = await params;
+export default async function ComponentVariantPage({
+  params,
+}: {
+  params: Promise<{ slotId: string; variantId: string }>;
+}) {
+  const { slotId, variantId } = await params;
   const me = await currentMember();
   if (!me || me.role !== 'org_admin') redirect('/');
   if (!GOVERNANCE_SLOT_IDS.has(slotId)) notFound();
 
   const nav = GOVERNANCE_SLOT_NAV.find((s) => s.slotId === slotId);
-  if (nav && nav.variants.length > 0) {
-    redirect(`/settings/components/${slotId}/${nav.variants[0].id}`);
-  }
+  const variant = nav?.variants.find((v) => v.id === variantId);
+  if (!variant) notFound();
 
   const view = await getComponentGovernanceView();
   const slot = view.slots.find((s) => s.slotId === slotId);
   if (!slot) notFound();
 
   return (
-    <PageFrame title={slot.label} width="full">
-      <SlotEditor slot={slot} />
+    <PageFrame title={`${slot.label} · ${variant.label}`} width="full">
+      <SlotEditor slot={slot} variantId={variantId} />
     </PageFrame>
   );
 }

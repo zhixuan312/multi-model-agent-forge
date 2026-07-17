@@ -39,7 +39,7 @@ export function AppShell({
   // scrolls. The content column is a non-scrolling flex stack; ShellBody (a
   // flex child reached through the `display:contents` page chain) is the scroller.
   return (
-    <div className={cn('fixed inset-0 isolate flex overflow-hidden bg-bg', className)}>
+    <div className={cn('app-bg fixed inset-0 isolate flex overflow-hidden', className)}>
       <div className="hidden h-full shrink-0 overflow-y-auto overscroll-contain lg:block">{sidebar}</div>
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
         {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}

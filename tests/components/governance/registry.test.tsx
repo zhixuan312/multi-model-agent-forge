@@ -8,23 +8,30 @@ describe('component governance registry', () => {
   it('defines all governed slots for v0.4.0 and keeps GOVERNANCE_KNOBS in sync', () => {
     const ids = Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[];
     expect(ids).toEqual([
-      'plainBackground',
+      // structural layers (bottom → top)
+      'background',
+      'appShell',
+      'contentShell',
+      'leftPanel',
+      'rightPanel',
+      // project-only
       'stageFlow',
-      'sidebar',
-      'stageLayout',
-      'pageShell',
-      'authPlainBackground',
-      'pageHeader',
+      // shared primitives
+      'button',
       'badge',
+      'formControl',
       'emptyState',
       'metricCard',
-      'tabs',
+      'banner',
+      'avatar',
     ]);
 
     const structural = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'structural');
-    const leaf = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'leaf');
-    expect(structural).toHaveLength(6);
-    expect(leaf).toHaveLength(5);
+    const project = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'project');
+    const primitive = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'primitive');
+    expect(structural).toHaveLength(5);
+    expect(project).toHaveLength(1);
+    expect(primitive).toHaveLength(7);
 
     for (const id of ids) {
       expect(GOVERNANCE_REGISTRY[id].slotId).toBe(id);

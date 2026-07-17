@@ -194,8 +194,19 @@ body {
   --ring-offset: 0 0 0 2px var(--bg);
 }
 
-/* Subtle paper atmosphere — a faint warm bloom from the top-right, never flat. */
-body {
+/* ── CANONICAL APPLICATION BACKGROUND ─────────────────────────────────────
+   The governed Background component (see src/components/governance/registry.tsx,
+   slot `background`). The app background is NOT a flat fill — it is the `--bg`
+   token base PLUS a faint warm bloom from the top-right, never flat. Apply this
+   ONE class at every full-page background surface (AppShell root, auth shell);
+   do not hand-roll a background elsewhere. The bloom swaps warm↔cool with the
+   accent via [data-phase]. `fixed` anchors it to the viewport so it reads as a
+   single continuous atmosphere across every route.
+
+   NOTE: this must live on the painted page surface, not on `body` — the shell
+   roots are opaque `fixed inset-0` layers that would paint over a `body` bloom. */
+.app-bg {
+  background-color: var(--bg);
   background-image: radial-gradient(
     115% 90% at 100% -10%,
     color-mix(in oklab, var(--accent) 5%, transparent) 0%,

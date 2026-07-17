@@ -11,7 +11,7 @@ describe('component-governance core', () => {
   it('returns registry defaults when the singleton row is missing', async () => {
     const db = createMockDb();
     const view = await getComponentGovernanceView({ db });
-    expect(view.slots).toHaveLength(11);
+    expect(view.slots).toHaveLength(13);
     // stageFlow has no knobs (its page is a scenario gallery); a knob-bearing slot keeps its defaults.
     expect(view.slots.find((slot) => slot.slotId === 'stageFlow')).toMatchObject({ locked: true, knobs: {} });
     expect(view.slots.find((slot) => slot.slotId === 'badge')).toMatchObject({
@@ -33,7 +33,7 @@ describe('component-governance core', () => {
   it('round-trips lock and knob values through the singleton row', async () => {
     const saved = createBaseComponentGovernance({
       slotStateJson: {
-        stageLayout: { locked: true, knobs: { mode: 'fullWidth', showNote: true, showSidebar: true } },
+        metricCard: { locked: true, knobs: { tone: 'attention', iconTint: 'neutral', muted: false } },
       },
     });
     const db = createMockDb({
@@ -42,16 +42,16 @@ describe('component-governance core', () => {
     });
 
     const write = await updateComponentGovernance(
-      { slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } },
+      { slots: { metricCard: { locked: true, knobs: { tone: 'attention' } } } },
       { db },
     );
     expect(write.kind).toBe('saved');
 
-    const resolved = await resolveGovernedSlot('stageLayout', { db });
+    const resolved = await resolveGovernedSlot('metricCard', { db });
     expect(resolved).toEqual({
-      slotId: 'stageLayout',
+      slotId: 'metricCard',
       locked: true,
-      knobs: { mode: 'fullWidth', showNote: true, showSidebar: true },
+      knobs: { tone: 'attention', iconTint: 'neutral', muted: false },
     });
   });
 
@@ -76,7 +76,7 @@ describe('component-governance core', () => {
     const stored = createBaseComponentGovernance({ slotStateJson: {} });
     const db = createMockDb({ 'select:component_governance': [stored] });
 
-    await updateComponentGovernance({ slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } }, { db });
+    await updateComponentGovernance({ slots: { metricCard: { locked: true, knobs: { tone: 'attention' } } } }, { db });
 
     const forCall = db._calls.find((c) => c.method === 'for');
     expect(forCall?.args[0]).toBe('update');
@@ -84,7 +84,7 @@ describe('component-governance core', () => {
 
   it('recovers from a lost singleton-insert race by re-reading and updating', async () => {
     const created = createBaseComponentGovernance({
-      slotStateJson: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } },
+      slotStateJson: { metricCard: { locked: true, knobs: { tone: 'attention' } } },
     });
     const db = createMockDb({
       // 1st read (no row) → insert throws unique-violation → 2nd read (now present) → getView read
@@ -93,7 +93,7 @@ describe('component-governance core', () => {
     });
 
     const result = await updateComponentGovernance(
-      { slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } },
+      { slots: { metricCard: { locked: true, knobs: { tone: 'attention' } } } },
       { db },
     );
 

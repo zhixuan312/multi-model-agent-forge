@@ -15,8 +15,8 @@ vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockMember 
 vi.mock('@/config/component-governance-core', () => ({
   getComponentGovernanceView: vi.fn(async () => ({
     slots: [
-      { slotId: 'plainBackground', label: 'Plain background', group: 'structural', canonicalComponent: 'AppShell background', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
-      { slotId: 'stageFlow', label: 'Stage flow', group: 'structural', canonicalComponent: 'StageStepper', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
+      { slotId: 'background', label: 'Background', group: 'structural', canonicalComponent: 'AppShell background', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
+      { slotId: 'stageFlow', label: 'Stage flow', group: 'project', canonicalComponent: 'StageStepper', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
     ],
   })),
 }));
@@ -44,12 +44,19 @@ describe('/settings/components developer-mode pages', () => {
 
   it('index lands an org-admin on the first governed slot page', async () => {
     mockMember = admin;
-    await expect(indexPage.default()).rejects.toThrow('redirect:/settings/components/plainBackground');
+    await expect(indexPage.default()).rejects.toThrow('redirect:/settings/components/background');
   });
 
   it('slot page redirects a non-org-admin to /', async () => {
     mockMember = member;
     await expect(slotPage.default({ params: Promise.resolve({ slotId: 'stageFlow' }) })).rejects.toThrow('redirect:/');
+  });
+
+  it('a slot WITH variants redirects to its first variant (no stacked overview)', async () => {
+    mockMember = admin;
+    await expect(slotPage.default({ params: Promise.resolve({ slotId: 'appShell' }) })).rejects.toThrow(
+      'redirect:/settings/components/appShell/anatomy',
+    );
   });
 
   it('slot page 404s an unknown slot id', async () => {

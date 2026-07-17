@@ -10,9 +10,12 @@ import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 const COMPONENTS_HREF = '/settings/components';
+// A page is a stack of layers: the structural layers stack bottom→top, then the
+// project-only machinery, then the shared primitives used inside every layer.
 const SLOT_GROUPS = [
-  { key: 'structural' as const, label: 'Structural' },
-  { key: 'leaf' as const, label: 'Leaf' },
+  { key: 'structural' as const, label: 'Layers' },
+  { key: 'project' as const, label: 'Project' },
+  { key: 'primitive' as const, label: 'Primitives' },
 ];
 
 interface NavItem {
@@ -103,20 +106,48 @@ export function Sidebar({
             {GOVERNANCE_SLOT_NAV.filter((s) => s.group === group.key).map((slot) => {
               const href = `${COMPONENTS_HREF}/${slot.slotId}`;
               const active = pathname === href;
+              const inSlot = pathname === href || pathname.startsWith(`${href}/`);
               return (
-                <Link
-                  key={slot.slotId}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'rounded-[var(--r)] px-2 py-1 text-[0.8125rem] transition-colors',
-                    active
-                      ? 'bg-accent-tint font-medium text-accent-deep'
-                      : 'text-ink-soft hover:bg-bg-sunk hover:text-ink',
-                  )}
-                >
-                  {slot.label}
-                </Link>
+                <div key={slot.slotId} className="flex flex-col gap-0.5">
+                  <Link
+                    href={href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'rounded-[var(--r)] px-2 py-1 text-[0.8125rem] transition-colors',
+                      active
+                        ? 'bg-accent-tint font-medium text-accent-deep'
+                        : inSlot
+                          ? 'font-medium text-ink'
+                          : 'text-ink-soft hover:bg-bg-sunk hover:text-ink',
+                    )}
+                  >
+                    {slot.label}
+                  </Link>
+                  {/* 3rd layer — variant sub-pages, shown while inside this slot's area. */}
+                  {slot.variants.length > 0 && inSlot ? (
+                    <div className="ml-3 flex flex-col gap-0.5 border-l border-line pl-2">
+                      {slot.variants.map((v) => {
+                        const vhref = `${href}/${v.id}`;
+                        const vactive = pathname === vhref;
+                        return (
+                          <Link
+                            key={v.id}
+                            href={vhref}
+                            aria-current={vactive ? 'page' : undefined}
+                            className={cn(
+                              'rounded-[var(--r)] px-2 py-1 text-xs transition-colors',
+                              vactive
+                                ? 'bg-accent-tint font-medium text-accent-deep'
+                                : 'text-ink-faint hover:bg-bg-sunk hover:text-ink',
+                            )}
+                          >
+                            {v.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>

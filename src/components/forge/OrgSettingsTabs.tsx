@@ -1,14 +1,13 @@
 import Link from 'next/link';
-import { Boxes, Cpu, Plug, Users } from 'lucide-react';
+import { Cpu, Plug, Users } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-export type OrgSettingsTab = 'teams' | 'connections' | 'models' | 'components';
+export type OrgSettingsTab = 'teams' | 'connections' | 'models';
 
 const TABS: ReadonlyArray<{ key: OrgSettingsTab; label: string; href: string; glyph: React.ReactNode }> = [
   { key: 'teams', label: 'Teams', href: '/settings/org', glyph: <Users className="size-4" /> },
   { key: 'connections', label: 'Connections', href: '/settings/connections', glyph: <Plug className="size-4" /> },
   { key: 'models', label: 'Models', href: '/settings/models', glyph: <Cpu className="size-4" /> },
-  { key: 'components', label: 'Components', href: '/settings/components', glyph: <Boxes className="size-4" /> },
 ];
 
 export function OrgSettingsTabs({ active }: { active: OrgSettingsTab }) {

@@ -1,24 +1,17 @@
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
-import { PageFrame } from '@/components/ui';
-import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
-import { getComponentGovernanceView } from '@/config/component-governance-core';
-import { ComponentsGovernancePanel } from './ComponentsGovernancePanel';
+import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export default async function ComponentsSettingsPage() {
+/**
+ * "Components" index — a bare entry point. Developer mode has one page per component
+ * (reached from the nested left-rail list), so the index just lands the user on the
+ * first governed slot. Org-admin only.
+ */
+export default async function ComponentsIndexPage() {
   const me = await currentMember();
   if (!me || me.role !== 'org_admin') redirect('/');
-
-  // Server component reads the governance view from the server-only core (allowed here)
-  // and hands it to the client panel as an initial snapshot.
-  const initialView = await getComponentGovernanceView();
-
-  return (
-    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="components" />} width="full">
-      <ComponentsGovernancePanel initialView={initialView} />
-    </PageFrame>
-  );
+  redirect(`/settings/components/${GOVERNANCE_SLOT_NAV[0].slotId}`);
 }

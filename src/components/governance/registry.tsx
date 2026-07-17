@@ -3,6 +3,7 @@ import { Cpu, LayoutPanelTop, PanelsTopLeft, Route, Shield, Sparkles } from 'luc
 import { Badge, EmptyState, MetricCard, PageHeader, PageFrame, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { StageStepper } from '@/components/forge/StageStepper';
+import { StageFlowDemo } from '@/components/governance/StageFlowDemo';
 import { StageFullWidth, StageShell, type StageShellItem } from '@/components/patterns/stage-shell';
 import { AuthPlainBackgroundShell } from '@/components/governance/AuthPlainBackgroundShell';
 
@@ -106,9 +107,7 @@ const SAMPLE_MEMBER = {
 
 export const GOVERNANCE_KNOBS: Record<GovernanceSlotId, readonly GovernanceKnobDefinition[]> = {
   plainBackground: [],
-  stageFlow: [
-    { name: 'condensed', type: 'boolean', allowedValues: [true, false], defaultValue: false },
-  ],
+  stageFlow: [],
   sidebar: [
     { name: 'forceVisible', type: 'boolean', allowedValues: [true, false], defaultValue: false },
   ],
@@ -179,21 +178,37 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     defaultLocked: true,
     consumers: [{ id: 'live-stage-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' }],
     deviations: [],
-    renderPreview: (state) => (
-      <StageStepper
-        projectId="preview-project"
-        stages={[
-          { kind: 'exploration', status: 'done' },
-          { kind: 'spec', status: 'active' },
-          { kind: 'plan', status: 'pending' },
-          { kind: 'execute', status: 'pending' },
-          { kind: 'review', status: 'pending' },
-          { kind: 'journal', status: 'pending' },
-        ]}
-        currentStage="spec"
-        phase="design"
-        condensed={bool(state, 'condensed')}
-      />
+    renderPreview: () => (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Interactive — advance phases &amp; stages</p>
+          <p className="text-xs text-ink-faint">
+            Click <strong>Continue</strong> to run the next transition: it advances to the next <strong>phase</strong>{' '}
+            within the current stage, or to the next <strong>stage</strong> once the stage&rsquo;s phases are complete.{' '}
+            <strong>Reset</strong> returns to the start. (Demo only — it never mutates a real project.)
+          </p>
+          <StageFlowDemo />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Subset run — skipped stages</p>
+          <div className="overflow-x-auto rounded-md border border-line bg-surface-1 p-4">
+            <StageStepper
+              projectId="preview"
+              stages={[
+                { kind: 'exploration', status: 'done' },
+                { kind: 'spec', status: 'done' },
+                { kind: 'plan', status: 'active' },
+                { kind: 'execute', status: 'skipped' },
+                { kind: 'review', status: 'skipped' },
+                { kind: 'journal', status: 'pending' },
+              ]}
+              currentStage="plan"
+              phase="build"
+            />
+          </div>
+        </div>
+      </div>
     ),
   },
   sidebar: {
@@ -410,3 +425,21 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     ),
   },
 };
+
+/**
+ * Lightweight, ordered nav index for the left-rail "Components" section and per-slot
+ * routing — derived from GOVERNANCE_REGISTRY so it can never drift. Plain data (no
+ * preview closures), keyed by the same slot order the registry declares.
+ */
+export const GOVERNANCE_SLOT_NAV: ReadonlyArray<{
+  slotId: GovernanceSlotId;
+  label: string;
+  group: GovernanceSlotGroup;
+}> = (Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[]).map((slotId) => ({
+  slotId,
+  label: GOVERNANCE_REGISTRY[slotId].label,
+  group: GOVERNANCE_REGISTRY[slotId].group,
+}));
+
+/** Valid slot ids, for validating a dynamic `[slotId]` route param. */
+export const GOVERNANCE_SLOT_IDS: ReadonlySet<string> = new Set(Object.keys(GOVERNANCE_REGISTRY));

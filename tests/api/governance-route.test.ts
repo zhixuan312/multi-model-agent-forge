@@ -62,12 +62,12 @@ describe('GET/PUT /api/governance', () => {
 
   it('PUT persists a valid slot patch for an org_admin and returns 200', async () => {
     mockCaller = { id: 'a1', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
-    const governance = { slots: [{ slotId: 'stageFlow', locked: true, knobs: { condensed: true } }] };
+    const governance = { slots: [{ slotId: 'stageLayout', locked: true, knobs: { mode: 'fullWidth' } }] };
     updateComponentGovernance.mockResolvedValueOnce({ kind: 'saved' as const, governance });
-    const res = await PUT(req({ slots: { stageFlow: { locked: true, knobs: { condensed: true } } } }) as never);
+    const res = await PUT(req({ slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } }) as never);
     expect(res.status).toBe(200);
     expect(updateComponentGovernance).toHaveBeenCalledWith(
-      { slots: { stageFlow: { locked: true, knobs: { condensed: true } } } },
+      { slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } },
     );
     expect(await res.json()).toEqual(governance);
   });

@@ -12,16 +12,18 @@ describe('component-governance core', () => {
     const db = createMockDb();
     const view = await getComponentGovernanceView({ db });
     expect(view.slots).toHaveLength(11);
-    expect(view.slots.find((slot) => slot.slotId === 'stageFlow')).toMatchObject({
+    // stageFlow has no knobs (its page is a scenario gallery); a knob-bearing slot keeps its defaults.
+    expect(view.slots.find((slot) => slot.slotId === 'stageFlow')).toMatchObject({ locked: true, knobs: {} });
+    expect(view.slots.find((slot) => slot.slotId === 'badge')).toMatchObject({
       locked: true,
-      knobs: { condensed: false },
+      knobs: { variant: 'neutral', size: 'md', dot: false, icon: false },
     });
   });
 
   it('rejects unknown knob names', async () => {
     const db = createMockDb();
     const result = await updateComponentGovernance(
-      { slots: { stageFlow: { locked: true, knobs: { unknownKnob: true } } } },
+      { slots: { badge: { locked: true, knobs: { unknownKnob: true } } } },
       { db },
     );
     expect(result).toEqual({ kind: 'invalid', message: 'Invalid governance fields.' });
@@ -31,7 +33,7 @@ describe('component-governance core', () => {
   it('round-trips lock and knob values through the singleton row', async () => {
     const saved = createBaseComponentGovernance({
       slotStateJson: {
-        stageFlow: { locked: true, knobs: { condensed: true } },
+        stageLayout: { locked: true, knobs: { mode: 'fullWidth', showNote: true, showSidebar: true } },
       },
     });
     const db = createMockDb({
@@ -40,16 +42,16 @@ describe('component-governance core', () => {
     });
 
     const write = await updateComponentGovernance(
-      { slots: { stageFlow: { locked: true, knobs: { condensed: true } } } },
+      { slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } },
       { db },
     );
     expect(write.kind).toBe('saved');
 
-    const resolved = await resolveGovernedSlot('stageFlow', { db });
+    const resolved = await resolveGovernedSlot('stageLayout', { db });
     expect(resolved).toEqual({
-      slotId: 'stageFlow',
+      slotId: 'stageLayout',
       locked: true,
-      knobs: { condensed: true },
+      knobs: { mode: 'fullWidth', showNote: true, showSidebar: true },
     });
   });
 
@@ -74,7 +76,7 @@ describe('component-governance core', () => {
     const stored = createBaseComponentGovernance({ slotStateJson: {} });
     const db = createMockDb({ 'select:component_governance': [stored] });
 
-    await updateComponentGovernance({ slots: { stageFlow: { locked: true, knobs: { condensed: true } } } }, { db });
+    await updateComponentGovernance({ slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } }, { db });
 
     const forCall = db._calls.find((c) => c.method === 'for');
     expect(forCall?.args[0]).toBe('update');
@@ -82,7 +84,7 @@ describe('component-governance core', () => {
 
   it('recovers from a lost singleton-insert race by re-reading and updating', async () => {
     const created = createBaseComponentGovernance({
-      slotStateJson: { stageFlow: { locked: true, knobs: { condensed: true } } },
+      slotStateJson: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } },
     });
     const db = createMockDb({
       // 1st read (no row) → insert throws unique-violation → 2nd read (now present) → getView read
@@ -91,7 +93,7 @@ describe('component-governance core', () => {
     });
 
     const result = await updateComponentGovernance(
-      { slots: { stageFlow: { locked: true, knobs: { condensed: true } } } },
+      { slots: { stageLayout: { locked: true, knobs: { mode: 'fullWidth' } } } },
       { db },
     );
 
@@ -104,7 +106,7 @@ describe('component-governance core', () => {
       'select:component_governance': [
         createBaseComponentGovernance({
           slotStateJson: {
-            stageFlow: { locked: true, knobs: { condensed: true } },
+            badge: { locked: true, knobs: { variant: 'accent' } },
             staleSlot: { locked: true, knobs: { nope: true } } as never,
           },
         }),
@@ -112,12 +114,16 @@ describe('component-governance core', () => {
     });
 
     const view = await getComponentGovernanceView({ db });
-    expect(view.slots.find((slot) => slot.slotId === 'stageFlow')?.knobs).toEqual({ condensed: true });
+    // A valid persisted partial knob merges onto defaults…
     expect(view.slots.find((slot) => slot.slotId === 'badge')?.knobs).toEqual({
-      variant: 'neutral',
+      variant: 'accent',
       size: 'md',
       dot: false,
       icon: false,
     });
+    // …a stale slot id no longer in the registry is silently dropped (not present in the view)…
+    expect(view.slots.find((slot) => (slot.slotId as string) === 'staleSlot')).toBeUndefined();
+    // …and a knob-less slot resolves to empty knobs.
+    expect(view.slots.find((slot) => slot.slotId === 'stageFlow')?.knobs).toEqual({});
   });
 });

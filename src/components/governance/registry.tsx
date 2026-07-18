@@ -195,12 +195,18 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     canonicalFilePath: 'src/components/ui/shell.tsx',
     knobs: GOVERNANCE_KNOBS.appShell,
     defaultLocked: true,
-    consumers: [{ id: 'app-layout', label: 'App Layout', filePath: 'app/(app)/layout.tsx' }],
+    // Verified across every authed screen: all render their frame through these
+    // primitives, so the consumers below are the three sanctioned entry points.
+    consumers: [
+      { id: 'app-layout', label: 'App Layout — mounts AppShell (sidebar + header + top-right cluster)', filePath: 'app/(app)/layout.tsx' },
+      { id: 'page-frame', label: 'PageFrame — standard screen wrapper (settings · usage · loops · journal · projects list · profile · styleguide)', filePath: 'src/components/ui/shell.tsx' },
+      { id: 'project-layout', label: 'Project layout — direct ShellHeader/ShellSubNav/ShellBody composition (custom topbar + stage stepper)', filePath: 'app/(app)/projects/[id]/layout.tsx' },
+    ],
     deviations: [],
     // AppShell (sidebar + header bar + body). The preview shows the shell anatomy plus
     // every header layout scenario, so the header's arrangement is what's standardized.
     renderPreview: () => <AppShellPreview />,
-    variants: APP_SHELL_VARIANTS.map((v) => ({ id: v.id, label: v.label, renderPreview: () => <AppShellVariant id={v.id} /> })),
+    variants: APP_SHELL_VARIANTS.map((v) => ({ id: v.id, label: v.label, consumers: v.consumers ?? [], renderPreview: () => <AppShellVariant id={v.id} /> })),
   },
   contentShell: {
     slotId: 'contentShell',
@@ -213,7 +219,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     consumers: [
       { id: 'loops-page', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
       { id: 'journal-page', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
-      { id: 'stage-pages', label: 'Stage pages', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'stage-pages', label: 'Project stages', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
     deviations: [],
     // The standardized shell: metrics bars on top, then 2/3 work surface + 1/3 rail. Two
@@ -222,6 +228,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     variants: CONTENT_SHELL_VARIANTS.map((v) => ({
       id: v.id,
       label: v.label,
+      consumers: v.consumers ?? [],
       affordances: v.affordances,
       renderPreview: (enabled?: ReadonlySet<string>) => <ContentAreaVariant id={v.id} enabled={enabled} />,
     })),
@@ -259,7 +266,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     knobs: GOVERNANCE_KNOBS.rightPanel,
     defaultLocked: true,
     consumers: [
-      { id: 'stage-rail', label: 'Stage rail (spec/plan/journal/review)', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'stage-rail', label: 'Project stage rails', filePath: 'src/components/forge/SpecStageClient.tsx' },
       { id: 'journal-rail', label: 'Journal rail', filePath: 'src/components/forge/journal/RecallTab.tsx' },
       { id: 'settings-rail', label: 'Settings / profile rail', filePath: 'app/(app)/profile/ProfileForm.tsx' },
     ],
@@ -402,8 +409,8 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     defaultLocked: true,
     consumers: [
       { id: 'projects-page', label: 'Projects page', filePath: 'app/(app)/projects/page.tsx' },
-      { id: 'loops-table', label: 'Loops (empty)', filePath: 'app/(app)/loops/LoopsClient.tsx' },
-      { id: 'members-table', label: 'Team settings › Members (empty)', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
+      { id: 'loops-table', label: 'Loops', filePath: 'app/(app)/loops/LoopsClient.tsx' },
+      { id: 'members-table', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
     ],
     deviations: [{ id: 'forge-empty-state', label: 'Forge PageHeader helper', filePath: 'src/components/forge/PageHeader.tsx', line: null }],
     renderPreview: (state) => (
@@ -424,9 +431,9 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     knobs: GOVERNANCE_KNOBS.metricCard,
     defaultLocked: true,
     consumers: [
-      { id: 'team-tab-metrics', label: 'Team settings › Team (metric row)', filePath: 'app/(app)/settings/team/page.tsx' },
+      { id: 'team-tab-metrics', label: 'Team settings › Team › Metric row', filePath: 'app/(app)/settings/team/page.tsx' },
       { id: 'usage-dashboard', label: 'Usage dashboard', filePath: 'app/(app)/usage/OrgUsageDashboard.tsx' },
-      { id: 'journal-metrics', label: 'Journal (metric row)', filePath: 'app/(app)/journal/page.tsx' },
+      { id: 'journal-metrics', label: 'Journal › Metric row', filePath: 'app/(app)/journal/page.tsx' },
     ],
     deviations: [
       { id: 'summary-phase-cards', label: 'SummaryPhase cards', filePath: 'src/components/forge/SummaryPhase.tsx', line: null },
@@ -453,8 +460,8 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     knobs: GOVERNANCE_KNOBS.banner,
     defaultLocked: true,
     consumers: [
-      { id: 'login', label: 'Login (auth)', filePath: 'app/(auth)/login/LoginForm.tsx' },
-      { id: 'setup', label: 'Setup (auth)', filePath: 'app/(auth)/setup/SetupForm.tsx' },
+      { id: 'login', label: 'Auth › Login', filePath: 'app/(auth)/login/LoginForm.tsx' },
+      { id: 'setup', label: 'Auth › Setup', filePath: 'app/(auth)/setup/SetupForm.tsx' },
       { id: 'spec-plan-banner', label: 'Project › Spec / Plan › Banners', filePath: 'src/components/forge/SpecStageClient.tsx' },
       { id: 'build-monitor', label: 'Build monitor', filePath: 'src/components/forge/BuildMonitor.tsx' },
     ],
@@ -472,7 +479,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     consumers: [
       { id: 'members-table', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
       { id: 'participants', label: 'Project › Approvers strip', filePath: 'src/components/forge/collab/Participants.tsx' },
-      { id: 'project-card-avatars', label: 'Projects page (project cards)', filePath: 'src/components/forge/ProjectCard.tsx' },
+      { id: 'project-card-avatars', label: 'Projects › Project cards', filePath: 'src/components/forge/ProjectCard.tsx' },
     ],
     deviations: [],
     renderPreview: () => (

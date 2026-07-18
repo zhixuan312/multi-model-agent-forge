@@ -5,7 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Activity, Check, ChevronRight, MoreHorizontal, Search, Square, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
-  AvatarGroup,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -29,7 +29,7 @@ import { ConversationPane, FindingsGrid, MessageList, ProseBlock, type Conversat
 import { LEFT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
 const DOC_TABS: ReadonlyArray<{ id: string; label: string }> = [
-  { id: 'spec', label: 'Spec' },
+  { id: 'document', label: 'Document' },
   { id: 'audit', label: 'Audit' },
   { id: 'discussion', label: 'Discussion' },
 ];
@@ -192,11 +192,11 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
   // row, with a body that SWAPS by the view toggle. Affordances: Spec⇄Audit⇄Discussion
   // toggle (Tabs), approvers row (AvatarGroup + Invite), approve action (Button footer).
   // Spec view → ProseBlock (+ Approve); Audit view → FindingsGrid; Discussion view → chat.
-  // The document SHELL — title + version + tab bar + approvers are always present. The
-  // active tab (Spec / Audit / Discussion) selects the body; each tab's own affordances
-  // (Approve · Apply bar · Composer / meta) apply only within that tab.
+  // The document SHELL — title + version + tab bar are always present. The active tab
+  // (Document / Audit / Discussion) selects the body; each tab's own affordances apply
+  // only within that tab (Document: approvers + approve/revoke action).
   document: (on, activeTab) => {
-    const tab = activeTab ?? 'spec';
+    const tab = activeTab ?? 'document';
     const header = (
       <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
         <div className="flex items-center gap-2">
@@ -219,15 +219,31 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
         </div>
       </div>
     );
-    const approvers = (
+    const approvers = on.has('approvers') ? (
       <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Approvers</span>
-          <AvatarGroup members={[{ name: 'Xu Zheng' }, { name: 'Oscar A' }, { name: 'Ben N' }]} />
+          {/* a mix of approved (sage check overlay) and pending (dimmed) approvers */}
+          <div className="flex items-center gap-1.5">
+            {[
+              { name: 'Xu Zheng', approved: true },
+              { name: 'Oscar A', approved: true },
+              { name: 'Ben N', approved: false },
+            ].map((m) => (
+              <div key={m.name} className={cn('relative', !m.approved && 'opacity-50')}>
+                <Avatar name={m.name} size="sm" />
+                {m.approved ? (
+                  <span className="absolute -bottom-0.5 -right-0.5 grid size-3 place-items-center rounded-full bg-[var(--sage)] ring-2 ring-surface">
+                    <Check className="size-2 text-white" strokeWidth={3.5} />
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
         <Button size="sm" variant="ghost" leftIcon={<UserPlus />}>Invite</Button>
       </div>
-    );
+    ) : null;
 
     let body: ReactNode;
     if (tab === 'audit') {
@@ -256,8 +272,9 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
       body = (
         <>
           <div className="px-5 py-5"><ProseBlock>{DOC_MARKDOWN}</ProseBlock></div>
-          {on.has('approve') ? (
-            <div className="flex justify-end border-t border-line px-5 py-3">
+          {on.has('action') ? (
+            <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+              <Button size="sm" variant="ghost">Revoke</Button>
               <Button size="sm" leftIcon={<Check />}>Approve</Button>
             </div>
           ) : null}

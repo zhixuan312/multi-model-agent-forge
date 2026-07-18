@@ -50,8 +50,22 @@ export function defaultEnabledAffordances(v: Pick<VariantMeta, 'affordances'>): 
 }
 
 export const APP_SHELL_VARIANTS: readonly VariantMeta[] = [
-  { id: 'anatomy', label: 'Anatomy' },
-  { id: 'header', label: 'Header' },
+  {
+    id: 'anatomy',
+    label: 'Anatomy',
+    consumers: [
+      { id: 'app-layout', label: 'App layout (all authed routes)', filePath: 'app/(app)/layout.tsx' },
+      { id: 'project-layout', label: 'Project layout', filePath: 'app/(app)/projects/[id]/layout.tsx' },
+    ],
+  },
+  {
+    id: 'header',
+    label: 'Header',
+    consumers: [
+      { id: 'page-frame', label: 'PageFrame (standard pages)', filePath: 'src/components/ui/shell.tsx' },
+      { id: 'project-topbar', label: 'Project layout (custom topbar)', filePath: 'app/(app)/projects/[id]/layout.tsx' },
+    ],
+  },
 ];
 
 // The Content Shell's 2 sub-pages: (1) the full dashboard shell, (2) the metric-box
@@ -64,8 +78,21 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
       { id: 'metrics', label: 'Metrics row', canonicalComponent: 'MetricRow', canonicalFilePath: 'src/components/ui/metric-card.tsx', defaultOn: true },
       { id: 'rail', label: 'Right panel', canonicalComponent: 'feature-rail (RailNote / RailCard)', canonicalFilePath: 'src/components/patterns/feature-rail.tsx', defaultOn: true },
     ],
+    consumers: [
+      { id: 'loops-workspace', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
+      { id: 'journal', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
+      { id: 'stages', label: 'Project stages', filePath: 'src/components/forge/SpecStageClient.tsx' },
+    ],
   },
-  { id: 'metricCounts', label: 'Metric counts' },
+  {
+    id: 'metricCounts',
+    label: 'Metric counts',
+    consumers: [
+      { id: 'team-metrics', label: 'Team settings › Team', filePath: 'app/(app)/settings/team/page.tsx' },
+      { id: 'usage-metrics', label: 'Usage dashboard', filePath: 'app/(app)/usage/OrgUsageDashboard.tsx' },
+      { id: 'journal-metrics', label: 'Journal', filePath: 'app/(app)/journal/page.tsx' },
+    ],
+  },
 ];
 
 // The Right-panel (rail) layer's kinds — feature-rail.tsx.
@@ -163,10 +190,11 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     // tab carries only the affordances that apply to it.
     tabs: [
       {
-        id: 'spec',
-        label: 'Spec',
+        id: 'document',
+        label: 'Document',
         affordances: [
-          { id: 'approve', label: 'Approve action', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+          { id: 'approvers', label: 'Approvers row', canonicalComponent: 'ParticipantStrip', canonicalFilePath: 'src/components/forge/collab/Participants.tsx', defaultOn: true },
+          { id: 'action', label: 'Action (approve / revoke)', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
         ],
       },
       {
@@ -186,10 +214,10 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       },
     ],
     consumers: [
-      { id: 'plan', label: 'Project › Plan', filePath: 'src/components/forge/PlanStageClient.tsx' },
-      { id: 'journal-stage', label: 'Project › Journal', filePath: 'src/components/forge/JournalStageClient.tsx' },
-      { id: 'run-detail', label: 'Loops › Activities (run detail)', filePath: 'app/(app)/loops/RunDetail.tsx' },
-      { id: 'spec-finalize', label: 'Project › Spec', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'plan', label: 'Project › Plan › Refine', filePath: 'src/components/forge/PlanStageClient.tsx' },
+      { id: 'journal-stage', label: 'Project › Journal › Reflect', filePath: 'src/components/forge/JournalStageClient.tsx' },
+      { id: 'run-detail', label: 'Loops › Activities › Run detail', filePath: 'app/(app)/loops/RunDetail.tsx' },
+      { id: 'spec-finalize', label: 'Project › Spec › Finalize', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
   },
   {
@@ -217,7 +245,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     ],
     consumers: [
       { id: 'spec-outline', label: 'Project › Spec › Outline', filePath: 'src/components/forge/SpecStageClient.tsx' },
-      { id: 'new-project-preset', label: 'New project (preset picker)', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
+      { id: 'new-project-preset', label: 'New project › Preset picker', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
     ],
   },
   {
@@ -231,7 +259,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     ],
     consumers: [
       { id: 'execute-repo', label: 'Project › Execute › Repo cards', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
-      { id: 'project-card', label: 'Projects page (project cards)', filePath: 'src/components/forge/ProjectCard.tsx' },
+      { id: 'project-card', label: 'Projects › Project cards', filePath: 'src/components/forge/ProjectCard.tsx' },
       { id: 'audit-round', label: 'Project › Review › Audit rounds', filePath: 'src/components/patterns/findings.tsx' },
     ],
   },

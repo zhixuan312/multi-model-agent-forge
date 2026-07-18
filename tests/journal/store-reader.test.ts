@@ -114,6 +114,45 @@ describe('journal parse helpers', () => {
     expect(r.node.links[0]!.type).toBe('wobbles');
   });
 
+  it('keeps every paragraph of a multi-paragraph section, up to the next ## heading', () => {
+    const raw = [
+      '---',
+      'id: "0007"',
+      'title: "Multi-paragraph body"',
+      'status: "adopted"',
+      'tags:',
+      '  - prose',
+      'timestamp: "2026-05-28"',
+      'links: []',
+      'supersededBy: null',
+      '---',
+      '',
+      '## Context',
+      'First context paragraph.',
+      '',
+      'Second context paragraph.',
+      '',
+      'Third context paragraph.',
+      '',
+      '## Consequences',
+      'First consequence paragraph.',
+      '',
+      'Second consequence paragraph.',
+      '',
+    ].join('\n');
+    const r = parseFrontmatter(raw, '0007-foo.md');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const n = r.node;
+    expect(n.context).toBe(
+      'First context paragraph.\n\nSecond context paragraph.\n\nThird context paragraph.'
+    );
+    expect(n.context).not.toContain('## Consequences');
+    expect(n.consequences).toBe(
+      'First consequence paragraph.\n\nSecond consequence paragraph.'
+    );
+  });
+
   it('returns a parse-error marker for an unparseable node (no frontmatter)', () => {
     const r = parseFrontmatter('just some text, no frontmatter', '0006-broken.md');
     expect(r.ok).toBe(false);

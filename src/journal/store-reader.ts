@@ -234,7 +234,7 @@ function parseFrontmatterBlock(text: string): FrontmatterBlock {
 
 /** Extract the prose under a `## <name>` heading up to the next `## ` heading. */
 function extractSection(body: string, name: string): string {
-  const re = new RegExp(`^##\\s+${name}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, 'im');
+  const re = new RegExp(`(?:^|\\n)##\\s+${name}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, 'i');
   const m = body.match(re);
   return m ? m[1]!.trim() : '';
 }

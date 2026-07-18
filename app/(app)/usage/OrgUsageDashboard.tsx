@@ -1,5 +1,5 @@
 import { DollarSign, TrendingUp, Cpu, Users, AlertTriangle, UserRound } from 'lucide-react';
-import { MetricRow, MetricCard } from '@/components/ui/metric-card';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import {
   Card,
   CardContent,
@@ -29,62 +29,23 @@ const pct = (r: number): string => `${(r * 100).toFixed(r > 0 && r < 0.1 ? 1 : 0
 export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
   const h = data.headline;
   return (
-    <div className="flex flex-col gap-4">
-      <MetricRow>
-        <MetricCard
-          label="Spent"
-          value={formatCost(h.totalCostUsd)}
-          sublabel={`${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`}
-          icon={<DollarSign />}
-          iconTint="accent"
-          muted={h.dispatchCount === 0}
-        />
-        <MetricCard
-          label="Saved"
-          value={formatCost(h.totalSavedUsd || null)}
-          sublabel={formatRoi(h.totalSavedUsd, h.totalCostUsd)}
-          icon={<TrendingUp />}
-          iconTint="sage"
-          muted={!h.totalSavedUsd}
-        />
-        <MetricCard
-          label="Tokens"
-          value={formatTokens(h.totalTokens)}
-          sublabel="input · output · cache"
-          icon={<Cpu />}
-          iconTint="steel"
-          muted={h.totalTokens === 0}
-        />
-        <MetricCard
-          label="Active teams"
-          value={h.activeTeams}
-          sublabel="billing this period"
-          icon={<Users />}
-          iconTint="accent"
-          muted={h.activeTeams === 0}
-        />
-        <MetricCard
-          label="Failure rate"
-          value={pct(h.failureRate)}
-          sublabel="of dispatches"
-          icon={<AlertTriangle />}
-          iconTint="rose"
-          muted={h.failureRate === 0}
-        />
-        <MetricCard
-          label="Cost / member"
-          value={formatCost(h.costPerMemberUsd || null)}
-          sublabel="across all teams"
-          icon={<UserRound />}
-          iconTint="steel"
-          muted={!h.costPerMemberUsd}
-        />
-      </MetricRow>
-
-      <OrgTrendCard trend={data.trend.orgTotal} />
-      <OrgTeamTable rows={data.costByTeam} />
-      <OrgInfraTable rows={data.infraBreakdown} />
-    </div>
+    <StatusDashboard
+      metrics={[
+        { label: 'Spent', value: formatCost(h.totalCostUsd), sublabel: `${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`, icon: <DollarSign />, iconTint: 'accent', muted: h.dispatchCount === 0 },
+        { label: 'Saved', value: formatCost(h.totalSavedUsd || null), sublabel: formatRoi(h.totalSavedUsd, h.totalCostUsd), icon: <TrendingUp />, iconTint: 'sage', muted: !h.totalSavedUsd },
+        { label: 'Tokens', value: formatTokens(h.totalTokens), sublabel: 'input · output · cache', icon: <Cpu />, iconTint: 'steel', muted: h.totalTokens === 0 },
+        { label: 'Active teams', value: h.activeTeams, sublabel: 'billing this period', icon: <Users />, iconTint: 'accent', muted: h.activeTeams === 0 },
+        { label: 'Failure rate', value: pct(h.failureRate), sublabel: 'of dispatches', icon: <AlertTriangle />, iconTint: 'rose', muted: h.failureRate === 0 },
+        { label: 'Cost / member', value: formatCost(h.costPerMemberUsd || null), sublabel: 'across all teams', icon: <UserRound />, iconTint: 'steel', muted: !h.costPerMemberUsd },
+      ]}
+      primary={
+        <div className="flex flex-col gap-4">
+          <OrgTrendCard trend={data.trend.orgTotal} />
+          <OrgTeamTable rows={data.costByTeam} />
+          <OrgInfraTable rows={data.infraBreakdown} />
+        </div>
+      }
+    />
   );
 }
 

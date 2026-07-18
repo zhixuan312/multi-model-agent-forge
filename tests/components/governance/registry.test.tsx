@@ -42,18 +42,11 @@ describe('component governance registry', () => {
     }
   });
 
-  it('ships the baseline allowlist artifact seeded from every known deviation', async () => {
+  it('has an empty governed-structure allowlist — every consumer is converged onto StatusDashboard', async () => {
     const list = await import('../../../eslint-rules/governed-components/allowlist.json');
-    expect([...list.default].sort()).toEqual([
-      'app/(app)/projects/new/page.tsx',
-      'src/components/forge/AutomationOverlay.tsx',
-      'src/components/forge/ExecuteStageClient.tsx',
-      'src/components/forge/JournalStageClient.tsx',
-      'src/components/forge/PlanStageClient.tsx',
-      'src/components/forge/ReviewStageClient.tsx',
-      'src/components/forge/SpecStageClient.tsx',
-      'src/components/forge/SummaryPhase.tsx',
-      'src/components/patterns/status-dashboard.tsx',
-    ]);
+    // The Content Shell rollout converged every hand-rolled stage-layout split onto
+    // the canonical StatusDashboard, so there are no remaining exemptions. The
+    // no-ungoverned-structure rule now guards against ANY new raw duplication.
+    expect([...list.default]).toEqual([]);
   });
 });

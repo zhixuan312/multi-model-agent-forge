@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { readMmaTiers } from '@/mma/mma-config-reader';
 import { readModelProfiles } from '@/mma/model-profiles';
-import { PageFrame, MetricCard } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';

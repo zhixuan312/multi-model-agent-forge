@@ -66,8 +66,8 @@ describe('/settings/components developer-mode pages', () => {
 
   it('slot page renders the single-component editor for a valid slot', async () => {
     mockMember = admin;
-    const ui = await slotPage.default({ params: Promise.resolve({ slotId: 'stageFlow' }) });
+    const ui = await slotPage.default({ params: Promise.resolve({ slotId: 'background' }) });
     render(ui);
-    expect(screen.getByText('Editor:stageFlow')).toBeInTheDocument();
+    expect(screen.getByText('Editor:background')).toBeInTheDocument();
   });
 });

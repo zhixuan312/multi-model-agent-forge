@@ -6,7 +6,7 @@ import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
-import { PageFrame, MetricCard, MetricRow } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';

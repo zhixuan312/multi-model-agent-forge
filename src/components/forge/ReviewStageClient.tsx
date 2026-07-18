@@ -18,6 +18,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 
 const REVIEW_NOTE = `### Review — check the code changes
@@ -140,9 +141,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
       />
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — findings content */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      <Card className="flex min-h-0 flex-1 flex-col">
         {!activePass ? (
           <>
             <CardHeader>
@@ -219,9 +220,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           </>
         )}
       </Card>
-
-      {/* RIGHT — guidance + review rounds */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<ScanSearch />}>{REVIEW_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -298,8 +299,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             />
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
     </div>
   );
 }

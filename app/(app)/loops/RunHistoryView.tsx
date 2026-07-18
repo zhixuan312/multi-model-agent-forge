@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { History } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Badge, Mono, Micro, EmptyState } from '@/components/ui';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import type { LoopRunRow } from '@/db/schema/loop';
 import { ActivityFilters } from './ActivityFilters';
 import { RunDetail } from './RunDetail';
@@ -47,9 +48,8 @@ export function RunHistoryView({
   }
 
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-3 lg:items-stretch">
-      {/* Canvas — selected run detail */}
-      <div className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="min-h-0 flex-1 overflow-y-auto p-5">
             {selected ? (
@@ -59,10 +59,9 @@ export function RunHistoryView({
             )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* Rail — note + filters + run list */}
-      <div className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         {note}
         <ActivityFilters loops={loops} loopId={loopId} status={status} />
         <Card className="flex min-h-0 flex-1 flex-col">
@@ -99,7 +98,8 @@ export function RunHistoryView({
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

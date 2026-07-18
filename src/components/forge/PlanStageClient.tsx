@@ -40,6 +40,7 @@ import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanAuditFinding } from '@/build/plan-types';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
 
@@ -537,8 +538,9 @@ function DetailStage({
 
   if (authoring && allTasks.length === 0) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <Card className="flex min-h-0 flex-col lg:col-span-2">
+      <StatusDashboard
+        primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Plan tasks</CardTitle>
           </CardHeader>
@@ -550,7 +552,9 @@ function DetailStage({
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col gap-4">
+        }
+        aside={
+          <>
           <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
@@ -562,15 +566,17 @@ function DetailStage({
               <p className="text-xs text-ink-faint">Tasks appear here once the plan is drafted.</p>
             </CardContent>
           </Card>
-        </aside>
-      </div>
+          </>
+        }
+      />
     );
   }
 
   if (!active) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <Card className="flex min-h-0 flex-col lg:col-span-2">
+      <StatusDashboard
+        primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader><CardTitle>Plan tasks</CardTitle></CardHeader>
           <CardContent className="flex min-h-0 flex-1 items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-center">
@@ -592,10 +598,9 @@ function DetailStage({
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col">
-          <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
-        </aside>
-      </div>
+        }
+        aside={<RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>}
+      />
     );
   }
   const approved = status[active?.id ?? ''] === 'approved';
@@ -654,9 +659,10 @@ function DetailStage({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE -- plan view / discussion toggle (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      /* CENTRE -- plan view / discussion toggle (2/3) */
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="neutral" size="sm">
@@ -754,9 +760,9 @@ function DetailStage({
           />
         )}
       </Card>
-
-      {/* RIGHT -- guidance + every task grouped by phase + move-on (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -838,8 +844,9 @@ function DetailStage({
             </Button>
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -901,8 +908,9 @@ function ValidateStage({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle>{projectName} — plan</CardTitle>
@@ -966,9 +974,9 @@ function ValidateStage({
           </div>
         ) : null}
       </Card>
-
-      {/* RIGHT -- guidance + audit rounds + Lock the plan (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.validate}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -1032,8 +1040,9 @@ function ValidateStage({
             />
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 

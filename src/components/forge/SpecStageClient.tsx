@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RoleChip } from '@/components/forge/RoleChip';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { useRouter } from 'next/navigation';
@@ -530,9 +531,10 @@ function OutlineStage({
     : templates;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — the component-card picker (the spec skeleton) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      /* CENTRE — the component-card picker (the spec skeleton) */
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle>Spec outline</CardTitle>
@@ -626,8 +628,9 @@ function OutlineStage({
         </CardContent>
       </Card>
 
-      {/* RIGHT — guidance note (pinned) + the template picker & confirm */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <SpecNote phase="outline" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -686,8 +689,9 @@ function OutlineStage({
             />
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -1203,9 +1207,10 @@ function CraftStage({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — the conversation that crafts the active component (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      /* LEFT — the conversation that crafts the active component (2/3) */
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
@@ -1307,8 +1312,9 @@ function CraftStage({
         )}
       </Card>
 
-      {/* RIGHT — guidance + components + progress (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <SpecNote phase="craft" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -1357,8 +1363,9 @@ function CraftStage({
             </Button>
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -1576,9 +1583,10 @@ function DocumentScreen({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* CENTRE — the whole-spec finalization conversation (2/3) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      /* CENTRE — the whole-spec finalization conversation (2/3) */
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle>{projectName} — specification</CardTitle>
@@ -1721,8 +1729,9 @@ function DocumentScreen({
         ) : null}
       </Card>
 
-      {/* RIGHT — guidance + audit rounds + freeze handoff (1/3) */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <SpecNote phase="finalize" />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -1789,8 +1798,9 @@ function DocumentScreen({
             />
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 

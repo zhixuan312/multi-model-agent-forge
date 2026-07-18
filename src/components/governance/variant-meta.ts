@@ -99,6 +99,39 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
   },
 ];
 
+// The Stage-flow (project-only) control surfaces: the whole flow, the stepper's visual
+// states, the advance-button states, and the automation bar.
+export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
+  {
+    id: 'flow',
+    label: 'Flow',
+    canonicalComponent: 'StageStepper + StageAdvance',
+    canonicalFilePath: 'src/components/forge/StageStepper.tsx',
+    consumers: [{ id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' }],
+  },
+  {
+    id: 'stepper',
+    label: 'Stepper',
+    canonicalComponent: 'StageStepper',
+    canonicalFilePath: 'src/components/forge/StageStepper.tsx',
+    consumers: [{ id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' }],
+  },
+  {
+    id: 'advance',
+    label: 'Advance button',
+    canonicalComponent: 'StageAdvance (stage) · Button primary (phase)',
+    canonicalFilePath: 'src/components/forge/StageAdvance.tsx',
+    consumers: [{ id: 'stage-phase-advances', label: 'Project stage / phase advances', filePath: 'src/components/forge/StageAdvance.tsx' }],
+  },
+  {
+    id: 'automation',
+    label: 'Automation bar',
+    canonicalComponent: 'AutomationBar',
+    canonicalFilePath: 'src/components/forge/AutomationBar.tsx',
+    consumers: [{ id: 'automation-bar', label: 'Project stage automation', filePath: 'src/components/forge/AutomationBar.tsx' }],
+  },
+];
+
 // The Right-panel (rail) layer's kinds — feature-rail.tsx.
 export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {

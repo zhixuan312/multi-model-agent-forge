@@ -31,6 +31,7 @@ import {
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 
 const AUTOMATION_NOTE = `### What is this?
@@ -330,10 +331,9 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
       </div>
 
       {/* Content — 2/3 pipeline + 1/3 details */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-
-        {/* LEFT 2/3 — What Forge has done */}
-        <Card className="flex min-h-0 flex-col lg:col-span-2">
+      <StatusDashboard
+        primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Activity</CardTitle>
             {logs.length > 0 && <Badge variant="neutral" size="sm">{logs.length}</Badge>}
@@ -384,9 +384,9 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             )}
           </CardContent>
         </Card>
-
-        {/* RIGHT 1/3 — Rail: note + stats */}
-        <aside className="flex min-h-0 flex-col gap-4">
+        }
+        aside={
+          <>
           <RailNote icon={<Bot />}>{AUTOMATION_NOTE}</RailNote>
 
           <Card className="flex-1">
@@ -414,8 +414,9 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
               )}
             </CardContent>
           </Card>
-        </aside>
-      </div>
+          </>
+        }
+      />
     </div>
   );
 }

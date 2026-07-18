@@ -30,6 +30,7 @@ import {
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
 
@@ -297,8 +298,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
   // Authoring / empty states (like Plan Refine)
   if (harvesting && props.learnings.length === 0) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <Card className="flex min-h-0 flex-col lg:col-span-2">
+      <StatusDashboard
+        primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
           <CardContent className="flex min-h-0 flex-1 items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-center">
@@ -308,7 +310,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col gap-4">
+        }
+        aside={
+          <>
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
@@ -333,15 +337,17 @@ export function JournalStageClient(props: JournalStageClientProps) {
               </button>
             </CardFooter>
           </Card>
-        </aside>
-      </div>
+          </>
+        }
+      />
     );
   }
 
   if (!active) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <Card className="flex min-h-0 flex-col lg:col-span-2">
+      <StatusDashboard
+        primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
           <CardContent className="flex min-h-0 flex-1 items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-center">
@@ -360,10 +366,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        <aside className="flex min-h-0 flex-col">
-          <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
-        </aside>
-      </div>
+        }
+        aside={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
+      />
     );
   }
 
@@ -396,9 +401,10 @@ export function JournalStageClient(props: JournalStageClientProps) {
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
       />
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — learning content / discussion (like Plan Refine) */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      /* LEFT — learning content / discussion (like Plan Refine) */
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="neutral" size="sm">Learning {active.num}</Badge>
@@ -467,9 +473,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
           />
         )}
       </Card>
-
-      {/* RIGHT — learning list grouped by category (like Plan Refine task list) */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -576,8 +582,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </button>
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
     </div>
   );
 }

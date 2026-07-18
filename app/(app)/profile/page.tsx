@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { ShieldCheck, CalendarClock, Monitor } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { getProfileMeta } from '@/auth/profile-core';
-import { PageFrame, MetricCard, MetricRow } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
 import { formatDate, formatRelative } from '@/lib/format-relative';
 import { ProfileForm } from './ProfileForm';
 
@@ -23,16 +23,14 @@ export default async function ProfilePage() {
 
   return (
     <PageFrame title="Profile" width="full">
-      <div className="flex flex-col gap-4">
-        {/* STATUS — profile facts */}
-        <MetricRow>
-          <MetricCard label="Role" value={roleLabel} sublabel={roleSublabel} icon={<ShieldCheck />} iconTint="accent" />
-          <MetricCard label="Member since" value={meta.createdAt ? formatDate(meta.createdAt) : '—'} muted={!meta.createdAt} sublabel={meta.createdAt ? formatRelative(meta.createdAt) : 'Joined the team'} icon={<CalendarClock />} iconTint="sage" />
-          <MetricCard label="Active sessions" value={meta.activeSessions} muted={meta.activeSessions === 0} sublabel="Across your devices" icon={<Monitor />} iconTint="steel" />
-        </MetricRow>
-
-        <ProfileForm member={member} />
-      </div>
+      <ProfileForm
+        member={member}
+        metrics={[
+          { label: 'Role', value: roleLabel, sublabel: roleSublabel, icon: <ShieldCheck />, iconTint: 'accent' },
+          { label: 'Member since', value: meta.createdAt ? formatDate(meta.createdAt) : '—', muted: !meta.createdAt, sublabel: meta.createdAt ? formatRelative(meta.createdAt) : 'Joined the team', icon: <CalendarClock />, iconTint: 'sage' },
+          { label: 'Active sessions', value: meta.activeSessions, muted: meta.activeSessions === 0, sublabel: 'Across your devices', icon: <Monitor />, iconTint: 'steel' },
+        ]}
+      />
     </PageFrame>
   );
 }

@@ -37,6 +37,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 
 const CONFIGURE_NOTE = `### Configure — set up for execution
 
@@ -269,9 +270,9 @@ function ConfigurePhase({
   const totalTasks = repoGroups.reduce((n, g) => n + g.tasks.length, 0);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — scrollable task list card */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             <GitBranch className="size-4 shrink-0 text-accent" />
@@ -285,8 +286,9 @@ function ConfigurePhase({
         </CardContent>
       </Card>
 
-      {/* RIGHT — note + card filling rest of column */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<Rocket />}>{CONFIGURE_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -314,8 +316,9 @@ function ConfigurePhase({
             </Button>
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -392,9 +395,9 @@ function MonitorPhase({
   const anyRunning = repoGroups.some((g) => { const s = jobs[g.repoId]?.status; return s === 'implementing' || s === 'reviewing'; });
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — repo job cards inside a Card with scrollable content */}
-      <Card className="flex min-h-0 flex-col lg:col-span-2">
+    <StatusDashboard
+      primary={
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
             {allTerminal
@@ -415,9 +418,9 @@ function MonitorPhase({
           ))}
         </CardContent>
       </Card>
-
-      {/* RIGHT — note + summary card filling column */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         {anyRunning && (
           <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
             <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
@@ -486,8 +489,9 @@ function MonitorPhase({
 
           </CardFooter>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }
 

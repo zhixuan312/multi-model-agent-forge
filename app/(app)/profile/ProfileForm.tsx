@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import type { MetricCardProps } from '@/components/ui/metric-card';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -46,7 +47,7 @@ const PROFILE_NOTE = `### Your account
  * equal-rights note and a **Sign out** card. Account/password submit to route
  * handlers; sign-out POSTs to logout.
  */
-export function ProfileForm({ member }: { member: AuthedMember }) {
+export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics?: MetricCardProps[] }) {
   const router = useRouter();
 
   // ---- account ----
@@ -138,6 +139,7 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
 
   return (
     <StatusDashboard
+      metrics={metrics}
       align="start"
       primary={
       <div className="flex flex-col gap-4">

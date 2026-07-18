@@ -5,9 +5,8 @@ import { AppShellPreview, AppShellVariant } from '@/components/governance/AppShe
 import { ContentAreaPreview, ContentAreaVariant } from '@/components/governance/ContentAreaPreview';
 import { LeftPanelPreview, LeftPanelVariant } from '@/components/governance/LeftPanelPreview';
 import { RightPanelPreview, RightPanelVariant } from '@/components/governance/RightPanelPreview';
-import { APP_SHELL_VARIANTS, CONTENT_SHELL_VARIANTS, LEFT_PANEL_VARIANTS, RIGHT_PANEL_VARIANTS, type VariantAffordance, type VariantTab } from '@/components/governance/variant-meta';
-import { StageStepper } from '@/components/forge/StageStepper';
-import { StageFlowDemo } from '@/components/governance/StageFlowDemo';
+import { APP_SHELL_VARIANTS, CONTENT_SHELL_VARIANTS, LEFT_PANEL_VARIANTS, RIGHT_PANEL_VARIANTS, STAGE_FLOW_VARIANTS, type VariantAffordance, type VariantTab } from '@/components/governance/variant-meta';
+import { StageFlowPreview, StageFlowVariant } from '@/components/governance/StageFlowPreview';
 
 // The governance model is a LAYER STACK. `structural` layers stack bottom→top to form a
 // page; `project` is the project-only SDLC machinery; `primitive` are the shared atoms.
@@ -212,7 +211,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     slotId: 'contentShell',
     label: 'Content Shell',
     group: 'structural',
-    canonicalComponent: 'StatusDashboard / RailLayout (2/3 + 1/3)',
+    canonicalComponent: 'StatusDashboard (metrics row + 2/3 + 1/3 rail)',
     canonicalFilePath: 'src/components/patterns/status-dashboard.tsx',
     knobs: GOVERNANCE_KNOBS.contentShell,
     defaultLocked: true,
@@ -295,38 +294,17 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'automation-bar', label: 'AutomationBar (gate automation)', filePath: 'src/components/forge/AutomationBar.tsx' },
     ],
     deviations: [],
-    renderPreview: () => (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Interactive — advance phases &amp; stages</p>
-          <p className="text-xs text-ink-faint">
-            Click <strong>Continue</strong> to run the next transition: it advances to the next <strong>phase</strong>{' '}
-            within the current stage, or to the next <strong>stage</strong> once the stage&rsquo;s phases are complete.{' '}
-            <strong>Reset</strong> returns to the start. (Demo only — it never mutates a real project.)
-          </p>
-          <StageFlowDemo />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Subset run — skipped stages</p>
-          <div className="overflow-x-auto rounded-md border border-line bg-surface-1 p-4">
-            <StageStepper
-              projectId="preview"
-              stages={[
-                { kind: 'exploration', status: 'done' },
-                { kind: 'spec', status: 'done' },
-                { kind: 'plan', status: 'active' },
-                { kind: 'execute', status: 'skipped' },
-                { kind: 'review', status: 'skipped' },
-                { kind: 'journal', status: 'pending' },
-              ]}
-              currentStage="plan"
-              phase="build"
-            />
-          </div>
-        </div>
-      </div>
-    ),
+    // Project-only stage control. Variants: the whole Flow (interactive), the Stepper's
+    // visual states, the Advance-button states (phase / stage / gated), and the Automation bar.
+    renderPreview: () => <StageFlowPreview />,
+    variants: STAGE_FLOW_VARIANTS.map((v) => ({
+      id: v.id,
+      label: v.label,
+      consumers: v.consumers ?? [],
+      canonicalComponent: v.canonicalComponent,
+      canonicalFilePath: v.canonicalFilePath,
+      renderPreview: () => <StageFlowVariant id={v.id} />,
+    })),
   },
   button: {
     slotId: 'button',

@@ -19,6 +19,7 @@ import {
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
 import type { ProjectSummary } from '@/projects/project-summary';
@@ -131,9 +132,9 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
   })();
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-      {/* LEFT — stat cards (2/3); own scroll so the column never clips */}
-      <div className="grid min-h-0 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2 lg:col-span-2">
+    <StatusDashboard
+      primary={
+      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2">
         <StatCard icon={Clock} title="Timeline">
           {orderedStages.map((s) => (
             <StatRow key={s.kind} label={STAGE_LABELS[s.kind] ?? s.kind} value={stageDuration(s.startedAt, s.completedAt)} />
@@ -174,9 +175,9 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
         </StatCard>
       </div>
 
-      {/* RIGHT — the full project activity log + mark complete (1/3). Each row is
-          three aligned columns: time · detail · duration. */}
-      <aside className="flex min-h-0 flex-col gap-4">
+      }
+      aside={
+        <>
         <RailNote icon={<BookOpen />}>{SUMMARY_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
@@ -230,7 +231,8 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
             )}
           </div>
         </Card>
-      </aside>
-    </div>
+        </>
+      }
+    />
   );
 }

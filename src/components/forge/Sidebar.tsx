@@ -10,11 +10,10 @@ import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 const COMPONENTS_HREF = '/settings/components';
-// A page is a stack of layers: the structural layers stack bottom→top, then the
-// project-only machinery, then the shared primitives used inside every layer.
+// A page is a stack of layers in flow order (background → app shell → content shell →
+// stage flow → panels), then the shared primitives used inside every layer.
 const SLOT_GROUPS = [
   { key: 'structural' as const, label: 'Layers' },
-  { key: 'project' as const, label: 'Project' },
   { key: 'primitive' as const, label: 'Primitives' },
 ];
 

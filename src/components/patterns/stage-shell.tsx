@@ -37,15 +37,17 @@ export interface StageShellProps {
   activeId: string | null;
   /** Called when an item is selected. */
   onSelect: (id: string) => void;
-  /** Rail list title (e.g. "Tasks", "Components", "Learnings"). */
+  /** Title of the navigator inside the right panel (e.g. "Tasks", "Components", "Learnings"). */
   listTitle: string;
   /** Progress indicator next to the list title (e.g. "3/5"). */
   listProgress?: string;
   /** Progress bar percentage (0-100). Shows a bar above the list when set. */
   progressPct?: number;
-  /** The main content area — renders detail for the selected item. */
+  /** The LEFT PANEL (2/3). Pass a governed left-panel component — DocumentShell, List,
+   *  Table or Form. It already renders its own Card, so StageShell adds none. */
   children: ReactNode;
-  /** Footer content in the rail (e.g. StageAdvance button). */
+  /** The RIGHT PANEL's advance footer — `StageAdvance` (governed by Stage flow). It sits
+   *  inside the right-panel box, below the navigator. */
   footer?: ReactNode;
   /** Additional content below the item list (e.g. action buttons). */
   listActions?: ReactNode;
@@ -69,8 +71,9 @@ export function StageShell({
   return (
     <StatusDashboard
       className={className}
-      // LEFT — main detail content (2/3)
-      primary={<Card className="flex min-h-0 flex-1 flex-col">{children}</Card>}
+      // LEFT — main detail content (2/3). NOT wrapped in a Card: a detail pane that is a
+      // document passes its own governed DocumentShell, and a second Card would double-frame it.
+      primary={children}
       // RIGHT — note + item list + footer (1/3)
       aside={
         <>

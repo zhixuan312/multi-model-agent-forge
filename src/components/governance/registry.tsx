@@ -14,14 +14,14 @@ import { showToast } from '@/components/ui/toast';
 export type GovernanceSlotGroup = 'structural' | 'project' | 'primitive';
 
 export type GovernanceSlotId =
-  // structural layers, bottom → top
+  // structural layers, in flow order: background → app shell → content shell →
+  // stage flow (project-only) → left panel → right panel
   | 'background'
   | 'appShell'
   | 'contentShell'
+  | 'stageFlow'
   | 'leftPanel'
   | 'rightPanel'
-  // project-only
-  | 'stageFlow'
   // shared primitives
   | 'button'
   | 'badge'
@@ -237,6 +237,33 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       renderPreview: (enabled?: ReadonlySet<string>) => <ContentAreaVariant id={v.id} enabled={enabled} />,
     })),
   },
+  stageFlow: {
+    slotId: 'stageFlow',
+    label: 'Stage flow',
+    group: 'structural',
+    canonicalComponent: 'StageStepper + StageAdvance + AutomationBar',
+    canonicalFilePath: 'src/components/forge/StageStepper.tsx',
+    knobs: GOVERNANCE_KNOBS.stageFlow,
+    defaultLocked: true,
+    consumers: [
+      { id: 'live-stage-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' },
+      { id: 'stage-advance', label: 'StageAdvance (advance control)', filePath: 'src/components/forge/StageAdvance.tsx' },
+      { id: 'automation-bar', label: 'AutomationBar (gate automation)', filePath: 'src/components/forge/AutomationBar.tsx' },
+    ],
+    deviations: [],
+    // Project-only stage control, but it sits in the structural flow between the content
+    // shell and the panels. Variants: the whole Flow (interactive), the Stepper's visual
+    // states, the Advance-button states (phase / stage / gated), and the Automation bar.
+    renderPreview: () => <StageFlowPreview />,
+    variants: STAGE_FLOW_VARIANTS.map((v) => ({
+      id: v.id,
+      label: v.label,
+      consumers: v.consumers ?? [],
+      canonicalComponent: v.canonicalComponent,
+      canonicalFilePath: v.canonicalFilePath,
+      renderPreview: () => <StageFlowVariant id={v.id} />,
+    })),
+  },
   leftPanel: {
     slotId: 'leftPanel',
     label: 'Left panel',
@@ -285,32 +312,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       canonicalFilePath: v.canonicalFilePath,
       affordances: v.affordances,
       renderPreview: (enabled?: ReadonlySet<string>) => <RightPanelVariant id={v.id} enabled={enabled} />,
-    })),
-  },
-  stageFlow: {
-    slotId: 'stageFlow',
-    label: 'Stage flow',
-    group: 'project',
-    canonicalComponent: 'StageStepper + StageAdvance + AutomationBar',
-    canonicalFilePath: 'src/components/forge/StageStepper.tsx',
-    knobs: GOVERNANCE_KNOBS.stageFlow,
-    defaultLocked: true,
-    consumers: [
-      { id: 'live-stage-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' },
-      { id: 'stage-advance', label: 'StageAdvance (advance control)', filePath: 'src/components/forge/StageAdvance.tsx' },
-      { id: 'automation-bar', label: 'AutomationBar (gate automation)', filePath: 'src/components/forge/AutomationBar.tsx' },
-    ],
-    deviations: [],
-    // Project-only stage control. Variants: the whole Flow (interactive), the Stepper's
-    // visual states, the Advance-button states (phase / stage / gated), and the Automation bar.
-    renderPreview: () => <StageFlowPreview />,
-    variants: STAGE_FLOW_VARIANTS.map((v) => ({
-      id: v.id,
-      label: v.label,
-      consumers: v.consumers ?? [],
-      canonicalComponent: v.canonicalComponent,
-      canonicalFilePath: v.canonicalFilePath,
-      renderPreview: () => <StageFlowVariant id={v.id} />,
     })),
   },
   button: {

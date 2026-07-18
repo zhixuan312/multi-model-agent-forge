@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { Avatar } from '@/components/ui';
@@ -19,14 +19,18 @@ export function DiscussionThread({
   memberById,
   currentMemberId,
   mentionPool,
+  pending = false,
 }: {
   messages: DiscussionMsg[];
   memberById: (id: string) => MemberRef | undefined;
   currentMemberId: string;
   /** Names eligible to be highlighted as @-mentions (the section's participants). */
   mentionPool: MemberRef[];
+  /** Forge is composing a reply — appends the thinking bubble. Owned here so Spec, Plan and
+   *  Journal stop hand-rolling the same ForgeMark + spinner. */
+  pending?: boolean;
 }) {
-  if (messages.length === 0) return null;
+  if (messages.length === 0 && !pending) return null;
   return (
     <div className="space-y-3">
       {messages.map((m) => (
@@ -38,6 +42,18 @@ export function DiscussionThread({
           mentionPool={mentionPool}
         />
       ))}
+      {pending ? (
+        <div className="flex gap-2.5">
+          <ForgeMark className="mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="mb-1 block text-[11px] text-ink-faint">Forge</span>
+            <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
+              <Loader2 className="size-3.5 animate-spin text-accent" aria-hidden />
+              <span className="text-sm text-ink-soft">Thinking…</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

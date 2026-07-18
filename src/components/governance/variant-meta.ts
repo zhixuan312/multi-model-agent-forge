@@ -49,9 +49,11 @@ export interface VariantMeta {
   tabs?: readonly VariantTab[];
 }
 
-/** Every affordance id for a variant — previews open with ALL affordances turned on. */
+/** The affordances a preview opens with — those declared `defaultOn`. Honouring the flag is
+ *  what keeps a preview representative: switching everything on would let an alternative body
+ *  (e.g. Document's prompt composer) replace the very thing the page exists to show. */
 export function defaultEnabledAffordances(v: Pick<VariantMeta, 'affordances'>): ReadonlySet<string> {
-  return new Set((v.affordances ?? []).map((a) => a.id));
+  return new Set((v.affordances ?? []).filter((a) => a.defaultOn).map((a) => a.id));
 }
 
 export const APP_SHELL_VARIANTS: readonly VariantMeta[] = [
@@ -85,6 +87,10 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
       { id: 'rail', label: 'Right panel', canonicalComponent: 'feature-rail (RailNote / RailCard)', canonicalFilePath: 'src/components/patterns/feature-rail.tsx', defaultOn: true },
     ],
     consumers: [
+      // StageShell is the master-detail PRESET of this split: it declares `primary` as the
+      // left panel (2/3) and `aside` as the right panel (1/3). It adds no Card of its own —
+      // the governed left-panel component passed into `primary` already is one.
+      { id: 'stage-shell', label: 'StageShell (master-detail preset)', filePath: 'src/components/patterns/stage-shell.tsx' },
       { id: 'loops-workspace', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
       { id: 'journal', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
       { id: 'stages', label: 'Project stages', filePath: 'src/components/forge/SpecStageClient.tsx' },
@@ -140,6 +146,9 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'navigator',
     label: 'Navigator',
+    // The RIGHT PANEL is the box. Inside it sit two governed pieces: the StageNavigator
+    // (titled item list + progress) and, below it, the StageAdvance footer — which belongs
+    // to Stage flow, not here. The box is the right panel; these are its contents.
     canonicalComponent: 'StageNavigator',
     canonicalFilePath: 'src/components/patterns/stage-navigator.tsx',
     affordances: [
@@ -282,16 +291,31 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
         id: 'document',
         label: 'Document',
         affordances: [
+          // A document may carry no tab bar at all — Review and the Explore summary are single
+          // surfaces. Off means the header is just title + version.
+          { id: 'tabs', label: 'Tab bar', canonicalComponent: 'TabBar', canonicalFilePath: 'src/components/ui/tab-bar.tsx', defaultOn: true },
           { id: 'approvers', label: 'Approvers row', canonicalComponent: 'ParticipantStrip', canonicalFilePath: 'src/components/forge/collab/Participants.tsx', defaultOn: true },
           { id: 'action', label: 'Action (approve / revoke)', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+          // The row under the header holds the approvers by default. `prompt` swaps that same
+          // row to the READ-ONLY prompt that produced the document — used where a document is
+          // an answer to a question (Explore › Discover) rather than something a team
+          // co-approves. An ALTERNATIVE occupant, not a second row: `approvers` decides
+          // whether the row exists at all, `prompt` decides what it renders.
+          { id: 'prompt', label: 'Prompt instead of approvers', canonicalComponent: 'Eyebrow + prompt prose', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: false },
         ],
         consumers: [
+          { id: 'spec-craft', label: 'Project › Spec › Craft', filePath: 'src/components/forge/SpecStageClient.tsx' },
           { id: 'spec-finalize', label: 'Project › Spec › Finalize', filePath: 'src/components/forge/SpecStageClient.tsx' },
           { id: 'plan-refine', label: 'Project › Plan › Refine', filePath: 'src/components/forge/PlanStageClient.tsx' },
+          { id: 'plan-validate', label: 'Project › Plan › Validate', filePath: 'src/components/forge/PlanStageClient.tsx' },
           { id: 'journal-reflect', label: 'Project › Journal › Reflect', filePath: 'src/components/forge/JournalStageClient.tsx' },
+          { id: 'review', label: 'Project › Review', filePath: 'src/components/forge/ReviewStageClient.tsx' },
+          { id: 'explore-brief', label: 'Project › Explore › Brief', filePath: 'src/components/forge/ExploreStageClient.tsx' },
+          { id: 'explore-discover', label: 'Project › Explore › Discover', filePath: 'src/components/forge/ExploreStageClient.tsx' },
+          { id: 'explore-synthesize', label: 'Project › Explore › Synthesize', filePath: 'src/components/forge/ExploreStageClient.tsx' },
         ],
         deviations: [
-          { id: 'run-detail', label: 'Loops › Activities › Run detail (no shell chrome)', filePath: 'app/(app)/loops/RunDetail.tsx' },
+          { id: 'run-detail', label: 'Loops › Activities › Run detail (record view, no shell chrome)', filePath: 'app/(app)/loops/RunDetail.tsx' },
         ],
       },
       {

@@ -1,7 +1,18 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Button, Card, CardContent, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  TabBar,
+} from '@/components/ui';
 import { Governed } from '@/components/governance/governed';
 import { GOVERNANCE_SLOT_NAV, type ComponentGovernanceView, type GovernanceSlotView, type ResolvedGovernanceSlotState } from '@/components/governance/registry';
 
@@ -70,13 +81,13 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
   const deviations: readonly { id: string; label: string }[] =
     tabs.length > 0 ? (activeTabObj?.deviations ?? []) : (variant?.deviations ?? slot.deviations);
 
-  // Toggling drives the live preview locally (governance persistence TBD). Default all on,
-  // across every tab so a tab switch never loses a toggle.
+  // Toggling drives the live preview locally (governance persistence TBD). Start from each
+  // affordance's `defaultOn`, across every tab so a tab switch never loses a toggle.
   const [enabled, setEnabled] = useState<ReadonlySet<string>>(() =>
     new Set(
       tabs.length > 0
-        ? tabs.flatMap((t) => (t.affordances ?? []).map((a) => a.id))
-        : (variant?.affordances ?? []).map((a) => a.id),
+        ? tabs.flatMap((t) => (t.affordances ?? []).filter((a) => a.defaultOn).map((a) => a.id))
+        : (variant?.affordances ?? []).filter((a) => a.defaultOn).map((a) => a.id),
     ),
   );
   const toggleAffordance = (id: string) =>
@@ -107,23 +118,7 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
           </div>
 
           {tabs.length > 0 ? (
-            <div role="tablist" className="flex items-center gap-1 self-start rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === t.id}
-                  onClick={() => setActiveTab(t.id)}
-                  className={
-                    'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors ' +
-                    (activeTab === t.id ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink')
-                  }
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} className="gap-1 self-start" />
           ) : null}
 
           <div className="rounded-md border border-line p-4">

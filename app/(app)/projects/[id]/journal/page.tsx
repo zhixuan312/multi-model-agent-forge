@@ -35,6 +35,15 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
+  // Project members for discussion attribution — same load as the spec / plan pages.
+  const { member } = await import('@/db/schema/identity');
+  const allMembers = await db
+    .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member);
+  const projectMembers = allMembers
+    .filter((m) => m.id !== me.id)
+    .map((m) => ({ id: m.id, displayName: m.displayName, avatarTint: m.avatarTint }));
+
   // READ-ONLY w.r.t. stage progression — do NOT activate the journal stage or write
   // current_stage on visit (that races/corrupts an in-flight run). Stage progression
   // is owned by the auto-driver and the /advance route. The learnings file↔details
@@ -127,6 +136,7 @@ export default async function JournalStagePage({ params, searchParams }: { param
       recording={!!pendingRecord}
       activeLearningId={activeLearningId}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
+      projectMembers={projectMembers}
       summary={summary}
       initialPhase={initialPhase}
       autoMode={proj.autoMode}

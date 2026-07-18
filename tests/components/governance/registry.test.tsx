@@ -8,14 +8,13 @@ describe('component governance registry', () => {
   it('defines all governed slots for v0.4.0 and keeps GOVERNANCE_KNOBS in sync', () => {
     const ids = Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[];
     expect(ids).toEqual([
-      // structural layers (bottom → top)
+      // structural layers in flow order (stage flow sits between the content shell and panels)
       'background',
       'appShell',
       'contentShell',
+      'stageFlow',
       'leftPanel',
       'rightPanel',
-      // project-only
-      'stageFlow',
       // shared primitives
       'button',
       'badge',
@@ -30,8 +29,8 @@ describe('component governance registry', () => {
     const structural = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'structural');
     const project = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'project');
     const primitive = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'primitive');
-    expect(structural).toHaveLength(5);
-    expect(project).toHaveLength(1);
+    expect(structural).toHaveLength(6);
+    expect(project).toHaveLength(0);
     expect(primitive).toHaveLength(8);
 
     for (const id of ids) {

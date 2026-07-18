@@ -16,7 +16,6 @@ import {
 import { cn } from '@/lib/cn';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { SummaryPhase } from '@/components/forge/SummaryPhase';
-import { ForgeMark } from '@/components/forge/ForgeMark';
 import {
   Button,
   Card,
@@ -27,6 +26,9 @@ import {
   Badge,
   Micro,
 } from '@/components/ui';
+import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
+import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -64,6 +66,8 @@ export interface JournalStageClientProps {
   recording: boolean;
   activeLearningId?: string;
   currentMember?: { id: string; displayName: string; avatarTint: string };
+  /** Everyone else on the project — resolves discussion attribution and @-mentions. */
+  projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   summary?: import('@/projects/project-summary').ProjectSummary;
   initialPhase?: 'journal' | 'summary';
   autoMode?: boolean;
@@ -88,32 +92,12 @@ const nid = () => `jm-${++_nid}`;
 
 /* ── Chat bubbles (matching Plan Refine) ──────────────────────── */
 
-function ChatForge({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1"><span className="text-xs font-semibold text-ink">Forge</span></div>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-          <p className="text-sm leading-relaxed text-ink">{children}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function ChatUser({ text }: { text: string }) {
-  return (
-    <div className="flex justify-end gap-2.5">
-      <div className="max-w-[80%]">
-        <span className="mb-1 text-[11px] text-ink-faint">You</span>
-        <div className="rounded-2xl rounded-tr-md border border-accent/20 bg-accent-tint px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
+/** The learning card's tabs — the artifact itself, then its discussion. */
+const LEARNING_TABS: readonly DocumentShellTab[] = [
+  { id: 'content', label: 'Content' },
+  { id: 'discussion', label: 'Discussion' },
+];
 
 /* ── Main Component ────────────────────────────────────────────── */
 
@@ -223,6 +207,21 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const [completing, setCompleting] = useState(false);
   const optimistic = useOptimisticAction();
   const msgs = threads[activeId] ?? [];
+
+  // The learning thread in the shared DiscussionMsg shape — `role` is a transport detail of
+  // the refine endpoint, attribution is a member id, so teammates render with their real
+  // name and avatar instead of the placeholder initials the old bubbles hardcoded.
+  const discussion: DiscussionMsg[] = msgs.map((m) => ({
+    id: m.id,
+    authorId: m.role === 'user' ? (props.currentMember?.id ?? 'me') : 'forge',
+    body: m.text,
+  }));
+
+  /** Resolve a member id for attribution (you · project pool). */
+  function memberById(id: string): MemberRef | undefined {
+    if (props.currentMember && id === props.currentMember.id) return props.currentMember;
+    return (props.projectMembers ?? []).find((m) => m.id === id);
+  }
   const lastMsg = msgs[msgs.length - 1];
   const hasForgeReply = lastMsg?.role === 'forge';
   const learningView = active ? (viewOverride[active.id] ?? (hasForgeReply ? 'discussion' : 'content')) : 'content';
@@ -404,75 +403,71 @@ export function JournalStageClient(props: JournalStageClientProps) {
     <StatusDashboard
       primary={
       /* LEFT — learning content / discussion (like Plan Refine) */
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        meta={
+          <>
             <Badge variant="neutral" size="sm">Learning {active.num}</Badge>
-            <CardTitle>{active.title}</CardTitle>
             <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
-          </div>
-          <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-            {(['content', 'discussion'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setLearningView(v)}
-                className={cn(
-                  'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-                  learningView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-                )}
-              >
-                {v === 'content' ? 'Content' : 'Discussion'}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-5 py-5">
-          {learningView === 'content' ? (
-            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
-              {active.body}
-            </ProseBlock>
-          ) : (
-            <div className="space-y-5">
-              {msgs.length === 0 ? (
-                <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — type @Forge to refine this learning.</p>
-              ) : null}
-              {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{m.text}</ChatForge>))}
-              {active && refiningLearnings.has(active.id) ? (
-                <ChatForge>
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-accent" /> Thinking…
-                  </span>
-                </ChatForge>
-              ) : null}
-              <div ref={bottomRef} />
-            </div>
-          )}
-        </div>
-        {learningView === 'content' ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            {isApproved ? (
-              // Approvals are monotonic (approve_learning is one-way) — show a static
-              // confirmed state, not a Revoke affordance the model cannot honor.
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
-                <Check className="size-4 text-accent" /> Approved
-              </span>
+          </>
+        }
+        title={active.title}
+        tabs={LEARNING_TABS}
+        activeTab={learningView}
+        onTabChange={(v) => setLearningView(v as 'content' | 'discussion')}
+        bodyRef={contentRef}
+        body={
+          <>
+            {learningView === 'content' ? (
+              <ProseBlock>
+                {active.body}
+              </ProseBlock>
             ) : (
-              <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
-                Approve
-              </Button>
+              <div className="space-y-5">
+                {msgs.length === 0 && !(active && refiningLearnings.has(active.id)) ? (
+                  <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — type @Forge to refine this learning.</p>
+                ) : null}
+                <DiscussionThread
+                  messages={discussion}
+                  memberById={memberById}
+                  currentMemberId={props.currentMember?.id ?? 'me'}
+                  mentionPool={props.projectMembers ?? []}
+                  pending={!!active && refiningLearnings.has(active.id)}
+                />
+                <div ref={bottomRef} />
+              </div>
             )}
-          </div>
-        ) : (
-          <ConversationComposer
-            value={input}
-            onChange={setInput}
-            onSend={send}
-            placeholder="@Forge to refine this learning..."
-            disabled={readOnly || (active != null && refiningLearnings.has(active.id))}
-          />
-        )}
-      </Card>
+          </>
+        }
+        actions={
+          learningView === 'content' ? (
+            <>
+              {isApproved ? (
+                // Approvals are monotonic (approve_learning is one-way) — show a static
+                // confirmed state, not a Revoke affordance the model cannot honor.
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
+                  <Check className="size-4 text-accent" /> Approved
+                </span>
+              ) : (
+                <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
+                  Approve
+                </Button>
+              )}
+            </>
+          ) : null
+        }
+        footer={
+          learningView === 'discussion' ? (
+            <ConversationComposer
+              value={input}
+              onChange={setInput}
+              onSend={send}
+              placeholder="@Forge to refine this learning..."
+              disabled={readOnly || (active != null && refiningLearnings.has(active.id))}
+            />
+          ) : null
+        }
+      />
       }
       aside={
         <>

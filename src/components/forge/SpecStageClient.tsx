@@ -26,11 +26,11 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
+import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RoleChip } from '@/components/forge/RoleChip';
-import { ForgeMark } from '@/components/forge/ForgeMark';
 import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
@@ -1210,33 +1210,40 @@ function CraftStage({
     <StatusDashboard
       primary={
       /* LEFT — the conversation that crafts the active component (2/3) */
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
-              <Icon className="size-4" />
-            </span>
-            <CardTitle>{active.label}</CardTitle>
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        meta={
+          <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-accent-tint text-accent">
+            <Icon className="size-4" />
+          </span>
+        }
+        title={
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span className="truncate">{active.label}</span>
             {active.primaryRoles.map((r) => (
               <RoleChip key={r} role={r} />
             ))}
-          </div>
-          {drafted ? <CraftViewToggle active={craftView} onSwitch={setCraftView} /> : null}
-        </CardHeader>
-
-        {/* Co-approval strip — only show when the section has a draft to review. */}
-        {drafted ? (
-          <div className="shrink-0 border-b border-line px-5 py-2.5">
-            <ParticipantStrip
-              participants={activeCollab.participants}
-              pool={projectMembers}
-              onAdd={invite}
-              disabled={readOnly}
-            />
-          </div>
-        ) : null}
-
-        <div ref={contentRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface-2/40 px-5 py-5">
+          </span>
+        }
+        tabs={drafted ? CRAFT_TABS : undefined}
+        activeTab={craftView}
+        onTabChange={(v) => setCraftView(v as 'spec' | 'conversation')}
+        approvers={
+          /* Co-approval strip — only show when the section has a draft to review. */
+          drafted ? (
+            <div className="shrink-0 border-b border-line px-5 py-2.5">
+              <ParticipantStrip
+                participants={activeCollab.participants}
+                pool={projectMembers}
+                onAdd={invite}
+                disabled={readOnly}
+              />
+            </div>
+          ) : null
+        }
+        bodyRef={contentRef}
+        body={
+          <div className="space-y-5">
           {/* Loading state while the section awaits its draft. Keyed on the section
               still being `gathering` with no draft (not just the transient dispatch
               flag) so the panel stays consistent with the rail's "Drafting…" the whole
@@ -1266,30 +1273,17 @@ function CraftStage({
                 memberById={memberById}
                 currentMemberId={currentMember.id}
                 mentionPool={inChatMembers}
+                pending={!!active && refiningComponents.has(active.id)}
               />
-              {active && refiningComponents.has(active.id) ? (
-                <div className="flex gap-2.5">
-                  <ForgeMark className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1">
-                      <span className="text-xs font-semibold text-ink">Forge</span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-sm">
-                      <Loader2 className="size-3.5 animate-spin text-accent" />
-                      <span className="text-sm text-ink-soft">Thinking…</span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </>
           ) : null}
           </>
           )}
           <div ref={bottomRef} />
-        </div>
-
-        {craftView === 'spec' && showingDraft ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
+            <div ref={bottomRef} />
+          </div>
+        }
+        actions={craftView === 'spec' && showingDraft ? (
             <Button
               size="sm"
               onClick={iApproved ? backToEdit : approve}
@@ -1299,8 +1293,8 @@ function CraftStage({
             >
               {iApproved ? 'Revoke' : 'Approve'}
             </Button>
-          </div>
-        ) : (
+        ) : null}
+        footer={!(craftView === 'spec' && showingDraft) ? (
           <ConversationComposer
             value={input}
             onChange={setInput}
@@ -1309,8 +1303,8 @@ function CraftStage({
             voice={voiceEnabled}
             mentionPool={inChatMembers}
           />
-        )}
-      </Card>
+        ) : null}
+      />
 
       }
       aside={
@@ -1369,25 +1363,17 @@ function CraftStage({
   );
 }
 
-function CraftViewToggle({ active, onSwitch }: { active: 'spec' | 'conversation'; onSwitch: (v: 'spec' | 'conversation') => void }) {
-  return (
-    <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-      {(['spec', 'conversation'] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onSwitch(v)}
-          className={cn(
-            'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-            active === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-          )}
-        >
-          {v === 'spec' ? 'Spec' : 'Discussion'}
-        </button>
-      ))}
-    </div>
-  );
-}
+/** Craft tabs — the drafted spec section, then its discussion. */
+const CRAFT_TABS: readonly DocumentShellTab[] = [
+  { id: 'spec', label: 'Spec' },
+  { id: 'conversation', label: 'Discussion' },
+];
+
+/** Finalize tabs — the whole spec document, then the audit findings against it. */
+const FINALIZE_TABS: readonly DocumentShellTab[] = [
+  { id: 'document', label: 'Spec' },
+  { id: 'conversation', label: 'Audit' },
+];
 
 function ComponentRow({
   c,
@@ -1586,64 +1572,44 @@ function DocumentScreen({
     <StatusDashboard
       primary={
       /* CENTRE — the whole-spec finalization conversation (2/3) */
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} — specification</CardTitle>
-            {spec ? (
-              <Badge variant="sage" size="sm">
-                v{spec.version}
-              </Badge>
-            ) : null}
-          </div>
-          {spec ? (
-            <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-              {(['document', 'conversation'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setDocView(v)}
-                  className={cn(
-                    'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-                    docView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-                  )}
-                >
-                  {v === 'document' ? 'Spec' : 'Audit'}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </CardHeader>
-
-        {/* Participants strip — unique members from spec with approval state */}
-        {(() => {
-          const allPool = [currentMember, ...projectMembers];
-          const involvedIds = new Set<string>([currentMember.id]);
-          for (const c of components) {
-            for (const pid of (c.participantIds ?? []) as string[]) involvedIds.add(pid);
-            for (const aid of c.approvedBy as string[]) involvedIds.add(aid);
-          }
-          const involved: Participant[] = [...involvedIds]
-            .map((id) => allPool.find((m) => m.id === id))
-            .filter(Boolean)
-            .map((m) => ({
-              member: m!,
-              addedBy: null,
-              approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null,
-            }));
-          return (
-            <div className="shrink-0 border-b border-line px-5 py-2.5">
-              <ParticipantStrip
-                participants={involved}
-                pool={projectMembers}
-                onAdd={() => {}}
-                disabled={readOnly}
-              />
-            </div>
-          );
-        })()}
-
-        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 !py-5">
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        title={`${projectName} — specification`}
+        version={spec ? spec.version : undefined}
+        tabs={spec ? FINALIZE_TABS : undefined}
+        activeTab={docView}
+        onTabChange={(v) => setDocView(v as 'document' | 'conversation')}
+        approvers={
+          // Participants strip — unique members from spec with approval state.
+          (() => {
+            const allPool = [currentMember, ...projectMembers];
+            const involvedIds = new Set<string>([currentMember.id]);
+            for (const c of components) {
+              for (const pid of (c.participantIds ?? []) as string[]) involvedIds.add(pid);
+              for (const aid of c.approvedBy as string[]) involvedIds.add(aid);
+            }
+            const involved: Participant[] = [...involvedIds]
+              .map((id) => allPool.find((m) => m.id === id))
+              .filter(Boolean)
+              .map((m) => ({
+                member: m!,
+                addedBy: null,
+                approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null,
+              }));
+            return (
+              <div className="shrink-0 border-b border-line px-5 py-2.5">
+                <ParticipantStrip
+                  participants={involved}
+                  pool={projectMembers}
+                  onAdd={() => {}}
+                  disabled={readOnly}
+                />
+              </div>
+            );
+          })()
+        }
+        body={
+          <>
           {docView === 'document' && spec ? (
             <ProseBlock>{spec.bodyMd}</ProseBlock>
           ) : rounds.length === 0 ? (
@@ -1673,61 +1639,66 @@ function DocumentScreen({
               <p className="text-xs text-ink-faint">Select a pass from the right panel to view its findings.</p>
             </div>
           )}
-        </CardContent>
-
-        {docView === 'document' && spec ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              onClick={() => {
-                const isApproved = specApprovers.includes(currentMember.id);
-                const action = isApproved ? 'revoke' : 'approve';
-                const prev = specApprovers;
-                void optimistic.run({
-                  apply: () => setSpecApprovers(isApproved
-                    ? specApprovers.filter((a: string) => a !== currentMember.id)
-                    : [...specApprovers, currentMember.id]),
-                  commit: async () => {
-                    const r = await fetch(`/projects/${projectId}/spec/approve`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action }),
+          </>
+        }
+        actions={
+          docView === 'document' && spec ? (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const isApproved = specApprovers.includes(currentMember.id);
+                    const action = isApproved ? 'revoke' : 'approve';
+                    const prev = specApprovers;
+                    void optimistic.run({
+                      apply: () => setSpecApprovers(isApproved
+                        ? specApprovers.filter((a: string) => a !== currentMember.id)
+                        : [...specApprovers, currentMember.id]),
+                      commit: async () => {
+                        const r = await fetch(`/projects/${projectId}/spec/approve`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action }),
+                        });
+                        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+                      },
+                      rollback: () => setSpecApprovers(prev),
+                      error: isApproved ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
+                      retryable: true,
                     });
-                    if (!r.ok) throw new Error(`Request failed (${r.status}).`);
-                  },
-                  rollback: () => setSpecApprovers(prev),
-                  error: isApproved ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
-                  retryable: true,
-                });
-              }}
-              variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
-              leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}
-              disabled={readOnly}
-            >
-              {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
-            </Button>
-          </div>
-        ) : activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && docView !== 'document' && activeRound.findings.length > 0 ? (
-          <FindingsApplyBar
-            selectedCount={selectedFindings.length}
-            total={activeRound.findings.length}
-            applying={applying}
-            readOnly={readOnly}
-            onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
-            onApply={() => apply(activeRound.passNo, selectedFindings)}
-          />
-        ) : null}
-        {!mmaReady ? (
-          <div className="shrink-0 border-t border-line px-5 py-2">
-            <TextSm className="!text-[var(--amber)]">
-              <a href="/settings/connections" className="underline">
-                Configure the MMA token
-              </a>{' '}
-              to run the audit.
-            </TextSm>
-          </div>
-        ) : null}
-      </Card>
+                  }}
+                  variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
+                  leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}
+                  disabled={readOnly}
+                >
+                  {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
+                </Button>
+          ) : null
+        }
+        footer={
+          <>
+            {docView !== 'document' && activeRound && !(activeRound.applied || appliedPasses.has(activeRound.passNo)) && activeRound.findings.length > 0 ? (
+              <FindingsApplyBar
+                selectedCount={selectedFindings.length}
+                total={activeRound.findings.length}
+                applying={applying}
+                readOnly={readOnly}
+                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
+                onApply={() => apply(activeRound.passNo, selectedFindings)}
+              />
+            ) : null}
+            {!mmaReady ? (
+              <div className="shrink-0 border-t border-line px-5 py-2">
+                <TextSm className="!text-[var(--amber)]">
+                  <a href="/settings/connections" className="underline">
+                    Configure the MMA token
+                  </a>{' '}
+                  to run the audit.
+                </TextSm>
+              </div>
+            ) : null}
+          </>
+        }
+      />
 
       }
       aside={

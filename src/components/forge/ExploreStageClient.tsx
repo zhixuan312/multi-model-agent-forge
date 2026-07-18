@@ -16,6 +16,14 @@ import {
   Loader2,
   type LucideIcon,
 } from 'lucide-react';
+import { DocumentShell } from '@/components/patterns/document-shell';
+
+/** Brain-dump ⋅ Tasks. These panels are NOT documents — they are plain Content-Shell panels;
+ *  they share the governed TabBar only so the toggle looks identical everywhere. */
+const BRIEF_TABS: readonly TabBarTab[] = [
+  { id: 'input', label: 'Brain-dump' },
+  { id: 'tasks', label: 'Tasks' },
+];
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -41,6 +49,8 @@ import {
   CardTitle,
   CardContent,
   CardFooter,
+  TabBar,
+  type TabBarTab,
 } from '@/components/ui';
 import {
   useProjectEvents,
@@ -328,16 +338,15 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           }
           primary={
             briefView === 'input' ? (
-            <Card className="flex min-h-0 flex-1 flex-col">
-              <CardHeader>
-                <CardTitle>Brain-dump</CardTitle>
-                {hasAnalyzed ? (
-                  <ViewToggle active="input" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
-                ) : (
-                  <Micro className="!text-ink-faint">Text · voice · files</Micro>
-                )}
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col !py-4">
+            <DocumentShell
+              className="flex min-h-0 flex-1 flex-col"
+              title="Brain-dump"
+              tabs={hasAnalyzed ? BRIEF_TABS : undefined}
+              activeTab="input"
+              onTabChange={(v) => setBriefView(v as 'input' | 'tasks')}
+              headerAction={<Micro className="!text-ink-faint">Text · voice · files</Micro>}
+              body={
+                <div className="flex min-h-0 flex-1 flex-col">
                 <ConversationComposer
                   value={brief}
                   onChange={locked ? () => {} : setBrief}
@@ -349,19 +358,23 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   rows={0}
                   className="flex min-h-0 flex-1 flex-col gap-3 border-0 px-0 py-0"
                 />
-              </CardContent>
-            </Card>
+                </div>
+              }
+            />
           ) : proposing && tasks.length === 0 ? (
-            <Card className="flex min-h-0 flex-1 flex-col">
-              <CardHeader>
-                <CardTitle>Exploration tasks</CardTitle>
-                <ViewToggle active="tasks" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center !py-5">
-                <Loader2 className="size-5 animate-spin text-accent" />
-                <p className="text-sm text-ink-faint">Analyzing sources to propose exploration tasks…</p>
-              </CardContent>
-            </Card>
+            <DocumentShell
+              className="flex min-h-0 flex-1 flex-col"
+              title="Exploration tasks"
+              tabs={BRIEF_TABS}
+              activeTab="tasks"
+              onTabChange={(v) => setBriefView(v as 'input' | 'tasks')}
+              body={
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center">
+                  <Loader2 className="size-5 animate-spin text-accent" />
+                  <p className="text-sm text-ink-faint">Analyzing sources to propose exploration tasks…</p>
+                </div>
+              }
+            />
           ) : (
             <FanOutCard
               className="min-h-0 flex-1"
@@ -374,7 +387,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               canRun={drafts.length > 0 && !proposing && !locked}
               disabled={proposing || locked}
               headerAction={
-                <ViewToggle active="tasks" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
+                <TabBar tabs={BRIEF_TABS} activeTab="tasks" onTabChange={(v) => setBriefView(v as 'input' | 'tasks')} />
               }
             />
           )
@@ -404,21 +417,26 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             </Button>
           }
         >
-          <CardHeader>
-            <CardTitle>{selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.label ?? '') : 'Select a task'}</CardTitle>
-          </CardHeader>
-          {selectedTask ? (
-            <div className="border-b border-line px-5 py-3">
-              <Eyebrow className="mb-1 !text-ink-faint">Prompt</Eyebrow>
-              {/* Cap the prompt so a very long one scrolls in place instead of
-                  growing the pane and squeezing the output area below it. */}
-              <p className="max-h-40 overflow-y-auto pr-1 text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
-            </div>
-          ) : null}
-          {/* key by the selected task so switching tasks remounts the scroll
-              container — the output always starts at the top, never stranded at
-              the previous task's scroll position. */}
-          <CardContent key={selectedTaskId ?? 'none'} className="min-h-0 flex-1 overflow-y-auto !py-4">
+          <DocumentShell
+            className="flex min-h-0 flex-1 flex-col"
+            title={selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.label ?? '') : 'Select a task'}
+            approvers={
+              // The governed `prompt` row: this document is an ANSWER to a question, so the
+              // row under the header carries the prompt rather than approvers.
+              selectedTask ? (
+                <div className="border-b border-line px-5 py-3">
+                  <Eyebrow className="mb-1 !text-ink-faint">Prompt</Eyebrow>
+                  {/* Cap the prompt so a very long one scrolls in place instead of
+                      growing the pane and squeezing the output area below it. */}
+                  <p className="max-h-40 overflow-y-auto pr-1 text-sm leading-relaxed text-ink">{selectedTask.prompt}</p>
+                </div>
+              ) : null
+            }
+            body={
+              // Keyed by the selected task so switching tasks remounts the scroll container —
+              // the output always starts at the top, never stranded at the previous task's
+              // scroll position.
+              <div key={selectedTaskId ?? 'none'}>
             {!selectedTask ? (
               <div className="grid h-full place-items-center">
                 <p className="text-sm text-ink-faint">Select a task from the list to view its output.</p>
@@ -443,12 +461,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   </div>
                 ) : null}
                 <Eyebrow className="mb-2 !text-ink-faint">Findings</Eyebrow>
-                <ProseBlock variant="document">{selectedTask.outputMd}</ProseBlock>
+                <ProseBlock>{selectedTask.outputMd}</ProseBlock>
               </>
             ) : (
               <p className="py-8 text-center text-sm text-ink-faint">No output available.</p>
             )}
-          </CardContent>
+              </div>
+            }
+          />
         </StageShell>
 
       /* Synthesize phase: synthesis doc left, stats + advance right */
@@ -485,6 +505,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           primary={
             <SummaryPane
               className="min-h-0 flex-1"
+              projectName={props.projectName}
               bodyMd={bodyMd as string}
               version={version}
             />
@@ -495,25 +516,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   );
 }
 
-function ViewToggle({ active, onSwitch, labels, values }: { active: string; onSwitch: (v: string) => void; labels: string[]; values: string[] }) {
-  return (
-    <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-      {values.map((v, i) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onSwitch(v)}
-          className={cn(
-            'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-            active === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-          )}
-        >
-          {labels[i]}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 
 /** Standing guidance — the accent-tint note every page's rail carries. */
@@ -873,33 +875,31 @@ function AddTaskForm(props: {
 
 function SummaryPane(props: {
   className?: string;
+  projectName: string;
   bodyMd: string;
   version: number | null;
 }) {
+  // The governed document with its optional pieces off: no tabs, no approvers, no footer.
   return (
-    <Card className={cn('flex flex-col', props.className)} aria-label="Synthesized summary">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <CardTitle>Exploration summary</CardTitle>
-          {props.version ? (
-            <Badge variant="sage" size="sm">
-              v{props.version}
-            </Badge>
-          ) : null}
+    <DocumentShell
+      className={cn('flex flex-col', props.className)}
+      ariaLabel="Synthesized summary"
+      title={`${props.projectName} — exploration`}
+      version={props.version ?? undefined}
+      body={
+        <div className="flex min-h-0 flex-1 flex-col">
+          {props.bodyMd ? (
+            <ProseBlock>
+              {props.bodyMd}
+            </ProseBlock>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+              <Loader2 className="size-5 animate-spin text-accent" />
+              <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
+            </div>
+          )}
         </div>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto !py-5">
-        {props.bodyMd ? (
-          <ProseBlock className="max-w-none prose-headings:mt-6 prose-headings:mb-2 first:prose-headings:mt-0">
-            {props.bodyMd}
-          </ProseBlock>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-            <Loader2 className="size-5 animate-spin text-accent" />
-            <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      }
+    />
   );
 }

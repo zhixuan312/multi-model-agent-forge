@@ -49,5 +49,6 @@ export * from './split';
 export * from './field-grid';
 export * from './avatar-picker';
 export * from './search-input';
+export * from './tab-bar';
 export * from './toolbar';
 export * from './shell';

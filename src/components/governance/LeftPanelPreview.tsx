@@ -170,6 +170,22 @@ function ApproveButton() {
   );
 }
 
+/** The read-only prompt that produced the document — same row as the approvers strip, an
+ *  eyebrow label over the prompt prose. Used where a document is an answer to a question
+ *  (Explore's task detail) rather than something a team co-approves. */
+function PromptRow() {
+  return (
+    <div className="flex flex-col gap-1.5 border-b border-line px-5 py-3">
+      <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Prompt</span>
+      <p className="text-sm leading-relaxed text-ink">
+        How is the self-service demo backend configured and bootstrapped (config files, env vars, dependency
+        injection, startup sequence)? Identify where a demo/offline mode toggle could be introduced to select a
+        JSON-file data source instead of the database, and how config is currently validated.
+      </p>
+    </div>
+  );
+}
+
 /** Demo content: a mix of approved (sage check overlay) and pending (dimmed) approvers. */
 function ApproversRow() {
   return (
@@ -345,7 +361,13 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
   // Shared DocumentShell — the active tab picks the body; each tab's own affordances apply.
   document: (on, activeTab) => {
     const tab = activeTab ?? 'document';
-    const approvers = on.has('approvers') ? <ApproversRow /> : undefined;
+    // The row under the header: present when `approvers` is on, rendering either the
+    // participant strip or — when `prompt` is on — the composer in its place.
+    const approvers = on.has('approvers')
+      ? on.has('prompt')
+        ? <PromptRow />
+        : <ApproversRow />
+      : undefined;
 
     let body: ReactNode;
     let footer: ReactNode;
@@ -364,14 +386,28 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
       ) : undefined;
     } else {
       body = <div className="px-5 py-5"><ProseBlock>{DOC_MARKDOWN}</ProseBlock></div>;
-      footer = on.has('action') ? (
+    }
+    // The approve action belongs to the document tab whichever body it is showing — gating it
+    // inside one branch made the toggle inert as soon as `prompt` was on.
+    if (tab === 'document' && on.has('action')) {
+      footer = (
         <div className="flex justify-end border-t border-line px-5 py-3">
           <ApproveButton />
         </div>
-      ) : undefined;
+      );
     }
 
-    return <DocumentShell title="Document title" version={5} tabs={DOC_TABS} activeTab={tab} approvers={approvers} body={body} footer={footer} />;
+    return (
+      <DocumentShell
+        title="Document title"
+        version={5}
+        tabs={on.has('tabs') ? DOC_TABS : undefined}
+        activeTab={tab}
+        approvers={approvers}
+        body={body}
+        footer={footer}
+      />
+    );
   },
 
   // Shared StatCard grid. Affordances: header icon, card footer.

@@ -19,8 +19,22 @@ import {
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { cn } from '@/lib/cn';
+import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
+import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
-import { ForgeMark } from '@/components/forge/ForgeMark';
+
+/** Refine tabs — the task's plan text, then its discussion. */
+const REFINE_TABS: readonly DocumentShellTab[] = [
+  { id: 'plan', label: 'Plan' },
+  { id: 'discussion', label: 'Discussion' },
+];
+
+/** Validate tabs — the whole plan document, then the audit findings against it. */
+const VALIDATE_TABS: readonly DocumentShellTab[] = [
+  { id: 'document', label: 'Plan' },
+  { id: 'audit', label: 'Audit' },
+];
 import {
   Button,
   Card,
@@ -356,35 +370,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
 }
 
 /* ── Shared chat primitives (same language as the Spec stage) ───────────────── */
-function ChatForge({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2.5">
-      <ForgeMark className="mt-0.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-xs font-semibold text-ink">Forge</span>
-        <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatUser({ text }: { text: string }) {
-  return (
-    <div className="flex flex-row-reverse gap-2.5">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sage-tint text-[11px] font-semibold text-[var(--sage-deep)]">
-        AD
-      </span>
-      <div className="flex min-w-0 max-w-[88%] flex-col items-end">
-        <span className="mb-1 text-[11px] text-ink-faint">You</span>
-        <div className="rounded-2xl rounded-tr-md border border-accent/20 bg-accent-tint px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── Detail -- per-task dialogue (like Craft) ────────────────────────────────── */
 function DetailStage({
@@ -606,6 +591,21 @@ function DetailStage({
   const approved = status[active?.id ?? ''] === 'approved';
   const msgs = threads[active?.id ?? ''] ?? [];
 
+  // The task thread in the shared DiscussionMsg shape. `role` is a transport detail of the
+  // refine endpoint; attribution is a member id, so Forge renders as Forge and a teammate
+  // renders with their real name and avatar (the old ChatUser hardcoded "AD" for everyone).
+  const discussion: DiscussionMsg[] = msgs.map((m) => ({
+    id: m.id,
+    authorId: m.role === 'user' ? (currentMember?.id ?? 'me') : 'forge',
+    body: (m as { text: string }).text,
+  }));
+
+  /** Resolve a member id for attribution (you · project pool). */
+  function memberById(id: string): MemberRef | undefined {
+    if (currentMember && id === currentMember.id) return currentMember;
+    return projectMembers.find((m) => m.id === id);
+  }
+
   function send() {
     const text = input.trim();
     if (!text || (active && refiningTasks.has(active.id))) return;
@@ -662,104 +662,94 @@ function DetailStage({
     <StatusDashboard
       primary={
       /* CENTRE -- plan view / discussion toggle (2/3) */
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <Badge variant="neutral" size="sm">
-              Task {active?.num || 0}
-            </Badge>
-            <CardTitle>{active?.title ?? ''}</CardTitle>
-          </div>
-          <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-            {(['plan', 'discussion'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setTaskView(v)}
-                className={cn(
-                  'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-                  taskView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-                )}
-              >
-                {v === 'plan' ? 'Plan' : 'Discussion'}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-        <div className="shrink-0 border-b border-line px-5 py-2.5">
-          <ParticipantStrip
-            participants={allParticipants}
-            pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
-            onAdd={(m) => {
-              if (planParticipants.some((p) => p.member.id === m.id)) return;
-              void optimistic.run({
-                apply: () => setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]),
-                commit: async () => {
-                  const results = await Promise.all(
-                    allTasks.map((t) =>
-                      fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ memberId: m.id }),
-                      }),
-                    ),
-                  );
-                  if (results.some((r) => !r.ok)) throw new Error('Invite failed.');
-                },
-                rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
-                error: 'Couldn’t invite — reverted.',
-                retryable: true,
-              });
-            }}
-            disabled={readOnly}
-          />
-        </div>
-        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-5 py-5">
-          {taskView === 'plan' ? (
-            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">
-              {active.body}
-            </ProseBlock>
-          ) : (
-            <div className="space-y-5">
-              {msgs.length === 0 ? (
-                <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — send a message to refine this task.</p>
-              ) : null}
-              {msgs.map((m) => (m.role === 'user' ? <ChatUser key={m.id} text={m.text} /> : <ChatForge key={m.id}>{(m as { text: string }).text}</ChatForge>))}
-              {active && refiningTasks.has(active.id) ? (
-                <ChatForge>
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-3.5 animate-spin text-accent" /> Thinking…
-                  </span>
-                </ChatForge>
-              ) : null}
-              <div ref={bottomRef} />
-            </div>
-          )}
-        </div>
-        {taskView === 'plan' ? (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-            <Button
-              size="sm"
-              onClick={() => onToggleApprove(active.id)}
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        meta={<Badge variant="neutral" size="sm">Task {active?.num || 0}</Badge>}
+        title={active?.title ?? ''}
+        tabs={REFINE_TABS}
+        activeTab={taskView}
+        onTabChange={(v) => setTaskView(v as 'plan' | 'discussion')}
+        approvers={
+          <div className="shrink-0 border-b border-line px-5 py-2.5">
+            <ParticipantStrip
+              participants={allParticipants}
+              pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
+              onAdd={(m) => {
+                if (planParticipants.some((p) => p.member.id === m.id)) return;
+                void optimistic.run({
+                  apply: () => setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]),
+                  commit: async () => {
+                    const results = await Promise.all(
+                      allTasks.map((t) =>
+                        fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ memberId: m.id }),
+                        }),
+                      ),
+                    );
+                    if (results.some((r) => !r.ok)) throw new Error('Invite failed.');
+                  },
+                  rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
+                  error: 'Couldn’t invite — reverted.',
+                  retryable: true,
+                });
+              }}
               disabled={readOnly}
-              variant={approved ? 'secondary' : 'primary'}
-              leftIcon={approved ? <RotateCcw /> : <Check />}
-            >
-              {approved ? 'Revoke' : 'Approve'}
-            </Button>
+            />
           </div>
-        ) : (
-          <ConversationComposer
-            value={input}
-            onChange={setInput}
-            onSend={send}
-            placeholder="@Forge to refine this task..."
-            disabled={readOnly || driving || (active != null && refiningTasks.has(active.id))}
-            voice={voiceEnabled ?? false}
-            mentionPool={forgeMentionPool}
-          />
-        )}
-      </Card>
+        }
+        bodyRef={contentRef}
+        body={
+          <>
+            {taskView === 'plan' ? (
+              <ProseBlock>
+                {active.body}
+              </ProseBlock>
+            ) : (
+              <div className="space-y-5">
+                {msgs.length === 0 && !(active && refiningTasks.has(active.id)) ? (
+                  <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — send a message to refine this task.</p>
+                ) : null}
+                <DiscussionThread
+                  messages={discussion}
+                  memberById={memberById}
+                  currentMemberId={currentMember?.id ?? 'me'}
+                  mentionPool={projectMembers}
+                  pending={!!active && refiningTasks.has(active.id)}
+                />
+                <div ref={bottomRef} />
+              </div>
+            )}
+          </>
+        }
+        actions={
+          taskView === 'plan' ? (
+              <Button
+                size="sm"
+                onClick={() => onToggleApprove(active.id)}
+                disabled={readOnly}
+                variant={approved ? 'secondary' : 'primary'}
+                leftIcon={approved ? <RotateCcw /> : <Check />}
+              >
+                {approved ? 'Revoke' : 'Approve'}
+              </Button>
+          ) : null
+        }
+        footer={
+          taskView === 'discussion' ? (
+            <ConversationComposer
+              value={input}
+              onChange={setInput}
+              onSend={send}
+              placeholder="@Forge to refine this task..."
+              disabled={readOnly || driving || (active != null && refiningTasks.has(active.id))}
+              voice={voiceEnabled ?? false}
+              mentionPool={forgeMentionPool}
+            />
+          ) : null
+        }
+      />
       }
       aside={
         <>
@@ -910,70 +900,63 @@ function ValidateStage({
   return (
     <StatusDashboard
       primary={
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{projectName} — plan</CardTitle>
-            {locked ? <Badge variant="sage" size="sm"><Lock className="mr-1 size-3" /> locked</Badge> : null}
-          </div>
-          <div className="flex items-center rounded-[var(--r)] border border-line bg-surface-2 p-0.5">
-            {(['document', 'audit'] as const).map((v) => (
-              <button key={v} type="button" onClick={() => setDocView(v)} className={cn(
-                'rounded-[6px] px-3 py-1 text-xs font-medium transition-colors',
-                docView === v ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint hover:text-ink',
-              )}>
-                {v === 'document' ? 'Plan' : 'Audit'}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-
-        <CardContent className="min-h-0 flex-1 overflow-y-auto !py-5">
-          {docView === 'document' && planMd ? (
-            <ProseBlock className="max-w-none prose-headings:mb-1.5 prose-headings:mt-4 first:prose-headings:mt-0">{planMd}</ProseBlock>
-          ) : !activeRound ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
-              <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
-                <Shield className="size-7 text-[var(--steel)]" />
-              </span>
-              <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
-              <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-                Run an audit from the right panel to check sequencing, coverage, and TDD gaps.
-              </p>
-            </div>
-          ) : (
-            <FindingsGrid
-              findings={activeRound.findings as Finding[]}
-              selectable
-              selectedIndices={selectedFindings}
-              onToggle={toggleFinding}
-              applying={applying}
-              applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
-              readOnly={readOnly}
-            />
-          )}
-        </CardContent>
-
-        {docView === 'document' ? null
-          : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
-          <FindingsApplyBar
-            selectedCount={selectedFindings.length}
-            total={activeRound.findings.length}
-            applying={applying}
-            readOnly={readOnly}
-            onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
-            onApply={() => apply(activeRound.passNo, selectedFindings)}
-          />
-        ) : null}
-
-        {!mmaReady ? (
-          <div className="shrink-0 border-t border-line px-5 py-2">
-            <TextSm className="!text-[var(--amber)]">
-              <a href="/settings/connections" className="underline">Configure the MMA token</a> to run the audit.
-            </TextSm>
-          </div>
-        ) : null}
-      </Card>
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        title={`${projectName} — plan`}
+        meta={locked ? <Badge variant="sage" size="sm"><Lock className="mr-1 size-3" /> locked</Badge> : null}
+        tabs={VALIDATE_TABS}
+        activeTab={docView}
+        onTabChange={(v) => setDocView(v as 'document' | 'audit')}
+        body={
+          <>
+            {docView === 'document' && planMd ? (
+              <ProseBlock>{planMd}</ProseBlock>
+            ) : !activeRound ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
+                <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                  <Shield className="size-7 text-[var(--steel)]" />
+                </span>
+                <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                  Run an audit from the right panel to check sequencing, coverage, and TDD gaps.
+                </p>
+              </div>
+            ) : (
+              <FindingsGrid
+                findings={activeRound.findings as Finding[]}
+                selectable
+                selectedIndices={selectedFindings}
+                onToggle={toggleFinding}
+                applying={applying}
+                applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
+                readOnly={readOnly}
+              />
+            )}
+          </>
+        }
+        footer={
+          <>
+            {docView === 'document' ? null
+              : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
+              <FindingsApplyBar
+                selectedCount={selectedFindings.length}
+                total={activeRound.findings.length}
+                applying={applying}
+                readOnly={readOnly}
+                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
+                onApply={() => apply(activeRound.passNo, selectedFindings)}
+              />
+            ) : null}
+            {!mmaReady ? (
+              <div className="shrink-0 border-t border-line px-5 py-2">
+                <TextSm className="!text-[var(--amber)]">
+                  <a href="/settings/connections" className="underline">Configure the MMA token</a> to run the audit.
+                </TextSm>
+              </div>
+            ) : null}
+          </>
+        }
+      />
       }
       aside={
         <>

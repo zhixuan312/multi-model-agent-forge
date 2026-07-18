@@ -20,6 +20,7 @@ import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { DocumentShell } from '@/components/patterns';
 
 const REVIEW_NOTE = `### Review — check the code changes
 
@@ -143,17 +144,21 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
       />
     <StatusDashboard
       primary={
-      <Card className="flex min-h-0 flex-1 flex-col">
-        {!activePass ? (
-          <>
-            <CardHeader>
-              <div className="flex min-w-0 items-center gap-2">
-                <ScanSearch className="size-4 shrink-0 text-accent" />
-                <CardTitle>Code review</CardTitle>
-                <Badge variant={reviewing ? 'accent' : 'neutral'} size="sm">{reviewing ? 'reviewing' : 'no review yet'}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        title={`${props.projectName} — review`}
+        meta={
+          !activePass ? (
+            <Badge variant={reviewing ? 'accent' : 'neutral'} size="sm">{reviewing ? 'reviewing' : 'no review yet'}</Badge>
+          ) : activePass.findings.length === 0 ? (
+            <Badge variant="sage" size="sm">pass {activePassNo} clean</Badge>
+          ) : allApplied ? (
+            <Badge variant="sage" size="sm">applied</Badge>
+          ) : null
+        }
+        body={
+          !activePass ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
               {reviewing ? (
                 <>
                   <Loader2 className="size-8 animate-spin text-accent" />
@@ -173,29 +178,15 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
                   </p>
                 </>
               )}
-            </CardContent>
-          </>
-        ) : activePass.findings.length === 0 ? (
-          <>
-            <CardHeader style={{ borderBottomColor: 'var(--sage-tint)' }}>
-              <CardTitle><span className="text-[var(--sage)]">✓</span> Pass {activePassNo} — clean</CardTitle>
-              <Badge variant="sage" size="sm">no merge-blocking issues</Badge>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16">
+            </div>
+          ) : activePass.findings.length === 0 ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
               <span className="text-3xl">✅</span>
               <p className="text-sm font-semibold text-[var(--sage-deep)]">All clear</p>
               <p className="text-center text-xs text-ink-faint">10 categories checked — no merge-blocking issues.</p>
-            </CardContent>
-          </>
-        ) : (
-          <>
-            <CardHeader>
-              <div className="flex min-w-0 items-center gap-2">
-                <CardTitle>{props.projectName} — review</CardTitle>
-                {allApplied && <Badge variant="sage" size="sm">applied</Badge>}
-              </div>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto !p-0">
+            </div>
+          ) : (
+            <div className="-mx-5 -my-5">
               <FindingsGrid
                 findings={activePass.findings.map(toFinding)}
                 selectable={!isViewingPast}
@@ -205,21 +196,22 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
                 applied={allApplied}
                 readOnly={readOnly}
               />
-            </CardContent>
-
-            {!isViewingPast && !allApplied && activePass.findings.length > 0 ? (
-              <FindingsApplyBar
-                selectedCount={selectedFindings.length}
-                total={activePass.findings.length}
-                applying={applying}
-                readOnly={readOnly}
-                onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
-                onApply={() => apply(activePass.passNo, selectedFindings)}
-              />
-            ) : null}
-          </>
-        )}
-      </Card>
+            </div>
+          )
+        }
+        footer={
+          activePass && !isViewingPast && !allApplied && activePass.findings.length > 0 ? (
+            <FindingsApplyBar
+              selectedCount={selectedFindings.length}
+              total={activePass.findings.length}
+              applying={applying}
+              readOnly={readOnly}
+              onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
+              onApply={() => apply(activePass.passNo, selectedFindings)}
+            />
+          ) : null
+        }
+      />
       }
       aside={
         <>

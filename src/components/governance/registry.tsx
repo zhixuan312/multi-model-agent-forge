@@ -203,7 +203,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     // primitives, so the consumers below are the three sanctioned entry points.
     consumers: [
       { id: 'app-layout', label: 'App Layout — mounts AppShell (sidebar + header + top-right cluster)', filePath: 'app/(app)/layout.tsx' },
-      { id: 'page-frame', label: 'PageFrame — standard screen wrapper (settings · usage · loops · journal · projects list · profile · styleguide)', filePath: 'src/components/ui/shell.tsx' },
+      { id: 'page-frame', label: 'PageFrame — standard screen wrapper (settings · usage · loops · journal · projects list · profile)', filePath: 'src/components/ui/shell.tsx' },
       { id: 'project-layout', label: 'Project layout — direct ShellHeader/ShellSubNav/ShellBody composition (custom topbar + stage stepper)', filePath: 'app/(app)/projects/[id]/layout.tsx' },
     ],
     deviations: [],

@@ -1,10 +1,12 @@
 'use client';
+import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { useRouter } from 'next/navigation';
 import { Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { JournalGraph3D } from '@/components/forge/journal/JournalGraph3D';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
+import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
 
@@ -13,14 +15,16 @@ import type { GraphNode, GraphEdge } from '@/journal/graph';
  * canvas, with ONE rail note (the legend) in the rail. Clicking a node routes to
  * it in the Nodes tab.
  */
-export function GraphTab({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }) {
+export function GraphTab({ nodes, edges, metrics }: { nodes: GraphNode[]; edges: GraphEdge[]; metrics?: MetricCardProps[] }) {
   const router = useRouter();
   const onOpen = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
 
   return (
-    <StatusDashboard
-      aside={<GraphLegend />}
-      primary={
+    <StageShell
+      metrics={metrics}
+      note={<JournalNote />}
+      navigator={<GraphLegend />}
+    >
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <CardContent className="min-h-0 flex-1 p-1.5">
             {nodes.length ? (
@@ -30,8 +34,7 @@ export function GraphTab({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdg
             )}
           </CardContent>
         </Card>
-      }
-    />
+    </StageShell>
   );
 }
 

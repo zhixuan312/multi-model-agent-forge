@@ -31,7 +31,7 @@ import {
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 
 const AUTOMATION_NOTE = `### What is this?
@@ -331,8 +331,38 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
       </div>
 
       {/* Content — 2/3 pipeline + 1/3 details */}
-      <StatusDashboard
-        primary={
+      <StageShell
+        note={<RailNote icon={<Bot />}>{AUTOMATION_NOTE}</RailNote>}
+        navigator={
+          <>
+          <Card className="flex-1">
+            <CardHeader>
+              <CardTitle>Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5 !py-4">
+              {/* Progress */}
+              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGES.find((s) => s.key === liveStage)?.label ?? liveStage} icon={<Bot className="size-3" />} />
+              <Stat label="Stage" value={stats.stageOfTotal} icon={<Rocket className="size-3" />} />
+              {/* Elapsed is a live run clock — meaningless for a historical view. */}
+              {!viewOnly && <Stat label="Time elapsed" value={formatElapsed(elapsed)} icon={<Clock className="size-3" />} />}
+              <Stat label={viewOnly ? 'Activities' : 'Steps completed'} value={`${viewOnly ? logs.length : stepsCompleted}`} icon={<Zap className="size-3" />} />
+
+              {/* Work done — each row appears only once that work has happened, so
+                  the panel fills in as Forge progresses instead of showing zeros. */}
+              {(stats.audits > 0 || stats.tasksApproved > 0 || stats.reviews > 0 || stats.learnings > 0 || stats.issues > 0) && (
+                <div className="!mt-3 space-y-2.5 border-t border-line pt-3">
+                  {stats.audits > 0 && <Stat label="Audits run" value={`${stats.audits}`} icon={<FileText className="size-3" />} />}
+                  {stats.tasksApproved > 0 && <Stat label="Tasks approved" value={`${stats.tasksApproved}`} icon={<ListTree className="size-3" />} />}
+                  {stats.reviews > 0 && <Stat label="Code reviews" value={`${stats.reviews}`} icon={<ScanSearch className="size-3" />} />}
+                  {stats.learnings > 0 && <Stat label="Learnings" value={`${stats.learnings}`} icon={<NotebookPen className="size-3" />} />}
+                  {stats.issues > 0 && <Stat label="Issues" value={`${stats.issues}`} icon={<AlertTriangle className="size-3" />} />}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </>
+        }
+      >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Activity</CardTitle>
@@ -384,39 +414,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             )}
           </CardContent>
         </Card>
-        }
-        aside={
-          <>
-          <RailNote icon={<Bot />}>{AUTOMATION_NOTE}</RailNote>
-
-          <Card className="flex-1">
-            <CardHeader>
-              <CardTitle>Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2.5 !py-4">
-              {/* Progress */}
-              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGES.find((s) => s.key === liveStage)?.label ?? liveStage} icon={<Bot className="size-3" />} />
-              <Stat label="Stage" value={stats.stageOfTotal} icon={<Rocket className="size-3" />} />
-              {/* Elapsed is a live run clock — meaningless for a historical view. */}
-              {!viewOnly && <Stat label="Time elapsed" value={formatElapsed(elapsed)} icon={<Clock className="size-3" />} />}
-              <Stat label={viewOnly ? 'Activities' : 'Steps completed'} value={`${viewOnly ? logs.length : stepsCompleted}`} icon={<Zap className="size-3" />} />
-
-              {/* Work done — each row appears only once that work has happened, so
-                  the panel fills in as Forge progresses instead of showing zeros. */}
-              {(stats.audits > 0 || stats.tasksApproved > 0 || stats.reviews > 0 || stats.learnings > 0 || stats.issues > 0) && (
-                <div className="!mt-3 space-y-2.5 border-t border-line pt-3">
-                  {stats.audits > 0 && <Stat label="Audits run" value={`${stats.audits}`} icon={<FileText className="size-3" />} />}
-                  {stats.tasksApproved > 0 && <Stat label="Tasks approved" value={`${stats.tasksApproved}`} icon={<ListTree className="size-3" />} />}
-                  {stats.reviews > 0 && <Stat label="Code reviews" value={`${stats.reviews}`} icon={<ScanSearch className="size-3" />} />}
-                  {stats.learnings > 0 && <Stat label="Learnings" value={`${stats.learnings}`} icon={<NotebookPen className="size-3" />} />}
-                  {stats.issues > 0 && <Stat label="Issues" value={`${stats.issues}`} icon={<AlertTriangle className="size-3" />} />}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          </>
-        }
-      />
+      </StageShell>
     </div>
   );
 }

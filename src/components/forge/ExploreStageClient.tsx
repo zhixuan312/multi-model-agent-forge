@@ -27,8 +27,8 @@ const BRIEF_TABS: readonly TabBarTab[] = [
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StageShell, type StageShellItem } from '@/components/patterns/stage-shell';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
+import { StageNavigator, type NavItem } from '@/components/patterns/stage-navigator';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -262,18 +262,31 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
-  const taskItems: StageShellItem[] = [...tasks]
+  const taskItems: NavItem[] = [...tasks]
     .filter((t) => t.status !== 'draft')
     .sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
-    .map((t) => {
-      let status: string;
-      let statusVariant: StageShellItem['statusVariant'];
-      if (t.batchStatus === 'failed' && !t.outputMd) { status = 'failed'; statusVariant = 'rose'; }
-      else if (t.batchStatus === 'failed' && t.outputMd) { status = 'recorded'; statusVariant = 'amber'; }
-      else if (t.status === 'recorded' || t.batchStatus === 'done') { status = 'recorded'; statusVariant = 'sage'; }
-      else { status = 'running'; statusVariant = 'amber'; }
+    .map((t, i) => {
+      const failed = t.batchStatus === 'failed' && !t.outputMd;
+      const done = !failed && (t.status === 'recorded' || t.batchStatus === 'done');
       const LABEL: Record<string, string> = { investigate: 'Investigate', research: 'Research', journal: 'Journal recall' };
-      return { id: t.id, label: LABEL[t.kind] ?? t.kind, description: t.prompt, status, statusVariant };
+      return {
+        id: t.id,
+        title: LABEL[t.kind] ?? t.kind,
+        // Keep the rail's status chip AND its prompt line, so adopting the navigator loses
+        // no information the old hand-rolled rail showed.
+        meta: (
+          <span className="flex min-w-0 flex-col gap-1">
+            <Badge size="sm" variant={failed ? 'rose' : done ? 'sage' : 'amber'}>
+              {failed ? 'failed' : done ? 'recorded' : 'running'}
+            </Badge>
+            <span className="truncate">{t.prompt}</span>
+          </span>
+        ),
+        index: i + 1,
+        done,
+        active: t.id === selectedTaskId,
+        onClick: () => setSelectedTaskId(t.id),
+      };
     });
 
   const noteEl = <ExplorationNote phase={phase} />;
@@ -297,10 +310,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
       {/* Brief phase: brain-dump left, stats + advance right */}
       {(phase === 'idle' || phase === 'fanout') ? (
-        <StatusDashboard
-          aside={
+        <StageShell
+          note={noteEl}
+          navigator={
+            // Rail keeps its own box: its rows are bespoke, not NavItems.
             <>
-              {noteEl}
               <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Exploration</CardTitle>
@@ -336,8 +350,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               </Card>
             </>
           }
-          primary={
-            briefView === 'input' ? (
+        >
+          {briefView === 'input' ? (
             <DocumentShell
               className="flex min-h-0 flex-1 flex-col"
               title="Brain-dump"
@@ -390,36 +404,38 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <TabBar tabs={BRIEF_TABS} activeTab="tasks" onTabChange={(v) => setBriefView(v as 'input' | 'tasks')} />
               }
             />
-          )
-          }
-        />
+          )}
+        </StageShell>
 
       /* Discover phase: task list in rail, selected task detail in main */
       ) : phase === 'run' ? (
         <StageShell
           note={noteEl}
-          items={taskItems}
-          activeId={selectedTaskId}
-          onSelect={setSelectedTaskId}
-          listTitle="Tasks"
-          listProgress={`${recorded}/${dispatched}`}
-          progressPct={dispatched ? (recorded / dispatched) * 100 : 0}
-          footer={
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={async () => { if (await advancePhase('synthesize')) setViewOverride('synthesize'); }}
-              disabled={!allDone || locked || synthesizing}
-              loading={synthesizing}
-              rightIcon={<ArrowRight />}
-            >
-              {synthesizing ? 'Synthesizing…' : 'Continue to Synthesize'}
-            </Button>
+          navigator={
+            <StageNavigator
+              className="flex-1"
+              title="Tasks"
+              progress={{ value: recorded, total: dispatched }}
+              showChecks
+              groups={[{ id: 'tasks', items: taskItems }]}
+              footer={
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={async () => { if (await advancePhase('synthesize')) setViewOverride('synthesize'); }}
+                  disabled={!allDone || locked || synthesizing}
+                  loading={synthesizing}
+                  rightIcon={<ArrowRight />}
+                >
+                  {synthesizing ? 'Synthesizing…' : 'Continue to Synthesize'}
+                </Button>
+              }
+            />
           }
         >
           <DocumentShell
             className="flex min-h-0 flex-1 flex-col"
-            title={selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.label ?? '') : 'Select a task'}
+            title={selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.title ?? '') : 'Select a task'}
             approvers={
               // The governed `prompt` row: this document is an ANSWER to a question, so the
               // row under the header carries the prompt rather than approvers.
@@ -473,10 +489,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
       /* Synthesize phase: synthesis doc left, stats + advance right */
       ) : (
-        <StatusDashboard
-          aside={
+        <StageShell
+          note={noteEl}
+          navigator={
+            // Rail keeps its own box: its rows are bespoke, not NavItems.
             <>
-              {noteEl}
               <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Synthesis</CardTitle>
@@ -502,15 +519,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               </Card>
             </>
           }
-          primary={
+        >
             <SummaryPane
               className="min-h-0 flex-1"
               projectName={props.projectName}
               bodyMd={bodyMd as string}
               version={version}
             />
-          }
-        />
+        </StageShell>
       )}
     </div>
   );

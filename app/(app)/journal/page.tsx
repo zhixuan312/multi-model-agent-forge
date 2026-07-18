@@ -14,7 +14,6 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { PageFrame } from '@/components/ui';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { JournalTabsNav, type JournalView } from '@/components/forge/journal/JournalTabsNav';
 import { JournalState } from '@/components/forge/journal/journal-shell';
 import { RecallTab } from '@/components/forge/journal/RecallTab';
@@ -161,18 +160,15 @@ export default async function JournalPage({
   const metrics = statusFor(view, read, { pinned, faqs, graphNodes, graphEdgeCount: graphEdges.length });
   const indexRows: IndexLookupRow[] = read.nodes.map((n) => ({ id: n.id, title: n.title, status: n.status }));
 
+  // Each tab owns its own StageShell (note + rail + left panel), so the page passes the
+  // metrics down rather than wrapping them in a second Content Shell.
   return frame(
-    <StatusDashboard
-      metrics={metrics}
-      primary={
-        <>
-          {view === 'recall' ? <RecallTab index={indexRows} pinned={pinned} faqs={faqs} recentRecalls={recentRecalls} /> : null}
-          {view === 'nodes' ? <NodesTab nodes={read.nodes} skippedCount={read.skippedCount} initialNode={node} /> : null}
-          {view === 'graph' ? <GraphTab nodes={graphNodes} edges={graphEdges} /> : null}
-          {view === 'log' ? <LogTab log={read.log} /> : null}
-        </>
-      }
-    />,
+    <>
+      {view === 'recall' ? <RecallTab metrics={metrics} index={indexRows} pinned={pinned} faqs={faqs} recentRecalls={recentRecalls} /> : null}
+      {view === 'nodes' ? <NodesTab metrics={metrics} nodes={read.nodes} skippedCount={read.skippedCount} initialNode={node} /> : null}
+      {view === 'graph' ? <GraphTab metrics={metrics} nodes={graphNodes} edges={graphEdges} /> : null}
+      {view === 'log' ? <LogTab metrics={metrics} log={read.log} /> : null}
+    </>,
   );
 }
 

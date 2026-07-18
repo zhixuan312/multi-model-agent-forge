@@ -18,9 +18,9 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { DocumentShell } from '@/components/patterns';
+import { StageShell } from '@/components/patterns/stage-shell';
 
 const REVIEW_NOTE = `### Review — check the code changes
 
@@ -142,80 +142,11 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
       />
-    <StatusDashboard
-      primary={
-      <DocumentShell
-        className="flex min-h-0 flex-1 flex-col"
-        title={`${props.projectName} — review`}
-        meta={
-          !activePass ? (
-            <Badge variant={reviewing ? 'accent' : 'neutral'} size="sm">{reviewing ? 'reviewing' : 'no review yet'}</Badge>
-          ) : activePass.findings.length === 0 ? (
-            <Badge variant="sage" size="sm">pass {activePassNo} clean</Badge>
-          ) : allApplied ? (
-            <Badge variant="sage" size="sm">applied</Badge>
-          ) : null
-        }
-        body={
-          !activePass ? (
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
-              {reviewing ? (
-                <>
-                  <Loader2 className="size-8 animate-spin text-accent" />
-                  <p className="text-sm font-medium text-ink">Reviewing changes…</p>
-                  <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 300 }}>
-                    MMA is checking all 10 categories: test gaps, security regression, cross-file ripple, missing edge cases, performance, and more.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
-                    <ScanSearch className="size-7 text-[var(--steel)]" />
-                  </span>
-                  <p className="mt-5 text-sm font-semibold text-ink">Ready for review</p>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-                    Run a code review from the right panel to check the changes.
-                  </p>
-                </>
-              )}
-            </div>
-          ) : activePass.findings.length === 0 ? (
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
-              <span className="text-3xl">✅</span>
-              <p className="text-sm font-semibold text-[var(--sage-deep)]">All clear</p>
-              <p className="text-center text-xs text-ink-faint">10 categories checked — no merge-blocking issues.</p>
-            </div>
-          ) : (
-            <div className="-mx-5 -my-5">
-              <FindingsGrid
-                findings={activePass.findings.map(toFinding)}
-                selectable={!isViewingPast}
-                selectedIndices={selectedFindings}
-                onToggle={toggleFinding}
-                applying={applying}
-                applied={allApplied}
-                readOnly={readOnly}
-              />
-            </div>
-          )
-        }
-        footer={
-          activePass && !isViewingPast && !allApplied && activePass.findings.length > 0 ? (
-            <FindingsApplyBar
-              selectedCount={selectedFindings.length}
-              total={activePass.findings.length}
-              applying={applying}
-              readOnly={readOnly}
-              onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
-              onApply={() => apply(activePass.passNo, selectedFindings)}
-            />
-          ) : null
-        }
-      />
-      }
-      aside={
+    <StageShell
+      note={<RailNote icon={<ScanSearch />}>{REVIEW_NOTE}</RailNote>}
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
         <>
-        <RailNote icon={<ScanSearch />}>{REVIEW_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -293,7 +224,76 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
         </Card>
         </>
       }
-    />
+    >
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        title={`${props.projectName} — review`}
+        meta={
+          !activePass ? (
+            <Badge variant={reviewing ? 'accent' : 'neutral'} size="sm">{reviewing ? 'reviewing' : 'no review yet'}</Badge>
+          ) : activePass.findings.length === 0 ? (
+            <Badge variant="sage" size="sm">pass {activePassNo} clean</Badge>
+          ) : allApplied ? (
+            <Badge variant="sage" size="sm">applied</Badge>
+          ) : null
+        }
+        body={
+          !activePass ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
+              {reviewing ? (
+                <>
+                  <Loader2 className="size-8 animate-spin text-accent" />
+                  <p className="text-sm font-medium text-ink">Reviewing changes…</p>
+                  <p className="text-center text-xs text-ink-faint" style={{ maxWidth: 300 }}>
+                    MMA is checking all 10 categories: test gaps, security regression, cross-file ripple, missing edge cases, performance, and more.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                    <ScanSearch className="size-7 text-[var(--steel)]" />
+                  </span>
+                  <p className="mt-5 text-sm font-semibold text-ink">Ready for review</p>
+                  <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                    Run a code review from the right panel to check the changes.
+                  </p>
+                </>
+              )}
+            </div>
+          ) : activePass.findings.length === 0 ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-11">
+              <span className="text-3xl">✅</span>
+              <p className="text-sm font-semibold text-[var(--sage-deep)]">All clear</p>
+              <p className="text-center text-xs text-ink-faint">10 categories checked — no merge-blocking issues.</p>
+            </div>
+          ) : (
+            <div className="-mx-5 -my-5">
+              <FindingsGrid
+                findings={activePass.findings.map(toFinding)}
+                selectable={!isViewingPast}
+                selectedIndices={selectedFindings}
+                onToggle={toggleFinding}
+                applying={applying}
+                applied={allApplied}
+                readOnly={readOnly}
+              />
+            </div>
+          )
+        }
+        footer={
+          activePass && !isViewingPast && !allApplied && activePass.findings.length > 0 ? (
+            <FindingsApplyBar
+              selectedCount={selectedFindings.length}
+              total={activePass.findings.length}
+              applying={applying}
+              readOnly={readOnly}
+              onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
+              onApply={() => apply(activePass.passNo, selectedFindings)}
+            />
+          ) : null
+        }
+      />
+    </StageShell>
     </div>
   );
 }

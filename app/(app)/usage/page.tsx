@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame, Card, CardContent, Title } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { usageOverview, routeAggForSource, type Period, type RouteAggRow } from '@/usage/usage-core';
 import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/format';
 import { UsageTabsNav } from './UsageTabsNav';
@@ -94,7 +94,7 @@ export default async function UsagePage({
         </Suspense>
       }
     >
-      <StatusDashboard
+      <StageShell
         metrics={[
           {
             label: 'Spent',
@@ -129,7 +129,8 @@ export default async function UsagePage({
             muted: data.metrics.totalTokens === 0,
           },
         ]}
-        primary={
+        note={<RailNote icon={<DollarSign />}>{NOTE}</RailNote>}
+      >
           <div className="flex flex-col gap-4">
             <Card>
               <CardContent>
@@ -141,9 +142,7 @@ export default async function UsagePage({
             </Card>
             <UsageBatchTable data={tableRows} detailBySource={detailBySource} />
           </div>
-        }
-        aside={<RailNote icon={<DollarSign />}>{NOTE}</RailNote>}
-      />
+      </StageShell>
     </PageFrame>
   );
 }

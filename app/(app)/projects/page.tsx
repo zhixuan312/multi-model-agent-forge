@@ -6,7 +6,7 @@ import { projectActorFromMember } from '@/auth/team-scope';
 import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
 import { RailCard, RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { dashboardProjects, dashboardArchivedProjects, dashboardMetrics, type DashboardProject } from '@/dashboard/dashboard-core';
 
 const PROJECTS_NOTE = `### The pipeline
@@ -105,7 +105,7 @@ export default async function ProjectsPage() {
 
   return (
     <PageFrame title="Projects" actions={newProject} width="full" fill>
-      <StatusDashboard
+      <StageShell
         metrics={[
           { label: 'Active', value: metrics.active, sublabel: 'In flight', icon: <LayoutGrid />, iconTint: 'accent' },
           { label: 'Waiting for human', value: metrics.awaitingHuman, muted: metrics.awaitingHuman === 0, sublabel: 'Need a decision', icon: <Clock />, iconTint: 'amber' },
@@ -113,9 +113,10 @@ export default async function ProjectsPage() {
           { label: 'Build', value: metrics.inBuild, muted: metrics.inBuild === 0, sublabel: 'Shipping', icon: <Hammer />, iconTint: 'steel' },
           { label: 'Audit issues', value: metrics.auditIssues, muted: metrics.auditIssues === 0, sublabel: 'Open findings', icon: <AlertTriangle />, iconTint: 'rose' },
         ]}
-        primary={primary}
-        aside={aside}
-      />
+        navigator={aside}
+      >
+        {primary}
+      </StageShell>
     </PageFrame>
   );
 }

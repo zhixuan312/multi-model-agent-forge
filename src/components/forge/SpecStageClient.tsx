@@ -27,9 +27,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RoleChip } from '@/components/forge/RoleChip';
 import { useRouter } from 'next/navigation';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
@@ -531,9 +531,72 @@ function OutlineStage({
     : templates;
 
   return (
-    <StatusDashboard
-      primary={
-      /* CENTRE — the component-card picker (the spec skeleton) */
+    <StageShell
+      note={<SpecNote phase="outline" />}
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
+        <>
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader>
+            <CardTitle>Template</CardTitle>
+          </CardHeader>
+          <div className="shrink-0 border-b border-line px-5 py-3">
+            <SearchField value={tplQuery} onChange={setTplQuery} placeholder="Search templates…" />
+          </div>
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
+            {shownTemplates.map((t) => (
+              <TemplateRow
+                key={t.id}
+                label={t.label}
+                description={t.description}
+                count={t.kinds.length}
+                selected={active === t.id}
+                disabled={readOnly}
+                onClick={() => onPick(new Set(t.kinds))}
+              />
+            ))}
+
+            {/* Custom — active when the selection matches no template */}
+            <div
+              className={cn(
+                'rounded-[var(--r-md)] border px-3 py-2.5 transition-colors',
+                active === 'custom' ? 'border-accent bg-accent-tint/25' : 'border-line bg-surface',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    'grid size-4 shrink-0 place-items-center rounded-full border',
+                    active === 'custom' ? 'border-accent bg-accent' : 'border-line-strong',
+                  )}
+                >
+                  {active === 'custom' ? <span className="size-1.5 rounded-full bg-white" /> : null}
+                </span>
+                <Pencil className="size-3.5 text-ink-faint" />
+                <span className="font-medium text-ink">Custom</span>
+                <span className="flex-1" />
+                <Badge variant="neutral" size="sm">
+                  {picked.size} comp
+                </Badge>
+              </div>
+              {active === 'custom' ? null : (
+                <p className="mt-1 pl-6 text-xs text-ink-faint">Toggle components to make your own.</p>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <StageAdvance
+              onClick={() => (alreadyConfirmed ? onGoToCraft() : confirm.mutate())}
+              label={confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
+              disabled={readOnly || (!alreadyConfirmed && !valid) || confirm.isPending}
+              testId="outline-continue"
+            />
+          </CardFooter>
+        </Card>
+        </>
+      }
+    >
+      {/* CENTRE — the component-card picker (the spec skeleton) */}
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div className="flex min-w-0 items-center gap-2">
@@ -628,70 +691,7 @@ function OutlineStage({
         </CardContent>
       </Card>
 
-      }
-      aside={
-        <>
-        <SpecNote phase="outline" />
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Template</CardTitle>
-          </CardHeader>
-          <div className="shrink-0 border-b border-line px-5 py-3">
-            <SearchField value={tplQuery} onChange={setTplQuery} placeholder="Search templates…" />
-          </div>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-            {shownTemplates.map((t) => (
-              <TemplateRow
-                key={t.id}
-                label={t.label}
-                description={t.description}
-                count={t.kinds.length}
-                selected={active === t.id}
-                disabled={readOnly}
-                onClick={() => onPick(new Set(t.kinds))}
-              />
-            ))}
-
-            {/* Custom — active when the selection matches no template */}
-            <div
-              className={cn(
-                'rounded-[var(--r-md)] border px-3 py-2.5 transition-colors',
-                active === 'custom' ? 'border-accent bg-accent-tint/25' : 'border-line bg-surface',
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    'grid size-4 shrink-0 place-items-center rounded-full border',
-                    active === 'custom' ? 'border-accent bg-accent' : 'border-line-strong',
-                  )}
-                >
-                  {active === 'custom' ? <span className="size-1.5 rounded-full bg-white" /> : null}
-                </span>
-                <Pencil className="size-3.5 text-ink-faint" />
-                <span className="font-medium text-ink">Custom</span>
-                <span className="flex-1" />
-                <Badge variant="neutral" size="sm">
-                  {picked.size} comp
-                </Badge>
-              </div>
-              {active === 'custom' ? null : (
-                <p className="mt-1 pl-6 text-xs text-ink-faint">Toggle components to make your own.</p>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <StageAdvance
-              onClick={() => (alreadyConfirmed ? onGoToCraft() : confirm.mutate())}
-              label={confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
-              disabled={readOnly || (!alreadyConfirmed && !valid) || confirm.isPending}
-              testId="outline-continue"
-            />
-          </CardFooter>
-        </Card>
-        </>
-      }
-    />
+    </StageShell>
   );
 }
 
@@ -1207,9 +1207,62 @@ function CraftStage({
   }
 
   return (
-    <StatusDashboard
-      primary={
-      /* LEFT — the conversation that crafts the active component (2/3) */
+    <StageShell
+      note={<SpecNote phase="craft" />}
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
+        <>
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader>
+            <CardTitle>Components</CardTitle>
+          </CardHeader>
+          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full bg-[var(--sage)] transition-all"
+                style={{ width: `${components.length ? (approvedCount / components.length) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{components.length}</span>
+          </div>
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
+            {components.map((c) => (
+              <ComponentRow
+                key={c.id}
+                c={c}
+                active={c.id === activeId}
+                participants={collab[c.id]?.participants ?? []}
+                displayState={componentDisplayState(c)}
+                onClick={() => {
+                  setActiveId(c.id);
+                  setInput('');
+                }}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={onEditOutline}
+              className="flex w-full items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent"
+            >
+              <Plus className="size-4" /> Add component
+            </button>
+          </CardContent>
+          <CardFooter className="flex-col !items-stretch gap-2">
+            {nudge && pendingTotal > 0 ? (
+              <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
+                Not all invited approvers have responded yet. One nod per section is
+                enough — you can proceed anyway.
+              </div>
+            ) : null}
+            <Button className="w-full" onClick={consolidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
+              Continue to Finalize
+            </Button>
+          </CardFooter>
+        </Card>
+        </>
+      }
+    >
+      {/* LEFT — the conversation that crafts the active component (2/3) */}
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         meta={
@@ -1306,60 +1359,7 @@ function CraftStage({
         ) : null}
       />
 
-      }
-      aside={
-        <>
-        <SpecNote phase="craft" />
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Components</CardTitle>
-          </CardHeader>
-          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
-              <div
-                className="h-full rounded-full bg-[var(--sage)] transition-all"
-                style={{ width: `${components.length ? (approvedCount / components.length) * 100 : 0}%` }}
-              />
-            </div>
-            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{components.length}</span>
-          </div>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-            {components.map((c) => (
-              <ComponentRow
-                key={c.id}
-                c={c}
-                active={c.id === activeId}
-                participants={collab[c.id]?.participants ?? []}
-                displayState={componentDisplayState(c)}
-                onClick={() => {
-                  setActiveId(c.id);
-                  setInput('');
-                }}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={onEditOutline}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent"
-            >
-              <Plus className="size-4" /> Add component
-            </button>
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            {nudge && pendingTotal > 0 ? (
-              <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-                Not all invited approvers have responded yet. One nod per section is
-                enough — you can proceed anyway.
-              </div>
-            ) : null}
-            <Button className="w-full" onClick={consolidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
-              Continue to Finalize
-            </Button>
-          </CardFooter>
-        </Card>
-        </>
-      }
-    />
+    </StageShell>
   );
 }
 
@@ -1569,9 +1569,80 @@ function DocumentScreen({
   }
 
   return (
-    <StatusDashboard
-      primary={
-      /* CENTRE — the whole-spec finalization conversation (2/3) */
+    <StageShell
+      note={<SpecNote phase="finalize" />}
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
+        <>
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CardTitle>Audit rounds</CardTitle>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void runAudit()}
+              loading={auditing}
+              disabled={readOnly || !mmaReady || !spec || auditing || applying}
+              leftIcon={<Shield />}
+            >
+              {auditing ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
+            </Button>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
+            {!auditing && rounds.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+                <span className="grid size-10 place-items-center rounded-full bg-surface-2">
+                  <Shield className="size-5 text-ink-faint" />
+                </span>
+                <p className="mt-3 text-xs leading-relaxed text-ink-faint">
+                  Each audit round lands here<br />with its verdict and findings.
+                </p>
+              </div>
+            ) : null}
+            {auditing ? (
+              <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
+                <Loader2 className="size-4 animate-spin text-accent" />
+                <span className="text-sm font-medium text-ink">Pass {rounds.length + 1}</span>
+                <span className="text-xs text-ink-faint">Running…</span>
+              </div>
+            ) : null}
+            {[...rounds].reverse().map((r) => (
+              <div key={r.passNo} className="relative">
+                <PatternAuditRoundCard
+                  passNo={r.passNo}
+                  verdict={r.verdict}
+                  findings={r.findings as Finding[]}
+                  applied={r.applied || appliedPasses.has(r.passNo)}
+                  active={selectedPass === r.passNo && docView === 'conversation'}
+                  onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
+                />
+                {applying && applyingPass === r.passNo ? (
+                  <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
+                    <Loader2 className="size-3.5 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-accent-deep">
+                      Applying {applyCount} finding{applyCount !== 1 ? 's' : ''}...
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </CardContent>
+          <CardFooter className="flex-col !items-stretch gap-2">
+            <StageAdvance
+              href={`/projects/${projectId}/plan`}
+              projectId={projectId}
+              from="spec"
+              label="Continue to Plan"
+              testId="spec-continue-link"
+              disabled={specApprovers.length === 0 || readOnly}
+            />
+          </CardFooter>
+        </Card>
+        </>
+      }
+    >
+      {/* CENTRE — the whole-spec finalization conversation (2/3) */}
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         title={`${projectName} — specification`}
@@ -1700,78 +1771,7 @@ function DocumentScreen({
         }
       />
 
-      }
-      aside={
-        <>
-        <SpecNote phase="finalize" />
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>Audit rounds</CardTitle>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => void runAudit()}
-              loading={auditing}
-              disabled={readOnly || !mmaReady || !spec || auditing || applying}
-              leftIcon={<Shield />}
-            >
-              {auditing ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
-            </Button>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {!auditing && rounds.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
-                <span className="grid size-10 place-items-center rounded-full bg-surface-2">
-                  <Shield className="size-5 text-ink-faint" />
-                </span>
-                <p className="mt-3 text-xs leading-relaxed text-ink-faint">
-                  Each audit round lands here<br />with its verdict and findings.
-                </p>
-              </div>
-            ) : null}
-            {auditing ? (
-              <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
-                <Loader2 className="size-4 animate-spin text-accent" />
-                <span className="text-sm font-medium text-ink">Pass {rounds.length + 1}</span>
-                <span className="text-xs text-ink-faint">Running…</span>
-              </div>
-            ) : null}
-            {[...rounds].reverse().map((r) => (
-              <div key={r.passNo} className="relative">
-                <PatternAuditRoundCard
-                  passNo={r.passNo}
-                  verdict={r.verdict}
-                  findings={r.findings as Finding[]}
-                  applied={r.applied || appliedPasses.has(r.passNo)}
-                  active={selectedPass === r.passNo && docView === 'conversation'}
-                  onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
-                />
-                {applying && applyingPass === r.passNo ? (
-                  <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
-                    <Loader2 className="size-3.5 animate-spin text-accent" />
-                    <span className="text-xs font-medium text-accent-deep">
-                      Applying {applyCount} finding{applyCount !== 1 ? 's' : ''}...
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <StageAdvance
-              href={`/projects/${projectId}/plan`}
-              projectId={projectId}
-              from="spec"
-              label="Continue to Plan"
-              testId="spec-continue-link"
-              disabled={specApprovers.length === 0 || readOnly}
-            />
-          </CardFooter>
-        </Card>
-        </>
-      }
-    />
+    </StageShell>
   );
 }
 

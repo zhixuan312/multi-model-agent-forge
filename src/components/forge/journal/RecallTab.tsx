@@ -1,4 +1,5 @@
 'use client';
+import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
@@ -15,7 +16,7 @@ import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui
 import { showToast } from '@/components/ui/toast';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { List, type ListSection } from '@/components/patterns/list';
 import { RecallAnswer } from '@/components/forge/journal/RecallView';
 import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
@@ -59,11 +60,13 @@ export function RecallTab({
   pinned,
   faqs,
   recentRecalls = [],
+  metrics,
 }: {
   index: IndexLookupRow[];
   pinned: PinnedView[];
   faqs: FaqView[];
   recentRecalls?: RecentRecall[];
+  metrics?: MetricCardProps[];
 }) {
   const router = useRouter();
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
@@ -269,23 +272,22 @@ export function RecallTab({
   }
 
   return (
-    <StatusDashboard
-      aside={
-        <>
-          <JournalNote />
-          <RecallComposer
-            query={query}
-            onChange={setQuery}
-            onSubmit={() => void run()}
-            canSubmit={canSubmit}
-            running={status === 'running'}
-            length={trimmed.length}
-          />
-        </>
+    <StageShell
+      metrics={metrics}
+      note={<JournalNote />}
+      navigator={
+        <RecallComposer
+          query={query}
+          onChange={setQuery}
+          onSubmit={() => void run()}
+          canSubmit={canSubmit}
+          running={status === 'running'}
+          length={trimmed.length}
+        />
       }
-      primary={
-        // A plain content stack — the Content Shell's left panel (StatusDashboard column) owns
-        // the scroll, so a long expanded answer scrolls the panel instead of overflowing it.
+    >
+        {/* A plain content stack — StageShell's left panel owns the scroll, so a long
+            expanded answer scrolls the panel instead of overflowing it. */}
         <div className="flex flex-col gap-4">
           {status === 'running' ? (
             <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 px-4 py-3">
@@ -316,8 +318,7 @@ export function RecallTab({
             </Card>
           )}
         </div>
-      }
-    />
+    </StageShell>
   );
 
   // --- pin mutations (closures over the pin state setters) ---

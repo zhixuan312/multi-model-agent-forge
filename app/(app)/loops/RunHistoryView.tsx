@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { History } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Badge, Mono, Micro, EmptyState } from '@/components/ui';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import type { LoopRunRow } from '@/db/schema/loop';
 import { ActivityFilters } from './ActivityFilters';
 import { RunDetail } from './RunDetail';
@@ -48,21 +48,10 @@ export function RunHistoryView({
   }
 
   return (
-    <StatusDashboard
-      primary={
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardContent className="min-h-0 flex-1 overflow-y-auto p-5">
-            {selected ? (
-              <RunDetail run={selected} repoName={repoNames[selected.repoId]} />
-            ) : (
-              <EmptyState icon={<History />} title="No runs yet" description="Runs appear here once a loop fires — manually or on schedule." />
-            )}
-          </CardContent>
-        </Card>
-      }
-      aside={
+    <StageShell
+      note={note}
+      navigator={
         <>
-        {note}
         <ActivityFilters loops={loops} loopId={loopId} status={status} />
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
@@ -100,6 +89,16 @@ export function RunHistoryView({
         </Card>
         </>
       }
-    />
+    >
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardContent className="min-h-0 flex-1 overflow-y-auto p-5">
+            {selected ? (
+              <RunDetail run={selected} repoName={repoNames[selected.repoId]} />
+            ) : (
+              <EmptyState icon={<History />} title="No runs yet" description="Runs appear here once a loop fires — manually or on schedule." />
+            )}
+          </CardContent>
+        </Card>
+    </StageShell>
   );
 }

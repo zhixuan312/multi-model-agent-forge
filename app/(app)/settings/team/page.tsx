@@ -8,7 +8,7 @@ import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { GitTokenForm } from './GitTokenForm';
 import { WorkspaceForm } from './WorkspaceForm';
@@ -55,7 +55,7 @@ export default async function TeamSettingsPage() {
 
   return (
     <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full">
-      <StatusDashboard
+      <StageShell
         align="start"
         metrics={[
           { label: 'Git access', value: teamRow.gitTokenRef ? 'Ready' : 'No token', muted: !teamRow.gitTokenRef, sublabel: 'Clone & pull', icon: <GitBranch />, iconTint: 'sage' },
@@ -63,14 +63,13 @@ export default async function TeamSettingsPage() {
           { label: 'Repositories', value: repoCount, muted: repoCount === 0, sublabel: 'Registered', icon: <Boxes />, iconTint: 'accent' },
           { label: 'Members', value: memberCount, muted: memberCount === 0, sublabel: 'On this team', icon: <Users />, iconTint: 'rose' },
         ]}
-        primary={
+        note={<RailNote icon={<GitBranch />}>{TEAM_NOTE}</RailNote>}
+      >
           <div className="flex flex-col gap-4">
             <GitTokenForm tokenSet={teamRow.gitTokenRef !== null} />
             <WorkspaceForm current={teamRow.workspaceRootPath} />
           </div>
-        }
-        aside={<RailNote icon={<GitBranch />}>{TEAM_NOTE}</RailNote>}
-      />
+      </StageShell>
     </PageFrame>
   );
 }

@@ -6,7 +6,7 @@ import { listLoops } from '@/loops/loops-core';
 import { listAllRuns } from '@/loops/runs-query';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import type { LoopRunRow } from '@/db/schema/loop';
 import { LoopsTabsNav } from '../LoopsTabsNav';
 import { RunHistoryView } from '../RunHistoryView';
@@ -57,14 +57,14 @@ export default async function RunHistoryPage({ searchParams }: { searchParams: P
 
   return (
     <PageFrame title="Loops" subnav={<LoopsTabsNav active="history" />} width="full" fill>
-      <StatusDashboard
+      <StageShell
         metrics={[
           { label: 'Runs', value: runs.length, muted: runs.length === 0, sublabel: 'In view', icon: <History />, iconTint: 'accent' },
           { label: 'Changed', value: changed, muted: changed === 0, sublabel: 'Opened a PR', icon: <GitPullRequest />, iconTint: 'sage' },
           { label: 'Failed', value: failed, muted: failed === 0, sublabel: 'Need attention', icon: <CircleAlert />, iconTint: 'rose' },
           { label: 'Running', value: running, muted: running === 0, sublabel: 'In progress', icon: <Loader />, iconTint: 'steel' },
         ]}
-        primary={
+      >
           <RunHistoryView
             runs={runs}
             loops={loops.map((l) => ({ id: l.id, name: l.name }))}
@@ -75,8 +75,7 @@ export default async function RunHistoryPage({ searchParams }: { searchParams: P
             status={status}
             note={<RailNote icon={<History />}>{HISTORY_NOTE}</RailNote>}
           />
-        }
-      />
+      </StageShell>
     </PageFrame>
   );
 }

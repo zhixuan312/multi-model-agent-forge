@@ -72,6 +72,9 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
         </div>
       ) : null}
       <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
+        {groups.every((g) => g.items.length === 0) ? (
+          <p className="py-8 text-center text-sm text-ink-faint">No items yet.</p>
+        ) : null}
         {groups.map((g) => (
           <div key={g.id} className="space-y-2">
             {g.label ? (

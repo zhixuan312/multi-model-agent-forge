@@ -18,7 +18,7 @@ import {
 import { FormPanel } from '@/components/patterns';
 import { showToast } from '@/components/ui/toast';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
@@ -131,10 +131,30 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
   }
 
   return (
-    <StatusDashboard
+    <StageShell
       metrics={metrics}
       align="start"
-      primary={
+      note={<RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>}
+      navigator={
+        <>
+          <Card>
+            <CardContent className="flex flex-col gap-3 py-5">
+              <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
+              <Text className="!text-xs">End your session on this device.</Text>
+              <Button
+                variant="secondary"
+                leftIcon={<LogOut />}
+                onClick={signOut}
+                loading={signingOut}
+                className="w-full text-rose hover:text-rose"
+              >
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      }
+    >
       <div className="flex flex-col gap-4">
         {/* ACCOUNT */}
         <FormPanel
@@ -264,27 +284,6 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
 
         </FormPanel>
       </div>
-      }
-      aside={
-        <>
-          <RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>
-          <Card>
-            <CardContent className="flex flex-col gap-3 py-5">
-              <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
-              <Text className="!text-xs">End your session on this device.</Text>
-              <Button
-                variant="secondary"
-                leftIcon={<LogOut />}
-                onClick={signOut}
-                loading={signingOut}
-                className="w-full text-rose hover:text-rose"
-              >
-                {signingOut ? 'Signing out…' : 'Sign out'}
-              </Button>
-            </CardContent>
-          </Card>
-        </>
-      }
-    />
+    </StageShell>
   );
 }

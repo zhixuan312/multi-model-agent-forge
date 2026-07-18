@@ -3,7 +3,7 @@ import { FolderPlus } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
@@ -42,10 +42,11 @@ export default async function NewProjectPage() {
       width="full"
       fill
     >
-      <StatusDashboard
-        primary={<NewProjectForm repos={pickerRepos} />}
-        aside={<RailNote icon={<FolderPlus />}>{NOTE}</RailNote>}
-      />
+      <StageShell
+        note={<RailNote icon={<FolderPlus />}>{NOTE}</RailNote>}
+      >
+<NewProjectForm repos={pickerRepos} />
+      </StageShell>
     </PageFrame>
   );
 }

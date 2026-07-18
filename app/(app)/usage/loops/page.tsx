@@ -3,7 +3,7 @@ import { Repeat } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { usageByLoop, routeAggForLoop, type Period, type RouteAggRow } from '@/usage/usage-core';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
@@ -50,11 +50,12 @@ export default async function UsageLoopsPage({
         </Suspense>
       }
     >
-      <StatusDashboard
+      <StageShell
         metrics={[]}
-        primary={<LoopUsageTable data={rows} detailByLoop={detailByLoop} />}
-        aside={<RailNote icon={<Repeat />}>{NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<Repeat />}>{NOTE}</RailNote>}
+      >
+<LoopUsageTable data={rows} detailByLoop={detailByLoop} />
+      </StageShell>
     </PageFrame>
   );
 }

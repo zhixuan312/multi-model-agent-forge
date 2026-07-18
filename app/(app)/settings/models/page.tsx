@@ -6,7 +6,7 @@ import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame } from '@/components/ui';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { ModelsPanel } from './ModelsPanel';
 
 const MODELS_NOTE = `### Agent tiers
@@ -47,7 +47,7 @@ export default async function ModelsPage() {
 
   return (
     <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="models" />} width="full">
-      <StatusDashboard
+      <StageShell
         align="start"
         metrics={[
           { label: 'Tiers configured', value: configured, muted: configured === 0, sublabel: 'of 3 tiers', icon: <Layers />, iconTint: 'accent' },
@@ -55,9 +55,10 @@ export default async function ModelsPage() {
           { label: 'OpenAI-style', value: codex, muted: codex === 0, sublabel: 'tiers · codex', icon: <SquareTerminal />, iconTint: 'steel' },
           { label: 'API keys', value: apiKeys, muted: apiKeys === 0, sublabel: 'rest use OAuth', icon: <KeyRound />, iconTint: 'rose' },
         ]}
-        primary={<ModelsPanel tiers={tiers} suggestions={suggestions} />}
-        aside={<RailNote icon={<Cpu />}>{MODELS_NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<Cpu />}>{MODELS_NOTE}</RailNote>}
+      >
+<ModelsPanel tiers={tiers} suggestions={suggestions} />
+      </StageShell>
     </PageFrame>
   );
 }

@@ -1,5 +1,5 @@
 import { DollarSign, TrendingUp, Cpu, Users, AlertTriangle, UserRound } from 'lucide-react';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import {
   Card,
   CardContent,
@@ -29,7 +29,7 @@ const pct = (r: number): string => `${(r * 100).toFixed(r > 0 && r < 0.1 ? 1 : 0
 export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
   const h = data.headline;
   return (
-    <StatusDashboard
+    <StageShell
       metrics={[
         { label: 'Spent', value: formatCost(h.totalCostUsd), sublabel: `${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`, icon: <DollarSign />, iconTint: 'accent', muted: h.dispatchCount === 0 },
         { label: 'Saved', value: formatCost(h.totalSavedUsd || null), sublabel: formatRoi(h.totalSavedUsd, h.totalCostUsd), icon: <TrendingUp />, iconTint: 'sage', muted: !h.totalSavedUsd },
@@ -38,14 +38,13 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
         { label: 'Failure rate', value: pct(h.failureRate), sublabel: 'of dispatches', icon: <AlertTriangle />, iconTint: 'rose', muted: h.failureRate === 0 },
         { label: 'Cost / member', value: formatCost(h.costPerMemberUsd || null), sublabel: 'across all teams', icon: <UserRound />, iconTint: 'steel', muted: !h.costPerMemberUsd },
       ]}
-      primary={
+    >
         <div className="flex flex-col gap-4">
           <OrgTrendCard trend={data.trend.orgTotal} />
           <OrgTeamTable rows={data.costByTeam} />
           <OrgInfraTable rows={data.infraBreakdown} />
         </div>
-      }
-    />
+    </StageShell>
   );
 }
 

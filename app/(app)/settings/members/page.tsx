@@ -5,7 +5,7 @@ import { listMembers, countActiveSessions } from '@/auth/members-core';
 import { PageFrame } from '@/components/ui';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { MemberTable, type MemberRowData } from './MemberTable';
 
 const MEMBERS_NOTE = `### Roles & access
@@ -43,16 +43,17 @@ export default async function MembersPage() {
 
   return (
     <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="members" />} width="full" fill>
-      <StatusDashboard
+      <StageShell
         metrics={[
           { label: 'Team members', value: total, sublabel: 'Total members', icon: <Users />, iconTint: 'rose' },
           { label: 'Admins', value: admins, sublabel: 'With admin capability', icon: <ShieldCheck />, iconTint: 'accent' },
           { label: 'Recently added', value: recent, muted: recent === 0, sublabel: 'In the last 30 days', icon: <UserPlus />, iconTint: 'sage' },
           { label: 'Active sessions', value: activeSessions, muted: activeSessions === 0, sublabel: 'Currently active', icon: <Monitor />, iconTint: 'steel' },
         ]}
-        primary={<MemberTable members={rows} />}
-        aside={<RailNote icon={<ShieldCheck />}>{MEMBERS_NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<ShieldCheck />}>{MEMBERS_NOTE}</RailNote>}
+      >
+<MemberTable members={rows} />
+      </StageShell>
     </PageFrame>
   );
 }

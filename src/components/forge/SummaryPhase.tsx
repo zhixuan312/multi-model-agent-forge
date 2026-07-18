@@ -19,7 +19,7 @@ import {
   Badge,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
 import type { ProjectSummary } from '@/projects/project-summary';
@@ -132,53 +132,10 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
   })();
 
   return (
-    <StatusDashboard
-      primary={
-      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2">
-        <StatCard icon={Clock} title="Timeline">
-          {orderedStages.map((s) => (
-            <StatRow key={s.kind} label={STAGE_LABELS[s.kind] ?? s.kind} value={stageDuration(s.startedAt, s.completedAt)} />
-          ))}
-          <div className="mt-2 border-t border-line pt-2">
-            <StatRow label="Total" value={totalProjectMs > 0 ? formatDuration(totalProjectMs) : '—'} />
-          </div>
-        </StatCard>
-
-        <StatCard icon={DollarSign} title="Cost">
-          <StatRow label="Total MMA spend" value={formatUsd(summary.cost.totalUsd)} />
-          <StatRow label="Saved vs main tier" value={formatUsd(summary.cost.savedUsd)} />
-        </StatCard>
-
-        <StatCard icon={Zap} title="Effort">
-          <StatRow label="MMA calls" value={String(summary.effort.totalCalls)} />
-          <StatRow label="Input tokens" value={formatTokens(summary.effort.totalInputTokens)} />
-          <StatRow label="Output tokens" value={formatTokens(summary.effort.totalOutputTokens)} />
-          <StatRow label="Compute time" value={formatDuration(summary.effort.totalDurationMs)} />
-        </StatCard>
-
-        <StatCard icon={Shield} title="Quality">
-          <StatRow label="Spec version" value={`v${summary.quality.specVersion}`} />
-          <StatRow label="Plan version" value={`v${summary.quality.planVersion}`} />
-          <StatRow label="Audit passes" value={String(summary.quality.auditPasses.length)} />
-        </StatCard>
-
-        <StatCard icon={GitCommit} title="Delivery">
-          <StatRow label="Total tasks" value={String(summary.delivery.totalTasks)} />
-          <StatRow label="Approved" value={String(summary.delivery.approved)} />
-        </StatCard>
-
-        <StatCard icon={BookOpen} title="Knowledge">
-          <StatRow label="Learnings recorded" value={String(summary.knowledge.recorded)} />
-          {Object.entries(summary.knowledge.byType).map(([cat, count]) => (
-            <StatRow key={cat} label={cat} value={String(count)} />
-          ))}
-        </StatCard>
-      </div>
-
-      }
-      aside={
+    <StageShell
+      note={<RailNote icon={<BookOpen />}>{SUMMARY_NOTE}</RailNote>}
+      navigator={
         <>
-        <RailNote icon={<BookOpen />}>{SUMMARY_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <div className="flex min-w-0 items-center gap-2">
@@ -233,6 +190,48 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
         </Card>
         </>
       }
-    />
+    >
+      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2">
+        <StatCard icon={Clock} title="Timeline">
+          {orderedStages.map((s) => (
+            <StatRow key={s.kind} label={STAGE_LABELS[s.kind] ?? s.kind} value={stageDuration(s.startedAt, s.completedAt)} />
+          ))}
+          <div className="mt-2 border-t border-line pt-2">
+            <StatRow label="Total" value={totalProjectMs > 0 ? formatDuration(totalProjectMs) : '—'} />
+          </div>
+        </StatCard>
+
+        <StatCard icon={DollarSign} title="Cost">
+          <StatRow label="Total MMA spend" value={formatUsd(summary.cost.totalUsd)} />
+          <StatRow label="Saved vs main tier" value={formatUsd(summary.cost.savedUsd)} />
+        </StatCard>
+
+        <StatCard icon={Zap} title="Effort">
+          <StatRow label="MMA calls" value={String(summary.effort.totalCalls)} />
+          <StatRow label="Input tokens" value={formatTokens(summary.effort.totalInputTokens)} />
+          <StatRow label="Output tokens" value={formatTokens(summary.effort.totalOutputTokens)} />
+          <StatRow label="Compute time" value={formatDuration(summary.effort.totalDurationMs)} />
+        </StatCard>
+
+        <StatCard icon={Shield} title="Quality">
+          <StatRow label="Spec version" value={`v${summary.quality.specVersion}`} />
+          <StatRow label="Plan version" value={`v${summary.quality.planVersion}`} />
+          <StatRow label="Audit passes" value={String(summary.quality.auditPasses.length)} />
+        </StatCard>
+
+        <StatCard icon={GitCommit} title="Delivery">
+          <StatRow label="Total tasks" value={String(summary.delivery.totalTasks)} />
+          <StatRow label="Approved" value={String(summary.delivery.approved)} />
+        </StatCard>
+
+        <StatCard icon={BookOpen} title="Knowledge">
+          <StatRow label="Learnings recorded" value={String(summary.knowledge.recorded)} />
+          {Object.entries(summary.knowledge.byType).map(([cat, count]) => (
+            <StatRow key={cat} label={cat} value={String(count)} />
+          ))}
+        </StatCard>
+      </div>
+
+    </StageShell>
   );
 }

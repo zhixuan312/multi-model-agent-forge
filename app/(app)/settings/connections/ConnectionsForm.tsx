@@ -10,7 +10,7 @@ import {
 } from '@/components/ui';
 import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
 import { FormPanel } from '@/components/patterns';
 
@@ -136,10 +136,11 @@ export function ConnectionsForm({
 
   const errId = 'connections-error';
   return (
-    <StatusDashboard
+    <StageShell
       metrics={metrics}
       align="start"
-      primary={
+      note={<RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>}
+    >
       <div className="flex flex-col gap-4">
         {/* MMA — the local engine; bearer auto-resolved, advanced only for remote */}
         <FormPanel
@@ -237,8 +238,6 @@ export function ConnectionsForm({
           </Micro>
         ) : null}
       </div>
-      }
-      aside={<RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>}
-    />
+    </StageShell>
   );
 }

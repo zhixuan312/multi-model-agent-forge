@@ -3,7 +3,7 @@ import { Zap } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { usageStandalone, type Period } from '@/usage/usage-core';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
@@ -45,11 +45,12 @@ export default async function UsageStandalonePage({
         </Suspense>
       }
     >
-      <StatusDashboard
+      <StageShell
         metrics={[]}
-        primary={<StandaloneUsageTable data={rows} />}
-        aside={<RailNote icon={<Zap />}>{NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<Zap />}>{NOTE}</RailNote>}
+      >
+<StandaloneUsageTable data={rows} />
+      </StageShell>
     </PageFrame>
   );
 }

@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
-import { cn } from '@/lib/cn';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { StageShell } from '@/components/patterns/stage-shell';
+import { StageNavigator } from '@/components/patterns/stage-navigator';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
@@ -45,7 +46,6 @@ import {
   Badge,
   Banner,
   TextSm,
-  Micro,
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
@@ -54,7 +54,6 @@ import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanAuditFinding } from '@/build/plan-types';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
 
@@ -523,8 +522,21 @@ function DetailStage({
 
   if (authoring && allTasks.length === 0) {
     return (
-      <StatusDashboard
-        primary={
+      <StageShell
+        note={<>
+          <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
+            <div className="flex items-center gap-2 border-b border-line px-5 py-2">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2" />
+              <span className="shrink-0 text-xs font-medium text-ink-faint">0/0</span>
+            </div>
+            <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+              <p className="text-xs text-ink-faint">Tasks appear here once the plan is drafted.</p>
+            </CardContent>
+          </Card>
+          </>}
+      >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>Plan tasks</CardTitle>
@@ -537,30 +549,15 @@ function DetailStage({
             </div>
           </CardContent>
         </Card>
-        }
-        aside={
-          <>
-          <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
-            <div className="flex items-center gap-2 border-b border-line px-5 py-2">
-              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2" />
-              <span className="shrink-0 text-xs font-medium text-ink-faint">0/0</span>
-            </div>
-            <CardContent className="flex min-h-0 flex-1 items-center justify-center">
-              <p className="text-xs text-ink-faint">Tasks appear here once the plan is drafted.</p>
-            </CardContent>
-          </Card>
-          </>
-        }
-      />
+      </StageShell>
     );
   }
 
   if (!active) {
     return (
-      <StatusDashboard
-        primary={
+      <StageShell
+        note={<RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>}
+      >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader><CardTitle>Plan tasks</CardTitle></CardHeader>
           <CardContent className="flex min-h-0 flex-1 items-center justify-center">
@@ -583,9 +580,7 @@ function DetailStage({
             </div>
           </CardContent>
         </Card>
-        }
-        aside={<RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>}
-      />
+      </StageShell>
     );
   }
   const approved = status[active?.id ?? ''] === 'approved';
@@ -659,9 +654,60 @@ function DetailStage({
   }
 
   return (
-    <StatusDashboard
-      primary={
-      /* CENTRE -- plan view / discussion toggle (2/3) */
+    <StageShell
+      note={<RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>}
+      navigator={
+        <StageNavigator
+          className="flex-1"
+          title="Tasks"
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                const targets = allApproved
+                  ? allTasks.filter((t) => status[t.id] === 'approved')
+                  : allTasks.filter((t) => status[t.id] !== 'approved');
+                for (const t of targets) onToggleApprove(t.id);
+              }}
+              disabled={readOnly || allTasks.length === 0}
+              leftIcon={allApproved ? <RotateCcw /> : <Check />}
+            >
+              {allApproved ? 'Revoke all' : 'Approve all'}
+            </Button>
+          }
+          progress={{ value: approvedCount, total: allTasks.length }}
+          showChecks
+          groups={phases.map((p) => ({
+            id: p.id,
+            // A single phase needs no section header — the cluster is the whole list.
+            label: phases.length > 1 ? p.title : undefined,
+            items: p.tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              meta: (
+                <span className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-0.5">
+                    <GitBranch className="size-2.5" /> {t.targetRepo}
+                  </span>
+                  {t.files.length > 0 ? <span>{t.files.length} files</span> : null}
+                  {t.dependsOn.length > 0 ? <span>· deps {t.dependsOn.length}</span> : null}
+                </span>
+              ),
+              index: t.num || 0,
+              done: status[t.id] === 'approved',
+              active: t.id === active?.id,
+              onClick: () => setActiveId(t.id),
+            })),
+          }))}
+          footer={
+            <Button className="w-full" onClick={onValidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
+              Continue to Validate
+            </Button>
+          }
+        />
+      }
+    >
+      {/* LEFT PANEL — the task document (plan ⋅ discussion). */}
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         meta={<Badge variant="neutral" size="sm">Task {active?.num || 0}</Badge>}
@@ -750,93 +796,7 @@ function DetailStage({
           ) : null
         }
       />
-      }
-      aside={
-        <>
-        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.refine}</RailNote>
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Tasks</CardTitle>
-            <Button
-              size="sm"
-              onClick={() => {
-                const targets = allApproved
-                  ? allTasks.filter((t) => status[t.id] === 'approved')
-                  : allTasks.filter((t) => status[t.id] !== 'approved');
-                for (const t of targets) onToggleApprove(t.id);
-              }}
-              disabled={readOnly || allTasks.length === 0}
-              leftIcon={allApproved ? <RotateCcw /> : <Check />}
-            >
-              {allApproved ? 'Revoke all' : 'Approve all'}
-            </Button>
-          </CardHeader>
-          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${allTasks.length ? (approvedCount / allTasks.length) * 100 : 0}%` }} />
-            </div>
-            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{allTasks.length}</span>
-          </div>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
-            {phases.map((p) => (
-              <div key={p.id} className="space-y-2">
-                {phases.length > 1 ? (
-                  <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{p.title}</Micro>
-                ) : null}
-                {p.tasks.map((t) => {
-                  const isActive = t.id === active?.id;
-                  const isApproved = status[t.id] === 'approved';
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setActiveId(t.id)}
-                      className={cn(
-                        'flex w-full gap-2.5 rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
-                        isActive
-                          ? 'border-accent bg-accent-tint/25 shadow-sm'
-                          : isApproved
-                            ? 'border-[var(--sage-deep)]/30 bg-sage-tint/20 hover:bg-sage-tint/40'
-                            : 'border-line bg-surface hover:border-line-strong',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold transition-colors',
-                          isApproved
-                            ? 'bg-[var(--sage-deep)] text-white'
-                            : isActive
-                              ? 'bg-accent text-white'
-                              : 'bg-surface-2 text-ink-faint',
-                        )}
-                      >
-                        {isApproved ? <Check className="size-3.5" /> : (t.num || 0)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium leading-snug text-ink">{t.title}</p>
-                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
-                          <span className="inline-flex items-center gap-0.5">
-                            <GitBranch className="size-2.5" /> {t.targetRepo}
-                          </span>
-                          {t.files.length > 0 ? <span>{t.files.length} files</span> : null}
-                          {t.dependsOn.length > 0 ? <span>· deps {t.dependsOn.length}</span> : null}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={onValidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
-              Continue to Validate
-            </Button>
-          </CardFooter>
-        </Card>
-        </>
-      }
-    />
+    </StageShell>
   );
 }
 
@@ -898,69 +858,12 @@ function ValidateStage({
   }
 
   return (
-    <StatusDashboard
-      primary={
-      <DocumentShell
-        className="flex min-h-0 flex-1 flex-col"
-        title={`${projectName} — plan`}
-        meta={locked ? <Badge variant="sage" size="sm"><Lock className="mr-1 size-3" /> locked</Badge> : null}
-        tabs={VALIDATE_TABS}
-        activeTab={docView}
-        onTabChange={(v) => setDocView(v as 'document' | 'audit')}
-        body={
-          <>
-            {docView === 'document' && planMd ? (
-              <ProseBlock>{planMd}</ProseBlock>
-            ) : !activeRound ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
-                <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
-                  <Shield className="size-7 text-[var(--steel)]" />
-                </span>
-                <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
-                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-                  Run an audit from the right panel to check sequencing, coverage, and TDD gaps.
-                </p>
-              </div>
-            ) : (
-              <FindingsGrid
-                findings={activeRound.findings as Finding[]}
-                selectable
-                selectedIndices={selectedFindings}
-                onToggle={toggleFinding}
-                applying={applying}
-                applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
-                readOnly={readOnly}
-              />
-            )}
-          </>
-        }
-        footer={
-          <>
-            {docView === 'document' ? null
-              : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
-              <FindingsApplyBar
-                selectedCount={selectedFindings.length}
-                total={activeRound.findings.length}
-                applying={applying}
-                readOnly={readOnly}
-                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
-                onApply={() => apply(activeRound.passNo, selectedFindings)}
-              />
-            ) : null}
-            {!mmaReady ? (
-              <div className="shrink-0 border-t border-line px-5 py-2">
-                <TextSm className="!text-[var(--amber)]">
-                  <a href="/settings/connections" className="underline">Configure the MMA token</a> to run the audit.
-                </TextSm>
-              </div>
-            ) : null}
-          </>
-        }
-      />
-      }
-      aside={
+    <StageShell
+      note={<RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.validate}</RailNote>}
+      navigator={
+        // Audit rounds, not a NavItem list — this rail renders AuditRoundCards, so it keeps
+        // its own box. StageShell still owns the split, so the layout is not re-implemented.
         <>
-        <RailNote icon={<ListTree />}>{PLAN_PHASE_NOTES.validate}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -1025,7 +928,65 @@ function ValidateStage({
         </Card>
         </>
       }
-    />
+    >
+      <DocumentShell
+        className="flex min-h-0 flex-1 flex-col"
+        title={`${projectName} — plan`}
+        meta={locked ? <Badge variant="sage" size="sm"><Lock className="mr-1 size-3" /> locked</Badge> : null}
+        tabs={VALIDATE_TABS}
+        activeTab={docView}
+        onTabChange={(v) => setDocView(v as 'document' | 'audit')}
+        body={
+          <>
+            {docView === 'document' && planMd ? (
+              <ProseBlock>{planMd}</ProseBlock>
+            ) : !activeRound ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
+                <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                  <Shield className="size-7 text-[var(--steel)]" />
+                </span>
+                <p className="mt-5 text-sm font-semibold text-ink">Ready for audit</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                  Run an audit from the right panel to check sequencing, coverage, and TDD gaps.
+                </p>
+              </div>
+            ) : (
+              <FindingsGrid
+                findings={activeRound.findings as Finding[]}
+                selectable
+                selectedIndices={selectedFindings}
+                onToggle={toggleFinding}
+                applying={applying}
+                applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
+                readOnly={readOnly}
+              />
+            )}
+          </>
+        }
+        footer={
+          <>
+            {docView === 'document' ? null
+              : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
+              <FindingsApplyBar
+                selectedCount={selectedFindings.length}
+                total={activeRound.findings.length}
+                applying={applying}
+                readOnly={readOnly}
+                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
+                onApply={() => apply(activeRound.passNo, selectedFindings)}
+              />
+            ) : null}
+            {!mmaReady ? (
+              <div className="shrink-0 border-t border-line px-5 py-2">
+                <TextSm className="!text-[var(--amber)]">
+                  <a href="/settings/connections" className="underline">Configure the MMA token</a> to run the audit.
+                </TextSm>
+              </div>
+            ) : null}
+          </>
+        }
+      />
+    </StageShell>
   );
 }
 

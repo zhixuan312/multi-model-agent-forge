@@ -37,7 +37,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 
 const CONFIGURE_NOTE = `### Configure — set up for execution
 
@@ -270,26 +270,11 @@ function ConfigurePhase({
   const totalTasks = repoGroups.reduce((n, g) => n + g.tasks.length, 0);
 
   return (
-    <StatusDashboard
-      primary={
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <GitBranch className="size-4 shrink-0 text-accent" />
-            <CardTitle>Execution plan</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto !py-4">
-          {repoGroups.map((g) => (
-            <RepoConfigCard key={g.repoId} group={g} targetBranch={branches[g.repoId] ?? g.defaultBranch} onBranchChange={(b) => onBranchChange(g.repoId, b)} />
-          ))}
-        </CardContent>
-      </Card>
-
-      }
-      aside={
+    <StageShell
+      note={<RailNote icon={<Rocket />}>{CONFIGURE_NOTE}</RailNote>}
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
         <>
-        <RailNote icon={<Rocket />}>{CONFIGURE_NOTE}</RailNote>
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>
             <CardTitle>{projectName}</CardTitle>
@@ -318,7 +303,22 @@ function ConfigurePhase({
         </Card>
         </>
       }
-    />
+    >
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardHeader>
+          <div className="flex min-w-0 items-center gap-2">
+            <GitBranch className="size-4 shrink-0 text-accent" />
+            <CardTitle>Execution plan</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto !py-4">
+          {repoGroups.map((g) => (
+            <RepoConfigCard key={g.repoId} group={g} targetBranch={branches[g.repoId] ?? g.defaultBranch} onBranchChange={(b) => onBranchChange(g.repoId, b)} />
+          ))}
+        </CardContent>
+      </Card>
+
+    </StageShell>
   );
 }
 
@@ -395,31 +395,9 @@ function MonitorPhase({
   const anyRunning = repoGroups.some((g) => { const s = jobs[g.repoId]?.status; return s === 'implementing' || s === 'reviewing'; });
 
   return (
-    <StatusDashboard
-      primary={
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            {allTerminal
-              ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
-              : <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
-            }
-            <CardTitle>{allTerminal ? 'Execution complete' : 'Executing…'}</CardTitle>
-          </div>
-          {maxElapsed > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-ink-faint font-mono">
-              <Clock className="size-3" /> {formatElapsed(maxElapsed)}
-            </span>
-          )}
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4" role="status" aria-live="polite">
-          {repoGroups.map((g) => (
-            <RepoJobCard key={g.repoId} group={g} job={jobs[g.repoId] ?? { status: 'queued' }} pr={buildPrs[g.repoId]} />
-          ))}
-        </CardContent>
-      </Card>
-      }
-      aside={
+    <StageShell
+      navigator={
+        // Rail keeps its own box: its rows are bespoke components, not NavItems.
         <>
         {anyRunning && (
           <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
@@ -433,17 +411,6 @@ function MonitorPhase({
                 <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Reviewer verifies the implementation after</li>
                 <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">PR created automatically when complete</li>
               </ul>
-            </div>
-          </div>
-        )}
-        {allTerminal && (
-          <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-[var(--sage-tint)] bg-[var(--sage-tint)]/40 px-4 py-4">
-            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[var(--sage-tint)] text-[var(--sage)]">
-              <CheckCircle2 className="size-5" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-ink">Execution complete</h3>
-              <p className="mt-1 text-xs leading-relaxed text-ink-soft">All repos have finished. Review the results and continue to code review.</p>
             </div>
           </div>
         )}
@@ -491,7 +458,29 @@ function MonitorPhase({
         </Card>
         </>
       }
-    />
+    >
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardHeader>
+          <div className="flex min-w-0 items-center gap-2">
+            {allTerminal
+              ? <CheckCircle2 className="size-4 shrink-0 text-[var(--sage)]" />
+              : <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+            }
+            <CardTitle>{allTerminal ? 'Execution complete' : 'Executing…'}</CardTitle>
+          </div>
+          {maxElapsed > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-ink-faint font-mono">
+              <Clock className="size-3" /> {formatElapsed(maxElapsed)}
+            </span>
+          )}
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto !py-4" role="status" aria-live="polite">
+          {repoGroups.map((g) => (
+            <RepoJobCard key={g.repoId} group={g} job={jobs[g.repoId] ?? { status: 'queued' }} pr={buildPrs[g.repoId]} />
+          ))}
+        </CardContent>
+      </Card>
+    </StageShell>
   );
 }
 

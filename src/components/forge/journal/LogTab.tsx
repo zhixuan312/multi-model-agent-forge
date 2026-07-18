@@ -1,11 +1,12 @@
 'use client';
+import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { useRouter } from 'next/navigation';
 import { History } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { WriteLogView } from '@/components/forge/journal/WriteLogView';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import type { LogEntry } from '@/journal/types';
 
 /** Rail note for the Log tab — describes the write log itself (not the graph). */
@@ -25,20 +26,20 @@ const LOG_NOTE = `### Write log
  * The Log tab — the append-only event log on the 2/3 canvas, with a note in the
  * rail describing the log. Clicking an entry's node id opens it in the Nodes tab.
  */
-export function LogTab({ log }: { log: LogEntry[] }) {
+export function LogTab({ log, metrics }: { log: LogEntry[]; metrics?: MetricCardProps[] }) {
   const router = useRouter();
   const onNavigate = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
 
   return (
-    <StatusDashboard
-      aside={<RailNote icon={<History />}>{LOG_NOTE}</RailNote>}
-      primary={
+    <StageShell
+      metrics={metrics}
+      note={<RailNote icon={<History />}>{LOG_NOTE}</RailNote>}
+    >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
             <WriteLogView log={log} onNavigate={onNavigate} />
           </CardContent>
         </Card>
-      }
-    />
+    </StageShell>
   );
 }

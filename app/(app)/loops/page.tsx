@@ -10,7 +10,7 @@ import { latestRunPerLoop } from '@/loops/runs-query';
 import { nextRuns, LOOP_TIMEZONE } from '@/loops/cron';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { LoopsTabsNav } from './LoopsTabsNav';
 import { LoopsClient } from './LoopsClient';
 import { statusLabel } from './run-format';
@@ -64,16 +64,17 @@ export default async function LoopsPage() {
 
   return (
     <PageFrame title="Loops" subnav={<LoopsTabsNav active="loops" />} width="full" fill>
-      <StatusDashboard
+      <StageShell
         metrics={[
           { label: 'Loops', value: loops.length, muted: loops.length === 0, sublabel: 'Configured', icon: <Repeat />, iconTint: 'accent' },
           { label: 'Enabled', value: enabled.length, muted: enabled.length === 0, sublabel: 'On schedule', icon: <Power />, iconTint: 'sage' },
           { label: 'Next run', value: nextRunLabel, muted: !nextRun, sublabel: 'Singapore time', icon: <Clock />, iconTint: 'steel' },
           { label: 'Last run', value: lastRun ? statusLabel(lastRun.status) : '—', muted: !lastRun, sublabel: 'Most recent', icon: <CircleCheck />, iconTint: 'rose' },
         ]}
-        primary={<LoopsClient initialLoops={loops} repoOptions={repoOptions} runningLoopIds={runningLoopIds} lastRunByLoop={lastRunByLoop} />}
-        aside={<RailNote icon={<Repeat />}>{LOOPS_NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<Repeat />}>{LOOPS_NOTE}</RailNote>}
+      >
+<LoopsClient initialLoops={loops} repoOptions={repoOptions} runningLoopIds={runningLoopIds} lastRunByLoop={lastRunByLoop} />
+      </StageShell>
     </PageFrame>
   );
 }

@@ -3,7 +3,7 @@ import { FolderKanban } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { usageByProject, routeAggForProject, type Period, type RouteAggRow } from '@/usage/usage-core';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
@@ -51,11 +51,12 @@ export default async function UsageProjectsPage({
         </Suspense>
       }
     >
-      <StatusDashboard
+      <StageShell
         metrics={[]}
-        primary={<ProjectUsageTable data={rows} detailByProject={detailByProject} />}
-        aside={<RailNote icon={<FolderKanban />}>{NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<FolderKanban />}>{NOTE}</RailNote>}
+      >
+<ProjectUsageTable data={rows} detailByProject={detailByProject} />
+      </StageShell>
     </PageFrame>
   );
 }

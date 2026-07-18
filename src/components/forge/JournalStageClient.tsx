@@ -24,15 +24,15 @@ import {
   CardContent,
   CardFooter,
   Badge,
-  Micro,
 } from '@/components/ui';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { StageShell } from '@/components/patterns/stage-shell';
+import { StageNavigator } from '@/components/patterns/stage-navigator';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
 
@@ -297,21 +297,8 @@ export function JournalStageClient(props: JournalStageClientProps) {
   // Authoring / empty states (like Plan Refine)
   if (harvesting && props.learnings.length === 0) {
     return (
-      <StatusDashboard
-        primary={
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
-          <CardContent className="flex min-h-0 flex-1 items-center justify-center">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <Loader2 className="size-6 animate-spin text-accent" />
-              <p className="text-sm font-medium text-ink">Harvesting learnings from the project run...</p>
-              <p className="text-xs text-ink-soft">Forge extracts learnings from all 6 stages. This takes a moment.</p>
-            </div>
-          </CardContent>
-        </Card>
-        }
-        aside={
-          <>
+      <StageShell
+        note={<>
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
@@ -336,16 +323,27 @@ export function JournalStageClient(props: JournalStageClientProps) {
               </button>
             </CardFooter>
           </Card>
-          </>
-        }
-      />
+          </>}
+      >
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
+          <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm font-medium text-ink">Harvesting learnings from the project run...</p>
+              <p className="text-xs text-ink-soft">Forge extracts learnings from all 6 stages. This takes a moment.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </StageShell>
     );
   }
 
   if (!active) {
     return (
-      <StatusDashboard
-        primary={
+      <StageShell
+        note={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
+      >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader><CardTitle>Learnings</CardTitle></CardHeader>
           <CardContent className="flex min-h-0 flex-1 items-center justify-center">
@@ -365,9 +363,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
             </div>
           </CardContent>
         </Card>
-        }
-        aside={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
-      />
+      </StageShell>
     );
   }
 
@@ -400,9 +396,90 @@ export function JournalStageClient(props: JournalStageClientProps) {
         disabled={readOnly}
         idleHint="Capture learnings from this project, or let Forge extract them automatically."
       />
-    <StatusDashboard
-      primary={
-      /* LEFT — learning content / discussion (like Plan Refine) */
+    <StageShell
+      note={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
+      navigator={
+        <StageNavigator
+          className="flex-1"
+          title="Learnings"
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                // Approve every not-yet-kept learning (monotonic; no revoke-all).
+                const pending = props.learnings.filter((l) => status[l.id] !== 'kept' && status[l.id] !== 'recorded');
+                if (pending.length === 0) return;
+                void optimistic.run({
+                  apply: () => setLocalOverrides((o) => {
+                    const next = { ...o };
+                    for (const l of pending) next[l.id] = 'kept';
+                    return next;
+                  }),
+                  commit: () => Promise.all(pending.map((l) => mma.transition('approve_learning', { learningIndex: l.num - 1 }))),
+                  rollback: () => setLocalOverrides((o) => {
+                    const next = { ...o };
+                    for (const l of pending) delete next[l.id];
+                    return next;
+                  }),
+                  onSettled: () => { setLocalOverrides({}); router.refresh(); },
+                  error: 'Couldn’t approve all — reverted.',
+                  retryable: true,
+                });
+              }}
+              disabled={readOnly || props.learnings.length === 0 || approvedCount === props.learnings.length}
+              leftIcon={<Check />}
+            >
+              Approve all
+            </Button>
+          }
+          progress={{ value: approvedCount, total: props.learnings.length }}
+          showChecks
+          groups={categories.map(([cat, items]) => ({
+            id: cat,
+            label: cat,
+            items: items.map((l) => ({
+              id: l.id,
+              title: l.title,
+              meta: (
+                <span className="flex items-center gap-2">
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', CATEGORY_STYLE[l.category])}>{l.category}</span>
+                  <span>{l.source}</span>
+                </span>
+              ),
+              index: l.num,
+              done: status[l.id] === 'kept' || status[l.id] === 'recorded',
+              active: l.id === activeId,
+              onClick: () => { setActiveId(l.id); setInput(''); },
+            })),
+          }))}
+          footer={
+            <button
+              type="button"
+              onClick={() => {
+                if (!allRecorded && approvedCount > 0) {
+                  setRecordingLocal(true);
+                  void mma.transition('dispatch_record')
+                    .then(() => refresh())
+                    .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
+                    .finally(() => setRecordingLocal(false));
+                }
+                advancePhase('summary');
+              }}
+              disabled={approvedCount === 0 || readOnly || recording}
+              className={cn(
+                'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
+                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-accent text-white hover:bg-accent/90',
+              )}
+            >
+              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
+              {recording ? 'Recording...' : 'Continue to Summary'}
+              {!recording ? <ArrowRight className="size-4" /> : null}
+            </button>
+          }
+        />
+      }
+    >
+      {/* LEFT PANEL — the learning document (content ⋅ discussion). */}
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         meta={
@@ -468,118 +545,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
           ) : null
         }
       />
-      }
-      aside={
-        <>
-        <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Learnings</CardTitle>
-            <Button
-              size="sm"
-              onClick={() => {
-                // Approve every not-yet-kept learning (monotonic; no revoke-all).
-                const pending = props.learnings.filter((l) => status[l.id] !== 'kept' && status[l.id] !== 'recorded');
-                if (pending.length === 0) return;
-                void optimistic.run({
-                  apply: () => setLocalOverrides((o) => {
-                    const next = { ...o };
-                    for (const l of pending) next[l.id] = 'kept';
-                    return next;
-                  }),
-                  commit: () => Promise.all(pending.map((l) => mma.transition('approve_learning', { learningIndex: l.num - 1 }))),
-                  rollback: () => setLocalOverrides((o) => {
-                    const next = { ...o };
-                    for (const l of pending) delete next[l.id];
-                    return next;
-                  }),
-                  onSettled: () => { setLocalOverrides({}); router.refresh(); },
-                  error: 'Couldn’t approve all — reverted.',
-                  retryable: true,
-                });
-              }}
-              disabled={readOnly || props.learnings.length === 0 || approvedCount === props.learnings.length}
-              leftIcon={<Check />}
-            >
-              Approve all
-            </Button>
-          </CardHeader>
-          <div className="flex items-center gap-2 border-b border-line px-5 py-2">
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full bg-[var(--sage)] transition-all" style={{ width: `${props.learnings.length ? (approvedCount / props.learnings.length) * 100 : 0}%` }} />
-            </div>
-            <span className="shrink-0 text-xs font-medium text-ink-faint">{approvedCount}/{props.learnings.length}</span>
-          </div>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-3">
-            {categories.map(([cat, items]) => (
-              <div key={cat} className="space-y-2">
-                <Micro className="block !font-semibold !uppercase !tracking-wide !text-ink-faint">{cat}</Micro>
-                {items.map((l) => {
-                  const isActive = l.id === activeId;
-                  const approved = status[l.id] === 'kept' || status[l.id] === 'recorded';
-                  return (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => { setActiveId(l.id); setInput(''); }}
-                      className={cn(
-                        'flex w-full gap-2.5 rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
-                        isActive
-                          ? 'border-accent bg-accent-tint/25 shadow-sm'
-                          : approved
-                            ? 'border-[var(--sage-deep)]/30 bg-sage-tint/20 hover:bg-sage-tint/40'
-                            : 'border-line bg-surface hover:border-line-strong',
-                      )}
-                    >
-                      <span className={cn(
-                        'mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold transition-colors',
-                        approved ? 'bg-[var(--sage-deep)] text-white'
-                          : isActive ? 'bg-accent text-white'
-                          : 'bg-surface-2 text-ink-faint',
-                      )}>
-                        {approved ? <Check className="size-3.5" /> : l.num}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium leading-snug text-ink">{l.title}</p>
-                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">
-                          <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', CATEGORY_STYLE[l.category])}>{l.category}</span>
-                          <span>{l.source}</span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter className="flex-col !items-stretch gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (!allRecorded && approvedCount > 0) {
-                  setRecordingLocal(true);
-                  void mma.transition('dispatch_record')
-                    .then(() => refresh())
-                    .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
-                    .finally(() => setRecordingLocal(false));
-                }
-                advancePhase('summary');
-              }}
-              disabled={approvedCount === 0 || readOnly || recording}
-              className={cn(
-                'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-accent text-white hover:bg-accent/90',
-              )}
-            >
-              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
-              {recording ? 'Recording...' : 'Continue to Summary'}
-              {!recording ? <ArrowRight className="size-4" /> : null}
-            </button>
-          </CardFooter>
-        </Card>
-        </>
-      }
-    />
+    </StageShell>
     </div>
   );
 }

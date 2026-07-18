@@ -1,7 +1,7 @@
 import { GitBranch, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { requireTeamPage } from '@/auth/require-admin';
 import { listRepos, syncWorkspaceRepos } from '@/git/repos-core';
 import { WorkspaceClient, type RepoCardData } from './WorkspaceClient';
@@ -48,16 +48,17 @@ export default async function WorkspacePage() {
 
   return (
     <PageFrame title="Workspace" width="full" fill>
-      <StatusDashboard
+      <StageShell
         metrics={[
           { label: 'Repositories', value: total, sublabel: 'On disk', icon: <GitBranch />, iconTint: 'accent' },
           { label: 'Cloned', value: cloned, muted: cloned === 0, sublabel: 'Ready to use', icon: <CheckCircle2 />, iconTint: 'sage' },
           { label: 'Pulling', value: pulling, muted: pulling === 0, sublabel: 'In progress', icon: <RefreshCw />, iconTint: 'amber' },
           { label: 'Errors', value: errored, muted: errored === 0, sublabel: 'Need attention', icon: <AlertTriangle />, iconTint: 'rose' },
         ]}
-        primary={<WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />}
-        aside={<RailNote icon={<GitBranch />}>{WORKSPACE_NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<GitBranch />}>{WORKSPACE_NOTE}</RailNote>}
+      >
+<WorkspaceClient initialRepos={initialRepos} isAdmin={isAdmin} />
+      </StageShell>
     </PageFrame>
   );
 }

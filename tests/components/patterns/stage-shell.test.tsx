@@ -1,91 +1,52 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { StageShell, type StageShellItem } from '@/components/patterns/stage-shell';
+import { render, screen } from '@testing-library/react';
+import { StageShell } from '@/components/patterns/stage-shell';
 
-const items: StageShellItem[] = [
-  { id: '1', label: 'Investigate backend', description: 'Survey config files', status: 'recorded', statusVariant: 'sage' },
-  { id: '2', label: 'Research best practices', description: 'Web search', status: 'running', statusVariant: 'amber' },
-  { id: '3', label: 'Journal recall', description: 'Prior decisions' },
-];
-
+/**
+ * StageShell owns the 2/3 ∣ 1/3 split and nothing else: the left panel is whatever governed
+ * component the page passes, and the rail is `note` + a `navigator` node. The rail's own
+ * behaviour (items, selection, progress, checks) is covered in stage-navigator.test.tsx.
+ */
 describe('StageShell', () => {
-  it('renders list title and items in the rail', () => {
+  it('renders the left panel content', () => {
     render(
-      <StageShell items={items} activeId="1" onSelect={() => {}} listTitle="Tasks" listProgress="1/3">
-        <p>Detail content</p>
-      </StageShell>,
-    );
-    expect(screen.getByText('Tasks')).toBeInTheDocument();
-    expect(screen.getByText('1/3')).toBeInTheDocument();
-    expect(screen.getByText('Investigate backend')).toBeInTheDocument();
-    expect(screen.getByText('Research best practices')).toBeInTheDocument();
-    expect(screen.getByText('Journal recall')).toBeInTheDocument();
-  });
-
-  it('renders detail content in the main area', () => {
-    render(
-      <StageShell items={items} activeId="1" onSelect={() => {}} listTitle="Tasks">
+      <StageShell navigator={<div>Rail</div>}>
         <p>Selected task detail</p>
       </StageShell>,
     );
     expect(screen.getByText('Selected task detail')).toBeInTheDocument();
   });
 
-  it('highlights the active item', () => {
-    const { container } = render(
-      <StageShell items={items} activeId="2" onSelect={() => {}} listTitle="Tasks">
+  it('renders the navigator in the rail', () => {
+    render(
+      <StageShell navigator={<div>Tasks navigator</div>}>
         <p>Detail</p>
       </StageShell>,
     );
-    const buttons = container.querySelectorAll('button');
-    const activeBtn = Array.from(buttons).find((b) => b.textContent?.includes('Research'));
-    expect(activeBtn?.className).toContain('border-accent');
+    expect(screen.getByText('Tasks navigator')).toBeInTheDocument();
   });
 
-  it('calls onSelect when an item is clicked', () => {
-    const onSelect = vi.fn();
+  it('renders the note above the navigator', () => {
     render(
-      <StageShell items={items} activeId="1" onSelect={onSelect} listTitle="Tasks">
+      <StageShell note={<div>Guidance note</div>} navigator={<div>Navigator</div>}>
         <p>Detail</p>
       </StageShell>,
     );
-    fireEvent.click(screen.getByText('Research best practices'));
-    expect(onSelect).toHaveBeenCalledWith('2');
+    const note = screen.getByText('Guidance note');
+    const nav = screen.getByText('Navigator');
+    // The note precedes the navigator box in document order.
+    expect(note.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('renders status badges on items that have them', () => {
+  it('does not wrap the left panel in a Card of its own', () => {
+    // The governed left-panel component already renders a Card; a second one would
+    // double-frame it, which is the bug this shape prevents.
     render(
-      <StageShell items={items} activeId="1" onSelect={() => {}} listTitle="Tasks">
-        <p>Detail</p>
+      <StageShell navigator={<div>Rail</div>}>
+        <section data-testid="left-panel">Detail</section>
       </StageShell>,
     );
-    expect(screen.getByText('recorded')).toBeInTheDocument();
-    expect(screen.getByText('running')).toBeInTheDocument();
-  });
-
-  it('renders note at the top of the rail', () => {
-    render(
-      <StageShell items={items} activeId="1" onSelect={() => {}} listTitle="Tasks" note={<div>Guidance note</div>}>
-        <p>Detail</p>
-      </StageShell>,
-    );
-    expect(screen.getByText('Guidance note')).toBeInTheDocument();
-  });
-
-  it('renders footer in the rail card', () => {
-    render(
-      <StageShell items={items} activeId="1" onSelect={() => {}} listTitle="Tasks" footer={<button>Continue</button>}>
-        <p>Detail</p>
-      </StageShell>,
-    );
-    expect(screen.getByText('Continue')).toBeInTheDocument();
-  });
-
-  it('shows empty state when no items', () => {
-    render(
-      <StageShell items={[]} activeId={null} onSelect={() => {}} listTitle="Tasks">
-        <p>Detail</p>
-      </StageShell>,
-    );
-    expect(screen.getByText('No items yet.')).toBeInTheDocument();
+    const panel = screen.getByTestId('left-panel');
+    expect(panel.parentElement).not.toBeNull();
+    expect(panel.parentElement!.className).not.toContain('rounded-[var(--r-lg)]');
   });
 });

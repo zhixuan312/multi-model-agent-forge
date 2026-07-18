@@ -1,11 +1,13 @@
 'use client';
+import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui';
 import { NodesView } from '@/components/forge/journal/NodesView';
 import { NodeDetail } from '@/components/forge/journal/NodeDetail';
 import { LazyNodeDetail } from '@/components/forge/journal/journal-shell';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
+import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { RecordLearningButton } from '@/components/forge/journal/RecordLearningButton';
 import { useRecordedLearnings } from '@/components/forge/journal/recorded-store';
 import type { NodeSummary } from '@/journal/types';
@@ -22,10 +24,12 @@ export function NodesTab({
   nodes,
   skippedCount,
   initialNode,
+  metrics,
 }: {
   nodes: NodeSummary[];
   skippedCount: number;
   initialNode?: string;
+  metrics?: MetricCardProps[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -56,8 +60,10 @@ export function NodesTab({
   }
 
   return (
-    <StatusDashboard
-      aside={
+    <StageShell
+      metrics={metrics}
+      note={<JournalNote />}
+      navigator={
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             <div className="flex shrink-0 items-center justify-between">
@@ -73,7 +79,7 @@ export function NodesTab({
           </CardContent>
         </Card>
       }
-      primary={
+    >
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="min-h-0 flex-1 overflow-y-auto">
             {selectedRecorded ? (
@@ -85,7 +91,6 @@ export function NodesTab({
             )}
           </CardContent>
         </Card>
-      }
-    />
+    </StageShell>
   );
 }

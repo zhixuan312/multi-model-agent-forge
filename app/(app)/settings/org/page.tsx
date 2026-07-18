@@ -7,7 +7,7 @@ import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { StageShell } from '@/components/patterns/stage-shell';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { TeamsPanel, type TeamRow } from './TeamsPanel';
 
@@ -66,11 +66,12 @@ export default async function OrgSettingsPage() {
 
   return (
     <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="teams" />} width="full">
-      <StatusDashboard
+      <StageShell
         align="start"
-        primary={<TeamsPanel initialTeams={teams} />}
-        aside={<RailNote icon={<Users />}>{TEAMS_NOTE}</RailNote>}
-      />
+        note={<RailNote icon={<Users />}>{TEAMS_NOTE}</RailNote>}
+      >
+<TeamsPanel initialTeams={teams} />
+      </StageShell>
     </PageFrame>
   );
 }

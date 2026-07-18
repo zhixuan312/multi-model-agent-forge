@@ -2,12 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Search, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import {
-  Input,
   Title,
   EmptyState,
   DataTable,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/components/ui';
 import { formatCost, formatDuration, formatTokens } from '@/usage/format';
 import type { StandaloneRow } from '@/usage/usage-core';
@@ -60,29 +67,39 @@ const columns: ColumnDef<StandaloneRow>[] = [
 
 export function StandaloneUsageTable({ data }: { data: StandaloneRow[] }) {
   const [search, setSearch] = useState('');
+  const [route, setRoute] = useState('all');
+
+  const allRoutes = useMemo(
+    () => [...new Map(data.map((r) => [r.route, r.label])).entries()].sort((a, b) => a[1].localeCompare(b[1])),
+    [data],
+  );
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.toLowerCase();
-    return data.filter((r) => r.label.toLowerCase().includes(q));
-  }, [data, search]);
+    let rows = data;
+    if (route !== 'all') rows = rows.filter((r) => r.route === route);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((r) => r.label.toLowerCase().includes(q));
+    }
+    return rows;
+  }, [data, search, route]);
 
   return (
     <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Standalone activity</Title>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-            <Input
-              aria-label="Search activity"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search activity…"
-              className="pl-9"
-            />
-          </div>
-        </div>
+        <Toolbar>
+          <SearchInput label="activity" value={search} onChange={setSearch} />
+          <Select value={route} onValueChange={setRoute}>
+            <SelectTrigger aria-label="Filter by route" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All routes</SelectItem>
+              {allRoutes.map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Toolbar>
       </div>
 
       <DataTable

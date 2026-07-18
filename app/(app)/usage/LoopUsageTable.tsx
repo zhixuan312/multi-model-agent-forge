@@ -2,13 +2,20 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Search, Repeat, ChevronRight } from 'lucide-react';
+import { Repeat, ChevronRight } from 'lucide-react';
 import {
   Button,
-  Input,
   Title,
   EmptyState,
   DataTable,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/components/ui';
 import { formatCost, formatDuration } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
@@ -22,6 +29,7 @@ export function LoopUsageTable({
   detailByLoop: Record<string, RouteAggRow[]>;
 }) {
   const [search, setSearch] = useState('');
+  const [kind, setKind] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const toggle = useCallback(
@@ -100,22 +108,34 @@ export function LoopUsageTable({
     [expandedId, toggle],
   );
 
+  const allKinds = useMemo(() => [...new Set(data.map((r) => r.kind))].sort(), [data]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.toLowerCase();
-    return data.filter((r) => r.loopName.toLowerCase().includes(q));
-  }, [data, search]);
+    let rows = data;
+    if (kind !== 'all') rows = rows.filter((r) => r.kind === kind);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((r) => r.loopName.toLowerCase().includes(q));
+    }
+    return rows;
+  }, [data, search, kind]);
 
   return (
     <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Loop costs</Title>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-            <Input aria-label="Search loops" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search loops…" className="pl-9" />
-          </div>
-        </div>
+        <Toolbar>
+          <SearchInput label="loops" value={search} onChange={setSearch} />
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger aria-label="Filter by kind" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All kinds</SelectItem>
+              {allKinds.map((k) => (
+                <SelectItem key={k} value={k}>{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Toolbar>
       </div>
       <DataTable
         columns={columns}

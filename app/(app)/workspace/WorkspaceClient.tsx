@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Check, RefreshCw, AlertTriangle, GitBranch, Plus, Trash2, Pencil, Search } from 'lucide-react';
+import { Check, RefreshCw, AlertTriangle, GitBranch, Plus, Trash2, Pencil } from 'lucide-react';
 import {
   Card,
   Badge,
@@ -22,6 +22,9 @@ import {
   EmptyState,
   DataTable,
   type BadgeProps,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { filterRepos } from '@/git/repo-filter';
@@ -176,39 +179,22 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
             </Button>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Tag">
-            {(p) => (
-              <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
-                <SelectTrigger {...p} className="min-w-[130px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All tags</SelectItem>
-                  {allTags.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </Field>
-          <Field label="Search" className="min-w-[200px] flex-1">
-            {(p) => (
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-                <Input
-                  {...p}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="name or tag…"
-                  className="pl-9"
-                />
-              </div>
-            )}
-          </Field>
-        </div>
+        <Toolbar>
+          <SearchInput label="repos" value={search} onChange={setSearch} />
+          <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
+            <SelectTrigger aria-label="Filter by tag" className={toolbarControlWidth}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All tags</SelectItem>
+              {allTags.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Toolbar>
       </div>
 
       <DataTable

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Activity, Check, MoreHorizontal, RotateCcw, Search, Square, UserPlus } from 'lucide-react';
+import { Activity, Check, MoreHorizontal, Plus, RotateCcw, Square, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
   Avatar,
@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
   DataTable,
   Field,
   FieldGrid,
@@ -20,6 +19,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
+  Title,
 } from '@/components/ui';
 import {
   ConversationComposer,
@@ -69,6 +72,7 @@ A closing paragraph.`;
 // Discussion demo — the real DiscussionThread model: members + a `memberById` resolver, and
 // messages keyed by authorId ('forge' = the AI turn, matching currentMemberId = your turn).
 const DEMO_MEMBERS: MemberRef[] = [
+  { id: 'forge', displayName: 'Forge', avatarTint: '#c2703d' },
   { id: 'me', displayName: 'You', avatarTint: '#4f7a9a' },
   { id: 'oa', displayName: 'Oscar A', avatarTint: '#9a6b4f' },
 ];
@@ -96,9 +100,6 @@ const STAT_ROWS = [
 // checkbox column, row-actions appends an actions column). The container is the real DataTable.
 function tableColumns(on: ReadonlySet<string>): ColumnDef<TableRowShape>[] {
   const cols: ColumnDef<TableRowShape>[] = [];
-  if (on.has('bulkSelect')) {
-    cols.push({ id: 'select', size: 40, header: () => <Checkbox aria-label="Select all" />, cell: () => <Checkbox aria-label="Select row" /> });
-  }
   cols.push(
     { accessorKey: 'name', header: 'Column A' },
     { accessorKey: 'detail', header: 'Column B' },
@@ -197,27 +198,44 @@ function ApproversRow() {
 
 // ─── Per-pattern renders — thin wrappers that reuse the shared components with demo content ─
 
+/** The canonical `SearchInput`, wired to throwaway local state so the preview is typeable. */
+function PreviewSearch({ label }: { label: string }) {
+  const [q, setQ] = useState('');
+  return <SearchInput label={label} value={q} onChange={setQ} />;
+}
+
 const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => ReactNode> = {
   // The real DataTable. Affordances: search · filters (toolbar), bulk-select · row-actions (columns).
   table: (on) => (
     <Card>
-      <CardContent className="flex flex-col gap-3 p-0">
-        {on.has('search') || on.has('filters') ? (
-          <div className="flex items-center gap-2 px-5 pt-4">
-            {on.has('search') ? (
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-                <Input placeholder="Search…" className="pl-9" />
+      <CardContent className="flex flex-col p-0">
+        {/* Header + toolbar share one bordered block above the grid: the title sits opposite
+            the primary action, the search + filter strip sits under both. The toolbar is the
+            shared `Toolbar` (ui/toolbar.tsx) with a `SearchInput` AND a filter `Select` — a
+            search-only strip is a deviation. One table density, footer always shown. */}
+        {on.has('header') || on.has('primaryAction') || on.has('toolbar') ? (
+          <div className="flex flex-col gap-4 border-b border-line p-5">
+            {on.has('header') || on.has('primaryAction') ? (
+              <div className="flex items-center justify-between gap-3">
+                {on.has('header') ? <Title className="!text-lg">Section title</Title> : <span />}
+                {on.has('primaryAction') ? (
+                  <Button size="sm" leftIcon={<Plus />}>
+                    New item
+                  </Button>
+                ) : null}
               </div>
             ) : null}
-            {on.has('filters') ? (
-              <Select defaultValue="all">
-                <SelectTrigger aria-label="Filter" className="w-[140px] shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                </SelectContent>
-              </Select>
+            {on.has('toolbar') ? (
+              <Toolbar>
+                <PreviewSearch label="rows" />
+                <Select defaultValue="all">
+                  <SelectTrigger aria-label="Filter" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Toolbar>
             ) : null}
           </div>
         ) : null}
@@ -297,9 +315,7 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
         </div>
       );
       footer = on.has('composer') ? (
-        <div className="border-t border-line px-5 py-3">
-          <ConversationComposer onSend={() => {}} voice mentionPool={DEMO_MEMBERS} />
-        </div>
+        <ConversationComposer onSend={() => {}} voice mentionPool={DEMO_MEMBERS} rows={1} />
       ) : undefined;
     } else {
       body = <div className="px-5 py-5"><ProseBlock>{DOC_MARKDOWN}</ProseBlock></div>;
@@ -330,23 +346,37 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
 
   // Shared SelectableTile grid. Affordances: tile icon (flips to check), meta row.
   selectableTile: (on) => (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {[{ t: 'First option', sel: true }, { t: 'Second option', sel: false }, { t: 'Third option', sel: false }].map((o) => (
-        <SelectableTile
-          key={o.t}
-          selected={o.sel}
-          icon={on.has('icon') ? (o.sel ? <Check className="size-4 text-accent" /> : <Square className="size-4 text-ink-faint" />) : undefined}
-          title={o.t}
-          meta={
-            on.has('meta') ? (
-              <div className="flex gap-1">
-                <Badge variant="neutral" size="sm">tag</Badge>
-                <Badge variant="neutral" size="sm">tag</Badge>
-              </div>
-            ) : undefined
-          }
-        />
-      ))}
+    <div className="flex flex-col gap-4">
+      {on.has('toolbar') ? (
+        <Toolbar>
+          <PreviewSearch label="tiles" />
+          <Select defaultValue="all">
+            <SelectTrigger aria-label="Filter" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+            </SelectContent>
+          </Select>
+        </Toolbar>
+      ) : null}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {[{ t: 'First option', sel: true }, { t: 'Second option', sel: false }, { t: 'Third option', sel: false }].map((o) => (
+          <SelectableTile
+            key={o.t}
+            selected={o.sel}
+            icon={on.has('icon') ? (o.sel ? <Check className="size-4 text-accent" /> : <Square className="size-4 text-ink-faint" />) : undefined}
+            title={o.t}
+            meta={
+              on.has('meta') ? (
+                <div className="flex gap-1">
+                  <Badge variant="neutral" size="sm">tag</Badge>
+                  <Badge variant="neutral" size="sm">tag</Badge>
+                </div>
+              ) : undefined
+            }
+          />
+        ))}
+      </div>
     </div>
   ),
 

@@ -23,6 +23,9 @@ import {
   Micro,
   EmptyState,
   DataTable,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
 } from '@/components/ui';
 import { formatDate } from '@/lib/format-relative';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
@@ -221,19 +224,10 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
             Add member
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-            <Input
-              aria-label="Search members"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search members…"
-              className="pl-9"
-            />
-          </div>
+        <Toolbar>
+          <SearchInput label="members" value={search} onChange={setSearch} />
           <Select value={role} onValueChange={(v) => setRole(v as RoleFilter)}>
-            <SelectTrigger aria-label="Filter by role" className="w-[150px]">
+            <SelectTrigger aria-label="Filter by role" className={toolbarControlWidth}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -242,7 +236,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
               <SelectItem value="member">Members</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </Toolbar>
       </div>
 
       <DataTable

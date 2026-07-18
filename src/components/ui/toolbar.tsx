@@ -25,6 +25,12 @@ export interface ToolbarProps {
   className?: string;
 }
 
+/**
+ * The one width every toolbar filter `SelectTrigger` uses, so the filter strips
+ * line up page to page. Apply it to the trigger, not the wrapper.
+ */
+export const toolbarControlWidth = 'w-[160px] shrink-0';
+
 export function Toolbar({ children, actions, align = 'center', className }: ToolbarProps) {
   const items = align === 'end' ? 'sm:items-end' : 'sm:items-center';
   const inner = align === 'end' ? 'items-end' : 'items-center';

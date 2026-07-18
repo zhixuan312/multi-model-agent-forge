@@ -2,11 +2,10 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Search, FolderKanban, ChevronRight } from 'lucide-react';
+import { FolderKanban, ChevronRight } from 'lucide-react';
 import {
   Badge,
   Button,
-  Input,
   Select,
   SelectTrigger,
   SelectValue,
@@ -15,6 +14,9 @@ import {
   Title,
   EmptyState,
   DataTable,
+  Toolbar,
+  SearchInput,
+  toolbarControlWidth,
 } from '@/components/ui';
 import { formatCost, formatDuration } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
@@ -108,13 +110,10 @@ export function ProjectUsageTable({
     <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Project costs</Title>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-            <Input aria-label="Search projects" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects…" className="pl-9" />
-          </div>
+        <Toolbar>
+          <SearchInput label="projects" value={search} onChange={setSearch} />
           <Select value={phase} onValueChange={(v) => setPhase(v as PhaseFilter)}>
-            <SelectTrigger aria-label="Filter by phase" className="w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Filter by phase" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All phases</SelectItem>
               <SelectItem value="design">Design</SelectItem>
@@ -122,7 +121,7 @@ export function ProjectUsageTable({
               <SelectItem value="learn">Learn</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </Toolbar>
       </div>
       <DataTable
         columns={columns}

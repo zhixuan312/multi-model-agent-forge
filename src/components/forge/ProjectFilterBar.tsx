@@ -3,7 +3,13 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Input, EmptyState, Separator, Toolbar, Grid } from '@/components/ui';
+import {
+  EmptyState,
+  Separator,
+  Toolbar,
+  Grid,
+  SearchInput,
+} from '@/components/ui';
 import { ProjectCard } from '@/components/forge/ProjectCard';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 
@@ -103,17 +109,7 @@ export function ProjectFilterBar({
           </div>
         }
       >
-        <div className="relative min-w-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden />
-          <Input
-            type="search"
-            aria-label="Search projects"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search projects…"
-            className="pl-9"
-          />
-        </div>
+        <SearchInput label="projects" value={search} onChange={setSearch} className="flex-none" />
         <Separator orientation="vertical" className="h-5" />
         <div
           role="group"

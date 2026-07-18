@@ -25,7 +25,7 @@ describe('WorkspaceClient filter island (Flow E)', () => {
 
   it('search="core" shows core-api + core-docs, not web', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'core' } });
+    fireEvent.change(screen.getByLabelText('Search repos'), { target: { value: 'core' } });
     expect(screen.getByText('core-api')).toBeInTheDocument();
     expect(screen.getByText('core-docs')).toBeInTheDocument();
     expect(screen.queryByText('web')).toBeNull();
@@ -33,7 +33,7 @@ describe('WorkspaceClient filter island (Flow E)', () => {
 
   it('search="api" narrows to core-api only', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'api' } });
+    fireEvent.change(screen.getByLabelText('Search repos'), { target: { value: 'api' } });
     expect(screen.getByText('core-api')).toBeInTheDocument();
     expect(screen.queryByText('web')).toBeNull();
     expect(screen.queryByText('core-docs')).toBeNull();

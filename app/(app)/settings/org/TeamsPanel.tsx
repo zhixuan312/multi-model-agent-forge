@@ -1,11 +1,11 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
 import {
   Card,
-  CardContent,
   Title,
   Field,
   Input,
@@ -13,12 +13,7 @@ import {
   Badge,
   EmptyState,
   Mono,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
+  DataTable,
 } from '@/components/ui';
 
 export interface TeamRow {
@@ -178,213 +173,220 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     }
   };
 
-  return (
-    <Card>
-      <CardContent>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <Title>Teams</Title>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              reset();
-              setOpen((v) => !v);
-            }}
-          >
-            <Plus className="size-4" />
-            New team
-          </Button>
-        </div>
-
-        {open ? (
-          <div className="mb-4 flex flex-col gap-3 rounded-md border border-line bg-surface-2 p-4">
-            <Field label="Slug" hint="Unique identifier, e.g. platform-team — the team name is derived from it.">
-              {(p) => <Input {...p} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="platform-team" />}
-            </Field>
-            <Field label="Workspace root path" hint="Local filesystem root for this team's repos and journal.">
-              {(p) => (
-                <Input
-                  {...p}
-                  value={workspaceRootPath}
-                  onChange={(e) => setWorkspaceRootPath(e.target.value)}
-                  placeholder=".forge-workspace/platform"
-                />
-              )}
-            </Field>
-
-            <div className="mt-1 border-t border-line pt-3">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">Team admin</p>
-              <div className="flex flex-col gap-3">
-                <Field label="Display name">
-                  {(p) => (
-                    <Input {...p} value={adminDisplayName} onChange={(e) => setAdminDisplayName(e.target.value)} placeholder="Alex Rivera" />
-                  )}
-                </Field>
-                <Field label="Username" hint="They sign in with this.">
-                  {(p) => (
-                    <Input {...p} value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} placeholder="alex" />
-                  )}
-                </Field>
-                <Field label="Initial password" hint="Hand this to the admin; they can change it after signing in.">
-                  {(p) => (
-                    <Input {...p} type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="font-mono" />
-                  )}
-                </Field>
-              </div>
-            </div>
-
-            {error ? <p className="text-sm text-rose">{error}</p> : null}
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={submit}
-                disabled={
-                  busy ||
-                  !slug.trim() ||
-                  !workspaceRootPath.trim() ||
-                  !adminDisplayName.trim() ||
-                  !adminUsername.trim() ||
-                  !adminPassword
-                }
-              >
-                {busy ? 'Creating…' : 'Create team + admin'}
-              </Button>
-            </div>
+  const columns = useMemo<ColumnDef<TeamRow>[]>(
+    () => [
+      {
+        id: 'team',
+        header: 'Team',
+        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      },
+      {
+        id: 'admin',
+        header: 'Admin',
+        size: 160,
+        cell: ({ row }) =>
+          row.original.adminUsername ? (
+            <Mono className="text-ink-soft">@{row.original.adminUsername}</Mono>
+          ) : (
+            <span className="text-ink-faint">—</span>
+          ),
+      },
+      {
+        id: 'workspace',
+        header: 'Workspace',
+        cell: ({ row }) => <span className="text-ink-soft">{row.original.workspaceRootPath}</span>,
+      },
+      {
+        accessorKey: 'memberCount',
+        header: 'Members',
+        size: 100,
+        cell: ({ row }) => <span className="tabular-nums">{row.original.memberCount}</span>,
+      },
+      {
+        id: 'gitToken',
+        header: 'Git token',
+        size: 120,
+        cell: ({ row }) =>
+          row.original.gitTokenSet ? (
+            <Badge variant="sage" dot size="sm">
+              set
+            </Badge>
+          ) : (
+            <Badge size="sm">not set</Badge>
+          ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        size: 190,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1.5">
+            <Button size="sm" variant="ghost" leftIcon={<Pencil />} onClick={() => startEdit(row.original)}>
+              Edit
+            </Button>
+            <Button size="sm" variant="ghost" leftIcon={<Users />} onClick={() => toggleMembers(row.original.id)}>
+              Members
+            </Button>
           </div>
-        ) : null}
+        ),
+      },
+    ],
+    // `startEdit` / `toggleMembers` are stable enough for the row actions — they
+    // only read state via setters, so the columns never need to rebuild.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
-        {initialTeams.length === 0 ? (
+  // Detail panels are plain JSX-returning helpers, not nested components — a
+  // nested component would be a fresh type each render and remount the inputs
+  // (stealing focus) on every keystroke.
+  const createPanel = (
+    <div className="flex flex-col gap-3 bg-surface-2 p-5">
+      <Field label="Slug" hint="Unique identifier, e.g. platform-team — the team name is derived from it.">
+        {(p) => <Input {...p} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="platform-team" />}
+      </Field>
+      <Field label="Workspace root path" hint="Local filesystem root for this team's repos and journal.">
+        {(p) => (
+          <Input
+            {...p}
+            value={workspaceRootPath}
+            onChange={(e) => setWorkspaceRootPath(e.target.value)}
+            placeholder=".forge-workspace/platform"
+          />
+        )}
+      </Field>
+
+      <div className="mt-1 border-t border-line pt-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">Team admin</p>
+        <div className="flex flex-col gap-3">
+          <Field label="Display name">
+            {(p) => (
+              <Input {...p} value={adminDisplayName} onChange={(e) => setAdminDisplayName(e.target.value)} placeholder="Alex Rivera" />
+            )}
+          </Field>
+          <Field label="Username" hint="They sign in with this.">
+            {(p) => <Input {...p} value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} placeholder="alex" />}
+          </Field>
+          <Field label="Initial password" hint="Hand this to the admin; they can change it after signing in.">
+            {(p) => (
+              <Input {...p} type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="font-mono" />
+            )}
+          </Field>
+        </div>
+      </div>
+
+      {error ? <p className="text-sm text-rose">{error}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={
+            busy ||
+            !slug.trim() ||
+            !workspaceRootPath.trim() ||
+            !adminDisplayName.trim() ||
+            !adminUsername.trim() ||
+            !adminPassword
+          }
+        >
+          {busy ? 'Creating…' : 'Create team + admin'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const editPanel = (t: TeamRow) => (
+    <div className="flex max-w-xl flex-col gap-3 p-5">
+      <Field label="Slug" hint="Unique identifier — the team name is derived from it.">
+        {(p) => <Input {...p} value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />}
+      </Field>
+      <Field label="Workspace root path" hint="Must be a direct child of the operator workspace base.">
+        {(p) => <Input {...p} value={editWorkspace} onChange={(e) => setEditWorkspace(e.target.value)} />}
+      </Field>
+      {editError ? <p className="text-sm text-rose">{editError}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={editBusy}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => saveEdit(t.id)} disabled={editBusy || !editSlug.trim() || !editWorkspace.trim()}>
+          {editBusy ? 'Saving…' : 'Save changes'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const rosterPanel = (t: TeamRow) => (
+    <div className="p-5">
+      {rosterBusy ? (
+        <p className="text-sm text-ink-soft">Loading roster…</p>
+      ) : roster.length === 0 ? (
+        <p className="text-sm text-ink-soft">No members on this team yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {roster.map((m) => (
+            <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2">
+                <span className="font-medium text-ink">{m.displayName}</span>
+                <Mono className="text-ink-soft">@{m.username}</Mono>
+                {m.isSystem ? (
+                  <Badge variant="neutral" size="sm">
+                    <Bot className="size-3" />
+                    system agent
+                  </Badge>
+                ) : m.isAdmin ? (
+                  <Badge variant="accent" size="sm">
+                    <ShieldCheck className="size-3" />
+                    team admin
+                  </Badge>
+                ) : null}
+              </span>
+              {m.isSystem || m.isAdmin ? null : (
+                <Button size="sm" variant="secondary" onClick={() => makeAdmin(t.id, m.id)} disabled={assigningId === m.id}>
+                  {assigningId === m.id ? 'Assigning…' : 'Make admin'}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  return (
+    <Card className="flex flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line p-5">
+        <Title className="!text-lg">Teams</Title>
+        <Button
+          size="sm"
+          variant="secondary"
+          leftIcon={<Plus />}
+          onClick={() => {
+            reset();
+            setOpen((v) => !v);
+          }}
+        >
+          New team
+        </Button>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={initialTeams}
+        getRowId={(t) => t.id}
+        expandedId={editingId ?? expandedId}
+        renderExpanded={(t) => (editingId === t.id ? editPanel(t) : rosterPanel(t))}
+        leadingRow={open ? createPanel : null}
+        emptyState={
           <EmptyState
             icon={<Users />}
             title="No teams yet"
             description="Create the first team and its admin. The admin then adds members and configures the team's git token and workspace."
           />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Admin</TableHead>
-                  <TableHead>Workspace</TableHead>
-                  <TableHead className="text-right">Members</TableHead>
-                  <TableHead>Git token</TableHead>
-                  <TableHead className="text-right">Roster</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {initialTeams.map((t) => (
-                  <Fragment key={t.id}>
-                    <TableRow>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell>
-                        {t.adminUsername ? <Mono className="text-ink-soft">@{t.adminUsername}</Mono> : <span className="text-ink-faint">—</span>}
-                      </TableCell>
-                      <TableCell className="text-ink-soft">{t.workspaceRootPath}</TableCell>
-                      <TableCell className="text-right tabular-nums">{t.memberCount}</TableCell>
-                      <TableCell>
-                        {t.gitTokenSet ? (
-                          <Badge variant="sage" dot size="sm">
-                            set
-                          </Badge>
-                        ) : (
-                          <Badge size="sm">not set</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => startEdit(t)}>
-                            <Pencil className="size-4" />
-                            Edit
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => toggleMembers(t.id)}>
-                            <Users className="size-4" />
-                            Members
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-
-                    {editingId === t.id ? (
-                      <TableRow key={`${t.id}-edit`}>
-                        <TableCell colSpan={6} className="bg-surface-2">
-                          <div className="flex max-w-xl flex-col gap-3">
-                            <Field label="Slug" hint="Unique identifier — the team name is derived from it.">
-                              {(p) => <Input {...p} value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />}
-                            </Field>
-                            <Field label="Workspace root path" hint="Must be a direct child of the operator workspace base.">
-                              {(p) => <Input {...p} value={editWorkspace} onChange={(e) => setEditWorkspace(e.target.value)} />}
-                            </Field>
-                            {editError ? <p className="text-sm text-rose">{editError}</p> : null}
-                            <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={editBusy}>
-                                Cancel
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => saveEdit(t.id)}
-                                disabled={editBusy || !editSlug.trim() || !editWorkspace.trim()}
-                              >
-                                {editBusy ? 'Saving…' : 'Save changes'}
-                              </Button>
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                    {expandedId === t.id ? (
-                      <TableRow key={`${t.id}-roster`}>
-                        <TableCell colSpan={6} className="bg-surface-2">
-                          {rosterBusy ? (
-                            <p className="text-sm text-ink-soft">Loading roster…</p>
-                          ) : roster.length === 0 ? (
-                            <p className="text-sm text-ink-soft">No members on this team yet.</p>
-                          ) : (
-                            <ul className="flex flex-col gap-1.5">
-                              {roster.map((m) => (
-                                <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
-                                  <span className="flex items-center gap-2">
-                                    <span className="font-medium text-ink">{m.displayName}</span>
-                                    <Mono className="text-ink-soft">@{m.username}</Mono>
-                                    {m.isSystem ? (
-                                      <Badge variant="neutral" size="sm">
-                                        <Bot className="size-3" />
-                                        system agent
-                                      </Badge>
-                                    ) : m.isAdmin ? (
-                                      <Badge variant="accent" size="sm">
-                                        <ShieldCheck className="size-3" />
-                                        team admin
-                                      </Badge>
-                                    ) : null}
-                                  </span>
-                                  {m.isSystem || m.isAdmin ? null : (
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => makeAdmin(t.id, m.id)}
-                                      disabled={assigningId === m.id}
-                                    >
-                                      {assigningId === m.id ? 'Assigning…' : 'Make admin'}
-                                    </Button>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
+        }
+      />
     </Card>
   );
 }

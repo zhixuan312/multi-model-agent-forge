@@ -186,10 +186,12 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalComponent: 'DataTable',
     canonicalFilePath: 'src/components/ui/data-table.tsx',
     affordances: [
-      { id: 'search', label: 'Search', canonicalComponent: 'Input', canonicalFilePath: 'src/components/ui/input.tsx', defaultOn: true },
-      { id: 'filters', label: 'Filters', canonicalComponent: 'Select', canonicalFilePath: 'src/components/ui/select.tsx', defaultOn: true },
+      { id: 'header', label: 'Header title', canonicalComponent: 'Title', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: true },
+      { id: 'primaryAction', label: 'Header action', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+      // Search and filter are ONE affordance, never split: a table either carries the full
+      // search + filter strip or no toolbar at all. A search-only strip is a deviation.
+      { id: 'toolbar', label: 'Search & filter', canonicalComponent: 'Toolbar (+ SearchInput · Select)', canonicalFilePath: 'src/components/ui/toolbar.tsx', defaultOn: true },
       { id: 'rowActions', label: 'Row actions', canonicalComponent: 'DropdownMenu', canonicalFilePath: 'src/components/ui/dropdown-menu.tsx', defaultOn: false },
-      { id: 'bulkSelect', label: 'Bulk select', canonicalComponent: 'Checkbox', canonicalFilePath: 'src/components/ui/checkbox.tsx', defaultOn: false },
     ],
     consumers: [
       { id: 'loops', label: 'Loops', filePath: 'app/(app)/loops/LoopsClient.tsx' },
@@ -197,6 +199,9 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'members', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
       { id: 'org-teams', label: 'Org settings › Teams', filePath: 'app/(app)/settings/org/TeamsPanel.tsx' },
       { id: 'usage', label: 'Usage › Activity breakdown', filePath: 'app/(app)/usage/UsageBatchTable.tsx' },
+      { id: 'usage-projects', label: 'Usage › Project costs', filePath: 'app/(app)/usage/ProjectUsageTable.tsx' },
+      { id: 'usage-loops', label: 'Usage › Loop costs', filePath: 'app/(app)/usage/LoopUsageTable.tsx' },
+      { id: 'usage-standalone', label: 'Usage › Standalone activity', filePath: 'app/(app)/usage/StandaloneUsageTable.tsx' },
     ],
   },
   {
@@ -294,6 +299,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalComponent: 'SelectableTile',
     canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
+      { id: 'toolbar', label: 'Search & filter', canonicalComponent: 'Input (search) + role chips', canonicalFilePath: 'src/components/ui/input.tsx', defaultOn: true },
       { id: 'icon', label: 'Tile icon (flips to check)', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
       { id: 'meta', label: 'Meta row', canonicalComponent: 'Badge / chips', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
     ],

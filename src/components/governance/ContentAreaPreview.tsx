@@ -5,6 +5,7 @@ import { Info } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StageStepper } from '@/components/forge/StageStepper';
 import { SAMPLE_METRICS, MetricsRowPreview } from '@/components/governance/MetricsRowPreview';
 import { CONTENT_SHELL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
@@ -13,8 +14,8 @@ import { CONTENT_SHELL_VARIANTS, defaultEnabledAffordances } from '@/components/
  * the right panel), with an OPTIONAL metrics row (the bars) on top. Not every page has the
  * metrics row, so it's a governed affordance. Real StatusDashboard (metrics + primary + aside).
  */
-function DashboardShell({ showMetrics, showRail }: { showMetrics: boolean; showRail: boolean }) {
-  return (
+function DashboardShell({ showMetrics, showRail, showStageFlow }: { showMetrics: boolean; showRail: boolean; showStageFlow: boolean }) {
+  const dashboard = (
     <StatusDashboard
       metrics={showMetrics ? SAMPLE_METRICS.slice(0, 4) : []}
       primary={
@@ -34,11 +35,34 @@ function DashboardShell({ showMetrics, showRail }: { showMetrics: boolean; showR
       }
     />
   );
+  // Project-only Stage flow — when on, the stepper sits at the top so you can assemble the
+  // full page (background → app shell → content shell → stage flow → panels).
+  if (!showStageFlow) return dashboard;
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border border-line bg-surface-1 p-4">
+        <StageStepper
+          projectId="preview"
+          stages={[
+            { kind: 'exploration', status: 'done' },
+            { kind: 'spec', status: 'done' },
+            { kind: 'plan', status: 'active' },
+            { kind: 'execute', status: 'pending' },
+            { kind: 'review', status: 'pending' },
+            { kind: 'journal', status: 'pending' },
+          ]}
+          currentStage="plan"
+          phase="build"
+        />
+      </div>
+      {dashboard}
+    </div>
+  );
 }
 
 const RENDERS: Record<string, (on: ReadonlySet<string>) => ReactNode> = {
   // The shell — metrics row + right panel are both affordances (default on). Rail off = full-width.
-  dashboard: (on) => <DashboardShell showMetrics={on.has('metrics')} showRail={on.has('rail')} />,
+  dashboard: (on) => <DashboardShell showMetrics={on.has('metrics')} showRail={on.has('rail')} showStageFlow={on.has('stageFlow')} />,
   // The metric-box count variants (3 · 4 · 5) together.
   metricCounts: () => <MetricsRowPreview />,
 };
@@ -53,5 +77,5 @@ export function ContentAreaVariant({ id, enabled }: { id: string; enabled?: Read
 
 /** Overview (the slot default page) — the dashboard shell with metrics + rail on. */
 export function ContentAreaPreview() {
-  return <DashboardShell showMetrics showRail />;
+  return <DashboardShell showMetrics showRail showStageFlow />;
 }

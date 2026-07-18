@@ -6,6 +6,7 @@ import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame, MetricCard } from '@/components/ui';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { ModelsPanel } from './ModelsPanel';
 
 const MODELS_NOTE = `### Agent tiers
@@ -46,25 +47,17 @@ export default async function ModelsPage() {
 
   return (
     <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="models" />} width="full">
-      <div className="flex flex-col gap-4">
-        {/* STATUS — four equal metric boxes */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Tiers configured" value={configured} muted={configured === 0} sublabel="of 3 tiers" icon={<Layers />} iconTint="accent" />
-          <MetricCard label="Anthropic-style" value={claude} muted={claude === 0} sublabel="tiers · claude" icon={<Bot />} iconTint="sage" />
-          <MetricCard label="OpenAI-style" value={codex} muted={codex === 0} sublabel="tiers · codex" icon={<SquareTerminal />} iconTint="steel" />
-          <MetricCard label="API keys" value={apiKeys} muted={apiKeys === 0} sublabel="rest use OAuth" icon={<KeyRound />} iconTint="rose" />
-        </div>
-
-        {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as the other tabs */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-          <div className="lg:col-span-2">
-            <ModelsPanel tiers={tiers} suggestions={suggestions} />
-          </div>
-          <div className="flex flex-col gap-4">
-            <RailNote icon={<Cpu />}>{MODELS_NOTE}</RailNote>
-          </div>
-        </div>
-      </div>
+      <StatusDashboard
+        align="start"
+        metrics={[
+          { label: 'Tiers configured', value: configured, muted: configured === 0, sublabel: 'of 3 tiers', icon: <Layers />, iconTint: 'accent' },
+          { label: 'Anthropic-style', value: claude, muted: claude === 0, sublabel: 'tiers · claude', icon: <Bot />, iconTint: 'sage' },
+          { label: 'OpenAI-style', value: codex, muted: codex === 0, sublabel: 'tiers · codex', icon: <SquareTerminal />, iconTint: 'steel' },
+          { label: 'API keys', value: apiKeys, muted: apiKeys === 0, sublabel: 'rest use OAuth', icon: <KeyRound />, iconTint: 'rose' },
+        ]}
+        primary={<ModelsPanel tiers={tiers} suggestions={suggestions} />}
+        aside={<RailNote icon={<Cpu />}>{MODELS_NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

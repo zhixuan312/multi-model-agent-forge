@@ -3,6 +3,7 @@ import { FolderPlus } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { listRepos } from '@/git/repos-core';
 import { NewProjectForm } from './NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
@@ -41,14 +42,10 @@ export default async function NewProjectPage() {
       width="full"
       fill
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
-        <div className="flex min-h-0 flex-col lg:col-span-2">
-          <NewProjectForm repos={pickerRepos} />
-        </div>
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-          <RailNote icon={<FolderPlus />}>{NOTE}</RailNote>
-        </div>
-      </div>
+      <StatusDashboard
+        primary={<NewProjectForm repos={pickerRepos} />}
+        aside={<RailNote icon={<FolderPlus />}>{NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

@@ -3,16 +3,25 @@ import { cn } from '@/lib/cn';
 import { MetricRow, MetricCard, type MetricCardProps } from '@/components/ui/metric-card';
 
 export interface StatusDashboardProps {
-  metrics: MetricCardProps[];
+  /** Optional metrics row across the top — omitted / empty renders no row. */
+  metrics?: MetricCardProps[];
+  /** The 2/3 main work surface (or full-width when there's no `aside`). */
   primary: ReactNode;
+  /** The 1/3 rail. When present the body becomes a 2/3 + 1/3 split. */
   aside?: ReactNode;
+  /**
+   * Rail alignment on the cross axis. `stretch` (default) makes the rail match the
+   * primary's height — the dashboard/stage look. `start` top-aligns the rail against
+   * the primary — the settings look (a form beside a shorter guidance rail).
+   */
+  align?: 'stretch' | 'start';
   className?: string;
 }
 
-export function StatusDashboard({ metrics, primary, aside, className }: StatusDashboardProps) {
+export function StatusDashboard({ metrics, primary, aside, align = 'stretch', className }: StatusDashboardProps) {
   return (
     <div className={cn('flex h-full min-h-0 flex-col gap-4', className)}>
-      {metrics.length > 0 ? (
+      {metrics && metrics.length > 0 ? (
         <MetricRow className="shrink-0">
           {metrics.map((m, i) => (
             <MetricCard key={i} {...m} />
@@ -21,7 +30,12 @@ export function StatusDashboard({ metrics, primary, aside, className }: StatusDa
       ) : null}
 
       {aside ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch">
+        <div
+          className={cn(
+            'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3',
+            align === 'start' ? 'lg:items-start' : 'lg:items-stretch',
+          )}
+        >
           <div className="flex min-h-0 flex-col lg:col-span-2">
             {primary}
           </div>

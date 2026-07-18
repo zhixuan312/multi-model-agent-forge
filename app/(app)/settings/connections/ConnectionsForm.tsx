@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Field, Input, Badge, Micro, Mono } from '@/components/ui';
 import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { SettingCard } from '@/components/forge/SettingCard';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
@@ -127,9 +128,10 @@ export function ConnectionsForm({
 
   const errId = 'connections-error';
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-      {/* PRIMARY — one isolated card per connection */}
-      <div className="flex flex-col gap-4 lg:col-span-2">
+    <StatusDashboard
+      align="start"
+      primary={
+      <div className="flex flex-col gap-4">
         {/* MMA — the local engine; bearer auto-resolved, advanced only for remote */}
         <SettingCard
           title="MMA"
@@ -221,11 +223,8 @@ export function ConnectionsForm({
           </Micro>
         ) : null}
       </div>
-
-      {/* RAIL — one combined note */}
-      <div className="flex flex-col gap-4">
-        <RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>
-      </div>
-    </div>
+      }
+      aside={<RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>}
+    />
   );
 }

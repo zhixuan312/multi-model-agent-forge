@@ -3,4 +3,8 @@ export { FeatureRail, RailNote, RailCard, RailStatus, type RailNoteProps, type R
 export { StatusDashboard, type StatusDashboardProps } from './status-dashboard';
 export { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, SEVERITY_ORDER, SEVERITY_STYLE, type Finding, type FindingsGridProps, type AuditRoundCardProps } from './findings';
 export { Message, MessageList, ConversationComposer, ConversationPane, type ConversationMessage, type ConversationComposerProps, type ConversationPaneProps } from './conversation';
-export { StageShell, StageFullWidth, type StageShellItem, type StageShellProps, type StageFullWidthProps } from './stage-shell';
+export { StageShell, type StageShellItem, type StageShellProps } from './stage-shell';
+export { List, type ListRow, type ListSection } from './list';
+export { FormSection } from './form-section';
+export { DocumentShell, type DocumentShellTab } from './document-shell';
+export { StatCard, SelectableTile, StatusCard, type StatusTone } from './cards';

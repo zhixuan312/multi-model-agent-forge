@@ -19,7 +19,8 @@ import {
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StageShell, StageFullWidth, type StageShellItem } from '@/components/patterns/stage-shell';
+import { StageShell, type StageShellItem } from '@/components/patterns/stage-shell';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -286,10 +287,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
       {/* Brief phase: brain-dump left, stats + advance right */}
       {(phase === 'idle' || phase === 'fanout') ? (
-        <StageFullWidth
-          note={noteEl}
-          sidebar={
-            <Card className="flex min-h-0 flex-1 flex-col">
+        <StatusDashboard
+          aside={
+            <>
+              {noteEl}
+              <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Exploration</CardTitle>
                 {hasAnalyzed ? (
@@ -321,10 +323,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   {proposing ? 'Analyzing…' : 'Continue to Discover'}
                 </Button>
               </CardFooter>
-            </Card>
+              </Card>
+            </>
           }
-        >
-          {briefView === 'input' ? (
+          primary={
+            briefView === 'input' ? (
             <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Brain-dump</CardTitle>
@@ -374,8 +377,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <ViewToggle active="tasks" onSwitch={(v) => setBriefView(v as 'input' | 'tasks')} labels={['Brain-dump', 'Tasks']} values={['input', 'tasks']} />
               }
             />
-          )}
-        </StageFullWidth>
+          )
+          }
+        />
 
       /* Discover phase: task list in rail, selected task detail in main */
       ) : phase === 'run' ? (
@@ -449,10 +453,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
       /* Synthesize phase: synthesis doc left, stats + advance right */
       ) : (
-        <StageFullWidth
-          note={noteEl}
-          sidebar={
-            <Card className="flex min-h-0 flex-1 flex-col">
+        <StatusDashboard
+          aside={
+            <>
+              {noteEl}
+              <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Synthesis</CardTitle>
                 <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || synthesizing} loading={synthesizing} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
@@ -474,15 +479,17 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   from="exploration"
                 />
               </CardFooter>
-            </Card>
+              </Card>
+            </>
           }
-        >
-          <SummaryPane
-            className="min-h-0 flex-1"
-            bodyMd={bodyMd as string}
-            version={version}
-          />
-        </StageFullWidth>
+          primary={
+            <SummaryPane
+              className="min-h-0 flex-1"
+              bodyMd={bodyMd as string}
+              version={version}
+            />
+          }
+        />
       )}
     </div>
   );

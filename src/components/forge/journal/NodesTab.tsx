@@ -4,7 +4,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui';
 import { NodesView } from '@/components/forge/journal/NodesView';
 import { NodeDetail } from '@/components/forge/journal/NodeDetail';
-import { RailLayout, LazyNodeDetail } from '@/components/forge/journal/journal-shell';
+import { LazyNodeDetail } from '@/components/forge/journal/journal-shell';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RecordLearningButton } from '@/components/forge/journal/RecordLearningButton';
 import { useRecordedLearnings } from '@/components/forge/journal/recorded-store';
 import type { NodeSummary } from '@/journal/types';
@@ -55,8 +56,8 @@ export function NodesTab({
   }
 
   return (
-    <RailLayout
-      rail={
+    <StatusDashboard
+      aside={
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             <div className="flex shrink-0 items-center justify-between">
@@ -72,18 +73,19 @@ export function NodesTab({
           </CardContent>
         </Card>
       }
-    >
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardContent className="min-h-0 flex-1 overflow-y-auto">
-          {selectedRecorded ? (
-            <NodeDetail node={selectedRecorded} inbound={[]} onNavigate={select} />
-          ) : selectedId ? (
-            <LazyNodeDetail id={selectedId} onNavigate={select} />
-          ) : (
-            <p className="px-1 py-10 text-center text-sm text-ink-faint">No nodes to show.</p>
-          )}
-        </CardContent>
-      </Card>
-    </RailLayout>
+      primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardContent className="min-h-0 flex-1 overflow-y-auto">
+            {selectedRecorded ? (
+              <NodeDetail node={selectedRecorded} inbound={[]} onNavigate={select} />
+            ) : selectedId ? (
+              <LazyNodeDetail id={selectedId} onNavigate={select} />
+            ) : (
+              <p className="px-1 py-10 text-center text-sm text-ink-faint">No nodes to show.</p>
+            )}
+          </CardContent>
+        </Card>
+      }
+    />
   );
 }

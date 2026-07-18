@@ -15,7 +15,7 @@ import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui
 import { showToast } from '@/components/ui/toast';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
-import { RailLayout } from '@/components/forge/journal/journal-shell';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { RecallAnswer } from '@/components/forge/journal/RecallView';
 import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
 import type { IndexLookupRow } from '@/journal/citations';
@@ -220,8 +220,8 @@ export function RecallTab({
   }
 
   return (
-    <RailLayout
-      rail={
+    <StatusDashboard
+      aside={
         <>
           <JournalNote />
           <RecallComposer
@@ -234,9 +234,9 @@ export function RecallTab({
           />
         </>
       }
-    >
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      primary={
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {hasContent ? (
             <div className="flex flex-col gap-4">
               {status === 'running' ? (
@@ -277,7 +277,8 @@ export function RecallTab({
           )}
         </CardContent>
       </Card>
-    </RailLayout>
+      }
+    />
   );
 
   // --- pin mutations (closures over the pin state setters) ---

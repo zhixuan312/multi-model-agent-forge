@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { JournalGraph3D } from '@/components/forge/journal/JournalGraph3D';
-import { RailLayout } from '@/components/forge/journal/journal-shell';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
 
@@ -18,17 +18,20 @@ export function GraphTab({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdg
   const onOpen = (id: string) => router.push(`/journal?view=nodes&node=${id}`);
 
   return (
-    <RailLayout rail={<GraphLegend />}>
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <CardContent className="min-h-0 flex-1 p-1.5">
-          {nodes.length ? (
-            <JournalGraph3D nodes={nodes} edges={edges} onOpen={onOpen} />
-          ) : (
-            <p className="px-3 py-10 text-center text-sm text-ink-faint">No nodes to graph yet.</p>
-          )}
-        </CardContent>
-      </Card>
-    </RailLayout>
+    <StatusDashboard
+      aside={<GraphLegend />}
+      primary={
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <CardContent className="min-h-0 flex-1 p-1.5">
+            {nodes.length ? (
+              <JournalGraph3D nodes={nodes} edges={edges} onOpen={onOpen} />
+            ) : (
+              <p className="px-3 py-10 text-center text-sm text-ink-faint">No nodes to graph yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      }
+    />
   );
 }
 

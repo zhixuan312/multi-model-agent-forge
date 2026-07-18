@@ -19,6 +19,7 @@ import {
   Micro,
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -136,9 +137,10 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-      {/* PRIMARY — Account + Password cards */}
-      <div className="flex flex-col gap-4 lg:col-span-2">
+    <StatusDashboard
+      align="start"
+      primary={
+      <div className="flex flex-col gap-4">
         {/* ACCOUNT */}
         <Card>
           <form onSubmit={saveAccount} aria-label="Account">
@@ -291,26 +293,27 @@ export function ProfileForm({ member }: { member: AuthedMember }) {
           </form>
         </Card>
       </div>
-
-      {/* RAIL — note + sign out */}
-      <div className="flex flex-col gap-4">
-        <RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>
-        <Card>
-          <CardContent className="flex flex-col gap-3 py-5">
-            <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
-            <Text className="!text-xs">End your session on this device.</Text>
-            <Button
-              variant="secondary"
-              leftIcon={<LogOut />}
-              onClick={signOut}
-              loading={signingOut}
-              className="w-full text-rose hover:text-rose"
-            >
-              {signingOut ? 'Signing out…' : 'Sign out'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      }
+      aside={
+        <>
+          <RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>
+          <Card>
+            <CardContent className="flex flex-col gap-3 py-5">
+              <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
+              <Text className="!text-xs">End your session on this device.</Text>
+              <Button
+                variant="secondary"
+                leftIcon={<LogOut />}
+                onClick={signOut}
+                loading={signingOut}
+                className="w-full text-rose hover:text-rose"
+              >
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      }
+    />
   );
 }

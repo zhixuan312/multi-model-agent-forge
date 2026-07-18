@@ -20,12 +20,15 @@ export interface VariantAffordance {
   defaultOn: boolean;
 }
 
-/** An in-page tab of a variant (e.g. Document → Spec / Audit / Discussion). Each tab is
- *  its own view with its OWN affordances — an affordance applies only to that tab. */
+/** An in-page tab of a variant (e.g. Document → Document / Audit / Discussion). Each tab is
+ *  its own view with its OWN affordances, consumers and deviations — a tab's section is used
+ *  in different places than the others. */
 export interface VariantTab {
   id: string;
   label: string;
   affordances?: readonly VariantAffordance[];
+  consumers?: readonly VariantConsumer[];
+  deviations?: readonly VariantConsumer[];
 }
 
 export interface VariantMeta {
@@ -75,6 +78,7 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
     id: 'dashboard',
     label: 'Dashboard',
     affordances: [
+      { id: 'stageFlow', label: 'Stage flow (project only)', canonicalComponent: 'StageStepper', canonicalFilePath: 'src/components/forge/StageStepper.tsx', defaultOn: true },
       { id: 'metrics', label: 'Metrics row', canonicalComponent: 'MetricRow', canonicalFilePath: 'src/components/ui/metric-card.tsx', defaultOn: true },
       { id: 'rail', label: 'Right panel', canonicalComponent: 'feature-rail (RailNote / RailCard)', canonicalFilePath: 'src/components/patterns/feature-rail.tsx', defaultOn: true },
     ],
@@ -132,7 +136,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     id: 'list',
     label: 'List',
     canonicalComponent: 'List',
-    canonicalFilePath: 'src/components/patterns/list.tsx', // to be created — no shared list component yet
+    canonicalFilePath: 'src/components/patterns/list.tsx',
     affordances: [
       { id: 'header', label: 'Section header', canonicalComponent: 'Eyebrow', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: true },
       { id: 'expand', label: 'Expand arrow', canonicalComponent: 'ChevronRight', canonicalFilePath: 'lucide-react', defaultOn: true },
@@ -166,7 +170,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     id: 'form',
     label: 'Form',
     canonicalComponent: 'FormSection',
-    canonicalFilePath: 'src/components/patterns/form-section.tsx', // to be created — no shared form-section component yet
+    canonicalFilePath: 'src/components/patterns/form-section.tsx',
     affordances: [
       { id: 'description', label: 'Section description', canonicalComponent: 'Section text', canonicalFilePath: 'src/components/patterns/form-section.tsx', defaultOn: true },
       { id: 'twoColumn', label: 'Two-column layout', canonicalComponent: 'FieldGrid', canonicalFilePath: 'src/components/ui/field-grid.tsx', defaultOn: true },
@@ -184,8 +188,8 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'document',
     label: 'Document',
-    canonicalComponent: 'ProseBlock',
-    canonicalFilePath: 'src/components/patterns/prose-block.tsx',
+    canonicalComponent: 'DocumentShell',
+    canonicalFilePath: 'src/components/patterns/document-shell.tsx',
     // Shell chrome (title + version + tab bar + approvers row) is always present; each
     // tab carries only the affordances that apply to it.
     tabs: [
@@ -196,12 +200,28 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
           { id: 'approvers', label: 'Approvers row', canonicalComponent: 'ParticipantStrip', canonicalFilePath: 'src/components/forge/collab/Participants.tsx', defaultOn: true },
           { id: 'action', label: 'Action (approve / revoke)', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
         ],
+        consumers: [
+          { id: 'spec-finalize', label: 'Project › Spec › Finalize', filePath: 'src/components/forge/SpecStageClient.tsx' },
+          { id: 'plan-refine', label: 'Project › Plan › Refine', filePath: 'src/components/forge/PlanStageClient.tsx' },
+          { id: 'journal-reflect', label: 'Project › Journal › Reflect', filePath: 'src/components/forge/JournalStageClient.tsx' },
+        ],
+        deviations: [
+          { id: 'run-detail', label: 'Loops › Activities › Run detail (no shell chrome)', filePath: 'app/(app)/loops/RunDetail.tsx' },
+        ],
       },
       {
         id: 'audit',
         label: 'Audit',
         affordances: [
           { id: 'applyBar', label: 'Apply findings bar', canonicalComponent: 'FindingsApplyBar', canonicalFilePath: 'src/components/patterns/findings.tsx', defaultOn: true },
+        ],
+        consumers: [
+          { id: 'spec-audit', label: 'Project › Spec › Finalize', filePath: 'src/components/forge/SpecStageClient.tsx' },
+          { id: 'plan-validate', label: 'Project › Plan › Validate', filePath: 'src/components/forge/PlanStageClient.tsx' },
+          { id: 'review', label: 'Project › Review', filePath: 'src/components/forge/ReviewStageClient.tsx' },
+        ],
+        deviations: [
+          { id: 'audit-round-card', label: 'Review › audit-round cards (bespoke button)', filePath: 'src/components/patterns/findings.tsx' },
         ],
       },
       {
@@ -211,20 +231,19 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
           { id: 'composer', label: 'Composer', canonicalComponent: 'ConversationComposer', canonicalFilePath: 'src/components/patterns/conversation.tsx', defaultOn: true },
           { id: 'messageMeta', label: 'Message meta', canonicalComponent: 'renderMeta', canonicalFilePath: 'src/components/patterns/conversation.tsx', defaultOn: false },
         ],
+        consumers: [
+          { id: 'spec-craft', label: 'Project › Spec › Craft', filePath: 'src/components/forge/SpecStageClient.tsx' },
+          { id: 'plan-discussion', label: 'Project › Plan › Refine', filePath: 'src/components/forge/PlanStageClient.tsx' },
+          { id: 'journal-discussion', label: 'Project › Journal › Reflect', filePath: 'src/components/forge/JournalStageClient.tsx' },
+        ],
       },
-    ],
-    consumers: [
-      { id: 'plan', label: 'Project › Plan › Refine', filePath: 'src/components/forge/PlanStageClient.tsx' },
-      { id: 'journal-stage', label: 'Project › Journal › Reflect', filePath: 'src/components/forge/JournalStageClient.tsx' },
-      { id: 'run-detail', label: 'Loops › Activities › Run detail', filePath: 'app/(app)/loops/RunDetail.tsx' },
-      { id: 'spec-finalize', label: 'Project › Spec › Finalize', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
   },
   {
     id: 'statCard',
     label: 'Stat card',
-    canonicalComponent: 'Card + CardHeader (icon + title) · CardContent stat rows',
-    canonicalFilePath: 'src/components/ui/card.tsx',
+    canonicalComponent: 'StatCard',
+    canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
       { id: 'icon', label: 'Header icon', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
       { id: 'footer', label: 'Card footer', canonicalComponent: 'CardFooter', canonicalFilePath: 'src/components/ui/card.tsx', defaultOn: false },
@@ -237,8 +256,8 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'selectableTile',
     label: 'Selectable tile',
-    canonicalComponent: 'button[aria-pressed] tile',
-    canonicalFilePath: 'src/components/patterns/list.tsx', // to be created — no shared tile component yet
+    canonicalComponent: 'SelectableTile',
+    canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
       { id: 'icon', label: 'Tile icon (flips to check)', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
       { id: 'meta', label: 'Meta row', canonicalComponent: 'Badge / chips', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
@@ -251,8 +270,8 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'statusCard',
     label: 'Status card',
-    canonicalComponent: 'bordered div, state-driven border',
-    canonicalFilePath: 'src/components/patterns/list.tsx', // to be created — no shared status-card component yet
+    canonicalComponent: 'StatusCard',
+    canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
       { id: 'statusBadge', label: 'Status badge', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
       { id: 'progress', label: 'Progress bar', canonicalComponent: 'progress bar', canonicalFilePath: 'src/components/forge/ExecuteStageClient.tsx', defaultOn: true },

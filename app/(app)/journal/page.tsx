@@ -13,7 +13,8 @@ import {
   PlusCircle,
   ListChecks,
 } from 'lucide-react';
-import { PageFrame, MetricCard } from '@/components/ui';
+import { PageFrame } from '@/components/ui';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { JournalTabsNav, type JournalView } from '@/components/forge/journal/JournalTabsNav';
 import { JournalState } from '@/components/forge/journal/journal-shell';
 import { RecallTab } from '@/components/forge/journal/RecallTab';
@@ -161,28 +162,17 @@ export default async function JournalPage({
   const indexRows: IndexLookupRow[] = read.nodes.map((n) => ({ id: n.id, title: n.title, status: n.status }));
 
   return frame(
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-        {metrics.map((m) => (
-          <MetricCard
-            key={m.label}
-            label={m.label}
-            value={m.value}
-            sublabel={m.sublabel}
-            icon={m.icon}
-            iconTint={m.iconTint}
-            muted={m.muted}
-          />
-        ))}
-      </div>
-
-      <div className="min-h-0 flex-1">
-        {view === 'recall' ? <RecallTab index={indexRows} pinned={pinned} faqs={faqs} recentRecalls={recentRecalls} /> : null}
-        {view === 'nodes' ? <NodesTab nodes={read.nodes} skippedCount={read.skippedCount} initialNode={node} /> : null}
-        {view === 'graph' ? <GraphTab nodes={graphNodes} edges={graphEdges} /> : null}
-        {view === 'log' ? <LogTab log={read.log} /> : null}
-      </div>
-    </div>,
+    <StatusDashboard
+      metrics={metrics}
+      primary={
+        <>
+          {view === 'recall' ? <RecallTab index={indexRows} pinned={pinned} faqs={faqs} recentRecalls={recentRecalls} /> : null}
+          {view === 'nodes' ? <NodesTab nodes={read.nodes} skippedCount={read.skippedCount} initialNode={node} /> : null}
+          {view === 'graph' ? <GraphTab nodes={graphNodes} edges={graphEdges} /> : null}
+          {view === 'log' ? <LogTab log={read.log} /> : null}
+        </>
+      }
+    />,
   );
 }
 

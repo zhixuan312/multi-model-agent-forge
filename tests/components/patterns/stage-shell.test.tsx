@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { StageShell, StageFullWidth, type StageShellItem } from '@/components/patterns/stage-shell';
+import { StageShell, type StageShellItem } from '@/components/patterns/stage-shell';
 
 const items: StageShellItem[] = [
   { id: '1', label: 'Investigate backend', description: 'Survey config files', status: 'recorded', statusVariant: 'sage' },
@@ -87,18 +87,5 @@ describe('StageShell', () => {
       </StageShell>,
     );
     expect(screen.getByText('No items yet.')).toBeInTheDocument();
-  });
-});
-
-describe('StageFullWidth', () => {
-  it('renders main content and optional sidebar', () => {
-    render(
-      <StageFullWidth note={<div>Note</div>} sidebar={<div>Sidebar content</div>}>
-        <p>Main content</p>
-      </StageFullWidth>,
-    );
-    expect(screen.getByText('Main content')).toBeInTheDocument();
-    expect(screen.getByText('Note')).toBeInTheDocument();
-    expect(screen.getByText('Sidebar content')).toBeInTheDocument();
   });
 });

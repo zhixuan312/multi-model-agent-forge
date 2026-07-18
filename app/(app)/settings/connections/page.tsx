@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { getConnections } from '@/config/connections-core';
 import { readMmaBearer } from '@/mma/client-config';
-import { PageFrame, MetricCard } from '@/components/ui';
+import { PageFrame, MetricCard, MetricRow } from '@/components/ui';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
 
@@ -31,11 +31,11 @@ export default async function ConnectionsPage() {
     <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="connections" />} width="full">
       <div className="flex flex-col gap-4">
         {/* STATUS — org infrastructure secrets */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <MetricRow>
           <MetricCard label="Secrets set" value={`${setCount}/2`} muted={setCount === 0} sublabel="Stored encrypted" icon={<Lock />} iconTint="accent" />
           <MetricCard label="MMA" value={mmaBearer ? 'Ready' : 'No token'} muted={!mmaBearer} sublabel="Auto token" icon={<Plug />} iconTint="steel" />
           <MetricCard label="Voice" value={view.openaiTranscriptionKeySet ? 'On' : 'Off'} muted={!view.openaiTranscriptionKeySet} sublabel="Speech to text" icon={<Mic />} iconTint="rose" />
-        </div>
+        </MetricRow>
 
         {/* ConnectionsForm carries its own 2/3 ∣ 1/3 layout (cards + guidance rail). */}
         <ConnectionsForm

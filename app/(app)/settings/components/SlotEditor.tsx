@@ -52,16 +52,19 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
   const variant = variantId
     ? GOVERNANCE_SLOT_NAV.find((s) => s.slotId === slot.slotId)?.variants.find((v) => v.id === variantId)
     : undefined;
-  const consumers = variant?.consumers ?? slot.consumers;
   const canonicalComponent = variant?.canonicalComponent ?? slot.canonicalComponent;
   const canonicalFilePath = variant?.canonicalFilePath ?? slot.canonicalFilePath;
 
-  // Tabbed variants (e.g. Document → Spec / Audit / Discussion) show a tab bar that
-  // drives both the preview and which affordances apply. Non-tabbed variants use their
-  // flat affordance list.
+  // Tabbed variants (e.g. Document → Document / Audit / Discussion) show a tab bar that
+  // drives the preview AND scopes the affordances / consumers / deviations to the active
+  // tab (each tab's section is used in different places). Non-tabbed variants use the flat
+  // affordance list and the variant/slot consumers.
   const tabs = variant?.tabs ?? [];
   const [activeTab, setActiveTab] = useState<string>(() => tabs[0]?.id ?? '');
-  const affordances = tabs.length > 0 ? (tabs.find((t) => t.id === activeTab)?.affordances ?? []) : (variant?.affordances ?? []);
+  const activeTabObj = tabs.find((t) => t.id === activeTab);
+  const affordances = tabs.length > 0 ? (activeTabObj?.affordances ?? []) : (variant?.affordances ?? []);
+  const consumers = tabs.length > 0 ? (activeTabObj?.consumers ?? []) : (variant?.consumers ?? slot.consumers);
+  const deviations: readonly { id: string; label: string }[] = tabs.length > 0 ? (activeTabObj?.deviations ?? []) : slot.deviations;
 
   // Toggling drives the live preview locally (governance persistence TBD). Default all on,
   // across every tab so a tab switch never loses a toggle.
@@ -209,9 +212,9 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
         <Card>
           <CardContent className="py-4 text-sm text-ink-faint">
             <p className="font-medium text-ink">Deviations</p>
-            {slot.deviations.length > 0 ? (
+            {deviations.length > 0 ? (
               <ul className="mt-1 list-disc pl-4">
-                {slot.deviations.map((deviation) => (
+                {deviations.map((deviation) => (
                   <li key={deviation.id}>{deviation.label}</li>
                 ))}
               </ul>

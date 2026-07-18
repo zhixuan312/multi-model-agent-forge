@@ -8,6 +8,7 @@ import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
 import { PageFrame, MetricCard, MetricRow } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
+import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { GitTokenForm } from './GitTokenForm';
 import { WorkspaceForm } from './WorkspaceForm';
@@ -54,49 +55,22 @@ export default async function TeamSettingsPage() {
 
   return (
     <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full">
-      <div className="flex flex-col gap-4">
-        {/* STATUS — four equal metric boxes, same shell as the org tabs */}
-        <MetricRow>
-          <MetricCard
-            label="Git access"
-            value={teamRow.gitTokenRef ? 'Ready' : 'No token'}
-            muted={!teamRow.gitTokenRef}
-            sublabel="Clone & pull"
-            icon={<GitBranch />}
-            iconTint="sage"
-          />
-          <MetricCard label="Workspace" value={teamRow.slug} sublabel="Local root" icon={<FolderTree />} iconTint="steel" />
-          <MetricCard
-            label="Repositories"
-            value={repoCount}
-            muted={repoCount === 0}
-            sublabel="Registered"
-            icon={<Boxes />}
-            iconTint="accent"
-          />
-          <MetricCard
-            label="Members"
-            value={memberCount}
-            muted={memberCount === 0}
-            sublabel="On this team"
-            icon={<Users />}
-            iconTint="rose"
-          />
-        </MetricRow>
-
-        {/* PRIMARY (2/3) ∣ RAIL (1/3) — same shell as Connections / Models: the
-            credential cards stack one per row in the primary column. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
-          <div className="flex flex-col gap-4 lg:col-span-2">
+      <StatusDashboard
+        align="start"
+        metrics={[
+          { label: 'Git access', value: teamRow.gitTokenRef ? 'Ready' : 'No token', muted: !teamRow.gitTokenRef, sublabel: 'Clone & pull', icon: <GitBranch />, iconTint: 'sage' },
+          { label: 'Workspace', value: teamRow.slug, sublabel: 'Local root', icon: <FolderTree />, iconTint: 'steel' },
+          { label: 'Repositories', value: repoCount, muted: repoCount === 0, sublabel: 'Registered', icon: <Boxes />, iconTint: 'accent' },
+          { label: 'Members', value: memberCount, muted: memberCount === 0, sublabel: 'On this team', icon: <Users />, iconTint: 'rose' },
+        ]}
+        primary={
+          <div className="flex flex-col gap-4">
             <GitTokenForm tokenSet={teamRow.gitTokenRef !== null} />
             <WorkspaceForm current={teamRow.workspaceRootPath} />
           </div>
-
-          <div className="flex flex-col gap-4">
-            <RailNote icon={<GitBranch />}>{TEAM_NOTE}</RailNote>
-          </div>
-        </div>
-      </div>
+        }
+        aside={<RailNote icon={<GitBranch />}>{TEAM_NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

@@ -7,24 +7,10 @@ import { EmptyState, Banner, TextSm } from '@/components/ui';
 import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
 
 /**
- * Shared building blocks for the journal tab views: the 2/3 ∣ 1/3 row, the
- * lazy node-body loader, and the non-ok read states. Kept here so each tab
- * (Recall · Nodes · Graph · Write log) composes the same shell.
+ * Shared building blocks for the journal tab views: the lazy node-body loader
+ * and the non-ok read states. Each tab composes the canonical `StatusDashboard`
+ * (patterns/status-dashboard.tsx) for its 2/3 ∣ 1/3 split — see any of the tabs.
  */
-
-/**
- * The 2/3 primary ∣ 1/3 rail row used by every tab. On lg it FILLS its parent's
- * height (`lg:h-full`) and stretches both columns to the page bottom, so each
- * tab's cards extend to the bottom and scroll internally (like Write log).
- */
-export function RailLayout({ children, rail }: { children: React.ReactNode; rail: React.ReactNode }) {
-  return (
-    <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-3 lg:items-stretch">
-      <div className="flex min-h-0 flex-col lg:col-span-2">{children}</div>
-      <div className="flex min-h-0 flex-col gap-4">{rail}</div>
-    </div>
-  );
-}
 
 /** Lazy-loads one node's BODY + server-computed inbound edges on selection. */
 export function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id: string) => void }) {

@@ -42,4 +42,9 @@ export interface PinnedView {
 export interface FaqView {
   question: string;
   count: number;
+  /** Latest stored answer for this question (from recall history), so a Frequent row renders a
+   *  stored answer — like Pinned/Recent — instead of dispatching a fresh recall on expand. */
+  answerMd?: string;
+  findings?: unknown[];
+  citationIds?: string[];
 }

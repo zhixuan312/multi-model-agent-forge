@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { RecallTab } from '@/components/forge/journal/RecallTab';
+import { RecallTab, type RecentRecall } from '@/components/forge/journal/RecallTab';
 import type { PinnedView, FaqView } from '@/journal/recall-content';
 
 // AC-9 (FAQ click-to-run) + AC-10 (pin/unpin/refresh + a11y). Backend + routes are
@@ -63,18 +63,25 @@ const pin = (over: Partial<PinnedView> = {}): PinnedView => ({
   ...over,
 });
 
-describe('RecallTab — FAQ click-to-run (AC-9)', () => {
-  it('clicking a FAQ runs exactly one recall with that question and shows the answer', async () => {
+describe('RecallTab — frequent questions (AC-9)', () => {
+  it('a frequent row shows its stored answer on expand (no recall); Refresh re-runs it', async () => {
     vi.useFakeTimers();
     const { calls } = installFetch();
-    const faqs: FaqView[] = [{ question: 'how should new settings tabs be structured', count: 4 }];
+    const faqs: FaqView[] = [
+      { question: 'how should new settings tabs be structured', count: 4, answerMd: 'Stored FAQ answer.', findings: [], citationIds: [] },
+    ];
     render(<RecallTab index={INDEX} pinned={[]} faqs={faqs} />);
 
+    // Expanding a frequent row reveals its STORED answer inline — no dispatch fired.
     fireEvent.click(screen.getByRole('button', { name: /how should new settings tabs/i }));
+    expect(screen.getByText('Stored FAQ answer.')).toBeInTheDocument();
+    expect(calls.filter((c) => c.url === '/api/journal/recall' && c.method === 'POST')).toHaveLength(0);
+
+    // Refresh re-runs the recall and swaps in the fresh answer.
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }));
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-
     const dispatches = calls.filter((c) => c.url === '/api/journal/recall' && c.method === 'POST');
     expect(dispatches).toHaveLength(1);
     expect(dispatches[0]!.body).toMatchObject({ query: 'how should new settings tabs be structured' });
@@ -95,7 +102,7 @@ describe('RecallTab — pinned rows (AC-10)', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Cached answer body.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Unpin this answer/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: /How does authentication work here/i })).toBeNull(),
     );
@@ -107,7 +114,7 @@ describe('RecallTab — pinned rows (AC-10)', () => {
     render(<RecallTab index={INDEX} pinned={[pin()]} faqs={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: /How does authentication work here/i })); // expand
-    fireEvent.click(screen.getByRole('button', { name: /Unpin this answer/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
 
     // optimistic remove, then revert on the 500 + an error toast
     await waitFor(() =>
@@ -135,23 +142,20 @@ describe('RecallTab — pinned rows (AC-10)', () => {
 });
 
 describe('RecallTab — pin from a recent answer (AC-10)', () => {
-  it('a just-run recall lands in Recent (auto-expanded), and pinning it posts the pin', async () => {
-    vi.useFakeTimers();
+  it('a recent row expands to its cached answer, and pinning it posts the pin', async () => {
     const { calls } = installFetch({
       'POST /api/journal/pins': () =>
         new Response(JSON.stringify(pin({ id: 'new', question: 'q one two three', answerMd: 'Recalled answer.' })), {
           status: 201,
         }),
     });
-    const faqs: FaqView[] = [{ question: 'how should new settings tabs be structured', count: 2 }];
-    render(<RecallTab index={INDEX} pinned={[]} faqs={faqs} />);
+    const recentRecalls: RecentRecall[] = [
+      { id: 'r1', question: 'q one two three', status: 'done', batchId: 'b1', answerMd: 'Recalled answer.', findings: [], citationIds: [] },
+    ];
+    render(<RecallTab index={INDEX} pinned={[]} faqs={[]} recentRecalls={recentRecalls} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /how should new settings tabs/i }));
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
-    // The answer shows in the Recent section (auto-expanded), not a card above the pins.
+    // The row shows the question; expanding it (left chevron) reveals the cached answer.
+    fireEvent.click(screen.getByRole('button', { name: /q one two three/i }));
     expect(screen.getByText('Recalled answer.')).toBeInTheDocument();
 
     // Pin it from the recent row.
@@ -163,6 +167,6 @@ describe('RecallTab — pin from a recent answer (AC-10)', () => {
 
     const posts = calls.filter((c) => c.method === 'POST' && c.url === '/api/journal/pins');
     expect(posts).toHaveLength(1);
-    expect(posts[0]!.body).toMatchObject({ question: 'how should new settings tabs be structured', answerMd: 'Recalled answer.' });
+    expect(posts[0]!.body).toMatchObject({ question: 'q one two three', answerMd: 'Recalled answer.' });
   });
 });

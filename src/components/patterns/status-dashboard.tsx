@@ -36,10 +36,24 @@ export function StatusDashboard({ metrics, primary, aside, align = 'stretch', cl
             align === 'start' ? 'lg:items-start' : 'lg:items-stretch',
           )}
         >
-          <div className="flex min-h-0 flex-col lg:col-span-2">
+          {/* In the dashboard (`stretch`) look the two panels are height-bounded, so each
+              scrolls INTERNALLY on desktop (`lg:overflow-y-auto`) — the left work surface and
+              the right rail scroll independently instead of overflowing or scrolling the page.
+              On mobile (stacked) and in the `start`/settings look the page scrolls instead. */}
+          <div
+            className={cn(
+              'flex min-h-0 flex-col lg:col-span-2',
+              align === 'stretch' && 'lg:min-h-0 lg:overflow-y-auto',
+            )}
+          >
             {primary}
           </div>
-          <div className="flex min-h-0 flex-col gap-4">
+          <div
+            className={cn(
+              'flex min-h-0 flex-col gap-4',
+              align === 'stretch' && 'lg:min-h-0 lg:overflow-y-auto',
+            )}
+          >
             {aside}
           </div>
         </div>

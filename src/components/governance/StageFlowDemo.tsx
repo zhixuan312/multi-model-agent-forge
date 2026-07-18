@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui';
 import { StageStepper } from '@/components/forge/StageStepper';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 
 /**
- * Self-contained, interactive stage-flow demo for the governance page. Clicking
- * "Continue" runs the next transition LOCALLY (advance to the next phase, or the
- * next stage once a stage's phases are done); "Reset" returns to the start. It does
- * NOT hit /api/projects/[id]/transition — this is a showcase, so it never mutates a
- * real project — but it exercises the same StageStepper + StageAdvance components
- * and the same phase→stage advance semantics.
+ * Self-contained, interactive stage-flow demo for the governance page. It mirrors the real
+ * app's TWO-STATE model:
+ *   • `furthest` = progress (how far the project has advanced) — drives the green/done
+ *     stages + phases and the (persistent) freeze locks. Preserved as you navigate.
+ *   • `view`     = which stage/phase you're looking at (the real app reads this from the
+ *     route). Clicking a REACHED stage/phase in the stepper moves the view back without
+ *     losing progress; passed stages stay green. "Reset" clears both.
+ * It reuses the real StageStepper + StageAdvance and never mutates a real project.
  */
 const FLOW: { kind: StageKind; label: string; phase: ProjectPhase; phases: { key: string; label: string }[] }[] = [
   { kind: 'exploration', label: 'Explore', phase: 'design', phases: [{ key: 'brief', label: 'Brief' }, { key: 'discover', label: 'Discover' }, { key: 'synthesize', label: 'Synthesize' }] },
@@ -23,70 +27,102 @@ const FLOW: { kind: StageKind; label: string; phase: ProjectPhase; phases: { key
 ];
 
 const STEPS: { s: number; p: number }[] = FLOW.flatMap((stage, s) => stage.phases.map((_, p) => ({ s, p })));
+const PHASE_ORDER: ProjectPhase[] = ['design', 'build', 'learn', 'completed'];
+
+/** The STEPS index for a given stage/phase — used to map clicks + stage bounds. */
+const posFor = (s: number, p: number) => STEPS.findIndex((st) => st.s === s && st.p === p);
 
 export function StageFlowDemo() {
-  const [pos, setPos] = useState(0); // index into STEPS; === STEPS.length ⇒ fully completed
-  const done = pos >= STEPS.length;
-  const cur = done ? { s: FLOW.length - 1, p: FLOW[FLOW.length - 1].phases.length - 1 } : STEPS[pos];
+  // `furthest` = number of completed steps (step `furthest` is the active one; === length ⇒ done).
+  const [furthest, setFurthest] = useState(0);
+  // `view` = the viewed step index (0..furthest); === length ⇒ viewing the completed end.
+  const [view, setView] = useState(0);
 
+  const viewDone = view >= STEPS.length;
+  const cur = viewDone ? { s: FLOW.length - 1, p: FLOW[FLOW.length - 1].phases.length - 1 } : STEPS[view];
+  const viewedStage = FLOW[cur.s];
+
+  // Stage statuses from PROGRESS — a passed stage stays 'done' (green) even while you view back.
   const stages = FLOW.map((stage, s): { kind: StageKind; status: StageStatus } => {
+    const firstS = posFor(s, 0);
+    const lastS = posFor(s, stage.phases.length - 1);
     let status: StageStatus;
-    if (done || s < cur.s) status = 'done';
-    else if (s === cur.s) status = 'active';
+    if (lastS < furthest) status = 'done';
+    else if (firstS <= furthest && furthest <= lastS) status = 'active';
     else status = 'pending';
     return { kind: stage.kind, status };
   });
 
-  const currentFlow = FLOW[cur.s];
-  const subSteps = currentFlow.phases.map((ph) => ({ key: ph.key, label: ph.label }));
+  // Locks follow PROGRESS (the freeze is persistent) — a stage locks once its whole project
+  // phase is behind the frontier, and stays locked while you view earlier stages.
+  const furthestPhaseIdx = furthest >= STEPS.length ? PHASE_ORDER.length - 1 : PHASE_ORDER.indexOf(FLOW[STEPS[furthest].s].phase);
+  const lockedStages: StageKind[] = FLOW.filter((st) => PHASE_ORDER.indexOf(st.phase) < furthestPhaseIdx).map((st) => st.kind);
+
+  // Sub-phase statuses (for the viewed stage) also from PROGRESS; the highlight follows VIEW.
+  const subSteps = viewedStage.phases.map((ph) => ({ key: ph.key, label: ph.label }));
   const subStepStatuses: Record<string, string> = {};
-  currentFlow.phases.forEach((ph, p) => {
-    subStepStatuses[ph.key] = done || p < cur.p ? 'done' : p === cur.p ? 'active' : 'pending';
+  viewedStage.phases.forEach((ph, p) => {
+    const gIdx = posFor(cur.s, p);
+    subStepStatuses[ph.key] = gIdx < furthest ? 'done' : gIdx === furthest ? 'active' : 'pending';
   });
 
+  // Continue advances the VIEW forward one step; at the frontier it extends progress.
+  const isPhaseAdvance = !viewDone && cur.p + 1 < viewedStage.phases.length;
   let continueLabel = 'Finish';
-  if (!done) {
-    if (cur.p + 1 < currentFlow.phases.length) continueLabel = `Continue to ${currentFlow.phases[cur.p + 1].label}`;
+  if (!viewDone) {
+    if (isPhaseAdvance) continueLabel = `Continue to ${viewedStage.phases[cur.p + 1].label}`;
     else if (cur.s + 1 < FLOW.length) continueLabel = `Continue to ${FLOW[cur.s + 1].label}`;
     else continueLabel = 'Finish';
   }
+  const advance = () =>
+    setView((v) => {
+      const nv = Math.min(v + 1, STEPS.length);
+      setFurthest((f) => Math.max(f, nv));
+      return nv;
+    });
 
   return (
     <div className="flex flex-col gap-4">
-      {/* The REAL StageStepper, identical to the app — phases render under the active
-          stage. That built-in sub-phase row is centered under the active column and can
-          extend past a narrow box, so we give it a wide, horizontally-scrollable track
-          with generous side padding to absorb the overhang (the app gets this room from
-          its full-width shell). */}
+      {/* The REAL StageStepper. Reached stages render as links; we intercept those clicks
+          (via its data-stage / data-reachable attributes) to move the VIEW back locally.
+          Future/untouched stages are non-reachable → not clickable. */}
       <div className="overflow-x-auto rounded-md border border-line bg-surface-1 py-4">
-        <div className="min-w-[760px] px-16">
+        <div
+          className="min-w-[760px] px-16"
+          onClickCapture={(e) => {
+            const el = (e.target as HTMLElement).closest<HTMLElement>('[data-stage]');
+            if (el?.getAttribute('data-reachable') === 'true') {
+              e.preventDefault();
+              const s = FLOW.findIndex((st) => st.kind === el.getAttribute('data-stage'));
+              if (s >= 0) setView(posFor(s, 0));
+            }
+          }}
+        >
           <StageStepper
             projectId="preview"
             stages={stages}
-            currentStage={currentFlow.kind}
-            phase={done ? 'completed' : currentFlow.phase}
+            currentStage={viewedStage.kind}
+            phase={viewDone ? 'completed' : viewedStage.phase}
+            lockedStages={lockedStages}
             subSteps={subSteps}
             subStepStatuses={subStepStatuses}
-            activeSubPhase={done ? undefined : currentFlow.phases[cur.p].key}
+            activeSubPhase={viewDone ? undefined : viewedStage.phases[cur.p].key}
+            onSubStepClick={(key) => {
+              const p = viewedStage.phases.findIndex((ph) => ph.key === key);
+              if (p >= 0) setView(posFor(cur.s, p));
+            }}
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="w-60">
-          <StageAdvance
-            label={done ? 'Completed' : continueLabel}
-            onClick={() => setPos((p) => Math.min(p + 1, STEPS.length))}
-            disabled={done}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setPos(0)}
-          className="rounded-[var(--r)] border border-line px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-bg-sunk hover:text-ink"
-        >
-          Reset
-        </button>
+      <div className="w-60">
+        {isPhaseAdvance ? (
+          <Button variant="primary" fullWidth rightIcon={<ArrowRight />} onClick={advance}>
+            {continueLabel}
+          </Button>
+        ) : (
+          <StageAdvance label={viewDone ? 'Completed' : continueLabel} onClick={advance} disabled={viewDone} />
+        )}
       </div>
     </div>
   );

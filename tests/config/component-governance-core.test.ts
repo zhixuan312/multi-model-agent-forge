@@ -11,7 +11,7 @@ describe('component-governance core', () => {
   it('returns registry defaults when the singleton row is missing', async () => {
     const db = createMockDb();
     const view = await getComponentGovernanceView({ db });
-    expect(view.slots).toHaveLength(13);
+    expect(view.slots).toHaveLength(14);
     // stageFlow has no knobs (its page is a scenario gallery); a knob-bearing slot keeps its defaults.
     expect(view.slots.find((slot) => slot.slotId === 'stageFlow')).toMatchObject({ locked: true, knobs: {} });
     expect(view.slots.find((slot) => slot.slotId === 'badge')).toMatchObject({

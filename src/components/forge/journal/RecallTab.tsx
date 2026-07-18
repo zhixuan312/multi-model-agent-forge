@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Sparkles,
   Pin,
   MessageCircleQuestion,
   ArrowRight,
-  ChevronRight,
   RefreshCw,
   Trash2,
 } from 'lucide-react';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
+import { List, type ListSection } from '@/components/patterns/list';
 import { RecallAnswer } from '@/components/forge/journal/RecallView';
 import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
 import type { IndexLookupRow } from '@/journal/citations';
@@ -171,6 +172,24 @@ export function RecallTab({
     return { parsed, batchId };
   }
 
+  // Pin any answer (recent OR frequent) — POST /pins, then reflect it in the pinned list.
+  async function pinAnswer(question: string, parsed: ParsedRecall) {
+    try {
+      const res = await fetch('/api/journal/pins', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question, answerMd: parsed.summary, findings: parsed.findings, citationIds: parsed.citationIds }),
+      });
+      if (res.status !== 201) return;
+      const created = (await res.json()) as PinnedView;
+      setPins((prev) => [created, ...prev]);
+      router.refresh();
+    } catch { /* best effort */ }
+  }
+  // Re-run a question's recall and return the fresh answer — a Frequent row's Refresh shows it
+  // inline (the recall is recorded server-side, so it also updates the stored FAQ answer + count).
+  const runQuestion = (q: string) => dispatchAndPoll(q).then((r) => r.parsed);
+
   async function run(qRaw?: string) {
     const q = (qRaw ?? query).trim();
     if (q.length < 10 || q.length > 4000) return;
@@ -188,35 +207,65 @@ export function RecallTab({
     }
   }
 
-  function askFaq(q: string) {
-    setQuery(q);
-    void run(q);
-  }
-
   async function pinRecent(r: RecentRecall) {
     if (!r.answerMd) return;
-    try {
-      const res = await fetch('/api/journal/pins', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          question: r.question,
-          answerMd: r.answerMd,
-          findings: r.findings ?? [],
-          citationIds: r.citationIds ?? [],
-        }),
-      });
-      if (res.status !== 201) return;
-      const created = (await res.json()) as PinnedView;
-      setPins((prev) => [created, ...prev]);
-      router.refresh();
-    } catch { /* best effort */ }
+    await pinAnswer(r.question, {
+      summary: r.answerMd,
+      findings: (r.findings ?? []) as ParsedRecall['findings'],
+      citationIds: r.citationIds ?? [],
+    });
   }
 
   // Refreshing a recent answer just re-runs the recall — the fresh answer lands as a new
   // entry at the top of Recent (every new call is recorded there), never a top card.
   async function refreshRecent(r: RecentRecall) {
     await run(r.question);
+  }
+
+  // One governed List (src/components/patterns/list.tsx). Every section shares the same row
+  // contract: the row IS the question, the left chevron expands it, the body is the answer box.
+  const recallSections: ListSection[] = [];
+  if (pins.length > 0) {
+    recallSections.push({
+      id: 'pinned',
+      header: (<span className="flex items-center gap-1.5"><Pin className="size-3.5" /> Pinned Q&amp;A</span>),
+      rows: pins.map((p) => ({
+        id: `pin-${p.id}`,
+        primary: p.question,
+        trailing: p.stale ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-deep">
+            Journal updated since
+          </span>
+        ) : undefined,
+        body: <PinnedBody pin={p} index={index} onNavigate={onNavigate} onRefresh={() => void refreshPin(p)} onUnpin={() => void unpin(p)} />,
+      })),
+    });
+  }
+  if (completedRecalls.length > 0) {
+    recallSections.push({
+      id: 'recent',
+      header: (<span className="flex items-center gap-1.5"><Sparkles className="size-3.5" /> Recent answers</span>),
+      rows: completedRecalls.map((r) => ({
+        id: `recent-${r.id}`,
+        primary: r.question,
+        defaultOpen: r.batchId != null && r.batchId === justAskedKey,
+        body: <RecentBody recall={r} index={index} onNavigate={onNavigate} onRefresh={() => void refreshRecent(r)} onPin={() => void pinRecent(r)} />,
+      })),
+    });
+  }
+  if (faqs.length > 0) {
+    recallSections.push({
+      id: 'frequent',
+      header: (<span className="flex items-center gap-1.5"><MessageCircleQuestion className="size-3.5" /> Frequently asked</span>),
+      rows: faqs.map((f) => ({
+        id: `faq-${f.question}`,
+        primary: f.question,
+        trailing: (
+          <span className="shrink-0 rounded-[var(--r-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">{f.count}×</span>
+        ),
+        body: <FaqBody faq={f} index={index} onNavigate={onNavigate} onRefresh={runQuestion} onPin={pinAnswer} />,
+      })),
+    });
   }
 
   return (
@@ -235,48 +284,38 @@ export function RecallTab({
         </>
       }
       primary={
-        <Card className="flex min-h-0 flex-1 flex-col">
-          <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {hasContent ? (
-            <div className="flex flex-col gap-4">
-              {status === 'running' ? (
-                <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 px-4 py-3">
-                  <Spinner className="size-4 text-accent" />
-                  <span className="truncate text-sm text-ink-soft">
-                    Recalling — <span className="text-ink">{asked}</span>
-                  </span>
-                </div>
-              ) : null}
-
-              {status === 'error' && error ? (
-                <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
-                  {error}
-                </p>
-              ) : null}
-
-              <PinnedSection
-                pins={pins}
-                index={index}
-                onNavigate={onNavigate}
-                onUnpin={(p) => void unpin(p)}
-                onRefresh={(p) => void refreshPin(p)}
-              />
-
-              {completedRecalls.length > 0 ? (
-                <RecentSection recalls={completedRecalls} index={index} autoExpandKey={justAskedKey} onNavigate={onNavigate} onPin={pinRecent} onRefresh={refreshRecent} />
-              ) : null}
-
-              <FaqSection faqs={faqs} onAsk={askFaq} disabled={status === 'running'} />
+        // A plain content stack — the Content Shell's left panel (StatusDashboard column) owns
+        // the scroll, so a long expanded answer scrolls the panel instead of overflowing it.
+        <div className="flex flex-col gap-4">
+          {status === 'running' ? (
+            <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 px-4 py-3">
+              <Spinner className="size-4 text-accent" />
+              <span className="truncate text-sm text-ink-soft">
+                Recalling — <span className="text-ink">{asked}</span>
+              </span>
             </div>
+          ) : null}
+
+          {status === 'error' && error ? (
+            <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
+              {error}
+            </p>
+          ) : null}
+
+          {hasContent ? (
+            <List sections={recallSections} />
           ) : (
-            <EmptyState
-              icon={<Sparkles />}
-              title="No saved answers yet"
-              description="Ask the journal a question using the composer on the right. Pin useful answers to keep them here for quick access."
-            />
+            <Card>
+              <CardContent className="grid place-items-center py-12">
+                <EmptyState
+                  icon={<Sparkles />}
+                  title="No saved answers yet"
+                  description="Ask the journal a question using the composer on the right. Pin useful answers to keep them here for quick access."
+                />
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
       }
     />
   );
@@ -399,231 +438,164 @@ function RecallComposer({
   );
 }
 
-/** The member's pinned Q&A — each row expands in place to its cached answer. */
-function PinnedSection({
-  pins,
+/** The cached-answer body for a pinned row — the answer box + refresh / unpin actions. */
+function PinnedBody({
+  pin,
   index,
   onNavigate,
+  onRefresh,
   onUnpin,
-  onRefresh,
 }: {
-  pins: PinRow[];
+  pin: PinRow;
   index: IndexLookupRow[];
   onNavigate: (id: string) => void;
-  onUnpin: (p: PinnedView) => void;
-  onRefresh: (p: PinnedView) => void;
+  onRefresh: () => void;
+  onUnpin: () => void;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  if (pins.length === 0) return null;
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
+  const busy = pin._busy;
   return (
-    <section className="flex flex-col gap-2">
-      <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
-        <Pin className="size-3.5" /> Pinned Q&amp;A
-      </Eyebrow>
-      <div className="flex flex-col divide-y divide-line">
-        {pins.map((p) => {
-          const isOpen = expanded.has(p.id);
-          const panelId = `pin-panel-${p.id}`;
-          const busy = p._busy;
-          return (
-            <div key={p.id}>
-              <button
-                type="button"
-                onClick={() => toggle(p.id)}
-                aria-expanded={isOpen}
-                aria-controls={panelId}
-                className="focus-ring flex w-full items-center gap-2 py-3 text-left"
-              >
-                <ChevronRight
-                  className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
-                />
-                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{p.question}</span>
-                {p.stale ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-deep">
-                    Journal updated since
-                  </span>
-                ) : null}
-              </button>
-
-              {isOpen ? (
-                <div id={panelId} className="pb-3 pl-6">
-                  <RecallAnswer
-                    parsed={{ summary: p.answerMd, findings: p.findings, citationIds: p.citationIds }}
-                    index={index}
-                    onNavigate={onNavigate}
-                  />
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onRefresh(p)}
-                        disabled={!!busy}
-                        className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
-                      >
-                        <RefreshCw className={`size-3.5 ${busy === 'refresh' ? 'animate-spin' : ''}`} />
-                        {busy === 'refresh' ? 'Refreshing…' : 'Refresh'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onUnpin(p)}
-                        disabled={!!busy}
-                        aria-label="Unpin this answer"
-                        className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-rose hover:text-rose disabled:opacity-60"
-                      >
-                        <Trash2 className="size-3.5" />
-                        Unpin
-                      </button>
-                    </div>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+    <>
+      <RecallAnswer
+        parsed={{ summary: pin.answerMd, findings: pin.findings, citationIds: pin.citationIds }}
+        index={index}
+        onNavigate={onNavigate}
+      />
+      <div className="mt-3 flex items-center gap-2">
+        <RowAction icon={<RefreshCw className={`size-3.5 ${busy === 'refresh' ? 'animate-spin' : ''}`} />} label={busy === 'refresh' ? 'Refreshing…' : 'Refresh'} onClick={onRefresh} disabled={!!busy} tone="accent" />
+        <RowAction icon={<Trash2 className="size-3.5" />} label="Unpin" onClick={onUnpin} disabled={!!busy} tone="rose" />
       </div>
-    </section>
+    </>
   );
 }
 
-/** The team's frequently-asked questions — each runs a recall on click. */
-function RecentSection({
-  recalls,
+/** The cached-answer body for a recent row — the answer box + refresh / pin actions. */
+function RecentBody({
+  recall,
   index,
-  autoExpandKey,
   onNavigate,
-  onPin,
   onRefresh,
+  onPin,
 }: {
-  recalls: RecentRecall[];
+  recall: RecentRecall;
   index: IndexLookupRow[];
-  autoExpandKey?: string | null;
   onNavigate: (id: string) => void;
-  onPin: (r: RecentRecall) => void;
-  onRefresh: (r: RecentRecall) => void;
+  onRefresh: () => void;
+  onPin: () => void;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [pinning, setPinning] = useState<Set<string>>(new Set());
-  const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
-  // Auto-expand the recall the member just ran (matched by batchId) so its answer is
-  // visible immediately without a click.
-  useEffect(() => {
-    if (!autoExpandKey) return;
-    const match = recalls.find((r) => r.batchId === autoExpandKey);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-expand the just-run recall matched by batchId
-    if (match) setExpanded((prev) => (prev.has(match.id) ? prev : new Set(prev).add(match.id)));
-  }, [autoExpandKey, recalls]);
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
+  const [refreshing, setRefreshing] = useState(false);
+  const [pinning, setPinning] = useState(false);
+  if (!recall.answerMd) return null;
   return (
-    <section className="flex flex-col gap-2">
-      <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
-        <Sparkles className="size-3.5" /> Recent answers
-      </Eyebrow>
-      <div className="flex flex-col divide-y divide-line">
-        {recalls.map((r) => {
-          const isOpen = expanded.has(r.id);
-          return (
-            <div key={r.id}>
-              <button
-                type="button"
-                onClick={() => toggle(r.id)}
-                aria-expanded={isOpen}
-                className="focus-ring flex w-full items-center gap-2 py-3 text-left"
-              >
-                <ChevronRight
-                  className={`size-4 shrink-0 text-ink-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}
-                />
-                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{r.question}</span>
-              </button>
-              {isOpen && r.answerMd ? (
-                <div className="pb-3 pl-6">
-                  <RecallAnswer
-                    parsed={{ summary: r.answerMd, findings: (r.findings ?? []) as ParsedRecall['findings'], citationIds: (r.citationIds ?? []) }}
-                    index={index}
-                    onNavigate={onNavigate}
-                  />
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRefreshing((prev) => new Set(prev).add(r.id));
-                        onRefresh(r);
-                      }}
-                      disabled={refreshing.has(r.id)}
-                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
-                    >
-                      <RefreshCw className={`size-3.5 ${refreshing.has(r.id) ? 'animate-spin' : ''}`} />
-                      {refreshing.has(r.id) ? 'Refreshing…' : 'Refresh'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPinning((prev) => new Set(prev).add(r.id));
-                        onPin(r);
-                      }}
-                      disabled={pinning.has(r.id)}
-                      className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft hover:border-accent hover:text-accent-deep disabled:opacity-60"
-                    >
-                      <Pin className="size-3.5" />
-                      {pinning.has(r.id) ? 'Pinned' : 'Pin'}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+    <>
+      <RecallAnswer
+        parsed={{ summary: recall.answerMd, findings: (recall.findings ?? []) as ParsedRecall['findings'], citationIds: recall.citationIds ?? [] }}
+        index={index}
+        onNavigate={onNavigate}
+      />
+      <div className="mt-3 flex items-center gap-2">
+        <RowAction icon={<RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />} label={refreshing ? 'Refreshing…' : 'Refresh'} onClick={() => { setRefreshing(true); onRefresh(); }} disabled={refreshing} tone="accent" />
+        <RowAction icon={<Pin className="size-3.5" />} label={pinning ? 'Pinned' : 'Pin'} onClick={() => { setPinning(true); onPin(); }} disabled={pinning} tone="accent" />
       </div>
-    </section>
+    </>
   );
 }
 
-function FaqSection({
-  faqs,
-  onAsk,
-  disabled,
+/** The frequent-question body — renders the question's LATEST STORED answer (server-provided
+ *  from recall history, so no dispatch on expand), with the same Pin / Refresh actions as a
+ *  recent answer. Refresh re-runs the recall and swaps in the fresh answer inline; Pin saves it. */
+function FaqBody({
+  faq,
+  index,
+  onNavigate,
+  onRefresh,
+  onPin,
 }: {
-  faqs: FaqView[];
-  onAsk: (q: string) => void;
-  disabled: boolean;
+  faq: FaqView;
+  index: IndexLookupRow[];
+  onNavigate: (id: string) => void;
+  onRefresh: (question: string) => Promise<ParsedRecall>;
+  onPin: (question: string, parsed: ParsedRecall) => Promise<void>;
 }) {
-  if (faqs.length === 0) return null;
+  const stored: ParsedRecall | null = faq.answerMd
+    ? { summary: faq.answerMd, findings: (faq.findings ?? []) as ParsedRecall['findings'], citationIds: faq.citationIds ?? [] }
+    : null;
+  const [answer, setAnswer] = useState<ParsedRecall | null>(stored);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pinning, setPinning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    setRefreshing(true);
+    setError(null);
+    try {
+      setAnswer(await onRefresh(faq.question));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
-    <section className="flex flex-col gap-2">
-      <Eyebrow className="flex items-center gap-1.5 text-ink-faint">
-        <MessageCircleQuestion className="size-3.5" /> Frequently asked
-      </Eyebrow>
-      <ul className="flex flex-col divide-y divide-line">
-        {faqs.map((f) => (
-          <li key={f.question}>
-            <button
-              type="button"
-              onClick={() => onAsk(f.question)}
-              disabled={disabled}
-              className="focus-ring group flex w-full items-center gap-2 py-3 text-left text-sm text-ink-soft hover:text-ink disabled:opacity-50"
-            >
-              <Sparkles className="size-3.5 shrink-0 text-ink-faint group-hover:text-accent" />
-              <span className="min-w-0 flex-1">{f.question}</span>
-              <span className="shrink-0 rounded-[var(--r-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-faint">
-                {f.count}×
-              </span>
-              <ArrowRight className="size-4 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <>
+      {answer ? (
+        <RecallAnswer parsed={answer} index={index} onNavigate={onNavigate} />
+      ) : refreshing ? (
+        <div className="flex items-center gap-2 py-1 text-sm text-ink-soft">
+          <Spinner className="size-4 text-accent" /> Recalling…
+        </div>
+      ) : (
+        <p className="text-sm text-ink-faint">No stored answer yet — Refresh to run this question.</p>
+      )}
+      {error ? (
+        <p className="mt-2 rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">{error}</p>
+      ) : null}
+      <div className="mt-3 flex items-center gap-2">
+        <RowAction
+          icon={<RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />}
+          label={refreshing ? 'Refreshing…' : 'Refresh'}
+          onClick={() => void refresh()}
+          disabled={refreshing}
+          tone="accent"
+        />
+        <RowAction
+          icon={<Pin className="size-3.5" />}
+          label={pinning ? 'Pinned' : 'Pin'}
+          onClick={() => { setPinning(true); if (answer) void onPin(faq.question, answer); }}
+          disabled={pinning || !answer}
+          tone="accent"
+        />
+      </div>
+    </>
+  );
+}
+
+/** The shared inline row action (Refresh / Unpin / Pin) used inside every expanded body. */
+function RowAction({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone: 'accent' | 'rose';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink-soft disabled:opacity-60',
+        tone === 'rose' ? 'hover:border-rose hover:text-rose' : 'hover:border-accent hover:text-accent-deep',
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

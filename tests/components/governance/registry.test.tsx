@@ -24,6 +24,7 @@ describe('component governance registry', () => {
       'metricCard',
       'banner',
       'avatar',
+      'toast',
     ]);
 
     const structural = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'structural');
@@ -31,7 +32,7 @@ describe('component governance registry', () => {
     const primitive = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'primitive');
     expect(structural).toHaveLength(5);
     expect(project).toHaveLength(1);
-    expect(primitive).toHaveLength(7);
+    expect(primitive).toHaveLength(8);
 
     for (const id of ids) {
       expect(GOVERNANCE_REGISTRY[id].slotId).toBe(id);

@@ -136,7 +136,11 @@ export interface FindingsGridProps {
   selectedIndices?: number[];
   onToggle?: (index: number) => void;
   applying?: boolean;
+  /** Whole-round applied — marks every finding applied. */
   applied?: boolean;
+  /** Applied a SUBSET — only these finding indices show as applied (the checked ones stay
+   *  checked/green); the rest stay normal. Takes precedence over `applied`. */
+  appliedIndices?: number[];
   readOnly?: boolean;
 }
 
@@ -147,8 +151,9 @@ export interface FindingsGridProps {
  * The apply controls live in the shared `FindingsApplyBar` so all three audit/review
  * stages stay identical.
  */
-export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, applying, applied, readOnly }: FindingsGridProps) {
+export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, applying, applied, appliedIndices, readOnly }: FindingsGridProps) {
   const sel = new Set(selectedIndices ?? []);
+  const appliedSet = appliedIndices ? new Set(appliedIndices) : null;
   const sorted = [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   const disabled = readOnly || !!applying || !!applied;
 
@@ -173,7 +178,7 @@ export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, 
                   finding={f}
                   index={origIdx}
                   selected={selectable ? sel.has(origIdx) : undefined}
-                  applied={applied}
+                  applied={appliedSet ? appliedSet.has(origIdx) : applied}
                   disabled={disabled}
                   onSelect={selectable ? () => onToggle?.(origIdx) : undefined}
                 />
@@ -205,7 +210,7 @@ export function FindingsApplyBar({ selectedCount, total, applying, readOnly, onT
   const allSelected = total > 0 && selectedCount === total;
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-      <Button size="sm" variant="ghost" onClick={onToggleAll} disabled={readOnly || applying}>
+      <Button size="sm" variant="secondary" onClick={onToggleAll} disabled={readOnly || applying}>
         {allSelected ? 'Unselect all' : 'Select all'}
       </Button>
       <Button size="sm" onClick={onApply} disabled={readOnly || applying || selectedCount === 0} loading={applying}>

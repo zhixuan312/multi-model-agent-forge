@@ -246,6 +246,8 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
         id: 'audit',
         label: 'Audit',
         affordances: [
+          { id: 'approvers', label: 'Approvers row', canonicalComponent: 'ParticipantStrip', canonicalFilePath: 'src/components/forge/collab/Participants.tsx', defaultOn: true },
+          { id: 'multiSelect', label: 'Multiple select', canonicalComponent: 'FindingsGrid (selectable)', canonicalFilePath: 'src/components/patterns/findings.tsx', defaultOn: true },
           { id: 'applyBar', label: 'Apply findings bar', canonicalComponent: 'FindingsApplyBar', canonicalFilePath: 'src/components/patterns/findings.tsx', defaultOn: true },
         ],
         consumers: [
@@ -261,8 +263,8 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
         id: 'discussion',
         label: 'Discussion',
         affordances: [
+          { id: 'thread', label: 'Discussion thread', canonicalComponent: 'DiscussionThread', canonicalFilePath: 'src/components/forge/collab/DiscussionThread.tsx', defaultOn: true },
           { id: 'composer', label: 'Composer', canonicalComponent: 'ConversationComposer', canonicalFilePath: 'src/components/patterns/conversation.tsx', defaultOn: true },
-          { id: 'messageMeta', label: 'Message meta', canonicalComponent: 'renderMeta', canonicalFilePath: 'src/components/patterns/conversation.tsx', defaultOn: false },
         ],
         consumers: [
           { id: 'spec-craft', label: 'Project › Spec › Craft', filePath: 'src/components/forge/SpecStageClient.tsx' },

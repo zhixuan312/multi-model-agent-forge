@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Eyebrow } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import { StageStepper } from '@/components/forge/StageStepper';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -82,17 +83,17 @@ const RENDERS: Record<string, () => ReactNode> = {
       <Labeled label="Phase advance — a step within a stage (terracotta)">
         <Button variant="primary" fullWidth rightIcon={<ArrowRight />}>Continue to Synthesize</Button>
       </Labeled>
+      <Labeled label="Phase advance, disabled — phase gate not met (dimmed terracotta)">
+        <Button variant="primary" fullWidth disabled rightIcon={<ArrowRight />}>Continue to Finalize</Button>
+      </Labeled>
       <Labeled label="Stage advance — cross into the next stage (black)">
         <StageAdvance onClick={() => {}} label="Continue to Spec" />
       </Labeled>
-      <Labeled label="Stage advance, gated — gate not cleared (gray + lock)">
-        <StageAdvance onClick={() => {}} label="Continue to Execute" gate disabled />
+      <Labeled label="Stage advance, gated — gate not cleared (grayed out)">
+        <StageAdvance onClick={() => {}} label="Continue to Execute" disabled />
       </Labeled>
-      <Labeled label="Advance failed — rose error line under the button">
-        <div className="flex flex-col gap-1.5">
-          <StageAdvance onClick={() => {}} label="Continue to Plan" />
-          <p className="text-center text-xs text-[var(--rose-deep)]">Cannot advance yet.</p>
-        </div>
+      <Labeled label="Advance failed — an error toast (click to trigger, bottom-right)">
+        <StageAdvance onClick={() => showToast({ type: 'error', message: 'Cannot advance yet.' })} label="Continue to Plan" />
       </Labeled>
     </div>
   ),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Card, CardContent, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@/components/ui';
+import { Button, Card, CardContent, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@/components/ui';
 import { Governed } from '@/components/governance/governed';
 import { GOVERNANCE_SLOT_NAV, type ComponentGovernanceView, type GovernanceSlotView, type ResolvedGovernanceSlotState } from '@/components/governance/registry';
 
@@ -61,6 +61,9 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
   // affordance list and the variant/slot consumers.
   const tabs = variant?.tabs ?? [];
   const [activeTab, setActiveTab] = useState<string>(() => tabs[0]?.id ?? '');
+  // Bumping this remounts the preview, resetting any interactive demo state it holds
+  // (audit apply/applied, stage-flow progress, approve toggles…) — the "Reset preview" button.
+  const [resetKey, setResetKey] = useState(0);
   const activeTabObj = tabs.find((t) => t.id === activeTab);
   const affordances = tabs.length > 0 ? (activeTabObj?.affordances ?? []) : (variant?.affordances ?? []);
   const consumers = tabs.length > 0 ? (activeTabObj?.consumers ?? []) : (variant?.consumers ?? slot.consumers);
@@ -123,12 +126,13 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
           ) : null}
 
           <div className="rounded-md border border-line p-4">
-            <Governed slotId={slot.slotId} state={previewState} variantId={variantId} enabledAffordances={enabled} activeTab={activeTab} />
+            <Governed key={resetKey} slotId={slot.slotId} state={previewState} variantId={variantId} enabledAffordances={enabled} activeTab={activeTab} />
           </div>
 
-          {slot.knobSchema.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {slot.knobSchema.map((knob) => (
+          <div className="flex items-start justify-between gap-4">
+            {slot.knobSchema.length > 0 ? (
+              <div className="grid flex-1 gap-3 md:grid-cols-2">
+                {slot.knobSchema.map((knob) => (
                 <label key={knob.name} className="flex flex-col gap-2 text-sm text-ink">
                   <span>{knob.name}</span>
                   {knob.type === 'boolean' ? (
@@ -157,9 +161,13 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
                 </label>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-ink-faint">This component has no configurable knobs.</p>
-          )}
+            ) : (
+              <p className="text-sm text-ink-faint">This component has no configurable knobs.</p>
+            )}
+            <Button size="sm" variant="secondary" className="shrink-0" onClick={() => setResetKey((k) => k + 1)}>
+              Reset
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

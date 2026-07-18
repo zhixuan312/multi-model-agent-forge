@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Activity, Check, ChevronRight, MoreHorizontal, RotateCcw, Search, Square, UserPlus } from 'lucide-react';
+import { Activity, Check, MoreHorizontal, RotateCcw, Search, Square, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import {
   Avatar,
@@ -22,20 +22,20 @@ import {
   SelectValue,
 } from '@/components/ui';
 import {
-  ConversationPane,
+  ConversationComposer,
   DocumentShell,
   FindingsGrid,
   FormSection,
   List,
-  MessageList,
   ProseBlock,
   SelectableTile,
   StatCard,
   StatusCard,
-  type ConversationMessage,
   type Finding,
 } from '@/components/patterns';
 import { FindingsApplyBar } from '@/components/patterns/findings';
+import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
+import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { LEFT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
 // ─── Demo content — kept separate from the reusable components it feeds ───────────────
@@ -66,9 +66,17 @@ the reading measure the way every document panel does.
 
 A closing paragraph.`;
 
-const DISCUSSION_MESSAGES: ConversationMessage[] = [
-  { id: '1', sender: 'member', senderName: 'Member', bodyMd: 'A message from the member.' },
-  { id: '2', sender: 'forge', senderName: 'Forge', bodyMd: 'A reply from Forge.' },
+// Discussion demo — the real DiscussionThread model: members + a `memberById` resolver, and
+// messages keyed by authorId ('forge' = the AI turn, matching currentMemberId = your turn).
+const DEMO_MEMBERS: MemberRef[] = [
+  { id: 'me', displayName: 'You', avatarTint: '#4f7a9a' },
+  { id: 'oa', displayName: 'Oscar A', avatarTint: '#9a6b4f' },
+];
+const demoMemberById = (id: string) => DEMO_MEMBERS.find((m) => m.id === id);
+const DEMO_DISCUSSION: DiscussionMsg[] = [
+  { id: '1', authorId: 'oa', body: 'A message from a teammate.' },
+  { id: '2', authorId: 'forge', body: 'A reply from Forge.' },
+  { id: '3', authorId: 'me', body: 'My reply.' },
 ];
 
 const DOC_FINDINGS: Finding[] = [
@@ -111,18 +119,34 @@ function tableColumns(on: ReadonlySet<string>): ColumnDef<TableRowShape>[] {
   return cols;
 }
 
-/** Demo-interactive: a selectable FindingsGrid + FindingsApplyBar sharing selection state. */
-function AuditView({ showApplyBar }: { showApplyBar: boolean }) {
+/** Demo-interactive: a FindingsGrid (optionally with the multi-select checkbox column) +
+ *  FindingsApplyBar. Pressing Apply flips to the "applied" state (findings go sage + check);
+ *  Reset returns to the selectable state. */
+function AuditView({ showApplyBar, selectable }: { showApplyBar: boolean; selectable: boolean }) {
   const [selected, setSelected] = useState<number[]>([]);
+  const [applied, setApplied] = useState(false);
   const toggle = (i: number) => setSelected((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
   const toggleAll = () => setSelected((prev) => (prev.length === DOC_FINDINGS.length ? [] : DOC_FINDINGS.map((_, i) => i)));
   return (
     <>
       <div className="px-5 py-4">
-        <FindingsGrid findings={DOC_FINDINGS} selectable selectedIndices={selected} onToggle={toggle} />
+        <FindingsGrid
+          findings={DOC_FINDINGS}
+          selectable={selectable}
+          selectedIndices={selected}
+          onToggle={toggle}
+          appliedIndices={applied ? selected : undefined}
+          readOnly={applied}
+        />
       </div>
       {showApplyBar ? (
-        <FindingsApplyBar selectedCount={selected.length} total={DOC_FINDINGS.length} onToggleAll={toggleAll} onApply={() => {}} />
+        <FindingsApplyBar
+          selectedCount={selected.length}
+          total={DOC_FINDINGS.length}
+          onToggleAll={toggleAll}
+          onApply={() => setApplied(true)}
+          readOnly={applied}
+        />
       ) : null}
     </>
   );
@@ -228,7 +252,9 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
     );
   },
 
-  // Shared List. Affordances: section header, row leading (expand arrow / icon), trailing meta.
+  // Shared List. Affordances: section header, expand arrow (row reveals its body), row leading
+  // icon, trailing meta. When `expand` is on, each row carries a `body` and List draws the
+  // left-side chevron + owns the open/close — the governed expandable-list behaviour.
   list: (on) => (
     <List
       sections={[
@@ -236,16 +262,17 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
           header: on.has('header') ? 'Section header' : undefined,
           rows: ['First item', 'Second item', 'Third item', 'Fourth item'].map((label, i) => ({
             id: String(i),
-            leading:
-              on.has('expand') || on.has('leadingIcon') ? (
-                <>
-                  {on.has('expand') ? <ChevronRight className="size-4 shrink-0 text-ink-faint" /> : null}
-                  {on.has('leadingIcon') ? <span className="size-8 shrink-0 rounded-md bg-surface-2" /> : null}
-                </>
-              ) : undefined,
+            leading: on.has('leadingIcon') ? <span className="size-8 shrink-0 rounded-md bg-surface-2" /> : undefined,
             primary: label,
             secondary: 'Supporting metadata',
             trailing: on.has('trailingMeta') ? <Badge variant="neutral" size="sm">meta</Badge> : undefined,
+            body: on.has('expand') ? (
+              <div className="rounded-[var(--r-md)] border border-line bg-surface-2/40 px-4 py-3 text-sm leading-relaxed text-ink-soft">
+                The expanded content for {label} — the actual detail (e.g. a recall answer with its citations)
+                shown in its own box inside the opened row.
+              </div>
+            ) : undefined,
+            defaultOpen: on.has('expand') && i === 0,
           })),
         },
       ]}
@@ -260,18 +287,20 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
     let body: ReactNode;
     let footer: ReactNode;
     if (tab === 'audit') {
-      body = <AuditView showApplyBar={on.has('applyBar')} />;
+      body = <AuditView showApplyBar={on.has('applyBar')} selectable={on.has('multiSelect')} />;
     } else if (tab === 'discussion') {
-      const renderMeta = on.has('messageMeta') ? () => <span className="text-[10px] text-ink-faint">just now</span> : undefined;
       body = (
         <div className="px-5 py-5">
-          {on.has('composer') ? (
-            <ConversationPane messages={DISCUSSION_MESSAGES} onSend={() => {}} renderMeta={renderMeta} />
-          ) : (
-            <MessageList messages={DISCUSSION_MESSAGES} renderMeta={renderMeta} />
-          )}
+          {on.has('thread') ? (
+            <DiscussionThread messages={DEMO_DISCUSSION} memberById={demoMemberById} currentMemberId="me" mentionPool={DEMO_MEMBERS} />
+          ) : null}
         </div>
       );
+      footer = on.has('composer') ? (
+        <div className="border-t border-line px-5 py-3">
+          <ConversationComposer onSend={() => {}} voice mentionPool={DEMO_MEMBERS} />
+        </div>
+      ) : undefined;
     } else {
       body = <div className="px-5 py-5"><ProseBlock>{DOC_MARKDOWN}</ProseBlock></div>;
       footer = on.has('action') ? (

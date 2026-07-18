@@ -7,6 +7,7 @@ import { LeftPanelPreview, LeftPanelVariant } from '@/components/governance/Left
 import { RightPanelPreview, RightPanelVariant } from '@/components/governance/RightPanelPreview';
 import { APP_SHELL_VARIANTS, CONTENT_SHELL_VARIANTS, LEFT_PANEL_VARIANTS, RIGHT_PANEL_VARIANTS, STAGE_FLOW_VARIANTS, type VariantAffordance, type VariantTab } from '@/components/governance/variant-meta';
 import { StageFlowPreview, StageFlowVariant } from '@/components/governance/StageFlowPreview';
+import { showToast } from '@/components/ui/toast';
 
 // The governance model is a LAYER STACK. `structural` layers stack bottom→top to form a
 // page; `project` is the project-only SDLC machinery; `primitive` are the shared atoms.
@@ -28,7 +29,8 @@ export type GovernanceSlotId =
   | 'metricCard'
   | 'emptyState'
   | 'banner'
-  | 'avatar';
+  | 'avatar'
+  | 'toast';
 
 export type GovernanceKnobType = 'boolean' | 'enum';
 
@@ -147,6 +149,7 @@ export const GOVERNANCE_KNOBS: Record<GovernanceSlotId, readonly GovernanceKnobD
   ],
   banner: [],
   avatar: [],
+  toast: [],
 };
 
 function bool(state: ResolvedGovernanceSlotState, name: string): boolean {
@@ -464,6 +467,29 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       <div className="flex items-center gap-4">
         <Avatar name="Xu Zheng" />
         <AvatarGroup members={[{ name: 'Xu Zheng' }, { name: 'Oscar A' }, { name: 'Ben N' }]} />
+      </div>
+    ),
+  },
+  toast: {
+    slotId: 'toast',
+    label: 'Toast',
+    group: 'primitive',
+    canonicalComponent: 'showToast() / Toaster',
+    canonicalFilePath: 'src/components/ui/toast.tsx',
+    knobs: GOVERNANCE_KNOBS.toast,
+    defaultLocked: true,
+    consumers: [
+      { id: 'stage-transitions', label: 'Project stage transitions', filePath: 'src/components/forge/PlanStageClient.tsx' },
+      { id: 'workspace', label: 'Workspace', filePath: 'app/(app)/workspace/WorkspaceClient.tsx' },
+      { id: 'loops', label: 'Loops', filePath: 'app/(app)/loops/LoopsClient.tsx' },
+    ],
+    deviations: [],
+    // The global toast system: `showToast()` pushes to the app-level `<Toaster/>` (mounted
+    // in app/(app)/layout.tsx, fixed bottom-right). Click to fire a real toast.
+    renderPreview: () => (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => showToast({ type: 'success', message: 'Saved — changes applied.' })}>Show success</Button>
+        <Button size="sm" variant="secondary" onClick={() => showToast({ type: 'error', message: 'Something went wrong.', retry: () => {} })}>Show error</Button>
       </div>
     ),
   },

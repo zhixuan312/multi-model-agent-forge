@@ -2,12 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Badge, Micro, Mono } from '@/components/ui';
+import {
+  Field,
+  Input,
+  Badge,
+  Micro,
+} from '@/components/ui';
 import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import type { MetricCardProps } from '@/components/ui/metric-card';
-import { SettingCard } from '@/components/forge/SettingCard';
+import { FormPanel } from '@/components/patterns';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -137,19 +142,21 @@ export function ConnectionsForm({
       primary={
       <div className="flex flex-col gap-4">
         {/* MMA — the local engine; bearer auto-resolved, advanced only for remote */}
-        <SettingCard
-          title="MMA"
+        <FormPanel
+          heading="MMA"
           ariaLabel="MMA connection"
           indicator={<SetIndicator set={mmaBearer !== null} testid="mma-token-indicator" />}
-          summary={<Mono className="!text-xs text-ink-soft">{mmaBaseUrl}</Mono>}
-          open={open === 'mma'}
+          disclosure={{
+            open: open === 'mma',
+            summary: mmaBaseUrl,
+            onEdit: () => edit('mma'),
+          }}
           busy={busy === 'mma'}
           validate={{
             validating: validating === 'mma',
             result: open === 'mma' ? validateResult : null,
             onValidate: () => validate('mma'),
           }}
-          onEdit={() => edit('mma')}
           onCancel={cancel}
           onSubmit={() => {
             void save('mma', { mmaBaseUrl });
@@ -180,21 +187,24 @@ export function ConnectionsForm({
               />
             )}
           </Field>
-        </SettingCard>
+        </FormPanel>
 
         {/* Speech-to-text (OpenAI key) */}
-        <SettingCard
-          title="Speech to text"
+        <FormPanel
+          heading="Speech to text"
           ariaLabel="Speech to text"
           indicator={<SetIndicator set={initial.openaiTranscriptionKeySet} testid="openai-key-indicator" />}
-          open={open === 'openai'}
+          disclosure={{
+            open: open === 'openai',
+            summary: 'OpenAI key for voice notes — transcribes speech into text (optional)',
+            onEdit: () => edit('openai'),
+          }}
           busy={busy === 'openai'}
           validate={{
             validating: validating === 'openai',
             result: open === 'openai' ? validateResult : null,
             onValidate: () => validate('openai', openaiKey),
           }}
-          onEdit={() => edit('openai')}
           onCancel={cancel}
           onSubmit={() => {
             if (openaiKey === '') {
@@ -219,7 +229,7 @@ export function ConnectionsForm({
               />
             )}
           </Field>
-        </SettingCard>
+        </FormPanel>
 
         {error ? (
           <Micro id={errId} role="alert" className="block text-rose">

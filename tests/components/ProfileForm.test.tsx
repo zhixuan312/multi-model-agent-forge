@@ -17,6 +17,11 @@ const me: AuthedMember = {
   teamId: 'team-1',
 };
 
+// Both cards are governed `FormPanel`s: they render a read view (summary + Edit) and only
+// reveal their fields once opened. Every field assertion therefore opens its card first.
+const openAccount = () => fireEvent.click(screen.getByRole('button', { name: 'Edit Account' }));
+const openPassword = () => fireEvent.click(screen.getByRole('button', { name: 'Edit Password' }));
+
 describe('ProfileForm', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -24,8 +29,16 @@ describe('ProfileForm', () => {
     push.mockClear();
   });
 
+  it('opens in the read view — summary and Edit, no fields yet', () => {
+    render(<ProfileForm member={me} />);
+    expect(screen.getByText(/Maya Adeyemi · @maya/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/username/i)).toBeNull();
+    expect(screen.queryByRole('form', { name: 'Password' })).toBeNull();
+  });
+
   it('renders the username read-only (the login key, F23)', () => {
     render(<ProfileForm member={me} />);
+    openAccount();
     const username = screen.getByLabelText(/username/i) as HTMLInputElement;
     expect(username).toHaveAttribute('readonly');
     expect(username.value).toBe('maya');
@@ -34,6 +47,7 @@ describe('ProfileForm', () => {
   it('rejects a short new password client-side without calling the API', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<ProfileForm member={me} />);
+    openPassword();
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short' } });
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'short' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
@@ -45,6 +59,7 @@ describe('ProfileForm', () => {
   it('rejects a mismatched confirmation without calling the API', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<ProfileForm member={me} />);
+    openPassword();
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a-strong-password-1234' } });
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a-different-password-99' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
@@ -55,6 +70,7 @@ describe('ProfileForm', () => {
 
   it('lets the member pick an avatar tint (radiogroup)', () => {
     render(<ProfileForm member={me} />);
+    openAccount();
     const radios = screen.getAllByRole('radio');
     expect(radios.length).toBeGreaterThan(1);
     // the current tint is checked
@@ -63,6 +79,7 @@ describe('ProfileForm', () => {
 
   it('shows the default schema avatar tint (#9a6b4f) as a selected swatch', () => {
     render(<ProfileForm member={{ ...me, avatarTint: '#9a6b4f' }} />);
+    openAccount();
     expect(screen.getByRole('radio', { checked: true })).toHaveAttribute(
       'aria-label',
       'Avatar colour #9a6b4f',
@@ -71,23 +88,26 @@ describe('ProfileForm', () => {
 
   it('exposes a username field inside the Password form for password managers', () => {
     render(<ProfileForm member={me} />);
+    openPassword();
     const pwForm = screen.getByRole('form', { name: 'Password' });
     const username = pwForm.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
     expect(username).not.toBeNull();
     expect(username!.value).toBe('maya');
   });
 
-  it('refreshes and reports other devices were signed out after a password change', async () => {
+  it('refreshes and collapses back to the read view after a password change', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
     render(<ProfileForm member={me} />);
+    openPassword();
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-password-1234' } });
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a-strong-password-1234' } });
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a-strong-password-1234' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
 
-    expect(await screen.findByText(/other devices/i)).toBeInTheDocument();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+    // Success is a toast (rendered by the app-level Toaster, not here) and the panel closes.
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Password' })).toBeNull());
   });
 });

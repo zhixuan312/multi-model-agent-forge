@@ -102,6 +102,8 @@ export interface GovernanceVariant {
   canonicalFilePath?: string;
   /** The fixed menu of optional pieces a consumer may toggle on. */
   affordances?: readonly VariantAffordance[];
+  /** Known non-conformers for this pattern (tabbed variants declare them per tab). */
+  deviations?: readonly GovernanceConsumer[];
   /** In-page tabs; affordances scope per active tab. */
   tabs?: readonly VariantTab[];
 }
@@ -255,6 +257,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       canonicalComponent: v.canonicalComponent,
       canonicalFilePath: v.canonicalFilePath,
       affordances: v.affordances,
+      deviations: v.deviations,
       tabs: v.tabs,
       renderPreview: (enabled?: ReadonlySet<string>, activeTab?: string) => <LeftPanelVariant id={v.id} enabled={enabled} activeTab={activeTab} />,
     })),
@@ -280,7 +283,8 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       consumers: v.consumers ?? [],
       canonicalComponent: v.canonicalComponent,
       canonicalFilePath: v.canonicalFilePath,
-      renderPreview: () => <RightPanelVariant id={v.id} />,
+      affordances: v.affordances,
+      renderPreview: (enabled?: ReadonlySet<string>) => <RightPanelVariant id={v.id} enabled={enabled} />,
     })),
   },
   stageFlow: {
@@ -372,6 +376,12 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'profile-form', label: 'Profile', filePath: 'app/(app)/profile/ProfileForm.tsx' },
       { id: 'connections-form', label: 'Org settings › Connections', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },
       { id: 'new-project-form', label: 'New project', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
+      // The add/edit forms that open inside a table row. The Table slot governs the table;
+      // the controls inside its row form are governed here.
+      { id: 'members-row-form', label: 'Team settings › Members (row form)', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
+      { id: 'org-teams-row-form', label: 'Org settings › Teams (row form)', filePath: 'app/(app)/settings/org/TeamsPanel.tsx' },
+      { id: 'workspace-row-form', label: 'Workspace › Clone / Edit repo', filePath: 'app/(app)/workspace/WorkspaceClient.tsx' },
+      { id: 'loops-row-form', label: 'Loops › New / Edit loop', filePath: 'app/(app)/loops/LoopForm.tsx' },
     ],
     deviations: [],
     renderPreview: () => (
@@ -511,6 +521,7 @@ export const GOVERNANCE_SLOT_NAV: ReadonlyArray<{
     canonicalComponent?: string;
     canonicalFilePath?: string;
     affordances?: readonly VariantAffordance[];
+    deviations?: readonly GovernanceConsumer[];
     tabs?: readonly VariantTab[];
   }[];
 }> = (Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[]).map((slotId) => ({
@@ -524,6 +535,7 @@ export const GOVERNANCE_SLOT_NAV: ReadonlyArray<{
     canonicalComponent: v.canonicalComponent,
     canonicalFilePath: v.canonicalFilePath,
     affordances: v.affordances,
+    deviations: v.deviations,
     tabs: v.tabs,
   })),
 }));

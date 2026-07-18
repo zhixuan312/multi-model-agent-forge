@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Badge, Micro } from '@/components/ui';
-import { SettingCard } from '@/components/forge/SettingCard';
+import { Field, Input, Badge } from '@/components/ui';
+import { FormPanel } from '@/components/patterns';
 
 /**
  * Team settings → git token (FR-6/FR-9). Sets/rotates the team's git credential
@@ -50,8 +50,8 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
   };
 
   return (
-    <SettingCard
-      title="Git token"
+    <FormPanel
+      heading="Git token"
       ariaLabel="Git token"
       indicator={
         tokenSet ? (
@@ -62,16 +62,18 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
           <Badge size="sm">not set</Badge>
         )
       }
-      summary={<Micro className="!text-ink-soft">Clones and pulls every repository for this team</Micro>}
-      open={open}
+      disclosure={{
+        open,
+        summary: 'Clones and pulls every repository for this team',
+        onEdit: () => {
+          setError(null);
+          setOpen(true);
+        },
+      }}
       busy={busy}
       saveLabel="Save token"
       canSave={token.trim() !== ''}
       error={error}
-      onEdit={() => {
-        setError(null);
-        setOpen(true);
-      }}
       onCancel={cancel}
       onSubmit={submit}
     >
@@ -81,6 +83,6 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
       >
         {(p) => <Input {...p} type="password" value={token} onChange={(e) => setToken(e.target.value)} className="font-mono" />}
       </Field>
-    </SettingCard>
+    </FormPanel>
   );
 }

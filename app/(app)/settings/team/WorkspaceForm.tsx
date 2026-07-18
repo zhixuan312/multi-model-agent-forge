@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Mono } from '@/components/ui';
-import { SettingCard } from '@/components/forge/SettingCard';
+import { Field, Input, Badge } from '@/components/ui';
+import { FormPanel } from '@/components/patterns';
 
 /**
  * Team settings → workspace path (FR-8/FR-9). Sets `team.workspace_root_path`
@@ -48,26 +48,37 @@ export function WorkspaceForm({ current }: { current: string }) {
   };
 
   return (
-    <SettingCard
-      title="Workspace path"
+    <FormPanel
+      heading="Workspace path"
       ariaLabel="Workspace path"
-      summary={<Mono className="!text-xs text-ink-soft">{current}</Mono>}
-      open={open}
+      indicator={
+        current.trim() !== '' ? (
+          <Badge variant="sage" dot size="sm">
+            set
+          </Badge>
+        ) : (
+          <Badge size="sm">not set</Badge>
+        )
+      }
+      disclosure={{
+        open,
+        summary: current,
+        onEdit: () => {
+          setError(null);
+          setValue(current);
+          setOpen(true);
+        },
+      }}
       busy={busy}
       saveLabel="Save path"
       canSave={value.trim() !== '' && value !== current}
       error={error}
-      onEdit={() => {
-        setError(null);
-        setValue(current);
-        setOpen(true);
-      }}
       onCancel={cancel}
       onSubmit={submit}
     >
       <Field label="Workspace root path" hint="Must sit directly under the operator workspace base.">
         {(p) => <Input {...p} value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />}
       </Field>
-    </SettingCard>
+    </FormPanel>
   );
 }

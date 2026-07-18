@@ -23,18 +23,20 @@ import {
   SearchInput,
   toolbarControlWidth,
   Title,
+  AvatarPicker,
+  AVATAR_TINTS,
 } from '@/components/ui';
 import {
   ConversationComposer,
   DocumentShell,
   FindingsGrid,
-  FormSection,
   List,
   ProseBlock,
   SelectableTile,
   StatCard,
   StatusCard,
   type Finding,
+  FormPanel,
 } from '@/components/patterns';
 import { FindingsApplyBar } from '@/components/patterns/findings';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
@@ -198,10 +200,73 @@ function ApproversRow() {
 
 // ─── Per-pattern renders — thin wrappers that reuse the shared components with demo content ─
 
+/** The canonical `AvatarPicker`, wired to throwaway state so the swatches are clickable. */
+function AvatarPickerPreview() {
+  const [tint, setTint] = useState(AVATAR_TINTS[0] as string);
+  return <AvatarPicker initials="XU" value={tint} onChange={setTint} />;
+}
+
 /** The canonical `SearchInput`, wired to throwaway local state so the preview is typeable. */
 function PreviewSearch({ label }: { label: string }) {
   const [q, setQ] = useState('');
   return <SearchInput label={label} value={q} onChange={setQ} />;
+}
+
+/** The real `FormPanel`, driven live by the affordance toggles. Holds throwaway state so the
+ *  read→edit disclosure and the Validate round-trip are actually clickable in the preview. */
+function FormPanelPreview({ on }: { on: ReadonlySet<string> }) {
+  // Opens in its READ view, the way a settings card does on a real page: heading + status +
+  // the saved value, with Edit to expand. `disclosure` is a prop rather than an affordance
+  // (see variant-meta), so the preview simply demonstrates it instead of toggling it.
+  const [open, setOpen] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; detail: string } | null>(null);
+
+  const fields = (
+    <>
+      <Field label="Display name">{(p) => <Input {...p} placeholder="Ada Lovelace" />}</Field>
+      <Field label="Username" hint="your login — lowercase, no spaces">{(p) => <Input {...p} placeholder="ada" />}</Field>
+    </>
+  );
+
+  const panel = (
+    <FormPanel
+      ariaLabel="Example form"
+      onSubmit={() => setOpen(false)}
+      onCancel={() => setOpen(false)}
+      disclosure={{
+        open,
+        // A concrete saved value — a vague placeholder makes the read view look empty
+        // rather than informative, which is the whole point of the collapsed state.
+        summary: 'http://127.0.0.1:7337',
+        onEdit: () => setOpen(true),
+      }}
+      heading={on.has('heading') ? 'Section heading' : undefined}
+      indicator={on.has('indicator') ? <Badge variant="sage" dot size="sm">connected</Badge> : undefined}
+      leading={on.has('avatar') ? <Avatar initials="XU" tint={AVATAR_TINTS[0]} aria-hidden /> : undefined}
+      validate={
+        on.has('validate')
+          ? {
+              validating,
+              result,
+              onValidate: () => {
+                setValidating(true);
+                setResult(null);
+                setTimeout(() => {
+                  setValidating(false);
+                  setResult({ ok: true, detail: 'Reached the service and authenticated.' });
+                }, 600);
+              },
+            }
+          : undefined
+      }
+    >
+      {on.has('avatar') ? <AvatarPickerPreview /> : null}
+      {on.has('twoColumn') ? <FieldGrid cols={2}>{fields}</FieldGrid> : <div className="flex flex-col gap-4">{fields}</div>}
+    </FormPanel>
+  );
+
+  return panel;
 }
 
 const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => ReactNode> = {
@@ -244,31 +309,11 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
     </Card>
   ),
 
-  // Shared FormSection. Affordances drive the description, two-column layout, and footer actions.
-  form: (on) => {
-    const fields = (
-      <>
-        <Field label="Display name">{(p) => <Input {...p} placeholder="Ada Lovelace" />}</Field>
-        <Field label="Username" hint="your login — lowercase, no spaces">{(p) => <Input {...p} placeholder="ada" />}</Field>
-      </>
-    );
-    return (
-      <FormSection
-        heading="Section heading"
-        description={on.has('description') ? 'A short description of what this section configures.' : undefined}
-        footer={
-          on.has('footerActions') ? (
-            <>
-              <Button size="sm" variant="ghost">Cancel</Button>
-              <Button size="sm">Save</Button>
-            </>
-          ) : undefined
-        }
-      >
-        {on.has('twoColumn') ? <FieldGrid cols={2}>{fields}</FieldGrid> : <div className="flex flex-col gap-4">{fields}</div>}
-      </FormSection>
-    );
-  },
+  // Form as a PAGE — the settings/profile shell. Row-level forms live under Table.
+  // The real FormPanel — one shell for every form. Toggles show the two switches that used
+  // to look like separate components: `inline` (Card-less + tinted, for a DataTable row) and
+  // `disclosure` (read view + Edit). Everything else is an additive slot.
+  form: (on) => <FormPanelPreview on={on} />,
 
   // Shared List. Affordances: section header, expand arrow (row reveals its body), row leading
   // icon, trailing meta. When `expand` is on, each row carries a `body` and List draws the

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, ShieldCheck } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import {
   Card,
   CardContent,
@@ -11,13 +10,13 @@ import {
   FieldGrid,
   Input,
   Button,
-  Avatar,
-  Heading,
-  Label,
   TextStrong,
   Text,
-  Micro,
+  AvatarPicker,
+  Avatar,
 } from '@/components/ui';
+import { FormPanel } from '@/components/patterns';
+import { showToast } from '@/components/ui/toast';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StatusDashboard } from '@/components/patterns/status-dashboard';
 import type { MetricCardProps } from '@/components/ui/metric-card';
@@ -25,10 +24,6 @@ import { initials } from '@/components/forge/avatar';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
 
-/** Avatar tint palette (warm-world accents from forge.css / profile.html). The
- *  trailing `#9a6b4f` is the DB default tint (lowercase, as stored) so a member
- *  who never picked a colour still shows a selected swatch. */
-const TINTS = ['#6A6F8C', '#5E7C6B', '#9A6A8C', '#C4521E', '#355A74', '#8A7A5E', '#9a6b4f'];
 
 const PROFILE_NOTE = `### Your account
 
@@ -54,13 +49,11 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
   const [displayName, setDisplayName] = useState(member.displayName);
   const [tint, setTint] = useState(member.avatarTint);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const [accountOk, setAccountOk] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
 
-  async function saveAccount(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveAccount() {
     setAccountError(null);
-    setAccountOk(false);
     if (displayName.trim().length === 0) {
       setAccountError('Display name is required.');
       return;
@@ -77,7 +70,8 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         setAccountError(body?.error ?? 'Could not save your profile.');
         return;
       }
-      setAccountOk(true);
+      setAccountOpen(false);
+      showToast({ type: 'success', message: 'Profile saved.' });
       router.refresh();
     } finally {
       setSavingAccount(false);
@@ -89,13 +83,11 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordOk, setPasswordOk] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  async function savePassword(e: React.FormEvent) {
-    e.preventDefault();
+  async function savePassword() {
     setPasswordError(null);
-    setPasswordOk(false);
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       setPasswordError(`New password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
       return;
@@ -116,7 +108,8 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         setPasswordError(body?.error ?? 'Could not update your password.');
         return;
       }
-      setPasswordOk(true);
+      setPasswordOpen(false);
+      showToast({ type: 'success', message: 'Password updated — other devices have been signed out.' });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -144,39 +137,29 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
       primary={
       <div className="flex flex-col gap-4">
         {/* ACCOUNT */}
-        <Card>
-          <form onSubmit={saveAccount} aria-label="Account">
-            <CardContent className="flex flex-col gap-5 py-5">
-              <Heading className="!text-base">Account</Heading>
-              <div className="flex items-center gap-4">
-                <Avatar size="lg" initials={initials(displayName || member.displayName)} tint={tint} aria-hidden />
-                <div className="flex flex-col gap-1.5">
-                  <Label as="span">Avatar colour</Label>
-                  <div role="radiogroup" aria-label="Avatar colour" className="flex gap-2">
-                    {TINTS.map((t) => (
-                      <button
-                        type="button"
-                        key={t}
-                        role="radio"
-                        aria-checked={t === tint}
-                        aria-label={`Avatar colour ${t}`}
-                        onClick={() => setTint(t)}
-                        className={cn(
-                          // inline-flex + p-0 so the button box hugs the 24px chip
-                          // exactly (no UA padding) → the selection ring stays circular.
-                          'focus-ring inline-flex rounded-full p-0 transition-transform hover:scale-110',
-                          t === tint && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
-                        )}
-                      >
-                        {/* Each swatch is the avatar's own tint chip (same color-mix
-                            background), minus the initials — so the colour you click is
-                            exactly the avatar's background, with no character inside. */}
-                        <Avatar size="sm" initials="" tint={t} aria-hidden />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+        <FormPanel
+          ariaLabel="Account"
+          heading="Account"
+          leading={<Avatar initials={initials(member.displayName)} tint={member.avatarTint} aria-hidden />}
+          disclosure={{
+            open: accountOpen,
+            summary: `${member.displayName} · @${member.username}`,
+            onEdit: () => {
+              setAccountError(null);
+              setDisplayName(member.displayName);
+              setTint(member.avatarTint);
+              setAccountOpen(true);
+            },
+          }}
+          busy={savingAccount}
+          error={accountError}
+          onCancel={() => {
+            setAccountOpen(false);
+            setAccountError(null);
+          }}
+          onSubmit={saveAccount}
+        >
+          <AvatarPicker initials={initials(displayName || member.displayName)} value={tint} onChange={setTint} />
 
               <FieldGrid cols={2}>
                 <Field label="Display name">
@@ -198,31 +181,35 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
                 </Field>
               </FieldGrid>
 
-              {accountError ? (
-                <Micro role="alert" className="block text-rose">
-                  {accountError}
-                </Micro>
-              ) : null}
-              {accountOk ? (
-                <Micro role="status" className="block text-[var(--sage-deep)]">
-                  Profile saved.
-                </Micro>
-              ) : null}
-
-              <div className="flex justify-end">
-                <Button type="submit" loading={savingAccount}>
-                  {savingAccount ? 'Saving…' : 'Save'}
-                </Button>
-              </div>
-            </CardContent>
-          </form>
-        </Card>
+        </FormPanel>
 
         {/* PASSWORD */}
-        <Card>
-          <form onSubmit={savePassword} aria-label="Password">
-            <CardContent className="flex flex-col gap-4 py-5">
-              <Heading className="!text-base">Password</Heading>
+        <FormPanel
+          ariaLabel="Password"
+          heading="Password"
+          disclosure={{
+            // A password has no readable saved value, so the read view states the rule
+            // instead — the one thing worth knowing before opening the form.
+            open: passwordOpen,
+            summary: `At least ${PASSWORD_MIN_LENGTH} characters — changing it signs out other devices`,
+            onEdit: () => {
+              setPasswordError(null);
+              setPasswordOpen(true);
+            },
+          }}
+          busy={savingPassword}
+          saveLabel="Update password"
+          savingLabel="Updating…"
+          error={passwordError}
+          onCancel={() => {
+            setPasswordOpen(false);
+            setPasswordError(null);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+          }}
+          onSubmit={savePassword}
+        >
               {/* Hidden username so password managers associate the change-password
                   credential with this account (the visible username lives in the
                   separate Account form above). */}
@@ -275,25 +262,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
                 </Field>
               </FieldGrid>
 
-              {passwordError ? (
-                <Micro role="alert" className="block text-rose">
-                  {passwordError}
-                </Micro>
-              ) : null}
-              {passwordOk ? (
-                <Micro role="status" className="block text-[var(--sage-deep)]">
-                  Password updated — other devices have been signed out.
-                </Micro>
-              ) : null}
-
-              <div className="flex justify-end">
-                <Button type="submit" loading={savingPassword}>
-                  {savingPassword ? 'Updating…' : 'Update password'}
-                </Button>
-              </div>
-            </CardContent>
-          </form>
-        </Card>
+        </FormPanel>
       </div>
       }
       aside={

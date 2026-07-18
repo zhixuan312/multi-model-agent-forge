@@ -67,7 +67,8 @@ export function SlotEditor({ slot: initialSlot, variantId }: { slot: GovernanceS
   const activeTabObj = tabs.find((t) => t.id === activeTab);
   const affordances = tabs.length > 0 ? (activeTabObj?.affordances ?? []) : (variant?.affordances ?? []);
   const consumers = tabs.length > 0 ? (activeTabObj?.consumers ?? []) : (variant?.consumers ?? slot.consumers);
-  const deviations: readonly { id: string; label: string }[] = tabs.length > 0 ? (activeTabObj?.deviations ?? []) : slot.deviations;
+  const deviations: readonly { id: string; label: string }[] =
+    tabs.length > 0 ? (activeTabObj?.deviations ?? []) : (variant?.deviations ?? slot.deviations);
 
   // Toggling drives the live preview locally (governance persistence TBD). Default all on,
   // across every tab so a tab switch never loses a toggle.

@@ -47,6 +47,7 @@ export * from './section';
 export * from './grid';
 export * from './split';
 export * from './field-grid';
+export * from './avatar-picker';
 export * from './search-input';
 export * from './toolbar';
 export * from './shell';

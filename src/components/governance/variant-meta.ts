@@ -42,6 +42,8 @@ export interface VariantMeta {
   canonicalFilePath?: string;
   /** The fixed set of optional pieces a consumer may toggle on (search, filters…). */
   affordances?: readonly VariantAffordance[];
+  /** Known non-conformers for this pattern. Tabbed variants declare these per tab instead. */
+  deviations?: readonly VariantConsumer[];
   /** In-page tabs; when present the variant page shows a tab bar and affordances scope
    *  per active tab (e.g. Document → Spec / Audit / Discussion). */
   tabs?: readonly VariantTab[];
@@ -132,17 +134,27 @@ export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
   },
 ];
 
-// The Right-panel (rail) layer's kinds — feature-rail.tsx.
+// The Right-panel patterns — the section BELOW the rail note (the note is separate). What
+// kind of container the below-note section is.
 export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
-    id: 'railNote',
-    label: 'Rail note',
-    canonicalComponent: 'RailNote',
-    canonicalFilePath: 'src/components/patterns/feature-rail.tsx',
+    id: 'navigator',
+    label: 'Navigator',
+    canonicalComponent: 'StageNavigator',
+    canonicalFilePath: 'src/components/patterns/stage-navigator.tsx',
+    affordances: [
+      { id: 'headerAction', label: 'Header bulk action', canonicalComponent: 'Button (Approve all / Revoke all)', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+      { id: 'progress', label: 'Progress bar', canonicalComponent: 'progress bar', canonicalFilePath: 'src/components/patterns/stage-navigator.tsx', defaultOn: true },
+      { id: 'sectionHeaders', label: 'Section headers', canonicalComponent: 'Micro (grouped clusters)', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: true },
+      { id: 'checkTick', label: 'Check tile', canonicalComponent: 'check tile (number → ✓)', canonicalFilePath: 'src/components/patterns/stage-navigator.tsx', defaultOn: true },
+      { id: 'itemMeta', label: 'Item meta line', canonicalComponent: 'meta row', canonicalFilePath: 'src/components/patterns/stage-navigator.tsx', defaultOn: true },
+      { id: 'advance', label: 'Advance footer', canonicalComponent: 'Button (primary, full-width)', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+    ],
     consumers: [
-      { id: 'loops-rail', label: 'Loops / Workspace rail', filePath: 'app/(app)/loops/page.tsx' },
-      { id: 'journal-rail', label: 'Journal rail', filePath: 'src/components/forge/journal/JournalNote.tsx' },
-      { id: 'stage-rail', label: 'Project › Stage rails', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'plan-tasks', label: 'Project › Plan › tasks', filePath: 'src/components/forge/PlanStageClient.tsx' }, // all 6 affordances (the canonical, richest navigator)
+      { id: 'spec-components', label: 'Project › Spec › components', filePath: 'src/components/forge/SpecStageClient.tsx' }, // no header bulk action
+      { id: 'journal-learnings', label: 'Project › Journal › learnings', filePath: 'src/components/forge/JournalStageClient.tsx' }, // flat (no section headers)
+      { id: 'execute-repos', label: 'Project › Execute › repos', filePath: 'src/components/forge/ExecuteStageClient.tsx' }, // no header action / check tiles
     ],
   },
   {
@@ -150,14 +162,30 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
     label: 'Rail card',
     canonicalComponent: 'RailCard',
     canonicalFilePath: 'src/components/patterns/feature-rail.tsx',
-    consumers: [{ id: 'projects-rail', label: 'Projects page rail', filePath: 'app/(app)/projects/page.tsx' }],
+    affordances: [
+      { id: 'badge', label: 'Count badge', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
+    ],
+    consumers: [
+      { id: 'projects-attention', label: 'Projects › Needs your attention', filePath: 'app/(app)/projects/page.tsx' },
+      { id: 'projects-activity', label: 'Projects › Agent activity', filePath: 'app/(app)/projects/page.tsx' },
+    ],
   },
   {
-    id: 'railStatus',
-    label: 'Rail status',
-    canonicalComponent: 'RailStatus',
-    canonicalFilePath: 'src/components/patterns/feature-rail.tsx',
-    consumers: [], // no adopters yet
+    id: 'cardList',
+    label: 'Card list',
+    // A generic run/result panel: a header action, a scrollable list of result cards,
+    // and a gated advance footer. The audit-run lifecycle is one instance of it.
+    canonicalComponent: 'Card — header action + scrollable card list + gated advance footer',
+    canonicalFilePath: 'src/components/ui/card.tsx',
+    affordances: [
+      { id: 'headerAction', label: 'Header action', canonicalComponent: 'Button (run / generate / re-run)', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+      { id: 'advance', label: 'Advance footer', canonicalComponent: 'StageAdvance (gated, locks the stage)', canonicalFilePath: 'src/components/forge/StageAdvance.tsx', defaultOn: true },
+    ],
+    consumers: [
+      { id: 'plan-validate', label: 'Project › Plan › Validate (audit rounds)', filePath: 'src/components/forge/PlanStageClient.tsx' },
+      { id: 'review-passes', label: 'Project › Review › passes', filePath: 'src/components/forge/ReviewStageClient.tsx' },
+      { id: 'spec-audit', label: 'Project › Spec › Finalize (audit rounds)', filePath: 'src/components/forge/SpecStageClient.tsx' },
+    ],
   },
 ];
 
@@ -207,20 +235,39 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'form',
     label: 'Form',
-    canonicalComponent: 'FormSection',
-    canonicalFilePath: 'src/components/patterns/form-section.tsx',
+    // The FORM AS A PAGE — a page whose primary column is a form (settings, profile). Forms
+    // that open inside a table row are governed under Table (`Inline add / edit form`), and
+    // the labelled controls themselves under Primitives › Form control. This slot is only
+    // the page-level shell: header, fields, footer.
+    //
+    // EVERY page form opens in its read view — heading + status + the saved value, with Edit
+    // to expand. That is not optional, so `disclosure` is not an affordance: it is how this
+    // slot behaves. (Row forms skip it, because the table row itself is the read view.)
+    //
+    // `inline` is likewise a prop, not an affordance — it is a placement whose meaning lives
+    // in the Table's chrome and cannot be shown honestly on this page.
+    canonicalComponent: 'FormPanel',
+    canonicalFilePath: 'src/components/patterns/form-panel.tsx',
     affordances: [
-      { id: 'description', label: 'Section description', canonicalComponent: 'Section text', canonicalFilePath: 'src/components/patterns/form-section.tsx', defaultOn: true },
+      { id: 'heading', label: 'Heading', canonicalComponent: 'TextStrong', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: true },
+      { id: 'indicator', label: 'Status indicator', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: false },
       { id: 'twoColumn', label: 'Two-column layout', canonicalComponent: 'FieldGrid', canonicalFilePath: 'src/components/ui/field-grid.tsx', defaultOn: true },
-      { id: 'footerActions', label: 'Footer actions', canonicalComponent: 'Button', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
+      { id: 'avatar', label: 'Avatar colour picker', canonicalComponent: 'AvatarPicker', canonicalFilePath: 'src/components/ui/avatar-picker.tsx', defaultOn: false },
+      { id: 'validate', label: 'Validate connection', canonicalComponent: 'VerifyResultBox', canonicalFilePath: 'src/components/forge/VerifyResultBox.tsx', defaultOn: false },
     ],
     consumers: [
-      { id: 'profile', label: 'Profile', filePath: 'app/(app)/profile/ProfileForm.tsx' },
-      { id: 'team-settings', label: 'Team settings › Team', filePath: 'app/(app)/settings/team/page.tsx' },
-      { id: 'models', label: 'Org settings › Models', filePath: 'app/(app)/settings/models/ModelsPanel.tsx' },
-      { id: 'connections', label: 'Org settings › Connections', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },
-      { id: 'new-project', label: 'New project', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
-      { id: 'explore-brief', label: 'Project › Explore › Brief', filePath: 'src/components/forge/ExploreStageClient.tsx' },
+      { id: 'connections-mma', label: 'Org settings › Connections › MMA', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },
+      { id: 'connections-stt', label: 'Org settings › Connections › Speech-to-text', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },
+      { id: 'team-git-token', label: 'Team settings › Git token', filePath: 'app/(app)/settings/team/GitTokenForm.tsx' },
+      { id: 'team-workspace', label: 'Team settings › Workspace', filePath: 'app/(app)/settings/team/WorkspaceForm.tsx' },
+      { id: 'profile-account', label: 'Profile › Account', filePath: 'app/(app)/profile/ProfileForm.tsx' },
+      { id: 'profile-password', label: 'Profile › Password', filePath: 'app/(app)/profile/ProfileForm.tsx' },
+    ],
+    deviations: [
+      { id: 'models-configure', label: 'Org settings › Models (hand-rolled shell + segmented controls)', filePath: 'app/(app)/settings/models/ModelsPanel.tsx' },
+      { id: 'new-project', label: 'New project (CardFooter submit, raw radios)', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
+      { id: 'slot-editor', label: 'Components › Slot editor (auto-save, no submit)', filePath: 'app/(app)/settings/components/SlotEditor.tsx' },
+      { id: 'explore-add-task', label: 'Project › Explore › Add task (raw controls)', filePath: 'src/components/forge/ExploreStageClient.tsx' },
     ],
   },
   {

@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react';
 import { Bot, Hand } from 'lucide-react';
-import { Button } from '@/components/ui';
+import {
+  Card,
+  Button,
+} from '@/components/ui';
 import { automationThemeStore } from '@/components/forge/PhaseFromRoute';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -52,7 +55,7 @@ export function AutomationBar({
   if (running) return null;
 
   return (
-    <div className="flex shrink-0 items-center gap-3 rounded-[var(--r-lg)] border border-line bg-surface px-4 py-3">
+    <Card className="flex shrink-0 items-center gap-3 px-4 py-3">
       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-ink-soft">
         <Hand className="size-5" />
       </span>
@@ -65,6 +68,6 @@ export function AutomationBar({
       <Button size="sm" onClick={handleRun} disabled={disabled} leftIcon={<Bot />}>
         Run automated
       </Button>
-    </div>
+    </Card>
   );
 }

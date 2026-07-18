@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Repeat, ChevronRight } from 'lucide-react';
 import {
+  Card,
   Button,
   Title,
   EmptyState,
@@ -121,7 +122,7 @@ export function LoopUsageTable({
   }, [data, search, kind]);
 
   return (
-    <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Loop costs</Title>
         <Toolbar>
@@ -146,6 +147,6 @@ export function LoopUsageTable({
         renderExpanded={(row) => <RouteBreakdown routes={detailByLoop[row.loopId] ?? []} />}
         emptyState={<EmptyState icon={<Repeat />} title="No loop activity" description="No loops have run in this period." />}
       />
-    </div>
+    </Card>
   );
 }

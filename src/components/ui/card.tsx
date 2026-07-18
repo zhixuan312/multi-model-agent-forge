@@ -8,10 +8,13 @@ import { Title, Text } from '@/components/ui/typography';
  * actions and titles read as distinct zones from the body. Compose with
  * `CardHeader`/`CardTitle`/`CardDescription`/`CardContent`/`CardFooter`.
  */
+// Every card carries `forge-spotlight` — the accent ring + bloom on hover is the house
+// look, not an interactivity cue. `interactive` adds the pointer cursor on top for cards
+// that are actually clickable.
 const cardVariants = cva('forge-spotlight overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface', {
   variants: {
     elevation: { flat: '', raised: 'shadow-sm', floating: 'shadow-lg' },
-    interactive: { true: 'transition-shadow duration-150 ease-[var(--ease-out)] hover:shadow' },
+    interactive: { true: 'cursor-pointer transition-shadow duration-150 ease-[var(--ease-out)]' },
   },
   defaultVariants: { elevation: 'raised' },
 });

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { BarChart3, ChevronRight } from 'lucide-react';
 import {
+  Card,
   Button,
   Select,
   SelectTrigger,
@@ -118,7 +119,7 @@ export function UsageBatchTable({
   }, [data, search, sourceFilter]);
 
   return (
-    <div className="forge-spotlight flex flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <Card className="flex flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Activity breakdown</Title>
         <Toolbar>
@@ -142,6 +143,6 @@ export function UsageBatchTable({
         renderExpanded={(row) => <RouteBreakdown routes={detailBySource[row.source] ?? []} />}
         emptyState={<EmptyState icon={<BarChart3 />} title="No usage data" description="No activity matches your filter in this period." />}
       />
-    </div>
+    </Card>
   );
 }

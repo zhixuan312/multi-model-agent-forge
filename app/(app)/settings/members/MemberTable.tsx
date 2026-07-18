@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Search, Pencil, Trash2, UserPlus } from 'lucide-react';
 import {
+  Card,
   Avatar,
   Badge,
   Button,
@@ -216,7 +217,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
   );
 
   return (
-    <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <div className="flex items-center justify-between gap-3">
           <Title className="!text-lg">Team members</Title>
@@ -254,7 +255,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
           <EmptyState icon={<Search />} title="No members match" description="Try a different search or role filter." />
         }
       />
-    </div>
+    </Card>
   );
 }
 

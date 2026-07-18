@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { FolderKanban, ChevronRight } from 'lucide-react';
 import {
+  Card,
   Badge,
   Button,
   Select,
@@ -107,7 +108,7 @@ export function ProjectUsageTable({
   }, [data, search, phase]);
 
   return (
-    <div className="forge-spotlight flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-pop,0_1px_2px_rgba(33,28,22,.05))]">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
         <Title className="!text-lg">Project costs</Title>
         <Toolbar>
@@ -132,6 +133,6 @@ export function ProjectUsageTable({
         renderExpanded={(row) => <RouteBreakdown routes={detailByProject[row.projectId] ?? []} />}
         emptyState={<EmptyState icon={<FolderKanban />} title="No project activity" description="No projects have usage data in this period." />}
       />
-    </div>
+    </Card>
   );
 }

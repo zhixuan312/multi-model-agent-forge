@@ -40,6 +40,11 @@ export function StatusDashboard({ metrics, primary, aside, align = 'stretch', cl
               scrolls INTERNALLY on desktop (`lg:overflow-y-auto`) — the left work surface and
               the right rail scroll independently instead of overflowing or scrolling the page.
               On mobile (stacked) and in the `start`/settings look the page scrolls instead. */}
+          {/* These panels scroll INTERNALLY, and a scroll container clips on every side, so a
+              card's hover bloom is trimmed where it meets the column edge. Do NOT "fix" that
+              with `-m-* p-*`: the negative margin pulls the scroller outside its grid cell and
+              scrolled content then bleeds over the metrics row above. The clip is the accepted
+              cost of independent panel scrolling. */}
           <div
             className={cn(
               'flex min-h-0 flex-col lg:col-span-2',

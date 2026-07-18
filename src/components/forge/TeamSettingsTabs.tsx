@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TEAM_SETTINGS_ROUTES } from '@/components/forge/settings-routes';
 import { SlidersHorizontal, Users } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -10,8 +11,8 @@ import { cn } from '@/lib/cn';
 export type TeamSettingsTab = 'team' | 'members';
 
 const TABS: ReadonlyArray<{ key: TeamSettingsTab; label: string; href: string; glyph: React.ReactNode }> = [
-  { key: 'team', label: 'Team', href: '/settings/team', glyph: <SlidersHorizontal className="size-4" /> },
-  { key: 'members', label: 'Members', href: '/settings/members', glyph: <Users className="size-4" /> },
+  { key: 'team', label: 'Team', href: TEAM_SETTINGS_ROUTES.team, glyph: <SlidersHorizontal className="size-4" /> },
+  { key: 'members', label: 'Members', href: TEAM_SETTINGS_ROUTES.members, glyph: <Users className="size-4" /> },
 ];
 
 export function TeamSettingsTabs({ active }: { active: TeamSettingsTab }) {

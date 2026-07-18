@@ -1,6 +1,10 @@
 'use client';
 
-import { Eyebrow, Mono } from '@/components/ui';
+import {
+  Card,
+  Eyebrow,
+  Mono,
+} from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { StatusDot } from '@/components/forge/journal/StatusBadge';
 import { resolveCitations, type IndexLookupRow } from '@/journal/citations';
@@ -26,7 +30,7 @@ export function RecallAnswer({
   onNavigate: (id: string) => void;
 }) {
   return (
-    <div className="rounded-[var(--r-lg)] border border-line bg-surface p-4">
+    <Card className="p-4">
       <div className="mb-2 flex items-center gap-2">
         <span className="rounded-[var(--r-sm)] border border-accent bg-accent-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-deep">
           mma-journal-recall
@@ -59,7 +63,7 @@ export function RecallAnswer({
       {parsed.citationIds.length > 0 ? (
         <RecallSources ids={parsed.citationIds} index={index} onNavigate={onNavigate} />
       ) : null}
-    </div>
+    </Card>
   );
 }
 

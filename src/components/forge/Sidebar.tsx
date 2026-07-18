@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
+import { TEAM_SETTINGS_HREFS, ORG_SETTINGS_HREFS } from '@/components/forge/settings-routes';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 const COMPONENTS_HREF = '/settings/components';
@@ -23,6 +24,10 @@ interface NavItem {
   icon: LucideIcon;
   adminOnly?: boolean | 'org_admin' | 'team_admin';
   teamScoped?: boolean;
+  /** Sibling routes this item owns. Settings tabs live side by side (/settings/team,
+   *  /settings/members) rather than nested, so a prefix test alone leaves the sidebar
+   *  showing nothing selected on every tab but the first. */
+  owns?: readonly string[];
 }
 
 interface NavSection {
@@ -47,8 +52,8 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/usage', label: 'Usage', icon: BarChart3 },
       { href: '/settings/components', label: 'Components', icon: Boxes, adminOnly: 'org_admin' },
-      { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin' },
-      { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin' },
+      { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin', owns: ORG_SETTINGS_HREFS },
+      { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin', owns: TEAM_SETTINGS_HREFS },
     ],
   },
 ];
@@ -179,7 +184,8 @@ export function Sidebar({
                 </Eyebrow>
               ) : null}
               {items.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const owned = [item.href, ...(item.owns ?? [])];
+                const active = owned.some((h) => pathname === h || pathname.startsWith(`${h}/`));
                 // The "Components" item expands into a nested per-component sub-page list
                 // whenever the user is inside the Components area — each slot is its own page.
                 if (item.href === COMPONENTS_HREF) {

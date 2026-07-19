@@ -112,9 +112,14 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
                     </span>
                   ) : null}
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-medium leading-snug text-ink">{it.title}</p>
+                    {/* Clamped so rows stay a uniform height whatever the title's length —
+                        a navigator carrying real content (a prompt, a question) rather than a
+                        short label would otherwise stretch its row arbitrarily. */}
+                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">{it.title}</p>
                     {it.meta ? (
-                      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-faint">{it.meta}</div>
+                      <div className="mt-0.5 flex min-w-0 items-center gap-2 truncate text-[10px] text-ink-faint">
+                        {it.meta}
+                      </div>
                     ) : null}
                   </div>
                 </button>

@@ -28,7 +28,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { StageNavigator, type NavItem } from '@/components/patterns/stage-navigator';
+import { StageNavigator, type NavGroup, type NavItem } from '@/components/patterns/stage-navigator';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -262,32 +262,37 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
-  const taskItems: NavItem[] = [...tasks]
-    .filter((t) => t.status !== 'draft')
-    .sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
-    .map((t, i) => {
-      const failed = t.batchStatus === 'failed' && !t.outputMd;
-      const done = !failed && (t.status === 'recorded' || t.batchStatus === 'done');
-      const LABEL: Record<string, string> = { investigate: 'Investigate', research: 'Research', journal: 'Journal recall' };
-      return {
-        id: t.id,
-        title: LABEL[t.kind] ?? t.kind,
-        // Keep the rail's status chip AND its prompt line, so adopting the navigator loses
-        // no information the old hand-rolled rail showed.
-        meta: (
-          <span className="flex min-w-0 flex-col gap-1">
-            <Badge size="sm" variant={failed ? 'rose' : done ? 'sage' : 'amber'}>
-              {failed ? 'failed' : done ? 'recorded' : 'running'}
-            </Badge>
-            <span className="truncate">{t.prompt}</span>
-          </span>
-        ),
-        index: i + 1,
-        done,
-        active: t.id === selectedTaskId,
-        onClick: () => setSelectedTaskId(t.id),
-      };
-    });
+  // Grouped by kind — the rail's three clusters. The row TITLE is the prompt, because that
+  // is what distinguishes one task from another; the kind is the section header, so it is
+  // stated once instead of repeated on every row. Status shows only when it is not the
+  // norm: a ✓ tile already means recorded, so a "recorded" chip on every row is noise.
+  const KIND_LABEL: Record<string, string> = {
+    investigate: 'Investigate',
+    research: 'Research',
+    journal: 'Journal recall',
+  };
+  const liveTasks = tasks.filter((t) => t.status !== 'draft');
+  const taskGroups: NavGroup[] = (Object.keys(KIND_ORDER) as (keyof typeof KIND_ORDER)[])
+    .map((kind) => ({
+      id: String(kind),
+      label: KIND_LABEL[String(kind)] ?? String(kind),
+      items: liveTasks
+        .filter((t) => t.kind === kind)
+        .map((t, i): NavItem => {
+          const failed = t.batchStatus === 'failed' && !t.outputMd;
+          const done = !failed && (t.status === 'recorded' || t.batchStatus === 'done');
+          return {
+            id: t.id,
+            title: t.prompt,
+            meta: failed ? 'failed' : done ? undefined : 'running…',
+            index: i + 1,
+            done,
+            active: t.id === selectedTaskId,
+            onClick: () => setSelectedTaskId(t.id),
+          };
+        }),
+    }))
+    .filter((g) => g.items.length > 0);
 
   const noteEl = <ExplorationNote phase={phase} />;
   const hasAnalyzed = dispatched > 0 || drafts.length > 0;
@@ -417,7 +422,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               title="Tasks"
               progress={{ value: recorded, total: dispatched }}
               showChecks
-              groups={[{ id: 'tasks', items: taskItems }]}
+              groups={taskGroups}
               footer={
                 <Button
                   variant="primary"
@@ -435,7 +440,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         >
           <DocumentShell
             className="flex min-h-0 flex-1 flex-col"
-            title={selectedTask ? (taskItems.find((t) => t.id === selectedTaskId)?.title ?? '') : 'Select a task'}
+            title={selectedTask ? (KIND_LABEL[selectedTask.kind] ?? selectedTask.kind) : 'Select a task'}
             approvers={
               // The governed `prompt` row: this document is an ANSWER to a question, so the
               // row under the header carries the prompt rather than approvers.

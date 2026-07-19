@@ -62,15 +62,9 @@ export function StatusDashboard({ metrics, primary, aside, align = 'stretch', sc
               // Independent of `align`: that governs the rail's cross-axis alignment, this
               // governs who scrolls. Coupling them left every `align="start"` page with no
               // scroller at all once PageFrame stopped scrolling the page.
-              //
-              // The negative margin + padding give the cards' hover bloom room inside the
-              // scroller, which clips on every side. Sizes are the shadow's real reach:
-              // `0 10px 30px -8px` extends 7px sideways, ~0 up, and 17px DOWN. The 12px
-              // pull-out stays UNDER the grid's 16px gap so the scroller never overlaps the
-              // metrics row (a wider pull-out did, and scrolled content bled over it); the
-              // bottom uses padding only, which just extends the scroll content.
-              scroll === 'outer' &&
-                'lg:-mx-3 lg:-mt-3 lg:min-h-0 lg:overflow-y-auto lg:px-3 lg:pb-6 lg:pt-3',
+              // `scroll-pane` (globals.css) owns the overflow AND the clearance that keeps
+              // the cards' hover bloom from being clipped by this scroller.
+              scroll === 'outer' && 'lg:scroll-pane',
             )}
           >
             {primary}
@@ -78,8 +72,8 @@ export function StatusDashboard({ metrics, primary, aside, align = 'stretch', sc
           <div
             className={cn(
               'flex min-h-0 flex-col gap-4',
-              // Same clearance as the primary column — the rail scrolls and clips too.
-              'lg:-mx-3 lg:-mt-3 lg:min-h-0 lg:overflow-y-auto lg:px-3 lg:pb-6 lg:pt-3',
+              // The rail scrolls and clips too — same governed pane.
+              'lg:scroll-pane',
             )}
           >
             {aside}

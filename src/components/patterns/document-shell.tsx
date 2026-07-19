@@ -78,7 +78,13 @@ export function DocumentShell({
             card, and the header/approvers/footer must stay put while it does. Its padding and
             tint are owned here too: consumers had drifted across five spellings of the same
             surface, which is exactly what a governed shell exists to prevent. */}
-        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto bg-surface-2/40 px-5 py-5">
+        {/* `flex flex-col` so a body that fills (Explore's brain-dump composer, the graph)
+            can grow to the panel height and pin its own footer; a prose body is a single
+            block child and is unaffected. */}
+        <div
+          ref={bodyRef}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-surface-2/40 px-5 py-5"
+        >
           {body}
         </div>
         {actions ? (

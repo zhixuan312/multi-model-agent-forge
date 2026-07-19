@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { SelectableTile } from '@/components/patterns/cards';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { RoleChip } from '@/components/forge/RoleChip';
@@ -646,47 +647,34 @@ function OutlineStage({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {shownKinds.map((c) => {
               const Icon = KIND_ICON[c.kind];
-              const selected = picked.has(c.kind);
               return (
-                <button
+                <SelectableTile
                   key={c.kind}
-                  type="button"
+                  selected={picked.has(c.kind)}
                   disabled={readOnly}
-                  aria-pressed={selected}
                   onClick={() => toggle(c.kind)}
-                  className={cn(
-                    'flex flex-col gap-2.5 rounded-[var(--r-md)] border p-3.5 text-left transition-colors',
-                    selected ? 'border-accent bg-accent-tint/25 shadow-sm' : 'border-line bg-surface hover:border-line-strong',
-                    readOnly && 'cursor-default',
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={cn(
-                        'grid size-8 shrink-0 place-items-center rounded-[8px] transition-colors',
-                        selected ? 'bg-accent text-white' : 'bg-surface-2 text-ink-faint',
-                      )}
-                    >
-                      {selected ? <Check className="size-4" /> : <Icon className="size-4" />}
-                    </span>
-                    <span className="min-w-0 flex-1 font-semibold text-ink">{c.label}</span>
-                  </div>
-                  {c.roles.length > 0 ? (
-                    <span className="flex flex-wrap gap-1">
-                      {c.roles.map((r) => (
-                        <RoleChip key={r} role={r} />
-                      ))}
-                    </span>
-                  ) : null}
-                  <p className="text-xs leading-relaxed text-ink-soft">
-                    <span className="font-medium text-ink">{c.sections.length} sections</span>
-                    <span className="text-ink-faint">
-                      {' · '}
-                      {c.sections.slice(0, 3).join(' · ')}
-                      {c.sections.length > 3 ? ' …' : ''}
-                    </span>
-                  </p>
-                </button>
+                  icon={<Icon className="size-4" />}
+                  title={c.label}
+                  meta={
+                    <>
+                      {c.roles.length > 0 ? (
+                        <span className="flex flex-wrap gap-1">
+                          {c.roles.map((r) => (
+                            <RoleChip key={r} role={r} />
+                          ))}
+                        </span>
+                      ) : null}
+                      <p className="text-xs leading-relaxed text-ink-soft">
+                        <span className="font-medium text-ink">{c.sections.length} sections</span>
+                        <span className="text-ink-faint">
+                          {' · '}
+                          {c.sections.slice(0, 3).join(' · ')}
+                          {c.sections.length > 3 ? ' …' : ''}
+                        </span>
+                      </p>
+                    </>
+                  }
+                />
               );
             })}
           </div>

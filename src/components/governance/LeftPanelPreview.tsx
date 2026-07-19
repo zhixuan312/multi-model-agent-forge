@@ -35,7 +35,6 @@ import {
   SelectableTile,
   StatCard,
   StatCardGrid,
-  StatusCard,
   type Finding,
   FormPanel,
 } from '@/components/patterns';
@@ -449,7 +448,7 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
           <SelectableTile
             key={o.t}
             selected={o.sel}
-            icon={on.has('icon') ? (o.sel ? <Check className="size-4 text-accent" /> : <Square className="size-4 text-ink-faint" />) : undefined}
+            icon={on.has('icon') ? <Square className="size-4" /> : undefined}
             title={o.t}
             meta={
               on.has('meta') ? (
@@ -462,29 +461,6 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
           />
         ))}
       </div>
-    </div>
-  ),
-
-  // Shared StatusCard stack. Affordances: status badge, progress bar.
-  statusCard: (on) => (
-    <div className="flex flex-col gap-3">
-      {[
-        { t: 'First item', tone: 'sage' as const, status: 'Done', pct: 100 },
-        { t: 'Second item', tone: 'accent' as const, status: 'Running', pct: 60 },
-      ].map((r) => (
-        <StatusCard
-          key={r.t}
-          title={r.t}
-          tone={r.tone}
-          badge={on.has('statusBadge') ? <Badge variant={r.tone} size="sm" dot>{r.status}</Badge> : undefined}
-        >
-          {on.has('progress') ? (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full bg-accent" style={{ width: `${r.pct}%` }} />
-            </div>
-          ) : null}
-        </StatusCard>
-      ))}
     </div>
   ),
 };

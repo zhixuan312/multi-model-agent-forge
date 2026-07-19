@@ -1,19 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { FeatureRail, RailNote, RailStatus } from '@/components/patterns/feature-rail';
-
-describe('FeatureRail', () => {
-  it('renders children in a vertical stack', () => {
-    const { container } = render(
-      <FeatureRail>
-        <RailNote icon={<svg data-testid="icon" />}>Note content</RailNote>
-      </FeatureRail>,
-    );
-    const stack = container.firstElementChild!;
-    expect(stack.children).toHaveLength(1);
-    expect(stack.className).toContain('flex');
-    expect(stack.className).toContain('flex-col');
-  });
-});
+import { RailNote } from '@/components/patterns/feature-rail';
 
 describe('RailNote', () => {
   it('renders the icon in a tinted circle', () => {
@@ -31,32 +17,5 @@ describe('RailNote', () => {
   it('renders an optional title', () => {
     render(<RailNote icon={<svg />} title="Access">Content</RailNote>);
     expect(screen.getByText('Access')).toBeInTheDocument();
-  });
-});
-
-describe('RailStatus', () => {
-  it('renders status items with labels', () => {
-    render(
-      <RailStatus
-        items={[
-          { id: '1', label: 'Investigate', status: 'running', detail: 'Analyzing code' },
-          { id: '2', label: 'Research', status: 'done', detail: 'Completed' },
-        ]}
-      />,
-    );
-    expect(screen.getByText('Investigate')).toBeInTheDocument();
-    expect(screen.getByText('Research')).toBeInTheDocument();
-    expect(screen.getByText('running')).toBeInTheDocument();
-    expect(screen.getByText('done')).toBeInTheDocument();
-  });
-
-  it('renders empty state when no items', () => {
-    render(<RailStatus items={[]} emptyText="No tasks yet." />);
-    expect(screen.getByText('No tasks yet.')).toBeInTheDocument();
-  });
-
-  it('applies aria-live when live prop is set', () => {
-    const { container } = render(<RailStatus items={[]} live />);
-    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 });

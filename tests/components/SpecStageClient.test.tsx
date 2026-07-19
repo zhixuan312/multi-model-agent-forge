@@ -11,6 +11,8 @@ let busyHandlers = new Set<string>();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/projects/p1/spec',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@/hooks/useMmaDispatch', () => ({

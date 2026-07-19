@@ -1,5 +1,5 @@
 export { ProseBlock, type ProseVariant, type ProseBlockProps } from './prose-block';
-export { FeatureRail, RailNote, RailStatus, type RailNoteProps, type RailStatusItem, type RailStatusProps } from './feature-rail';
+export { RailNote, type RailNoteProps } from './feature-rail';
 export { StatusDashboard, type StatusDashboardProps } from './status-dashboard';
 export { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, SEVERITY_ORDER, SEVERITY_STYLE, type Finding, type FindingsGridProps, type AuditRoundCardProps } from './findings';
 export { Message, MessageList, ConversationComposer, ConversationPane, type ConversationMessage, type ConversationComposerProps, type ConversationPaneProps } from './conversation';
@@ -9,4 +9,4 @@ export { List, type ListRow, type ListSection } from './list';
 export { FormPanel } from './form-panel';
 export type { FormPanelValidate } from './form-panel';
 export { DocumentShell, type DocumentShellTab } from './document-shell';
-export { StatCard, StatCardGrid, SelectableTile, StatusCard, type StatCardRow, type StatusTone } from './cards';
+export { StatCard, StatCardGrid, SelectableTile, type StatCardRow } from './cards';

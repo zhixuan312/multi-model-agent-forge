@@ -222,6 +222,41 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'spec-audit', label: 'Project › Spec › Finalize (audit rounds)', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
   },
+  {
+    id: 'runList',
+    label: 'Run list',
+    // A filterable list of run records: a Loop/Status filter toolbar over a scrollable list
+    // of run cards (status badge + short id + name + time · duration).
+    canonicalComponent: 'RecordList + RecordCard',
+    canonicalFilePath: 'src/components/patterns/record-list.tsx',
+    affordances: [
+      { id: 'filters', label: 'Filter toolbar', canonicalComponent: 'ActivityFilters (Loop + Status selects)', canonicalFilePath: 'app/(app)/loops/ActivityFilters.tsx', defaultOn: true },
+      { id: 'statusBadge', label: 'Status badge', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
+      { id: 'runId', label: 'Run id (mono)', canonicalComponent: 'Mono', canonicalFilePath: 'src/components/ui/typography.tsx', defaultOn: true },
+    ],
+    consumers: [
+      { id: 'loops-activity', label: 'Loops › Activity', filePath: 'app/(app)/loops/RunHistoryView.tsx' },
+    ],
+  },
+  {
+    id: 'nodeList',
+    label: 'Node list',
+    // The journal Nodes index: a record action, a search box, category chips, a status
+    // toggle + sort, over a scrollable list of node cards (id + type + status + tags).
+    canonicalComponent: 'RecordList + RecordCard',
+    canonicalFilePath: 'src/components/patterns/record-list.tsx',
+    affordances: [
+      { id: 'recordAction', label: 'Record-learning action', canonicalComponent: 'RecordLearningButton', canonicalFilePath: 'src/components/forge/journal/RecordLearningButton.tsx', defaultOn: true },
+      { id: 'search', label: 'Search box', canonicalComponent: 'input', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
+      { id: 'categoryChips', label: 'Category chips', canonicalComponent: 'chip row', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
+      { id: 'statusSort', label: 'Status filter + sort', canonicalComponent: 'toggle + sort', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
+      { id: 'tags', label: 'Tag chips', canonicalComponent: 'tag chips', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
+    ],
+    consumers: [
+      { id: 'journal-nodes', label: 'Journal › Nodes', filePath: 'src/components/forge/journal/NodesView.tsx' },
+      { id: 'journal-nodes-tab', label: 'Project › Journal › Nodes tab', filePath: 'src/components/forge/journal/NodesTab.tsx' },
+    ],
+  },
 ];
 
 // The COMMON left-panel patterns — by what kind of container the panel is, not by page.
@@ -403,24 +438,11 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'icon', label: 'Tile icon (flips to check)', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
       { id: 'meta', label: 'Meta row', canonicalComponent: 'Badge / chips', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
     ],
+    // The only real consumer — the Spec Outline component picker, now converged onto the
+    // governed SelectableTile (was a hand-rolled button). New project's "preset picker" is
+    // a radiogroup, NOT a tile, so it is not a consumer of this pattern.
     consumers: [
       { id: 'spec-outline', label: 'Project › Spec › Outline', filePath: 'src/components/forge/SpecStageClient.tsx' },
-      { id: 'new-project-preset', label: 'New project › Preset picker', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
-    ],
-  },
-  {
-    id: 'statusCard',
-    label: 'Status card',
-    canonicalComponent: 'StatusCard',
-    canonicalFilePath: 'src/components/patterns/cards.tsx',
-    affordances: [
-      { id: 'statusBadge', label: 'Status badge', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
-      { id: 'progress', label: 'Progress bar', canonicalComponent: 'progress bar', canonicalFilePath: 'src/components/forge/ExecuteStageClient.tsx', defaultOn: true },
-    ],
-    consumers: [
-      { id: 'execute-repo', label: 'Project › Execute › Repo cards', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
-      { id: 'project-card', label: 'Projects › Project cards', filePath: 'src/components/forge/ProjectCard.tsx' },
-      { id: 'audit-round', label: 'Project › Review › Audit rounds', filePath: 'src/components/patterns/findings.tsx' },
     ],
   },
 ];

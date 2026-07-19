@@ -28,21 +28,21 @@ export function ActivityFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-4">
-      <div className="flex flex-col gap-1.5">
+    <div className="flex items-end gap-3">
+      <div className="flex flex-1 flex-col gap-1.5">
         <Label as="span">Loop</Label>
         <Select value={loopId ?? ALL} onValueChange={(v) => go(v, status ?? ALL)}>
-          <SelectTrigger className="min-w-[200px]" aria-label="Filter by loop"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full" aria-label="Filter by loop"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All loops</SelectItem>
             {loops.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-1 flex-col gap-1.5">
         <Label as="span">Status</Label>
         <Select value={status ?? ALL} onValueChange={(v) => go(loopId ?? ALL, v)}>
-          <SelectTrigger className="min-w-[160px]" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full" aria-label="Filter by status"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
             {STATUSES.map((s) => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}

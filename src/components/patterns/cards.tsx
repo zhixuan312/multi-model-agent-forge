@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui';
 
 /**
- * The three shared card SHAPES the left panel governs (they are distinct, not one Card):
- *   • StatCard      — Card + CardHeader(icon + title) + label/value rows (SummaryPhase style)
- *   • SelectableTile — a button[aria-pressed] toggle tile (spec-outline / preset pickers)
- *   • StatusCard    — a bordered div whose border reacts to status (execute repo cards)
+ * The shared card SHAPES the left panel governs (they are distinct, not one Card):
+ *   • StatCard       — Card + CardHeader(icon + title) + label/value rows (SummaryPhase style)
+ *   • SelectableTile — a button[aria-pressed] toggle tile (spec-outline component picker)
  * All content-agnostic; callers pass the content.
  */
 
@@ -80,59 +80,45 @@ export function SelectableTile({
   title,
   meta,
   selected = false,
+  disabled = false,
   onClick,
 }: {
+  /** The base icon for the leading tile. The tile chrome + the selected→✓ flip are owned
+   *  by this component; when `selected`, a Check replaces `icon`. Omit for no icon tile. */
   icon?: ReactNode;
   title: ReactNode;
   meta?: ReactNode;
   selected?: boolean;
+  disabled?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        'focus-ring flex flex-col gap-2 rounded-[var(--r-md)] border p-3.5 text-left transition-colors',
-        selected ? 'border-accent bg-accent-tint/25 shadow-sm' : 'border-line hover:border-line-strong',
+        'focus-ring flex flex-col gap-2.5 rounded-[var(--r-md)] border p-3.5 text-left transition-colors',
+        selected ? 'border-accent bg-accent-tint/25 shadow-sm' : 'border-line bg-surface hover:border-line-strong',
+        disabled && 'cursor-default',
       )}
     >
-      {icon}
-      <p className="font-semibold text-ink">{title}</p>
+      <div className="flex items-center gap-2.5">
+        {icon !== undefined ? (
+          <span
+            className={cn(
+              'grid size-8 shrink-0 place-items-center rounded-[8px] transition-colors',
+              selected ? 'bg-accent text-white' : 'bg-surface-2 text-ink-faint',
+            )}
+          >
+            {selected ? <Check className="size-4" /> : icon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1 font-semibold text-ink">{title}</span>
+      </div>
       {meta}
     </button>
   );
 }
 
-export type StatusTone = 'sage' | 'accent' | 'rose' | 'amber' | 'neutral';
-
-const STATUS_BORDER: Record<StatusTone, string> = {
-  sage: 'border-sage',
-  accent: 'border-accent',
-  rose: 'border-rose',
-  amber: 'border-amber',
-  neutral: 'border-line',
-};
-
-export function StatusCard({
-  title,
-  tone = 'neutral',
-  badge,
-  children,
-}: {
-  title: ReactNode;
-  tone?: StatusTone;
-  badge?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <div className={cn('overflow-hidden rounded-[var(--r-lg)] border', STATUS_BORDER[tone])}>
-      <div className="flex items-center justify-between gap-2 bg-surface-2 px-4 py-3">
-        <span className="font-medium text-ink">{title}</span>
-        {badge}
-      </div>
-      {children ? <div className="px-4 py-3">{children}</div> : null}
-    </div>
-  );
-}

@@ -1,11 +1,17 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Check, GitBranch, Loader2, RotateCcw, Shield } from 'lucide-react';
-import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowRight, Check, GitBranch, Loader2, PencilLine, RotateCcw, Search, Shield } from 'lucide-react';
+import {
+  Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Label, Micro, Mono,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui';
 import { StageNavigator, type NavGroup } from '@/components/patterns/stage-navigator';
+import { RecordList, RecordCard } from '@/components/patterns/record-list';
 import { AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import { StatusBadge } from '@/components/forge/journal/StatusBadge';
+import { cn } from '@/lib/cn';
 import { RIGHT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
 /** Static shape of the demo navigator's work-items (approval state is held in NavigatorDemo). */
@@ -177,6 +183,197 @@ function CardListDemo({ on }: { on: ReadonlySet<string> }) {
   );
 }
 
+/* ── Run list (Loops › Activity) ─────────────────────────────────────────── */
+
+interface RunRow { id: string; status: 'changed' | 'unchanged' | 'failed'; name: string; when: string; dur: string; hash: string }
+const RUN_ROWS: RunRow[] = [
+  { id: '1', status: 'changed', name: 'Maintenance Sanity', when: '14 Jul 2026, 21:04', dur: '16m 7s', hash: 'a95e461d' },
+  { id: '2', status: 'changed', name: 'Maintenance Sanity', when: '01 Jul 2026, 10:35', dur: '14m 59s', hash: 'bac1603c' },
+  { id: '3', status: 'unchanged', name: 'Maintenance Sanity', when: '01 Jul 2026, 10:12', dur: '14m 9s', hash: '0cf25ed5' },
+  { id: '4', status: 'unchanged', name: 'Maintenance Sanity', when: '01 Jul 2026, 10:00', dur: '8m 36s', hash: '219b43bd' },
+  { id: '5', status: 'failed', name: 'Maintenance Sanity', when: '01 Jul 2026, 09:36', dur: '1s', hash: 'ac5eb0db' },
+];
+const RUN_BADGE: Record<RunRow['status'], { label: string; variant: 'sage' | 'neutral' | 'rose' }> = {
+  changed: { label: 'Changed', variant: 'sage' },
+  unchanged: { label: 'No changes', variant: 'neutral' },
+  failed: { label: 'Failed', variant: 'rose' },
+};
+
+/** Interactive Run-list panel: a Loop/Status filter toolbar (inside the card) over a
+ *  scrollable list of run cards. Click a run to select it; the Status select filters. */
+function RunListDemo({ on }: { on: ReadonlySet<string> }) {
+  const [selected, setSelected] = useState('1');
+  const [status, setStatus] = useState('all');
+  const rows = status === 'all' ? RUN_ROWS : RUN_ROWS.filter((r) => r.status === status);
+  return (
+    <div className="max-w-md">
+      <RecordList
+        toolbar={on.has('filters') ? (
+          <div className="flex items-end gap-3">
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label as="span">Loop</Label>
+              <Select defaultValue="all">
+                <SelectTrigger className="w-full" aria-label="Filter by loop"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All loops</SelectItem><SelectItem value="maint">Maintenance Sanity</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label as="span">Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="w-full" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="changed">Changed</SelectItem>
+                  <SelectItem value="unchanged">No changes</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : undefined}
+        countLabel={`Runs (${rows.length})`}
+      >
+        {rows.map((r) => (
+          <RecordCard
+            key={r.id}
+            selected={r.id === selected}
+            onClick={() => setSelected(r.id)}
+            chips={on.has('statusBadge') ? <Badge size="sm" variant={RUN_BADGE[r.status].variant}>{RUN_BADGE[r.status].label}</Badge> : undefined}
+            trailing={on.has('runId') ? <Mono className="!text-[0.6875rem] text-ink-faint">{r.hash}</Mono> : undefined}
+            title={r.name}
+            detail={<Micro className="text-ink-faint">{r.when} · {r.dur}</Micro>}
+          />
+        ))}
+      </RecordList>
+    </div>
+  );
+}
+
+/* ── Node list (Journal › Nodes) ─────────────────────────────────────────── */
+
+const NODE_CATEGORIES = ['Decision', 'Design', 'Behavior', 'Process', 'Knowledge', 'Style'] as const;
+const NODE_CAT_STYLE: Record<string, string> = {
+  Decision: 'bg-amber-tint text-[var(--amber)]',
+  Design: 'bg-[var(--frost)] text-[var(--steel)]',
+  Behavior: 'bg-accent-tint text-accent-deep',
+  Process: 'bg-sage-tint text-[var(--sage-deep)]',
+  Knowledge: 'bg-surface-2 text-ink-soft',
+  Style: 'bg-surface-2 text-ink-soft',
+};
+interface NodeRow { id: string; type: (typeof NODE_CATEGORIES)[number]; title: string; tags: string[] }
+const NODE_ROWS: NodeRow[] = [
+  { id: '0001', type: 'Decision', title: 'Guard provider identity at the data layer, not the routes', tags: ['cost-accounting', 'dispatch', 'parser-drops', 'ui', 'config'] },
+  { id: '0002', type: 'Decision', title: 'Guard enum narrowing at the data layer, not the routes', tags: ['cross-tier', 'dx', 'worktrees', 'config', 'recall'] },
+  { id: '0003', type: 'Design', title: 'Treat a derived signal in the journal graph store as part of the control path', tags: ['completion-gating', 'sandbox', 'architecture'] },
+  { id: '0004', type: 'Design', title: 'Make the install writers the single canonical read path', tags: ['schema-version', 'design-system', 'layout'] },
+  { id: '0005', type: 'Decision', title: 'Prefer a one-owner serialization lock over hand-rolled telemetry attribution', tags: ['cross-tier', 'hydration', 'quality', 'graph'] },
+  { id: '0006', type: 'Design', title: 'Strip legacy paths out of the journal viewer', tags: ['refactor', 'journal'] },
+];
+
+/** Interactive Node-list panel (journal Nodes index): record action · search · category
+ *  chips · status + sort · node cards with tag chips. Search + chips + sort all filter live. */
+function NodeListDemo({ on }: { on: ReadonlySet<string> }) {
+  const [selected, setSelected] = useState('0001');
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('All');
+  const [desc, setDesc] = useState(false);
+  const rows = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    let out = NODE_ROWS.filter((n) => {
+      if (cat !== 'All' && n.type !== cat) return false;
+      if (!ql) return true;
+      return n.title.toLowerCase().includes(ql) || n.tags.some((t) => t.toLowerCase().includes(ql));
+    });
+    out = [...out].sort((a, b) => a.id.localeCompare(b.id));
+    if (desc) out.reverse();
+    return out;
+  }, [q, cat, desc]);
+
+  return (
+    <div className="max-w-md">
+      <RecordList
+        header={
+          <>
+            <CardTitle>Nodes</CardTitle>
+            {on.has('recordAction') ? <Button size="sm" leftIcon={<PencilLine />}>Record a learning</Button> : null}
+          </>
+        }
+        toolbar={
+          <div className="flex flex-col gap-2">
+            {on.has('search') ? (
+              <div className="relative">
+                <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search title or tags…"
+                  aria-label="Search nodes"
+                  className="w-full rounded-[var(--r-sm)] border border-line bg-surface-2 py-1.5 pl-8 pr-2 text-sm text-ink outline-none focus:border-accent"
+                />
+              </div>
+            ) : null}
+            {on.has('categoryChips') ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {(['All', ...NODE_CATEGORIES] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCat(c)}
+                    aria-pressed={cat === c}
+                    className={cn(
+                      'rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px]',
+                      cat === c
+                        ? c === 'All' ? 'border-accent bg-accent-tint text-accent-deep' : cn('border-transparent', NODE_CAT_STYLE[c])
+                        : 'border-line text-ink-soft hover:border-line-strong',
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {on.has('statusSort') ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-0.5 text-[11px] text-ink-faint">Status: <span className="font-medium capitalize text-ink-soft">Adopted</span></span>
+                <button
+                  type="button"
+                  onClick={() => setDesc((d) => !d)}
+                  className="shrink-0 rounded-[var(--r-sm)] border border-line px-1.5 py-0.5 text-[11px] text-ink-soft hover:border-line-strong"
+                >
+                  sort {desc ? '↓' : '↑'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        }
+      >
+        {rows.map((n) => (
+          <RecordCard
+            key={n.id}
+            selected={selected === n.id}
+            onClick={() => setSelected(n.id)}
+            chips={
+              <>
+                <span className="font-mono text-[11px] text-ink-faint">{n.id}</span>
+                <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', NODE_CAT_STYLE[n.type])}>{n.type}</span>
+                <StatusBadge status="adopted" />
+              </>
+            }
+            title={n.title}
+            detail={on.has('tags') && n.tags.length ? (
+              <span className="flex flex-wrap gap-1">
+                {n.tags.map((t) => (
+                  <span key={t} className="rounded-[var(--r-sm)] bg-surface-2 px-1 py-0.5 text-[10px] text-ink-soft">{t}</span>
+                ))}
+              </span>
+            ) : undefined}
+          />
+        ))}
+      </RecordList>
+    </div>
+  );
+}
+
 /** Per-pattern renders for the Right-panel (the section BELOW the note), keyed by the id in
  *  RIGHT_PANEL_VARIANTS. `on` is the set of governed affordances switched on. */
 const RENDERS: Record<string, (on: ReadonlySet<string>) => ReactNode> = {
@@ -185,6 +382,12 @@ const RENDERS: Record<string, (on: ReadonlySet<string>) => ReactNode> = {
   // The generic Card-list panel (Plan Validate / Review / Spec Finalize): header action ·
   // scrollable card list · gated advance footer. Demoed via the audit-run lifecycle.
   cardList: (on) => <CardListDemo on={on} />,
+
+  // The filterable Run list (Loops › Activity): filter toolbar + run cards.
+  runList: (on) => <RunListDemo on={on} />,
+
+  // The journal Node index (Journal › Nodes): record action + search + chips + node cards.
+  nodeList: (on) => <NodeListDemo on={on} />,
 };
 
 /** Renders one Right-panel pattern (a sub-page), by id, honouring its affordances. */

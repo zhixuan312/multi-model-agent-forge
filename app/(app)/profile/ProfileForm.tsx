@@ -2,16 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import {
-  Card,
-  CardContent,
   Field,
   FieldGrid,
   Input,
-  Button,
-  TextStrong,
-  Text,
   AvatarPicker,
   Avatar,
 } from '@/components/ui';
@@ -121,40 +116,12 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
     }
   }
 
-  // ---- sign out ----
-  const [signingOut, setSigningOut] = useState(false);
-  async function signOut() {
-    setSigningOut(true);
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
-  }
-
   return (
     <StageShell
       scroll="outer"
       metrics={metrics}
       align="start"
       note={<RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>}
-      navigator={
-        <>
-          <Card>
-            <CardContent className="flex flex-col gap-3 py-5">
-              <TextStrong className="!text-sm !text-ink">Sign out</TextStrong>
-              <Text className="!text-xs">End your session on this device.</Text>
-              <Button
-                variant="secondary"
-                leftIcon={<LogOut />}
-                onClick={signOut}
-                loading={signingOut}
-                className="w-full text-rose hover:text-rose"
-              >
-                {signingOut ? 'Signing out…' : 'Sign out'}
-              </Button>
-            </CardContent>
-          </Card>
-        </>
-      }
     >
       <div className="flex flex-col gap-4">
         {/* ACCOUNT */}

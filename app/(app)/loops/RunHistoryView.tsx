@@ -57,9 +57,11 @@ export function RunHistoryView({
       metrics={metrics}
       note={note}
       navigator={
-        <>
-        <ActivityFilters loops={loops} loopId={loopId} status={status} />
         <Card className="flex min-h-0 flex-1 flex-col">
+          {/* Filters live INSIDE the runs card — one cohesive panel, not a detached toolbar. */}
+          <div className="shrink-0 border-b border-line p-3">
+            <ActivityFilters loops={loops} loopId={loopId} status={status} />
+          </div>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
             <span className="shrink-0 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Runs ({runs.length})</span>
             {runs.length ? (
@@ -93,7 +95,6 @@ export function RunHistoryView({
             )}
           </CardContent>
         </Card>
-        </>
       }
     >
         <Card className="flex min-h-0 flex-1 flex-col">

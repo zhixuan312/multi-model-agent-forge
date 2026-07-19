@@ -49,7 +49,7 @@ import {
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed, PlanAuditFinding } from '@/build/plan-types';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
@@ -223,7 +223,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
       .finally(() => setAuthoringLocal(false));
   }, [readOnly, allTasks.length, props.pendingAuthor, props.projectId, mma, refresh]);
 
-  useEffect(() => stagePhaseStore.set(phase), [phase]);
+  useStagePhaseUrl(phase);
   // Sub-phase navigation from the top stepper. The stepper only renders a chip as
   // clickable once that phase is reachable (its `furthest`/lastPhase logic), so we
   // trust the click and just switch the view — the approval gate lives on the

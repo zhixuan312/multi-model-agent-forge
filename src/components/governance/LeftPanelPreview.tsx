@@ -34,6 +34,7 @@ import {
   ProseBlock,
   SelectableTile,
   StatCard,
+  StatCardGrid,
   StatusCard,
   type Finding,
   FormPanel,
@@ -413,17 +414,19 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
 
   // Shared StatCard grid. Affordances: header icon, card footer.
   statCard: (on) => (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {['First metric', 'Second metric'].map((t) => (
+    <StatCardGrid>
+      {['First metric', 'Second metric'].map((t, i) => (
         <StatCard
           key={t}
-          icon={on.has('icon') ? <Activity className="size-4 text-accent" /> : undefined}
+          icon={on.has('icon') ? <Activity /> : undefined}
           title={t}
-          rows={STAT_ROWS}
-          footer={on.has('footer') ? 'Footer' : undefined}
+          // Uneven row counts on purpose: this is what proves the cards keep their own
+          // height instead of stretching to the tallest in the row.
+          rows={i === 0 ? STAT_ROWS : STAT_ROWS.slice(0, 2)}
+          footer={on.has('footer') ? { label: 'Total', value: '128' } : undefined}
         />
       ))}
-    </div>
+    </StatCardGrid>
   ),
 
   // Shared SelectableTile grid. Affordances: tile icon (flips to check), meta row.

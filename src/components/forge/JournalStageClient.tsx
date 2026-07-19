@@ -33,7 +33,7 @@ import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
@@ -123,7 +123,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
     setPhase(p);
   };
 
-  useEffect(() => { stagePhaseStore.set(phase); }, [phase]);
+  useStagePhaseUrl(phase);
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {

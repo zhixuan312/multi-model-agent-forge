@@ -16,7 +16,7 @@ import {
 } from '@/components/ui';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { DocumentShell } from '@/components/patterns';
@@ -76,7 +76,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const readOnly = props.readOnly ?? false;
   const lockedReason = props.lockedReason;
 
-  useEffect(() => { stagePhaseStore.set('review'); }, []);
+  useStagePhaseUrl('review');
 
   const [activePassNo, setActivePassNo] = useState(props.passes.length || 1);
 
@@ -210,7 +210,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
             <StageAdvance
-              href={`/projects/${props.projectId}/journal`}
+              href={`/projects/${props.projectId}/reflect`}
               label="Continue to Reflect"
               disabled={readOnly}
               gate

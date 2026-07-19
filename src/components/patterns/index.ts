@@ -9,4 +9,4 @@ export { List, type ListRow, type ListSection } from './list';
 export { FormPanel } from './form-panel';
 export type { FormPanelValidate } from './form-panel';
 export { DocumentShell, type DocumentShellTab } from './document-shell';
-export { StatCard, SelectableTile, StatusCard, type StatusTone } from './cards';
+export { StatCard, StatCardGrid, SelectableTile, StatusCard, type StatCardRow, type StatusTone } from './cards';

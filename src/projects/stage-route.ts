@@ -1,21 +1,23 @@
 import type { StageKind, ProjectPhase } from '@/db/enums';
 
 /**
- * `stage_kind` → URL-segment map (Spec 3 Data model, the one divergence).
+ * `stage_kind` → URL-segment map. The SINGLE source of truth — the `[id]` redirect
+ * and the StageStepper link hrefs both go through it.
  *
- * Only `exploration` diverges from its value (`explore`); every other kind's
- * segment is identical. This is the SINGLE source of truth — the `[id]` redirect
- * and the StageStepper link hrefs both go through it, so a fresh project
- * redirects to `/projects/<id>/explore` (never `/exploration`, which has no
- * route file and would 404).
+ * Every project URL reads `{stage}?phase={phase}`, and `{stage}` is the stage's
+ * DISPLAY name (see STAGE_LABEL), not its database `stage_kind`. Two kinds differ
+ * from their column value: `exploration` shows as Explore and `journal` shows as
+ * Reflect — so the Reflect stage's summary view is
+ * `/projects/<id>/reflect?phase=summary`, never `/journal?phase=summary`, which
+ * read as a different feature entirely (there is also a team-level `/journal`).
  */
 export const STAGE_ROUTE: Record<StageKind, string> = {
-  exploration: 'explore', // the ONLY divergence
+  exploration: 'explore',
   spec: 'spec',
   plan: 'plan',
   execute: 'execute',
   review: 'review',
-  journal: 'journal',
+  journal: 'reflect',
 };
 
 /** Build the absolute stage URL for a project (`/projects/<id>/<segment>`). */

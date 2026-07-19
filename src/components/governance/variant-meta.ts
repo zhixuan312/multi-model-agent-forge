@@ -399,12 +399,12 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
       { id: 'icon', label: 'Header icon', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
-      { id: 'footer', label: 'Card footer', canonicalComponent: 'CardFooter', canonicalFilePath: 'src/components/ui/card.tsx', defaultOn: false },
+      { id: 'footer', label: 'Card footer', canonicalComponent: 'CardFooter', canonicalFilePath: 'src/components/ui/card.tsx', defaultOn: true },
     ],
     consumers: [
-      { id: 'journal-summary', label: 'Project › Journal › Summary', filePath: 'src/components/forge/SummaryPhase.tsx' },
-      { id: 'execute-summary', label: 'Project › Execute › Summary', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
+      { id: 'reflect-summary', label: 'Project › Reflect › Summary', filePath: 'src/components/forge/SummaryPhase.tsx' },
     ],
+    deviations: [],
   },
   {
     id: 'selectableTile',

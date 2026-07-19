@@ -39,10 +39,12 @@ function toStepperStages(
   lastPhaseByKind: Map<StageKind, string | null>,
 ): StepperStage[] {
   return computed.map((s) => {
-    const isCurrent = s.kind === currentStage;
     const base = stageRoute(s.kind, projectId);
+    // Every project URL states its phase — `{stage}?phase={phase}` — including the stage
+    // you're already on. Omitting it there left the address bar disagreeing with the
+    // stepper until you clicked a chip, and made the landing phase unlinkable.
     const lp = lastPhaseByKind.get(s.kind) ?? STAGE_LAST_FALLBACK[s.kind];
-    const href = isCurrent ? base : lp ? `${base}?phase=${lp}` : base;
+    const href = lp ? `${base}?phase=${lp}` : base;
     const stateWord = s.visual === 'not_started' ? 'not started' : s.visual;
     return { ...s, href, accessibleName: `${s.label} — ${stateWord}` };
   });

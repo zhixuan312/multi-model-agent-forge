@@ -1,6 +1,7 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { StageKind } from '@/db/enums';
 
 /**
@@ -84,4 +85,30 @@ export function useStageSubPhase(): string {
 /** Whether the active page exposes sub-phase navigation (so the chips become clickable). */
 export function useStageNavigable(): boolean {
   return useSyncExternalStore(stagePhaseStore.subscribe, stagePhaseStore.hasNavigator, () => false);
+}
+
+/**
+ * Publish the active sub-phase — to the stepper AND to the URL.
+ *
+ * Every project page reads `{stage}?phase={phase}`, so the phase must be in the URL
+ * from the first paint, not only after someone clicks a sub-phase chip. Landing on a
+ * stage used to give a bare `/reflect` until you interacted, which made the address
+ * bar disagree with the stepper and made a phase unlinkable.
+ *
+ * `replace`, not `push`: normalising the address you already asked for is not a
+ * separate history entry.
+ */
+export function useStagePhaseUrl(phase: string): void {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+
+  useEffect(() => { stagePhaseStore.set(phase); }, [phase]);
+
+  useEffect(() => {
+    if (!phase || params.get('phase') === phase) return;
+    const next = new URLSearchParams(params.toString());
+    next.set('phase', phase);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  }, [phase, params, pathname, router]);
 }

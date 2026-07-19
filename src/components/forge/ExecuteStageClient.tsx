@@ -31,7 +31,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
@@ -177,7 +177,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     },
   });
 
-  useEffect(() => stagePhaseStore.set(execPhase), [execPhase]);
+  useStagePhaseUrl(execPhase);
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {

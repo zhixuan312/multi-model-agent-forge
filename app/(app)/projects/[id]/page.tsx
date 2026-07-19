@@ -3,11 +3,10 @@ import { getProject } from '@/projects/projects-core';
 import { projectIndexTarget } from '@/projects/index-target';
 
 /**
- * Project index (Spec 3 flow 3 / Spec 7 F11) — redirect to the current stage via
- * the `STAGE_ROUTE` map, EXCEPT a `build`/`done`-phase project goes straight to
- * the build monitor (`/build`). For a fresh project this is `/explore`. The
- * layout already ran the visibility guard. In mock mode the redirect uses the
- * seeded project's phase/stage so clicking lands on the right stage.
+ * Project index — redirect to the current stage via the `STAGE_ROUTE` map; for a
+ * fresh project that is `/explore`. The layout already ran the visibility guard.
+ * (There is no `/build` special case: that segment was a redirect alias to
+ * `/execute` that nothing linked to, and it has been removed.)
  */
 export default async function ProjectIndexPage({
   params,

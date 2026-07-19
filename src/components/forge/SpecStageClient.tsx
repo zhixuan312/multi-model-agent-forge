@@ -32,7 +32,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { RoleChip } from '@/components/forge/RoleChip';
 import { useRouter } from 'next/navigation';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { showToast } from '@/components/ui/toast';
@@ -272,7 +272,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
   }, [phase, needsAutoDraft, autoDrafting, mma, props.projectId]);
 
   // Publish the live sub-phase to the stepper (Outline · Craft · Document).
-  useEffect(() => stagePhaseStore.set(phase), [phase]);
+  useStagePhaseUrl(phase);
   // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
   useEffect(
     () =>

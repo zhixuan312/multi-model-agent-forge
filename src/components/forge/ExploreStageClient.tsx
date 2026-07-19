@@ -29,7 +29,7 @@ import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { StageNavigator, type NavGroup, type NavItem } from '@/components/patterns/stage-navigator';
-import { stagePhaseStore } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
@@ -233,12 +233,10 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   // Publish the viewing sub-phase to the stepper (does NOT persist to DB — that's
   // done explicitly in "Continue to X" handlers via advancePhaseAndTransition).
-  useEffect(() => {
-    const sub = viewOverride
-      ? viewOverride
-      : phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
-    stagePhaseStore.set(sub);
-  }, [phase, viewOverride]);
+  const subPhase = viewOverride
+    ? viewOverride
+    : phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
+  useStagePhaseUrl(subPhase);
 
   const synthFired = useRef(false);
   useEffect(() => {

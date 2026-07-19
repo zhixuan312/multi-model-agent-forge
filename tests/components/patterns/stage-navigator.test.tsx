@@ -67,6 +67,34 @@ describe('StageNavigator', () => {
     expect(screen.getByText('Continue')).toBeInTheDocument();
   });
 
+  it('renders a rich node as the meta line (a status chip, not just text)', () => {
+    // Explore's rail puts the prompt in the title and the run status in the meta row, so
+    // meta has to carry an element rather than a string.
+    const groups: NavGroup[] = [{
+      id: 'g',
+      items: [{ id: '1', title: 'How is the backend configured?', meta: <span data-testid="chip">recorded</span> }],
+    }];
+    render(<StageNavigator title="Tasks" groups={groups} />);
+    expect(screen.getByTestId('chip')).toBeInTheDocument();
+    expect(screen.getByText('How is the backend configured?')).toBeInTheDocument();
+  });
+
+  it('centres the check tile against the title + meta stack', () => {
+    // The row is a two-column table: tile in one cell, the two-row stack in the other. The
+    // tile must centre against the stack, not pin to the first line.
+    const groups: NavGroup[] = [{ id: 'g', items: [{ id: '1', title: 'Two line title here', meta: 'status' }] }];
+    const { container } = render(<StageNavigator title="Tasks" groups={groups} showChecks />);
+    const row = container.querySelector('button.rounded-\\[var\\(--r-md\\)\\]') ?? container.querySelector('button');
+    expect(row?.className).toContain('items-center');
+    expect(row?.className).not.toContain('items-start');
+  });
+
+  it('clamps the title so rows keep a uniform height', () => {
+    const groups: NavGroup[] = [{ id: 'g', items: [{ id: '1', title: 'x'.repeat(400) }] }];
+    const { container } = render(<StageNavigator title="Tasks" groups={groups} />);
+    expect(container.querySelector('p.line-clamp-2')).not.toBeNull();
+  });
+
   it('shows an empty state when no group has items', () => {
     render(<StageNavigator title="Tasks" groups={[{ id: 'g', items: [] }]} />);
     expect(screen.getByText('No items yet.')).toBeInTheDocument();

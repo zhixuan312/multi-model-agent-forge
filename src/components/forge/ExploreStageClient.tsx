@@ -262,10 +262,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
-  // Grouped by kind — the rail's three clusters. The row TITLE is the prompt, because that
-  // is what distinguishes one task from another; the kind is the section header, so it is
-  // stated once instead of repeated on every row. Status shows only when it is not the
-  // norm: a ✓ tile already means recorded, so a "recorded" chip on every row is noise.
+  // Grouped by kind — the rail's three clusters, as a two-column row:
+  //   col 1  the check tile
+  //   col 2  row 1 = the prompt (which task this is), row 2 = its status
+  // The kind is the section header, stated once instead of repeated on every row. The status
+  // chip sits INLINE in the meta row; it read as noise before only because it was rendered
+  // full-width on a line of its own.
   const KIND_LABEL: Record<string, string> = {
     investigate: 'Investigate',
     research: 'Research',
@@ -284,7 +286,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
           return {
             id: t.id,
             title: t.prompt,
-            meta: failed ? 'failed' : done ? undefined : 'running…',
+            meta: (
+              <Badge size="sm" variant={failed ? 'rose' : done ? 'sage' : 'amber'} dot={!failed && !done}>
+                {failed ? 'failed' : done ? 'recorded' : 'running'}
+              </Badge>
+            ),
             index: i + 1,
             done,
             active: t.id === selectedTaskId,

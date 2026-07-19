@@ -89,7 +89,10 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
                   type="button"
                   onClick={it.onClick}
                   className={cn(
-                    'flex w-full gap-2.5 rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
+                    // Read the row as a two-column table: the tile is one cell, the title +
+                    // meta stack is the other. `items-center` centres the tile against that
+                    // whole stack instead of pinning it to the first line.
+                    'flex w-full items-center gap-2.5 rounded-[var(--r-md)] border p-2.5 text-left transition-colors',
                     isActive
                       ? 'border-accent bg-accent-tint/25 shadow-sm'
                       : isDone
@@ -100,7 +103,7 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
                   {showChecks ? (
                     <span
                       className={cn(
-                        'mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold transition-colors',
+                        'grid size-6 shrink-0 place-items-center rounded-[6px] text-[10px] font-semibold transition-colors',
                         isDone
                           ? 'bg-[var(--sage-deep)] text-white'
                           : isActive

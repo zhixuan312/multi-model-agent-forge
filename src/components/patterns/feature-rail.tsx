@@ -16,6 +16,8 @@ export interface RailNoteProps {
 
 export function RailNote({ icon, title, children, className }: RailNoteProps) {
   return (
+    // `items-start` deliberately: the note body runs to many lines, and an icon centred
+    // against a long block would float in the middle of the paragraph.
     <div className={cn('flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4', className)}>
       <span
         aria-hidden
@@ -88,8 +90,10 @@ export function RailStatus({ items, emptyText, live, className }: RailStatusProp
           items.map((t) => {
             const variant = TONE_VARIANT[t.tone ?? 'idle'] ?? 'neutral';
             return (
-              <div key={t.id} className="flex items-start gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
-                <Badge variant={variant} size="sm" className="mt-0.5 shrink-0">{t.status}</Badge>
+              // Two columns: the status badge is one cell, the label + detail stack the
+              // other, so the badge centres against the stack rather than pinning to line one.
+              <div key={t.id} className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 p-3">
+                <Badge variant={variant} size="sm" className="shrink-0">{t.status}</Badge>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-ink">{t.label}</p>
                   {t.detail ? <p className="truncate text-xs text-ink-soft">{t.detail}</p> : null}

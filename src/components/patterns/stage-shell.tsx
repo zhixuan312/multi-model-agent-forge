@@ -44,11 +44,17 @@ export function StageShell({ note, children, navigator, metrics, align, scroll, 
       // already is one, and a second would double-frame it.
       primary={children}
       // RIGHT — note above, then the navigator box (1/3).
+      // Only claim the 1/3 column when there is something to put in it. This used to be an
+      // unconditional fragment, which is truthy even when both slots are undefined, so
+      // StatusDashboard's full-width branch was unreachable and a rail-less page rendered an
+      // empty right third — the content ended up occupying about half the screen.
       aside={
-        <>
-          {note}
-          {navigator}
-        </>
+        note || navigator ? (
+          <>
+            {note}
+            {navigator}
+          </>
+        ) : undefined
       }
     />
   );

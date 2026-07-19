@@ -6,7 +6,6 @@ import { listLoops } from '@/loops/loops-core';
 import { listAllRuns } from '@/loops/runs-query';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { StageShell } from '@/components/patterns/stage-shell';
 import type { LoopRunRow } from '@/db/schema/loop';
 import { LoopsTabsNav } from '../LoopsTabsNav';
 import { RunHistoryView } from '../RunHistoryView';
@@ -57,25 +56,25 @@ export default async function RunHistoryPage({ searchParams }: { searchParams: P
 
   return (
     <PageFrame title="Loops" subnav={<LoopsTabsNav active="history" />} width="full" fill>
-      <StageShell
+      {/* ONE content shell per page: RunHistoryView renders its own, so wrapping it in a
+          second here split the layout twice and left an empty right third. The metrics row
+          is passed through to that shell instead. */}
+      <RunHistoryView
         metrics={[
           { label: 'Runs', value: runs.length, muted: runs.length === 0, sublabel: 'In view', icon: <History />, iconTint: 'accent' },
           { label: 'Changed', value: changed, muted: changed === 0, sublabel: 'Opened a PR', icon: <GitPullRequest />, iconTint: 'sage' },
           { label: 'Failed', value: failed, muted: failed === 0, sublabel: 'Need attention', icon: <CircleAlert />, iconTint: 'rose' },
           { label: 'Running', value: running, muted: running === 0, sublabel: 'In progress', icon: <Loader />, iconTint: 'steel' },
         ]}
-      >
-          <RunHistoryView
-            runs={runs}
-            loops={loops.map((l) => ({ id: l.id, name: l.name }))}
-            loopNames={loopNames}
-            repoNames={repoNames}
-            selectedId={selectedId}
-            loopId={loopId}
-            status={status}
-            note={<RailNote icon={<History />}>{HISTORY_NOTE}</RailNote>}
-          />
-      </StageShell>
+        runs={runs}
+        loops={loops.map((l) => ({ id: l.id, name: l.name }))}
+        loopNames={loopNames}
+        repoNames={repoNames}
+        selectedId={selectedId}
+        loopId={loopId}
+        status={status}
+        note={<RailNote icon={<History />}>{HISTORY_NOTE}</RailNote>}
+      />
     </PageFrame>
   );
 }

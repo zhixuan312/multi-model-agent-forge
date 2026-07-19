@@ -6,6 +6,7 @@ import { History } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Badge, Mono, Micro, EmptyState } from '@/components/ui';
 import { StageShell } from '@/components/patterns/stage-shell';
+import type { StatusDashboardProps } from '@/components/patterns/status-dashboard';
 import type { LoopRunRow } from '@/db/schema/loop';
 import { ActivityFilters } from './ActivityFilters';
 import { RunDetail } from './RunDetail';
@@ -26,6 +27,7 @@ export function RunHistoryView({
   loopId,
   status,
   note,
+  metrics,
 }: {
   runs: LoopRunRow[];
   loops: { id: string; name: string }[];
@@ -35,6 +37,8 @@ export function RunHistoryView({
   loopId?: string;
   status?: string;
   note?: ReactNode;
+  /** Metric row for this view's own shell — the page must not wrap this in a second one. */
+  metrics?: StatusDashboardProps['metrics'];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,6 +54,7 @@ export function RunHistoryView({
   return (
     <StageShell
       scroll="outer"
+      metrics={metrics}
       note={note}
       navigator={
         <>

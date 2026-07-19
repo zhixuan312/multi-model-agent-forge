@@ -96,6 +96,13 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
 
   return (
     <StageShell
+      // Six stacked cards, so the COLUMN scrolls past them — the same `outer` every other
+      // card-stacking page declares (usage, team settings, profile, run history). It used
+      // to sit on the default `inner`, which reserves the scroll for a single item that
+      // scrolls itself, and then hand-rolled `overflow-y-auto` on the grid to compensate —
+      // a scroller the column knew nothing about, so the panel never actually scrolled and
+      // the cards' hover bloom lost the clearance `scroll-pane` provides.
+      scroll="outer"
       note={<RailNote icon={<BookOpen />}>{SUMMARY_NOTE}</RailNote>}
       navigator={
         <>
@@ -150,7 +157,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
         </>
       }
     >
-      <StatCardGrid className="min-h-0 flex-1 content-start overflow-y-auto">
+      <StatCardGrid>
         <StatCard
           icon={<Clock />}
           title="Timeline"

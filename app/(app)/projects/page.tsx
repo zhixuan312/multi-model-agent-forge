@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, CircleAlert, Loader2, Lightbulb } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Sparkles, Hammer, AlertTriangle, Lightbulb } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
-import { PageFrame, buttonVariants, Card, CardContent, TextStrong, EmptyState } from '@/components/ui';
+import { PageFrame, buttonVariants, Card, CardContent, EmptyState } from '@/components/ui';
 import { ProjectFilterBar } from '@/components/forge/ProjectFilterBar';
-import { RailCard, RailNote } from '@/components/patterns/feature-rail';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { dashboardProjects, dashboardArchivedProjects, dashboardMetrics, type DashboardProject } from '@/dashboard/dashboard-core';
+import { dashboardProjects, dashboardArchivedProjects, dashboardMetrics } from '@/dashboard/dashboard-core';
 
 const PROJECTS_NOTE = `### The pipeline
 
@@ -23,13 +23,6 @@ const PROJECTS_NOTE = `### The pipeline
 - **Waiting for human** — a spec section or audit needs your decision
 - **Agents running** — live agent work across projects`;
 
-function attentionReason(p: DashboardProject): string {
-  if (p.awaitingHuman > 0) {
-    return `${p.awaitingHuman} spec section${p.awaitingHuman === 1 ? '' : 's'} await your review`;
-  }
-  return `spec audit has ${p.openAuditIssues} open finding${p.openAuditIssues === 1 ? '' : 's'}`;
-}
-
 export default async function ProjectsPage() {
   const me = await currentMember();
   if (!me) redirect('/login');
@@ -42,10 +35,6 @@ export default async function ProjectsPage() {
     dashboardArchivedProjects(actor),
   ]);
   const metrics = dashboardMetrics(projects);
-
-  const attention = projects.filter((p) => p.awaitingHuman > 0 || p.openAuditIssues > 0);
-  const running = projects.filter((p) => p.agentsRunning > 0);
-  const totalAgents = running.reduce((s, p) => s + p.agentsRunning, 0);
 
   const newProject = (
     <Link href="/projects/new" className={buttonVariants({ variant: 'primary' })}>
@@ -70,38 +59,12 @@ export default async function ProjectsPage() {
     </Card>
   );
 
-  const aside = (
-    <>
-      {attention.length > 0 ? (
-        <RailCard title="Needs your attention" badge={attention.length}>
-          <ul className="flex flex-col">
-            {attention.map((p) => (
-              <li key={p.id}>
-                <a
-                  href={`/projects/${p.id}`}
-                  className="focus-ring flex gap-2.5 border-t border-line py-2.5 text-sm leading-snug text-ink-soft transition-colors first:border-t-0 first:pt-0 hover:text-ink"
-                >
-                  <CircleAlert className="mt-px size-[15px] shrink-0 text-amber" aria-hidden />
-                  <span className="min-w-0">
-                    <TextStrong as="span" className="!text-ink">{p.name}</TextStrong> — {attentionReason(p)}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </RailCard>
-      ) : null}
-      {totalAgents > 0 ? (
-        <RailCard title="Agent activity">
-          <div className="flex items-center gap-2.5 text-sm text-ink-soft">
-            <Loader2 className="size-[15px] shrink-0 animate-spin text-amber" aria-hidden />
-            <span><TextStrong as="span" className="!text-ink">{totalAgents}</TextStrong> agent{totalAgents === 1 ? '' : 's'} running</span>
-          </div>
-        </RailCard>
-      ) : null}
-      <RailNote icon={<Lightbulb />}>{PROJECTS_NOTE}</RailNote>
-    </>
-  );
+  // The rail note goes in StageShell's `note` slot so it sits at the TOP of the right
+  // column, as on every other page. It used to trail the cards inside `navigator`, which
+  // both put it at the bottom and made it the rail's last child — the slot the shell grows.
+  const railNote = <RailNote icon={<Lightbulb />}>{PROJECTS_NOTE}</RailNote>;
+
+
 
   return (
     <PageFrame title="Projects" actions={newProject} width="full" fill>
@@ -113,7 +76,7 @@ export default async function ProjectsPage() {
           { label: 'Build', value: metrics.inBuild, muted: metrics.inBuild === 0, sublabel: 'Shipping', icon: <Hammer />, iconTint: 'steel' },
           { label: 'Audit issues', value: metrics.auditIssues, muted: metrics.auditIssues === 0, sublabel: 'Open findings', icon: <AlertTriangle />, iconTint: 'rose' },
         ]}
-        navigator={aside}
+        note={railNote}
       >
         {primary}
       </StageShell>

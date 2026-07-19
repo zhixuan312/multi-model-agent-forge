@@ -84,7 +84,7 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
     affordances: [
       { id: 'stageFlow', label: 'Stage flow (project only)', canonicalComponent: 'StageStepper', canonicalFilePath: 'src/components/forge/StageStepper.tsx', defaultOn: true },
       { id: 'metrics', label: 'Metrics row', canonicalComponent: 'MetricRow', canonicalFilePath: 'src/components/ui/metric-card.tsx', defaultOn: true },
-      { id: 'rail', label: 'Right panel', canonicalComponent: 'feature-rail (RailNote / RailCard)', canonicalFilePath: 'src/components/patterns/feature-rail.tsx', defaultOn: true },
+      { id: 'rail', label: 'Right panel', canonicalComponent: 'feature-rail (RailNote)', canonicalFilePath: 'src/components/patterns/feature-rail.tsx', defaultOn: true },
     ],
     consumers: [
       // StageShell is the master-detail PRESET of this split: it declares `primary` as the
@@ -203,19 +203,6 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'spec-components', label: 'Project › Spec › components', filePath: 'src/components/forge/SpecStageClient.tsx' }, // no header bulk action
       { id: 'journal-learnings', label: 'Project › Journal › learnings', filePath: 'src/components/forge/JournalStageClient.tsx' }, // flat (no section headers)
       { id: 'execute-repos', label: 'Project › Execute › repos', filePath: 'src/components/forge/ExecuteStageClient.tsx' }, // no header action / check tiles
-    ],
-  },
-  {
-    id: 'railCard',
-    label: 'Rail card',
-    canonicalComponent: 'RailCard',
-    canonicalFilePath: 'src/components/patterns/feature-rail.tsx',
-    affordances: [
-      { id: 'badge', label: 'Count badge', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
-    ],
-    consumers: [
-      { id: 'projects-attention', label: 'Projects › Needs your attention', filePath: 'app/(app)/projects/page.tsx' },
-      { id: 'projects-activity', label: 'Projects › Agent activity', filePath: 'app/(app)/projects/page.tsx' },
     ],
   },
   {

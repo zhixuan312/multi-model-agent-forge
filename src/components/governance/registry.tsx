@@ -293,7 +293,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     slotId: 'rightPanel',
     label: 'Right panel',
     group: 'structural',
-    canonicalComponent: 'feature-rail (RailNote / RailCard / RailStatus)',
+    canonicalComponent: 'feature-rail (RailNote / RailStatus)',
     canonicalFilePath: 'src/components/patterns/feature-rail.tsx',
     knobs: GOVERNANCE_KNOBS.rightPanel,
     defaultLocked: true,

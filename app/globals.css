@@ -414,19 +414,6 @@ body {
  * (Card, MetricCard, table panels …). To use a truer red, swap `--accent` for
  * `--rose` in the values below.
  * ───────────────────────────────────────────────────────────────────────── */
-/* A scroll region that does not clip the cards inside it.
-   A scroll container clips on EVERY side, so a card flush against one loses part of its
-   hover bloom. These are the shadow's real reach (`0 10px 30px -8px` → 7px sideways, ~0 up,
-   17px down) turned into clearance: the pull-out stays UNDER the 16px grid gap so the
-   scroller can never overlap what sits above it, and the bottom is padding only, which just
-   extends the scroll content. Owned here so every scroller gets it — do not re-spell it. */
-@utility scroll-pane {
-  min-height: 0;
-  overflow-y: auto;
-  margin: -0.75rem -0.75rem 0 -0.75rem;
-  padding: 0.75rem 0.75rem 1.5rem 0.75rem;
-}
-
 /* Scrollbars are hidden everywhere — panels still scroll (wheel, trackpad, keyboard,
    drag), only the visual bar is suppressed. Declared inside `@layer base` so Tailwind v4
    keeps it: raw top-level rules with vendor pseudo-elements were being pruned. */

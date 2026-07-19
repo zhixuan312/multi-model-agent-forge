@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { Badge, Card, CardContent, Eyebrow } from '@/components/ui';
+import { Badge, Eyebrow } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
 
 export function FeatureRail({ children, className }: { children: ReactNode; className?: string }) {
@@ -18,7 +18,14 @@ export function RailNote({ icon, title, children, className }: RailNoteProps) {
   return (
     // `items-start` deliberately: the note body runs to many lines, and an icon centred
     // against a long block would float in the middle of the paragraph.
-    <div className={cn('flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4', className)}>
+    // `data-rail-note` marks this as GUIDANCE, not a panel. The Content Shell fills its
+    // rail's last child so the right panel reaches the bottom; a note must never be that
+    // child — stretched, it becomes a huge tinted block of empty space under three lines
+    // of text. It always wraps its own content.
+    <div
+      data-rail-note
+      className={cn('flex shrink-0 items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4', className)}
+    >
       <span
         aria-hidden
         className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent [&>svg]:size-5"
@@ -30,27 +37,6 @@ export function RailNote({ icon, title, children, className }: RailNoteProps) {
         <ProseBlock variant="rail">{children}</ProseBlock>
       </div>
     </div>
-  );
-}
-
-export interface RailCardProps {
-  title: string;
-  badge?: number;
-  children: ReactNode;
-  className?: string;
-}
-
-export function RailCard({ title, badge, children, className }: RailCardProps) {
-  return (
-    <Card className={className}>
-      <CardContent>
-        <div className="flex items-center gap-2">
-          <Eyebrow as="h3" className="text-ink-faint">{title}</Eyebrow>
-          {badge != null && badge > 0 ? <Badge variant="amber" size="sm">{badge}</Badge> : null}
-        </div>
-        <div className="mt-2.5">{children}</div>
-      </CardContent>
-    </Card>
   );
 }
 

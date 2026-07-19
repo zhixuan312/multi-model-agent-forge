@@ -3,7 +3,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Check, GitBranch, Loader2, RotateCcw, Shield } from 'lucide-react';
 import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui';
-import { RailCard } from '@/components/patterns/feature-rail';
 import { StageNavigator, type NavGroup } from '@/components/patterns/stage-navigator';
 import { AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { StageAdvance } from '@/components/forge/StageAdvance';
@@ -182,15 +181,6 @@ function CardListDemo({ on }: { on: ReadonlySet<string> }) {
  *  RIGHT_PANEL_VARIANTS. `on` is the set of governed affordances switched on. */
 const RENDERS: Record<string, (on: ReadonlySet<string>) => ReactNode> = {
   navigator: (on) => <NavigatorDemo on={on} />,
-
-  // A titled RailCard with an optional count badge.
-  railCard: (on) => (
-    <div className="max-w-sm">
-      <RailCard title="Needs your attention" badge={on.has('badge') ? 3 : undefined}>
-        <p className="text-sm text-ink-soft">A titled rail card with an optional count badge and body content.</p>
-      </RailCard>
-    </div>
-  ),
 
   // The generic Card-list panel (Plan Validate / Review / Spec Finalize): header action ·
   // scrollable card list · gated advance footer. Demoed via the audit-run lifecycle.

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { SCROLL_PANE } from '@/components/patterns/status-dashboard';
 import {
   EmptyState,
   Separator,
@@ -151,7 +152,7 @@ export function ProjectFilterBar({
         ) : null}
       </Toolbar>
 
-      <div className="scroll-pane flex-1">
+      <div className={cn(SCROLL_PANE, 'flex-1')}>
         {shown.length === 0 ? (
           <EmptyState
             icon={<Search />}

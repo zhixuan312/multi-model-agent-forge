@@ -37,7 +37,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { showToast } from '@/components/ui/toast';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
-import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
   Card,
@@ -109,9 +109,9 @@ interface SpecStageClientProps {
   specApprovers?: string[];
   /** URL-persisted initial phase (outline/craft/document). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
-  autoMode?: boolean;
-  autoNote?: string;
   readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
+  lockedReason?: string;
 }
 
 type SpecPhase = 'outline' | 'craft' | 'finalize';
@@ -172,6 +172,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 export function SpecStageClient(props: SpecStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
   // Components are client-owned (plain useState), NOT RSC-synced. A `router.refresh()`
   // (needed after an advance so the server-rendered layout stepper updates) must not reset
   // this list to a stale RSC snapshot — the "No components yet" blank-view bug. Every
@@ -181,7 +182,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [messages] = useServerState(props.initialMessages ?? {});
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
-  const auto: AutoMode = props.autoMode ? 'running' : 'off';
   // Intent carried forward from the Exploration brief (no longer hand-typed here).
   const [intent] = useState(props.intentMd ?? '');
   const [picked, setPicked] = useState<Set<ComponentKind>>(
@@ -305,8 +305,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
       {error ? <TextSm className="shrink-0 !text-[var(--rose)]">{error}</TextSm> : null}
 
       <AutomationBar
-        mode={props.autoMode ? "running" : "off"}
-        note={props.autoNote ?? ""}
         disabled={readOnly || phase !== 'finalize'}
         idleHint={
           phase === 'finalize'
@@ -314,6 +312,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
             : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
         }
         projectId={props.projectId}
+        lockedReason={lockedReason}
       />
 
       {/* BODY — every phase carries its own rails; no top status row. */}
@@ -379,7 +378,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           initialAuditHistory={props.initialAuditHistory}
           voiceEnabled={props.voiceEnabled ?? false}
           pendingApply={props.pendingApply}
-          driving={auto === 'running'}
           mma={mma}
           currentMember={props.currentMember}
           projectMembers={props.projectMembers ?? []}
@@ -585,12 +583,19 @@ function OutlineStage({
             </div>
           </CardContent>
           <CardFooter>
-            <StageAdvance
+            {/* Outline→Craft is a PHASE advance inside Spec, so it's the accent Button its
+                peers use ("Continue to Finalize" / "Validate" / "Implement") — not the ink
+                StageAdvance, which is reserved for crossing a stage boundary. */}
+            <Button
+              className="w-full"
               onClick={() => (alreadyConfirmed ? onGoToCraft() : confirm.mutate())}
-              label={confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
-              disabled={readOnly || (!alreadyConfirmed && !valid) || confirm.isPending}
-              testId="outline-continue"
-            />
+              disabled={readOnly || (!alreadyConfirmed && !valid)}
+              loading={confirm.isPending}
+              rightIcon={<ArrowRight />}
+              data-testid="outline-continue"
+            >
+              {confirm.isPending ? 'Drafting…' : 'Continue to Craft'}
+            </Button>
           </CardFooter>
         </Card>
         </>
@@ -1448,7 +1453,6 @@ function DocumentScreen({
   initialAuditHistory: AuditPassView[];
   voiceEnabled: boolean;
   pendingApply?: string | null;
-  driving: boolean;
   mma: MmaDispatchState;
   currentMember: MemberRef;
   projectMembers: MemberRef[];
@@ -1650,6 +1654,8 @@ function DocumentScreen({
         tabs={spec ? FINALIZE_TABS : undefined}
         activeTab={docView}
         onTabChange={(v) => setDocView(v as 'document' | 'conversation')}
+        // Only the findings grid is edge-to-edge; the empty state keeps the inset.
+        flush={docView !== 'document' && rounds.length > 0 && Boolean(activeRound)}
         approvers={
           // Participants strip — unique members from spec with approval state.
           (() => {

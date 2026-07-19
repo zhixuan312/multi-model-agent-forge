@@ -60,9 +60,9 @@ export interface ReviewStageClientProps {
   reviewRunning: boolean;
   applyRunning: boolean;
   buildPrs?: Record<string, { url: string; branch: string; targetBranch: string }>;
-  autoMode?: boolean;
-  autoNote?: string;
   readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
+  lockedReason?: string;
 }
 
 function toFinding(f: ReviewFindingView): Finding {
@@ -74,6 +74,7 @@ function toFinding(f: ReviewFindingView): Finding {
 export function ReviewStageClient(props: ReviewStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
 
   useEffect(() => { stagePhaseStore.set('review'); }, []);
 
@@ -99,8 +100,6 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
       .finally(() => setReviewingLocal(false));
   }
 
-  const auto: 'off' | 'running' = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
 
   const activePass = props.passes.find((p) => p.passNo === activePassNo);
   const isViewingPast = activePass && activePass.passNo < props.passes.length;
@@ -137,10 +136,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
         projectId={props.projectId}
-        mode={auto}
-        note={autoNote}
         disabled={readOnly}
         idleHint="Review the code changes, or let Forge run the review automatically."
+        lockedReason={lockedReason}
       />
     <StageShell
       note={<RailNote icon={<ScanSearch />}>{REVIEW_NOTE}</RailNote>}
@@ -228,6 +226,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         title={`${props.projectName} — review`}
+        flush={Boolean(activePass && activePass.findings.length > 0)}
         meta={
           !activePass ? (
             <Badge variant={reviewing ? 'accent' : 'neutral'} size="sm">{reviewing ? 'reviewing' : 'no review yet'}</Badge>
@@ -267,17 +266,15 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               <p className="text-center text-xs text-ink-faint">10 categories checked — no merge-blocking issues.</p>
             </div>
           ) : (
-            <div className="-mx-5 -my-5">
-              <FindingsGrid
-                findings={activePass.findings.map(toFinding)}
-                selectable={!isViewingPast}
-                selectedIndices={selectedFindings}
-                onToggle={toggleFinding}
-                applying={applying}
-                applied={allApplied}
-                readOnly={readOnly}
-              />
-            </div>
+            <FindingsGrid
+              findings={activePass.findings.map(toFinding)}
+              selectable={!isViewingPast}
+              selectedIndices={selectedFindings}
+              onToggle={toggleFinding}
+              applying={applying}
+              applied={allApplied}
+              readOnly={readOnly}
+            />
           )
         }
         footer={

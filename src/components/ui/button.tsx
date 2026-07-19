@@ -18,6 +18,10 @@ export const buttonVariants = cva(
           'bg-accent text-white shadow-sm hover:bg-accent-deep hover:shadow [text-shadow:0_1px_0_rgba(0,0,0,0.08)]',
         secondary:
           'border border-line-strong bg-surface text-ink shadow-sm hover:border-ink-faint hover:bg-surface-2',
+        // The full-width dark CTA that ends a stage ("Continue to Spec", "Mark
+        // complete"). Distinct from `primary` on purpose: accent is for actions
+        // inside a stage, ink is for leaving it.
+        solid: 'bg-ink text-white shadow-sm hover:bg-ink/90 disabled:bg-ink/30 disabled:text-white/50 disabled:opacity-100',
         subtle: 'bg-surface-2 text-ink hover:bg-bg-sunk',
         ghost: 'text-ink-soft hover:bg-surface-2 hover:text-ink',
         danger: 'bg-rose text-white shadow-sm hover:brightness-95',

@@ -8,7 +8,6 @@ import {
   GitCommit,
   BookOpen,
   Check,
-  Loader2,
   AlertTriangle,
 } from 'lucide-react';
 import {
@@ -18,6 +17,7 @@ import {
   CardContent,
   Badge,
 } from '@/components/ui';
+import { StageAdvance } from '@/components/forge/StageAdvance';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { cn } from '@/lib/cn';
@@ -170,22 +170,18 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
             )}
           </CardContent>
           <div className="mt-auto shrink-0 border-t border-line px-5 py-4">
-            {summary.completedAt ? (
-              <div className="flex items-center justify-center gap-2 rounded-[var(--r)] bg-sage-tint px-4 py-2.5 text-sm font-medium text-[var(--sage-deep)]">
-                <Check className="size-4" />
-                Project complete
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={onMarkComplete}
-                disabled={readOnly || completing}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] bg-ink px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink/90 disabled:pointer-events-none disabled:bg-ink/30 disabled:text-white/50"
-              >
-                {completing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                {completing ? 'Completing...' : 'Mark complete'}
-              </button>
-            )}
+            {/* Completing the project is the last and most irreversible transition in the
+                flow, so it wears the padlock like every other gated stage advance — and once
+                it's done it stays the SAME control, spent and disabled. It used to become a
+                bespoke green "Project complete" banner, which is a shape the advance slot
+                doesn't declare. */}
+            <StageAdvance
+              label={summary.completedAt ? 'Completed' : completing ? 'Completing…' : 'Mark complete'}
+              gate
+              busy={completing}
+              disabled={readOnly || Boolean(summary.completedAt)}
+              onClick={onMarkComplete}
+            />
           </div>
         </Card>
         </>

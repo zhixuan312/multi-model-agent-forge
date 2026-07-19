@@ -81,7 +81,8 @@ interface ExploreStageClientProps {
   initialArtifact: { id: string; version: number; bodyMd: string } | null;
   repoOptions: { id: string; name: string }[];
   voiceEnabled: boolean;
-  canMutate?: boolean;
+  readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
   lockedReason?: string;
   pendingHandlers?: string[];
   initialPhase?: 'brief' | 'discover' | 'synthesize';
@@ -90,7 +91,9 @@ interface ExploreStageClientProps {
 export function ExploreStageClient(props: ExploreStageClientProps) {
   const qc = useQueryClient();
   useProjectEvents(props.projectId);
-  const locked = props.canMutate === false;
+  const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
+  const locked = readOnly;
 
   // Seed the live caches from RSC first paint.
   if (qc.getQueryData(explorationKeys.tasks(props.projectId)) === undefined) {
@@ -307,10 +310,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <AutomationBar
-        mode="off"
-        note=""
         disabled
         idleHint="Automation unlocks once the spec is set — Design stages are hand-authored."
+        lockedReason={lockedReason}
       />
 
       {error ? (

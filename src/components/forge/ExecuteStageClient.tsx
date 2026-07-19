@@ -32,7 +32,7 @@ import {
   SelectItem,
 } from '@/components/ui';
 import { stagePhaseStore } from '@/components/forge/stage-substeps';
-import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
@@ -66,9 +66,9 @@ export interface ExecuteStageClientProps {
   projectId: string;
   projectName: string;
   phase?: ProjectPhase;
-  autoMode?: boolean;
-  autoNote?: string;
   readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
+  lockedReason?: string;
   repoGroups: RepoGroup[];
   buildPrs: Record<string, { url: string; branch: string; targetBranch: string }>;
   terminalResults?: Record<string, RepoTerminalResult>;
@@ -106,6 +106,7 @@ function progressPct(status: RepoJobStatus): number {
 export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPhase?: ExecutePhase }) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
   const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
@@ -127,8 +128,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     () => Object.fromEntries(props.repoGroups.map((g) => [g.repoId, g.targetBranch])),
   );
   const [dispatching, setDispatching] = useState(false);
-  const auto: AutoMode = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
 
   // Monitor state — seed from terminal results if available
   const [jobs, setJobs] = useState<Record<string, RepoJobState>>(() =>
@@ -224,10 +223,9 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="execute-stage">
       <AutomationBar
         projectId={props.projectId}
-        mode={auto}
-        note={autoNote}
         disabled={readOnly}
         idleHint="Pick target branches and start execution, or let Forge drive."
+        lockedReason={lockedReason}
       />
 
       {execPhase === 'configure' ? (

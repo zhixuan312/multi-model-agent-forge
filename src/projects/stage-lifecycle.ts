@@ -16,7 +16,8 @@ export interface ComputedStageView {
   isCurrent: boolean;
 }
 
-const STAGE_LABEL: Record<StageKind, string> = {
+/** The canonical display name per stage — note `journal` reads as "Reflect" in the UI. */
+export const STAGE_LABEL: Record<StageKind, string> = {
   exploration: 'Explore',
   spec: 'Spec',
   plan: 'Plan',

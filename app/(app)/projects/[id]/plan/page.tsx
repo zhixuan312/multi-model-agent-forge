@@ -36,7 +36,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
     ? (phaseParam as PlanPhase)
     : lastPhase ?? undefined;
   const [proj] = await db
-    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase, autoMode: project.autoMode, autoNote: project.autoNote })
+    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
     .from(project)
     .where(eq(project.id, id))
     .limit(1);
@@ -87,9 +87,8 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       pendingAudit={pendingAudit}
       pendingApply={pendingApply}
       initialPhase={initialPhase}
-      autoMode={proj.autoMode}
-      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.plan.canMutate}
+      lockedReason={perms.plan.reason}
     />
   );
 }

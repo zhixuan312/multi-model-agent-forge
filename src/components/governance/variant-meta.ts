@@ -113,30 +113,69 @@ export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'flow',
     label: 'Flow',
+    // Stage flow lives in the PROJECT SHELL, not in any page: the layout renders the stepper
+    // above every project route, so all six stages inherit it. The pages themselves only
+    // supply the automation bar and their advance.
     canonicalComponent: 'StageStepper + StageAdvance',
     canonicalFilePath: 'src/components/forge/StageStepper.tsx',
-    consumers: [{ id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' }],
+    consumers: [
+      { id: 'project-layout', label: 'Project layout (every project route)', filePath: 'app/(app)/projects/[id]/layout.tsx' },
+      { id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' },
+    ],
   },
   {
     id: 'stepper',
     label: 'Stepper',
     canonicalComponent: 'StageStepper',
     canonicalFilePath: 'src/components/forge/StageStepper.tsx',
-    consumers: [{ id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' }],
+    consumers: [
+      { id: 'project-layout', label: 'Project layout (every project route)', filePath: 'app/(app)/projects/[id]/layout.tsx' },
+      { id: 'live-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' },
+    ],
   },
   {
     id: 'advance',
     label: 'Advance button',
-    canonicalComponent: 'StageAdvance (stage) · Button primary (phase)',
+    // Two forms of the same affordance, and one modifier:
+    //   `StageAdvance` (black) crosses a STAGE boundary; a primary Button (terracotta)
+    //   crosses a PHASE boundary inside a stage; `gate` adds the padlock to a stage advance
+    //   that commits something irreversible — Plan→Execute, Execute→Review, Review→Reflect
+    //   and "Mark complete", which ends the project.
+    // Anything not previewed on this page must not appear in a stage client.
+    canonicalComponent: 'StageAdvance (stage · optional gate) · Button primary (phase)',
     canonicalFilePath: 'src/components/forge/StageAdvance.tsx',
-    consumers: [{ id: 'stage-phase-advances', label: 'Project stage / phase advances', filePath: 'src/components/forge/StageAdvance.tsx' }],
+    consumers: [
+      { id: 'explore-advance', label: 'Project › Explore', filePath: 'src/components/forge/ExploreStageClient.tsx' },
+      { id: 'spec-advance', label: 'Project › Spec', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'plan-advance', label: 'Project › Plan', filePath: 'src/components/forge/PlanStageClient.tsx' },
+      { id: 'execute-advance', label: 'Project › Execute', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
+      { id: 'review-advance', label: 'Project › Review', filePath: 'src/components/forge/ReviewStageClient.tsx' },
+      { id: 'journal-advance', label: 'Project › Journal (phase advance)', filePath: 'src/components/forge/JournalStageClient.tsx' },
+      { id: 'summary-advance', label: 'Project › Journal › Summary (gated — completes the project)', filePath: 'src/components/forge/SummaryPhase.tsx' },
+    ],
   },
   {
     id: 'automation',
     label: 'Automation bar',
+    // One strip, five states — idle · idle-disabled · locked · starting · driving · viewing —
+    // all previewed on this page. The stage clients render the first three; AutomationOverlay
+    // renders the rest by passing `state`, rather than hand-rolling a copy of the markup.
+    //
+    // It is also the automation TOGGLE, with one source of truth (`useAutomationRunning`, in
+    // AutomationGate): "Run automated" swaps the whole project shell to the cool `build`
+    // palette and hands over to Forge; "Stop & take over" swaps it back to warm `design` and
+    // returns the stage. Both edges are optimistic, so palette and overlay always flip together.
     canonicalComponent: 'AutomationBar',
     canonicalFilePath: 'src/components/forge/AutomationBar.tsx',
-    consumers: [{ id: 'automation-bar', label: 'Project stage automation', filePath: 'src/components/forge/AutomationBar.tsx' }],
+    consumers: [
+      { id: 'explore-automation', label: 'Project › Explore', filePath: 'src/components/forge/ExploreStageClient.tsx' },
+      { id: 'spec-automation', label: 'Project › Spec', filePath: 'src/components/forge/SpecStageClient.tsx' },
+      { id: 'plan-automation', label: 'Project › Plan', filePath: 'src/components/forge/PlanStageClient.tsx' },
+      { id: 'execute-automation', label: 'Project › Execute', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
+      { id: 'review-automation', label: 'Project › Review', filePath: 'src/components/forge/ReviewStageClient.tsx' },
+      { id: 'journal-automation', label: 'Project › Journal', filePath: 'src/components/forge/JournalStageClient.tsx' },
+      { id: 'overlay-automation', label: 'Automation overlay (starting · driving · viewing)', filePath: 'src/components/forge/AutomationOverlay.tsx' },
+    ],
   },
 ];
 
@@ -321,8 +360,11 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       {
         id: 'audit',
         label: 'Audit',
+        // No approvers row and no approve action: nothing on this tab is approvable — it's a
+        // findings list you select from and apply fixes from. DocumentShell now renders both
+        // only on the document tab, so a consumer can't leak them here (Spec › Finalize used
+        // to, because it passed them at the shell level and the shell ignored the tab).
         affordances: [
-          { id: 'approvers', label: 'Approvers row', canonicalComponent: 'ParticipantStrip', canonicalFilePath: 'src/components/forge/collab/Participants.tsx', defaultOn: true },
           { id: 'multiSelect', label: 'Multiple select', canonicalComponent: 'FindingsGrid (selectable)', canonicalFilePath: 'src/components/patterns/findings.tsx', defaultOn: true },
           { id: 'applyBar', label: 'Apply findings bar', canonicalComponent: 'FindingsApplyBar', canonicalFilePath: 'src/components/patterns/findings.tsx', defaultOn: true },
         ],

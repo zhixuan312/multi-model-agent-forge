@@ -84,7 +84,7 @@ export default async function ExploreStagePage({
       initialArtifact={artifact}
       repoOptions={repos}
       voiceEnabled={voiceEnabled}
-      canMutate={perms.explore.canMutate}
+      readOnly={!perms.explore.canMutate}
       lockedReason={perms.explore.reason}
       pendingHandlers={pendingHandlers}
       initialPhase={initialPhase}

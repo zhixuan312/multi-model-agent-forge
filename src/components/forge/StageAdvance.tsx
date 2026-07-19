@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Lock } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import { Button } from '@/components/ui/button';
 import type { StageKind } from '@/db/enums';
 
 // The stage-to-stage advance is a unified transition: spec/plan sign off via
@@ -24,6 +24,7 @@ export function StageAdvance({
   label,
   disabled = false,
   gate = false,
+  busy: busyProp = false,
   projectId,
   from,
   testId,
@@ -33,12 +34,15 @@ export function StageAdvance({
   label: string;
   disabled?: boolean;
   gate?: boolean;
+  /** Caller-driven pending state, for an advance that runs work of its own first. */
+  busy?: boolean;
   projectId?: string;
   from?: StageKind;
   testId?: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busyLocal, setBusyLocal] = useState(false);
+  const busy = busyLocal || busyProp;
   const [err, setErr] = useState<string | null>(null);
 
   async function handleClick() {
@@ -46,7 +50,7 @@ export function StageAdvance({
     if (!href) return;
 
     if (projectId && from) {
-      setBusy(true);
+      setBusyLocal(true);
       setErr(null);
       try {
         const res = await fetch(`/api/projects/${projectId}/transition`, {
@@ -61,33 +65,34 @@ export function StageAdvance({
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
           setErr(d.error ?? 'Cannot advance yet.');
-          setBusy(false);
+          setBusyLocal(false);
           return;
         }
       } catch {
         setErr('Network error — try again.');
-        setBusy(false);
+        setBusyLocal(false);
         return;
       }
-      setBusy(false);
+      setBusyLocal(false);
     }
 
     router.push(href);
     router.refresh();
   }
 
-  const cls = cn(
-    'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-    disabled || busy ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-ink text-white hover:bg-ink/90',
-  );
-
   return (
     <div className="flex w-full flex-col gap-1.5">
-      <button type="button" onClick={handleClick} disabled={disabled || busy} className={cls} data-testid={testId}>
-        {gate ? <Lock aria-hidden="true" className="size-4" /> : null}
+      <Button
+        variant="solid"
+        fullWidth
+        onClick={handleClick}
+        disabled={disabled || busy}
+        leftIcon={gate ? <Lock /> : undefined}
+        rightIcon={<ArrowRight />}
+        data-testid={testId}
+      >
         {busy ? 'Advancing…' : label}
-        <ArrowRight aria-hidden="true" className="size-4" />
-      </button>
+      </Button>
       {err ? <p className="text-center text-xs text-[var(--rose-deep)]">{err}</p> : null}
     </div>
   );

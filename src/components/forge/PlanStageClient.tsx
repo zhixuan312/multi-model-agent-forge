@@ -16,7 +16,7 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { AutomationBar, type AutoMode } from '@/components/forge/AutomationBar';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -111,9 +111,9 @@ export interface PlanStageClientProps {
   pendingAudit?: string | null;
   pendingApply?: string | null;
   initialPhase?: 'refine' | 'validate';
-  autoMode?: boolean;
-  autoNote?: string;
   readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
+  lockedReason?: string;
 }
 
 let _id = 0;
@@ -122,6 +122,7 @@ const nid = () => `pm${_id++}`;
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
   const [phases] = useServerState(props.phases);
   const allTasks = useMemo(() => phases.flatMap((p) => p.tasks), [phases]);
 
@@ -186,8 +187,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
     () => new Set((props.auditApplied ?? []).flatMap((v, i) => v ? [i + 1] : [])),
   );
 
-  const auto: AutoMode = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
   // Sync MMA-dispatch effects (author/audit/apply) resolve their POST on completion,
@@ -301,9 +300,8 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
       <AutomationBar
         projectId={props.projectId}
-        mode={auto}
-        note={autoNote}
         disabled={readOnly || locked}
+        lockedReason={lockedReason}
       />
 
       {phase === 'refine' ? (
@@ -312,7 +310,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
           phases={phases}
           status={status}
           readOnly={readOnly}
-          driving={auto === 'running'}
           authoring={authoring}
           voiceEnabled={props.voiceEnabled}
           approvedCount={approvedCount}
@@ -343,7 +340,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
           planMd={props.planMd}
           readOnly={readOnly}
           mmaReady={props.mmaReady}
-          driving={auto === 'running'}
           auditing={auditing}
           applying={applying}
           applyingPass={applyingPass}
@@ -376,7 +372,6 @@ function DetailStage({
   phases,
   status,
   readOnly,
-  driving,
   authoring,
   voiceEnabled,
   approvedCount,
@@ -392,7 +387,6 @@ function DetailStage({
   phases: PlanPhaseSeed[];
   status: Record<string, TaskStatus>;
   readOnly: boolean;
-  driving: boolean;
   authoring?: boolean;
   voiceEnabled?: boolean;
   approvedCount: number;
@@ -789,7 +783,7 @@ function DetailStage({
               onChange={setInput}
               onSend={send}
               placeholder="@Forge to refine this task..."
-              disabled={readOnly || driving || (active != null && refiningTasks.has(active.id))}
+              disabled={readOnly || (active != null && refiningTasks.has(active.id))}
               voice={voiceEnabled ?? false}
               mentionPool={forgeMentionPool}
             />
@@ -822,7 +816,6 @@ function ValidateStage({
   planMd: string;
   readOnly: boolean;
   mmaReady: boolean;
-  driving: boolean;
   auditing?: boolean;
   applying: boolean;
   applyingPass: number | null;
@@ -936,6 +929,8 @@ function ValidateStage({
         tabs={VALIDATE_TABS}
         activeTab={docView}
         onTabChange={(v) => setDocView(v as 'document' | 'audit')}
+        // Only the findings grid is edge-to-edge; the empty state keeps the inset.
+        flush={docView === 'audit' && Boolean(activeRound)}
         body={
           <>
             {docView === 'document' && planMd ? (

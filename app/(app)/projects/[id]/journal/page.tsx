@@ -139,9 +139,8 @@ export default async function JournalStagePage({ params, searchParams }: { param
       projectMembers={projectMembers}
       summary={summary}
       initialPhase={initialPhase}
-      autoMode={proj.autoMode}
-      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.journal.canMutate}
+      lockedReason={perms.journal.reason}
     />
   );
 }

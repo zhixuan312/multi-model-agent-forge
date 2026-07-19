@@ -7,7 +7,6 @@ import { useProjectEvents } from '@/hooks/useProjectEvents';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import {
   Bot,
-  Square,
   Loader2,
   Check,
   AlertTriangle,
@@ -23,7 +22,6 @@ import {
 import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
 import {
-  Button,
   Card,
   CardHeader,
   CardTitle,
@@ -33,6 +31,7 @@ import {
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { AutomationBar } from '@/components/forge/AutomationBar';
 
 const AUTOMATION_NOTE = `### What is this?
 
@@ -305,30 +304,15 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      {/* Automation / activity bar */}
-      <div className={cn('flex shrink-0 items-center gap-3 rounded-[var(--r-lg)] border px-4 py-3', viewOnly ? 'border-line bg-surface-2/50' : 'border-accent/40 bg-accent-tint/40')}>
-        <span className={cn('grid size-9 shrink-0 place-items-center rounded-full text-white', viewOnly ? 'bg-ink-soft' : 'bg-accent')}>
-          {countdown > 0 ? <span className="text-lg font-bold tabular-nums">{countdown}</span> : viewOnly ? <ListTree className="size-5" /> : <Bot className="size-5" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-            {viewOnly ? 'Project activity' : countdown > 0 ? 'Getting ready...' : 'Forge is driving'}
-            {!viewOnly && countdown <= 0 && autoMode && <span className="inline-flex size-1.5 animate-pulse rounded-full bg-accent" />}
-          </p>
-          <p className="truncate text-xs text-ink-soft">
-            {viewOnly ? 'The full record of everything Forge did on this project' : countdown > 0 ? `Starting in ${countdown}...` : 'Running every step automatically — watch progress below'}
-          </p>
-        </div>
-        {viewOnly ? (
-          <Button size="sm" variant="secondary" onClick={() => automationOverlayStore.hide()}>
-            Close
-          </Button>
-        ) : (
-          <Button size="sm" variant="secondary" onClick={handleStop} leftIcon={<Square />}>
-            Stop &amp; take over
-          </Button>
-        )}
-      </div>
+      {/* The governed status strip, in its overlay states — same component the stage
+          clients render idle, so the two surfaces can't drift. */}
+      <AutomationBar
+        state={viewOnly ? 'viewing' : countdown > 0 ? 'starting' : 'driving'}
+        countdown={countdown}
+        pulse={autoMode}
+        onStop={handleStop}
+        onClose={() => automationOverlayStore.hide()}
+      />
 
       {/* Content — 2/3 pipeline + 1/3 details */}
       <StageShell

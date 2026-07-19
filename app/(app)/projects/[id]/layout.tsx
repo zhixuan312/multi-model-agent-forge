@@ -89,7 +89,7 @@ export default async function ProjectLayout({
   }
 
   return (
-    <PhaseFromRoute>
+    <PhaseFromRoute auto={project.autoMode}>
       <ShellHeader>
         <ProjectTopbar
           projectId={project.id}

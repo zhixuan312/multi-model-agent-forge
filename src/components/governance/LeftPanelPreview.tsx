@@ -132,16 +132,16 @@ function AuditView({ showApplyBar, selectable }: { showApplyBar: boolean; select
   const toggleAll = () => setSelected((prev) => (prev.length === DOC_FINDINGS.length ? [] : DOC_FINDINGS.map((_, i) => i)));
   return (
     <>
-      <div className="px-5 py-4">
-        <FindingsGrid
-          findings={DOC_FINDINGS}
-          selectable={selectable}
-          selectedIndices={selected}
-          onToggle={toggle}
-          appliedIndices={applied ? selected : undefined}
-          readOnly={applied}
-        />
-      </div>
+      {/* No wrapper inset: the grid is edge-to-edge and the shell is `flush` for this tab,
+          so the rows span the full card width like they do on Review. */}
+      <FindingsGrid
+        findings={DOC_FINDINGS}
+        selectable={selectable}
+        selectedIndices={selected}
+        onToggle={toggle}
+        appliedIndices={applied ? selected : undefined}
+        readOnly={applied}
+      />
       {showApplyBar ? (
         <FindingsApplyBar
           selectedCount={selected.length}
@@ -403,6 +403,7 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
         version={5}
         tabs={on.has('tabs') ? DOC_TABS : undefined}
         activeTab={tab}
+        flush={tab === 'audit'}
         approvers={approvers}
         body={body}
         footer={footer}

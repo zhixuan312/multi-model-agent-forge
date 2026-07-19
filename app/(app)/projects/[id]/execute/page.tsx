@@ -125,9 +125,8 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       )}
       terminalResults={terminalResults}
       initialPhase={initialPhase}
-      autoMode={proj.autoMode}
-      autoNote={proj.autoNote ?? ''}
       readOnly={!perms.execute.canMutate}
+      lockedReason={perms.execute.reason}
     />
   );
 }

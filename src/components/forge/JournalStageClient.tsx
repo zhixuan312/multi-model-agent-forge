@@ -70,9 +70,9 @@ export interface JournalStageClientProps {
   projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   summary?: import('@/projects/project-summary').ProjectSummary;
   initialPhase?: 'journal' | 'summary';
-  autoMode?: boolean;
-  autoNote?: string;
   readOnly?: boolean;
+  /** Why the stage is read-only — shown by AutomationBar. */
+  lockedReason?: string;
 }
 
 type LearningStatus = 'proposed' | 'kept' | 'recorded';
@@ -104,6 +104,7 @@ const LEARNING_TABS: readonly DocumentShellTab[] = [
 export function JournalStageClient(props: JournalStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
+  const lockedReason = props.lockedReason;
 
   type ReflectPhase = 'journal' | 'summary';
   const allRecordedInit = props.learnings.length > 0 && props.learnings.every((l) => l.status === 'recorded');
@@ -160,8 +161,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const harvesting = props.harvesting || harvestingLocal || shouldAutoHarvest;
   const recording = props.recording || recordingLocal;
 
-  const auto: 'off' | 'running' = props.autoMode ? 'running' : 'off';
-  const autoNote = props.autoNote ?? '';
 
   const harvestFiredRef = useRef(false);
   function runHarvest() {
@@ -294,9 +293,23 @@ export function JournalStageClient(props: JournalStageClientProps) {
     }
   }
 
+  // The automation bar belongs to the STAGE, not to one of its internal states. It
+  // used to sit only on the final branch, so it vanished on the harvesting, inactive
+  // and summary views — the one stage in six that dropped out of the stage flow.
+  const automationBar = (
+    <AutomationBar
+      projectId={props.projectId}
+      disabled={readOnly}
+      idleHint="Capture learnings from this project, or let Forge extract them automatically."
+      lockedReason={lockedReason}
+    />
+  );
+
   // Authoring / empty states (like Plan Refine)
   if (harvesting && props.learnings.length === 0) {
     return (
+      <div className="flex h-full min-h-0 flex-col gap-4">
+      {automationBar}
       <StageShell
         note={<>
           <RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>
@@ -336,11 +349,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
           </CardContent>
         </Card>
       </StageShell>
+      </div>
     );
   }
 
   if (!active) {
     return (
+      <div className="flex h-full min-h-0 flex-col gap-4">
+      {automationBar}
       <StageShell
         note={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
       >
@@ -364,12 +380,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
           </CardContent>
         </Card>
       </StageShell>
+      </div>
     );
   }
 
   if (phase === 'summary' && props.summary) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-4">
+        {automationBar}
         <SummaryPhase
           summary={props.summary}
           projectId={props.projectId}
@@ -389,13 +407,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <AutomationBar
-        projectId={props.projectId}
-        mode={auto}
-        note={autoNote}
-        disabled={readOnly}
-        idleHint="Capture learnings from this project, or let Forge extract them automatically."
-      />
+      {automationBar}
     <StageShell
       note={<RailNote icon={<BookOpen />}>{JOURNAL_NOTE}</RailNote>}
       navigator={
@@ -453,8 +465,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
             })),
           }))}
           footer={
-            <button
-              type="button"
+            // A phase advance WITHIN the stage (journal → summary), not a stage
+            // advance — so it's the accent Button its peers use ("Continue to
+            // Finalize" / "Validate" / "Implement"), not the ink StageAdvance.
+            <Button
+              className="w-full"
+              loading={recording}
+              rightIcon={<ArrowRight />}
+              disabled={approvedCount === 0 || readOnly}
               onClick={() => {
                 if (!allRecorded && approvedCount > 0) {
                   setRecordingLocal(true);
@@ -465,16 +483,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
                 }
                 advancePhase('summary');
               }}
-              disabled={approvedCount === 0 || readOnly || recording}
-              className={cn(
-                'inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium transition-colors',
-                approvedCount === 0 || recording ? 'pointer-events-none cursor-not-allowed bg-ink/30 text-white/50' : 'bg-accent text-white hover:bg-accent/90',
-              )}
             >
-              {recording ? <Loader2 className="size-4 animate-spin" /> : null}
-              {recording ? 'Recording...' : 'Continue to Summary'}
-              {!recording ? <ArrowRight className="size-4" /> : null}
-            </button>
+              {recording ? 'Recording…' : 'Continue to Summary'}
+            </Button>
           }
         />
       }

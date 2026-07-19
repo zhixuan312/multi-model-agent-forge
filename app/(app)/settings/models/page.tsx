@@ -46,8 +46,9 @@ export default async function ModelsPage() {
   const apiKeys = values.filter((t) => t?.authMode === 'api-key').length;
 
   return (
-    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="models" />} width="full">
+    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="models" />} width="full" fill>
       <StageShell
+      scroll="outer"
         align="start"
         metrics={[
           { label: 'Tiers configured', value: configured, muted: configured === 0, sublabel: 'of 3 tiers', icon: <Layers />, iconTint: 'accent' },

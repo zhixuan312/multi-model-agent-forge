@@ -49,6 +49,7 @@ export function RunHistoryView({
 
   return (
     <StageShell
+      scroll="outer"
       note={note}
       navigator={
         <>

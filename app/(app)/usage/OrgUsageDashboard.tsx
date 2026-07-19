@@ -30,6 +30,7 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
   const h = data.headline;
   return (
     <StageShell
+      scroll="outer"
       metrics={[
         { label: 'Spent', value: formatCost(h.totalCostUsd), sublabel: `${h.dispatchCount} dispatch${h.dispatchCount === 1 ? '' : 'es'}`, icon: <DollarSign />, iconTint: 'accent', muted: h.dispatchCount === 0 },
         { label: 'Saved', value: formatCost(h.totalSavedUsd || null), sublabel: formatRoi(h.totalSavedUsd, h.totalCostUsd), icon: <TrendingUp />, iconTint: 'sage', muted: !h.totalSavedUsd },

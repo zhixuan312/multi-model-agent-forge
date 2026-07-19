@@ -65,9 +65,8 @@ export default async function OrgSettingsPage() {
   }));
 
   return (
-    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="teams" />} width="full">
+    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="teams" />} width="full" fill>
       <StageShell
-        align="start"
         note={<RailNote icon={<Users />}>{TEAMS_NOTE}</RailNote>}
       >
 <TeamsPanel initialTeams={teams} />

@@ -151,7 +151,10 @@ export function ProjectFilterBar({
         ) : null}
       </Toolbar>
 
-      <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+      {/* Clearance for the project cards' hover bloom — this scroller clips on every side.
+          Same sizing as the Content Shell columns: 12px pull-out (under the surrounding
+          gap, so it cannot overlap) and 24px of bottom padding for the shadow's drop. */}
+      <div className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3 pb-6">
         {shown.length === 0 ? (
           <EmptyState
             icon={<Search />}

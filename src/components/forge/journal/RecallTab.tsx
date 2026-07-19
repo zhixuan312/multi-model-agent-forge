@@ -286,9 +286,10 @@ export function RecallTab({
         />
       }
     >
-        {/* A plain content stack — StageShell's left panel owns the scroll, so a long
-            expanded answer scrolls the panel instead of overflowing it. */}
-        <div className="flex flex-col gap-4">
+        {/* ONE item fills the panel: the status rows are fixed height and the List takes the
+            rest, scrolling its own body (`fill`). The card's edges stay put while you scroll —
+            which is the point of `scroll="inner"`. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
           {status === 'running' ? (
             <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface-2 px-4 py-3">
               <Spinner className="size-4 text-accent" />
@@ -305,7 +306,7 @@ export function RecallTab({
           ) : null}
 
           {hasContent ? (
-            <List sections={recallSections} />
+            <List fill sections={recallSections} />
           ) : (
             <Card>
               <CardContent className="grid place-items-center py-12">

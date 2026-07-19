@@ -115,7 +115,7 @@ export function ShellBody({
     <div
       className={cn(
         'min-w-0 min-h-0 flex-1',
-        fill ? 'overflow-hidden' : 'forge-scroll overflow-y-auto overflow-x-hidden overscroll-contain',
+        fill ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden overscroll-contain',
       )}
     >
       <div

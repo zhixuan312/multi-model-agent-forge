@@ -28,7 +28,7 @@ export default async function ConnectionsPage() {
   const setCount = (mmaBearer ? 1 : 0) + (view.openaiTranscriptionKeySet ? 1 : 0);
 
   return (
-    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="connections" />} width="full">
+    <PageFrame title="Org settings" subnav={<OrgSettingsTabs active="connections" />} width="full" fill>
       {/* ConnectionsForm composes the canonical StatusDashboard (metrics + cards + guidance rail). */}
       <ConnectionsForm
         mmaBearer={mmaBearer}

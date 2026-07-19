@@ -26,16 +26,20 @@ export interface StageShellProps {
   metrics?: StatusDashboardProps['metrics'];
   /** Column alignment — forwarded to the Content Shell. */
   align?: StatusDashboardProps['align'];
+  /** Who owns the 2/3 column's scroll — see StatusDashboard. `inner` when one item fills
+   *  the panel, `outer` when it stacks several cards. */
+  scroll?: StatusDashboardProps['scroll'];
   /** Extra className for the outer grid. */
   className?: string;
 }
 
-export function StageShell({ note, children, navigator, metrics, align, className }: StageShellProps) {
+export function StageShell({ note, children, navigator, metrics, align, scroll, className }: StageShellProps) {
   return (
     <StatusDashboard
       className={className}
       metrics={metrics}
       align={align}
+      scroll={scroll}
       // LEFT — the governed left panel (2/3). NOT wrapped in a Card: the component passed in
       // already is one, and a second would double-frame it.
       primary={children}

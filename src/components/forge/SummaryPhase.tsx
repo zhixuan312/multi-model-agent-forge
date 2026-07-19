@@ -191,7 +191,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
         </>
       }
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-4 overflow-y-auto forge-scroll sm:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-4 overflow-y-auto sm:grid-cols-2">
         <StatCard icon={Clock} title="Timeline">
           {orderedStages.map((s) => (
             <StatRow key={s.kind} label={STAGE_LABELS[s.kind] ?? s.kind} value={stageDuration(s.startedAt, s.completedAt)} />

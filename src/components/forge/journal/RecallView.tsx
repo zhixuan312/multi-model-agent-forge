@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Card,
   Eyebrow,
   Mono,
 } from '@/components/ui';
@@ -30,7 +29,7 @@ export function RecallAnswer({
   onNavigate: (id: string) => void;
 }) {
   return (
-    <Card className="p-4">
+    <div className="rounded-[var(--r-md)] border border-line bg-surface-2/40 p-4">
       <div className="mb-2 flex items-center gap-2">
         <span className="rounded-[var(--r-sm)] border border-accent bg-accent-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-deep">
           mma-journal-recall
@@ -63,7 +62,7 @@ export function RecallAnswer({
       {parsed.citationIds.length > 0 ? (
         <RecallSources ids={parsed.citationIds} index={index} onNavigate={onNavigate} />
       ) : null}
-    </Card>
+    </div>
   );
 }
 

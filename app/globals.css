@@ -414,6 +414,20 @@ body {
  * (Card, MetricCard, table panels …). To use a truer red, swap `--accent` for
  * `--rose` in the values below.
  * ───────────────────────────────────────────────────────────────────────── */
+/* Scrollbars are hidden everywhere — panels still scroll (wheel, trackpad, keyboard,
+   drag), only the visual bar is suppressed. Declared inside `@layer base` so Tailwind v4
+   keeps it: raw top-level rules with vendor pseudo-elements were being pruned. */
+@layer base {
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
 .forge-spotlight {
   transition:
     border-color 150ms var(--ease-out),
@@ -424,6 +438,13 @@ body {
   box-shadow:
     0 0 0 2px color-mix(in oklab, var(--accent) 55%, transparent),
     0 10px 30px -8px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+/* A card nested inside another card never glows — hovering a child would otherwise light
+   BOTH frames and draw two accent borders around the same content. Only the outermost
+   surface responds. */
+.forge-spotlight .forge-spotlight:hover {
+  border-color: var(--line);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

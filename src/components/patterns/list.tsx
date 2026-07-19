@@ -41,7 +41,18 @@ export interface ListSection {
   rows: readonly ListRow[];
 }
 
-export function List({ sections, className }: { sections: readonly ListSection[]; className?: string }) {
+export function List({
+  sections,
+  fill = false,
+  className,
+}: {
+  sections: readonly ListSection[];
+  /** Fill the panel and scroll the rows INSIDE the card, so the card's own edges stay put.
+   *  Use when the List is the single item in a left panel (`StageShell scroll="inner"`);
+   *  omit when the panel stacks several cards and the column scrolls instead. */
+  fill?: boolean;
+  className?: string;
+}) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   // Open any expandable row that appears with `defaultOpen` — on first mount AND when a new
   // one arrives later (e.g. a just-run item lands in the list). `seen` guards each id so a
@@ -67,8 +78,8 @@ export function List({ sections, className }: { sections: readonly ListSection[]
     });
 
   return (
-    <Card className={className}>
-      <CardContent className="flex flex-col gap-4 py-4">
+    <Card className={cn(fill && 'flex min-h-0 flex-1 flex-col', className)}>
+      <CardContent className={cn('flex flex-col gap-4 py-4', fill && 'min-h-0 flex-1 overflow-y-auto')}>
         {sections.map((section, i) => (
           <section key={section.id ?? i} className="flex flex-col gap-2">
             {section.header ? <Eyebrow className="text-ink-faint">{section.header}</Eyebrow> : null}

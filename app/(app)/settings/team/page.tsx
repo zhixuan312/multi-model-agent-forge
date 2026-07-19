@@ -54,8 +54,9 @@ export default async function TeamSettingsPage() {
   const memberCount = memberCountRows[0]?.c ?? 0;
 
   return (
-    <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full">
+    <PageFrame title="Team settings" subnav={<TeamSettingsTabs active="team" />} width="full" fill>
       <StageShell
+      scroll="outer"
         align="start"
         metrics={[
           { label: 'Git access', value: teamRow.gitTokenRef ? 'Ready' : 'No token', muted: !teamRow.gitTokenRef, sublabel: 'Clone & pull', icon: <GitBranch />, iconTint: 'sage' },

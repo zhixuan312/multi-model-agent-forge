@@ -22,7 +22,7 @@ export default async function ProfilePage() {
   const roleSublabel = member.role === 'org_admin' ? 'Manages all teams & config' : member.role === 'team_admin' ? 'Manages this team & config' : 'Create & collaborate';
 
   return (
-    <PageFrame title="Profile" width="full">
+    <PageFrame title="Profile" width="full" fill>
       <ProfileForm
         member={member}
         metrics={[

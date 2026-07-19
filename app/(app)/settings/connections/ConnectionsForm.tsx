@@ -137,6 +137,7 @@ export function ConnectionsForm({
   const errId = 'connections-error';
   return (
     <StageShell
+      scroll="outer"
       metrics={metrics}
       align="start"
       note={<RailNote icon={<KeyRound />}>{CONNECTIONS_NOTE}</RailNote>}

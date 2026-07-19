@@ -132,6 +132,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
 
   return (
     <StageShell
+      scroll="outer"
       metrics={metrics}
       align="start"
       note={<RailNote icon={<ShieldCheck />}>{PROFILE_NOTE}</RailNote>}

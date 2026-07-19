@@ -356,7 +356,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   );
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line p-5">
         <Title className="!text-lg">Teams</Title>
         <Button
@@ -373,6 +373,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       </div>
 
       <DataTable
+        fill
         columns={columns}
         data={initialTeams}
         getRowId={(t) => t.id}

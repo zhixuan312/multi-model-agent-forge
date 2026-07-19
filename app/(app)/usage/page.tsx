@@ -42,6 +42,7 @@ export default async function UsagePage({
     const orgData = await usageOverview(period, { scope: 'org' });
     return (
       <PageFrame
+        fill
         title="Organization usage"
         width="full"
         actions={
@@ -85,6 +86,7 @@ export default async function UsagePage({
 
   return (
     <PageFrame
+      fill
       title="Usage"
       subnav={<UsageTabsNav active="overview" period={period} role={member.role} />}
       width="full"
@@ -95,6 +97,7 @@ export default async function UsagePage({
       }
     >
       <StageShell
+        scroll="outer"
         metrics={[
           {
             label: 'Spent',

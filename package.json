@@ -22,7 +22,8 @@
     "db:migrate-artifacts": "tsx src/projects/migrate-artifacts-to-team-root.ts",
     "db:seed-templates": "tsx src/db/seed/team-spec-template.ts",
     "db:reap": "tsx src/auth/session-reaper.ts",
-    "loop-worker": "tsx src/loops/worker-main.ts"
+    "loop-worker": "tsx src/loops/worker-main.ts",
+    "governance:check": "tsx src/governance/check-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",

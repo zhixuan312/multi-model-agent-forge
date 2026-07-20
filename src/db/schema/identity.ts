@@ -1,9 +1,8 @@
-import { uuid, text, timestamp, index, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
+import { uuid, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { forge } from '@/db/schema/_schema';
 import { team } from '@/db/schema/team';
 import { TEAM_ROLE } from '@/db/enums';
-import type { GovernanceSlotId, PersistedGovernanceSlotState } from '@/components/governance/registry';
 
 export const member = forge.table(
   'team_member',
@@ -69,16 +68,3 @@ export const connectionSettings = forge.table(
   () => [uniqueIndex('settings_connection_singleton').on(sql`(true)`)],
 );
 
-export const componentGovernanceSettings = forge.table(
-  'component_governance',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    slotStateJson: jsonb('slot_state_json')
-      .$type<Partial<Record<GovernanceSlotId, PersistedGovernanceSlotState>>>()
-      .notNull()
-      .default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  () => [uniqueIndex('settings_component_governance_singleton').on(sql`(true)`)],
-);

@@ -45,18 +45,3 @@ export function createBaseConnection(over: Partial<{
     ...over,
   };
 }
-
-export function createBaseComponentGovernance(over: Partial<{
-  id: string;
-  slotStateJson: Record<string, { locked: boolean; knobs: Record<string, string | boolean> }>;
-  createdAt: Date;
-  updatedAt: Date;
-}> = {}) {
-  return {
-    id: 'component-governance-1',
-    slotStateJson: {},
-    createdAt: FIXED,
-    updatedAt: FIXED,
-    ...over,
-  };
-}

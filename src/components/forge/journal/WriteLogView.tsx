@@ -2,6 +2,7 @@
 
 import { History } from 'lucide-react';
 import { EmptyState, Eyebrow, Mono } from '@/components/ui';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { opStyle } from '@/components/forge/journal/palette';
 import type { LogEntry } from '@/journal/types';
 import { cn } from '@/lib/cn';
@@ -39,37 +40,40 @@ export function WriteLogView({
     // (a padded scroller leaves a gap where rows peek above the header).
     // `border-separate` keeps sticky thead reliable; borders live on the cells.
     <div className="h-full overflow-y-auto px-5">
-      <table className="w-full border-separate border-spacing-0 text-sm">
-        <thead className="sticky top-0 z-10">
-          <tr className="text-left [&>th]:border-b [&>th]:border-line [&>th]:bg-surface [&>th]:pb-2 [&>th]:pt-3.5">
-            <th scope="col" className="pr-3">
+      {/* Governed Table primitives. The overrides are deliberate: `border-separate` keeps
+          the sticky header reliable, so borders/padding live on the cells rather than the
+          row defaults. */}
+      <Table className="border-separate border-spacing-0 text-sm">
+        <TableHeader className="sticky top-0 z-10 [&_tr]:border-b-0">
+          <TableRow className="border-b-0 text-left [&>th]:border-b [&>th]:border-line [&>th]:bg-surface [&>th]:pb-2 [&>th]:pt-3.5">
+            <TableHead scope="col" className="px-0 py-0 pr-3 font-sans text-sm normal-case tracking-normal">
               <Eyebrow as="span" className="text-ink-faint">Date</Eyebrow>
-            </th>
-            <th scope="col" className="pr-3">
+            </TableHead>
+            <TableHead scope="col" className="px-0 py-0 pr-3 font-sans text-sm normal-case tracking-normal">
               <Eyebrow as="span" className="text-ink-faint">Op</Eyebrow>
-            </th>
-            <th scope="col" className="pr-3">
+            </TableHead>
+            <TableHead scope="col" className="px-0 py-0 pr-3 font-sans text-sm normal-case tracking-normal">
               <Eyebrow as="span" className="text-ink-faint">Node</Eyebrow>
-            </th>
-            <th scope="col">
+            </TableHead>
+            <TableHead scope="col" className="px-0 py-0 font-sans text-sm normal-case tracking-normal">
               <Eyebrow as="span" className="text-ink-faint">Title</Eyebrow>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map(({ e, i }) => {
             const s = opStyle(e.op);
             return (
-              <tr
+              <TableRow
                 key={`${e.id}-${i}`}
                 data-testid={`log-row-${i}`}
                 data-title={e.title}
-                className="[&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
+                className="border-b-0 [&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
               >
-                <td className="pr-3 whitespace-nowrap">
+                <TableCell className="px-0 pr-3 whitespace-nowrap">
                   <Mono className="!text-xs text-ink-soft">{formatDateTime(e.timestamp)}</Mono>
-                </td>
-                <td className="pr-3">
+                </TableCell>
+                <TableCell className="px-0 pr-3">
                   <span
                     className={cn(
                       'inline-flex items-center rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px] font-medium',
@@ -78,8 +82,8 @@ export function WriteLogView({
                   >
                     {e.op}
                   </span>
-                </td>
-                <td className="pr-3">
+                </TableCell>
+                <TableCell className="px-0 pr-3">
                   <button
                     type="button"
                     onClick={() => onNavigate(e.id)}
@@ -87,13 +91,13 @@ export function WriteLogView({
                   >
                     {e.id}
                   </button>
-                </td>
-                <td className="text-ink">{e.title}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-0 text-ink">{e.title}</TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

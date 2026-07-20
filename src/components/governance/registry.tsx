@@ -32,15 +32,6 @@ export type GovernanceSlotId =
   | 'avatar'
   | 'toast';
 
-export type GovernanceKnobType = 'boolean' | 'enum';
-
-export interface GovernanceKnobDefinition {
-  name: string;
-  type: GovernanceKnobType;
-  allowedValues: readonly (string | boolean)[];
-  defaultValue: string | boolean;
-}
-
 export interface GovernanceDeviation {
   id: string;
   label: string;
@@ -54,34 +45,17 @@ export interface GovernanceConsumer {
   filePath: string;
 }
 
-export type GovernanceKnobValues = Record<string, string | boolean>;
-
-export interface PersistedGovernanceSlotState {
-  locked: boolean;
-  knobs: GovernanceKnobValues;
-}
-
-export interface ResolvedGovernanceSlotState {
-  slotId: GovernanceSlotId;
-  locked: boolean;
-  knobs: GovernanceKnobValues;
-}
-
-// Client-safe shared view types. These live here (not in the server-only
-// component-governance-core, which imports `@/db/client`) so that `'use client'`
-// components can import them WITHOUT pulling in the DB client. The server core
-// re-exports them for its own callers.
+// Client-safe shared view types. Governance is a CODE catalog — the registry below is the
+// single source of truth; there is no persisted lock/knob state. `'use client'` components
+// import these freely (no DB, no server module).
 export interface GovernanceSlotView {
   slotId: GovernanceSlotId;
   label: string;
   group: GovernanceSlotGroup;
   canonicalComponent: string;
   canonicalFilePath: string;
-  knobSchema: readonly GovernanceKnobDefinition[];
   consumers: readonly GovernanceConsumer[];
   deviations: readonly GovernanceDeviation[];
-  locked: boolean;
-  knobs: GovernanceKnobValues;
 }
 
 export interface ComponentGovernanceView {
@@ -114,52 +88,11 @@ export interface GovernanceRegistryEntry {
   group: GovernanceSlotGroup;
   canonicalComponent: string;
   canonicalFilePath: string;
-  knobs: readonly GovernanceKnobDefinition[];
-  defaultLocked: boolean;
   consumers: readonly GovernanceConsumer[];
   deviations: readonly GovernanceDeviation[];
-  renderPreview: (state: ResolvedGovernanceSlotState) => ReactNode;
+  renderPreview: () => ReactNode;
   /** Optional sub-pages; when present the slot expands to a 3rd nav layer. */
   variants?: readonly GovernanceVariant[];
-}
-
-
-
-export const GOVERNANCE_KNOBS: Record<GovernanceSlotId, readonly GovernanceKnobDefinition[]> = {
-  background: [],
-  appShell: [],
-  contentShell: [],
-  leftPanel: [],
-  rightPanel: [],
-  stageFlow: [],
-  button: [],
-  badge: [
-    { name: 'variant', type: 'enum', allowedValues: ['neutral', 'accent', 'sage', 'amber', 'rose', 'steel'], defaultValue: 'neutral' },
-    { name: 'size', type: 'enum', allowedValues: ['sm', 'md'], defaultValue: 'md' },
-    { name: 'dot', type: 'boolean', allowedValues: [true, false], defaultValue: false },
-    { name: 'icon', type: 'boolean', allowedValues: [true, false], defaultValue: false },
-  ],
-  formControl: [],
-  metricCard: [
-    { name: 'tone', type: 'enum', allowedValues: ['neutral', 'attention'], defaultValue: 'neutral' },
-    { name: 'iconTint', type: 'enum', allowedValues: ['accent', 'rose', 'sage', 'steel', 'amber', 'neutral'], defaultValue: 'neutral' },
-    { name: 'muted', type: 'boolean', allowedValues: [true, false], defaultValue: false },
-  ],
-  emptyState: [
-    { name: 'showDescription', type: 'boolean', allowedValues: [true, false], defaultValue: true },
-    { name: 'showAction', type: 'boolean', allowedValues: [true, false], defaultValue: false },
-  ],
-  banner: [],
-  avatar: [],
-  toast: [],
-};
-
-function bool(state: ResolvedGovernanceSlotState, name: string): boolean {
-  return Boolean(state.knobs[name]);
-}
-
-function text(state: ResolvedGovernanceSlotState, name: string): string {
-  return String(state.knobs[name]);
 }
 
 export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEntry> = {
@@ -171,8 +104,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     // PLUS a faint warm accent bloom, applied via the single `.app-bg` class.
     canonicalComponent: 'Application background — .app-bg (var(--bg) + accent bloom)',
     canonicalFilePath: 'app/globals.css',
-    knobs: GOVERNANCE_KNOBS.background,
-    defaultLocked: true,
     consumers: [
       { id: 'app-shell', label: 'App Shell (all authed routes)', filePath: 'src/components/ui/shell.tsx' },
       { id: 'auth-shell', label: 'Auth shell (login / setup)', filePath: 'src/components/governance/AuthPlainBackgroundShell.tsx' },
@@ -197,8 +128,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'structural',
     canonicalComponent: 'AppShell',
     canonicalFilePath: 'src/components/ui/shell.tsx',
-    knobs: GOVERNANCE_KNOBS.appShell,
-    defaultLocked: true,
     // Verified across every authed screen: all render their frame through these
     // primitives, so the consumers below are the three sanctioned entry points.
     consumers: [
@@ -218,8 +147,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'structural',
     canonicalComponent: 'StatusDashboard (metrics row + 2/3 + 1/3 rail)',
     canonicalFilePath: 'src/components/patterns/status-dashboard.tsx',
-    knobs: GOVERNANCE_KNOBS.contentShell,
-    defaultLocked: true,
     consumers: [
       { id: 'loops-page', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
       { id: 'journal-page', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
@@ -243,8 +170,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'structural',
     canonicalComponent: 'StageStepper + StageAdvance + AutomationBar',
     canonicalFilePath: 'src/components/forge/StageStepper.tsx',
-    knobs: GOVERNANCE_KNOBS.stageFlow,
-    defaultLocked: true,
     consumers: [
       { id: 'live-stage-stepper', label: 'Live Stage Stepper', filePath: 'src/components/forge/LiveStageStepper.tsx' },
       { id: 'stage-advance', label: 'StageAdvance (advance control)', filePath: 'src/components/forge/StageAdvance.tsx' },
@@ -272,8 +197,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     // canonical is declared per variant. This slot-level pair is just the family root.
     canonicalComponent: 'Left panel — pattern family',
     canonicalFilePath: 'src/components/governance/variant-meta.ts',
-    knobs: GOVERNANCE_KNOBS.leftPanel,
-    defaultLocked: true,
     consumers: [],
     deviations: [],
     renderPreview: () => <LeftPanelPreview />,
@@ -295,8 +218,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'structural',
     canonicalComponent: 'Right panel — pattern family (Navigator / Card list / Run list / Node list)',
     canonicalFilePath: 'src/components/governance/variant-meta.ts',
-    knobs: GOVERNANCE_KNOBS.rightPanel,
-    defaultLocked: true,
     consumers: [
       { id: 'stage-rail', label: 'Project stage rails', filePath: 'src/components/forge/SpecStageClient.tsx' },
       { id: 'journal-rail', label: 'Journal rail', filePath: 'src/components/forge/journal/RecallTab.tsx' },
@@ -320,8 +241,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'Button',
     canonicalFilePath: 'src/components/ui/button.tsx',
-    knobs: GOVERNANCE_KNOBS.button,
-    defaultLocked: true,
     consumers: [
       { id: 'stage-advance', label: 'Project › Stage advance', filePath: 'src/components/forge/StageAdvance.tsx' },
       { id: 'settings-actions', label: 'Settings forms (Save / Cancel)', filePath: 'src/components/forge/SettingCard.tsx' },
@@ -342,8 +261,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'Badge',
     canonicalFilePath: 'src/components/ui/badge.tsx',
-    knobs: GOVERNANCE_KNOBS.badge,
-    defaultLocked: true,
     consumers: [
       { id: 'table-status', label: 'Table status pills (Loops / Workspace / Members)', filePath: 'app/(app)/loops/LoopsClient.tsx' },
       { id: 'doc-version', label: 'Project › document version badge', filePath: 'src/components/forge/SpecStageClient.tsx' },
@@ -354,15 +271,15 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'journal-status-badge', label: 'Journal StatusBadge', filePath: 'src/components/forge/journal/StatusBadge.tsx', line: null },
       { id: 'writelog-pills', label: 'WriteLog operation pills', filePath: 'src/components/forge/journal/WriteLogView.tsx', line: null },
     ],
-    renderPreview: (state) => (
-      <Badge
-        variant={text(state, 'variant') as 'neutral' | 'accent' | 'sage' | 'amber' | 'rose' | 'steel'}
-        size={text(state, 'size') as 'sm' | 'md'}
-        dot={bool(state, 'dot')}
-        icon={bool(state, 'icon') ? <Sparkles className="size-3" /> : undefined}
-      >
-        Governed
-      </Badge>
+    renderPreview: () => (
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="neutral">Governed</Badge>
+        <Badge variant="accent">accent</Badge>
+        <Badge variant="sage" dot>sage · dot</Badge>
+        <Badge variant="amber" icon={<Sparkles className="size-3" />}>amber · icon</Badge>
+        <Badge variant="rose" size="sm">rose · sm</Badge>
+        <Badge variant="steel">steel</Badge>
+      </div>
     ),
   },
   formControl: {
@@ -371,8 +288,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'Field + Input',
     canonicalFilePath: 'src/components/ui/field.tsx',
-    knobs: GOVERNANCE_KNOBS.formControl,
-    defaultLocked: true,
     consumers: [
       { id: 'profile-form', label: 'Profile', filePath: 'app/(app)/profile/ProfileForm.tsx' },
       { id: 'connections-form', label: 'Org settings › Connections', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },
@@ -397,20 +312,17 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'EmptyState',
     canonicalFilePath: 'src/components/ui/empty-state.tsx',
-    knobs: GOVERNANCE_KNOBS.emptyState,
-    defaultLocked: true,
     consumers: [
       { id: 'projects-page', label: 'Projects page', filePath: 'app/(app)/projects/page.tsx' },
       { id: 'loops-table', label: 'Loops', filePath: 'app/(app)/loops/LoopsClient.tsx' },
       { id: 'members-table', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
     ],
     deviations: [{ id: 'forge-empty-state', label: 'Forge PageHeader helper', filePath: 'src/components/forge/PageHeader.tsx', line: null }],
-    renderPreview: (state) => (
+    renderPreview: () => (
       <EmptyState
         icon={<Cpu />}
         title="No components yet"
-        description={bool(state, 'showDescription') ? 'Canonical empty-state preview.' : undefined}
-        action={bool(state, 'showAction') ? <button type="button">Create</button> : undefined}
+        description="Canonical empty-state preview."
       />
     ),
   },
@@ -420,8 +332,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'MetricCard',
     canonicalFilePath: 'src/components/ui/metric-card.tsx',
-    knobs: GOVERNANCE_KNOBS.metricCard,
-    defaultLocked: true,
     consumers: [
       { id: 'team-tab-metrics', label: 'Team settings › Team › Metric row', filePath: 'app/(app)/settings/team/page.tsx' },
       { id: 'usage-dashboard', label: 'Usage dashboard', filePath: 'app/(app)/usage/OrgUsageDashboard.tsx' },
@@ -431,14 +341,13 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'summary-phase-cards', label: 'SummaryPhase cards', filePath: 'src/components/forge/SummaryPhase.tsx', line: null },
       { id: 'build-monitor-cards', label: 'BuildMonitor cards', filePath: 'src/components/forge/BuildMonitor.tsx', line: null },
     ],
-    renderPreview: (state) => (
+    renderPreview: () => (
       <MetricCard
         label="Jobs"
         value="12"
         icon={<Shield />}
-        tone={text(state, 'tone') as 'neutral' | 'attention'}
-        iconTint={text(state, 'iconTint') as 'accent' | 'rose' | 'sage' | 'steel' | 'amber' | 'neutral'}
-        muted={bool(state, 'muted')}
+        tone="neutral"
+        iconTint="accent"
         sublabel="Governed metric"
       />
     ),
@@ -449,8 +358,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'Banner',
     canonicalFilePath: 'src/components/ui/banner.tsx',
-    knobs: GOVERNANCE_KNOBS.banner,
-    defaultLocked: true,
     consumers: [
       { id: 'login', label: 'Auth › Login', filePath: 'app/(auth)/login/LoginForm.tsx' },
       { id: 'setup', label: 'Auth › Setup', filePath: 'app/(auth)/setup/SetupForm.tsx' },
@@ -466,8 +373,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'Avatar / AvatarGroup',
     canonicalFilePath: 'src/components/ui/avatar.tsx',
-    knobs: GOVERNANCE_KNOBS.avatar,
-    defaultLocked: true,
     consumers: [
       { id: 'members-table', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
       { id: 'participants', label: 'Project › Approvers strip', filePath: 'src/components/forge/collab/Participants.tsx' },
@@ -487,8 +392,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     group: 'primitive',
     canonicalComponent: 'showToast() / Toaster',
     canonicalFilePath: 'src/components/ui/toast.tsx',
-    knobs: GOVERNANCE_KNOBS.toast,
-    defaultLocked: true,
     consumers: [
       { id: 'stage-transitions', label: 'Project stage transitions', filePath: 'src/components/forge/PlanStageClient.tsx' },
       { id: 'workspace', label: 'Workspace', filePath: 'app/(app)/workspace/WorkspaceClient.tsx' },
@@ -543,3 +446,23 @@ export const GOVERNANCE_SLOT_NAV: ReadonlyArray<{
 
 /** Valid slot ids, for validating a dynamic `[slotId]` route param. */
 export const GOVERNANCE_SLOT_IDS: ReadonlySet<string> = new Set(Object.keys(GOVERNANCE_REGISTRY));
+
+/** The component-governance catalog view — built purely from the code registry (no DB,
+ *  no persisted lock/knob state). The settings pages render this read-only reference. */
+export function getComponentGovernanceView(): ComponentGovernanceView {
+  const slotIds = Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[];
+  return {
+    slots: slotIds.map((slotId) => {
+      const e = GOVERNANCE_REGISTRY[slotId];
+      return {
+        slotId,
+        label: e.label,
+        group: e.group,
+        canonicalComponent: e.canonicalComponent,
+        canonicalFilePath: e.canonicalFilePath,
+        consumers: e.consumers,
+        deviations: e.deviations,
+      };
+    }),
+  };
+}

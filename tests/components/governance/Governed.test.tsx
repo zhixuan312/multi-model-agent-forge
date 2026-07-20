@@ -1,21 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import { Governed } from '@/components/governance/governed';
-import type { ResolvedGovernanceSlotState } from '@/components/governance/registry';
-
-const badgeState: ResolvedGovernanceSlotState = {
-  slotId: 'badge',
-  locked: true,
-  knobs: { variant: 'accent', size: 'md', dot: true, icon: false },
-};
 
 describe('Governed', () => {
   it('renders the registry canonical renderer for the requested slot', () => {
-    render(<Governed slotId="badge" state={badgeState} />);
+    render(<Governed slotId="badge" />);
+    // The badge preview renders the canonical Badge with the "Governed" example label.
     expect(screen.getByText('Governed')).toBeInTheDocument();
   });
 
-  it('uses the provided knob state rather than hard-coded defaults', () => {
-    const { container } = render(<Governed slotId="badge" state={badgeState} />);
-    expect(container.querySelector('span')).toHaveClass('bg-accent-tint');
+  it('falls back to the slot preview when the variantId does not match', () => {
+    // Badge has no variants, so an unknown variantId falls through to the slot renderer.
+    render(<Governed slotId="badge" variantId="does-not-exist" />);
+    expect(screen.getByText('Governed')).toBeInTheDocument();
   });
 });

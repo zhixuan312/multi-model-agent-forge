@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Badge, Button } from '@/components/ui';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -47,7 +48,7 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
 
   return (
     <>
-      <tr
+      <TableRow
         className={cn(
           'border-b border-line/50 transition-colors',
           applied ? 'bg-sage-tint/20' : selected ? 'bg-accent-tint/30' : 'hover:bg-surface-2/40',
@@ -56,7 +57,7 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
         onClick={() => !disabled && onSelect?.()}
       >
         {onSelect ? (
-          <td className="w-10 py-3 pl-4 pr-1">
+          <TableCell className="w-10 px-0 py-3 pl-4 pr-1">
             <span className={cn(
               'grid size-5 place-items-center rounded-[5px] border text-[10px] font-semibold transition-colors',
               applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white'
@@ -65,16 +66,16 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
             )}>
               {applied || selected ? <Check className="size-3" /> : (index + 1)}
             </span>
-          </td>
+          </TableCell>
         ) : null}
-        <td className="w-20 py-3 px-2">
+        <TableCell className="w-20 px-2 py-3">
           <SeverityBadge severity={finding.severity} />
-        </td>
-        <td className="py-3 px-2">
+        </TableCell>
+        <TableCell className="px-2 py-3">
           <p className="text-sm text-ink">{finding.claim}</p>
           <span className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">{finding.category.replace(/-/g, ' ')}</span>
-        </td>
-        <td className="w-10 py-3 pr-4">
+        </TableCell>
+        <TableCell className="w-10 px-0 py-3 pr-4">
           {hasDetails ? (
             <button
               type="button"
@@ -84,11 +85,11 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
               {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             </button>
           ) : null}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {expanded ? (
-        <tr className="border-b border-line/30 bg-surface-2/20">
-          <td colSpan={onSelect ? 4 : 3} className="px-4 py-3">
+        <TableRow className="border-b border-line/30 bg-surface-2/20">
+          <TableCell colSpan={onSelect ? 4 : 3} className="px-4 py-3">
             <div className="space-y-1.5 pl-6">
               {finding.evidence ? (
                 <p className="text-xs leading-relaxed text-ink-soft">
@@ -101,8 +102,8 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
                 </p>
               ) : null}
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       ) : null}
     </>
   );
@@ -121,9 +122,9 @@ export interface FindingCardProps {
 
 export function FindingCard({ finding, index, selected, applied, disabled, onSelect }: FindingCardProps) {
   return (
-    <table className="w-full"><tbody>
+    <Table><TableBody>
       <FindingTableRow finding={finding} index={index ?? 0} selected={selected} applied={applied} disabled={disabled} onSelect={onSelect} />
-    </tbody></table>
+    </TableBody></Table>
   );
 }
 
@@ -160,16 +161,16 @@ export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, 
   return (
     <div>
       {findings.length > 0 ? (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-line text-left text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-              {selectable ? <th className="w-10 py-2 pl-4 pr-1" /> : null}
-              <th className="w-20 py-2 px-2">Severity</th>
-              <th className="py-2 px-2">Finding</th>
-              <th className="w-10 py-2 pr-4" />
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b border-line text-left text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+              {selectable ? <TableHead className="w-10 px-0 py-2 pl-4 pr-1" /> : null}
+              <TableHead className="w-20 px-2 py-2 font-sans text-[11px] tracking-wide">Severity</TableHead>
+              <TableHead className="px-2 py-2 font-sans text-[11px] tracking-wide">Finding</TableHead>
+              <TableHead className="w-10 px-0 py-2 pr-4" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {sorted.map((f, i) => {
               const origIdx = findings.indexOf(f);
               return (
@@ -184,8 +185,8 @@ export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, 
                 />
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       ) : (
         <p className="px-4 py-6 text-center text-xs text-ink-faint">No findings.</p>
       )}

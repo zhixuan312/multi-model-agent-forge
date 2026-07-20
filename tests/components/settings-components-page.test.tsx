@@ -12,14 +12,7 @@ let mockMember: AuthedMember | null = null;
 
 vi.mock('next/navigation', () => ({ redirect, notFound }));
 vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockMember }));
-vi.mock('@/config/component-governance-core', () => ({
-  getComponentGovernanceView: vi.fn(async () => ({
-    slots: [
-      { slotId: 'background', label: 'Background', group: 'structural', canonicalComponent: 'AppShell background', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
-      { slotId: 'stageFlow', label: 'Stage flow', group: 'project', canonicalComponent: 'StageStepper', canonicalFilePath: 'x', knobSchema: [], consumers: [], deviations: [], locked: true, knobs: {} },
-    ],
-  })),
-}));
+// getComponentGovernanceView is now a pure static builder over the code registry — no mock.
 vi.mock('../../app/(app)/settings/components/SlotEditor', () => ({
   SlotEditor: ({ slot }: { slot: { slotId: string } }) => <div>Editor:{slot.slotId}</div>,
 }));

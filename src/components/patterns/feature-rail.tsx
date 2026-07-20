@@ -6,7 +6,9 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 export interface RailNoteProps {
   icon: ReactNode;
   title?: string;
-  children: string;
+  /** Markdown (the common case) — or rich children when the note carries content markdown
+   *  can't express, e.g. the journal graph legend's colour-swatch bullets. */
+  children: ReactNode;
   className?: string;
 }
 
@@ -30,7 +32,7 @@ export function RailNote({ icon, title, children, className }: RailNoteProps) {
       </span>
       <div className="min-w-0 flex-1">
         {title ? <Eyebrow as="h3" className="mb-2 text-ink">{title}</Eyebrow> : null}
-        <ProseBlock variant="rail">{children}</ProseBlock>
+        {typeof children === 'string' ? <ProseBlock variant="rail">{children}</ProseBlock> : children}
       </div>
     </div>
   );

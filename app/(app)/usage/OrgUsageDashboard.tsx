@@ -1,5 +1,6 @@
 import { DollarSign, TrendingUp, Cpu, Users, AlertTriangle, UserRound } from 'lucide-react';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { RailNote } from '@/components/patterns/feature-rail';
 import {
   Card,
   CardContent,
@@ -26,6 +27,17 @@ import { CostTrendChart } from './CostTrendChart';
 
 const pct = (r: number): string => `${(r * 100).toFixed(r > 0 && r < 0.1 ? 1 : 0)}%`;
 
+const NOTE = `### Org-wide rollup
+
+- **Spent** — what every team's agent work cost this period
+- **Saved** — estimated cost had the same work run on your main model
+- **Failure rate** — share of dispatches that did not finish
+
+### Privacy boundary
+
+- Numbers only — no team's project, spec, or journal contents appear here
+- Member identities stay inside their own team`;
+
 export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
   const h = data.headline;
   return (
@@ -39,6 +51,7 @@ export function OrgUsageDashboard({ data }: { data: OrgOverviewResult }) {
         { label: 'Failure rate', value: pct(h.failureRate), sublabel: 'of dispatches', icon: <AlertTriangle />, iconTint: 'rose', muted: h.failureRate === 0 },
         { label: 'Cost / member', value: formatCost(h.costPerMemberUsd || null), sublabel: 'across all teams', icon: <UserRound />, iconTint: 'steel', muted: !h.costPerMemberUsd },
       ]}
+      note={<RailNote icon={<DollarSign />}>{NOTE}</RailNote>}
     >
         <div className="flex flex-col gap-4">
           <OrgTrendCard trend={data.trend.orgTotal} />

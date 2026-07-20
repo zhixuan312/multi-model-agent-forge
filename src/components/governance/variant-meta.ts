@@ -1,5 +1,5 @@
-// Shared (NON-'use client') variant metadata — id + label only. Safe to import from
-// the registry, which is evaluated on the server (via component-governance-core). The
+// Shared (NON-'use client') variant metadata — id + label only. Safe to import from the
+// registry, which the server settings pages read to build the static catalog view. The
 // actual renders live in the 'use client' preview modules, keyed by these ids, and are
 // reached through the AppShellVariant / ContentAreaVariant client components.
 

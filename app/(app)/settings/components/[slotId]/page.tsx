@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
-import { getComponentGovernanceView } from '@/config/component-governance-core';
-import { GOVERNANCE_SLOT_IDS, GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
+import { GOVERNANCE_SLOT_IDS, GOVERNANCE_SLOT_NAV, getComponentGovernanceView, type GovernanceSlotId } from '@/components/governance/registry';
+import { summarizeForSlot } from '@/governance/conformance-scan';
 import { SlotEditor } from '../SlotEditor';
 
 export const runtime = 'nodejs';
@@ -24,13 +24,15 @@ export default async function ComponentSlotPage({ params }: { params: Promise<{ 
     redirect(`/settings/components/${slotId}/${nav.variants[0].id}`);
   }
 
-  const view = await getComponentGovernanceView();
+  const view = getComponentGovernanceView();
   const slot = view.slots.find((s) => s.slotId === slotId);
   if (!slot) notFound();
 
+  const conformance = summarizeForSlot(slotId as GovernanceSlotId);
+
   return (
     <PageFrame title={slot.label} width="full">
-      <SlotEditor slot={slot} />
+      <SlotEditor slot={slot} conformance={conformance} />
     </PageFrame>
   );
 }

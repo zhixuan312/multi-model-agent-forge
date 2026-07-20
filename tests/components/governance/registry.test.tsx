@@ -1,11 +1,10 @@
 import {
-  GOVERNANCE_KNOBS,
   GOVERNANCE_REGISTRY,
   type GovernanceSlotId,
 } from '@/components/governance/registry';
 
 describe('component governance registry', () => {
-  it('defines all governed slots for v0.4.0 and keeps GOVERNANCE_KNOBS in sync', () => {
+  it('defines all governed slots in flow order', () => {
     const ids = Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[];
     expect(ids).toEqual([
       // structural layers in flow order (stage flow sits between the content shell and panels)
@@ -37,7 +36,6 @@ describe('component governance registry', () => {
       expect(GOVERNANCE_REGISTRY[id].slotId).toBe(id);
       expect(GOVERNANCE_REGISTRY[id].canonicalComponent).toBeTruthy();
       expect(GOVERNANCE_REGISTRY[id].canonicalFilePath).toBeTruthy();
-      expect(GOVERNANCE_REGISTRY[id].knobs).toEqual(GOVERNANCE_KNOBS[id]);
       expect(typeof GOVERNANCE_REGISTRY[id].renderPreview).toBe('function');
     }
   });

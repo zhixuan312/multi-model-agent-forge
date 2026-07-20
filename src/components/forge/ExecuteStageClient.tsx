@@ -51,6 +51,10 @@ const CONFIGURE_NOTE = `### Configure — set up for execution
 - Each task runs sequentially in an isolated worktree
 - A pull request is created per repo when complete`;
 
+const EXECUTING_NOTE = `- Tasks run sequentially in an isolated worktree
+- Reviewer verifies the implementation after
+- PR created automatically when complete`;
+
 /* ── Props ───────────────────────────────────────────────────────────── */
 
 export interface RepoTerminalResult {
@@ -398,19 +402,9 @@ function MonitorPhase({
         // Rail keeps its own box: its rows are bespoke components, not NavItems.
         <>
         {anyRunning && (
-          <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
-            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent">
-              <Loader2 className="size-5 animate-spin" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-ink">Executing plan</h3>
-              <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
-                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Tasks run sequentially in an isolated worktree</li>
-                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">Reviewer verifies the implementation after</li>
-                <li className="text-xs leading-relaxed text-ink-soft marker:text-accent">PR created automatically when complete</li>
-              </ul>
-            </div>
-          </div>
+          <RailNote icon={<Loader2 className="animate-spin" />} title="Executing plan">
+            {EXECUTING_NOTE}
+          </RailNote>
         )}
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader>

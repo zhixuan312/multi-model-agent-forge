@@ -2,11 +2,19 @@ import { STAGE_ROUTE, stageRoute, DATA_PHASE } from '@/projects/stage-route';
 import { STAGE_KIND, PROJECT_PHASE } from '@/db/enums';
 
 describe('stage-route', () => {
-  it('maps exploration → explore (the one divergence) and identity for the rest', () => {
+  // Two kinds diverge from their enum name in the URL: `exploration` reads as
+  // "explore", and `journal` reads as "reflect" (matching STAGE_LABEL.journal).
+  // Every other kind is identity-segmented.
+  const RENAMED: Partial<Record<(typeof STAGE_KIND)[number], string>> = {
+    exploration: 'explore',
+    journal: 'reflect',
+  };
+
+  it('maps the two renamed kinds and stays identity for the rest', () => {
     expect(STAGE_ROUTE.exploration).toBe('explore');
+    expect(STAGE_ROUTE.journal).toBe('reflect');
     for (const kind of STAGE_KIND) {
-      if (kind === 'exploration') continue;
-      expect(STAGE_ROUTE[kind]).toBe(kind);
+      expect(STAGE_ROUTE[kind]).toBe(RENAMED[kind] ?? kind);
     }
   });
 
@@ -20,6 +28,11 @@ describe('stage-route', () => {
     expect(stageRoute('plan', 'p1')).toBe('/projects/p1/plan');
     expect(stageRoute('execute', 'p1')).toBe('/projects/p1/execute');
     expect(stageRoute('review', 'p1')).toBe('/projects/p1/review');
+  });
+
+  it('stageRoute(journal, id) → /projects/<id>/reflect (never /journal)', () => {
+    expect(stageRoute('journal', 'abc')).toBe('/projects/abc/reflect');
+    expect(stageRoute('journal', 'abc')).not.toContain('journal');
   });
 
   it('DATA_PHASE maps each project phase to design or build (two CSS worlds)', () => {

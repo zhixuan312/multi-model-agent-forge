@@ -78,7 +78,10 @@ describe('StageStepper (4-state track)', () => {
     const { container } = renderFresh();
     const exploration = container.querySelector('[data-stage="exploration"]')!;
     expect(exploration.tagName).toBe('A');
-    expect(exploration).toHaveAttribute('href', '/projects/p1/explore');
+    // Every project URL states its phase — `{stage}?phase={phase}` — including the stage
+    // you're already on, so the address bar never disagrees with the stepper. With no
+    // `lastPhase` supplied the link falls back to the stage's final phase.
+    expect(exploration).toHaveAttribute('href', '/projects/p1/explore?phase=synthesize');
 
     const spec = container.querySelector('[data-stage="spec"]')!;
     expect(spec.tagName).toBe('SPAN');

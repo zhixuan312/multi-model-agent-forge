@@ -6,6 +6,7 @@ import { Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { JournalGraph3D } from '@/components/forge/journal/JournalGraph3D';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { RailNote } from '@/components/patterns/feature-rail';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
@@ -55,13 +56,9 @@ const STATUS_MEANING: Record<string, string> = {
 function GraphLegend() {
   const heading = 'mb-2 text-sm font-semibold text-ink';
   return (
-    <div className="flex items-start gap-3 rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40 px-4 py-4">
-      <span
-        aria-hidden
-        className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent [&>svg]:size-5"
-      >
-        <Share2 />
-      </span>
+    // The governed RailNote supplies the tinted box + icon circle; the legend passes rich
+    // children because its bullet markers are colour swatches markdown can't express.
+    <RailNote icon={<Share2 />}>
       <div className="flex min-w-0 flex-col gap-4">
         <section>
           <h3 className={heading}>Node status</h3>
@@ -111,6 +108,6 @@ function GraphLegend() {
           </ul>
         </section>
       </div>
-    </div>
+    </RailNote>
   );
 }

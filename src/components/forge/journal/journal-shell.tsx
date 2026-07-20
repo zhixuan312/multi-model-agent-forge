@@ -12,15 +12,24 @@ import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
  * (patterns/status-dashboard.tsx) for its 2/3 ∣ 1/3 split — see any of the tabs.
  */
 
-/** Lazy-loads one node's BODY + server-computed inbound edges on selection. */
-export function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id: string) => void }) {
-  const [state, setState] = useState<
-    | { phase: 'loading' }
-    | { phase: 'ready'; node: JournalNode | null; parseError: NodeParseError | null; inbound: InboundEdge[] }
-    | { phase: 'error' }
-  >({ phase: 'loading' });
+export type NodeBodyState =
+  | { phase: 'loading' }
+  | { phase: 'ready'; node: JournalNode | null; parseError: NodeParseError | null; inbound: InboundEdge[] }
+  | { phase: 'error' };
+
+/**
+ * Fetch one node's BODY + server-computed inbound edges. The client index rows carry
+ * frontmatter only (`NodeSummary` ships no bodies), so anything that wants the real
+ * Context / Consequences prose loads it lazily through this — the nodes list and the
+ * graph's detail panel both do.
+ *
+ * Pass `null` to load nothing.
+ */
+export function useJournalNodeBody(id: string | null): NodeBodyState {
+  const [state, setState] = useState<NodeBodyState>({ phase: 'loading' });
 
   useEffect(() => {
+    if (id === null) return;
     let alive = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading before fetching the node for the new id
     setState({ phase: 'loading' });
@@ -40,6 +49,13 @@ export function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id
       alive = false;
     };
   }, [id]);
+
+  return state;
+}
+
+/** Lazy-loads one node's BODY + inbound edges on selection, rendered as the full detail doc. */
+export function LazyNodeDetail({ id, onNavigate }: { id: string; onNavigate: (id: string) => void }) {
+  const state = useJournalNodeBody(id);
 
   if (state.phase === 'loading') {
     return <TextSm className="!text-ink-faint">Loading node {id}…</TextSm>;

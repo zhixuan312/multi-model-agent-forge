@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Maximize2, Minimize2, Plus, Minus, RotateCcw, X } from 'lucide-react';
 import { statusHex, edgeHex } from './graph-palette';
 import {
-  DEFAULT_LAYOUT, clamp, computeDegrees, labelRanks, layoutNodes,
+  DEFAULT_LAYOUT, clamp, computeDegrees, labelRanks, layoutNodes, centerPositions, fitDistance,
   birthOrder, scaleBirths, ENTRANCE, wrapLines, relationBreakdown, ignite, flash, magnitude, mulberry32, project, collides, deepFieldPixel,
   type Vec3, type Box,
 } from './graph-core';
@@ -26,11 +26,6 @@ import type { GraphNode, GraphEdge } from '@/journal/graph';
  * the canvas driver and the interaction surface.
  */
 
-const CAT_TINT: Record<string, string> = {
-  decision: '#d7804d', design: '#75a8c7', behavior: '#78b393',
-  process: '#d7a954', knowledge: '#a59b8a', style: '#d47782',
-};
-const catTint = (c?: string) => CAT_TINT[c ?? ''] ?? '#a59b8a';
 const TAU = Math.PI * 2;
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
@@ -45,20 +40,67 @@ interface Star extends Vec3 {
   px: number; py: number; pk: number; pz: number; onScreen: boolean; r: number;
 }
 
-/** One `## Context` / `## Consequences` block, set for the dark panel. */
+/**
+ * The reading surfaces are aged vellum, not glass: the sky is the astronomer's subject,
+ * and these are the chart laid over it. Mottling and foxing come from stacked radial
+ * washes; the grain reuses the container's own noise filter, multiplied into the paper.
+ */
+const VELLUM = {
+  background:
+    'radial-gradient(112% 74% at 14% 6%,rgba(255,253,246,.92),transparent 58%),' +
+    'radial-gradient(86% 66% at 88% 96%,rgba(178,152,106,.34),transparent 62%),' +
+    'radial-gradient(38% 30% at 72% 22%,rgba(169,118,26,.13),transparent 68%),' +
+    'radial-gradient(30% 26% at 20% 70%,rgba(154,61,20,.08),transparent 70%),' +
+    'linear-gradient(168deg,#f3ead7 0%,#ece0c9 46%,#e3d5b8 100%)',
+} as const;
+
+const INK = '#211c16', INK_SOFT = '#4a4238', INK_FAINT = '#857a68';
+const RUBRIC = '#9a3d14';           // headings in red, as a scribe would set them
+const RULE = 'rgba(122,98,62,.32)';
+
+/** Paper texture + the inner rule of a chart cartouche. Decoration only. */
+function VellumSurface() {
+  return (
+    <>
+      <svg aria-hidden className="pointer-events-none absolute inset-0 size-full opacity-[.17] mix-blend-multiply">
+        <rect width="100%" height="100%" filter="url(#journal-graph-grain)" />
+      </svg>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-[5px] rounded-[7px]"
+        style={{ border: `1px solid ${RULE}` }}
+      />
+    </>
+  );
+}
+
+/** A rubricated section label — small caps, wide tracking, struck through with a rule. */
+function Rubric({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <p
+      className={`flex items-center gap-2.5 font-[family-name:var(--font-serif,Newsreader)] text-[11px] uppercase tracking-[.28em] ${className}`}
+      style={{ color: RUBRIC }}
+    >
+      <span className="whitespace-nowrap">{children}</span>
+      <span aria-hidden className="h-px flex-1" style={{ background: RULE }} />
+    </p>
+  );
+}
+
+/** One `## Context` / `## Consequences` block, set on the vellum. */
 function Knowledge({ label, md }: { label: string; md: string }) {
   if (!md.trim()) return null;
   return (
     <section className="mt-6">
-      <p className="font-mono text-[10px] uppercase tracking-[.24em] text-[#a6aeb7]">{label}</p>
+      <Rubric>{label}</Rubric>
       <ProseBlock
         variant="rail"
         className={
-          'mt-2 prose-p:my-3 prose-p:text-[15px] prose-p:leading-[1.72] prose-p:text-[#dae0e7] ' +
-          'prose-li:my-1 prose-li:text-[15px] prose-li:leading-[1.7] prose-li:text-[#dae0e7] prose-li:marker:text-[#d8b779] ' +
-          'prose-strong:text-[#fbf8f2] prose-strong:font-semibold prose-headings:text-[#f4f1ea] prose-a:text-[#eedaac] ' +
-          'prose-code:bg-[rgba(216,183,121,.16)] prose-code:text-[#f0d9a6] prose-code:text-[0.82em] ' +
-          'prose-hr:border-[rgba(216,183,121,.2)]'
+          'mt-2.5 prose-p:my-3 prose-p:text-[15px] prose-p:leading-[1.74] prose-p:text-[#3d362c] ' +
+          'prose-li:my-1 prose-li:text-[15px] prose-li:leading-[1.7] prose-li:text-[#3d362c] prose-li:marker:text-[#9a3d14] ' +
+          'prose-strong:text-[#211c16] prose-strong:font-semibold prose-headings:text-[#211c16] prose-a:text-[#9a3d14] ' +
+          'prose-code:bg-[rgba(154,61,20,.1)] prose-code:text-[#8c3711] prose-code:text-[0.82em] ' +
+          'prose-hr:border-[rgba(122,98,62,.3)]'
         }
       >
         {md}
@@ -84,18 +126,18 @@ export function JournalGraph3D({
   // The *held* selection (a click), distinct from transient hover. In full screen this
   // drives the detail panel; inline it just keeps the compact card pinned.
   const [selected, setSelected] = useState<GraphNode | null>(null);
-  const [hovered, setHovered] = useState<GraphNode | null>(null);
 
   // The camera lives in a ref: the loop mutates it each frame without re-rendering React.
   const cam = useRef<{ yaw: number; pitch: number; dist: number; tYaw: number; tPitch: number; tDist: number }>({
     yaw: 0.52, pitch: -0.16, dist: DEFAULT_LAYOUT.homeDist,
     tYaw: 0.52, tPitch: -0.16, tDist: DEFAULT_LAYOUT.homeDist,
   });
+  const homeRef = useRef<number>(DEFAULT_LAYOUT.homeDist);
   const zoomBy = useCallback((f: number) => {
     cam.current.tDist = clamp(cam.current.tDist * f, DEFAULT_LAYOUT.minDist, DEFAULT_LAYOUT.maxDist);
   }, []);
   const resetView = useCallback(() => {
-    cam.current.tYaw = 0.52; cam.current.tPitch = -0.16; cam.current.tDist = DEFAULT_LAYOUT.homeDist;
+    cam.current.tYaw = 0.52; cam.current.tPitch = -0.16; cam.current.tDist = homeRef.current;
   }, []);
 
   /* ── full screen ────────────────────────────────────────────────────── */
@@ -116,6 +158,7 @@ export function JournalGraph3D({
     const deg = computeDegrees(nodes, edges);
     const ranks = labelRanks(nodes, deg);
     const pos = layoutNodes(nodes, edges);
+    const { radius } = centerPositions(pos);
     const births = scaleBirths(birthOrder(nodes, edges, deg));
     const maxDeg = Math.max(1, ...[...deg.values()]);
     const stars: Star[] = nodes.map((n) => {
@@ -137,7 +180,7 @@ export function JournalGraph3D({
       if (!nbr.has(e.source) || !nbr.has(e.target)) continue;
       nbr.get(e.source)!.add(e.target); nbr.get(e.target)!.add(e.source);
     }
-    return { stars, links, nbr };
+    return { stars, links, nbr, radius };
   }, [nodes, edges]);
 
   const skyRef = useRef(sky);
@@ -164,7 +207,6 @@ export function JournalGraph3D({
     if (!star) return;
     heldRef.current = star;
     setSelected(star.node);
-    setHovered(star.node);
     const c = cam.current;
     c.tYaw = Math.atan2(star.x, star.z);
     c.tPitch = clamp(Math.atan2(star.y, Math.hypot(star.x, star.z)), -1.05, 1.05);
@@ -172,7 +214,7 @@ export function JournalGraph3D({
   }, []);
 
   const clearSelection = useCallback(() => {
-    heldRef.current = null; setSelected(null); setHovered(null);
+    heldRef.current = null; setSelected(null);
   }, []);
 
   // The panel shows the learning itself, not just its one-line frontmatter summary — the
@@ -235,12 +277,17 @@ export function JournalGraph3D({
       canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       focal = clamp(W * 0.76, 660, 1080);
+      // Home frames the whole sky at any node count and any viewport.
+      const home = fitDistance(skyRef.current.radius, focal, Math.min(W, H));
+      if (cam.current.tDist === homeRef.current) cam.current.tDist = home; // follow while at home
+      homeRef.current = home;
     };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(wrap);
 
     buildNebula();
     if (!reduce) cam.current.dist = DEFAULT_LAYOUT.maxDist * 0.88; // glide in on first paint
+    cam.current.tDist = homeRef.current;
 
     const col2 = (s: Star) => statusHex(s.node.status);
     const draw = (now: number) => {
@@ -429,13 +476,22 @@ export function JournalGraph3D({
         if (!box) continue;
         boxes.push(box);
 
+        // The focused star gets a small vellum label pinned beside it — the same paper the
+        // reading surfaces are cut from, so the chart reads as one instrument.
         if (isFocus) {
-          ctx.fillStyle = 'rgba(3,6,13,.94)';
+          const pg = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
+          pg.addColorStop(0, '#f3ead7'); pg.addColorStop(0.5, '#ece0c9'); pg.addColorStop(1, '#e2d4b6');
+          ctx.fillStyle = pg;
           ctx.beginPath();
           if (typeof ctx.roundRect === 'function') ctx.roundRect(box.x, box.y, box.w, box.h, 7);
           else ctx.rect(box.x, box.y, box.w, box.h);
           ctx.fill();
-          ctx.strokeStyle = hexA(col2(s), 0.34); ctx.lineWidth = 0.7; ctx.stroke();
+          ctx.strokeStyle = 'rgba(88,70,44,.55)'; ctx.lineWidth = 0.8; ctx.stroke();
+          if (typeof ctx.roundRect === 'function') {
+            ctx.beginPath();
+            ctx.roundRect(box.x + 4, box.y + 4, box.w - 8, box.h - 8, 4);
+            ctx.strokeStyle = 'rgba(122,98,62,.34)'; ctx.lineWidth = 0.6; ctx.stroke();
+          }
         }
         ctx.strokeStyle = hexA(col2(s), isFocus ? 0.32 : 0.13);
         ctx.lineWidth = 0.55;
@@ -445,15 +501,15 @@ export function JournalGraph3D({
 
         const cx = box.x + box.w / 2;
         let y = box.y + pad;
-        ctx.shadowColor = 'rgba(0,0,0,.95)'; ctx.shadowBlur = 10;
+        if (!isFocus) { ctx.shadowColor = 'rgba(0,0,0,.95)'; ctx.shadowBlur = 10; }
         ctx.font = titleFont;
-        ctx.fillStyle = hexA(isFocus ? '#f6f3ec' : '#dfe4e9', isFocus ? 1 : 0.9);
+        ctx.fillStyle = isFocus ? '#211c16' : hexA('#dfe4e9', 0.9);
         for (const line of title) { ctx.fillText(line, cx, y); y += lh; }
         ctx.shadowBlur = 0;
 
         if (meta) {
           ctx.font = metaFont;
-          ctx.fillStyle = hexA(catTint(s.node.type), 0.88);
+          ctx.fillStyle = 'rgba(154,61,20,.92)';
           ctx.fillText(meta, cx, y); y += META + 7;
         }
         if (sub.length) {
@@ -510,14 +566,13 @@ export function JournalGraph3D({
       }
     };
     const onUp = () => { drag = null; };
-    const onLeave = () => { hoverRef.current = null; if (!heldRef.current) setHovered(null); };
+    const onLeave = () => { hoverRef.current = null; };
     const onClick = (e: MouseEvent) => {
       if (moved > 5) return;
       const { x, y } = at(e);
       const hit = pick(x, y);
       heldRef.current = hit;
       setSelected(hit ? hit.node : null);
-      setHovered(hit ? hit.node : null);
     };
     const onDouble = (e: MouseEvent) => {
       const { x, y } = at(e);
@@ -549,7 +604,9 @@ export function JournalGraph3D({
     };
   }, [field, buildNebula]);
 
-  const card = hovered ?? selected;
+  // The card is a CLICK affordance, not a hover one: hovering names the star on the canvas,
+  // clicking pins its card. In full screen the reading panel supersedes it entirely.
+  const card = full ? null : selected;
   const shape = useMemo(() => (card ? relationBreakdown(edges, card.id) : []), [card, edges]);
   const shapeTotal = shape.reduce((n, r) => n + r.count, 0);
 
@@ -611,40 +668,54 @@ export function JournalGraph3D({
 
       {/* The sky names the star; this names everything the star cannot say for itself —
           where it came from, what it means, and how it sits in the network. */}
-      {card && !(full && selected && card.id === selected.id) ? (
+      {card ? (
         <div
           data-testid="graph-hover-card"
-          className="pointer-events-none absolute bottom-4 left-4 w-[20rem] rounded-[var(--r-md)] border border-[rgba(216,183,121,.24)] bg-[rgba(3,6,13,.965)] px-4 py-3.5 shadow-[0_16px_50px_rgba(0,0,0,.66)] backdrop-blur-xl"
+          className="pointer-events-none absolute bottom-4 left-4 w-[20rem] overflow-hidden rounded-[var(--r-md)] px-5 py-4 shadow-[0_18px_52px_rgba(0,0,0,.62)]"
+          style={{ ...VELLUM, border: '1px solid rgba(88,70,44,.5)' }}
         >
-          <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[.2em] text-[#d8b779]">
-            <span className="size-1.5 rounded-full" style={{ background: statusHex(card.status) }} />
-            {card.status}{card.source ? ` · ${card.source}` : ''}
-          </p>
-
-          {card.description ? (
-            <p className="mt-2.5 text-[13.5px] italic leading-[1.65] text-[#e0e5eb]">{card.description}</p>
-          ) : (
-            <p className="mt-2.5 text-[13.5px] italic leading-[1.65] text-[#949ca5]">No summary recorded.</p>
-          )}
-
-          <div className="mt-3 border-t border-[rgba(216,183,121,.16)] pt-2.5">
-            <p className="font-mono text-[9.5px] uppercase tracking-[.2em] text-[#aab2bb]">
-              {shapeTotal ? `${shapeTotal} connection${shapeTotal === 1 ? '' : 's'}` : 'Unconnected'}
+          <VellumSurface />
+          <div className="relative">
+            <p
+              className="flex items-center gap-2 font-[family-name:var(--font-serif,Newsreader)] text-[10.5px] uppercase tracking-[.26em]"
+              style={{ color: RUBRIC }}
+            >
+              <span className="size-1.5 rounded-full" style={{ background: statusHex(card.status) }} />
+              {card.status}{card.source ? ` · ${card.source}` : ''}
             </p>
-            {shape.length ? (
-              <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-[10px] uppercase tracking-[.14em]">
-                {shape.map((r) => (
-                  <span key={r.type} style={{ color: edgeHex(r.type) }}>
-                    {r.type.replace(/-/g, ' ')} <span className="text-[#f1f4f7]">{r.count}</span>
-                  </span>
-                ))}
-              </p>
-            ) : null}
-          </div>
 
-          <p className="mt-3 font-mono text-[9px] uppercase tracking-[.16em] text-[#949ca5]">
-            Double-click to open{full ? '' : ' · full screen for detail'}
-          </p>
+            <p
+              className="mt-3 font-[family-name:var(--font-serif,Newsreader)] text-[14px] italic leading-[1.68]"
+              style={{ color: card.description ? INK_SOFT : INK_FAINT }}
+            >
+              {card.description ?? 'No summary recorded.'}
+            </p>
+
+            <div className="mt-3.5 pt-3" style={{ borderTop: `1px solid ${RULE}` }}>
+              <p
+                className="font-[family-name:var(--font-serif,Newsreader)] text-[10.5px] uppercase tracking-[.24em]"
+                style={{ color: INK_FAINT }}
+              >
+                {shapeTotal ? `${shapeTotal} connection${shapeTotal === 1 ? '' : 's'}` : 'Unconnected'}
+              </p>
+              {shape.length ? (
+                <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 font-[family-name:var(--font-serif,Newsreader)] text-[11px] uppercase tracking-[.16em]">
+                  {shape.map((r) => (
+                    <span key={r.type} style={{ color: edgeHex(r.type) }}>
+                      {r.type.replace(/-/g, ' ')} <span style={{ color: INK }}>{r.count}</span>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+            </div>
+
+            <p
+              className="mt-3.5 font-[family-name:var(--font-serif,Newsreader)] text-[10px] uppercase tracking-[.2em]"
+              style={{ color: INK_FAINT }}
+            >
+              Double-click to open · full screen for detail
+            </p>
+          </div>
         </div>
       ) : null}
 
@@ -654,20 +725,37 @@ export function JournalGraph3D({
         <aside
           data-testid="graph-detail-panel"
           aria-label={`Details for ${selected.title}`}
-          className="absolute inset-y-4 right-4 z-10 flex w-[34.5rem] flex-col overflow-hidden rounded-[var(--r-md)] border border-[rgba(216,183,121,.22)] bg-[rgba(3,6,13,.965)] shadow-[0_20px_66px_rgba(0,0,0,.66)] backdrop-blur-xl"
-          style={{ animation: 'journal-graph-panel-in .34s cubic-bezier(.22,1,.36,1) both' }}
+          className="absolute inset-y-4 right-4 z-10 flex w-[34.5rem] flex-col overflow-hidden rounded-[var(--r-md)] shadow-[0_22px_70px_rgba(0,0,0,.66)]"
+          style={{
+            ...VELLUM,
+            border: '1px solid rgba(88,70,44,.5)',
+            animation: 'journal-graph-panel-in .34s cubic-bezier(.22,1,.36,1) both',
+          }}
         >
           <style>{'@keyframes journal-graph-panel-in{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}'}</style>
+          <VellumSurface />
 
-          <header className="flex items-start justify-between gap-3 border-b border-[rgba(216,183,121,.16)] px-6 pb-5 pt-5">
+          <header
+            className="relative flex items-start justify-between gap-3 px-7 pb-5 pt-6"
+            style={{ borderBottom: `1px solid ${RULE}` }}
+          >
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[.24em] text-[#dcbc82]">
+              <p
+                className="font-[family-name:var(--font-serif,Newsreader)] text-[11px] uppercase tracking-[.3em]"
+                style={{ color: RUBRIC }}
+              >
                 {selected.id}{selected.type ? ` · ${selected.type}` : ''}
               </p>
-              <h2 className="mt-2 font-[family-name:var(--font-serif,Newsreader)] text-[22px] leading-[1.34] text-[#f7f4ee]">
+              <h2
+                className="mt-2.5 font-[family-name:var(--font-serif,Newsreader)] text-[23px] leading-[1.32]"
+                style={{ color: INK }}
+              >
                 {selected.title}
               </h2>
-              <p className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[.2em] text-[#aab2bb]">
+              <p
+                className="mt-3 inline-flex items-center gap-2 font-[family-name:var(--font-serif,Newsreader)] text-[10.5px] uppercase tracking-[.26em]"
+                style={{ color: INK_FAINT }}
+              >
                 <span className="size-1.5 rounded-full" style={{ background: statusHex(selected.status) }} />
                 {selected.status}
               </p>
@@ -677,20 +765,35 @@ export function JournalGraph3D({
               onClick={clearSelection}
               aria-label="Close details"
               data-testid="graph-detail-close"
-              className="grid size-7 shrink-0 place-items-center rounded-[var(--r-sm)] border border-[rgba(216,183,121,.24)] text-[#d8b779] transition-colors hover:border-[rgba(216,183,121,.7)] hover:text-[#f4e6c8]"
+              className="grid size-7 shrink-0 place-items-center rounded-[var(--r-sm)] transition-colors hover:bg-[rgba(154,61,20,.09)]"
+              style={{ border: `1px solid ${RULE}`, color: RUBRIC }}
             >
               <X className="size-3.5" />
             </button>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            {lead ? <p className="text-[15.5px] italic leading-[1.7] text-[#e2e7ed]">{lead}</p> : null}
+          <div className="relative min-h-0 flex-1 overflow-y-auto px-7 py-6">
+            {lead ? (
+              <p
+                className="font-[family-name:var(--font-serif,Newsreader)] text-[16px] italic leading-[1.72]"
+                style={{ color: INK_SOFT }}
+              >
+                {lead}
+              </p>
+            ) : null}
 
             {body.phase === 'loading' ? (
-              <p className="mt-5 font-mono text-[10px] uppercase tracking-[.22em] text-[#8b939c]">Loading…</p>
+              <p
+                className="mt-6 font-[family-name:var(--font-serif,Newsreader)] text-[11px] uppercase tracking-[.26em]"
+                style={{ color: INK_FAINT }}
+              >
+                Loading…
+              </p>
             ) : null}
             {body.phase === 'error' ? (
-              <p className="mt-5 text-[15px] italic leading-relaxed text-[#c99a95]">Could not load this learning.</p>
+              <p className="mt-6 text-[15px] italic leading-relaxed" style={{ color: '#a33a2f' }}>
+                Could not load this learning.
+              </p>
             ) : null}
             {body.phase === 'ready' && body.node ? (
               <>
@@ -699,22 +802,25 @@ export function JournalGraph3D({
               </>
             ) : null}
 
-            <p className="mt-7 font-mono text-[10px] uppercase tracking-[.24em] text-[#a6aeb7]">
-              Connections · {relations.length}
-            </p>
+            <div className="mt-8">
+              <Rubric>Connections · {relations.length}</Rubric>
+            </div>
             {relations.length ? (
-              <ul className="mt-3 space-y-1.5">
+              <ul className="mt-3 space-y-1">
                 {relations.map((r) => (
                   <li key={`${r.node.id}-${r.type}-${r.outgoing ? 'o' : 'i'}`}>
                     <button
                       type="button"
                       onClick={() => selectById(r.node.id)}
-                      className="w-full rounded-[var(--r-sm)] border border-transparent px-3 py-2.5 text-left transition-colors hover:border-[rgba(216,183,121,.24)] hover:bg-[rgba(216,183,121,.06)]"
+                      className="w-full rounded-[var(--r-sm)] border border-transparent px-3 py-2.5 text-left transition-colors hover:border-[rgba(122,98,62,.32)] hover:bg-[rgba(154,61,20,.06)]"
                     >
-                      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[.18em]" style={{ color: edgeHex(r.type) }}>
+                      <span
+                        className="flex items-center gap-1.5 font-[family-name:var(--font-serif,Newsreader)] text-[10.5px] uppercase tracking-[.22em]"
+                        style={{ color: edgeHex(r.type) }}
+                      >
                         {r.outgoing ? '→' : '←'} {r.type.replace(/-/g, ' ')}
                       </span>
-                      <span className="mt-1.5 flex items-start gap-2 text-[14.5px] leading-[1.55] text-[#eef1f5]">
+                      <span className="mt-1.5 flex items-start gap-2 text-[15px] leading-[1.56]" style={{ color: INK }}>
                         <span className="mt-[.44rem] size-1.5 shrink-0 rounded-full" style={{ background: statusHex(r.node.status) }} />
                         {r.node.title}
                       </span>
@@ -723,18 +829,19 @@ export function JournalGraph3D({
                 ))}
               </ul>
             ) : (
-              <p className="mt-2.5 text-[15px] italic leading-relaxed text-[#8b939c]">
+              <p className="mt-3 text-[15px] italic leading-relaxed" style={{ color: INK_FAINT }}>
                 An island — nothing links here yet.
               </p>
             )}
           </div>
 
-          <footer className="border-t border-[rgba(216,183,121,.16)] px-6 py-4">
+          <footer className="relative px-7 py-5" style={{ borderTop: `1px solid ${RULE}` }}>
             <button
               type="button"
               onClick={() => onOpenRef.current(selected.id)}
               data-testid="graph-detail-open"
-              className="w-full rounded-[var(--r-sm)] border border-[rgba(216,183,121,.34)] bg-[rgba(216,183,121,.08)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[.22em] text-[#ecd7a8] transition-colors hover:border-[rgba(216,183,121,.75)] hover:text-[#f7ecd4]"
+              className="w-full rounded-[var(--r-sm)] bg-[rgba(154,61,20,.07)] px-3 py-2.5 font-[family-name:var(--font-serif,Newsreader)] text-[12px] uppercase tracking-[.28em] transition-colors hover:bg-[rgba(154,61,20,.14)]"
+              style={{ border: '1px solid rgba(154,61,20,.36)', color: RUBRIC }}
             >
               Open this learning
             </button>

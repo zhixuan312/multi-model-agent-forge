@@ -5,6 +5,8 @@ import {
   layoutNodes,
   birthOrder,
   scaleBirths,
+  centerPositions,
+  fitDistance,
   wrapLines,
   relationBreakdown,
   ENTRANCE,
@@ -112,6 +114,39 @@ describe('journal graph core', () => {
     it('reaches neighbours before strangers (breadth first)', () => {
       const b = birthOrder(nodes, edges, computeDegrees(nodes, edges));
       expect(b.get('0004')!).toBeLessThan(b.get('0005')!); // hub neighbour before the island
+    });
+  });
+
+  describe('centerPositions / fitDistance (framing)', () => {
+    it('moves the cloud centroid to the origin', () => {
+      const pos = layoutNodes(nodes, edges);
+      centerPositions(pos);
+      const c = { x: 0, y: 0, z: 0 };
+      for (const p of pos.values()) { c.x += p.x; c.y += p.y; c.z += p.z; }
+      expect(Math.abs(c.x / pos.size)).toBeLessThan(1e-6);
+      expect(Math.abs(c.y / pos.size)).toBeLessThan(1e-6);
+      expect(Math.abs(c.z / pos.size)).toBeLessThan(1e-6);
+    });
+    it('reports the core radius, letting stray outliers overflow the frame', () => {
+      const pos = new Map<string, { x: number; y: number; z: number }>();
+      for (let i = 0; i < 49; i++) pos.set(`n${i}`, { x: (i % 2 ? 1 : -1) * 10, y: 0, z: 0 });
+      pos.set('outlier', { x: 1000, y: 0, z: 0 });
+      const { radius } = centerPositions(pos);
+      expect(radius).toBeGreaterThan(5);
+      expect(radius).toBeLessThan(100); // the lone outlier does not dictate framing
+    });
+    it('handles an empty cloud', () => {
+      expect(centerPositions(new Map()).radius).toBe(0);
+    });
+    it('frames a bigger sky from further back', () => {
+      const near = fitDistance(300, 900, 700);
+      const far = fitDistance(900, 900, 700);
+      expect(far).toBeGreaterThan(near);
+    });
+    it('stays inside the zoom range and has a sane fallback', () => {
+      expect(fitDistance(1e6, 900, 700)).toBe(DEFAULT_LAYOUT.maxDist);
+      expect(fitDistance(1, 900, 700)).toBe(DEFAULT_LAYOUT.minDist);
+      expect(fitDistance(0, 900, 700)).toBe(DEFAULT_LAYOUT.homeDist);
     });
   });
 

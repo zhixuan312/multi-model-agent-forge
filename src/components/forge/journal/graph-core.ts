@@ -188,6 +188,44 @@ export function birthOrder(
 
 /** 0 → 1 over `dur` seconds once `elapsed` passes `birth`. */
 /**
+ * Centre the cloud on the origin and report its bounding radius. The category anchors
+ * are biased upward on purpose (constellations overhead), so without this the whole
+ * sky drifts off the top of the frame.
+ */
+export function centerPositions(positions: Map<string, Vec3>): { radius: number } {
+  const pts = [...positions.values()];
+  if (!pts.length) return { radius: 0 };
+  const c = { x: 0, y: 0, z: 0 };
+  for (const p of pts) { c.x += p.x; c.y += p.y; c.z += p.z; }
+  c.x /= pts.length; c.y /= pts.length; c.z /= pts.length;
+  const d: number[] = [];
+  for (const p of pts) {
+    p.x -= c.x; p.y -= c.y; p.z -= c.z;
+    d.push(Math.hypot(p.x, p.y, p.z));
+  }
+  // Robust radius: frame the dense core, not the stray outliers — a handful of
+  // far-flung islands shouldn't push the whole sky into the distance.
+  d.sort((a, b) => a - b);
+  return { radius: d[Math.min(d.length - 1, Math.floor(d.length * 0.88))] };
+}
+
+/**
+ * The camera distance at which a cloud of `radius` fills `fill` of the viewport's
+ * short side — so the home view frames the whole sky regardless of how many
+ * learnings it holds. Clamped to the zoom range.
+ */
+export function fitDistance(
+  radius: number,
+  focal: number,
+  vpMin: number,
+  fill = 0.78,
+  cfg = DEFAULT_LAYOUT,
+): number {
+  if (radius <= 0 || vpMin <= 0) return cfg.homeDist;
+  return clamp(radius * focal / (fill * (vpMin / 2)), cfg.minDist, cfg.maxDist);
+}
+
+/**
  * The whole sky lights up over this many seconds: births are rescaled so the LAST star
  * finishes igniting exactly at the end, however many stars there are.
  */

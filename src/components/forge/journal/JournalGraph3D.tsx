@@ -36,7 +36,7 @@ function hexA(hex: string, a: number): string {
 }
 
 interface Star extends Vec3 {
-  node: GraphNode; deg: number; mag: number; rank: number; birth: number;
+  node: GraphNode; deg: number; mag: number; jit: number; rank: number; birth: number;
   px: number; py: number; pk: number; pz: number; onScreen: boolean; r: number;
 }
 
@@ -161,11 +161,12 @@ export function JournalGraph3D({
     const { radius } = centerPositions(pos);
     const births = scaleBirths(birthOrder(nodes, edges, deg));
     const maxDeg = Math.max(1, ...[...deg.values()]);
+    const jrnd = mulberry32(777);
     const stars: Star[] = nodes.map((n) => {
       const p = pos.get(n.id) ?? { x: 0, y: 0, z: 0 };
       const d = deg.get(n.id) ?? 0;
       return {
-        ...p, node: n, deg: d, mag: magnitude(d, maxDeg),
+        ...p, node: n, deg: d, mag: magnitude(d, maxDeg), jit: 0.8 + jrnd() * 0.4,
         rank: ranks.get(n.id) ?? 0, birth: births.get(n.id) ?? 0,
         px: 0, py: 0, pk: 0, pz: 0, onScreen: false, r: 0,
       };
@@ -192,10 +193,16 @@ export function JournalGraph3D({
   /* ── background starfield (independent of the graph) ────────────────── */
   const field = useMemo(() => {
     const rnd = mulberry32(99991);
-    return Array.from({ length: 900 }, () => {
+    return Array.from({ length: 1700 }, (_, i) => {
       const th = rnd() * TAU, ph = Math.acos(2 * rnd() - 1), R = 1000 + rnd() * 3100;
+      // Two populations, like a real sky: an isotropic halo, and a disc crowded
+      // toward the galactic band the nebula paints across the equator.
+      const disc = i % 5 < 2;
+      const y = disc
+        ? ((rnd() + rnd() + rnd()) / 1.5 - 1) * R * 0.16
+        : Math.cos(ph) * R * 0.82;
       return {
-        x: Math.sin(ph) * Math.cos(th) * R, y: Math.cos(ph) * R * 0.82, z: Math.sin(ph) * Math.sin(th) * R,
+        x: Math.sin(ph) * Math.cos(th) * R, y, z: Math.sin(ph) * Math.sin(th) * R,
         m: Math.pow(rnd(), 3.8), tw: rnd() * TAU, temp: rnd(),
       };
     });
@@ -334,9 +341,32 @@ export function JournalGraph3D({
         const a = depth * (0.10 + s.m * 0.72) * (0.9 + 0.1 * Math.sin(T * 0.85 + s.tw));
         if (a < 0.015) continue;
         ctx.fillStyle = hexA(s.temp > 0.76 ? '#d7e5ff' : s.temp < 0.19 ? '#ffd9aa' : '#f5f2e9', a);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 0.22 + s.m * 1.05, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 0.18 + s.m * 0.95, 0, TAU); ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
+
+      // A meteor every ~40s: one thin, fast streak, gone in a second. Rare enough to be
+      // a reward for lingering, and stilled entirely for reduced motion.
+      if (!reduce && elapsed > ENTRANCE.seconds + 4) {
+        const CYCLE = 41, wi = Math.floor(elapsed / CYCLE), mt = (elapsed % CYCLE) / 1.05;
+        if (wi > 0 && mt < 1) {
+          const mr = mulberry32(wi * 7919);
+          const x0 = W * (0.12 + mr() * 0.72), y0 = H * (0.08 + mr() * 0.3);
+          const ang = Math.PI * (0.16 + mr() * 0.2) * (mr() > 0.5 ? 1 : -1) + (mr() > 0.5 ? 0 : Math.PI);
+          const speed = W * 0.5, len = 110;
+          const hx = x0 + Math.cos(ang) * speed * mt, hy = y0 + Math.abs(Math.sin(ang)) * speed * 0.42 * mt;
+          const fade = Math.sin(Math.PI * mt) * 0.55;
+          const tail = ctx.createLinearGradient(hx - Math.cos(ang) * len, hy - Math.abs(Math.sin(ang)) * len * 0.42, hx, hy);
+          tail.addColorStop(0, 'rgba(255,244,218,0)');
+          tail.addColorStop(1, hexA('#fff4da', fade));
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = tail; ctx.lineWidth = 1.1; ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(hx - Math.cos(ang) * len, hy - Math.abs(Math.sin(ang)) * len * 0.42);
+          ctx.lineTo(hx, hy); ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
 
       const { stars, links, nbr } = skyRef.current;
       for (const s of stars) {
@@ -356,18 +386,38 @@ export function JournalGraph3D({
         if (eb <= 0) continue;
         const isHot = !!focus && (l.a.node.id === focus.node.id || l.b.node.id === focus.node.id);
         const depth = clamp(1 - ((l.a.pz + l.b.pz) / 2) / 2850, 0, 1);
-        const a = (0.15 + depth * 0.28) * (!focus ? 1 : isHot ? 2.4 : 0.18) * eb;
+        // At rest the sky is stars, not wires — threads sit just above the visibility
+        // floor; hovering a star is what makes its web blaze.
+        const a = (!focus ? 0.045 + depth * 0.085 : isHot ? (0.15 + depth * 0.28) * 2.4 : 0.028) * eb;
         if (a < 0.008) continue;
         const gr = easeOut(eb);
         const x2 = l.a.px + (l.b.px - l.a.px) * gr, y2 = l.a.py + (l.b.py - l.a.py) * gr;
         const col = edgeHex(l.type);
-        const lg = ctx.createLinearGradient(l.a.px, l.a.py, x2, y2);
-        lg.addColorStop(0, hexA(col, Math.min(0.85, a * 1.45)));
-        lg.addColorStop(0.5, hexA(col, Math.min(0.5, a * 0.6)));
-        lg.addColorStop(1, hexA(col, Math.min(0.85, a * 1.45)));
-        ctx.strokeStyle = lg;
-        ctx.lineWidth = (isHot ? 1.55 : 0.86) * clamp((l.a.pk + l.b.pk) * 25, 0.65, 1.32);
-        ctx.beginPath(); ctx.moveTo(l.a.px, l.a.py); ctx.lineTo(x2, y2); ctx.stroke();
+        const wBase = clamp((l.a.pk + l.b.pk) * 25, 0.65, 1.32);
+        if (isHot) {
+          // The hover web is drawn the way an old atlas traces a constellation: one hand,
+          // one gold-sepia ink — relation colours belong to the card, not the chart.
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = hexA('#c9a765', Math.min(0.3, a * 0.2));
+          ctx.lineWidth = 6.6 * wBase;
+          ctx.beginPath(); ctx.moveTo(l.a.px, l.a.py); ctx.lineTo(x2, y2); ctx.stroke();
+          const lg = ctx.createLinearGradient(l.a.px, l.a.py, x2, y2);
+          lg.addColorStop(0, hexA('#fff4da', Math.min(1, a * 0.78)));
+          lg.addColorStop(0.5, hexA('#dfc08a', Math.min(0.85, a * 0.55)));
+          lg.addColorStop(1, hexA('#fff4da', Math.min(1, a * 0.78)));
+          ctx.strokeStyle = lg;
+          ctx.lineWidth = 1.4 * wBase;
+          ctx.beginPath(); ctx.moveTo(l.a.px, l.a.py); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+        } else {
+          const lg = ctx.createLinearGradient(l.a.px, l.a.py, x2, y2);
+          lg.addColorStop(0, hexA(col, Math.min(0.85, a * 1.45)));
+          lg.addColorStop(0.5, hexA(col, Math.min(0.5, a * 0.6)));
+          lg.addColorStop(1, hexA(col, Math.min(0.85, a * 1.45)));
+          ctx.strokeStyle = lg;
+          ctx.lineWidth = 0.86 * wBase;
+          ctx.beginPath(); ctx.moveTo(l.a.px, l.a.py); ctx.lineTo(x2, y2); ctx.stroke();
+        }
       }
 
       // stars
@@ -378,41 +428,56 @@ export function JournalGraph3D({
         const fl = flash(s.birth, elapsed);
         const isFocus = focus?.node.id === s.node.id;
         const dim = !!focus && !hot.has(s.node.id);
+        const lit = !!focus && !isFocus && hot.has(s.node.id);  // a linked neighbour
         const depth = clamp(1 - s.pz / 2750, 0.18, 1);
         const scale = clamp(s.pk * 72, 0.62, 1.32);
         const col = statusHex(s.node.status);
-        const R = (1.05 + s.mag * 3.35) * scale * (isFocus ? 1.18 : 1) * (0.5 + 0.5 * easeOut(ig)) * (1 + 0.45 * fl);
+        // Real skies spread their magnitudes: a steep curve pulls the crowd down toward
+        // pinpoints while the hubs blaze, and a per-star scatter breaks the uniformity —
+        // bounded so the faintest stays findable and the greatest stays a star, not a moon.
+        const base = clamp((0.62 + 4.3 * Math.pow(s.mag, 1.4)) * s.jit, 0.85, 4.9);
+        const R = base * scale * (isFocus ? 1.22 : lit ? 1.12 : 1) * (0.5 + 0.5 * easeOut(ig)) * (1 + 0.45 * fl);
         const lum = 0.78 + s.mag * 0.22;
         const tw = 0.94 + 0.06 * Math.sin(T * 1.7 + s.rank * 2.399);
-        const a = (0.56 + depth * 0.42) * lum * tw * (dim ? 0.12 : 1) * (0.25 + 0.75 * easeOut(ig)) * (1 + 1.05 * fl);
+        const a = (0.56 + depth * 0.42) * lum * tw * (dim ? 0.1 : lit ? 1.3 : 1) * (0.25 + 0.75 * easeOut(ig)) * (1 + 1.05 * fl);
         s.r = R;
 
         ctx.globalCompositeOperation = 'lighter';
-        const glow = R * (isFocus ? 5.2 * (1 + 0.06 * Math.sin(T * 2.4)) : 3.4);
+        const glow = R * (isFocus ? 5.2 * (1 + 0.06 * Math.sin(T * 2.4)) : lit ? 4.1 : 3.2);
         const rg = ctx.createRadialGradient(s.px, s.py, 0, s.px, s.py, glow);
-        rg.addColorStop(0, hexA(col, (isFocus ? 0.40 : 0.24) * a));
+        rg.addColorStop(0, hexA(col, (isFocus ? 0.42 : 0.24 + 0.1 * s.mag) * a));
         rg.addColorStop(0.22, hexA(col, 0.14 * a));
         rg.addColorStop(0.55, hexA(col, 0.045 * a));
         rg.addColorStop(1, hexA(col, 0));
         ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(s.px, s.py, glow, 0, TAU); ctx.fill();
 
-        if (s.mag > 0.72 || isFocus) {           // diffraction spikes on the brightest
-          const L = R * (isFocus ? 5.4 : 3.5), sa = (isFocus ? 0.32 : 0.15) * a, tk = Math.max(0.5, 0.42 * scale);
+        // Hubble's signature: X-shaped diffraction spikes at 45°, on every star bright
+        // enough to bloom — long and thin on the great ones, a glint on the rest.
+        if ((s.mag > 0.38 && !dim) || isFocus || lit) {
+          const bloom = isFocus ? 1 : lit ? 0.82 : clamp((s.mag - 0.38) / 0.62, 0, 1);
+          const L = R * (3.1 + 6.2 * bloom) * (1 + 0.035 * Math.sin(T * 1.3 + s.rank * 1.7)); // scintillation
+          const sa = (0.13 + 0.34 * bloom) * a;
+          const tk = Math.max(0.4, (0.3 + 0.18 * bloom) * scale);
+          ctx.save();
+          ctx.translate(s.px, s.py);
+          ctx.rotate(Math.PI / 4);
           for (const horiz of [true, false]) {
             const gsp = horiz
-              ? ctx.createLinearGradient(s.px - L, s.py, s.px + L, s.py)
-              : ctx.createLinearGradient(s.px, s.py - L, s.px, s.py + L);
-            gsp.addColorStop(0, hexA(col, 0)); gsp.addColorStop(0.5, hexA('#fff4df', sa)); gsp.addColorStop(1, hexA(col, 0));
+              ? ctx.createLinearGradient(-L, 0, L, 0)
+              : ctx.createLinearGradient(0, -L, 0, L);
+            gsp.addColorStop(0, hexA(col, 0)); gsp.addColorStop(0.5, hexA('#fff6e6', sa)); gsp.addColorStop(1, hexA(col, 0));
             ctx.fillStyle = gsp;
-            if (horiz) ctx.fillRect(s.px - L, s.py - tk / 2, L * 2, tk);
-            else ctx.fillRect(s.px - tk / 2, s.py - L, tk, L * 2);
+            if (horiz) ctx.fillRect(-L, -tk / 2, L * 2, tk);
+            else ctx.fillRect(-tk / 2, -L, tk, L * 2);
           }
+          ctx.restore();
         }
         // white-hot core with the colour in the halo — what reads as a star, not a dot
         const body = ctx.createRadialGradient(s.px, s.py, 0, s.px, s.py, R);
-        body.addColorStop(0, hexA('#ffffff', Math.min(0.95, a)));
-        body.addColorStop(0.34, hexA('#fff2d9', Math.min(0.92, a * 0.9)));
-        body.addColorStop(0.68, hexA(col, Math.min(0.9, a * 0.78)));
+        body.addColorStop(0, hexA('#ffffff', Math.min(1, a * 1.08)));
+        body.addColorStop(0.2, hexA('#ffffff', Math.min(0.96, a * 0.98)));
+        body.addColorStop(0.45, hexA('#fff2d9', Math.min(0.85, a * 0.8)));
+        body.addColorStop(0.72, hexA(col, Math.min(0.7, a * 0.55)));
         body.addColorStop(1, hexA(col, 0));
         ctx.fillStyle = body; ctx.beginPath(); ctx.arc(s.px, s.py, R, 0, TAU); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';

@@ -276,6 +276,14 @@ describe('journal graph core', () => {
         expect(valueNoise(0, v, 8, 5, 67)).toBeCloseTo(valueNoise(1, v, 8, 5, 67), 6);
       }
     });
+    it('tiles seamlessly — the left and right edges are the same sky', () => {
+      for (let j = 0; j <= 24; j++) {
+        const v = j / 24;
+        const a = deepFieldPixel(0, v), b = deepFieldPixel(1, v);
+        for (let ch = 0; ch < 3; ch++) expect(Math.abs(a[ch] - b[ch])).toBeLessThan(0.75);
+      }
+    });
+
     it('paints valid RGB everywhere', () => {
       for (let i = 0; i <= 20; i++) {
         for (let j = 0; j <= 20; j++) {

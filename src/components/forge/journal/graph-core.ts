@@ -370,23 +370,37 @@ export function fbm(u: number, v: number, salt: number): number {
  * renderer only has to blit it.
  */
 export function deepFieldPixel(u: number, v: number): [number, number, number] {
-  const warp = fbm(u * 1.12, v * 1.15, 19) - 0.5;
+  const warp = fbm(u, v * 1.15, 19) - 0.5;
   const center = 0.51 + 0.085 * Math.sin(u * Math.PI * 2 + 0.44) + 0.023 * Math.sin(u * Math.PI * 6 - 1.15);
   const dy = Math.abs(v - center + warp * 0.055);
   const broad = Math.exp(-(dy * dy) / 0.0205);
   const core = Math.exp(-(dy * dy) / 0.0027);
-  const n1 = fbm(u * 2.2 + warp * 0.18, v * 2.35 - warp * 0.1, 67);
-  const n2 = fbm(u * 6.4 - n1 * 0.12, v * 7.2 + n1 * 0.08, 131);
+  const n1 = fbm(u * 2 + warp * 0.18, v * 2.35 - warp * 0.1, 67);
+  const n2 = fbm(u * 6 - n1 * 0.12, v * 7.2 + n1 * 0.08, 131);
   const n3 = fbm(u * 14.0, v * 13.0, 211);
   const gas = broad * smoothstep(0.32, 0.79, n1 * 0.72 + n2 * 0.28) * (0.62 + n3 * 0.38);
   const knots = core * smoothstep(0.48, 0.82, n2) * (0.65 + n3 * 0.35);
-  const lane = core * smoothstep(0.53, 0.76, fbm(u * 5.1 + 0.13, v * 7.8 - 0.09, 307));
+  const lane = core * smoothstep(0.53, 0.76, fbm(u * 5 + 0.13, v * 7.8 - 0.09, 307));
   const halo = 0.2 * Math.exp(-((v - 0.48) * (v - 0.48)) / 0.18);
-  let r = 3 + halo * 2 + gas * 19 + knots * 22;
-  let g = 6 + halo * 3 + gas * 27 + knots * 16;
-  let b = 13 + halo * 7 + gas * 43 + knots * 18;
+
+  // Reflection nebulae — cold starlight scattered off gas, in luminous blue sheets that
+  // drift off the band the way LH 95 does. Independent noise so they don't trace the gas.
+  const sheet = smoothstep(0.55, 0.86, fbm(u * 2 + 0.31, v * 1.9 - 0.22, 419))
+    * (0.35 + 0.65 * broad) * (0.7 + 0.3 * n3);
+  // Dust — warm brown wisps riding their own flow, torn at the edges by fine noise.
+  const dustN = fbm(u * 3 - 0.17, v * 3.8 + 0.29, 523);
+  const dust = smoothstep(0.52, 0.8, dustN) * (0.25 + 0.75 * broad)
+    * smoothstep(0.25, 0.6, fbm(u * 11 + 0.7, v * 10.0 - 0.4, 617));
+
+  let r = 3 + halo * 2 + gas * 17 + knots * 20;
+  let g = 6 + halo * 3 + gas * 25 + knots * 15;
+  let b = 13 + halo * 7 + gas * 40 + knots * 17;
+  // blue sheets lift all three but blue most — luminous, not just tinted
+  r += sheet * 16; g += sheet * 24; b += sheet * 38;
   const warm = knots * smoothstep(0.54, 0.78, n1);
   r += warm * 22; g += warm * 9; b -= warm * 2;
+  // dust reads brown: it adds warmth while eating the blue behind it
+  r += dust * 13; g += dust * 7; b -= dust * 12;
   const cut = lane * (19 + 22 * n3);
   r -= cut * 0.7; g -= cut * 0.84; b -= cut;
   const edge = 0.82 + 0.18 * Math.sin(Math.PI * v);

@@ -961,12 +961,14 @@ function ValidateStage({
         footer={
           <>
             {docView === 'document' ? null
-              : activeRound && !appliedPasses.has(activeRound.passNo) && activeRound.findings.length > 0 ? (
+              : activeRound && activeRound.findings.length > 0 ? (
+              // The apply bar stays put after applying — it locks (readOnly) rather than
+              // vanishing, matching the governed AuditView so the three stages can't drift.
               <FindingsApplyBar
                 selectedCount={selectedFindings.length}
                 total={activeRound.findings.length}
                 applying={applying}
-                readOnly={readOnly}
+                readOnly={readOnly || appliedPasses.has(activeRound.passNo)}
                 onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
                 onApply={() => apply(activeRound.passNo, selectedFindings)}
               />

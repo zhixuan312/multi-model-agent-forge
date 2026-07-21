@@ -27,13 +27,15 @@ import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import type { StageKind } from '@/db/enums';
 import type { ProjectSummary } from '@/projects/project-summary';
 
-function formatDuration(ms: number): string {
+export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const secs = Math.round(ms / 1000);
   if (secs < 60) return `${secs}s`;
   const mins = Math.round(secs / 60);
   if (mins < 60) return `${mins}m`;
-  const hours = Math.round(mins / 60);
+  // floor, not round: 95 min is 1h 35m, not 2h 35m (round would carry the hour AND
+  // still show the 35 remainder).
+  const hours = Math.floor(mins / 60);
   return `${hours}h ${mins % 60}m`;
 }
 
@@ -170,15 +172,29 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
           footer={{ label: 'Total', value: totalProjectMs > 0 ? formatDuration(totalProjectMs) : '—' }}
         />
 
-        <StatCard
-          icon={<DollarSign />}
-          title="Cost"
-          rows={[
-            { label: 'MMA spend', value: formatUsd(summary.cost.totalUsd) },
-            { label: 'Saved vs main tier', value: `−${formatUsd(summary.cost.savedUsd)}` },
-          ]}
-          footer={{ label: 'Net', value: formatUsd(summary.cost.totalUsd - summary.cost.savedUsd) }}
-        />
+        {(() => {
+          // What you actually paid is `totalUsd` — full stop. `savedUsd` is a
+          // counterfactual: the extra it WOULD have cost to run every task on the main
+          // tier. So the hypothetical main-only cost is spend + saved, and the saving is
+          // the gap between them — never subtracted from what you really spent.
+          const spend = summary.cost.totalUsd;
+          const mainOnly = spend + summary.cost.savedUsd;
+          const pct = mainOnly > 0 ? Math.round((summary.cost.savedUsd / mainOnly) * 100) : 0;
+          return (
+            <StatCard
+              icon={<DollarSign />}
+              title="Cost"
+              rows={[
+                { label: 'MMA spend', value: formatUsd(spend) },
+                { label: 'Main tier only (est.)', value: formatUsd(mainOnly) },
+              ]}
+              footer={{
+                label: 'Saved',
+                value: pct > 0 ? `${formatUsd(summary.cost.savedUsd)} (${pct}%)` : formatUsd(summary.cost.savedUsd),
+              }}
+            />
+          );
+        })()}
 
         <StatCard
           icon={<Zap />}

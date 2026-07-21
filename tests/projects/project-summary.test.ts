@@ -87,4 +87,42 @@ describe('loadProjectSummary', () => {
     expect(summary.delivery.approved).toBe(2);
     expect(summary.knowledge.recorded).toBe(2);
   });
+
+  it('derives each stage span from its events, ignoring collapsed details timestamps', async () => {
+    // A force-completed project: mark_complete backfilled EVERY stage's completedAt with
+    // one identical `now`, so the details timeline is garbage (every stage ends at the
+    // same instant). The activity events carry the real per-stage timing.
+    const d = buildInitialDetails();
+    const COLLAPSED = '2026-07-01T23:10:54.000Z';
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      d.stages[kind].status = 'done';
+      d.stages[kind].startedAt = '2026-07-01T07:15:00.000Z';
+      d.stages[kind].completedAt = COLLAPSED; // all identical — the bug
+    }
+    const ev = (stage: string, phase: string, createdAt: string, durationMs: number) => ({
+      id: `${stage}-1`, projectId: PROJECT_ID, seq: 1, stage, phase, label: stage,
+      kind: 'done', actorId: 'm1', actorName: 'Forge', actorTint: '#000', source: 'mma',
+      durationMs, eventKey: `${stage}:b1`, createdAt: new Date(createdAt),
+    });
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Demo', createdAt: new Date('2026-07-01'), completedAt: null, details: d }],
+      'select:ops_mma_batch': [],
+      'select:project_activity': [
+        ev('exploration', 'discover', '2026-07-01T07:16:00.000Z', 60_000),
+        ev('execute', 'implement', '2026-07-01T15:01:33.000Z', 1_131_735), // 18.9 min — the sparse stage
+      ],
+    });
+
+    const summary = await loadProjectSummary(mockDb, PROJECT_ID);
+    const byKind = Object.fromEntries(summary.timeline.stages.map((s) => [s.kind, s]));
+
+    // Execute has ONE event, but its duration gives a real 18.9-min span — not the collapse.
+    expect(byKind.execute.startedAt).toBe('2026-07-01T15:01:33.000Z');
+    expect(byKind.execute.completedAt).toBe('2026-07-01T15:20:24.735Z');
+    expect(byKind.execute.completedAt).not.toBe(COLLAPSED);
+    expect(byKind.exploration.completedAt).toBe('2026-07-01T07:17:00.000Z');
+
+    // A stage with NO events falls back to the details timestamps.
+    expect(byKind.spec.completedAt).toBe(COLLAPSED);
+  });
 });

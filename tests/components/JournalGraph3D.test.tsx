@@ -22,7 +22,7 @@ function stubCanvas() {
     createRadialGradient: () => grad, createLinearGradient: () => grad,
     createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
     putImageData: vi.fn(), drawImage: vi.fn(), globalAlpha: 1,
-    save: vi.fn(), restore: vi.fn(),
+    save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
     globalCompositeOperation: '', fillStyle: '', strokeStyle: '', lineWidth: 1,
     font: '', textAlign: '', textBaseline: '', shadowColor: '', shadowBlur: 0, lineCap: '',
   };

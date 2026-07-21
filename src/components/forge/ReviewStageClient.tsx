@@ -278,12 +278,14 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
           )
         }
         footer={
-          activePass && !isViewingPast && !allApplied && activePass.findings.length > 0 ? (
+          activePass && !isViewingPast && activePass.findings.length > 0 ? (
+            // The apply bar stays put after applying — it locks (readOnly) rather than
+            // vanishing, matching the governed AuditView so the three stages can't drift.
             <FindingsApplyBar
               selectedCount={selectedFindings.length}
               total={activePass.findings.length}
               applying={applying}
-              readOnly={readOnly}
+              readOnly={readOnly || allApplied}
               onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
               onApply={() => apply(activePass.passNo, selectedFindings)}
             />

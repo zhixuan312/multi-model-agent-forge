@@ -67,10 +67,32 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
 
   if (proj?.details) {
     const d = validateDetails(proj.details);
+    // Stage timing is derived from the activity events, NOT `details.startedAt/completedAt`.
+    // Those details timestamps collapse to a single value when a project is force-completed
+    // (mark_complete / bulk advance backfill every unstamped stage with one `now`), which
+    // renders a garbage timeline (every stage ending at the same instant). Each activity
+    // event instead carries its own real `createdAt` and `durationMs`, so an event occupies
+    // [createdAt, createdAt + durationMs] and a stage spans the union of its events. Only
+    // when a stage produced no events at all do we fall back to the details timestamps.
+    const spanFromEvents = (
+      kind: string,
+      fallback: { startedAt?: string; completedAt?: string },
+    ): { startedAt: string | null; completedAt: string | null } => {
+      let start = Infinity, end = -Infinity;
+      for (const e of events) {
+        if (e.stage !== kind) continue;
+        const t = new Date(e.createdAt).getTime();
+        if (!Number.isFinite(t)) continue;
+        start = Math.min(start, t);
+        end = Math.max(end, t + (e.durationMs ?? 0));
+      }
+      if (start === Infinity) {
+        return { startedAt: fallback.startedAt ?? null, completedAt: fallback.completedAt ?? null };
+      }
+      return { startedAt: new Date(start).toISOString(), completedAt: new Date(end).toISOString() };
+    };
     stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
-      kind, status: d.stages[kind].status,
-      startedAt: d.stages[kind].startedAt ?? null,
-      completedAt: d.stages[kind].completedAt ?? null,
+      kind, status: d.stages[kind].status, ...spanFromEvents(kind, d.stages[kind]),
     }));
     for (const p of d.stages.spec.phases.finalize.auditPasses) {
       auditPasses.push({ scope: 'spec', passNo: p.passNo, status: p.status });

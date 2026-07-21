@@ -2,19 +2,17 @@
 import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { useRouter } from 'next/navigation';
-import { Share2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { JournalGraph3D } from '@/components/forge/journal/JournalGraph3D';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { RailNote } from '@/components/patterns/feature-rail';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
 
 /**
- * The Graph tab — the decision graph as an interactive 3D "planet" on the 2/3
- * canvas, with ONE rail note (the legend) in the rail. Clicking a node routes to
- * it in the Nodes tab.
+ * The Graph tab — the decision graph as an interactive night sky on the 2/3
+ * canvas, with the shared journal note above a Legend right-panel (the key).
+ * Clicking a node routes to it in the Nodes tab.
  */
 export function GraphTab({ nodes, edges, metrics }: { nodes: GraphNode[]; edges: GraphEdge[]; metrics?: MetricCardProps[] }) {
   const router = useRouter();
@@ -48,18 +46,18 @@ const STATUS_MEANING: Record<string, string> = {
 };
 
 /**
- * The Graph rail note + legend, in the shared rail-note house style (accent-tint
- * box, icon circle, `###`-style section headings, bullet rows) — the same
- * convention as SettingsAccessNote, but the bullet markers are colour swatches so
- * it also serves as the graph's key. Content-sized, like every other rail note.
+ * The Graph right-panel — the legend, as a governed Card panel (header + content),
+ * the same shape as the Nodes and Recall right-panels rather than a second rail
+ * note. Its bullet markers are colour swatches so it doubles as the graph's key.
  */
 function GraphLegend() {
   const heading = 'mb-2 text-sm font-semibold text-ink';
   return (
-    // The governed RailNote supplies the tinted box + icon circle; the legend passes rich
-    // children because its bullet markers are colour swatches markdown can't express.
-    <RailNote icon={<Share2 />}>
-      <div className="flex min-w-0 flex-col gap-4">
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <CardHeader>
+        <CardTitle>Legend</CardTitle>
+      </CardHeader>
+      <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
         <section>
           <h3 className={heading}>Node status</h3>
           <ul className="flex flex-col gap-1.5">
@@ -107,7 +105,7 @@ function GraphLegend() {
             </li>
           </ul>
         </section>
-      </div>
-    </RailNote>
+      </CardContent>
+    </Card>
   );
 }

@@ -12,6 +12,10 @@ export interface StageTiming {
   status: string;
   startedAt: string | null;
   completedAt: string | null;
+  /** Active work time — the stage's event span minus long idle pauses (a project left
+   *  overnight or for days). This is "how long the stage took" of actual work, so a
+   *  3-day pause inside a stage doesn't render as a 79-hour stage. */
+  activeMs: number;
 }
 
 export interface ProjectSummary {
@@ -74,25 +78,52 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
     // event instead carries its own real `createdAt` and `durationMs`, so an event occupies
     // [createdAt, createdAt + durationMs] and a stage spans the union of its events. Only
     // when a stage produced no events at all do we fall back to the details timestamps.
-    const spanFromEvents = (
+    // A gap longer than this between one event ending and the next starting is an idle
+    // pause (a project left overnight or for days), not work — excluded from `activeMs`.
+    // Continuous work with no intermediate events (a long investigate batch) leaves gaps
+    // well under this, so it still counts.
+    const IDLE_GAP_MS = 6 * 60 * 60 * 1000;
+    const timingFromEvents = (
       kind: string,
       fallback: { startedAt?: string; completedAt?: string },
-    ): { startedAt: string | null; completedAt: string | null } => {
-      let start = Infinity, end = -Infinity;
-      for (const e of events) {
-        if (e.stage !== kind) continue;
-        const t = new Date(e.createdAt).getTime();
-        if (!Number.isFinite(t)) continue;
-        start = Math.min(start, t);
-        end = Math.max(end, t + (e.durationMs ?? 0));
+    ): { startedAt: string | null; completedAt: string | null; activeMs: number } => {
+      const intervals = events
+        .filter((e) => e.stage === kind)
+        .map((e) => {
+          const t = new Date(e.createdAt).getTime();
+          return Number.isFinite(t) ? { start: t, end: t + (e.durationMs ?? 0) } : null;
+        })
+        .filter((x): x is { start: number; end: number } => x !== null)
+        .sort((a, b) => a.start - b.start);
+
+      if (intervals.length === 0) {
+        const s = fallback.startedAt ? new Date(fallback.startedAt).getTime() : null;
+        const e = fallback.completedAt ? new Date(fallback.completedAt).getTime() : null;
+        // A collapsed/absurd fallback span (see the note above) still shouldn't render as
+        // days; cap the fallback active time at the idle threshold.
+        const active = s !== null && e !== null ? Math.min(Math.max(0, e - s), IDLE_GAP_MS) : 0;
+        return { startedAt: fallback.startedAt ?? null, completedAt: fallback.completedAt ?? null, activeMs: active };
       }
-      if (start === Infinity) {
-        return { startedAt: fallback.startedAt ?? null, completedAt: fallback.completedAt ?? null };
+
+      let active = 0;
+      let curStart = intervals[0].start, curEnd = intervals[0].end;
+      for (let i = 1; i < intervals.length; i++) {
+        const iv = intervals[i];
+        if (iv.start - curEnd > IDLE_GAP_MS) {
+          active += curEnd - curStart; // close the current active cluster; the gap is idle
+          curStart = iv.start;
+        }
+        curEnd = Math.max(curEnd, iv.end);
       }
-      return { startedAt: new Date(start).toISOString(), completedAt: new Date(end).toISOString() };
+      active += curEnd - curStart;
+      return {
+        startedAt: new Date(intervals[0].start).toISOString(),
+        completedAt: new Date(curEnd).toISOString(),
+        activeMs: active,
+      };
     };
     stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
-      kind, status: d.stages[kind].status, ...spanFromEvents(kind, d.stages[kind]),
+      kind, status: d.stages[kind].status, ...timingFromEvents(kind, d.stages[kind]),
     }));
     for (const p of d.stages.spec.phases.finalize.auditPasses) {
       auditPasses.push({ scope: 'spec', passNo: p.passNo, status: p.status });

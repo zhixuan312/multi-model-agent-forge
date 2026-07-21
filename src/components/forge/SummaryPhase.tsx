@@ -87,14 +87,10 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
     .map((kind) => summary.timeline.stages.find((s) => s.kind === kind))
     .filter(Boolean) as typeof summary.timeline.stages;
 
-  const totalProjectMs = (() => {
-    const first = orderedStages.find((s) => s.startedAt);
-    const last = [...orderedStages].reverse().find((s) => s.completedAt);
-    if (!first?.startedAt || !last?.completedAt) return 0;
-    const start = new Date(first.startedAt).getTime();
-    const end = new Date(last.completedAt).getTime();
-    return end - start;
-  })();
+  // Total is the sum of active stage work, so it stays coherent with the per-stage rows
+  // (they add up) and — like each stage — excludes idle pauses when a project is left
+  // for hours or days between stages.
+  const totalProjectMs = orderedStages.reduce((sum, s) => sum + (s.activeMs ?? 0), 0);
 
   return (
     <StageShell
@@ -166,7 +162,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
           rows={[
             ...orderedStages.map((s) => ({
               label: STAGE_LABEL[s.kind as StageKind] ?? s.kind,
-              value: stageDuration(s.startedAt, s.completedAt),
+              value: s.activeMs > 0 ? formatDuration(s.activeMs) : stageDuration(s.startedAt, s.completedAt),
             })),
           ]}
           footer={{ label: 'Total', value: totalProjectMs > 0 ? formatDuration(totalProjectMs) : '—' }}

@@ -125,4 +125,57 @@ describe('loadProjectSummary', () => {
     // A stage with NO events falls back to the details timestamps.
     expect(byKind.spec.completedAt).toBe(COLLAPSED);
   });
+
+  it('excludes a long idle pause from a stage duration but keeps the real span', async () => {
+    // A project left for 3 days mid-spec: two clusters of work, 79h apart. The stage
+    // spans the whole 79h in wall-clock, but only ~10 min of that is actual work.
+    const d = buildInitialDetails();
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+      d.stages[kind].status = 'done';
+    }
+    const ev = (id: string, createdAt: string, durationMs: number) => ({
+      id, projectId: PROJECT_ID, seq: 1, stage: 'spec', phase: 'craft', label: 'spec',
+      kind: 'done', actorId: 'm1', actorName: 'Forge', actorTint: '#000', source: 'mma',
+      durationMs, eventKey: `spec:${id}`, createdAt: new Date(createdAt),
+    });
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Demo', createdAt: new Date('2026-07-02'), completedAt: null, details: d }],
+      'select:ops_mma_batch': [],
+      'select:project_activity': [
+        ev('a', '2026-07-02T12:49:00.000Z', 5 * 60_000), // 5 min of work…
+        ev('b', '2026-07-05T20:18:00.000Z', 5 * 60_000), // …then 79h later, 5 more min
+      ],
+    });
+
+    const summary = await loadProjectSummary(mockDb, PROJECT_ID);
+    const spec = summary.timeline.stages.find((s) => s.kind === 'spec')!;
+    // Real span is preserved (the stage really did straddle 3 days)…
+    expect(spec.startedAt).toBe('2026-07-02T12:49:00.000Z');
+    expect(spec.completedAt).toBe('2026-07-05T20:23:00.000Z');
+    // …but the active work is ~10 minutes, not 79 hours.
+    expect(spec.activeMs).toBe(10 * 60_000);
+  });
+
+  it('counts continuous work (a long gap under the idle threshold) as active', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'done';
+    const ev = (id: string, createdAt: string, durationMs: number) => ({
+      id, projectId: PROJECT_ID, seq: 1, stage: 'exploration', phase: 'discover', label: 'x',
+      kind: 'done', actorId: 'm1', actorName: 'Forge', actorTint: '#000', source: 'mma',
+      durationMs, eventKey: `exploration:${id}`, createdAt: new Date(createdAt),
+    });
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Demo', createdAt: new Date('2026-07-02'), completedAt: null, details: d }],
+      'select:ops_mma_batch': [],
+      'select:project_activity': [
+        // "Proposed tasks", then a 1.5h investigation (no intermediate events), then "Synthesized".
+        ev('a', '2026-07-02T07:16:00.000Z', 30_000),
+        ev('b', '2026-07-02T08:48:00.000Z', 3 * 60_000),
+      ],
+    });
+    const summary = await loadProjectSummary(mockDb, PROJECT_ID);
+    const exp = summary.timeline.stages.find((s) => s.kind === 'exploration')!;
+    // 07:16 → 08:51 is under the 6h idle threshold, so the whole 1h35m counts as work.
+    expect(exp.activeMs).toBe(95 * 60_000);
+  });
 });

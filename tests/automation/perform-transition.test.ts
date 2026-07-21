@@ -134,6 +134,37 @@ describe('mark_complete', () => {
     expect(updated.stages.execute.status).toBe('skipped');
     expect(updated.stages.review.status).toBe('skipped');
   });
+
+  it('completes the phases of every done stage, never stranding one mid-phase', async () => {
+    // The journal stage is active with its summary phase still pending — the exact shape
+    // that stranded a completed project on Journal, unable to reach Summary.
+    const d = buildInitialDetails();
+    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) {
+      d.stages[kind].status = 'done';
+    }
+    d.stages.journal.status = 'active';
+    d.stages.journal.phases.journal.status = 'active';
+    d.stages.journal.phases.summary.status = 'pending';
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: 'p1' }],
+    });
+
+    await executeDetailsAction('p1', { kind: 'mark_complete', note: '', stage: 'journal', phase: 'summary' }, db);
+    const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
+    const updated = validateDetails((setCalls[0].args[0] as { details: unknown }).details);
+
+    expect(updated.stages.journal.status).toBe('done');
+    expect(updated.stages.journal.phases.journal.status).toBe('done');
+    expect(updated.stages.journal.phases.summary.status).toBe('done');
+    // Every phase of every non-skipped, done stage is resolved.
+    for (const st of Object.values(updated.stages)) {
+      if (st.status !== 'done') continue;
+      for (const ph of Object.values(st.phases as Record<string, { status: string }>)) {
+        expect(['done', 'skipped']).toContain(ph.status);
+      }
+    }
+  });
 });
 
 describe('repairActiveStage', () => {

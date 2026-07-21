@@ -26,7 +26,7 @@ export interface ProjectSummary {
   cost: { totalUsd: number; savedUsd: number };
   effort: { totalCalls: number; totalInputTokens: number; totalOutputTokens: number; totalDurationMs: number };
   quality: { auditPasses: Array<{ scope: string; passNo: number; status: string }>; specVersion: number; planVersion: number };
-  delivery: { totalTasks: number; approved: number };
+  delivery: { totalTasks: number; delivered: number };
   knowledge: { recorded: number; byType: Record<string, number> };
   /** The full project activity timeline (explore→journal) for the Summary rail. */
   events: ProjectActivityEvent[];
@@ -152,7 +152,9 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
       totalDurationMs: doneBatches.reduce((sum, b) => sum + (b.durationMs ?? 0), 0),
     },
     quality: { auditPasses, specVersion: specFile?.version ?? 0, planVersion: planFile?.version ?? 0 },
-    delivery: { totalTasks: tasks.length, approved: tasks.filter((t) => t.status === 'approved').length },
+    // A committed task is the terminal delivered state (past approved); count both, so a
+    // fully-executed project doesn't read 0% just because its tasks moved past approval.
+    delivery: { totalTasks: tasks.length, delivered: tasks.filter((t) => t.status === 'approved' || t.status === 'committed').length },
     knowledge: { recorded: recorded.length, byType },
     events,
   };

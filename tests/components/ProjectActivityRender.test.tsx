@@ -54,7 +54,7 @@ describe('project activity rendering', () => {
           cost: { totalUsd: 0, savedUsd: 0 },
           effort: { totalCalls: 0, totalInputTokens: 0, totalOutputTokens: 0, totalDurationMs: 0 },
           quality: { auditPasses: [], specVersion: 0, planVersion: 0 },
-          delivery: { totalTasks: 0, approved: 0 },
+          delivery: { totalTasks: 0, delivered: 0 },
           knowledge: { recorded: 0, byType: {} },
           events,
         }}

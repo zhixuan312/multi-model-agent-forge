@@ -84,7 +84,7 @@ describe('loadProjectSummary', () => {
     expect(summary.effort.totalCalls).toBe(2);
     expect(summary.quality.auditPasses).toHaveLength(2);
     expect(summary.delivery.totalTasks).toBe(2);
-    expect(summary.delivery.approved).toBe(2);
+    expect(summary.delivery.delivered).toBe(2);
     expect(summary.knowledge.recorded).toBe(2);
   });
 
@@ -154,6 +154,25 @@ describe('loadProjectSummary', () => {
     expect(spec.completedAt).toBe('2026-07-05T20:23:00.000Z');
     // …but the active work is ~10 minutes, not 79 hours.
     expect(spec.activeMs).toBe(10 * 60_000);
+  });
+
+  it('counts committed tasks as delivered, not just approved', async () => {
+    // A fully-executed project's tasks move past approval to `committed` (the terminal
+    // delivered state). Delivery must count them, or a shipped project reads 0%.
+    const d = buildInitialDetails();
+    d.stages.plan.phases.refine.tasks = [
+      { id: 't1', title: 'A', status: 'committed', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
+      { id: 't2', title: 'B', status: 'committed', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
+      { id: 't3', title: 'C', status: 'approved', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
+      { id: 't4', title: 'D', status: 'skipped', approvals: [], attempts: [], reviewPolicy: 'none' },
+    ];
+    const mockDb = createMockDb({
+      'select:project': [{ name: 'Demo', createdAt: new Date('2026-07-01'), completedAt: null, details: d }],
+      'select:ops_mma_batch': [],
+    });
+    const summary = await loadProjectSummary(mockDb, PROJECT_ID);
+    expect(summary.delivery.totalTasks).toBe(4);
+    expect(summary.delivery.delivered).toBe(3); // 2 committed + 1 approved; skipped excluded
   });
 
   it('counts continuous work (a long gap under the idle threshold) as active', async () => {

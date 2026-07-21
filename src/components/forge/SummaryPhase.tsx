@@ -222,12 +222,12 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
           title="Delivery"
           rows={[
             { label: 'Total tasks', value: String(summary.delivery.totalTasks) },
-            { label: 'Approved', value: String(summary.delivery.approved) },
+            { label: 'Delivered', value: String(summary.delivery.delivered) },
           ]}
           footer={{
-            label: 'Approval rate',
+            label: 'Delivery rate',
             value: summary.delivery.totalTasks > 0
-              ? `${Math.round((summary.delivery.approved / summary.delivery.totalTasks) * 100)}%`
+              ? `${Math.round((summary.delivery.delivered / summary.delivery.totalTasks) * 100)}%`
               : '—',
           }}
         />

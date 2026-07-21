@@ -523,6 +523,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
             stg.status = 'done';
             if (!stg.completedAt) stg.completedAt = now.toISOString();
           }
+          // Complete the phases too. A "done" stage whose last phase is still
+          // active/pending strands the reader mid-stage — e.g. a completed project
+          // stuck on Journal, unable to advance to (or land on) Summary.
+          for (const ph of Object.values(stg.phases as Record<string, { status: string }>)) {
+            if (ph.status !== 'skipped' && ph.status !== 'done') ph.status = 'done';
+          }
         }
         d.automation.status = 'off';
         d.automation.stoppedAt = now.toISOString();

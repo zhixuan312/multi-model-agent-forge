@@ -25,13 +25,10 @@ import {
   CardFooter,
   Badge,
 } from '@/components/ui';
-import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
+import { DocumentShell } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { StageNavigator } from '@/components/patterns/stage-navigator';
-import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
-import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
-import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
@@ -65,9 +62,6 @@ export interface JournalStageClientProps {
   harvesting: boolean;
   recording: boolean;
   activeLearningId?: string;
-  currentMember?: { id: string; displayName: string; avatarTint: string };
-  /** Everyone else on the project — resolves discussion attribution and @-mentions. */
-  projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   summary?: import('@/projects/project-summary').ProjectSummary;
   initialPhase?: 'journal' | 'summary';
   readOnly?: boolean;
@@ -76,7 +70,6 @@ export interface JournalStageClientProps {
 }
 
 type LearningStatus = 'proposed' | 'kept' | 'recorded';
-type Msg = { id: string; role: 'forge' | 'user'; text: string };
 
 const CATEGORY_STYLE: Record<LearningCategory, string> = {
   decision: 'bg-accent-tint text-accent',
@@ -86,18 +79,6 @@ const CATEGORY_STYLE: Record<LearningCategory, string> = {
   knowledge: 'bg-rose-tint text-[var(--rose)]',
   style: 'bg-surface-2 text-ink-soft',
 };
-
-let _nid = 0;
-const nid = () => `jm-${++_nid}`;
-
-/* ── Chat bubbles (matching Plan Refine) ──────────────────────── */
-
-
-/** The learning card's tabs — the artifact itself, then its discussion. */
-const LEARNING_TABS: readonly DocumentShellTab[] = [
-  { id: 'content', label: 'Content' },
-  { id: 'discussion', label: 'Discussion' },
-];
 
 /* ── Main Component ────────────────────────────────────────────── */
 
@@ -134,10 +115,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
   );
 
   const [activeId, setActiveId] = useState<string>(props.activeLearningId ?? props.learnings[0]?.id ?? '');
-  const [threads, setThreads] = useState<Record<string, Msg[]>>({});
-  const [input, setInput] = useState('');
-  const [viewOverride, setViewOverride] = useState<Record<string, 'content' | 'discussion'>>({});
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
   // dispatch_harvest / dispatch_record are synchronous effects (await:true) — the
@@ -148,9 +125,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
       'journal.updated': (data) => {
         window.dispatchEvent(new CustomEvent('journal:updated', { detail: data }));
         refresh();
-      },
-      'chat.message': (data) => {
-        window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
       },
     },
   });
@@ -199,43 +173,11 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const allRecorded = props.learnings.length > 0 && props.learnings.every((l) => status[l.id] === 'recorded');
   const isApproved = active ? (status[active.id] === 'kept' || status[active.id] === 'recorded') : false;
 
-  const [refiningLearnings, setRefiningLearnings] = useState<Set<string>>(new Set());
   // Must sit with the other hooks, ABOVE every early return below — a useState
   // after the harvesting/!active returns would change the hook count between
   // renders (Rules of Hooks) and crash on the harvest→populated transition.
   const [completing, setCompleting] = useState(false);
   const optimistic = useOptimisticAction();
-  const msgs = threads[activeId] ?? [];
-
-  // The learning thread in the shared DiscussionMsg shape — `role` is a transport detail of
-  // the refine endpoint, attribution is a member id, so teammates render with their real
-  // name and avatar instead of the placeholder initials the old bubbles hardcoded.
-  const discussion: DiscussionMsg[] = msgs.map((m) => ({
-    id: m.id,
-    authorId: m.role === 'user' ? (props.currentMember?.id ?? 'me') : 'forge',
-    body: m.text,
-  }));
-
-  /** Resolve a member id for attribution (you · project pool). */
-  function memberById(id: string): MemberRef | undefined {
-    if (props.currentMember && id === props.currentMember.id) return props.currentMember;
-    return (props.projectMembers ?? []).find((m) => m.id === id);
-  }
-  const lastMsg = msgs[msgs.length - 1];
-  const hasForgeReply = lastMsg?.role === 'forge';
-  const learningView = active ? (viewOverride[active.id] ?? (hasForgeReply ? 'discussion' : 'content')) : 'content';
-  const setLearningView = (v: 'content' | 'discussion') => {
-    if (active) setViewOverride((prev) => ({ ...prev, [active.id]: v }));
-  };
-  const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (learningView === 'discussion') {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    } else {
-      contentRef.current?.scrollTo?.(0, 0);
-    }
-  }, [activeId, learningView, threads]);
-
 
   // Category groups for right panel
   const categories = useMemo(() => {
@@ -266,32 +208,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
     if (nextUnapproved) setActiveId(nextUnapproved.id);
   }
 
-  function send() {
-    const text = input.trim();
-    if (!text || !active || refiningLearnings.has(active.id)) return;
-    setInput('');
-    setThreads((th) => ({
-      ...th,
-      [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'user', text }],
-    }));
-
-    const forgeTagged = /@forge\b/i.test(text);
-    if (forgeTagged) {
-      const cleanText = text.replace(/@forge\s*/gi, '').trim() || 'Refine this learning based on the discussion.';
-      const refineId = active.id;
-      setRefiningLearnings((prev) => new Set(prev).add(refineId));
-      setLearningView('discussion');
-      // TODO: dispatch to journal-refine route when implemented
-      // For now, add a placeholder response
-      setTimeout(() => {
-        setRefiningLearnings((prev) => { const next = new Set(prev); next.delete(refineId); return next; });
-        setThreads((th) => ({
-          ...th,
-          [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: `Noted: "${cleanText}". Refinement will be applied when journal-refine is wired up.` }],
-        }));
-      }, 500);
-    }
-  }
 
   // The automation bar belongs to the STAGE, not to one of its internal states. It
   // used to sit only on the final branch, so it vanished on the harvesting, inactive
@@ -461,7 +377,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
               index: l.num,
               done: status[l.id] === 'kept' || status[l.id] === 'recorded',
               active: l.id === activeId,
-              onClick: () => { setActiveId(l.id); setInput(''); },
+              onClick: () => setActiveId(l.id),
             })),
           }))}
           footer={
@@ -490,7 +406,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
         />
       }
     >
-      {/* LEFT PANEL — the learning document (content ⋅ discussion). */}
+      {/* LEFT PANEL — the learning document. */}
       <DocumentShell
         className="flex min-h-0 flex-1 flex-col"
         meta={
@@ -500,60 +416,23 @@ export function JournalStageClient(props: JournalStageClientProps) {
           </>
         }
         title={active.title}
-        tabs={LEARNING_TABS}
-        activeTab={learningView}
-        onTabChange={(v) => setLearningView(v as 'content' | 'discussion')}
-        bodyRef={contentRef}
         body={
-          <>
-            {learningView === 'content' ? (
-              <ProseBlock>
-                {active.body}
-              </ProseBlock>
-            ) : (
-              <div className="space-y-5">
-                {msgs.length === 0 && !(active && refiningLearnings.has(active.id)) ? (
-                  <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — type @Forge to refine this learning.</p>
-                ) : null}
-                <DiscussionThread
-                  messages={discussion}
-                  memberById={memberById}
-                  currentMemberId={props.currentMember?.id ?? 'me'}
-                  mentionPool={props.projectMembers ?? []}
-                  pending={!!active && refiningLearnings.has(active.id)}
-                />
-                <div ref={bottomRef} />
-              </div>
-            )}
-          </>
+          <ProseBlock>
+            {active.body}
+          </ProseBlock>
         }
         actions={
-          learningView === 'content' ? (
-            <>
-              {isApproved ? (
-                // Approvals are monotonic (approve_learning is one-way) — show a static
-                // confirmed state, not a Revoke affordance the model cannot honor.
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
-                  <Check className="size-4 text-accent" /> Approved
-                </span>
-              ) : (
-                <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
-                  Approve
-                </Button>
-              )}
-            </>
-          ) : null
-        }
-        footer={
-          learningView === 'discussion' ? (
-            <ConversationComposer
-              value={input}
-              onChange={setInput}
-              onSend={send}
-              placeholder="@Forge to refine this learning..."
-              disabled={readOnly || (active != null && refiningLearnings.has(active.id))}
-            />
-          ) : null
+          isApproved ? (
+            // Approvals are monotonic (approve_learning is one-way) — show a static
+            // confirmed state, not a Revoke affordance the model cannot honor.
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
+              <Check className="size-4 text-accent" /> Approved
+            </span>
+          ) : (
+            <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
+              Approve
+            </Button>
+          )
         }
       />
     </StageShell>

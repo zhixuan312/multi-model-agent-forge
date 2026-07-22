@@ -308,8 +308,11 @@ export function RecallTab({
           {hasContent ? (
             <List fill sections={recallSections} />
           ) : (
-            <Card>
-              <CardContent className="grid place-items-center py-12">
+            // Fill the column (flex-1) so the empty panel reaches the bottom of the page,
+            // matching the composer column on the right — instead of a short card with a
+            // gap beneath it. The EmptyState centers within the stretched card.
+            <Card className="flex min-h-0 flex-1 flex-col">
+              <CardContent className="grid flex-1 place-items-center py-12">
                 <EmptyState
                   icon={<Sparkles />}
                   title="No saved answers yet"

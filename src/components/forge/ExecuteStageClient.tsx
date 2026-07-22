@@ -133,8 +133,9 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   );
   const [dispatching, setDispatching] = useState(false);
 
-  // Monitor state — seed from terminal results if available
-  const [jobs, setJobs] = useState<Record<string, RepoJobState>>(() =>
+  // Monitor state — derive each repo's job from the server props (terminal results + PRs + task
+  // statuses). Pure function of props, so it can re-run when a refresh brings fresh props.
+  const computeJobs = (): Record<string, RepoJobState> =>
     Object.fromEntries(
       props.repoGroups.map((g) => {
         const tr = props.terminalResults?.[g.repoId];
@@ -164,8 +165,25 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
         const anyRunning = g.tasks.some((t) => t.status === 'executing' || t.status === 'verifying' || t.status === 'fixing');
         return [g.repoId, { status: anyRunning ? ('implementing' as const) : ('queued' as const) }];
       }),
-    ),
-  );
+    );
+  const [jobs, setJobs] = useState<Record<string, RepoJobState>>(computeJobs);
+
+  // Re-derive from props when a refresh brings fresh terminal results — WITHOUT this, `jobs` was
+  // seeded only at mount, so when the pipeline finished (onDone → router.refresh, which preserves
+  // client state) the cards stayed "implementing" forever and "Continue to Review" never enabled.
+  // Preserve an optimistic 'implementing' over a derived 'queued' so a mid-run refresh can't
+  // regress an in-flight repo back to queued.
+  useEffect(() => {
+    setJobs((cur) => {
+      const derived = computeJobs();
+      const next: Record<string, RepoJobState> = {};
+      for (const id of Object.keys(derived)) {
+        next[id] = cur[id]?.status === 'implementing' && derived[id]?.status === 'queued' ? cur[id] : derived[id];
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-derive on the server props that feed computeJobs
+  }, [props.repoGroups, props.terminalResults, props.buildPrs]);
 
   const refresh = useCallback(() => { router.refresh(); }, [router]);
 

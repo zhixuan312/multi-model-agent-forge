@@ -88,6 +88,23 @@ interface ExploreStageClientProps {
   initialPhase?: 'brief' | 'discover' | 'synthesize';
 }
 
+/**
+ * Fire a discover-task mutation (add / edit / delete). Returns true on success; on a rejected
+ * response OR a network error it surfaces a toast and returns false — so the caller can skip
+ * its refresh (which would silently revert to server state) and keep the add form open with the
+ * user's typed prompt intact, instead of the request failing invisibly.
+ */
+export async function mutateTask(url: string, init: RequestInit, failMessage: string): Promise<boolean> {
+  try {
+    const r = await fetch(url, init);
+    if (!r.ok) { showToast({ type: 'error', message: failMessage }); return false; }
+    return true;
+  } catch {
+    showToast({ type: 'error', message: failMessage });
+    return false;
+  }
+}
+
 export function ExploreStageClient(props: ExploreStageClientProps) {
   const qc = useQueryClient();
   useProjectEvents(props.projectId);
@@ -654,23 +671,28 @@ function FanOutCard(props: {
   const [adding, setAdding] = useState<string | null>(null);
 
   async function patch(taskId: string, body: unknown): Promise<void> {
-    await fetch(`/api/projects/${props.projectId}/explore/tasks/${taskId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    props.onChanged();
+    const ok = await mutateTask(
+      `/api/projects/${props.projectId}/explore/tasks/${taskId}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      'Couldn’t update the task — try again.',
+    );
+    if (ok) props.onChanged();
   }
   async function remove(taskId: string): Promise<void> {
-    await fetch(`/api/projects/${props.projectId}/explore/tasks/${taskId}`, { method: 'DELETE' });
-    props.onChanged();
+    const ok = await mutateTask(
+      `/api/projects/${props.projectId}/explore/tasks/${taskId}`,
+      { method: 'DELETE' },
+      'Couldn’t remove the task — try again.',
+    );
+    if (ok) props.onChanged();
   }
   async function add(kind: string, prompt: string, targetRepoId: string | null): Promise<void> {
-    await fetch(`/api/projects/${props.projectId}/explore/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, prompt, targetRepoId }),
-    });
+    const ok = await mutateTask(
+      `/api/projects/${props.projectId}/explore/tasks`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, prompt, targetRepoId }) },
+      'Couldn’t add the task — try again.',
+    );
+    if (!ok) return; // keep the add form open with the typed prompt
     setAdding(null);
     props.onChanged();
   }

@@ -42,6 +42,25 @@ export interface MemberRowData {
 
 type RoleFilter = 'all' | 'admin' | 'member';
 
+/**
+ * A member edit is two sequential writes (role PATCH, then password POST). Decide the outcome
+ * once BOTH have been attempted. The bug this guards: if the role change committed but the
+ * password reset then failed, the old code returned early — no refresh (table shows the stale
+ * role) and a bare "Could not reset the password" (hiding that the role DID change). So: a
+ * committed role change always refreshes and is reported, even when the password step fails.
+ */
+export function memberEditOutcome(args: {
+  roleChanged: boolean;
+  passwordError: string | null;
+}): { error: string | null; refresh: boolean; done: boolean } {
+  if (args.passwordError) {
+    return args.roleChanged
+      ? { error: `Role updated, but the password reset failed. ${args.passwordError}`.trim(), refresh: true, done: false }
+      : { error: args.passwordError, refresh: false, done: false };
+  }
+  return { error: null, refresh: true, done: true };
+}
+
 /** Generate a readable random password (≥ PASSWORD_MIN_LENGTH). */
 function generatePassword(): string {
   const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -325,6 +344,7 @@ export function MemberForm({
     }
     setBusy(true);
     try {
+      let roleChanged = false;
       if (isAdmin !== existing!.isAdmin) {
         const res = await fetch(`/api/members/${existing!.id}`, {
           method: 'PATCH',
@@ -332,11 +352,14 @@ export function MemberForm({
           body: JSON.stringify({ isAdmin }),
         });
         if (!res.ok) {
+          // The role change itself failed → nothing committed; plain error, no refresh.
           const b = (await res.json().catch(() => null)) as { error?: string } | null;
           setError(b?.error ?? 'Could not update the member.');
           return;
         }
+        roleChanged = true;
       }
+      let passwordError: string | null = null;
       if (password !== '') {
         const res = await fetch(`/api/members/${existing!.id}/password`, {
           method: 'POST',
@@ -345,12 +368,15 @@ export function MemberForm({
         });
         if (!res.ok) {
           const b = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(b?.error ?? 'Could not reset the password.');
-          return;
+          passwordError = b?.error ?? 'Could not reset the password.';
         }
       }
-      onDone();
-      router.refresh();
+      // A committed role change must refresh (else the table is stale) and be reported even if
+      // the password step then failed — see memberEditOutcome.
+      const outcome = memberEditOutcome({ roleChanged, passwordError });
+      if (outcome.refresh) router.refresh();
+      if (outcome.error) { setError(outcome.error); return; }
+      if (outcome.done) onDone();
     } finally {
       setBusy(false);
     }

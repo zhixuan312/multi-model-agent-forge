@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { currentMember } from '@/auth/current-member';
@@ -17,18 +17,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 
   const db = getDb();
 
-  const [seqRow] = await db
-    .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), 0)` })
-    .from(qaMessage)
-    .where(eq(qaMessage.targetId, componentId));
-
+  // Compute seq INSIDE the insert (single statement) instead of a separate SELECT-max then
+  // INSERT — two round-trips let concurrent messages read the same max and collide on seq.
   const [row] = await db
     .insert(qaMessage)
     .values({
       targetId: componentId,
       projectId: id,
       targetKind: 'spec_component',
-      seq: (seqRow?.max ?? 0) + 1,
+      seq: sql<number>`(select coalesce(max(${qaMessage.seq}), 0) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${componentId})`,
       bodyMd: bodyMd.trim(),
       authorId: me.id,
     })

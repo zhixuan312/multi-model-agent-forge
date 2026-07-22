@@ -152,6 +152,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const [brief, setBrief] = useState(props.initialBrief);
   const [viewOverrideRaw, setViewOverrideRaw] = useState<'brief' | 'discover' | 'synthesize' | null>(props.initialPhase ?? null);
+  // A synthesis dispatch that failed — drives the SummaryPane's error+Retry state instead of an
+  // eternal spinner (the failure path leaves mma.error null and bodyMd null).
+  const [synthError, setSynthError] = useState(false);
   const setViewOverride = (v: 'brief' | 'discover' | 'synthesize') => {
     setViewOverrideRaw(v);
     if (typeof window !== 'undefined') {
@@ -221,10 +224,16 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   }
 
   async function resynthesize(): Promise<void> {
+    setSynthError(false);
     try {
       await mma.transition('dispatch_synthesize', undefined, 'explore-synthesize');
     } catch {
       showToast({ type: 'error', message: 'Couldn’t synthesize — try again.' });
+      // Record a persistent error so the SummaryPane shows error+Retry instead of spinning forever
+      // (the failure path leaves mma.error null, synthesizing false, bodyMd null). Do NOT re-arm
+      // synthFired here — the auto-fire effect would immediately re-dispatch and loop on a
+      // persistent failure. Recovery is the explicit Retry button, which calls resynthesize directly.
+      setSynthError(true);
     }
   }
 
@@ -257,12 +266,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   const synthFired = useRef(false);
   useEffect(() => {
-    if (phase === 'synthesis' && !bodyMd && !synthesizing && !locked && !synthFired.current) {
+    // `!synthError` guard: after a failed synthesis, don't auto-refire (that would loop on a
+    // persistent failure) — the SummaryPane's Retry button is the recovery path.
+    if (phase === 'synthesis' && !bodyMd && !synthesizing && !locked && !synthError && !synthFired.current) {
       synthFired.current = true;
       resynthesize();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: fires once when entering synthesis; resynthesize is stable and adding it would retrigger
-  }, [phase, bodyMd, synthesizing, locked]);
+  }, [phase, bodyMd, synthesizing, locked, synthError]);
 
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
@@ -553,6 +564,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               projectName={props.projectName}
               bodyMd={bodyMd as string}
               version={version}
+              synthesizing={synthesizing}
+              synthError={synthError}
+              onRetry={locked ? undefined : resynthesize}
             />
         </StageShell>
       )}
@@ -927,8 +941,28 @@ function SummaryPane(props: {
   projectName: string;
   bodyMd: string;
   version: number | null;
+  synthesizing?: boolean;
+  synthError?: boolean;
+  onRetry?: () => void;
 }) {
   // The governed document with its optional pieces off: no tabs, no approvers, no footer.
+  // Empty body has THREE states, not one: actively synthesizing (spinner), a failed synthesis
+  // (error + Retry — never a spinner, which would imply work is ongoing), or idle.
+  const emptyState =
+    props.synthError && !props.synthesizing ? (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm font-medium text-ink">Synthesis failed</p>
+        <p className="text-xs text-ink-faint" style={{ maxWidth: 320 }}>The synthesis run didn’t complete. Nothing was lost — retry to generate the brief.</p>
+        {props.onRetry ? (
+          <Button size="sm" variant="primary" onClick={props.onRetry} leftIcon={<RefreshCw />}>Retry synthesis</Button>
+        ) : null}
+      </div>
+    ) : (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+        <Loader2 className="size-5 animate-spin text-accent" />
+        <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
+      </div>
+    );
   return (
     <DocumentShell
       className={cn('flex flex-col', props.className)}
@@ -941,12 +975,7 @@ function SummaryPane(props: {
             <ProseBlock>
               {props.bodyMd}
             </ProseBlock>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-              <Loader2 className="size-5 animate-spin text-accent" />
-              <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
-            </div>
-          )}
+          ) : emptyState}
         </div>
       }
     />

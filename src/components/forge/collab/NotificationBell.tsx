@@ -37,6 +37,16 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
   const [readIds, setReadIds] = useState<Set<string>>(
     () => new Set(items.filter((n) => n.readAt).map((n) => n.id)),
   );
+  // Reconcile with server read-state on every refetch: a notification read on another device (or
+  // arriving already-read) must count as read, not linger as a stale unread badge. Union keeps any
+  // optimistic local marks that the refetch hasn't caught up to yet.
+  useEffect(() => {
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      for (const n of items) if (n.readAt) next.add(n.id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [items]);
   const optimistic = useOptimisticAction();
   const visible = useMemo(() => items.filter((n) => !n.dismissedAt), [items]);
   const unread = useMemo(() => visible.filter((n) => !readIds.has(n.id)).length, [visible, readIds]);

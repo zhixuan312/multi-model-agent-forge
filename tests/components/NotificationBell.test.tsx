@@ -30,6 +30,20 @@ async function openBell(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('button', { name: /mark all read/i });
 }
 
+it('reconciles unread with server read-state on refetch — no stale badge [QA E#3]', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (String(url).includes('/api/notifications/list')) {
+      // A refetch reports 'a' as read elsewhere; 'b' still unread.
+      return new Response(JSON.stringify({ items: [row({ id: 'a', readAt: '2026-07-06T01:00:00.000Z' }), row({ id: 'b' })] }), { status: 200 });
+    }
+    return new Response('{}', { status: 200 });
+  }));
+  render(<NotificationBell items={[row({ id: 'a' }), row({ id: 'b' })]} />);
+  expect(screen.getByRole('button', { name: /Notifications \(2 unread\)/i })).toBeInTheDocument();
+  window.dispatchEvent(new Event('notification:refresh'));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Notifications \(1 unread\)/i })).toBeInTheDocument());
+});
+
 it('mark-all succeeds → fetch fired, unread badge clears', async () => {
   const user = userEvent.setup({ pointerEventsCheck: 0 });
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));

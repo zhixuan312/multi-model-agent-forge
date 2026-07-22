@@ -78,13 +78,7 @@ CREATE TABLE "forge"."project" (
 	"phase" text DEFAULT 'design' NOT NULL,
 	"current_stage" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	-- Base project columns the squashed baseline dropped: the model + code reference
-	-- completed_at / auto_mode / auto_note, and 0003's comment assumes they already
-	-- exist. Restore them here so a from-scratch migrate matches the Drizzle model.
-	"completed_at" timestamp with time zone,
-	"auto_mode" boolean DEFAULT false NOT NULL,
-	"auto_note" text
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "forge"."project_repo" (

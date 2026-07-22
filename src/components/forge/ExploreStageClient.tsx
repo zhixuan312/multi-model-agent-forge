@@ -206,12 +206,28 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
     // Save the brief then dispatch the discovery-task proposal — both through the
     // unified engine (set_brief is a content action; propose is the transition).
     try {
+      savedBriefRef.current = brief;
       await mma.transition('set_brief', { text: brief });
       await mma.transition('propose_discover_tasks', undefined, 'explore-propose');
     } catch {
       showToast({ type: 'error', message: 'Couldn’t propose discovery tasks — try again.' });
     }
   }
+
+  // Debounced autosave of the brain-dump. The brief lived only in local state and was persisted
+  // exclusively by analyze(), so typing a long brief and navigating away before pressing Analyze
+  // silently discarded it. Persist via the same set_brief content action ~1.2s after typing stops;
+  // best-effort (the explicit Analyze is still the authoritative save).
+  const savedBriefRef = useRef(props.initialBrief);
+  useEffect(() => {
+    if (locked || proposing || brief === savedBriefRef.current) return;
+    const t = setTimeout(() => {
+      savedBriefRef.current = brief;
+      void mma.transition('set_brief', { text: brief }).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce on brief; mma.transition is stable
+  }, [brief, locked, proposing]);
 
   async function run(): Promise<void> {
     try {

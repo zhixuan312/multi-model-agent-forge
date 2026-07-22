@@ -300,7 +300,21 @@ export function JournalStageClient(props: JournalStageClientProps) {
     );
   }
 
-  if (phase === 'summary' && props.summary) {
+  if (phase === 'summary') {
+    // The URL owns this branch even before the summary has been computed — otherwise a
+    // ?phase=summary with no summary yet fell through to the learnings list (URL/view mismatch)
+    // until a later refresh. Show a computing state instead.
+    if (!props.summary) {
+      return (
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          {automationBar}
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center">
+            <Loader2 className="size-5 animate-spin text-accent" />
+            <p className="text-sm text-ink-faint">Recording learnings and computing the summary…</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full min-h-0 flex-col gap-4">
         {automationBar}

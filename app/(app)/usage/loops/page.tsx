@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Repeat } from 'lucide-react';
+import { redirect } from 'next/navigation';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -26,15 +27,18 @@ export default async function UsageLoopsPage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  await requireAdminPage();
+  const member = await requireAdminPage();
+  // Team-scoped: an unscoped query leaks every team's loops. Org admin (no team) → /usage.
+  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+  const deps = { teamId: member.teamId };
   const sp = await searchParams;
   const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
-  const rows = await usageByLoop(period);
+  const rows = await usageByLoop(period, deps);
 
   const detailByLoop: Record<string, RouteAggRow[]> = {};
   await Promise.all(
     rows.map(async (r) => {
-      detailByLoop[r.loopId] = await routeAggForLoop(r.loopId, period);
+      detailByLoop[r.loopId] = await routeAggForLoop(r.loopId, period, deps);
     }),
   );
 

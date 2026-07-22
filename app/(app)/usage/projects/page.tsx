@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { FolderKanban } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
@@ -27,15 +28,20 @@ export default async function UsageProjectsPage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  await requireAdminPage();
+  const member = await requireAdminPage();
+  // Team-scoped detail: an unscoped query returns EVERY team's projects (cross-tenant leak).
+  // The org admin owns no team and must not see team project contents — send them to /usage,
+  // which renders the org-wide numbers-only dashboard for their role.
+  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+  const deps = { teamId: member.teamId };
   const sp = await searchParams;
   const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
-  const rows = await usageByProject(period);
+  const rows = await usageByProject(period, deps);
 
   const detailByProject: Record<string, RouteAggRow[]> = {};
   await Promise.all(
     rows.map(async (r) => {
-      detailByProject[r.projectId] = await routeAggForProject(r.projectId, period);
+      detailByProject[r.projectId] = await routeAggForProject(r.projectId, period, deps);
     }),
   );
 

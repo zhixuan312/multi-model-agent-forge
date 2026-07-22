@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Zap } from 'lucide-react';
+import { redirect } from 'next/navigation';
 import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -28,10 +29,12 @@ export default async function UsageStandalonePage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  await requireAdminPage();
+  const member = await requireAdminPage();
+  // Team-scoped: an unscoped query leaks every team's standalone activity. Org admin → /usage.
+  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
   const sp = await searchParams;
   const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
-  const rows = await usageStandalone(period);
+  const rows = await usageStandalone(period, { teamId: member.teamId });
 
   return (
     <PageFrame

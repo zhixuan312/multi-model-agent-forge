@@ -72,6 +72,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}
       phases={planView.phases}
+      initialParticipantIds={planView.participantIds}
       planMd={planView.planMd ?? ''}
       auditRounds={planView.auditHistory.map((h) => h.findings.map((f) => ({
         severity: f.severity,

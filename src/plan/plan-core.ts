@@ -23,7 +23,6 @@ export interface PlanTaskView {
   dbStatus?: string;
   phase?: string;
   approvedBy?: string[];
-  participantIds?: string[];
 }
 
 export interface PlanPhaseView {
@@ -37,6 +36,8 @@ export interface PlanView {
   planMd: string | null;
   auditHistory: AuditPassView[];
   messages: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>>;
+  /** Plan-level reviewers (invited once, may approve any task). Member ids. */
+  participantIds: string[];
 }
 
 /** Extract file paths from the task detail's `**Files:**` preamble. */
@@ -99,6 +100,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
 
   // Parse tasks from the physical plan.md file
   let tasks: PlanTaskView[] = [];
+  let participantIds: string[] = [];
   if (planMd) {
     const sections = parsePlanSections(planMd);
     // Load DB metadata (approvals, status, participants) keyed by title
@@ -107,6 +109,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     const [proj] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
     const d = proj?.details ? validateDetails(proj.details) : null;
     const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
+    participantIds = d?.stages.plan.participants ?? [];
     const detailsRepos = d?.repos ?? [];
     const firstRepoName = detailsRepos[0]?.name ?? '';
 
@@ -117,7 +120,6 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     }));
 
     const approversByTask = new Map<string, string[]>();
-    const reviewersByTask = new Map<string, string[]>();
     for (const t of detailsTasks) {
       if (t.approvals.length > 0) approversByTask.set(t.id, [...t.approvals]);
     }
@@ -138,7 +140,6 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
         dbStatus: meta?.status,
         phase: s.phase ?? meta?.phase ?? undefined,
         approvedBy: meta ? (approversByTask.get(meta.id) ?? []) : [],
-        participantIds: meta ? (reviewersByTask.get(meta.id) ?? []) : [],
       };
     });
   }
@@ -166,5 +167,5 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     }
   }
 
-  return { phases, planMd, auditHistory: planHistory, messages };
+  return { phases, planMd, auditHistory: planHistory, messages, participantIds };
 }

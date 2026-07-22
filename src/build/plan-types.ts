@@ -18,7 +18,6 @@ export interface PlanTaskSeed {
   /** Member IDs who approved this task. */
   approvedBy?: string[];
   /** Member IDs invited to review this task. */
-  participantIds?: string[];
 }
 
 export interface PlanPhaseSeed {

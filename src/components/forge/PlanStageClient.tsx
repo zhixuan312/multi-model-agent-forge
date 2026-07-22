@@ -103,6 +103,8 @@ export interface PlanStageClientProps {
   projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   phases: PlanPhaseSeed[];
+  /** Plan-level reviewers (invited once, may approve any task) — persisted member ids. */
+  initialParticipantIds?: string[];
   planMd: string;
   auditRounds: PlanAuditFinding[][];
   auditApplied?: boolean[];
@@ -325,6 +327,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
         <DetailStage
           projectId={props.projectId}
           phases={phases}
+          participantIds={props.initialParticipantIds ?? []}
           status={status}
           readOnly={readOnly}
           authoring={authoring}
@@ -387,6 +390,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
 function DetailStage({
   projectId,
   phases,
+  participantIds,
   status,
   readOnly,
   authoring,
@@ -402,6 +406,7 @@ function DetailStage({
 }: {
   projectId: string;
   phases: PlanPhaseSeed[];
+  participantIds: string[];
   status: Record<string, TaskStatus>;
   readOnly: boolean;
   authoring?: boolean;
@@ -459,20 +464,14 @@ function DetailStage({
       contentRef.current?.scrollTo?.(0, 0);
     }
   }, [activeId, taskView, threads]);
-  // Plan-level participants — invite once, can approve any task
+  // Plan-level participants — invited once, can approve any task. Seeded from the persisted
+  // plan participant ids (so an invited reviewer survives navigation), NOT from per-task fields.
   const [planParticipants, setPlanParticipants] = useState<Participant[]>(() => {
-    const seen = new Set<string>();
-    const result: Participant[] = [];
     const memberById = new Map(projectMembers.map((m) => [m.id, m]));
-    for (const t of allTasks) {
-      for (const pid of (t.participantIds ?? [])) {
-        if (seen.has(pid)) continue;
-        seen.add(pid);
-        const m = memberById.get(pid);
-        if (m) result.push({ member: m, addedBy: null, approvedAt: null });
-      }
-    }
-    return result;
+    return participantIds
+      .map((pid) => memberById.get(pid))
+      .filter((m): m is NonNullable<typeof m> => !!m)
+      .map((member) => ({ member, addedBy: null, approvedAt: null }));
   });
   const optimistic = useOptimisticAction();
   const meParticipant: Participant | null = currentMember
@@ -739,16 +738,16 @@ function DetailStage({
                 void optimistic.run({
                   apply: () => setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]),
                   commit: async () => {
-                    const results = await Promise.all(
-                      allTasks.map((t) =>
-                        fetch(`/api/projects/${projectId}/plan/tasks/${t.id}/invite`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ memberId: m.id }),
-                        }),
-                      ),
-                    );
-                    if (results.some((r) => !r.ok)) throw new Error('Invite failed.');
+                    // ONE invite — plan participants are plan-level, persisted once. Fanning out
+                    // to every task spammed the invitee with N duplicate notifications.
+                    const anchorTask = allTasks[0];
+                    if (!anchorTask) throw new Error('No tasks to invite to yet.');
+                    const r = await fetch(`/api/projects/${projectId}/plan/tasks/${anchorTask.id}/invite`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ memberId: m.id }),
+                    });
+                    if (!r.ok) throw new Error('Invite failed.');
                   },
                   rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
                   error: 'Couldn’t invite — reverted.',

@@ -11,9 +11,15 @@ export function saveBlob(blob: Blob, fileName: string): void {
   a.href = url;
   a.download = fileName;
   document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  try {
+    a.click();
+  } finally {
+    a.remove();
+    // Defer the revoke: revoking synchronously on the same tick as click() can cancel an
+    // in-progress download of a large blob (bundle zip / PDF) in some browsers. A short delay
+    // lets the download start first. try/finally also guarantees revoke even if click() throws.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 }
 
 /** Best-effort filename from a Content-Disposition header. */

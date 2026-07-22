@@ -34,7 +34,7 @@ it('reconciles unread with server read-state on refetch — no stale badge [QA E
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/api/notifications/list')) {
       // A refetch reports 'a' as read elsewhere; 'b' still unread.
-      return new Response(JSON.stringify({ items: [row({ id: 'a', readAt: '2026-07-06T01:00:00.000Z' }), row({ id: 'b' })] }), { status: 200 });
+      return new Response(JSON.stringify({ items: [row({ id: 'a', readAt: new Date('2026-07-06T01:00:00.000Z') }), row({ id: 'b' })] }), { status: 200 });
     }
     return new Response('{}', { status: 200 });
   }));

@@ -59,7 +59,6 @@ import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import {
   addParticipant,
   recordApproval,
-  parseMentions,
   hasApproved,
   pending as pendingParticipants,
 } from '@/collab/section-approval';
@@ -1039,8 +1038,6 @@ function CraftStage({
     .map((p) => p.member)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   const inChatMembers = [forgeMember, ...otherMembers];
-  // Live: does the current draft message address teammates (→ them, AI silent)?
-  parseMentions(input, inChatMembers);
 
   /** Patch the active component's collaborative state. */
   function patchCollab(updater: (u: UnitCollab) => UnitCollab): void {
@@ -1347,7 +1344,6 @@ function CraftStage({
           </>
           )}
           <div ref={bottomRef} />
-            <div ref={bottomRef} />
           </div>
         }
         actions={craftView === 'spec' && showingDraft ? (

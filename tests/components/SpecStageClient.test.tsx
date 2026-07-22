@@ -231,4 +231,34 @@ describe('SpecStageClient', () => {
     expect(screen.queryByText(/Open Questions/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Who owns rollout/)).not.toBeInTheDocument();
   });
+
+  describe('audit-running indicator survives navigation (F1)', () => {
+    it('shows "Auditing…" on the Finalize audit button when spec-audit is in flight after a remount', () => {
+      // The remount scenario: local `auditing` is false (fresh mount), but the spec-audit batch
+      // is still running server-side, so mma.busyHandlers rehydrated it via /pending-handlers.
+      // The running indicator MUST come from busyHandlers, not only the ephemeral local flag.
+      busyHandlers = new Set(['spec-audit']);
+      wrap(
+        <SpecStageClient
+          projectId="p1"
+          projectName="Proj"
+          intentMd="Intent"
+          phase="design"
+          mainTierReady
+          mmaReady
+          defaultKinds={['context']}
+          initialComponents={draftedComponents}
+          initialSpec={{ version: 1, bodyMd: '# Spec\n\n## Context\n\nBackground prose.' }}
+          initialAuditHistory={[]}
+          currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
+          projectMembers={[]}
+          initialMessages={{}}
+          voiceEnabled={false}
+          specApprovers={[]}
+          initialPhase="finalize"
+        />,
+      );
+      expect(screen.getByText('Auditing…')).toBeInTheDocument();
+    });
+  });
 });

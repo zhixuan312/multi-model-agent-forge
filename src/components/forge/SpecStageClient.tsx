@@ -1514,6 +1514,11 @@ function DocumentScreen({
       setAuditing(false);
     }
   }
+  // The audit indicator must survive navigation: the local `auditing` flag is lost on
+  // unmount, but the spec-audit batch keeps running and `mma.busyHandlers` rehydrates it
+  // on remount (via /pending-handlers). Drive the button + "Running…" row from BOTH, so
+  // coming back to the page still shows the audit in flight (and blocks a double Re-run).
+  const auditRunning = auditing || mma.busyHandlers.has('spec-audit');
 
 
   // Entering Document with everything approved → assemble automatically so the
@@ -1574,15 +1579,15 @@ function DocumentScreen({
             <Button
               size="sm"
               onClick={() => void runAudit()}
-              loading={auditing}
-              disabled={readOnly || !mmaReady || !spec || auditing || applying}
+              loading={auditRunning}
+              disabled={readOnly || !mmaReady || !spec || auditRunning || applying}
               leftIcon={<Shield />}
             >
-              {auditing ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
+              {auditRunning ? 'Auditing…' : rounds.length > 0 ? 'Re-run' : 'Run audit'}
             </Button>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto !py-4">
-            {!auditing && rounds.length === 0 ? (
+            {!auditRunning && rounds.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
                 <span className="grid size-10 place-items-center rounded-full bg-surface-2">
                   <Shield className="size-5 text-ink-faint" />
@@ -1592,7 +1597,7 @@ function DocumentScreen({
                 </p>
               </div>
             ) : null}
-            {auditing ? (
+            {auditRunning ? (
               <div className="flex items-center gap-2.5 rounded-[var(--r-md)] border border-line bg-surface-2/60 px-3 py-2.5">
                 <Loader2 className="size-4 animate-spin text-accent" />
                 <span className="text-sm font-medium text-ink">Pass {rounds.length + 1}</span>

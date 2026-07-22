@@ -2,6 +2,7 @@ import { ArrowUpRight, GitBranch, FileText, ShieldCheck, ShieldAlert, ShieldQues
 import { Section, SectionTitle, Badge, Mono, Micro, Text, TextStrong, Separator } from '@/components/ui';
 import type { LoopRunRow, RunVerification } from '@/db/schema/loop';
 import { RUN_STATUS_VARIANT, statusLabel, cap, fmtRunTime, fmtDuration, cleanChange, shortId } from './run-format';
+import { RunLivePoll } from './RunLivePoll';
 
 /** A labeled meta item in the header strip. */
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
@@ -85,7 +86,11 @@ export function RunDetail({ run, repoName }: { run: LoopRunRow; repoName?: strin
       <Separator />
 
       {run.status === 'running' ? (
-        <Text className="!text-sm text-ink-soft">This run is in progress — the summary, changes and journal appear once it finishes.</Text>
+        <>
+          <Text className="!text-sm text-ink-soft">This run is in progress — the summary, changes and journal appear once it finishes.</Text>
+          {/* Live-refresh the history until the run terminates (no manual reload needed). */}
+          <RunLivePoll active />
+        </>
       ) : null}
 
       {summary ? (

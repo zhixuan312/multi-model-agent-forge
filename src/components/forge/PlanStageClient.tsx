@@ -119,6 +119,23 @@ export interface PlanStageClientProps {
 let _id = 0;
 const nid = () => `pm${_id++}`;
 
+/**
+ * A task's discussion is "refining" when either the local set knows a refine is in flight
+ * for it, OR a `plan-refine` batch is in flight per the server-reconstructed busy handlers.
+ * The latter is what makes the "Forge is refining" indicator + composer-lock SURVIVE
+ * navigation: the local set is lost on unmount, but `mma.busyHandlers` rehydrates from
+ * `/pending-handlers` on remount. (busyHandlers carries the handler name, not the task id,
+ * so on the rare case of viewing a DIFFERENT task while a refine runs, the indicator shows
+ * on the viewed task — strictly better than silently dropping it.)
+ */
+export function isTaskRefining(
+  taskId: string,
+  refiningTasks: ReadonlySet<string>,
+  busyHandlers: ReadonlySet<string>,
+): boolean {
+  return refiningTasks.has(taskId) || busyHandlers.has('plan-refine');
+}
+
 export function PlanStageClient(props: PlanStageClientProps) {
   const router = useRouter();
   const readOnly = props.readOnly ?? false;
@@ -597,7 +614,7 @@ function DetailStage({
 
   function send() {
     const text = input.trim();
-    if (!text || (active && refiningTasks.has(active.id))) return;
+    if (!text || (active && isTaskRefining(active.id, refiningTasks, mma.busyHandlers))) return;
     setInput('');
 
     const tempId = `tmp-${Date.now()}`;
@@ -748,7 +765,7 @@ function DetailStage({
               </ProseBlock>
             ) : (
               <div className="space-y-5">
-                {msgs.length === 0 && !(active && refiningTasks.has(active.id)) ? (
+                {msgs.length === 0 && !(active && isTaskRefining(active.id, refiningTasks, mma.busyHandlers)) ? (
                   <p className="py-8 text-center text-xs text-ink-faint">No discussion yet — send a message to refine this task.</p>
                 ) : null}
                 <DiscussionThread
@@ -756,7 +773,7 @@ function DetailStage({
                   memberById={memberById}
                   currentMemberId={currentMember?.id ?? 'me'}
                   mentionPool={projectMembers}
-                  pending={!!active && refiningTasks.has(active.id)}
+                  pending={!!active && isTaskRefining(active.id, refiningTasks, mma.busyHandlers)}
                 />
                 <div ref={bottomRef} />
               </div>
@@ -783,7 +800,7 @@ function DetailStage({
               onChange={setInput}
               onSend={send}
               placeholder="@Forge to refine this task..."
-              disabled={readOnly || (active != null && refiningTasks.has(active.id))}
+              disabled={readOnly || (active != null && isTaskRefining(active.id, refiningTasks, mma.busyHandlers))}
               voice={voiceEnabled ?? false}
               mentionPool={forgeMentionPool}
             />

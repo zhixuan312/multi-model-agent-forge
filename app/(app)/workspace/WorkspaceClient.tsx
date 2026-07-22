@@ -152,7 +152,10 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
       size: 180,
       cell: ({ row }) => {
         const r = row.original;
-        const busy = busyId === r.id;
+        // Busy = a pull we just fired (local) OR one already in flight server-side (the row
+        // loaded with status='pulling'). The latter reconstructs the disabled state after a
+        // navigation, so returning to the page can't start a second concurrent pull.
+        const busy = busyId === r.id || r.status === 'pulling';
         return (
           <div className="flex items-center justify-end gap-1.5">
             <Button size="sm" variant="secondary" leftIcon={<RefreshCw />} onClick={() => onPull(r.id)} disabled={busy}>

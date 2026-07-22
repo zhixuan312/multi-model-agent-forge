@@ -58,6 +58,16 @@ describe('WorkspaceClient filter island (Flow E)', () => {
     expect(within(row('core-api')).getByText('Pull')).toBeInTheDocument();
   });
 
+  it('disables Pull for a repo already pulling server-side (busy state survives navigation) [QA F4]', () => {
+    // 'web' loads with status='pulling' — a pull is in flight. Even on a fresh mount (local
+    // busyId unset), the Pull button must stay disabled, reconstructed from the row status,
+    // so navigating away and back can't fire a second concurrent pull.
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
+    expect(within(row('web')).getByRole('button', { name: 'Pull' })).toBeDisabled();
+    // A cloned repo's Pull is enabled.
+    expect(within(row('core-api')).getByRole('button', { name: 'Pull' })).toBeEnabled();
+  });
+
   it('"New repo" reveals the inline clone form at the top of the table', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
     expect(screen.queryByLabelText('Clone repo')).toBeNull();

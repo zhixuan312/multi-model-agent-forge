@@ -87,4 +87,21 @@ describe('TeamsPanel', () => {
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
+
+  it('surfaces the server error when Make admin fails, instead of failing silently [QA]', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).endsWith('/members')) {
+        return new Response(JSON.stringify([{ id: 'm1', displayName: 'Ada', username: 'ada', isAdmin: false }]), { status: 200 });
+      }
+      // assign-admin rejects
+      return new Response(JSON.stringify({ error: 'Only an org admin can assign team admins.' }), { status: 403 });
+    });
+    render(<TeamsPanel initialTeams={teams} />);
+    fireEvent.click(screen.getByRole('button', { name: /members/i }));
+    expect(await screen.findByText('Ada')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /make admin/i }));
+    // The error MUST be shown (not a silent revert), and no refresh on failure.
+    expect(await screen.findByText('Only an org admin can assign team admins.')).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });

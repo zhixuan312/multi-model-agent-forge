@@ -118,18 +118,27 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     await loadRoster(teamId);
   };
 
+  const [assignError, setAssignError] = useState<string | null>(null);
   const makeAdmin = async (teamId: string, memberId: string) => {
     setAssigningId(memberId);
+    setAssignError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/assign-admin`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ memberId }),
       });
-      if (res.ok) {
-        await loadRoster(teamId);
-        router.refresh();
+      if (!res.ok) {
+        // Surface the failure — a silent revert to "Make admin" reads as "nothing happened",
+        // so the admin retries a request the server already refused.
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setAssignError(body.error ?? 'Could not assign the team admin.');
+        return;
       }
+      await loadRoster(teamId);
+      router.refresh();
+    } catch {
+      setAssignError('Network error — please retry.');
     } finally {
       setAssigningId(null);
     }
@@ -320,6 +329,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
 
   const rosterPanel = (t: TeamRow) => (
     <div className="p-5">
+      {assignError ? <p className="mb-3 text-sm text-rose">{assignError}</p> : null}
       {rosterBusy ? (
         <p className="text-sm text-ink-soft">Loading roster…</p>
       ) : roster.length === 0 ? (

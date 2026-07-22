@@ -184,32 +184,50 @@ function SubPhaseTrack({
       {steps.map((st, i) => {
         const status = statuses?.[st.key];
         const isSkipped = status === 'skipped';
-        const isActive = !isSkipped && st.key === active;
-        const isDone = !isSkipped && !isActive && (status ? status === 'done' : highIdx >= 0 && i <= highIdx);
+        const isFocused = !isSkipped && st.key === active;
+        // A phase whose persisted status is 'active' is ONGOING — work is happening in it right
+        // now. It earns its own warm EMBER treatment (a pulsing ember dot + ember text) so an
+        // in-flight phase reads as "working" even when you're looking at a different phase —
+        // never as a grey not-started step. `--ember` stays warm in both themes, distinct from
+        // the primary accent, giving "in progress" one consistent colour.
+        const isOngoing = !isSkipped && status === 'active';
+        const isDone = !isSkipped && !isOngoing && (status ? status === 'done' : highIdx >= 0 && i <= highIdx);
+        // The focused chip of a stage WITHOUT per-phase statuses (the current phase you landed
+        // on) keeps the accent "you are here" pill when it is neither ongoing nor done.
+        const isCurrentPlain = isFocused && !isOngoing && !isDone;
         const reachable = isSkipped
           ? false
           : status
             ? status === 'done' || status === 'active'
-            : i <= highIdx || isActive;
-        const canClick = Boolean(onClick) && reachable && !isActive;
+            : i <= highIdx || isFocused;
+        const canClick = Boolean(onClick) && reachable && !isFocused;
         const Tag = canClick ? 'button' : 'span';
         return (
           <Fragment key={st.key}>
             {i > 0 ? (
-              <span aria-hidden="true" className={cn('h-px w-5', isDone ? 'bg-[var(--sage)]/40' : isActive ? 'bg-accent/30' : 'bg-line')} />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'h-px w-5',
+                  isDone ? 'bg-[var(--sage)]/40' : isOngoing ? 'bg-[var(--ember)]/40' : isCurrentPlain ? 'bg-accent/30' : 'bg-line',
+                )}
+              />
             ) : null}
             <Tag
               {...(Tag === 'button' ? { type: 'button' as const, onClick: () => onClick?.(st.key) } : {})}
               data-substep={st.key}
               data-substate={status ?? undefined}
-              aria-current={isActive ? 'step' : undefined}
+              aria-current={isFocused ? 'step' : undefined}
               aria-disabled={isSkipped ? 'true' : undefined}
               className={cn(
                 'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
-                isActive && 'bg-accent/10 text-accent-deep',
+                isOngoing && 'text-[var(--ember-deep)]',
+                isOngoing && isFocused && 'bg-[var(--ember-tint)]',
+                isCurrentPlain && 'bg-accent/10 text-accent-deep',
                 isDone && 'text-[var(--sage-deep)]',
+                isDone && isFocused && 'bg-[var(--sage)]/10',
                 isSkipped && 'text-ink-faint line-through opacity-70',
-                !isActive && !isDone && !isSkipped && 'text-ink-faint',
+                !isOngoing && !isDone && !isSkipped && !isCurrentPlain && 'text-ink-faint',
                 canClick && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
               )}
             >
@@ -217,9 +235,10 @@ function SubPhaseTrack({
                 aria-hidden="true"
                 className={cn(
                   'size-1.5 rounded-full',
-                  isActive && 'bg-accent',
+                  isOngoing && 'bg-[var(--ember-bright)] motion-safe:animate-pulse',
+                  isCurrentPlain && 'bg-accent',
                   isDone && 'bg-[var(--sage)]',
-                  (isSkipped || (!isActive && !isDone)) && 'bg-line-strong',
+                  (isSkipped || (!isOngoing && !isDone && !isCurrentPlain)) && 'bg-line-strong',
                 )}
               />
               {st.label}

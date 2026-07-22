@@ -128,4 +128,52 @@ describe('StageStepper (4-state track)', () => {
     expect(discover.className).toContain('sage');
     expect(synthesize.className).toContain('sage');
   });
+
+  it('sub-phases: an ongoing (status=active) phase reads EMBER even when focused elsewhere; a done phase is sage', () => {
+    // The real "Feedback Feature" explore state: brief=done, discover=done, synthesize=active,
+    // viewing synthesize. Discover (done) must be sage — NOT grey — and the in-flight synthesize
+    // wears the new ember treatment.
+    const stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[] = [
+      { kind: 'exploration', status: 'active', lastPhase: 'synthesize' },
+      { kind: 'spec', status: 'pending' }, { kind: 'plan', status: 'pending' },
+      { kind: 'execute', status: 'pending' }, { kind: 'review', status: 'pending' }, { kind: 'journal', status: 'pending' },
+    ];
+    const { container } = render(
+      <StageStepper
+        projectId="p1" stages={stages} currentStage="exploration" phase="design"
+        subSteps={[{ key: 'brief', label: 'Brief' }, { key: 'discover', label: 'Discover' }, { key: 'synthesize', label: 'Synthesize' }]}
+        subStepStatuses={{ brief: 'done', discover: 'done', synthesize: 'active' }}
+        activeSubPhase="synthesize"
+      />,
+    );
+    const discover = container.querySelector('[data-substep="discover"]')!;
+    const synthesize = container.querySelector('[data-substep="synthesize"]')!;
+    // Discover is DONE → sage, never grey (bg-line-strong).
+    expect(discover.querySelector('span[aria-hidden="true"]')!.className).toContain('sage');
+    expect(discover.querySelector('span[aria-hidden="true"]')!.className).not.toContain('bg-line-strong');
+    // Synthesize is ONGOING → the new ember dot + ember text.
+    expect(synthesize.className).toContain('ember');
+    expect(synthesize.querySelector('span[aria-hidden="true"]')!.className).toContain('ember');
+  });
+
+  it('sub-phases: an ongoing phase you are NOT viewing is ember, not grey', () => {
+    // Focus is on brief, but discover is the in-flight phase — it must be ember, not a grey
+    // pending step.
+    const stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[] = [
+      { kind: 'exploration', status: 'active', lastPhase: 'discover' },
+      { kind: 'spec', status: 'pending' }, { kind: 'plan', status: 'pending' },
+      { kind: 'execute', status: 'pending' }, { kind: 'review', status: 'pending' }, { kind: 'journal', status: 'pending' },
+    ];
+    const { container } = render(
+      <StageStepper
+        projectId="p1" stages={stages} currentStage="exploration" phase="design"
+        subSteps={[{ key: 'brief', label: 'Brief' }, { key: 'discover', label: 'Discover' }, { key: 'synthesize', label: 'Synthesize' }]}
+        subStepStatuses={{ brief: 'done', discover: 'active', synthesize: 'pending' }}
+        activeSubPhase="brief"
+      />,
+    );
+    const discover = container.querySelector('[data-substep="discover"]')!;
+    expect(discover.querySelector('span[aria-hidden="true"]')!.className).toContain('ember');
+    expect(discover.querySelector('span[aria-hidden="true"]')!.className).not.toContain('bg-line-strong');
+  });
 });

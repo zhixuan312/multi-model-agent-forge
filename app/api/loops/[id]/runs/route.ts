@@ -9,5 +9,5 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  return NextResponse.json({ runs: await listLoopRuns(id) });
+  return NextResponse.json({ runs: await listLoopRuns(id, { teamId: gate.actor.teamId ?? undefined }) });
 }

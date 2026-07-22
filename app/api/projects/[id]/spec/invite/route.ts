@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
+import { member } from '@/db/schema/identity';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { insertNotification } from '@/collab/notification-store';
-import { currentMember } from '@/auth/current-member';
+import { guardSpecWrite } from '@/spec/handler-guard';
 import { teamSpecTemplate } from '@/db/schema/team';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -14,11 +15,26 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // CSRF + auth + tenant scope — this route was reachable by any authed member against any
+  // team's project, injecting participants and spamming notifications to arbitrary member ids.
+  const guard = await guardSpecWrite(req, id);
+  if (guard instanceof NextResponse) return guard;
+  const me = guard.member;
 
-  const { memberId, componentId } = (await req.json()) as { memberId: string; componentId: string };
+  const body = (await req.json().catch(() => ({}))) as { memberId?: unknown; componentId?: unknown };
+  const memberId = typeof body.memberId === 'string' ? body.memberId : '';
+  const componentId = typeof body.componentId === 'string' ? body.componentId : '';
+  if (!memberId || !componentId) return NextResponse.json({ error: 'memberId and componentId are required' }, { status: 400 });
   const db = getDb();
+
+  // The invitee must be a real member of the caller's team — otherwise this is a notification
+  // sink for arbitrary ids.
+  const [invitee] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.id, memberId), eq(member.teamId, me.teamId ?? '')))
+    .limit(1);
+  if (!invitee) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
   const [projRow] = await db
     .select({ name: project.name, details: project.details })

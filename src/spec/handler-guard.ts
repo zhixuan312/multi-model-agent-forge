@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
+import type { AuthedMember } from '@/auth/auth-provider';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { getDb } from '@/db/client';
@@ -9,10 +10,13 @@ import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-c
 
 /**
  * Shared guard for spec write handlers: CSRF → auth → membership → phase guard.
- * Returns either an error `NextResponse` or the resolved `{ memberId }`.
+ * Returns either an error `NextResponse` or the resolved actor. `member` carries
+ * the full authed member (displayName/tint) for routes that emit SSE/notifications;
+ * `memberId` is the convenience accessor most callers use.
  */
 export interface GuardedActor {
   memberId: string;
+  member: AuthedMember;
 }
 
 export async function guardSpecWrite(
@@ -51,5 +55,5 @@ export async function guardSpecWrite(
     }
   }
 
-  return { memberId: me.id };
+  return { memberId: me.id, member: me };
 }

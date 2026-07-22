@@ -137,16 +137,19 @@ export async function setMemberAdmin(
   if (!parsed.success) return { kind: 'invalid' };
   const nextIsAdmin = parsed.data.isAdmin;
 
+  // Scope the target to the caller's team (deps.teamId) — an unscoped lookup let a team_admin of
+  // one team promote/demote a member of ANY team. Not found within scope → not_found (404,
+  // anti-enumeration — never reveals a cross-team member's existence).
   const [target] = await db
     .select({ id: member.id, role: member.role })
     .from(member)
-    .where(eq(member.id, memberId))
+    .where(and(eq(member.id, memberId), deps.teamId ? eq(member.teamId, deps.teamId) : undefined))
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
   // Last-admin guard: demoting the only remaining admin would lock out the team.
   if (isAdminRole(target) && !nextIsAdmin) {
-    const others = await countOtherAdmins(db, memberId);
+    const others = await countOtherAdmins(db, memberId, deps.teamId);
     if (others === 0) return { kind: 'last_admin' };
   }
 
@@ -181,6 +184,15 @@ export async function resetMemberPassword(
   const store = deps.store ?? sessionStore;
   const parsed = resetPasswordSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
+
+  // Team scope first — a team_admin must not reset a cross-team member's password (account
+  // takeover). Not found within scope → not_found.
+  const [scoped] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.id, memberId), deps.teamId ? eq(member.teamId, deps.teamId) : undefined))
+    .limit(1);
+  if (!scoped) return { kind: 'not_found' };
 
   const [identity] = await db
     .select({ id: memberIdentity.id })
@@ -225,12 +237,12 @@ export async function deleteMember(
   const [target] = await db
     .select({ id: member.id, role: member.role })
     .from(member)
-    .where(eq(member.id, memberId))
+    .where(and(eq(member.id, memberId), deps.teamId ? eq(member.teamId, deps.teamId) : undefined))
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
   if (isAdminRole(target)) {
-    const others = await countOtherAdmins(db, memberId);
+    const others = await countOtherAdmins(db, memberId, deps.teamId);
     if (others === 0) return { kind: 'last_admin' };
   }
 
@@ -286,11 +298,11 @@ export async function countActiveSessions(deps: MembersDeps = {}): Promise<numbe
 
 // ---- helpers ----
 
-async function countOtherAdmins(db: Db, exceptMemberId: string): Promise<number> {
+async function countOtherAdmins(db: Db, exceptMemberId: string, teamId?: string): Promise<number> {
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(member)
-    .where(and(eq(member.role, 'team_admin'), ne(member.id, exceptMemberId)));
+    .where(and(eq(member.role, 'team_admin'), ne(member.id, exceptMemberId), teamId ? eq(member.teamId, teamId) : undefined));
   return count;
 }
 

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentMember } from '@/auth/current-member';
-import { requireTeamScope } from '@/auth/team-scope';
 import {
   usageOverview,
   usageByProject,
@@ -33,9 +32,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(result);
   }
 
-  // Team-facing path (default)
-  const teamScope = await requireTeamScope();
-  const deps = { teamId: teamScope.currentTeam.id };
+  // Team-facing path (default). Resolve the member directly and return proper 401/403 — the old
+  // `requireTeamScope()` threw a plain Error for an authed-but-teamless org admin (or a stale
+  // cookie), surfacing as a 500 instead of an auth status.
+  const member = await currentMember();
+  if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!member.teamId) {
+    return NextResponse.json({ error: 'no_team', message: 'This view is team-scoped; use ?scope=org.' }, { status: 403 });
+  }
+  const deps = { teamId: member.teamId };
 
   switch (tab) {
     case 'overview':

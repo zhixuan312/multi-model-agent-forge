@@ -102,4 +102,24 @@ describe('listLoopRuns', () => {
     const db = createMockDb({ 'select:loop_run': [{ id: 'run-1' }, { id: 'run-2' }] });
     expect(await listLoopRuns('loop-1', { db })).toHaveLength(2);
   });
+
+  // Tenant scope: the route passes the caller's teamId so a team_admin cannot read another team's
+  // run history by id. (The mock cannot evaluate the WHERE; the teamId predicate is tsc-verified —
+  // this locks that the scoped call path stays wired and non-throwing.)
+  it('accepts a teamId scope', async () => {
+    const db = createMockDb({ 'select:loop_run': [{ id: 'run-1' }] });
+    expect(await listLoopRuns('loop-1', { db, teamId: 'team-1' })).toHaveLength(1);
+  });
+});
+
+describe('startLoopRun — team scope', () => {
+  // getLoop is scoped by teamId; a loop outside the caller's team resolves to not_found before any
+  // run rows are created (the cross-tenant "Run now" fix).
+  it('not_found when the loop is outside the caller team scope', async () => {
+    const db = createMockDb({ 'select:loop_def': [] });
+    const runner = vi.fn(async () => []);
+    const res = await startLoopRun('loop-1', 'manual', { db, teamId: 'other-team', runner: runner as never, background: false });
+    expect(res.kind).toBe('not_found');
+    expect(runner).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { inArray, desc, eq } from 'drizzle-orm';
+import { inArray, desc, eq, and } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { loop as loopTable, loopRun, type LoopRunRow } from '@/db/schema/loop';
@@ -26,6 +26,8 @@ export interface StartRunDeps {
   context?: string | null;
   background?: boolean;
   runner?: typeof runLoop;
+  /** Scope the loop lookup to this team — without it a team_admin could "Run now" another team's loop. */
+  teamId?: string;
 }
 
 export type StartRunResult =
@@ -48,7 +50,7 @@ export async function startLoopRun(
   deps: StartRunDeps = {},
 ): Promise<StartRunResult> {
   const db = deps.db ?? getDb();
-  const loop = await getLoop(loopId, { db });
+  const loop = await getLoop(loopId, { db, teamId: deps.teamId });
   if (!loop) return { kind: 'not_found' };
   // Mode/trigger guard: event-mode loops may ONLY be fired via the authenticated event
   // endpoint (trigger 'event'); firing one through the manual "Run now" or scheduler path
@@ -108,9 +110,14 @@ export async function startLoopRun(
 }
 
 /** Run history for a loop, newest first (the per-repo rows; group by `runId` in the UI). */
-export async function listLoopRuns(loopId: string, deps: { db?: Db } = {}): Promise<LoopRunRow[]> {
+export async function listLoopRuns(loopId: string, deps: { db?: Db; teamId?: string } = {}): Promise<LoopRunRow[]> {
   const db = deps.db ?? getDb();
-  return db.select().from(loopRun).where(eq(loopRun.loopId, loopId)).orderBy(desc(loopRun.startedAt));
+  // Scope to the caller's team — otherwise a team_admin could read another team's run history by id.
+  return db
+    .select()
+    .from(loopRun)
+    .where(and(eq(loopRun.loopId, loopId), deps.teamId ? eq(loopRun.teamId, deps.teamId) : undefined))
+    .orderBy(desc(loopRun.startedAt));
 }
 
 export { loopTable };

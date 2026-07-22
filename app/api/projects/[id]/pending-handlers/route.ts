@@ -7,13 +7,32 @@ import { getPollManager } from '@/sse/poll-manager';
 import { buildMmaClient } from '@/mma/server-client';
 import { projectEventBus } from '@/sse/event-bus';
 import { pushDispatchFailure } from '@/collab/notification-store';
+import { currentMember } from '@/auth/current-member';
+import { projectActorFromMember } from '@/auth/team-scope';
+import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
+
+  // Auth + tenant scope FIRST (before any DB access). This handler mutates state (fails stale
+  // batches, pushes notifications, publishes to the project bus), yet had NO auth — any
+  // cookie-bearing request could probe and force-fail any project's batches. Gate it like every
+  // other project route.
+  const me = await currentMember();
+  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const actor = projectActorFromMember(me);
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const db = getDb();
+  try {
+    await assertProjectReadable(id, actor, { db });
+  } catch (e) {
+    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    throw e;
+  }
 
   const rows = await db
     .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, handler: mmaBatch.handler, createdAt: mmaBatch.createdAt })

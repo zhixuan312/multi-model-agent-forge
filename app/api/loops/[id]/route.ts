@@ -57,7 +57,7 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse>
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const result = await deleteLoop(id);
+  const result = await deleteLoop(id, { teamId: gate.actor.teamId ?? undefined });
   return result.kind === 'deleted'
     ? new NextResponse(null, { status: 204 })
     : NextResponse.json({ error: 'not_found' }, { status: 404 });

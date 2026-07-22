@@ -2,18 +2,21 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
-import { currentMember } from '@/auth/current-member';
+import { guardSpecWrite } from '@/spec/handler-guard';
 import { projectEventBus } from '@/sse/event-bus';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, taskId } = await ctx.params;
-  const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // CSRF + auth + tenant scope — same IDOR class as the spec message route.
+  const guard = await guardSpecWrite(req, id);
+  if (guard instanceof NextResponse) return guard;
+  const me = guard.member;
 
-  const { bodyMd } = (await req.json()) as { bodyMd: string };
-  if (!bodyMd?.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { bodyMd?: unknown };
+  const bodyMd = typeof body.bodyMd === 'string' ? body.bodyMd : '';
+  if (!bodyMd.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
 
   const db = getDb();
 

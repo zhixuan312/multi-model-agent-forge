@@ -97,17 +97,49 @@ describe('setMemberAdmin (last-admin invariant)', () => {
 
 describe('resetMemberPassword', () => {
   it('not_found when the member has no local identity', async () => {
-    const db = createMockDb({ 'select:team_identity': [] });
+    const db = createMockDb({ 'select:team_member': [{ id: 'm1' }], 'select:team_identity': [] });
     expect((await resetMemberPassword('m1', { newPassword: STRONG }, { db, store: stubStore() })).kind).toBe('not_found');
   });
 
   it('updates the hash and revokes the target sessions', async () => {
-    const db = createMockDb({ 'select:team_identity': [{ id: 'i1' }] });
+    const db = createMockDb({ 'select:team_member': [{ id: 'm1' }], 'select:team_identity': [{ id: 'i1' }] });
     const store = stubStore();
     const res = await resetMemberPassword('m1', { newPassword: STRONG }, { db, store });
     expect(res.kind).toBe('reset');
     expect(db._assertCalled('team_identity', 'update')).toBe(true);
     expect(store.revokeAllForMember).toHaveBeenCalledWith('m1');
+  });
+});
+
+// Cross-tenant isolation: when a team_admin acts, the route passes `deps.teamId` so the target
+// lookup is scoped to the actor's team. A target outside that team resolves to not_found (404,
+// anti-enumeration) BEFORE any mutation — this is the account-takeover / cross-team-admin fix.
+describe('member mutations — team scope (cross-tenant isolation)', () => {
+  it('setMemberAdmin: a scoped miss (target in another team) → not_found, no update', async () => {
+    const db = createMockDb({ 'select:team_member': [] });
+    expect((await setMemberAdmin('other-team-member', { isAdmin: true }, { db, teamId: 'team-A' })).kind).toBe('not_found');
+    expect(db._assertCalled('team_member', 'update')).toBe(false);
+  });
+
+  it('deleteMember: a scoped miss → not_found, no delete', async () => {
+    const db = createMockDb({ 'select:team_member': [] });
+    expect((await deleteMember('other-team-member', { db, teamId: 'team-A' })).kind).toBe('not_found');
+    expect(db._assertCalled('team_member', 'delete')).toBe(false);
+  });
+
+  it('resetMemberPassword: a scoped miss → not_found BEFORE the identity is read or the hash written', async () => {
+    const db = createMockDb({ 'select:team_member': [], 'select:team_identity': [{ id: 'i1' }] });
+    const store = stubStore();
+    const res = await resetMemberPassword('other-team-member', { newPassword: STRONG }, { db, store, teamId: 'team-A' });
+    expect(res.kind).toBe('not_found');
+    expect(db._assertCalled('team_identity', 'update')).toBe(false);
+    expect(store.revokeAllForMember).not.toHaveBeenCalled();
+  });
+
+  it('resetMemberPassword: an in-scope member (same team) still resets', async () => {
+    const db = createMockDb({ 'select:team_member': [{ id: 'm1' }], 'select:team_identity': [{ id: 'i1' }] });
+    const res = await resetMemberPassword('m1', { newPassword: STRONG }, { db, store: stubStore(), teamId: 'team-A' });
+    expect(res.kind).toBe('reset');
   });
 });
 

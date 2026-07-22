@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/db/client';
 import { updateDetails } from '@/details/write';
-import { currentMember } from '@/auth/current-member';
+import { guardSpecWrite } from '@/spec/handler-guard';
 import { projectEventBus } from '@/sse/event-bus';
 import { recordActivity } from '@/activity/project-activity';
 
@@ -9,8 +9,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
-  const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // CSRF + auth + tenant scope — without it, any authed member could approve/revoke another
+  // team's spec finalize gate.
+  const guard = await guardSpecWrite(req, id);
+  if (guard instanceof NextResponse) return guard;
+  const me = guard.member;
 
   const body = (await req.json().catch(() => ({}))) as { action?: string };
   const db = getDb();

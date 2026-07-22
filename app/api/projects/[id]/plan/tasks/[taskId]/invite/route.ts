@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
+import { member } from '@/db/schema/identity';
 import { updateDetails } from '@/details/write';
 import { insertNotification } from '@/collab/notification-store';
-import { currentMember } from '@/auth/current-member';
+import { guardSpecWrite } from '@/spec/handler-guard';
 import { validateDetails } from '@/details/schema';
 
 export async function POST(
@@ -12,11 +13,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string; taskId: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // CSRF + auth + tenant scope — same IDOR class as the spec invite route.
+  const guard = await guardSpecWrite(req, id);
+  if (guard instanceof NextResponse) return guard;
+  const me = guard.member;
 
-  const { memberId } = (await req.json()) as { memberId: string };
+  const body = (await req.json().catch(() => ({}))) as { memberId?: unknown };
+  const memberId = typeof body.memberId === 'string' ? body.memberId : '';
+  if (!memberId) return NextResponse.json({ error: 'memberId is required' }, { status: 400 });
   const db = getDb();
+
+  // The invitee must be a real member of the caller's team.
+  const [invitee] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.id, memberId), eq(member.teamId, me.teamId ?? '')))
+    .limit(1);
+  if (!invitee) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
   const [projRow] = await db.select({ name: project.name, details: project.details }).from(project).where(eq(project.id, id)).limit(1);
   if (!projRow?.details) return NextResponse.json({ error: 'Project not found' }, { status: 404 });

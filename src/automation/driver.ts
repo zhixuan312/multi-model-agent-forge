@@ -9,6 +9,7 @@ import { allowedActions } from '@/automation/allowed-actions';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
+import { setAutomationStatus } from '@/details/write';
 
 const activeDrivers = new Map<string, boolean>();
 
@@ -107,6 +108,10 @@ export async function driveProject(projectId: string): Promise<void> {
       if (action.kind === 'complete') {
         await recordDriverOnlyLine(db, projectId, '', '', 'All stages complete — project finished', 'done');
         projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind });
+        // Reset the automation status alongside autoMode — otherwise it stays 'running' while
+        // the driver has stopped, and every subsequent manual action (and a restart) is blocked
+        // by a phantom "auto is driving — take over first".
+        await setAutomationStatus(db, projectId, 'off');
         await db.update(project).set({ autoMode: false, autoNote: 'Project complete' }).where(eq(project.id, projectId));
         return;
       }
@@ -153,6 +158,9 @@ export async function driveProject(projectId: string): Promise<void> {
 
       if (lastErr) {
         await recordDriverOnlyLine(db, projectId, action.stage, action.phase, `Failed — ${lastErr}`, 'error');
+        // Reset status too (see the 'complete' path): a failed run that leaves status='running'
+        // strands the project — the user can neither continue manually nor press "Run automated".
+        await setAutomationStatus(db, projectId, 'off');
         await db.update(project).set({ autoMode: false, autoNote: `Failed after 3 attempts: ${lastErr}`, updatedAt: new Date() }).where(eq(project.id, projectId));
         projectEventBus.publish(projectId, { type: 'automation.error', error: lastErr });
         return;

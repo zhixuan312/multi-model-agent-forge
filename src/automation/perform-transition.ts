@@ -81,6 +81,16 @@ export async function performTransition(db: Db, projectId: string, input: Action
     await updateDetails(db, projectId, (d) => { repairActiveStage(d); return d; });
   }
 
+  // Self-heal a stale 'running' status. The driver EXITS the moment autoMode is false, so a
+  // 'running' status with autoMode=false is a stopped run whose flag was never reset (driver
+  // finished, failed after 3 attempts, crashed, or lost its lease). Left as-is it phantom-blocks
+  // every manual action AND start_auto with "auto is driving — take over first" — the project is
+  // stranded, unable to continue or restart. Reconcile to 'off' so the gates below see the truth.
+  if (!row.autoMode && details.automation.status === 'running') {
+    details.automation.status = 'off';
+    await updateDetails(db, projectId, (d) => { d.automation.status = 'off'; return d; });
+  }
+
   // GATE 4 — mode rule (AC17). take_over is the sole manual action allowed while running.
   const autoRunning = details.automation.status === 'running';
   if (trigger.mode === 'manual' && autoRunning && input.kind !== 'take_over') {

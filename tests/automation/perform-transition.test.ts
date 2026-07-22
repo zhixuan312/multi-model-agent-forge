@@ -32,6 +32,25 @@ describe('performTransition — gate (spec §2.4, AC4/AC17)', () => {
     ).rejects.toBeInstanceOf(TransitionRejected);
   });
 
+  it('does NOT phantom-block when status is stale-running but autoMode is false', async () => {
+    // The exact stranded state: the driver stopped (autoMode=false) but its status was left
+    // 'running'. A manual action must NOT be rejected with "auto is driving — take over first";
+    // the stale status is reconciled to 'off' first, so the project can continue / restart.
+    const d = finalizeActive();
+    d.automation.status = 'running'; // stale
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 1, autoMode: false }], // autoMode FALSE
+      'update:project': [{ id: 'p' }],
+    });
+    const err = await performTransition(
+      db, 'p', { kind: 'dispatch_audit' }, { mode: 'manual', actorId: 'u1' },
+    ).catch((e: unknown) => e);
+    if (err instanceof Error) expect(err.message).not.toMatch(/auto is driving/);
+    // The reconcile persisted the healed status.
+    const setCalls = db._callsFor('project').filter((c) => c.method === 'set');
+    expect(JSON.stringify(setCalls)).toContain('off');
+  });
+
   it('rejects a driver action while auto is off [AC17]', async () => {
     const db = createMockDb({ 'select:project': [projRow(finalizeActive(), 1, 'off')] });
     await expect(

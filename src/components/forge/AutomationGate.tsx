@@ -1,8 +1,19 @@
 'use client';
 
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { ProjectActivityEvent } from '@/activity/project-activity';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
+
+/** Stage kind → its route segment (inverse of LiveStageStepper's SEGMENT_TO_STAGE). */
+const STAGE_TO_SEGMENT: Record<string, string> = {
+  exploration: 'explore',
+  spec: 'spec',
+  plan: 'plan',
+  execute: 'execute',
+  review: 'review',
+  journal: 'reflect',
+};
 
 /**
  * Whether automation is running is SERVER state (`project.autoMode`). `autoOverride`
@@ -75,6 +86,21 @@ export function AutomationGate({ projectId, projectName, autoMode, autoNote, cur
   const running = useAutomationRunning(autoMode);
   const viewing = useSyncExternalStore(automationOverlayStore.subscribe, automationOverlayStore.isViewOpen, () => false);
   const showOverlay = running || viewing;
+
+  // When automation ENDS, the gate re-renders children for whatever route the user was on when they
+  // pressed "Run automated" — often several stages behind where automation finished (the overlay
+  // hides the URL, and automation advances stages without navigating). Land the user on the stage
+  // where it actually ended so they don't reappear on a stale, now-empty earlier stage.
+  const router = useRouter();
+  const seg = useSelectedLayoutSegment();
+  const prevRunning = useRef(running);
+  useEffect(() => {
+    if (prevRunning.current && !running) {
+      const targetSeg = STAGE_TO_SEGMENT[currentStage];
+      if (targetSeg && targetSeg !== seg) router.push(`/projects/${projectId}/${targetSeg}`);
+    }
+    prevRunning.current = running;
+  }, [running, currentStage, seg, projectId, router]);
 
   return showOverlay ? (
     <AutomationOverlay

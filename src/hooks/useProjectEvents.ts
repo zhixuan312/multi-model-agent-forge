@@ -101,9 +101,6 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
     case 'automation.step_done':
       window.dispatchEvent(new CustomEvent('automation:step_done', { detail: { step: e.step, stage: e.stage, phase: e.phase, stepIndex: e.stepIndex } }));
       break;
-    case 'automation.navigate':
-      window.dispatchEvent(new CustomEvent('automation:navigate', { detail: { url: e.url } }));
-      break;
     case 'automation.error':
       window.dispatchEvent(new CustomEvent('automation:error', { detail: { error: e.error } }));
       break;

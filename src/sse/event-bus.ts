@@ -67,7 +67,6 @@ export type ProjectEvent =
   // ── Automation events ────────────────────────────────────────────
   | { type: 'automation.progress'; note: string; stage?: string; phase?: string; kind?: 'action' | 'error' | 'done'; durationMs?: number }
   | { type: 'automation.step_done'; step: string; stage?: string; phase?: string; stepIndex?: number }
-  | { type: 'automation.navigate'; url: string }
   | { type: 'automation.error'; error: string };
 
 const EVENT = 'event';

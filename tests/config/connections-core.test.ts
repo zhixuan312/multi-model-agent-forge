@@ -91,13 +91,14 @@ describe('updateConnections', () => {
     expect(db._assertCalled('team', 'update')).toBe(false); // team not updated
   });
 
-  it('mma base URL alone (no git token, no team) UPDATEs the singleton', async () => {
+  it('mma base URL alone (no git token, no team) UPDATEs the singleton — org admin', async () => {
     const existing = createBaseConnection({ openaiTranscriptionKeyRef: 'keep-openai' });
     const db = createMockDb({
       'select:team_connection': seq([existing], [{ ...existing, mmaBaseUrl: 'http://new-url' }]),
     });
     const secrets = createMockSecretStore();
-    await updateConnections({ mmaBaseUrl: 'http://new-url' }, { db, secrets });
+    // mmaBaseUrl is an org-owned singleton field → requires an org admin (isOrgAdmin).
+    await updateConnections({ mmaBaseUrl: 'http://new-url' }, { db, secrets, isOrgAdmin: true });
 
     expect(secrets.puts).toHaveLength(0); // no new secrets
     expect(db._assertCalled('team_connection', 'update')).toBe(true);
@@ -116,5 +117,38 @@ describe('updateConnections', () => {
     await updateConnections({ gitToken: 'ghs_secret' }, { db, teamId: 'team-1', secrets });
     expect(db._assertCalled('team', 'update')).toBe(true);
     expect(db._assertCalled('team_connection', 'update')).toBe(false);
+  });
+});
+
+
+describe('updateConnections — org-owned fields are org_admin only (speech-to-text key)', () => {
+  it('DROPS openaiTranscriptionKey for a non-org-admin — never rotates the app-wide key', async () => {
+    const db = createMockDb({ 'select:team_connection': [createBaseConnection({ openaiTranscriptionKeyRef: 'keep' })] });
+    const secrets = createMockSecretStore();
+    await updateConnections({ openaiTranscriptionKey: 'sk_new' }, { db, secrets, teamId: 't1', isOrgAdmin: false });
+    expect(secrets.puts.some((p) => p.label === 'openai-transcription')).toBe(false);
+    expect(db._assertCalled('team_connection', 'update')).toBe(false);
+  });
+
+  it('applies openaiTranscriptionKey for an org admin', async () => {
+    const db = createMockDb({
+      'select:team_connection': [createBaseConnection({ openaiTranscriptionKeyRef: null })],
+      'update:team_connection': [{ id: 'conn-1' }],
+    });
+    const secrets = createMockSecretStore();
+    await updateConnections({ openaiTranscriptionKey: 'sk_new' }, { db, secrets, isOrgAdmin: true });
+    expect(secrets.puts.some((p) => p.label === 'openai-transcription')).toBe(true);
+  });
+
+  it('a team admin can still rotate the team git token without isOrgAdmin', async () => {
+    const db = createMockDb({
+      'select:team_connection': [createBaseConnection({})],
+      'select:team': [{ id: 't1', gitTokenRef: null }],
+      'update:team': [{ id: 't1' }],
+    });
+    const secrets = createMockSecretStore();
+    await updateConnections({ gitToken: 'ghs_x' }, { db, secrets, teamId: 't1', isOrgAdmin: false });
+    expect(secrets.puts.some((p) => p.label === 'git-token')).toBe(true);
+    expect(db._assertCalled('team', 'update')).toBe(true);
   });
 });

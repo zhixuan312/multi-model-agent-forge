@@ -23,7 +23,7 @@ function putReq(body: unknown): Request {
   });
 }
 
-describe('connections API route — team gate', () => {
+describe('connections API route — scope gates (org-owned vs team-owned)', () => {
   beforeEach(() => {
     mockCaller = null;
   });
@@ -34,9 +34,18 @@ describe('connections API route — team gate', () => {
     expect((await connPUT(putReq({}) as never)).status).toBe(401);
   });
 
-  it('member without teamId → 401 (GET + PUT)', async () => {
-    mockCaller = { id: 'm-x', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
-    expect((await connGET()).status).toBe(401);
-    expect((await connPUT(putReq({}) as never)).status).toBe(401);
+  it('a team admin CANNOT set the org-owned speech-to-text key → 403', async () => {
+    mockCaller = { id: 'ta', username: 'ta', displayName: 'TA', avatarTint: '#000', role: 'team_admin', teamId: 't1' };
+    expect((await connPUT(putReq({ openaiTranscriptionKey: 'sk_x' }) as never)).status).toBe(403);
+  });
+
+  it('a team admin CANNOT set the org-owned MMA base URL → 403', async () => {
+    mockCaller = { id: 'ta', username: 'ta', displayName: 'TA', avatarTint: '#000', role: 'team_admin', teamId: 't1' };
+    expect((await connPUT(putReq({ mmaBaseUrl: 'http://x' }) as never)).status).toBe(403);
+  });
+
+  it('a member with no team CANNOT set the team git token → 403', async () => {
+    mockCaller = { id: 'oa', username: 'oa', displayName: 'OA', avatarTint: '#000', role: 'org_admin', teamId: null };
+    expect((await connPUT(putReq({ gitToken: 'ghs_x' }) as never)).status).toBe(403);
   });
 });

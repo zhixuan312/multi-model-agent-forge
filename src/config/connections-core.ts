@@ -27,6 +27,9 @@ export interface ConnectionsDeps {
   actorId?: string | null;
   /** The team ID for team-owned settings (git token). */
   teamId?: string | null;
+  /** Whether the caller is an org admin — REQUIRED to write the org-owned singleton fields
+   *  (mmaBaseUrl, openaiTranscriptionKey). A team admin may only rotate the team git token. */
+  isOrgAdmin?: boolean;
 }
 
 async function resolveSecrets(deps: ConnectionsDeps): Promise<SecretStore> {
@@ -95,9 +98,16 @@ export async function updateConnections(
   const [existing] = await db.select().from(connectionSettings).limit(1);
   const [currentTeam] = deps.teamId ? await db.select().from(team).where(eq(team.id, deps.teamId)).limit(1) : [null];
 
+  // The org-owned singleton fields (mmaBaseUrl, openaiTranscriptionKey) may ONLY be written by an
+  // org admin — the singleton is app-wide, so a team admin must never rotate the speech-to-text
+  // key or MMA URL for everyone. Drop those fields for a non-org-admin caller (defense in depth;
+  // the route also rejects such a request). The team git token is unaffected.
+  const orgMmaBaseUrl = deps.isOrgAdmin ? mmaBaseUrl : undefined;
+  const orgOpenaiKey = deps.isOrgAdmin ? openaiTranscriptionKey : undefined;
+
   // Resolve any provided secrets to refs (replacing the prior secret rows).
   let secrets: SecretStore | null = null;
-  const needSecrets = gitToken !== undefined || openaiTranscriptionKey !== undefined;
+  const needSecrets = gitToken !== undefined || orgOpenaiKey !== undefined;
   if (needSecrets) secrets = await resolveSecrets(deps);
 
   async function rotate(
@@ -111,22 +121,22 @@ export async function updateConnections(
     return ref;
   }
 
-  // Org-owned settings (mmaBaseUrl, openaiTranscriptionKey) go to singleton
+  // Org-owned settings (mmaBaseUrl, openaiTranscriptionKey) go to singleton — org admin only.
   const openaiRef = await rotate(
-    openaiTranscriptionKey,
+    orgOpenaiKey,
     'openai-transcription',
     existing?.openaiTranscriptionKeyRef,
   );
 
-  if (mmaBaseUrl !== undefined || openaiRef !== undefined) {
+  if (orgMmaBaseUrl !== undefined || openaiRef !== undefined) {
     if (existing) {
       const patch: Record<string, unknown> = { updatedAt: new Date() };
-      if (mmaBaseUrl !== undefined) patch.mmaBaseUrl = mmaBaseUrl;
+      if (orgMmaBaseUrl !== undefined) patch.mmaBaseUrl = orgMmaBaseUrl;
       if (openaiRef !== undefined) patch.openaiTranscriptionKeyRef = openaiRef;
       await db.update(connectionSettings).set(patch).where(eq(connectionSettings.id, existing.id));
     } else {
       await db.insert(connectionSettings).values({
-        mmaBaseUrl: mmaBaseUrl ?? null,
+        mmaBaseUrl: orgMmaBaseUrl ?? null,
         openaiTranscriptionKeyRef: openaiRef ?? null,
       });
     }

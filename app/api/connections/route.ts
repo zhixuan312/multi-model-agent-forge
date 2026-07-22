@@ -1,42 +1,49 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getConnections, updateConnections } from '@/config/connections-core';
-import { requireTeamScope } from '@/auth/team-scope';
+import { currentMember } from '@/auth/current-member';
 
 /**
- * Team Connections API (Spec 2 §Connections).
- * `GET`  → 200 { mmaBaseUrl, gitTokenSet, openaiTranscriptionKeySet }
- *          (NEVER the token/key values — only "set / not set" booleans)
- * `PUT  { mmaBaseUrl?, gitToken?, openaiTranscriptionKey? }`
- *   → 200 the refreshed view  · 400 invalid
- *   → 401 unauthenticated / no team scope
+ * Connections API (Spec 2 §Connections).
+ * `GET`  → 200 { mmaBaseUrl, gitTokenSet, openaiTranscriptionKeySet } (booleans, never values)
+ * `PUT  { mmaBaseUrl?, gitToken?, openaiTranscriptionKey? }` → 200 refreshed view · 400 invalid
  *
- * The MMA bearer is owned by the local mma (read-only in the UI), never set
- * here. Each section saves independently; git + speech-to-text tokens are stored
- * via the SecretStore and their values never returned.
+ * Scope split: the ORG-owned singleton fields (mmaBaseUrl, openaiTranscriptionKey) are org_admin
+ * only — the singleton is app-wide, so a team admin must never rotate the speech-to-text key for
+ * everyone. The TEAM git token needs a team (team admin). Each is authorised independently.
  */
 export async function GET(): Promise<NextResponse> {
-  try {
-    const scope = await requireTeamScope();
-    return NextResponse.json(await getConnections({ teamId: scope.currentTeam.id }));
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const me = await currentMember();
+  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return NextResponse.json(await getConnections({ teamId: me.teamId ?? null }));
 }
 
 export async function PUT(req: NextRequest): Promise<NextResponse> {
-  try {
-    const scope = await requireTeamScope();
+  const me = await currentMember();
+  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const json = await req.json().catch(() => null);
-    const result = await updateConnections(json, { actorId: scope.actor.id, teamId: scope.currentTeam.id });
+  const json = (await req.json().catch(() => null)) as
+    | { mmaBaseUrl?: string; gitToken?: string; openaiTranscriptionKey?: string }
+    | null;
 
-    switch (result.kind) {
-      case 'invalid':
-        return NextResponse.json({ error: 'Invalid connections fields.' }, { status: 400 });
-      case 'saved':
-        return NextResponse.json(result.connections);
-    }
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const wantsOrgFields = !!json && (json.mmaBaseUrl !== undefined || json.openaiTranscriptionKey !== undefined);
+  const wantsGitToken = !!json && json.gitToken !== undefined;
+  if (wantsOrgFields && me.role !== 'org_admin') {
+    return NextResponse.json({ error: 'Only an org admin can change the MMA connection or speech-to-text key.' }, { status: 403 });
+  }
+  if (wantsGitToken && !me.teamId) {
+    return NextResponse.json({ error: 'A team is required to set the git token.' }, { status: 403 });
+  }
+
+  const result = await updateConnections(json, {
+    actorId: me.id,
+    teamId: me.teamId ?? null,
+    isOrgAdmin: me.role === 'org_admin',
+  });
+
+  switch (result.kind) {
+    case 'invalid':
+      return NextResponse.json({ error: 'Invalid connections fields.' }, { status: 400 });
+    case 'saved':
+      return NextResponse.json(result.connections);
   }
 }

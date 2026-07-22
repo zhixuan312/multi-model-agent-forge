@@ -42,6 +42,22 @@ const POLL_CEILING_MS = 5 * 60_000;
 
 type PollResult = { state: 'pending'; headline: string } | { state: 'terminal'; envelope: unknown };
 
+/**
+ * Collapse intra-section duplicates: keep the first item per normalised (trimmed,
+ * case-insensitive) question, preserving order. Recent is newest-first, so the freshest
+ * copy of a repeated question survives. Used per section, so the same question can still
+ * appear across different sections (pinned / recent / frequent) — just never twice in one.
+ */
+export function dedupeByQuestion<T>(items: readonly T[], getQ: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((it) => {
+    const key = getQ(it).trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export interface RecentRecall {
   id: string;
   question: string;
@@ -227,12 +243,18 @@ export function RecallTab({
 
   // One governed List (src/components/patterns/list.tsx). Every section shares the same row
   // contract: the row IS the question, the left chevron expands it, the body is the answer box.
+  //
+  // Within a section, an identical question must appear only ONCE — asking the same thing twice
+  // records two Recent entries, and the same text can be pinned/asked more than once. The SAME
+  // question may still appear across DIFFERENT sections (pinned AND recent AND frequent); only
+  // intra-section repeats are collapsed (see `dedupeByQuestion`).
   const recallSections: ListSection[] = [];
-  if (pins.length > 0) {
+  const uniquePins = dedupeByQuestion(pins, (p) => p.question);
+  if (uniquePins.length > 0) {
     recallSections.push({
       id: 'pinned',
       header: (<span className="flex items-center gap-1.5"><Pin className="size-3.5" /> Pinned Q&amp;A</span>),
-      rows: pins.map((p) => ({
+      rows: uniquePins.map((p) => ({
         id: `pin-${p.id}`,
         primary: p.question,
         trailing: p.stale ? (
@@ -244,11 +266,12 @@ export function RecallTab({
       })),
     });
   }
-  if (completedRecalls.length > 0) {
+  const uniqueRecalls = dedupeByQuestion(completedRecalls, (r) => r.question);
+  if (uniqueRecalls.length > 0) {
     recallSections.push({
       id: 'recent',
       header: (<span className="flex items-center gap-1.5"><Sparkles className="size-3.5" /> Recent answers</span>),
-      rows: completedRecalls.map((r) => ({
+      rows: uniqueRecalls.map((r) => ({
         id: `recent-${r.id}`,
         primary: r.question,
         defaultOpen: r.batchId != null && r.batchId === justAskedKey,
@@ -256,11 +279,12 @@ export function RecallTab({
       })),
     });
   }
-  if (faqs.length > 0) {
+  const uniqueFaqs = dedupeByQuestion(faqs, (f) => f.question);
+  if (uniqueFaqs.length > 0) {
     recallSections.push({
       id: 'frequent',
       header: (<span className="flex items-center gap-1.5"><MessageCircleQuestion className="size-3.5" /> Frequently asked</span>),
-      rows: faqs.map((f) => ({
+      rows: uniqueFaqs.map((f) => ({
         id: `faq-${f.question}`,
         primary: f.question,
         trailing: (

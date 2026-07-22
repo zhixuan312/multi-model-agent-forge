@@ -68,11 +68,22 @@ describe('repos API route handlers', () => {
     expect(cloneAndRegister).not.toHaveBeenCalled();
   });
 
-  it('admin same-origin POST → 201 cloned', async () => {
+  it('admin same-origin POST → 201 cloned, threading the caller team', async () => {
     mockCaller = asAdmin();
     const res = await reposPOST(req({ name: 'core-api', url: 'https://h/r.git', tags: ['core'] }) as never);
     expect(res.status).toBe(201);
     expect(cloneAndRegister).toHaveBeenCalledOnce();
+    // The team MUST be threaded — a team-less call throws "Team required" (a 500).
+    expect(cloneAndRegister).toHaveBeenCalledWith(expect.anything(), { teamId: 'team-1' });
+  });
+
+  it('admin without a team (org admin) → 400 clear error, no clone runs', async () => {
+    mockCaller = { ...asAdmin(), role: 'org_admin', teamId: null };
+    const res = await reposPOST(req({ name: 'x', url: 'u' }) as never);
+    expect(res.status).toBe(400);
+    expect(cloneAndRegister).not.toHaveBeenCalled();
+    expect((await reposGET()).status).toBe(400);
+    expect(listRepos).not.toHaveBeenCalled();
   });
 
   it('duplicate name → 409; clone error → 502', async () => {
@@ -83,10 +94,10 @@ describe('repos API route handlers', () => {
     expect((await reposPOST(req({ name: 'x', url: 'u' }) as never)).status).toBe(502);
   });
 
-  it('admin GET list → 200', async () => {
+  it('admin GET list → 200, scoped to the caller team', async () => {
     mockCaller = asAdmin();
     expect((await reposGET()).status).toBe(200);
-    expect(listRepos).toHaveBeenCalled();
+    expect(listRepos).toHaveBeenCalledWith({ teamId: 'team-1' });
   });
 
   it('model-profiles route is admin-gated and returns the catalog shape', async () => {

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { resolveAdminActor } from '@/auth/admin-gate-handler';
+import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { listRepos, cloneAndRegister } from '@/git/repos-core';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 
@@ -14,19 +14,19 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
  * Mutations are same-origin enforced (CSRF, F12) in addition to the admin gate.
  */
 export async function GET(): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
-  return NextResponse.json(await listRepos());
+  return NextResponse.json(await listRepos({ teamId: gate.teamId }));
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
 
   const json = await req.json().catch(() => null);
-  const result = await cloneAndRegister(json);
+  const result = await cloneAndRegister(json, { teamId: gate.teamId });
 
   switch (result.kind) {
     case 'invalid':

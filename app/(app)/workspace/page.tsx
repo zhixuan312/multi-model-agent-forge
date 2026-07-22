@@ -29,8 +29,10 @@ const WORKSPACE_NOTE = `### Shared repositories
 export default async function WorkspacePage() {
   const me = await requireTeamPage();
   const isAdmin = me.role === 'team_admin';
-  await syncWorkspaceRepos();
-  const repos = await listRepos();
+  // Scope both to the caller's team: an unscoped listRepos() leaks every team's
+  // repos, and an unscoped sync throws the moment it meets an unregistered disk repo.
+  await syncWorkspaceRepos({ teamId: me.teamId });
+  const repos = await listRepos({ teamId: me.teamId });
 
   const initialRepos: RepoCardData[] = repos.map((r) => ({
     id: r.id,

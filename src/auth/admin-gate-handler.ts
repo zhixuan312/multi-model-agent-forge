@@ -30,3 +30,27 @@ export async function resolveAdminActor(): Promise<
     throw e;
   }
 }
+
+/**
+ * Resolve an admin actor AND their team for a team-scoped admin resource (repos /
+ * workspace). The org admin passes the admin gate but owns no team, so team-scoped
+ * cores like `cloneAndRegister` would otherwise throw "Team required" as a 500.
+ * Surface that as a clean 400 instead, and thread the resolved `teamId` to callers
+ * so the core never runs team-less.
+ */
+export async function resolveAdminTeam(): Promise<
+  { ok: true; actor: AuthedMember; teamId: string } | { ok: false; response: NextResponse }
+> {
+  const gate = await resolveAdminActor();
+  if (!gate.ok) return gate;
+  if (!gate.actor.teamId) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'Select a team before managing repositories.' },
+        { status: 400 },
+      ),
+    };
+  }
+  return { ok: true, actor: gate.actor, teamId: gate.actor.teamId };
+}

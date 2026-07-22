@@ -347,13 +347,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const taskId = action.data?.taskId as string;
       const taskTitle = action.data?.taskTitle as string;
       if (!taskId) break;
-      const [seqRow] = await db
-        .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-        .from(qaMessage)
-        .where(eq(qaMessage.targetId, taskId));
+      // seq computed INSIDE the insert (single statement) — a separate SELECT-max then INSERT lets
+      // a concurrent human comment read the same max and collide on seq (the index isn't unique →
+      // duplicate seq → ambiguous chat ordering).
       await db.insert(qaMessage).values({
         targetId: taskId, projectId, targetKind: 'plan_task',
-        seq: (seqRow?.max ?? -1) + 1,
+        seq: sql<number>`(select coalesce(max(${qaMessage.seq}), -1) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${taskId})`,
         bodyMd: 'Review this task for completeness, accuracy, and test coverage. Flag any gaps. @Forge',
         authorId: FORGE_MEMBER_ID,
       });
@@ -362,13 +361,9 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         body: { prompt: `Review the plan task "${taskTitle}" for completeness, accuracy, and test coverage. Flag any gaps.`, reviewPolicy: 'none' },
         actorId: FORGE_MEMBER_ID, meta: { taskId }, await: true,
       });
-      const [seqRow2] = await db
-        .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-        .from(qaMessage)
-        .where(eq(qaMessage.targetId, taskId));
       await db.insert(qaMessage).values({
         targetId: taskId, projectId, targetKind: 'plan_task',
-        seq: (seqRow2?.max ?? -1) + 1,
+        seq: sql<number>`(select coalesce(max(${qaMessage.seq}), -1) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${taskId})`,
         authorId: FORGE_MEMBER_ID,
         bodyMd: 'Task reviewed — no critical issues found.',
       });

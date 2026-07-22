@@ -24,17 +24,15 @@ async function handlePlanRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
   }
 
   const forgeReply = result.chatReply || 'Updated the task.';
-  const [seqRow] = await db
-    .select({ max: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-    .from(qaMessage)
-    .where(eq(qaMessage.targetId, request.taskId));
 
+  // seq computed inside the insert (single statement) — avoids the concurrent SELECT-max/INSERT
+  // collision (non-unique index → duplicate seq → ambiguous chat ordering).
   const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const [msgRow] = await db.insert(qaMessage).values({
     targetId: request.taskId,
     projectId: ctx.projectId,
     targetKind: 'plan_task',
-    seq: (seqRow?.max ?? -1) + 1,
+    seq: sql<number>`(select coalesce(max(${qaMessage.seq}), -1) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${request.taskId})`,
     authorId: FORGE_MEMBER_ID,
     bodyMd: forgeReply,
     meta: { taskUpdated: !!result.updatedTaskBody },

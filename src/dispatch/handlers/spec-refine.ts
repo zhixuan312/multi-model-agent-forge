@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -72,17 +72,14 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
     forgeReply += `\n\n❓ A few things to clarify:\n\n${result.questions.map((q) => `• ${q}`).join('\n\n')}`;
   }
 
-  const [{ maxSeq }] = await db
-    .select({ maxSeq: sql<number>`coalesce(max(${qaMessage.seq}), -1)` })
-    .from(qaMessage)
-    .where(eq(qaMessage.targetId, componentId));
-
+  // seq computed inside the insert (single statement) — avoids the concurrent SELECT-max/INSERT
+  // collision (non-unique index → duplicate seq → ambiguous chat ordering).
   const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
   const [msgRow] = await db.insert(qaMessage).values({
     targetId: componentId,
     projectId: ctx.projectId,
     targetKind: 'spec_component',
-    seq: (maxSeq ?? -1) + 1,
+    seq: sql<number>`(select coalesce(max(${qaMessage.seq}), -1) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${componentId})`,
     authorId: FORGE_MEMBER_ID,
     bodyMd: forgeReply,
     meta: { sectionUpdated: !!result.updatedSectionMd, questions: result.questions },

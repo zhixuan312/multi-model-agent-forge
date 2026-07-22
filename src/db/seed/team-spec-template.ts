@@ -94,3 +94,27 @@ export async function seedTeamSpecTemplates(db: Db): Promise<void> {
       .onConflictDoNothing();
   }
 }
+
+// Run when invoked directly: `tsx src/db/seed/team-spec-template.ts` (npm run db:seed-templates).
+// Without this block the package script imported the module and exited WITHOUT seeding, so a
+// fresh deploy's team_spec_template stayed empty — the spec outline then has no components to
+// offer and the stage stalls. Dynamic imports keep the module import-side-effect-free (dotenv
+// only loads, and a DB connection only opens, when run as a CLI).
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // An async IIFE, not top-level await: tsx transforms this CLI to CJS, where top-level
+  // await is unsupported. Dynamic imports keep the module import-side-effect-free.
+  void (async () => {
+    await import('dotenv/config');
+    const { getDb } = await import('@/db/client');
+    try {
+      await seedTeamSpecTemplates(getDb());
+
+      console.log(`Seeded ${SPEC_TEMPLATE_SEEDS.length} spec templates.`);
+      process.exit(0);
+    } catch (err) {
+
+      console.error('Seed failed:', err);
+      process.exit(1);
+    }
+  })();
+}

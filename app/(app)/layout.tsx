@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import { listNotifications } from '@/collab/notification-store';
-import { PhaseTheme } from '@/components/forge/PhaseTheme';
+import { AppPhaseTheme } from '@/components/forge/AppPhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
 import { MobileNav } from '@/components/forge/MobileNav';
 import { AccountMenu } from '@/components/forge/AccountMenu';
@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const notifications = await listNotifications(member.id);
 
   return (
-    <PhaseTheme phase="design" className="text-ink">
+    <AppPhaseTheme className="text-ink">
       <AppShell
         sidebar={<Sidebar member={member} />}
         topRight={
@@ -56,6 +56,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </AppShell>
       <Toaster />
-    </PhaseTheme>
+    </AppPhaseTheme>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useAutomationRunning } from '@/components/forge/AutomationGate';
+import { appPhaseStore } from '@/components/forge/app-phase';
 
 /**
  * Swaps the project shell between the warm `design` palette and the cool `build`
@@ -18,5 +19,12 @@ import { useAutomationRunning } from '@/components/forge/AutomationGate';
  */
 export function PhaseFromRoute({ auto, children }: { auto: boolean; children: ReactNode }) {
   const running = useAutomationRunning(auto);
-  return <div data-phase={running ? 'build' : 'design'} className="contents">{children}</div>;
+  const phase = running ? 'build' : 'design';
+  // Broadcast the phase to the shell so the sidebar + global chrome swap palettes with the
+  // content, not just this pane. Reset to the warm default when the project view unmounts.
+  useEffect(() => {
+    appPhaseStore.set(phase);
+    return () => appPhaseStore.set('design');
+  }, [phase]);
+  return <div data-phase={phase} className="contents">{children}</div>;
 }

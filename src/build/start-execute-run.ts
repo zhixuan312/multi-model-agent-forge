@@ -56,7 +56,9 @@ export async function startExecuteRun(
 
   const planArtifact = await readPlanFile(projectId);
   if (!planArtifact?.bodyMd) throw new Error('No plan artifact');
-  const planPath = planFilePath(projectId);
+  // MUST await: planFilePath is async. Unawaited, planPath was a Promise that serialised to
+  // `[{}]` in target.paths → MMA rejected every execute_plan dispatch with 400 (retry loop).
+  const planPath = await planFilePath(projectId, db);
   const forgeBranch = buildForgeBranch(proj.name ?? projectId, projectShortId(projectId));
 
   const dispatched: ExecuteDispatch[] = [];

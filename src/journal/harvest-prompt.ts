@@ -73,7 +73,9 @@ export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): P
     sections.push(`## Audit Findings\n${auditSummaries}`);
   }
 
-  const journalPath = journalFilePath(projectId);
+  // MUST await: journalFilePath is async. Unawaited, the Promise interpolated into the prompt
+  // below renders as "[object Promise]", so the harvester is told to write to a bogus path.
+  const journalPath = await journalFilePath(projectId, db);
 
   return `Role: You are the learning harvester for Forge, a software delivery harness.
 

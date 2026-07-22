@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Menu as MenuIcon } from 'lucide-react';
 import { Sidebar } from '@/components/forge/Sidebar';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -13,6 +14,10 @@ import type { AuthedMember } from '@/auth/auth-provider';
  */
 export function MobileNav({ member }: { member: AuthedMember }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  // Close the drawer on navigation — MobileNav lives in the persistent layout, so a soft nav
+  // doesn't unmount it; without this, tapping a nav item leaves the drawer covering the page.
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   return (
     <div className="md:hidden">

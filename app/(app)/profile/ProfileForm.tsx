@@ -68,6 +68,9 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
       setAccountOpen(false);
       showToast({ type: 'success', message: 'Profile saved.' });
       router.refresh();
+    } catch {
+      // A rejected fetch (offline / server down) would otherwise stop the spinner silently.
+      setAccountError('Could not reach the server — check your connection and retry.');
     } finally {
       setSavingAccount(false);
     }
@@ -111,6 +114,8 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
       // Changing the password revokes every other session and re-issues this
       // one — refresh so the "Active sessions" metric reflects the drop.
       router.refresh();
+    } catch {
+      setPasswordError('Could not reach the server — check your connection and retry.');
     } finally {
       setSavingPassword(false);
     }

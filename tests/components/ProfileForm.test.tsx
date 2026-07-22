@@ -110,4 +110,16 @@ describe('ProfileForm', () => {
     // Success is a toast (rendered by the app-level Toaster, not here) and the panel closes.
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Password' })).toBeNull());
   });
+
+  it('surfaces a network error on password save instead of silently stopping the spinner (QA E#4)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    render(<ProfileForm member={me} />);
+    openPassword();
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-password-1234' } });
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a-strong-password-1234' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a-strong-password-1234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+    expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });

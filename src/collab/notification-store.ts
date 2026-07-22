@@ -57,9 +57,14 @@ export async function listNotifications(
     .limit(opts?.limit ?? 50);
 }
 
-export async function markRead(id: string, db?: Db): Promise<void> {
+export async function markRead(id: string, memberId: string, db?: Db): Promise<void> {
   const d = db ?? getDb();
-  await d.update(notification).set({ readAt: new Date() }).where(eq(notification.id, id));
+  // Scope by the caller: a member may only mark their OWN notifications (or a broadcast, where
+  // member_id is null) — without this, any authenticated caller could mark any notification by id.
+  await d
+    .update(notification)
+    .set({ readAt: new Date() })
+    .where(and(eq(notification.id, id), or(eq(notification.memberId, memberId), isNull(notification.memberId))));
 }
 
 export async function markAllRead(memberId: string | null, db?: Db): Promise<void> {
@@ -75,9 +80,13 @@ export async function markAllRead(memberId: string | null, db?: Db): Promise<voi
     );
 }
 
-export async function dismiss(id: string, db?: Db): Promise<void> {
+export async function dismiss(id: string, memberId: string, db?: Db): Promise<void> {
   const d = db ?? getDb();
-  await d.update(notification).set({ dismissedAt: new Date() }).where(eq(notification.id, id));
+  // Same ownership scope as markRead — never dismiss another member's notification by id.
+  await d
+    .update(notification)
+    .set({ dismissedAt: new Date() })
+    .where(and(eq(notification.id, id), or(eq(notification.memberId, memberId), isNull(notification.memberId))));
 }
 
 // ── Insert ─────────────────────────────────────────────────────────

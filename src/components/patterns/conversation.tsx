@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode } 
 import { Send, Mic, MicOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Textarea, Avatar } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import type { MemberRef } from '@/collab/types';
 
@@ -116,6 +117,10 @@ export function ConversationComposer({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const recStartRef = useRef(0);
+  // Latest value for async callbacks: the transcription onstop closure captured `value` at
+  // record-START, so text typed WHILE recording was overwritten. Read the ref instead.
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
@@ -147,14 +152,23 @@ export function ConversationComposer({
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
           if (!res.ok) throw new Error('Transcription failed.');
           const { text } = (await res.json()) as { text: string };
-          setVal(value ? `${value}\n${text}` : text);
-        } catch { /* user can type instead */ }
+          // Append to the LATEST value (preserves anything typed during recording), not the
+          // stale closure value.
+          const cur = valueRef.current;
+          setVal(cur ? `${cur}\n${text}` : text);
+        } catch {
+          showToast({ type: 'error', message: 'Couldn’t transcribe the audio — try again, or type instead.' });
+        }
         finally { setTranscribing(false); }
       };
       recorderRef.current = rec;
       rec.start();
       setRecording(true);
-    } catch { /* microphone unavailable */ }
+    } catch {
+      // getUserMedia rejects on permission-denied / no device — tell the user instead of a
+      // silent no-op button.
+      showToast({ type: 'error', message: 'Microphone unavailable — allow mic access in your browser, or type instead.' });
+    }
   }
 
   const isVoiceBusy = recording || transcribing;

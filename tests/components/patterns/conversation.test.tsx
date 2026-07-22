@@ -1,4 +1,8 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+const { toasts } = vi.hoisted(() => ({ toasts: [] as Array<{ type: string; message: string }> }));
+vi.mock('@/components/ui/toast', () => ({ showToast: (t: { type: string; message: string }) => { toasts.push(t); } }));
 import { Message, MessageList, ConversationComposer, ConversationPane, type ConversationMessage } from '@/components/patterns/conversation';
 
 const msgs: ConversationMessage[] = [
@@ -91,5 +95,18 @@ describe('ConversationPane', () => {
   it('passes composerProps through', () => {
     render(<ConversationPane messages={msgs} onSend={() => {}} composerProps={{ submitLabel: 'Reply' }} />);
     expect(screen.getByRole('button', { name: /reply/i })).toBeInTheDocument();
+  });
+});
+
+describe('ConversationComposer voice errors (QA F#5)', () => {
+  it('surfaces an error toast when mic permission is denied, not a silent no-op', async () => {
+    toasts.length = 0;
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: vi.fn().mockRejectedValue(new Error('denied')) },
+      configurable: true,
+    });
+    render(<ConversationComposer value="" onChange={() => {}} onSend={() => {}} voice />);
+    fireEvent.click(screen.getByRole('button', { name: /voice/i }));
+    await waitFor(() => expect(toasts.some((t) => /microphone/i.test(t.message))).toBe(true));
   });
 });

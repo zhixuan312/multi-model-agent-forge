@@ -1071,9 +1071,10 @@ function CraftStage({
     });
   }
 
-  function submit(): void {
+  async function submit(): Promise<void> {
     if (!input.trim() || readOnly || !active) return;
     const text = input.trim();
+    const compId = active.id;
     setInput('');
 
     // Optimistic local append — sender sees immediately
@@ -1085,35 +1086,36 @@ function CraftStage({
         { id: tempId, authorId: currentMember.id, body: text },
       ],
     }));
-    // Persist to DB — SSE will deliver to other users
-    fetch(`/api/projects/${projectId}/spec/components/${active.id}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bodyMd: text }),
-    })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { id: string } | null) => {
-        if (data) {
-          // Replace temp ID with real DB ID + mark as seen so SSE echo is skipped
-          seenMsgIds.current.add(data.id);
-          patchCollab((u) => ({
-            ...u,
-            discussion: u.discussion.map((d) => d.id === tempId ? { ...d, id: data.id } : d),
-          }));
-        }
-      })
-      .catch(() => {});
+    // Persist to DB BEFORE any @Forge refine: refine_component reads the persisted thread, so
+    // dispatching it before the row commits makes Forge miss the just-sent message. And on a
+    // failed send, roll the optimistic message back + surface the error — never leave a phantom
+    // "sent" line that vanishes on reload.
+    try {
+      const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bodyMd: text }),
+      });
+      if (!r.ok) throw new Error(`send failed (${r.status})`);
+      const data = (await r.json()) as { id: string };
+      seenMsgIds.current.add(data.id); // mark seen so the SSE echo is skipped
+      patchCollab((u) => ({
+        ...u,
+        discussion: u.discussion.map((d) => d.id === tempId ? { ...d, id: data.id } : d),
+      }));
+    } catch {
+      patchCollab((u) => ({ ...u, discussion: u.discussion.filter((d) => d.id !== tempId) }));
+      showToast({ type: 'error', message: 'Couldn’t send your message — try again.' });
+      return;
+    }
 
-    // @Forge triggers the AI to process and respond (refine_component reads the
-    // persisted thread itself, so the tag alone drives the dispatch).
+    // @Forge triggers the AI to process and respond — the message is now persisted, so
+    // refine_component reads the just-sent line.
     const forgeTagged = /@forge\b/i.test(text);
     if (forgeTagged && drafted) {
-      const compId = active.id;
       setRefiningComponents((prev) => new Set(prev).add(compId));
       setCraftView('conversation');
 
-      // Message already persisted above (spec/components/message); refine_component
-      // reads the thread and dispatches the spec-refine worker — the transition.
       mma.transition('refine_component', { componentId: compId }, 'spec-refine')
         .then(() => {
           setRefiningComponents((prev) => { const next = new Set(prev); next.delete(compId); return next; });

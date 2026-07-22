@@ -628,17 +628,20 @@ function DetailStage({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bodyMd: text }),
     })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { id: string } | null) => {
-        if (data) {
-          seenMsgIds.current.add(data.id);
-          setThreads((th) => ({
-            ...th,
-            [active.id]: (th[active.id] ?? []).map((m) => m.id === tempId ? { ...m, id: data.id } : m),
-          }));
-        }
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`send failed (${r.status})`))))
+      .then((data: { id: string }) => {
+        seenMsgIds.current.add(data.id);
+        setThreads((th) => ({
+          ...th,
+          [active.id]: (th[active.id] ?? []).map((m) => m.id === tempId ? { ...m, id: data.id } : m),
+        }));
       })
-      .catch(() => {});
+      .catch(() => {
+        // Roll back the optimistic message (it never persisted) + surface the failure, instead
+        // of leaving a phantom "sent" message that vanishes on the next reload.
+        setThreads((th) => ({ ...th, [active.id]: (th[active.id] ?? []).filter((m) => m.id !== tempId) }));
+        showToast({ type: 'error', message: 'Couldn’t send your message — try again.' });
+      });
 
     const forgeTagged = /@forge\b/i.test(text);
     if (forgeTagged) {

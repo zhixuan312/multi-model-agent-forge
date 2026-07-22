@@ -35,7 +35,7 @@ function makeDeps(over: Partial<LoopRunDeps> = {}): LoopRunDeps & Record<string,
   const base = {
     db: createMockDb({ 'insert:loop_run': [{ id: 'run-1' }], 'update:loop_run': [{ id: 'run-1' }] }),
     hasGitToken: vi.fn(async () => true),
-    isGithubRepo: vi.fn(async () => true),
+    isSupportedRepo: vi.fn(async () => true),
     resolveCurrentBranch: vi.fn(async () => 'main'),
     mainSession: vi.fn(async ({ prompt }: { prompt: string }) =>
       prompt.includes('planning brain')

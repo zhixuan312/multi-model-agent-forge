@@ -11,6 +11,7 @@ import { buildMmaClient } from '@/mma/server-client';
 import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
 import type { CurrentTeam } from '@/auth/team-scope';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
+import { parseRemote, authPushUrl, type RemoteInfo } from '@/git/remote-provider';
 
 /**
  * Real `LoopRunDeps` wiring (spec §4 adapters). Reuses Forge's existing
@@ -27,19 +28,14 @@ async function readGitToken(teamId: string, db: Db): Promise<string | null> {
   return secrets.get(row.ref);
 }
 
-/** Parse a github owner/repo from a remote URL (ssh or https), else null. */
-export function parseGithubRemote(url: string): { owner: string; repo: string } | null {
-  const m = url.trim().match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/i);
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 function git(cwd: string, argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   return nodeGitRunner(cwd, argv);
 }
 
-async function githubRemote(repo: LoopRepoTarget): Promise<{ owner: string; repo: string } | null> {
-  const r = await git(repo.pathOnDisk, ['remote', 'get-url', 'origin']);
-  return r.code === 0 ? parseGithubRemote(r.stdout) : null;
+/** Resolve the origin remote of a checkout into a supported provider (GitHub/GitLab), else null. */
+async function remoteInfo(pathOnDisk: string): Promise<RemoteInfo | null> {
+  const r = await git(pathOnDisk, ['remote', 'get-url', 'origin']);
+  return r.code === 0 ? parseRemote(r.stdout) : null;
 }
 
 /**
@@ -135,7 +131,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
   return {
     db,
     hasGitToken: async () => !!(await readGitToken(currentTeam.id, db)),
-    isGithubRepo: async (repo) => (await githubRemote(repo)) !== null,
+    isSupportedRepo: async (repo) => (await remoteInfo(repo.pathOnDisk)) !== null,
     resolveCurrentBranch: async (repo) => {
       const r = await git(repo.pathOnDisk, ['rev-parse', '--abbrev-ref', 'HEAD']);
       if (r.code !== 0) return null;
@@ -248,10 +244,9 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       await git(cwd, ['-c', 'user.email=loops@forge.local', '-c', 'user.name=Forge Loops', 'commit', '-m', message]);
       const sha = (await git(cwd, ['rev-parse', 'HEAD'])).stdout.trim();
       const token = await readGitToken(currentTeam.id, db);
-      const gh = await githubRemote({ id: '', name: '', pathOnDisk: cwd });
-      if (token && gh) {
-        const authUrl = `https://x-access-token:${token}@github.com/${gh.owner}/${gh.repo}.git`;
-        await git(cwd, ['push', authUrl, `HEAD:${branch}`]);
+      const info = await remoteInfo(cwd);
+      if (token && info) {
+        await git(cwd, ['push', authPushUrl(info, token), `HEAD:${branch}`]);
       } else {
         await git(cwd, ['push', 'origin', `HEAD:${branch}`]);
       }
@@ -259,9 +254,30 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
     },
     openPr: async ({ repo, branch, base, title, body }) => {
       const token = await readGitToken(currentTeam.id, db);
-      const gh = await githubRemote(repo);
-      if (!token || !gh) throw new Error('cannot open PR: missing git token or non-GitHub remote');
-      const res = await fetch(`https://api.github.com/repos/${gh.owner}/${gh.repo}/pulls`, {
+      const info = await remoteInfo(repo.pathOnDisk);
+      if (!token || !info) throw new Error('cannot open PR: missing git token or unsupported remote');
+
+      if (info.provider === 'gitlab') {
+        // GitLab merge request. The project is addressed by its url-encoded full path
+        // (group/subgroup/project), and a PAT authenticates via the PRIVATE-TOKEN header.
+        const api = `https://${info.host}/api/v4/projects/${encodeURIComponent(info.projectPath)}/merge_requests`;
+        const res = await fetch(api, {
+          method: 'POST',
+          headers: { 'PRIVATE-TOKEN': token, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            source_branch: branch,
+            target_branch: base,
+            title,
+            description: body,
+            remove_source_branch: true,
+          }),
+        });
+        if (!res.ok) throw new Error(`GitLab MR creation failed: ${res.status} ${await res.text()}`);
+        const json = (await res.json()) as { web_url: string };
+        return { prUrl: json.web_url };
+      }
+
+      const res = await fetch(`https://api.github.com/repos/${info.owner}/${info.repo}/pulls`, {
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,

@@ -71,8 +71,8 @@ export interface LoopRunDeps {
   db?: Db;
   /** A Connections Git token is configured (required to push + open PRs). */
   hasGitToken: () => boolean | Promise<boolean>;
-  /** The repo is GitHub-backed (Phase 1 supports GitHub only). */
-  isGithubRepo: (repo: LoopRepoTarget) => boolean | Promise<boolean>;
+  /** The repo is backed by a supported hosting provider (GitHub or GitLab) — required to push + open a PR/MR. */
+  isSupportedRepo: (repo: LoopRepoTarget) => boolean | Promise<boolean>;
   /** The branch the repo is currently checked out on (the base when no targetBranch is set); null if detached/unresolvable. */
   resolveCurrentBranch: (repo: LoopRepoTarget) => Promise<string | null>;
   /** One main-agent (orchestrator) turn; pass `sessionId` to resume the same conversation. */
@@ -214,7 +214,7 @@ export async function runLoopForRepo(
 
   // Step 0 — preconditions (fail before any MMA dispatch or push).
   if (!(await deps.hasGitToken())) return failed('missing_git_token: no Connections Git token configured');
-  if (!(await deps.isGithubRepo(repo))) return failed(`unsupported_provider: ${repo.name} is not GitHub-backed`);
+  if (!(await deps.isSupportedRepo(repo))) return failed(`unsupported_provider: ${repo.name} is not backed by GitHub or GitLab`);
   // Base = the loop's target branch (forked from + PR'd into), else the branch the repo is currently on.
   const baseBranch = loop.targetBranch?.trim() || (await deps.resolveCurrentBranch(repo));
   if (!baseBranch) return failed(`missing_base_branch: cannot resolve a base branch for ${repo.name}`);

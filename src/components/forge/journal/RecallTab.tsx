@@ -97,6 +97,15 @@ export function RecallTab({
   // Pinned Q&A — server-loaded initial list, then mutated locally on
   // pin/unpin/refresh so the surface stays responsive without a full reload.
   const [pins, setPins] = useState<PinnedView[]>(pinned);
+  // Reconcile from the server prop when it actually changes (router.refresh after a pin/unpin, or a
+  // pin created/removed by another member) — keyed on a STABLE id signature, not the fresh-array
+  // identity, so it doesn't loop. Without this the local list drifted from the DB.
+  const pinnedSig = pinned.map((p) => p.id).join('|');
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile the pinned list from the server when the id signature changes
+    setPins(pinned);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinnedSig]);
 
   // Recent answers = the server-recorded recalls PLUS an optimistic entry for a recall
   // the member just ran, so its answer appears immediately at the top of Recent — NOT as
@@ -192,18 +201,29 @@ export function RecallTab({
   }
 
   // Pin any answer (recent OR frequent) — POST /pins, then reflect it in the pinned list.
-  async function pinAnswer(question: string, parsed: ParsedRecall) {
+  // Returns true only on a confirmed 201 so the button can stay "Pinned"; on any failure it
+  // surfaces a toast and returns false so the caller resets the button (was a silent swallow that
+  // left the button reading "Pinned" while nothing was saved).
+  async function pinAnswer(question: string, parsed: ParsedRecall): Promise<boolean> {
     try {
       const res = await fetch('/api/journal/pins', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ question, answerMd: parsed.summary, findings: parsed.findings, citationIds: parsed.citationIds }),
       });
-      if (res.status !== 201) return;
+      if (res.status !== 201) {
+        const b = (await res.json().catch(() => null)) as { error?: string } | null;
+        showToast({ type: 'error', message: b?.error ?? 'Could not pin this answer.' });
+        return false;
+      }
       const created = (await res.json()) as PinnedView;
       setPins((prev) => [created, ...prev]);
       router.refresh();
-    } catch { /* best effort */ }
+      return true;
+    } catch {
+      showToast({ type: 'error', message: 'Network error — could not pin this answer.' });
+      return false;
+    }
   }
   // Re-run a question's recall and return the fresh answer — a Frequent row's Refresh shows it
   // inline (the recall is recorded server-side, so it also updates the stored FAQ answer + count).
@@ -226,9 +246,9 @@ export function RecallTab({
     }
   }
 
-  async function pinRecent(r: RecentRecall) {
-    if (!r.answerMd) return;
-    await pinAnswer(r.question, {
+  async function pinRecent(r: RecentRecall): Promise<boolean> {
+    if (!r.answerMd) return false;
+    return pinAnswer(r.question, {
       summary: r.answerMd,
       findings: (r.findings ?? []) as ParsedRecall['findings'],
       citationIds: r.citationIds ?? [],
@@ -275,7 +295,7 @@ export function RecallTab({
         id: `recent-${r.id}`,
         primary: r.question,
         defaultOpen: r.batchId != null && r.batchId === justAskedKey,
-        body: <RecentBody recall={r} index={index} onNavigate={onNavigate} onRefresh={() => void refreshRecent(r)} onPin={() => void pinRecent(r)} />,
+        body: <RecentBody recall={r} index={index} onNavigate={onNavigate} onRefresh={() => void refreshRecent(r)} onPin={() => pinRecent(r)} />,
       })),
     });
   }
@@ -509,7 +529,7 @@ function RecentBody({
   index: IndexLookupRow[];
   onNavigate: (id: string) => void;
   onRefresh: () => void;
-  onPin: () => void;
+  onPin: () => Promise<boolean>;
 }) {
   const [refreshing, setRefreshing] = useState(false);
   const [pinning, setPinning] = useState(false);
@@ -523,7 +543,7 @@ function RecentBody({
       />
       <div className="mt-3 flex items-center gap-2">
         <RowAction icon={<RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />} label={refreshing ? 'Refreshing…' : 'Refresh'} onClick={() => { setRefreshing(true); onRefresh(); }} disabled={refreshing} tone="accent" />
-        <RowAction icon={<Pin className="size-3.5" />} label={pinning ? 'Pinned' : 'Pin'} onClick={() => { setPinning(true); onPin(); }} disabled={pinning} tone="accent" />
+        <RowAction icon={<Pin className="size-3.5" />} label={pinning ? 'Pinned' : 'Pin'} onClick={async () => { setPinning(true); if (!(await onPin())) setPinning(false); }} disabled={pinning} tone="accent" />
       </div>
     </>
   );
@@ -543,7 +563,7 @@ function FaqBody({
   index: IndexLookupRow[];
   onNavigate: (id: string) => void;
   onRefresh: (question: string) => Promise<ParsedRecall>;
-  onPin: (question: string, parsed: ParsedRecall) => Promise<void>;
+  onPin: (question: string, parsed: ParsedRecall) => Promise<boolean>;
 }) {
   const stored: ParsedRecall | null = faq.answerMd
     ? { summary: faq.answerMd, findings: (faq.findings ?? []) as ParsedRecall['findings'], citationIds: faq.citationIds ?? [] }
@@ -590,7 +610,7 @@ function FaqBody({
         <RowAction
           icon={<Pin className="size-3.5" />}
           label={pinning ? 'Pinned' : 'Pin'}
-          onClick={() => { setPinning(true); if (answer) void onPin(faq.question, answer); }}
+          onClick={async () => { if (!answer) return; setPinning(true); if (!(await onPin(faq.question, answer))) setPinning(false); }}
           disabled={pinning || !answer}
           tone="accent"
         />

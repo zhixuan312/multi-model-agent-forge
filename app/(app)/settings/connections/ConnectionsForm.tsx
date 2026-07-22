@@ -129,6 +129,10 @@ export function ConnectionsForm({
       setOpen(null);
       setValidateResult(null);
       router.refresh();
+    } catch {
+      // A fetch rejection (offline, DNS, connection refused — very plausible when the MMA base URL
+      // points at a local 127.0.0.1:7337 that's down) previously fell through with zero feedback.
+      setError('Network error — please retry.');
     } finally {
       setBusy(null);
     }

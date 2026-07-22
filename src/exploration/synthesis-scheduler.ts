@@ -81,7 +81,10 @@ export class SynthesisScheduler {
       const d = validateDetails(p.details);
       const tasks = d.stages.exploration.phases.discover.tasks;
       if (tasks.length > 0 && tasks.every((t) => t.status === 'recorded')) {
-        const existing = readExplorationSummary(p.id);
+        // MUST await — `readExplorationSummary` is async, so an unawaited call left `existing` a
+        // (truthy) Promise, making `!existing` always false: boot-recovery never re-dispatched
+        // synthesis, silently stranding any project whose 5s debounce timer was lost to a restart.
+        const existing = await readExplorationSummary(p.id, this.db);
         if (!existing) {
           await this.dispatchSynthesis(p.id);
           swept.push(p.id);

@@ -72,7 +72,10 @@ describe('SynthesisScheduler', () => {
     (dispatchMma as any).mockClear();
 
     const { readExplorationSummary } = await import('@/projects/project-files');
-    (readExplorationSummary as any).mockReturnValue(null);
+    // MUST be a resolved Promise, not a raw value — the reconcile path awaits it. With the earlier
+    // unawaited bug, `existing` was a (truthy) Promise here and this dispatch never fired; a
+    // mockReturnValue would have hidden that. This mock makes the test a real regression lock.
+    (readExplorationSummary as any).mockResolvedValue(null);
 
     const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({
@@ -94,7 +97,7 @@ describe('SynthesisScheduler', () => {
 
   it('skips reconciliation when exploration.md already exists', async () => {
     const { readExplorationSummary } = await import('@/projects/project-files');
-    (readExplorationSummary as any).mockReturnValue('## Background\n\nAlready done');
+    (readExplorationSummary as any).mockResolvedValue('## Background\n\nAlready done');
 
     const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({

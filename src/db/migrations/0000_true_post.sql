@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS "forge";
+--> statement-breakpoint
 CREATE TABLE "forge"."team_secret" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"label" text NOT NULL,

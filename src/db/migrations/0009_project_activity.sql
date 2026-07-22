@@ -22,14 +22,18 @@ CREATE UNIQUE INDEX "project_activity_project_event_key_uniq"
 CREATE INDEX "project_activity_project_seq_idx"
   ON "forge"."project_activity" USING btree ("project_id","seq");
 --> statement-breakpoint
+-- The Forge system member is a non-loginable automation actor, NOT an administrator:
+-- seed it as a plain `member` of the default team (matching a migrated legacy DB),
+-- so that after a human completes /setup there is exactly one org_admin (the human),
+-- never two. It is excluded from the first-run gate by id (see isFirstRun).
 INSERT INTO "forge"."team_member" ("id","username","display_name","avatar_tint","role","team_id")
 VALUES (
   '00000000-0000-0000-0000-000000000000',
   'forge',
   'Forge',
   '#9a6b4f',
-  'org_admin',
-  NULL
+  'member',
+  (SELECT id FROM "forge"."team" WHERE slug = 'default-team' LIMIT 1)
 )
 ON CONFLICT DO NOTHING;
 --> statement-breakpoint

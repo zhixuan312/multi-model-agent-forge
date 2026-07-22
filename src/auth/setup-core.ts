@@ -1,8 +1,9 @@
-import { sql } from 'drizzle-orm';
+import { sql, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ForgeRole } from '@/auth/auth-provider';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { hashPassword } from '@/auth/password';
 import { createMemberSchema } from '@/auth/members-core';
 import { logEvent } from '@/observability/log-event';
@@ -21,11 +22,18 @@ import { logEvent } from '@/observability/log-event';
  * server action (`app/(auth)/setup/**`) are thin shells over these functions.
  */
 
-/** True when the team has no members yet — the only state in which setup runs. */
+/**
+ * True when there is no HUMAN member yet — the only state in which setup runs.
+ * The Forge system member (seeded by migration 0009 as a non-loginable automation
+ * actor) is excluded: it is always present on a freshly-migrated DB, so counting it
+ * would slam the setup gate shut before any human could ever register the first
+ * admin, leaving the app unreachable.
+ */
 export async function isFirstRun(db: Db = getDb()): Promise<boolean> {
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(member);
+    .from(member)
+    .where(ne(member.id, FORGE_MEMBER_ID));
   return count === 0;
 }
 

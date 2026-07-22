@@ -29,9 +29,31 @@ describe('parseSetupForm (pure form validation)', () => {
 });
 
 describe('isFirstRun', () => {
-  it('is true only when the member table is empty', async () => {
+  it('is true only when no HUMAN member exists', async () => {
     expect(await isFirstRun(createMockDb({ 'select:team_member': [{ count: 0 }] }))).toBe(true);
     expect(await isFirstRun(createMockDb({ 'select:team_member': [{ count: 3 }] }))).toBe(false);
+  });
+
+  it('excludes the Forge system member from the first-run count', async () => {
+    // A freshly-migrated DB always has the seeded Forge automation member. If the
+    // count included it, setup would be permanently closed and no human could ever
+    // register — so the query MUST filter it out by the sentinel id. Dropping that
+    // filter removes the `where` clause entirely, which this catches.
+    const db = createMockDb({ 'select:team_member': [{ count: 0 }] });
+    await isFirstRun(db);
+    const whereCalls = db._callsFor('team_member').filter((c) => c.method === 'where');
+    expect(whereCalls.length).toBeGreaterThan(0);
+    // The drizzle SQL condition is a cyclic object graph; walk it (cycle-safe) and
+    // confirm the sentinel id is baked into the filter.
+    const seen = new WeakSet<object>();
+    const containsSentinel = (v: unknown): boolean => {
+      if (v === '00000000-0000-0000-0000-000000000000') return true;
+      if (typeof v !== 'object' || v === null) return false;
+      if (seen.has(v)) return false;
+      seen.add(v);
+      return Object.values(v as Record<string, unknown>).some(containsSentinel);
+    };
+    expect(containsSentinel(whereCalls)).toBe(true);
   });
 });
 

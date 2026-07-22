@@ -1,12 +1,10 @@
 begin;
 
--- Precondition check: ensure at least one legacy admin exists
-do $$
-begin
-  if (select count(*) from forge.team_member where is_admin = true) = 0 then
-    raise exception '0005_multi_tenancy requires at least one legacy is_admin member';
-  end if;
-end $$;
+-- Bootstrap-safe: this migration runs against BOTH a populated legacy DB (backfill
+-- roles/teams from the old is_admin flag) AND a truly-fresh DB (no members yet — the
+-- first admin is created later by /setup, once this schema exists). So there is NO
+-- precondition on a pre-existing admin: on a fresh DB every backfill below simply
+-- updates zero rows, and the closing assertion tolerates zero org_admins.
 
 -- Create the tenant team table
 create table forge.team (
@@ -81,11 +79,13 @@ create index loop_run_team_idx on forge.loop_run (team_id);
 -- Add unique constraint for repo name per team
 alter table forge.workspace_repo add constraint workspace_repo_team_name_uniq unique (team_id, name);
 
--- Final assertion: exactly one org_admin exists and is reachable
+-- Final assertion: never MORE than one org_admin. On a legacy DB the backfill
+-- promotes exactly one (the earliest is_admin); on a fresh DB there are zero until
+-- /setup creates the first. Two+ org_admins would be corruption — that we still reject.
 do $$
 begin
-  if (select count(*) from forge.team_member where role = 'org_admin') <> 1 then
-    raise exception 'Migration failed: exactly one org_admin must exist after migration';
+  if (select count(*) from forge.team_member where role = 'org_admin') > 1 then
+    raise exception 'Migration failed: at most one org_admin may exist (found more than one)';
   end if;
 end $$;
 

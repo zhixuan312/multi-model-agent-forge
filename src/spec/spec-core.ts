@@ -114,6 +114,12 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
     const parsed = parseSpecSections(specFile.bodyMd);
     const compGroups = new Map<string, string[]>();
     for (const s of parsed) {
+      // A section with no body is a bare skeleton heading, not a draft. The outline writes
+      // all component headings up front, so counting them as content flips every component to
+      // "drafted"/"Ready" the moment craft opens — before the MMA draft batch has written a
+      // single word. Require real body content, so a component reads "Drafting…" until its
+      // draft actually lands (and the panel's "No draft content yet" stays consistent).
+      if (s.body.trim().length === 0) continue;
       const comp = s.component.toLowerCase();
       const group = compGroups.get(comp) ?? [];
       group.push(`${s.heading}\n\n${s.body}`);

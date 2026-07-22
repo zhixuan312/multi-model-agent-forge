@@ -1127,6 +1127,10 @@ function CraftStage({
             ],
           }));
         });
+    } else if (forgeTagged && !drafted) {
+      // @Forge refines a DRAFTED section — on a still-gathering one it would silently do nothing
+      // (message posts, no reply). Tell the user why, so the mention isn't a dead no-op.
+      showToast({ type: 'error', message: 'Forge refines a section once it’s drafted — draft this section first, then @Forge.' });
     }
   }
 

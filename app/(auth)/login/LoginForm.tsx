@@ -28,7 +28,12 @@ export function LoginForm() {
             <Field label="Password">
               {(p) => <Input {...p} name="password" type="password" autoComplete="current-password" required />}
             </Field>
-            {state.error ? <Banner variant="danger" title={state.error} /> : null}
+            {state.error ? (
+              <Banner
+                variant="danger"
+                title={state.retryAfterSeconds ? `${state.error} Try again in ${state.retryAfterSeconds}s.` : state.error}
+              />
+            ) : null}
             <Button type="submit" loading={pending} className="w-full">
               {pending ? 'Signing in…' : 'Sign in'}
             </Button>

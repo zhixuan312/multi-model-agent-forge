@@ -1,6 +1,10 @@
+import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RunDetail } from '../../app/(app)/loops/RunDetail';
 import type { LoopRunRow } from '@/db/schema/loop';
+
+// RunDetail renders the RunLivePoll (useRouter) for a running run.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const base = {
   id: 'run1', loopId: 'l1', runId: 'abcdef1234567890', repoId: 'r1', trigger: 'manual', status: 'changed',

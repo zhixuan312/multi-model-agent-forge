@@ -59,7 +59,10 @@ describe('LoopForm', () => {
         onDone={() => {}}
       />,
     );
+    // Rotation invalidates the old credential immediately — it takes a two-step confirm (QA F13).
     fireEvent.click(screen.getByRole('button', { name: /rotate token/i }));
+    expect(fetch).not.toHaveBeenCalledWith('/api/loops/l1', expect.objectContaining({ method: 'PATCH' }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm rotate/i }));
     await waitFor(() => expect(screen.getByText(/rotated-token/i)).toBeInTheDocument());
     expect(fetch).toHaveBeenCalledWith('/api/loops/l1', expect.objectContaining({
       method: 'PATCH',

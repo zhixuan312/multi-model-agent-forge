@@ -28,6 +28,16 @@ describe('LoopsClient', () => {
     expect(screen.getByRole('button', { name: /run hygiene now/i })).toBeInTheDocument();
   });
 
+  it('keeps the loop "Running…" after Run now — no re-enable / double-dispatch window [QA F12]', async () => {
+    render(<LoopsClient initialLoops={[loop]} repoOptions={repoOptions} />);
+    fireEvent.click(screen.getByRole('button', { name: /run hygiene now/i }));
+    // Once the POST is accepted the button must stay disabled "Running…" (optimistic), bridging
+    // the gap until the server refetch confirms — not revert to an enabled "Run now".
+    await waitFor(() => expect(screen.getByRole('button', { name: /hygiene is running/i })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /hygiene is running/i })).toBeDisabled();
+    expect(refresh).toHaveBeenCalled();
+  });
+
   it('shows "External events only" for an event-mode loop + a trigger filter', () => {
     const oneTime = { ...loop, id: 'l2', name: 'Adhoc cleanup', mode: 'event', cron: null } as unknown as LoopRow;
     render(<LoopsClient initialLoops={[oneTime]} repoOptions={repoOptions} />);

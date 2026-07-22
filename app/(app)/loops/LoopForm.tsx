@@ -75,6 +75,7 @@ export function LoopForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
 
   const preview = nextRuns(cron, 3).map((d) => formatDateTime(d));
   const recurring = loopMode === 'recurring';
@@ -202,7 +203,15 @@ export function LoopForm({
       {eventMode && loop ? (
         <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
           <Micro className="flex-1 text-ink-soft">Rotate the event token to invalidate the previous machine credential immediately.</Micro>
-          <Button type="button" variant="secondary" leftIcon={<KeyRound />} onClick={onRotateToken} disabled={busy}>Rotate token</Button>
+          {confirmRotate ? (
+            <div className="flex items-center gap-2">
+              <Micro className="text-rose">Invalidate the old token?</Micro>
+              <Button type="button" variant="secondary" leftIcon={<KeyRound />} loading={busy} onClick={() => { setConfirmRotate(false); onRotateToken(); }}>Confirm rotate</Button>
+              <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirmRotate(false)}>Keep</Button>
+            </div>
+          ) : (
+            <Button type="button" variant="secondary" leftIcon={<KeyRound />} onClick={() => setConfirmRotate(true)} disabled={busy}>Rotate token</Button>
+          )}
         </div>
       ) : null}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Repeat, Play, Pencil } from 'lucide-react';
@@ -57,8 +57,23 @@ export function LoopsClient({
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Optimistically "running" the moment a run is accepted, bridging the window between the
+  // POST resolving and router.refresh() landing (where `busy` is already cleared but the
+  // server's runningLoopIds hasn't refetched yet) — otherwise the button re-enables and a
+  // second click double-dispatches. Cleared whenever the server state refetches (authoritative).
+  const [justTriggered, setJustTriggered] = useState<Set<string>>(new Set());
+  // Key off the CONTENT, not the array identity — `runningLoopIds` defaults to a fresh []
+  // each render, so depending on the array itself would clear justTriggered every render
+  // (an infinite loop). serverKey only changes when the actual set of running ids changes.
+  const serverKey = runningLoopIds.join('|');
+  useEffect(() => { setJustTriggered(new Set()); }, [serverKey]);
 
-  const running = useMemo(() => new Set(runningLoopIds), [runningLoopIds]);
+  const running = useMemo(() => {
+    const s = new Set(runningLoopIds);
+    for (const id of justTriggered) s.add(id);
+    return s;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- serverKey is the stable proxy for runningLoopIds content
+  }, [serverKey, justTriggered]);
 
   const openEdit = useCallback((id: string) => { setAdding(false); setEditingId(id); }, []);
   const openAdd = useCallback(() => { setEditingId(null); setAdding(true); }, []);
@@ -70,6 +85,7 @@ export function LoopsClient({
       try {
         const r = await fetch(`/api/loops/${id}/run`, { method: 'POST' });
         if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        setJustTriggered((prev) => new Set(prev).add(id)); // keep it "running" until the refresh confirms
         router.refresh();
       } catch {
         showToast({ type: 'error', message: 'Couldn’t start the loop run — try again.' });

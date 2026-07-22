@@ -740,6 +740,19 @@ function TemplateRow({
 
 interface DisplayState { label: string; cls: string }
 
+/**
+ * A spec component's discussion is "refining" when the local set knows it, OR a `spec-refine`
+ * batch is in flight per the server-reconstructed busy handlers — the latter keeps the "Forge
+ * is thinking" bubble + composer-lock alive across navigation. Mirrors PlanStageClient.isTaskRefining.
+ */
+export function isComponentRefining(
+  id: string,
+  refining: ReadonlySet<string>,
+  busyHandlers: ReadonlySet<string>,
+): boolean {
+  return refining.has(id) || busyHandlers.has('spec-refine');
+}
+
 function componentDisplayState(c: ComponentView): DisplayState {
   if (c.status === 'approved' || (c.approvedBy as string[]).length > 0)
     return { label: 'Approved', cls: 'bg-sage-tint text-[var(--sage-deep)]' };
@@ -794,6 +807,12 @@ function CraftStage({
   // Per-component: null = dialogue, string = showing fetched draft markdown
   const [constructedDrafts, setConstructedDrafts] = useState<Record<string, string>>({});
   const [refiningComponents, setRefiningComponents] = useState<Set<string>>(new Set());
+  // A component is "refining" when the local set knows it, OR a spec-refine batch is in flight
+  // per the server-reconstructed busy handlers — the latter is what makes the "Forge is thinking"
+  // bubble + composer-lock SURVIVE navigation (the local set is lost on unmount; busyHandlers
+  // rehydrates from /pending-handlers). Mirrors PlanStageClient's isTaskRefining.
+  const componentRefining = (id: string): boolean =>
+    isComponentRefining(id, refiningComponents, mma.busyHandlers);
 
   // Rebuild drafts from components whenever they change (server re-render after MMA completes)
   useEffect(() => {
@@ -1319,7 +1338,7 @@ function CraftStage({
                 memberById={memberById}
                 currentMemberId={currentMember.id}
                 mentionPool={inChatMembers}
-                pending={!!active && refiningComponents.has(active.id)}
+                pending={!!active && componentRefining(active.id)}
               />
             </>
           ) : null}
@@ -1345,7 +1364,7 @@ function CraftStage({
             value={input}
             onChange={setInput}
             onSend={() => submit()}
-            disabled={readOnly || (active != null && refiningComponents.has(active.id))}
+            disabled={readOnly || (active != null && componentRefining(active.id))}
             voice={voiceEnabled}
             mentionPool={inChatMembers}
           />

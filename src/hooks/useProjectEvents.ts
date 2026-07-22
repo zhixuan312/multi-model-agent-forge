@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ProjectEvent } from '@/sse/event-bus';
 
@@ -123,9 +124,15 @@ function patchTask(
   });
 }
 
-/** Reconcile on (re)connect: invalidate the task list so the DB re-seeds it. */
+/**
+ * Reconcile on (re)connect: invalidate BOTH live query caches (task list + synthesis artifact) so
+ * anything missed while the stream was down re-seeds from the DB. RSC-derived stage state (spec
+ * components, review passes, plan tasks, approvals) is reconciled separately by the hook's
+ * `router.refresh()` on a true reconnect — those aren't in the query cache.
+ */
 export function reconcileOnReconnect(qc: QueryClient, projectId: string): void {
   void qc.invalidateQueries({ queryKey: explorationKeys.tasks(projectId) });
+  void qc.invalidateQueries({ queryKey: explorationKeys.artifact(projectId) });
 }
 
 /**
@@ -137,6 +144,11 @@ export function useProjectEvents(
   opts?: { eventSourceFactory?: (url: string) => EventSource },
 ): void {
   const qc = useQueryClient();
+  const router = useRouter();
+  // First `onopen` is the initial connect (RSC + queries just loaded fresh — nothing to reconcile);
+  // every SUBSEQUENT `onopen` is a RE-connect after a dropped stream, where events may have been
+  // missed. Only those trigger a full reconcile + RSC refresh.
+  const connectedOnce = useRef(false);
   useEffect(() => {
     if (!projectId) return;
     const url = `/api/projects/${projectId}/events`;
@@ -153,7 +165,16 @@ export function useProjectEvents(
       }
     };
     // EventSource auto-reconnects on drop; `onopen` fires on each (re)connect.
-    es.onopen = () => reconcileOnReconnect(qc, projectId);
+    es.onopen = () => {
+      if (!connectedOnce.current) {
+        connectedOnce.current = true;
+        return; // initial connect — state is already fresh
+      }
+      reconcileOnReconnect(qc, projectId);
+      // Reconcile server-rendered stage state (spec/plan/review/approvals) that live events patch
+      // via router.refresh — the query-cache invalidate above doesn't cover RSC-derived props.
+      router.refresh();
+    };
 
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps

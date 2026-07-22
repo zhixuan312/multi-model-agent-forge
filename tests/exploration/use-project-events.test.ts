@@ -77,11 +77,12 @@ describe('useProjectEvents cache patching (F8)', () => {
     expect(qc.getQueryData(explorationKeys.artifact('p1'))).toMatchObject({ id: 'a1', version: 2 });
   });
 
-  it('reconnect invalidates the task-list query (reconcile missed transitions)', () => {
+  it('reconnect invalidates BOTH live caches — task list AND synthesis artifact (reconcile missed transitions)', () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, 'invalidateQueries');
     reconcileOnReconnect(qc, 'p1');
     expect(spy).toHaveBeenCalledWith({ queryKey: explorationKeys.tasks('p1') });
+    expect(spy).toHaveBeenCalledWith({ queryKey: explorationKeys.artifact('p1') });
   });
 
   it('heartbeat is a no-op', () => {

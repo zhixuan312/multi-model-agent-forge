@@ -53,6 +53,27 @@ export interface ReviewPassView {
   appliedIndices: number[];
 }
 
+/**
+ * Pure per-pass display state. A pass is `clean` ONLY with zero findings (medium/low-only findings
+ * used to render 'clean', hiding them). Applying a SUBSET marks just the applied rows and leaves
+ * the remainder actionable — `allApplied` (every finding applied) is what locks the pass, not
+ * `someApplied`.
+ */
+export function reviewPassState(findingsCount: number, appliedIndices: number[]): {
+  verdict: 'clean' | 'revised';
+  someApplied: boolean;
+  allApplied: boolean;
+  remainingIndices: number[];
+} {
+  const appliedSet = new Set(appliedIndices);
+  return {
+    verdict: findingsCount === 0 ? 'clean' : 'revised',
+    someApplied: appliedIndices.length > 0,
+    allApplied: findingsCount > 0 && appliedIndices.length >= findingsCount,
+    remainingIndices: Array.from({ length: findingsCount }, (_, i) => i).filter((i) => !appliedSet.has(i)),
+  };
+}
+
 export interface ReviewStageClientProps {
   projectId: string;
   projectName: string;
@@ -103,7 +124,11 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
 
   const activePass = props.passes.find((p) => p.passNo === activePassNo);
   const isViewingPast = activePass && activePass.passNo < props.passes.length;
-  const allApplied = activePass ? activePass.appliedIndices.length > 0 : false;
+  // Applying a SUBSET must not lock the whole grid — only applied rows go green; the rest stay
+  // actionable. `allApplied` (every finding applied) is what locks the pass.
+  const activeState = activePass ? reviewPassState(activePass.findings.length, activePass.appliedIndices) : null;
+  const someApplied = activeState?.someApplied ?? false;
+  const allApplied = activeState?.allApplied ?? false;
 
   // Sync to latest pass when new passes arrive
   useEffect(() => {
@@ -111,6 +136,10 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     if (props.passes.length > 0) setActivePassNo(props.passes[props.passes.length - 1].passNo);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off passes.length; reading full props.passes only to index the latest, not to retrigger
   }, [props.passes.length]);
+
+  // Indices already applied in this pass — "select all" and apply target only what REMAINS.
+  const appliedSet = new Set(activePass?.appliedIndices ?? []);
+  const remainingIndices = activeState?.remainingIndices ?? [];
 
   // Manual subset selection — indices into the active pass's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
@@ -185,12 +214,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             {[...props.passes].reverse().map((p) => {
               const isActive = p.passNo === activePassNo && !reviewing;
               const hasApplied = p.appliedIndices.length > 0;
-              const hasCritHigh = p.findings.some((f) => f.weight === 'critical' || f.weight === 'high');
               return (
                 <div key={p.passNo}>
                   <AuditRoundCard
                     passNo={p.passNo}
-                    verdict={p.findings.length === 0 ? 'clean' : hasCritHigh ? 'revised' : 'clean'}
+                    // Any findings → 'revised'. Medium/low-only used to render 'clean', hiding
+                    // real findings behind a green badge — a pass is only clean with ZERO findings.
+                    verdict={reviewPassState(p.findings.length, p.appliedIndices).verdict}
                     findings={p.findings.map(toFinding)}
                     applied={hasApplied}
                     active={isActive}
@@ -234,6 +264,8 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             <Badge variant="sage" size="sm">pass {activePassNo} clean</Badge>
           ) : allApplied ? (
             <Badge variant="sage" size="sm">applied</Badge>
+          ) : someApplied ? (
+            <Badge variant="neutral" size="sm">{activePass.appliedIndices.length} of {activePass.findings.length} applied</Badge>
           ) : null
         }
         body={
@@ -272,7 +304,9 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               selectedIndices={selectedFindings}
               onToggle={toggleFinding}
               applying={applying}
-              applied={allApplied}
+              // Mark only the applied rows (green) — leaves un-applied findings selectable so a
+              // partial apply can be completed, instead of `applied={allApplied}` locking the grid.
+              appliedIndices={activePass.appliedIndices}
               readOnly={readOnly}
             />
           )
@@ -283,11 +317,13 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
             // vanishing, matching the governed AuditView so the three stages can't drift.
             <FindingsApplyBar
               selectedCount={selectedFindings.length}
-              total={activePass.findings.length}
+              total={remainingIndices.length}
               applying={applying}
               readOnly={readOnly || allApplied}
-              onToggleAll={() => setSelectedFindings(selectedFindings.length === activePass.findings.length ? [] : activePass.findings.map((_, i) => i))}
-              onApply={() => apply(activePass.passNo, selectedFindings)}
+              // Select-all and apply act on the un-applied remainder, not the whole set — a subset
+              // apply leaves the rest actionable rather than locking the pass.
+              onToggleAll={() => setSelectedFindings(selectedFindings.length === remainingIndices.length ? [] : remainingIndices)}
+              onApply={() => apply(activePass.passNo, selectedFindings.filter((i) => !appliedSet.has(i)))}
             />
           ) : null
         }

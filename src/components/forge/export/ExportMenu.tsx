@@ -41,7 +41,9 @@ const ICON: Record<ExportKind, LucideIcon> = {
 
 async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtifact[]> {
   const res = await fetch(`/api/projects/${projectId}/export/artifacts`);
-  if (!res.ok) return [];
+  // Throw (don't silently return []) so a load failure surfaces a message instead of an
+  // unexplained empty menu (e.g. a 403 on a project you can view but can't collaborate on).
+  if (!res.ok) throw new Error('Couldn’t load exportable artifacts.');
   const data = (await res.json()) as { artifacts: ExportMenuArtifact[] };
   return data.artifacts;
 }
@@ -50,6 +52,9 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   const [open, setOpen] = useState(false);
   const [artifacts, setArtifacts] = useState<ExportMenuArtifact[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // A single in-flight export at a time — PDF/bundle are multi-second (server Puppeteer), so
+  // without this the buttons stayed enabled and a re-click fired a duplicate export job.
+  const [busy, setBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -67,25 +72,45 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    void fetchArtifacts(projectId).then((a) => {
-      if (alive) setArtifacts(a);
-    });
+    setError(null);
+    void fetchArtifacts(projectId)
+      .then((a) => { if (alive) setArtifacts(a); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : 'Couldn’t load exportable artifacts.'); });
     return () => {
       alive = false;
     };
   }, [open, projectId, fetchArtifacts]);
 
   const onMd = async (kind: ExportKind) => {
+    if (busy) return;
     setError(null);
+    setBusy(true);
     try {
       await downloadGet(`/api/projects/${projectId}/export/md?artifact=${kind}`, `${kind}.md`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Export failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPdf = async (kind: ExportKind) => {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await downloadPost(`/api/projects/${projectId}/export/pdf`, { artifact: kind, mermaidAsDiagram: true }, `${kind}.pdf`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'PDF export failed.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const onBundle = async () => {
+    if (busy) return;
     setError(null);
+    setBusy(true);
     try {
       const { included } = await downloadPost(`/api/projects/${projectId}/export/bundle`, {}, 'bundle.zip');
       const names = (included ?? []).map((k) =>
@@ -94,6 +119,8 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
       onToast?.(`Bundle ready — ${names.join(', ')}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Bundle failed.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -159,22 +186,18 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                 </div>
                 <button
                   type="button"
-                  disabled={!a.ready}
-                  aria-disabled={!a.ready}
-                  onClick={() => onMd(a.kind)}
+                  disabled={!a.ready || busy}
+                  aria-disabled={!a.ready || busy}
+                  onClick={() => void onMd(a.kind)}
                   className="rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent disabled:opacity-50"
                 >
                   .md
                 </button>
                 <button
                   type="button"
-                  disabled={!a.ready}
-                  aria-disabled={!a.ready}
-                  onClick={() => {
-                    setError(null);
-                    downloadPost(`/api/projects/${projectId}/export/pdf`, { artifact: a.kind, mermaidAsDiagram: true }, `${a.kind}.pdf`)
-                      .catch((e) => setError(e instanceof Error ? e.message : 'PDF export failed.'));
-                  }}
+                  disabled={!a.ready || busy}
+                  aria-disabled={!a.ready || busy}
+                  onClick={() => void onPdf(a.kind)}
                   className="rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent-deep disabled:opacity-50"
                 >
                   PDF
@@ -188,8 +211,10 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
             <button
               type="button"
               data-testid="export-bundle"
-              onClick={onBundle}
-              className="flex w-full items-center gap-3 rounded-[var(--r-md)] border border-accent-tint bg-accent-tint px-3 py-3 text-left"
+              disabled={busy}
+              aria-disabled={busy}
+              onClick={() => void onBundle()}
+              className="flex w-full items-center gap-3 rounded-[var(--r-md)] border border-accent-tint bg-accent-tint px-3 py-3 text-left disabled:opacity-50"
             >
               <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-[var(--r-md)] bg-accent text-white [&_svg]:size-4">
                 <Boxes />

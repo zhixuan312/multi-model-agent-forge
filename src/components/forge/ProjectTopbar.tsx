@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Title } from '@/components/ui/typography';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
 import { ExportMenu } from '@/components/forge/export/ExportMenu';
+import { showToast } from '@/components/ui/toast';
 import { ProjectActionsMenu } from '@/components/forge/ProjectActionsMenu';
 import type { ProjectPhase } from '@/db/enums';
 
@@ -84,7 +85,7 @@ export function ProjectTopbar({
         ) : null}
 
         {projectId && !exportDisabled ? (
-          <ExportMenu projectId={projectId} />
+          <ExportMenu projectId={projectId} onToast={(message) => showToast({ type: 'success', message })} />
         ) : (
           <Button variant="secondary" size="sm" disabled leftIcon={<Download />} rightIcon={<ChevronDown />}>
             Export

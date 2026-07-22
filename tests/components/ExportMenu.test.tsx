@@ -96,4 +96,24 @@ describe('ExportMenu (test 12, F10)', () => {
     expect(onToast.mock.calls[0][0]).toContain('specification');
     expect(onToast.mock.calls[0][0]).not.toContain('journal');
   });
+
+  it('surfaces an error when artifacts fail to load — not a silent empty menu (QA E#5)', async () => {
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => { throw new Error('Couldn\u2019t load exportable artifacts.'); }} />);
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    expect(await screen.findByText(/Couldn\u2019t load exportable artifacts/)).toBeInTheDocument();
+  });
+
+  it('disables export while one is in flight — a re-click cannot fire a duplicate (QA E#2)', async () => {
+    let resolve!: (v: { included: string[] }) => void;
+    downloadPost.mockImplementationOnce(() => new Promise((r) => { resolve = r as never; }));
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => screen.getByTestId('export-bundle'));
+    const bundle = screen.getByTestId('export-bundle');
+    fireEvent.click(bundle);
+    await waitFor(() => expect(bundle).toBeDisabled());
+    fireEvent.click(bundle); // ignored while busy
+    expect(downloadPost).toHaveBeenCalledTimes(1);
+    resolve({ included: ['spec'] });
+  });
 });

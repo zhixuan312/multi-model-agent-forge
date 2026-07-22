@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
+import { project } from '@/db/schema/projects';
+import { validateDetails, type Details } from '@/details/schema';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
@@ -31,6 +33,23 @@ export const HANDLER_EVENT: Record<string, { stage: string; phase: string; label
   'journal-harvest':    { stage: 'journal',     phase: 'journal',    label: 'Harvested learnings' },
   'journal-record':     { stage: 'journal',     phase: 'journal',    label: 'Recorded learnings to journal' },
 };
+
+/**
+ * Audit handlers whose durable terminal line should carry the pass just recorded, so the
+ * persisted timeline keeps the detail the LIVE progression showed ("Audited spec — pass 2 ·
+ * revised") instead of collapsing to a bare "Audited spec" after navigation. Only the two
+ * stage-level audit loops qualify (review passes are per-repo, so no single pass number).
+ */
+const AUDIT_PASSES: Record<string, (d: Details) => Array<{ passNo: number; status: string }>> = {
+  'spec-audit': (d) => d.stages.spec.phases.finalize.auditPasses,
+  'plan-audit': (d) => d.stages.plan.phases.validate.auditPasses,
+};
+
+/** Append "— pass N · <status>" to an audit label from the latest recorded pass (pure). */
+export function auditTerminalLabel(baseLabel: string, passes: Array<{ passNo: number; status: string }>): string {
+  const last = passes[passes.length - 1];
+  return last ? `${baseLabel} — pass ${last.passNo} · ${last.status}` : baseLabel;
+}
 
 /**
  * Singleton handlers that reject concurrent dispatch of the same handler.
@@ -121,7 +140,18 @@ export async function appendBatchTerminalEvent(
   if (!projectId || !handler) return;
   const meta = HANDLER_EVENT[handler];
   if (!meta) return;
-  const label = status === 'failed' ? `${meta.label} — failed` : meta.label;
+  let label = status === 'failed' ? `${meta.label} — failed` : meta.label;
+  // Enrich a successful audit terminal with the pass it just recorded, so the durable line
+  // reads "Audited spec — pass 2 · revised" (the detail the live SSE progression showed) rather
+  // than a bare "Audited spec" once you navigate away and back. The handler wrote the pass to
+  // `details` before this resolves, so it is readable here; best-effort (keep the base on any miss).
+  const readPasses = AUDIT_PASSES[handler];
+  if (status === 'done' && readPasses) {
+    try {
+      const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+      if (row?.details) label = auditTerminalLabel(meta.label, readPasses(validateDetails(row.details)));
+    } catch { /* keep the base label */ }
+  }
   const kind = status === 'failed' ? 'error' : 'done';
   const eventKey = `${handler}:${batchRowId}`;
   const resolved = await resolveRunningActivity({

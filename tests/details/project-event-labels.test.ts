@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { buildDiscoverTerminalLabel } from '@/details/project-event-labels';
+import { buildDiscoverTerminalLabel, auditTerminalLabel, appendBatchTerminalEvent } from '@/details/project-event-labels';
+import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 
 // buildDiscoverTerminalLabel turns a discover batch's request into the settled
@@ -68,5 +69,47 @@ describe('buildDiscoverTerminalLabel', () => {
     });
     expect(label.length).toBeLessThanOrEqual('Researched — '.length + 61);
     expect(label.startsWith('Researched — ')).toBe(true);
+  });
+});
+
+// QA F2 — the durable audit line must keep the pass detail the live SSE progression showed,
+// so navigating away and back doesn't collapse "Audited spec — pass 2 · revised" to "Audited spec".
+describe('auditTerminalLabel', () => {
+  it('appends the latest recorded pass number + status', () => {
+    expect(auditTerminalLabel('Audited spec', [{ passNo: 1, status: 'revised' }, { passNo: 2, status: 'clean' }]))
+      .toBe('Audited spec — pass 2 · clean');
+  });
+  it('returns the bare label when there are no passes', () => {
+    expect(auditTerminalLabel('Audited plan', [])).toBe('Audited plan');
+  });
+});
+
+/** The labels written to project_activity via .set()/.values() (cycle-safe — no JSON.stringify). */
+function activityLabels(db: ReturnType<typeof createMockDb>): string[] {
+  return db._callsFor('project_activity')
+    .filter((c) => c.method === 'set' || c.method === 'values')
+    .map((c) => (c.args[0] as { label?: string })?.label)
+    .filter((l): l is string => typeof l === 'string');
+}
+
+describe('appendBatchTerminalEvent — audit enrichment', () => {
+  it('records a spec-audit terminal with its pass detail read from details (survives navigation)', async () => {
+    const d = buildInitialDetails();
+    d.stages.spec.phases.finalize.auditPasses = [
+      { passNo: 1, status: 'revised' },
+      { passNo: 2, status: 'clean' },
+    ];
+    // No running row to resolve → the fallback path records ONE terminal row with the label.
+    const db = createMockDb({ 'select:project': [{ details: d }], 'select:project_activity': [] });
+    await appendBatchTerminalEvent(db, 'p1', 'spec-audit', 'batch-1', 'done', 3000);
+    expect(activityLabels(db)).toContain('Audited spec — pass 2 · clean');
+  });
+
+  it('leaves a non-audit handler label untouched', async () => {
+    const db = createMockDb({ 'select:project': [{ details: buildInitialDetails() }], 'select:project_activity': [] });
+    await appendBatchTerminalEvent(db, 'p1', 'plan-author', 'batch-2', 'done', 1000);
+    const labels = activityLabels(db);
+    expect(labels).toContain('Authored plan');
+    expect(labels.some((l) => l.includes('pass'))).toBe(false);
   });
 });

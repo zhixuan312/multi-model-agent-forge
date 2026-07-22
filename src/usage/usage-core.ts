@@ -43,6 +43,19 @@ export function periodCutoff(period: Period, now: Date = new Date()): Date | nul
   return new Date(monday.getTime() - offset);
 }
 
+/**
+ * Second-half vs first-half spend across a daily series (>1 = rising, 1 = flat/insufficient data).
+ * SYMMETRIC split: take `mid` days from each end and drop the middle day on an odd-length series.
+ * The old `slice(mid)` gave the second half an extra day, so even flat spend read as "rising"
+ * (3 equal days → 1 vs 2 days → ratio 2.0).
+ */
+export function trendRatio(dailyCosts: number[]): number {
+  const mid = Math.floor(dailyCosts.length / 2);
+  const first = dailyCosts.slice(0, mid).reduce((s, c) => s + c, 0);
+  const second = dailyCosts.slice(dailyCosts.length - mid).reduce((s, c) => s + c, 0);
+  return first > 0 ? second / first : 1;
+}
+
 function getTimezoneOffsetMs(tz: string, date: Date): number {
   const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
   const tzStr = date.toLocaleString('en-US', { timeZone: tz });
@@ -436,11 +449,7 @@ async function usageOverviewOrg(
   const orgTotal: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd, savedUsd: r.savedUsd, count: r.count }));
   const trend = { orgTotal, perTeam: [] as TeamSparkline[] };
 
-  // trendRatio: second-half spend vs first-half spend across the series (>1 = rising).
-  const mid = Math.floor(orgTotal.length / 2);
-  const firstHalf = orgTotal.slice(0, mid).reduce((s, p) => s + p.costUsd, 0);
-  const secondHalf = orgTotal.slice(mid).reduce((s, p) => s + p.costUsd, 0);
-  headline.trendRatio = firstHalf > 0 ? secondHalf / firstHalf : 1;
+  headline.trendRatio = trendRatio(orgTotal.map((p) => p.costUsd));
 
   // Team drilldown: select first team for now (simplified)
   const teamDrilldown: TeamUsageDrilldown = {
@@ -583,12 +592,16 @@ export async function usageByLoop(
     .where(runWhere)
     .groupBy(loop.id, loop.name, loop.kind);
 
-  // Sum batch costs for all batches linked to each loop's runs
+  // Sum batch costs for all batches linked to each loop's runs. Anchor this pass on the RUN's
+  // start time + team (lr.started_at / lr.team_id) — the SAME anchor as runRows — not the batch's
+  // created_at: filtering costs by created_at while runs filter by startedAt dropped a loop's cost
+  // entirely at period edges (runs before the cutoff but batch after → not in runRows, so the cost
+  // map entry was never read) or reported cost 0 (run inside the period, batch just after).
   const costWhere = deps.teamId
     ? cutoff
-      ? sql`b.created_at >= ${cutoff.toISOString()} AND b.team_id = ${deps.teamId}`
-      : sql`b.team_id = ${deps.teamId}`
-    : cutoff ? sql`b.created_at >= ${cutoff.toISOString()}` : undefined;
+      ? sql`lr.started_at >= ${cutoff.toISOString()} AND lr.team_id = ${deps.teamId}`
+      : sql`lr.team_id = ${deps.teamId}`
+    : cutoff ? sql`lr.started_at >= ${cutoff.toISOString()}` : undefined;
 
   const costRows = await db
     .select({
@@ -599,7 +612,9 @@ export async function usageByLoop(
       durationMs: sql<number>`coalesce(sum(b.duration_ms), 0)::int`,
     })
     .from(sql`forge.ops_mma_batch b`)
-    .innerJoin(sql`forge.loop_run lr`, sql`b.loop_run_id = lr.id OR b.id = lr.mma_batch_id`)
+    // Prefer the FK (b.loop_run_id); fall back to the legacy link ONLY when the FK is null — else a
+    // batch that carries a FK could ALSO match a different run via the legacy id and be summed twice.
+    .innerJoin(sql`forge.loop_run lr`, sql`b.loop_run_id = lr.id OR (b.loop_run_id IS NULL AND b.id = lr.mma_batch_id)`)
     .where(costWhere)
     .groupBy(sql`lr.loop_id`);
 

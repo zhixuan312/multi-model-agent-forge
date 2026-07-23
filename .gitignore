@@ -57,6 +57,5 @@ mockup/*
 # mma delegate worktrees (engine scratch, never commit) — repo-root only
 /.mma/
 
-# E2E harness run artifacts — logs + screenshot output + local scratch, never commit
-/.e2e/logs/
-/.e2e/out/
+# E2E harness — local scripts, logs, screenshots, scratch. Entirely local, never commit.
+/.e2e/

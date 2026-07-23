@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   report(
     'status (bearer)',
     status.reachable && status.authValid,
-    `reachable=${status.reachable} authValid=${status.authValid} version=${status.version ?? '?'} activeBatches=${status.activeBatches ?? '?'}`,
+    `reachable=${status.reachable} authValid=${status.authValid} version=${status.version ?? '?'} activeTasks=${status.activeTasks ?? '?'}`,
   );
 
   // 3. model-profiles

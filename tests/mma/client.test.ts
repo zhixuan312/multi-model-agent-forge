@@ -148,7 +148,7 @@ describe('MmaClient.poll', () => {
           headers: { 'content-type': 'application/json' },
         });
       }
-      return new Response(JSON.stringify({ version: '5', pid: 1, uptimeMs: 1, counters: { activeBatches: 0 } }), {
+      return new Response(JSON.stringify({ version: '5', pid: 1, uptimeMs: 1, counters: { activeTasks: 0 } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -208,7 +208,7 @@ describe('MmaClient.status', () => {
   it('returns the four consumed fields on a 200', async () => {
     const { fn } = stubFetch(() =>
       new Response(
-        JSON.stringify({ version: '5.0.0', pid: 4242, uptimeMs: 9000, counters: { activeBatches: 2 } }),
+        JSON.stringify({ version: '5.0.0', pid: 4242, uptimeMs: 9000, counters: { activeTasks: 2 } }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       ),
     );
@@ -218,7 +218,7 @@ describe('MmaClient.status', () => {
     expect(r.version).toBe('5.0.0');
     expect(r.pid).toBe(4242);
     expect(r.uptimeMs).toBe(9000);
-    expect(r.activeBatches).toBe(2);
+    expect(r.activeTasks).toBe(2);
   });
 });
 

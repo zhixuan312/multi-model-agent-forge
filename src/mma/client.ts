@@ -1,13 +1,14 @@
 /**
  * MmaClient — server-side HTTP client for the co-located `mma` daemon.
  *
- * Wire contract (MMA v5.4 unified task API):
+ * Wire contract — the unified task API, matched to MMA `MATCHED_MMA_VERSION`
+ * (see docs/mma-compatibility.md for the full capability-parity matrix):
  *   - POST /task?cwd=<path>  → 202 { taskId, statusUrl }
- *   - GET  /task/:id         → 202 { taskId, status:'running', phase, elapsedMs, ... }
- *                              → 200 { task, output, execution, metrics, raw, error }
- *   - GET  /health           → 200 { status:'ok'|'drift' }  (unauthenticated)
- *   - GET  /status           → 200 { version, pid, ... }    (Bearer)
- *   - POST /configure-provider → 200 { ... }                (Bearer)
+ *   - GET  /task/:id         → 202 { taskId, status:'running', phase, elapsedMs, ... }  (application/json)
+ *                              → 200 { task, output, execution, metrics, raw, error }   (6-field layered envelope)
+ *   - GET  /health           → 200 { status:'ok'|'drift' }              (unauthenticated)
+ *   - GET  /status           → 200 { version, pid, counters:{activeTasks}, ... }  (Bearer)
+ *   - POST /configure-provider → 200 { verified, applied, ... }         (Bearer)
  *
  * Auth: `Authorization: Bearer <token>` + `X-MMA-Client` + `X-MMA-Main-Model`.
  * The bearer token is NEVER logged.
@@ -61,7 +62,7 @@ export interface StatusResult {
   version: string | null;
   pid: number | null;
   uptimeMs: number | null;
-  activeBatches: number | null;
+  activeTasks: number | null;
 }
 
 /** MMA poll result — pending returns structured JSON, terminal returns the result envelope. */
@@ -243,16 +244,16 @@ export class MmaClient {
         headers: this.authedHeaders(),
       });
     } catch {
-      return { reachable: false, authValid: false, version: null, pid: null, uptimeMs: null, activeBatches: null };
+      return { reachable: false, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
     }
     if (res.status === 401 || res.status === 403) {
-      return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeBatches: null };
+      return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
     }
     if (!res.ok) {
-      return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeBatches: null };
+      return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
     }
     const json = (await res.json().catch(() => null)) as
-      | { version?: string; pid?: number; uptimeMs?: number; counters?: { activeBatches?: number } }
+      | { version?: string; pid?: number; uptimeMs?: number; counters?: { activeTasks?: number } }
       | null;
     return {
       reachable: true,
@@ -260,7 +261,7 @@ export class MmaClient {
       version: json?.version ?? null,
       pid: typeof json?.pid === 'number' ? json.pid : null,
       uptimeMs: typeof json?.uptimeMs === 'number' ? json.uptimeMs : null,
-      activeBatches: typeof json?.counters?.activeBatches === 'number' ? json.counters.activeBatches : null,
+      activeTasks: typeof json?.counters?.activeTasks === 'number' ? json.counters.activeTasks : null,
     };
   }
 

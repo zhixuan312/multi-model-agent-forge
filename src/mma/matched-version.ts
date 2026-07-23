@@ -11,6 +11,10 @@ import pkg from '../../package.json';
  * adapt. Workflow: read the MMA CHANGELOG for the delta between MATCHED_MMA_VERSION
  * and the new engine version, adapt Forge, then bump the ONE field in package.json.
  *
+ * The exact contract Forge speaks, the capabilities it uses, and the ones it
+ * deliberately skips are recorded in docs/mma-compatibility.md — the evidence
+ * behind this version. Keep that matrix in lockstep when bumping the field.
+ *
  * Read from `package.json#matchedMmaVersion` (single source of truth) so the value
  * lives with the app manifest and can't drift from a duplicated constant.
  */

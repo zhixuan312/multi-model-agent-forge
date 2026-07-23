@@ -21,7 +21,7 @@ export async function GET(): Promise<NextResponse> {
     // No bearer configured yet → report unreachable rather than 500.
     return NextResponse.json({
       health: { status: 'unreachable' },
-      token: { reachable: false, authValid: false, version: null, uptimeMs: null, activeBatches: null },
+      token: { reachable: false, authValid: false, version: null, uptimeMs: null, activeTasks: null },
       note: (e as Error).message,
     });
   }
@@ -34,7 +34,7 @@ export async function GET(): Promise<NextResponse> {
       authValid: token.authValid,
       version: token.version,
       uptimeMs: token.uptimeMs,
-      activeBatches: token.activeBatches,
+      activeTasks: token.activeTasks,
     },
   });
 }

@@ -22,8 +22,9 @@ const getResult: unknown = { id: 'l1', eventTokenHash: 'stored-hash' };
 let updateResult: unknown = { kind: 'updated', loop: { id: 'l1' }, eventToken: null };
 let rotateResult: unknown = { kind: 'rotated', loop: { id: 'l1' }, eventToken: 'new-token' };
 const deleteResult: unknown = { kind: 'deleted' };
+const listLoopsSpy = vi.fn(async () => [{ id: 'l1', eventTokenHash: 'stored-hash' }]);
 vi.mock('@/loops/loops-core', () => ({
-  listLoops: async () => [{ id: 'l1', eventTokenHash: 'stored-hash' }],
+  listLoops: (...args: unknown[]) => listLoopsSpy(...(args as [])),
   createLoop: async () => createResult,
   getLoop: async () => getResult,
   updateLoop: async () => updateResult,
@@ -56,6 +57,18 @@ describe('Loops routes — admin gate', () => {
     expect((await DELETE(req({}) as never, ctx('l1') as never)).status).toBe(403);
   });
 
+});
+
+describe('Loops routes — team scoping', () => {
+  beforeEach(() => { mockCaller = admin(); listLoopsSpy.mockClear(); });
+
+  it('GET scopes the listing to the caller team (no cross-team leak)', async () => {
+    // The listing MUST be filtered by the caller's team — otherwise one team's admin
+    // sees every other team's loops (goal text, repos, schedule). listLoops() with no
+    // deps returns every team's rows, so the route has to thread teamId through.
+    await listGET();
+    expect(listLoopsSpy).toHaveBeenCalledWith({ teamId: 'team-1' });
+  });
 });
 
 describe('Loops routes — event token mapping', () => {

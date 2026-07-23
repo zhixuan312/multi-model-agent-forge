@@ -10,7 +10,8 @@ import { listLoops, createLoop, toPublicLoop } from '@/loops/loops-core';
 export async function GET(): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
-  return NextResponse.json({ loops: (await listLoops()).map(toPublicLoop) });
+  const loops = await listLoops({ teamId: gate.actor.teamId ?? undefined });
+  return NextResponse.json({ loops: loops.map(toPublicLoop) });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {

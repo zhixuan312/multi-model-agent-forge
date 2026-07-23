@@ -38,8 +38,17 @@ export function AccountMenu({
   const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
+    if (signingOut) return;
     setSigningOut(true);
-    await fetch('/api/auth/logout', { method: 'POST' });
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // A rejected logout POST (network drop) used to throw before router.push, leaving the menu
+      // stuck on "Signing out…" forever. Route to /login regardless — a failed logout still lands
+      // the user on the login screen, and the finally resets the flag.
+    } finally {
+      setSigningOut(false);
+    }
     router.push('/login');
     router.refresh();
   }

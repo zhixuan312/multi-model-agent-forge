@@ -6,7 +6,7 @@ import { project } from '@/db/schema/projects';
 import { loopRun } from '@/db/schema/loop';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
-import { getPollManager } from '@/sse/poll-manager';
+import { getPollManager, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import {
   appendBatchTerminalEvent,
@@ -129,6 +129,20 @@ export async function findInflight(
     .where(and(...conditions))
     .limit(1);
   if (!row) return null;
+
+  // Orphan reap: a row still 'dispatched'/'running' with a NULL batchId is one whose MMA dispatch
+  // hadn't yet written its batchId (it's set only after mma.dispatch resolves / the sync run ends).
+  // Such in-flight state lives only in the crashed process's memory — PollManager's rehydrate skips
+  // null-batchId rows, so nothing ever force-fails it, and this function otherwise reports it as
+  // in-flight FOREVER, permanently wedging the project's single-flight guard. Past the hard timeout
+  // (longer than any legitimate sync run / the client's own deadline) it is provably dead → fail it.
+  if (!row.batchId && Date.now() - row.createdAt.getTime() > POLL_HARD_TIMEOUT_MS) {
+    await db
+      .update(mmaBatch)
+      .set({ status: 'failed', result: { error: { code: 'dispatch_orphaned', message: 'MMA dispatch never recorded a task id — server likely restarted mid-dispatch.' } } as object, terminalAt: new Date() })
+      .where(eq(mmaBatch.id, row.id));
+    return null;
+  }
 
   if (row.batchId) {
     const pm = getPollManager();

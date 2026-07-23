@@ -12,7 +12,7 @@ const { registerMock, recordActivity, resolveRunningActivity } = vi.hoisted(() =
   recordActivity: vi.fn(async () => {}),
   resolveRunningActivity: vi.fn(async () => {}),
 }));
-vi.mock('@/sse/poll-manager', () => ({ getPollManager: () => ({ register: registerMock }) }));
+vi.mock('@/sse/poll-manager', () => ({ getPollManager: () => ({ register: registerMock }), POLL_HARD_TIMEOUT_MS: 60 * 60_000 }));
 vi.mock('@/activity/project-activity', () => ({
   recordActivity,
   resolveRunningActivity,
@@ -66,6 +66,17 @@ describe('findInflight — project-level single-flight (handler omitted)', () =>
   it('returns null when nothing is in flight', async () => {
     const db = createMockDb({ 'select:ops_mma_batch': [] });
     expect(await findInflight(db, 'proj-1')).toBeNull();
+  });
+
+  it('reaps an orphaned null-batchId row past the hard timeout (fails it, returns null) so the project un-wedges', async () => {
+    // A row still 'dispatched' with batchId=null whose dispatch never recorded a task id (crashed
+    // mid-dispatch). Recent → in-flight (above test); past the 1h timeout → provably dead.
+    const stale = new Date(Date.now() - 61 * 60_000);
+    const db = createMockDb({ 'select:ops_mma_batch': [{ id: 'orphan', batchId: null, createdAt: stale, route: 'orchestrate', handler: 'plan-author' }] });
+    expect(await findInflight(db, 'proj-1')).toBeNull();
+    // It was force-failed, not left dangling.
+    const setCall = db._callsFor('ops_mma_batch').find((c) => c.method === 'set');
+    expect(JSON.stringify(setCall?.args)).toContain('failed');
   });
 });
 

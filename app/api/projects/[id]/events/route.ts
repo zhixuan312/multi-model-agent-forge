@@ -64,6 +64,12 @@ export async function GET(
         }
       };
       req.signal.addEventListener('abort', onAbort);
+      // The auth checks above are awaited BEFORE the stream is built, so the client can disconnect
+      // during that window — leaving req.signal ALREADY aborted here. addEventListener never fires
+      // for an already-aborted signal (and cancel() won't run for a stream nothing consumes), so the
+      // heartbeat interval + bus subscription would leak. Fire onAbort immediately in that case
+      // (unsub is guarded against double-unsub, so this is idempotent with a later abort/cancel).
+      if (req.signal.aborted) onAbort();
     },
     cancel() {
       if (hb) clearInterval(hb);

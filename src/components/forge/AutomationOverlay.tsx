@@ -159,8 +159,14 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
   const [logs, setLogs] = useState<LogLine[]>(() => seedLogs(events ?? []));
   // eslint-disable-next-line react-hooks/purity -- one-time lazy init of the elapsed-clock start; Date.now() is the intended fallback "now"
   const startTime = useRef(automationStartedAt ? new Date(automationStartedAt).getTime() : Date.now());
-  // eslint-disable-next-line react-hooks/purity -- lazy initial elapsed value; Date.now() is the intended "now" at mount
-  const [elapsed, setElapsed] = useState(automationStartedAt ? Date.now() - new Date(automationStartedAt).getTime() : 0);
+  // Init to 0 (deterministic) — NOT Date.now()-based — so the SSR HTML and the first client render
+  // match. A Date.now() initial value differs between server render and client hydration → the
+  // "Time elapsed" text mismatches → React hydration error. The ticker effect below sets the real
+  // elapsed immediately on mount (client-only).
+  const [elapsed, setElapsed] = useState(0);
+  // `now` mirrors Date.now() but as STATE driven by the ticker — used for in-progress log-line
+  // durations without reading a ref during render. 0 until mounted (SSR/hydration-safe).
+  const [now, setNow] = useState(0);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // Brief 3-2-1 intro. Ticks purely off `countdown` — NOT `autoMode` — so it can
@@ -192,9 +198,12 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
     setElapsed(Date.now() - ts);
   }, [automationStartedAt]);
 
-  // Elapsed time ticker
+  // Elapsed time ticker. Set the real elapsed once on mount (client-only) so the deterministic
+  // initial 0 used for SSR/hydration is replaced immediately, then tick every second.
   useEffect(() => {
-    const t = setInterval(() => setElapsed(Date.now() - startTime.current), 1000);
+    const tick = () => { setElapsed(Date.now() - startTime.current); setNow(Date.now()); };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -366,8 +375,10 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             ) : (
               <>
                 {logs.map((l, i) => {
-                  // eslint-disable-next-line react-hooks/purity -- live-ticking duration for an in-progress log line; re-render is driven by the elapsed ticker
-                  const dur = l.done ? l.durationMs : elapsed >= 0 ? Date.now() - l.startedAt : 0;
+                  // Live duration from the `now` STATE (0 until mounted), NOT Date.now() in render —
+                  // SSR and first client render both compute 0, so they agree (no hydration mismatch);
+                  // it then ticks live on the client once the ticker sets `now`.
+                  const dur = l.done ? l.durationMs : now ? now - l.startedAt : 0;
                   return (
                     <div key={i} className="flex items-start gap-3 border-b border-line/40 py-2 last:border-0">
                       <span className="mt-px min-w-[36px] font-mono text-[10px] text-ink-faint">{l.time}</span>

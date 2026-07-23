@@ -22,15 +22,13 @@ import { Breadcrumb, type Crumb } from '@/components/ui/breadcrumb';
  */
 export function AppShell({
   sidebar,
-  mobileBar,
   topRight,
   children,
   className,
 }: {
   sidebar: ReactNode;
-  mobileBar?: ReactNode;
-  /** Global utilities pinned to the top-right corner on desktop (notification
-   *  bell + account menu), sitting in the page-header band above the scroll body. */
+  /** Global utilities pinned to the top-right corner (notification bell + account
+   *  menu), sitting in the page-header band above the scroll body. */
   topRight?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -40,14 +38,13 @@ export function AppShell({
   // flex child reached through the `display:contents` page chain) is the scroller.
   return (
     <div className={cn('app-bg fixed inset-0 isolate flex overflow-hidden', className)}>
-      <div className="hidden h-full shrink-0 overflow-y-auto overscroll-contain lg:block">{sidebar}</div>
+      <div className="h-full shrink-0 overflow-y-auto overscroll-contain">{sidebar}</div>
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
-        {mobileBar ? <div className="shrink-0 lg:hidden">{mobileBar}</div> : null}
         {topRight ? (
           // Pinned to the top-right corner, vertically centered in the h-16 header
           // band. z-30 keeps it above the page's own ShellHeader (z-20) so the
           // account menu / bell are always reachable.
-          <div className="pointer-events-none absolute right-0 top-0 z-30 hidden h-16 items-center pr-5 md:pr-8 lg:flex">
+          <div className="pointer-events-none absolute right-0 top-0 z-30 flex h-16 items-center pr-5 md:pr-8">
             <div className="pointer-events-auto flex items-center gap-1">{topRight}</div>
           </div>
         ) : null}

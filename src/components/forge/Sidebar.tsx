@@ -60,10 +60,8 @@ const SECTIONS: NavSection[] = [
 
 export function Sidebar({
   member,
-  forceVisible = false,
 }: {
   member: AuthedMember;
-  forceVisible?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -165,7 +163,6 @@ export function Sidebar({
       data-testid="sidebar"
       className={cn(
         'flex min-h-full w-[var(--rail-w)] flex-col border-r border-line bg-surface-2 px-3 py-4',
-        !forceVisible && 'max-md:hidden',
       )}
     >
       <div className="flex items-center gap-2 px-2 pb-4 pt-1">

@@ -4,9 +4,7 @@ import { currentMember } from '@/auth/current-member';
 import { listNotifications } from '@/collab/notification-store';
 import { AppPhaseTheme } from '@/components/forge/AppPhaseTheme';
 import { Sidebar } from '@/components/forge/Sidebar';
-import { MobileNav } from '@/components/forge/MobileNav';
 import { AccountMenu } from '@/components/forge/AccountMenu';
-import { ForgeMark } from '@/components/forge/ForgeMark';
 import { NotificationBell } from '@/components/forge/collab/NotificationBell';
 import { AppShell } from '@/components/ui/shell';
 import { Toaster } from '@/components/ui/toast';
@@ -38,16 +36,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <NotificationBell items={notifications} />
             <AccountMenu member={member} variant="bar" />
           </>
-        }
-        mobileBar={
-          <div className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
-            <MobileNav member={member} />
-            <ForgeMark withWordmark />
-            <div className="ml-auto flex items-center gap-1">
-              <NotificationBell items={notifications} />
-              <AccountMenu member={member} variant="bar" />
-            </div>
-          </div>
         }
       >
         {/* Pages own their frame via PageFrame (locked header + scroll body). */}

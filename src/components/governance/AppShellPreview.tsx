@@ -61,7 +61,7 @@ const RENDERS: Record<string, () => ReactNode> = {
     <Framed note="Where the header sits in the shell — sidebar rail, header bar, sub-nav (tabs), body.">
       <div className="flex bg-bg">
         <div className="hidden shrink-0 lg:block">
-          <Sidebar member={MEMBER} forceVisible />
+          <Sidebar member={MEMBER} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <HeaderRow actions={<Button variant="primary" size="sm">Action</Button>} />

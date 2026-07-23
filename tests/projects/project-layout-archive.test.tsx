@@ -8,6 +8,16 @@ const getProjectStages = vi.fn();
 const getStagePermissions = vi.fn();
 const ProjectTopbar = vi.fn(() => <div data-testid="project-topbar-probe" />);
 
+// AutomationGate (rendered inside the layout) reads the router + layout segment to land the user on
+// the final stage when automation ends — provide a stub router so the invariant isn't tripped.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
+  useSelectedLayoutSegment: () => null,
+  useSelectedLayoutSegments: () => [],
+  usePathname: () => '/projects/proj-1',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('@/auth/current-member', () => ({ currentMember }));
 vi.mock('@/auth/team-scope', () => ({
   projectActorFromMember: (member: { id: string; teamId: string | null }) =>

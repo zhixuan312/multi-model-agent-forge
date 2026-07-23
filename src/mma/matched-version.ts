@@ -12,7 +12,7 @@ import pkg from '../../package.json';
  * and the new engine version, adapt Forge, then bump the ONE field in package.json.
  *
  * The exact contract Forge speaks, the capabilities it uses, and the ones it
- * deliberately skips are recorded in docs/mma-compatibility.md — the evidence
+ * deliberately skips are recorded in src/mma/COMPATIBILITY.md — the evidence
  * behind this version. Keep that matrix in lockstep when bumping the field.
  *
  * Read from `package.json#matchedMmaVersion` (single source of truth) so the value

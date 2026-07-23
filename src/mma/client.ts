@@ -2,7 +2,7 @@
  * MmaClient — server-side HTTP client for the co-located `mma` daemon.
  *
  * Wire contract — the unified task API, matched to MMA `MATCHED_MMA_VERSION`
- * (see docs/mma-compatibility.md for the full capability-parity matrix):
+ * (see src/mma/COMPATIBILITY.md for the full capability-parity matrix):
  *   - POST /task?cwd=<path>  → 202 { taskId, statusUrl }
  *   - GET  /task/:id         → 202 { taskId, status:'running', phase, elapsedMs, ... }  (application/json)
  *                              → 200 { task, output, execution, metrics, raw, error }   (6-field layered envelope)

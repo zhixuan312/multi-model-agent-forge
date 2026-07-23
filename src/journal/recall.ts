@@ -5,15 +5,16 @@
  * `journal_recall` is a two-phase task — an implementer drafts the answer, then a
  * REFINER (the reviewer) verifies citations against the journal, drops bad ones,
  * adds missed nodes, and re-emits the FINAL answer in the implementer's own
- * format. MMA puts that refined answer (raw worker text, a ```json fenced block)
- * into `structuredReport.summary`. The block matches MMA's `journalRecallAnswerSchema`:
+ * format. In the current 6-field envelope MMA puts that refined answer into
+ * `output.summary` (an object, or a ```json fenced block, falling back to
+ * `raw.implementer`). The block matches MMA's `journalRecallAnswerSchema`:
  *
  *   { "results": [ { "learning", "context", "relevance", "nodeId", "nodePath",
  *                    "category", "status" } ],
  *     "summary": "<synthesis answering the query>" }
  *
- * So we extract that JSON from `structuredReport.summary`, take `summary` as the
- * synthesis and each `results[]` entry as a finding citing exactly one `nodeId`.
+ * So we extract that JSON from `output.summary`, take `summary` as the synthesis
+ * and each `results[]` entry as a finding citing exactly one `nodeId`.
  * The recall ROUTE only dispatches (→ `202 {batchId}`); the browser polls and
  * parses CLIENT-SIDE.
  */

@@ -23,8 +23,9 @@ Last full audit: 2026-07-23 (engine 5.0→5.12 reviewed route-by-route).
 | Findings | `weight: critical\|high\|medium\|low` (not `severity`/`confidence`) | `explore-core`, `review-findings`, `spec/audit-loop`, `ReviewStageClient` all read `f.weight` |
 | Review policy | `reviewed \| none` | `executePlan`/dispatch send only these |
 | Spec subset | `components: string[]` (5.8.7; omit = all 8) | `client.spec()` forwards `components` |
-| Context blocks | `contextBlockIds` (max 2), soft-skipped if missing | threaded through investigate/research/recall/audit/review/spec/plan |
-| Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | `configure-provider.ts` reads `verified` |
+| Context blocks | `contextBlockIds` (max 2), soft-skipped if missing | echo-only: Forge reuses the engine-minted `output.contextBlockId` as `contextBlockIds:[prevId]` on the next audit/review pass. It never calls `POST /context-blocks` and never pairs two (see deferred list) |
+| Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | reads `verified`; does NOT read `details.fieldErrors` (surfaces `error.code` only — minor UX gap) |
+| Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); the typed `MmaClient.investigate/research/spec/plan/…` wrapper methods are NOT on the live path — test-only, see deferred list |
 | `X-MMA-Main-Model` | required on `POST /task` (400 without) | always set — `server-client.ts` falls back to `DEFAULT_MAIN_MODEL` |
 
 ## Drift found and fixed in this alignment (2026-07-23)
@@ -46,7 +47,20 @@ Forge's design doesn't need them. Listed so the "matched" claim is honest and co
 | `agentTier` override | 5.6.1 | Forge relies on each type's default tier (`TYPE_REGISTRY.defaultTier`); it exposes no per-dispatch tier control |
 | journal `topic` dimension | 5.10.0 | Forge's journal is team-level and recall is unscoped today. Topic-scoped recall (e.g. per repo/project) is a **candidate enhancement**, not adopted yet — would need a decision on what the topic value is |
 | `output.reviewerNote` advisory | 5.12.0 | Forge surfaces terminal status + findings; it doesn't yet render the "reviewer unavailable" advisory note |
+| `debug` task type | — | Forge routes fixes through `orchestrate`/`delegate`; it never dispatches `debug` |
+| `POST /context-blocks` (create) + max-2 pairing | 5.7.0 | Forge only echoes an engine-minted block id between consecutive passes; it never creates a block for its own large inlined spec/plan bodies, nor pairs two blocks |
+| `details.fieldErrors` on configure-provider 400 | 5.12.0 | Forge surfaces `error.code` only |
 | richer `GET /status` (`inflight[]`, `projects[]`, `skillVersion`) | — | Forge reads only `version`/`pid`/`uptimeMs`/`counters.activeTasks` for the connection badge |
+
+## Known cleanup (not a drift, tracked here)
+
+`MmaClient` still carries ~10 typed wrapper methods (`investigate`, `research`,
+`journalRecall`, `auditPlan`, `auditSpec`, `auditInline`, `executePlan`, `review`,
+`spec`, `plan`) that build the correct current request shape but have **no production
+caller** — the live path is `dispatchMma()`'s inline bodies. They're exercised only by
+`tests/mma/{client,rod-methods}.test.ts`. Because prod never runs them, a future
+contract drift in those methods wouldn't be caught by a prod path. Candidate for
+removal (methods + their tests) to keep the client surface == what Forge actually uses.
 
 ## How to re-align when the engine moves
 

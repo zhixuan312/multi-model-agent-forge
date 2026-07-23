@@ -1,8 +1,8 @@
 /**
  * Types for mma's `POST /configure-provider` endpoint. mma OWNS the
  * validate ladder + the runtime in-memory hot-swap; Forge only calls it
- * (Validate = dryRun:true, Apply = dryRun:false). Shapes mirror the live v5.3.x
- * contract verified against the running daemon.
+ * (Validate = dryRun:true, Apply = dryRun:false). Shapes mirror the current
+ * contract (response field `verified`) — see src/mma/COMPATIBILITY.md.
  */
 export type Dialect = 'claude' | 'codex';
 export type AgentTier = 'main' | 'complex' | 'standard';

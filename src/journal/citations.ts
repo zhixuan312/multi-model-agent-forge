@@ -4,10 +4,10 @@
  * SPEC-vs-REALITY (resolved against the LIVE rod, 2026-06-09): the `journal-recall`
  * terminal envelope does NOT match the spec's assumed investigate-report shape
  * (`results[]` of `{title, evidence: Citation[]}`). The real findings live in
- * `structuredReport.findings[]`, each `{ severity, category, claim, evidence, suggestion }`
+ * `output.summary.findings[]`, each `{ weight, category, claim, evidence, suggestion }`
  * where `evidence` is a FREE-TEXT STRING that embeds node references as
- * `nodes/000X-….md` paths and backtick-wrapped `` `NNNN` `` id tokens (and
- * `sourcesUsed` is empty). So node ids are extracted by scanning that evidence
+ * `nodes/000X-….md` paths and backtick-wrapped `` `NNNN` `` id tokens (there is
+ * no separate sources list). So node ids are extracted by scanning that evidence
  * text for those STRUCTURED reference forms — NEVER from a bare prose 4-digit
  * number (a year like `2026` written as plain text is never a citation).
  *

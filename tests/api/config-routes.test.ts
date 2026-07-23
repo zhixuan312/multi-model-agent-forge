@@ -48,4 +48,12 @@ describe('connections API route — scope gates (org-owned vs team-owned)', () =
     mockCaller = { id: 'oa', username: 'oa', displayName: 'OA', avatarTint: '#000', role: 'org_admin', teamId: null };
     expect((await connPUT(putReq({ gitToken: 'ghs_x' }) as never)).status).toBe(403);
   });
+
+  it('a plain member (with a team) CANNOT set the team git token → 403', async () => {
+    // The git token is a team-owned secret; only a team_admin may rotate it. A
+    // teamId alone (any member) must not be enough — this is the gate the route
+    // previously left open.
+    mockCaller = { id: 'm', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 't1' };
+    expect((await connPUT(putReq({ gitToken: 'ghs_x' }) as never)).status).toBe(403);
+  });
 });

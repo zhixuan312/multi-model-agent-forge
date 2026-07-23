@@ -29,8 +29,12 @@ vi.mock('@/mma/server-client', () => ({
 
 const { POST } = await import('../../app/api/configure-provider/route');
 
+// configure-provider hot-swaps the SHARED global engine, so it is org_admin-only.
 function asAdmin(): AuthedMember {
-  return { id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'team_admin', teamId: 'team-1' };
+  return { id: 'a', username: 'admin', displayName: 'Admin', avatarTint: '#9a6b4f', role: 'org_admin', teamId: null };
+}
+function asTeamAdmin(): AuthedMember {
+  return { id: 't', username: 'tadmin', displayName: 'Team Admin', avatarTint: '#9a6b4f', role: 'team_admin', teamId: 'team-1' };
 }
 function asMember(): AuthedMember {
   return { id: 'm', username: 'mem', displayName: 'Member', avatarTint: '#9a6b4f', role: 'member', teamId: 'team-1' };
@@ -56,6 +60,14 @@ describe('POST /api/configure-provider', () => {
     expect((await POST(req(VALID) as never)).status).toBe(403);
     mockCaller = null;
     expect((await POST(req(VALID) as never)).status).toBe(401);
+    expect(configureProvider).not.toHaveBeenCalled();
+  });
+
+  it('team_admin → 403 (shared engine is org-owned; never let a team repoint it)', async () => {
+    mockCaller = asTeamAdmin();
+    const res = await POST(req(VALID) as never);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('forbidden');
     expect(configureProvider).not.toHaveBeenCalled();
   });
 

@@ -29,6 +29,17 @@ const requestSchema = z.object({
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
+  // The mma engine is a SINGLE shared daemon — configuring a provider/model/api-key
+  // for a tier hot-swaps it GLOBALLY, for every team's task dispatch. Restrict to
+  // org_admin (the Models UI is org_admin-only, and the sibling app-wide connection
+  // fields are org_admin-only too); a team_admin must never repoint the shared engine
+  // — e.g. inject their own key and capture other teams' prompts and outputs.
+  if (gate.actor.role !== 'org_admin') {
+    return NextResponse.json(
+      { error: 'forbidden', message: 'Only an org admin can configure providers.' },
+      { status: 403 },
+    );
+  }
 
   const json = await req.json().catch(() => null);
   const parsed = requestSchema.safeParse(json);

@@ -30,8 +30,11 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   if (wantsOrgFields && me.role !== 'org_admin') {
     return NextResponse.json({ error: 'Only an org admin can change the MMA connection or speech-to-text key.' }, { status: 403 });
   }
-  if (wantsGitToken && !me.teamId) {
-    return NextResponse.json({ error: 'A team is required to set the git token.' }, { status: 403 });
+  // The git token is a team-owned secret; setting it is a team-admin action (the
+  // git-token UI lives on the team-admin-only settings/team page). Checking only
+  // `!me.teamId` let any plain member rotate their team's git credential.
+  if (wantsGitToken && !(me.role === 'team_admin' && me.teamId)) {
+    return NextResponse.json({ error: 'A team admin is required to set the git token.' }, { status: 403 });
   }
 
   const result = await updateConnections(json, {

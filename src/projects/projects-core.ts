@@ -194,11 +194,13 @@ export async function createProject(
               forgeApprovalMemberId: FORGE_MEMBER_ID,
             });
 
-      // Load repos once (used for whichever seed we persist).
+      // Load repos once (used for whichever seed we persist). Constrain to the
+      // actor's team: without eq(repo.teamId) a member could POST another team's
+      // repo UUID and bind its on-disk path into their project (agents build it).
       const repos = await tx
         .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
         .from(repo)
-        .where(inArray(repo.id, [...new Set(repoIds)]));
+        .where(and(inArray(repo.id, [...new Set(repoIds)]), eq(repo.teamId, actor.teamId)));
       const repoDetails = repos.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
 
       // Insert the row first (base seed) to obtain the id the canonical artifact path

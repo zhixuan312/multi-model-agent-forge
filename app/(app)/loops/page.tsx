@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Repeat, Power, Clock, CircleCheck } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { getDb } from '@/db/client';
@@ -39,14 +39,16 @@ const LOOPS_NOTE = `### Setting up a loop
 
 export default async function LoopsPage() {
   const me = await requireAdminPage();
-  // Loops are team-scoped maintenance jobs; the team-less org admin has none.
-  if (me.role === 'org_admin') redirect('/usage');
+  // Loops are team-scoped maintenance jobs; the team-less org admin has none. A
+  // null teamId (only the org admin) means no team content — bounce to /usage.
+  if (!me.teamId) redirect('/usage');
+  const teamId = me.teamId;
   const db = getDb();
   const [loops, repoOptions, latestByLoop, runningRows] = await Promise.all([
-    listLoops({ db }),
-    db.select({ id: repo.id, name: repo.name }).from(repo).orderBy(repo.name),
-    latestRunPerLoop({ db }),
-    db.select({ loopId: loopRun.loopId }).from(loopRun).where(eq(loopRun.status, 'running')),
+    listLoops({ db, teamId }),
+    db.select({ id: repo.id, name: repo.name }).from(repo).where(eq(repo.teamId, teamId)).orderBy(repo.name),
+    latestRunPerLoop({ db, teamId }),
+    db.select({ loopId: loopRun.loopId }).from(loopRun).where(and(eq(loopRun.status, 'running'), eq(loopRun.teamId, teamId))),
   ]);
   const runningLoopIds = [...new Set(runningRows.map((r) => r.loopId))];
   const lastRunByLoop = Object.fromEntries(

@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { History, GitPullRequest, CircleAlert, Loader } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
 import { getDb } from '@/db/client';
@@ -35,19 +37,22 @@ const HISTORY_NOTE = `### Reading a run
  * the filterable run list in the rail. Admin-gated.
  */
 export default async function RunHistoryPage({ searchParams }: { searchParams: Promise<{ loop?: string; status?: string; run?: string }> }) {
-  await requireAdminPage();
+  const me = await requireAdminPage();
+  // Run history is team-scoped; the team-less org admin has no runs to show.
+  if (!me.teamId) redirect('/usage');
+  const teamId = me.teamId;
   const sp = await searchParams;
   const db = getDb();
 
   const [loops, repoRows] = await Promise.all([
-    listLoops({ db }),
-    db.select({ id: repo.id, name: repo.name }).from(repo),
+    listLoops({ db, teamId }),
+    db.select({ id: repo.id, name: repo.name }).from(repo).where(eq(repo.teamId, teamId)),
   ]);
   const loopNames = Object.fromEntries(loops.map((l) => [l.id, l.name]));
   const repoNames = Object.fromEntries(repoRows.map((r) => [r.id, r.name]));
   const loopId = sp.loop && loops.some((l) => l.id === sp.loop) ? sp.loop : undefined;
   const status = sp.status && STATUSES.has(sp.status) ? (sp.status as LoopRunRow['status']) : undefined;
-  const runs = await listAllRuns({ db, loopId, status, limit: 200 });
+  const runs = await listAllRuns({ db, teamId, loopId, status, limit: 200 });
   const selectedId = sp.run && runs.some((r) => r.id === sp.run) ? sp.run : runs[0]?.id ?? null;
 
   const changed = runs.filter((r) => r.status === 'changed').length;

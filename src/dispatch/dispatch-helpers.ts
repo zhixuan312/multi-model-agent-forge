@@ -136,7 +136,7 @@ export async function findInflight(
   // null-batchId rows, so nothing ever force-fails it, and this function otherwise reports it as
   // in-flight FOREVER, permanently wedging the project's single-flight guard. Past the hard timeout
   // (longer than any legitimate sync run / the client's own deadline) it is provably dead → fail it.
-  if (!row.batchId && Date.now() - row.createdAt.getTime() > POLL_HARD_TIMEOUT_MS) {
+  if (!row.batchId && row.createdAt && Date.now() - row.createdAt.getTime() > POLL_HARD_TIMEOUT_MS) {
     await db
       .update(mmaBatch)
       .set({ status: 'failed', result: { error: { code: 'dispatch_orphaned', message: 'MMA dispatch never recorded a task id — server likely restarted mid-dispatch.' } } as object, terminalAt: new Date() })

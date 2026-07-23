@@ -56,6 +56,10 @@ export default async function UsagePage({
     );
   }
 
+  // Every non-org_admin has a team by construction; a null teamId here is a corrupt
+  // session, not a valid state. Fail closed rather than build unscoped (global) deps —
+  // the sibling usage tabs guard this too. (Can't redirect to /usage: this IS /usage.)
+  if (!member.teamId) redirect('/login');
   const deps = { teamId: member.teamId };
   const data = await usageOverview(period, deps);
   const [projectRoutes, loopRoutes, standaloneRoutes] = await Promise.all([

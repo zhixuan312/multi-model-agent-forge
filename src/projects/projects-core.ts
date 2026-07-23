@@ -197,10 +197,14 @@ export async function createProject(
       // Load repos once (used for whichever seed we persist). Constrain to the
       // actor's team: without eq(repo.teamId) a member could POST another team's
       // repo UUID and bind its on-disk path into their project (agents build it).
+      const uniqueRepoIds = [...new Set(repoIds)];
       const repos = await tx
         .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
         .from(repo)
-        .where(and(inArray(repo.id, [...new Set(repoIds)]), eq(repo.teamId, actor.teamId)));
+        .where(and(inArray(repo.id, uniqueRepoIds), eq(repo.teamId, actor.teamId)));
+      if (repos.length !== uniqueRepoIds.length) {
+        throw new ProjectAccessError('One or more repositories do not belong to your team.');
+      }
       const repoDetails = repos.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
 
       // Insert the row first (base seed) to obtain the id the canonical artifact path
@@ -541,9 +545,14 @@ export async function changeRepos(
     throw new ProjectAccessError('A project must keep at least one repository.');
   }
 
-  // Update repos in details
+  // Update repos in details. Constrain to the actor's team and reject if any id
+  // isn't theirs — otherwise a member could PATCH another team's repo UUID in and
+  // bind its on-disk path (execute/review then run git against that foreign repo).
   const repoRows = await db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, defaultBranch: repo.defaultBranch })
-    .from(repo).where(inArray(repo.id, unique));
+    .from(repo).where(and(inArray(repo.id, unique), eq(repo.teamId, actor.teamId)));
+  if (repoRows.length !== unique.length) {
+    throw new ProjectAccessError('One or more repositories do not belong to your team.');
+  }
   await updateDetails(db, projectId, (d) => {
     d.repos = repoRows.map((r) => ({ id: r.id, name: r.name, pathOnDisk: r.pathOnDisk, defaultBranch: r.defaultBranch }));
     return d;

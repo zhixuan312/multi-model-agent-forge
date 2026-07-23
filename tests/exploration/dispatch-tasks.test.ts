@@ -27,6 +27,10 @@ function detailsWith(tasks: Array<{ kind: string; prompt: string; repoId?: strin
   d.stages.exploration.phases.discover.tasks = tasks.map((t) => ({
     kind: t.kind, prompt: t.prompt, repoId: t.repoId, status: t.status ?? 'draft', attempts: [],
   })) as never;
+  // resolveCwd only honours a targetRepoId that is one of the project's OWN repos, so
+  // every repoId referenced by a task must be present in details.repos for the fixture.
+  const repoIds = [...new Set(tasks.map((t) => t.repoId).filter(Boolean) as string[])];
+  d.repos = repoIds.map((id) => ({ id, name: id, pathOnDisk: '/repo/path', defaultBranch: 'main' })) as never;
   return d;
 }
 
@@ -43,8 +47,9 @@ describe('dispatchTasks — centralized fan-out (R4)', () => {
       { kind: 'research', prompt: 'Research', status: 'draft', attempts: [] },
       { kind: 'journal', prompt: 'Recall', status: 'draft', attempts: [] },
     ] as never;
+    d.repos = [{ id: 'repo-1', name: 'repo-1', pathOnDisk: '/repo/path', defaultBranch: 'main' }] as never;
     const db = createMockDb({
-      'select:project': [{ details: d }],
+      'select:project': [{ details: d, teamId: 'team-1' }],
       'select:workspace_repo': [{ pathOnDisk: '/repo/path' }],
     });
     await dispatchTasks('proj-1', { id: 'm1' }, { db, client: {} as never, workspaceRoot: '/ws', statPath: async () => {} });
@@ -59,7 +64,7 @@ describe('dispatchTasks — centralized fan-out (R4)', () => {
       { kind: 'investigate', prompt: 'How does auth work?', repoId: 'repo-1' },
       { kind: 'research', prompt: 'Compare caching strategies for the API layer' },
     ]);
-    const db = createMockDb({ 'select:project': [{ details: d }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
 
     const outcomes = await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
 
@@ -88,7 +93,22 @@ describe('dispatchTasks — centralized fan-out (R4)', () => {
 
   it('investigate with no repo → cwd_missing, never dispatched', async () => {
     const d = detailsWith([{ kind: 'investigate', prompt: 'no repo here' }]);
-    const db = createMockDb({ 'select:project': [{ details: d }], 'select:workspace_repo': [] });
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [] });
+
+    const outcomes = await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
+
+    expect(dispatchMma).not.toHaveBeenCalled();
+    expect(outcomes).toEqual([{ taskId: 'task-0', ok: false, reason: 'cwd_missing', message: 'No cwd for task.' }]);
+  });
+
+  it('investigate targetRepoId not in the project repo subset → cwd_missing, never dispatched', async () => {
+    // Tenant guard: a client-supplied repoId that is NOT one of the project's own repos
+    // (details.repos) must never resolve to a cwd, so a worker can't be pointed at
+    // another team's repo directory. detailsWith only seeds repos referenced by tasks —
+    // here we override details.repos to a DIFFERENT id than the task's targetRepoId.
+    const d = detailsWith([{ kind: 'investigate', prompt: 'point me at another team', repoId: 'foreign-repo' }]);
+    d.repos = [{ id: 'my-own-repo', name: 'mine', pathOnDisk: '/repo/path', defaultBranch: 'main' }] as never;
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
 
     const outcomes = await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
 
@@ -99,7 +119,7 @@ describe('dispatchTasks — centralized fan-out (R4)', () => {
   it('a dispatchMma throw → dispatch_failed outcome, no task-link flip', async () => {
     dispatchMma.mockRejectedValueOnce(new Error('MMA dispatch to /task (investigate) failed with HTTP 500'));
     const d = detailsWith([{ kind: 'investigate', prompt: 'boom', repoId: 'repo-1' }]);
-    const db = createMockDb({ 'select:project': [{ details: d }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
 
     const outcomes = await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
 

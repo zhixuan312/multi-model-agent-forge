@@ -50,6 +50,24 @@ describe('createProject — seeding + validation', () => {
     expect(res.ok).toBe(true);
   });
 
+  it('rejects create when a repo id is not owned by the actor team', async () => {
+    // repoIds are team-scoped at load (eq(repo.teamId, actor.teamId)); a foreign/unknown
+    // id yields fewer rows than requested → create fails closed (no project row, no path bind).
+    const ownerId = 'owner-1f';
+    const mockDb = createMockDb({
+      // Requested two ids; only one belongs to the actor's team.
+      'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'insert:project': [{ id: 'proj-1f', phase: 'design', currentStage: 'exploration', ownerId }],
+    });
+
+    const res = await createProject(
+      { name: 'test-proj', visibility: 'public', repoIds: [repo1, repo2] },
+      { id: ownerId, teamId: 'team-1' },
+      { db: mockDb },
+    );
+    expect(res.ok).toBe(false);
+  });
+
   it('rejects an empty/whitespace name', async () => {
     const ownerId = 'owner-3';
     const mockDb = createMockDb({});
@@ -79,6 +97,7 @@ describe('createProject — seeding + validation', () => {
   it('allows a duplicate name (names are not unique)', async () => {
     const ownerId = 'owner-5';
     const mockDb = createMockDb({
+      'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
       'insert:project': [{ id: 'p-1' }, { id: 'p-2' }],
       'insert:project_stage': [],
       'insert:project_participant': [],
@@ -206,6 +225,28 @@ describe('mutation authorization', () => {
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId, teamId: 'team-1' }, { db: mockDb });
     expect(mockDb._assertCalled('project', 'update')).toBe(true);
+  });
+
+  it('changeRepos rejects a repo id not owned by the actor team (fewer rows returned)', async () => {
+    // The repo lookup is team-scoped (eq(repo.teamId, actor.teamId)); a foreign id is
+    // excluded, so fewer rows come back than were requested and the change is rejected —
+    // never silently dropping the foreign repo or binding its path.
+    const { buildInitialDetails } = await import('@/details/schema');
+    const projectId = 'proj-9x';
+    const ownerId = 'owner-9x';
+    const d = buildInitialDetails();
+    d.repos = [{ id: 'repo-1', name: 'old', pathOnDisk: '/tmp', defaultBranch: 'main' }];
+    const mockDb = createMockDb({
+      'select:project': seq([{ id: projectId, ownerId }], [{ details: d, detailsVersion: 0 }]),
+      // Requested two ids; only the actor-team one comes back (the foreign id is filtered out).
+      'select:workspace_repo': [{ id: 'mine', name: 'mine', pathOnDisk: '/tmp/mine', defaultBranch: 'main' }],
+      'update:project': [{ id: projectId }],
+    });
+
+    await expect(
+      changeRepos(projectId, ['mine', 'foreign-team-repo'], { id: ownerId, teamId: 'team-1' }, { db: mockDb }),
+    ).rejects.toThrow(/do not belong to your team/i);
+    expect(mockDb._assertCalled('project', 'update')).toBe(false);
   });
 });
 

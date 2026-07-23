@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
@@ -95,18 +95,28 @@ async function buildBody(
   return { prompt: `${task.prompt}\n\nBackground: ${background}` };
 }
 
-/** Resolve a task's cwd: investigate → repo path; research/journal → workspace root. */
+/**
+ * Resolve a task's cwd: investigate → repo path; research/journal → workspace root.
+ *
+ * The `targetRepoId` is client-supplied, so it is double-gated: it must be one of the
+ * project's OWN repos (`allowedRepoIds`, from details.repos) AND belong to the project's
+ * team (`eq(repo.teamId, teamId)`). Without this an investigate worker could be pointed
+ * at another team's repo directory and return its source in the exploration artifact.
+ */
 async function resolveCwd(
   db: Db,
   workspaceRoot: string,
   task: { kind: 'investigate' | 'research' | 'journal'; targetRepoId: string | null },
+  allowedRepoIds: Set<string>,
+  teamId: string,
 ): Promise<string | null> {
   if (task.kind !== 'investigate') return workspaceRoot;
   if (!task.targetRepoId) return null;
+  if (!allowedRepoIds.has(task.targetRepoId)) return null; // not in the project's repo subset
   const [r] = await db
     .select({ pathOnDisk: repo.pathOnDisk })
     .from(repo)
-    .where(eq(repo.id, task.targetRepoId))
+    .where(and(eq(repo.id, task.targetRepoId), eq(repo.teamId, teamId)))
     .limit(1);
   return r?.pathOnDisk ?? null;
 }
@@ -127,9 +137,13 @@ export async function dispatchTasks(
 
   // Read draft tasks from details
   const { validateDetails } = await import('@/details/schema');
-  const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  const [pRow] = await db.select({ details: project.details, teamId: project.teamId }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!pRow?.details) return [];
   const d = validateDetails(pRow.details);
+  // investigate targetRepoId is client-supplied — restrict it to this project's own
+  // repo subset (already team-verified at create/changeRepos) plus the project's team.
+  const allowedRepoIds = new Set((d.repos ?? []).map((r) => r.id));
+  const projectTeamId = pRow.teamId;
   const allTasks = d.stages.exploration.phases.discover.tasks;
   const drafts = allTasks
     .map((t, i) => ({ id: `task-${i}`, kind: t.kind as 'investigate' | 'research' | 'journal', title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
@@ -160,7 +174,7 @@ export async function dispatchTasks(
 
   for (const task of drafts) {
     const route = ROUTE_BY_KIND[task.kind];
-    const cwd = await resolveCwd(db, workspaceRoot, task);
+    const cwd = await resolveCwd(db, workspaceRoot, task, allowedRepoIds, projectTeamId);
     if (!cwd) {
       outcomes.push({ taskId: task.id, ok: false, reason: 'cwd_missing', message: 'No cwd for task.' });
       continue;

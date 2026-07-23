@@ -1,3 +1,9 @@
+'use client';
+
+// A client component: it uses showToast and passes an onToast handler to ExportMenu (a client
+// component). A server component may NOT pass function props to a client child — that threw
+// "Event handlers cannot be passed to Client Component props". All props from the layout are
+// serializable, so promoting this to a client component is safe.
 import Link from 'next/link';
 import { Download, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';

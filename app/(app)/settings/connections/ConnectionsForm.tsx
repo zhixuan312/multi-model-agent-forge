@@ -21,6 +21,11 @@ const CONNECTIONS_NOTE = `### Org secrets
 - **MMA** — the local engine every team runs through
 - **Speech-to-text** — optional voice transcription
 
+### Engine version
+
+- **Matched** — this Forge build targets a specific MMA version
+- **Drift** — if the running engine is newer, review the MMA changelog for the delta, adapt Forge, then bump matchedMmaVersion
+
 ### Storage
 
 - **Encrypted** — shown only as set / not set, never sent to the browser

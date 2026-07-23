@@ -52,14 +52,15 @@ export function auditTerminalLabel(baseLabel: string, passes: Array<{ passNo: nu
 }
 
 /**
- * Singleton handlers that reject concurrent dispatch of the same handler.
- * These represent unique orchestration steps that should not run in parallel.
+ * Handlers that may legitimately run in parallel for the SAME project + phase — the only
+ * intended same-handler fan-out. Multi-repo execute dispatches one `execute-pipeline` per repo
+ * concurrently (distinguished by meta.repoId). Discover fan-out is NOT here because it dispatches
+ * with `handler: null` (no phase → never guarded). Every handler NOT in this set is single per
+ * project: a second concurrent dispatch of the same handler (a double-clicked Audit / Review /
+ * Refine / Apply) is a duplicate and is refused by the G2 guard.
  */
-export const SINGLETON_HANDLERS = new Set([
-  'spec-auto-draft',
-  'explore-synthesize',
-  'plan-author',
-  'journal-harvest',
+export const FANOUT_HANDLERS = new Set([
+  'execute-pipeline',
 ]);
 
 /**

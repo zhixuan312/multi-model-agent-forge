@@ -12,7 +12,7 @@ import {
   appendBatchTerminalEvent,
   HANDLER_EVENT,
   phaseKeyForHandler,
-  SINGLETON_HANDLERS,
+  FANOUT_HANDLERS,
 } from '@/details/project-event-labels';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
@@ -261,8 +261,15 @@ export async function dispatchMma(
         .from(mmaBatch)
         .where(and(eq(mmaBatch.projectId, pid), inArray(mmaBatch.status, ['dispatched', 'running'])));
 
-      const singletonConflict = inflight.find((b) => b.handler && opts.handler && b.handler === opts.handler && SINGLETON_HANDLERS.has(opts.handler));
-      if (singletonConflict) {
+      // Same-handler conflict: a second concurrent dispatch of the SAME non-fan-out handler is a
+      // duplicate (double-clicked Audit / Review / Refine / Apply, or two teammates near-
+      // simultaneously). Refuse it. Fan-out handlers (multi-repo execute-pipeline) are exempt; the
+      // old check only caught the 4 SINGLETON_HANDLERS, letting spec-audit/plan-audit/code-review/
+      // *-apply/refine double-dispatch → two runs racing the same file + double-billing.
+      const sameHandlerConflict = inflight.find(
+        (b) => b.handler && opts.handler && b.handler === opts.handler && !FANOUT_HANDLERS.has(opts.handler),
+      );
+      if (sameHandlerConflict) {
         throw new PhaseBusyError(pid, myPhase, myPhase);
       }
 

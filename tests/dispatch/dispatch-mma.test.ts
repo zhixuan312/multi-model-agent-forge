@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { dispatchMma, findInflight, PhaseBusyError } from '@/dispatch/dispatch-helpers';
-import { appendBatchTerminalEvent, phaseKeyForHandler, SINGLETON_HANDLERS } from '@/details/project-event-labels';
+import { appendBatchTerminalEvent, phaseKeyForHandler, FANOUT_HANDLERS } from '@/details/project-event-labels';
 import { registerHandler } from '@/dispatch/handler-registry';
 import type { MmaClient } from '@/mma/client';
 import { createMockDb } from '../test-utils/mock-db';
@@ -47,6 +47,33 @@ describe('G2 — per-(project, phase) concurrency guard', () => {
       db, mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
       projectId: 'p', route: 'audit', handler: 'plan-audit', cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
     })).rejects.toBeInstanceOf(PhaseBusyError);
+  });
+
+  it('REFUSES a duplicate same-handler dispatch (double-clicked Audit) even in the same phase', async () => {
+    // in-flight spec-audit; a second spec-audit (same phase) used to be allowed → two audit runs.
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'select:ops_mma_batch': [{ handler: 'spec-audit' }],
+      'insert:ops_mma_batch': [{ id: 'row-y', createdAt: new Date() }],
+    });
+    await expect(dispatchMma({
+      db, mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
+      projectId: 'p', route: 'audit', handler: 'spec-audit', cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
+    })).rejects.toBeInstanceOf(PhaseBusyError);
+  });
+
+  it('ALLOWS a second execute-pipeline (multi-repo fan-out is exempt)', async () => {
+    // in-flight execute-pipeline for repo A; dispatching execute-pipeline for repo B must proceed.
+    const db = createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'select:ops_mma_batch': [{ handler: 'execute-pipeline' }],
+      'insert:ops_mma_batch': [{ id: 'row-z', createdAt: new Date() }],
+    });
+    const res = await dispatchMma({
+      db, mma: { dispatchAndWait: async () => ({ batchId: 'm', envelope: { error: null } }) } as unknown as MmaClient,
+      projectId: 'p', route: 'execute_plan', handler: 'execute-pipeline', cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true,
+    });
+    expect(res.batchRowId).toBe('row-z');
   });
 });
 
@@ -417,12 +444,7 @@ describe('dispatchMma activity integration', () => {
     }));
   });
 
-  it('exports the frozen singleton handler set', () => {
-    expect([...SINGLETON_HANDLERS]).toEqual([
-      'spec-auto-draft',
-      'explore-synthesize',
-      'plan-author',
-      'journal-harvest',
-    ]);
+  it('exports the fan-out handler allowlist (only multi-repo execute may run same-handler in parallel)', () => {
+    expect([...FANOUT_HANDLERS]).toEqual(['execute-pipeline']);
   });
 });

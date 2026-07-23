@@ -528,13 +528,14 @@ export class PollManager {
     const { eq } = await import('drizzle-orm');
     if (!entry.projectId) return;
     const [proj] = await this.db
-      .select({ name: project.name })
+      .select({ name: project.name, ownerId: project.ownerId })
       .from(project)
       .where(eq(project.id, entry.projectId))
       .limit(1);
     await pushDispatchFailure({
-      projectId: entry.projectId ?? undefined,
+      projectId: entry.projectId,
       projectName: proj?.name ?? '',
+      ownerId: proj?.ownerId ?? null,
       handler: entry.handler!,
       batchId: entry.batchId,
     }, this.db);

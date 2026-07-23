@@ -120,15 +120,26 @@ export async function insertNotification(n: CreateNotification, db?: Db): Promis
 export interface DispatchFailureInfo {
   projectId: string;
   projectName: string;
+  /** The project owner — the notification's recipient. */
+  ownerId: string | null;
   handler: string;
   batchId: string;
 }
 
+/**
+ * Notify the PROJECT OWNER that a batch failed. Previously this inserted a broadcast
+ * (memberId=null), and listNotifications returns broadcasts to every member of every
+ * team — so a failure on team A's project leaked its project name into team B's feed.
+ * ops_notification has no team_id column, so we scope by targeting the owner (who is
+ * on the project's team) instead of broadcasting. No owner → no notification (never
+ * fall back to a global broadcast).
+ */
 export async function pushDispatchFailure(info: DispatchFailureInfo, db?: Db): Promise<void> {
+  if (!info.ownerId) return;
   const meta = handlerMeta(info.handler);
   const parts = [info.projectName, meta.stage, meta.phase].filter(Boolean);
   await insertNotification({
-    memberId: null,
+    memberId: info.ownerId,
     kind: 'dispatch_failed',
     title: meta.activity,
     subtitle: parts.join(' · '),

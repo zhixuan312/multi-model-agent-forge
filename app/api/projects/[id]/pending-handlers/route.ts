@@ -59,8 +59,8 @@ export async function GET(
           .update(mmaBatch)
           .set({ status: 'failed', result: { error: { code: 'task_not_found', message: 'MMA task no longer exists — server restarted.' } } as object, terminalAt: new Date() })
           .where(eq(mmaBatch.id, row.id));
-        const [proj] = await db.select({ name: project.name }).from(project).where(eq(project.id, id)).limit(1);
-        await pushDispatchFailure({ projectId: id, projectName: proj?.name ?? '', handler: row.handler, batchId: row.id }, db);
+        const [proj] = await db.select({ name: project.name, ownerId: project.ownerId }).from(project).where(eq(project.id, id)).limit(1);
+        await pushDispatchFailure({ projectId: id, projectName: proj?.name ?? '', ownerId: proj?.ownerId ?? null, handler: row.handler, batchId: row.id }, db);
         projectEventBus.publish(id, {
           type: 'dispatch.failed',
           batchId: row.id,

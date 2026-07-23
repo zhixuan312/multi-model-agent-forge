@@ -286,13 +286,19 @@ export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow
   }));
 }
 
-/** Count sessions not past their absolute expiry — the "currently active" metric. */
+/**
+ * Count sessions not past their absolute expiry — the "currently active" metric.
+ * Scoped to the caller's team (join through the session's member): without the
+ * team filter a team admin's Members page showed the org-wide active-session count
+ * across every team. teamId is threaded from the page like the rest of this surface.
+ */
 export async function countActiveSessions(deps: MembersDeps = {}): Promise<number> {
   const db = deps.db ?? getDb();
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(session)
-    .where(sql`${session.expiresAt} > now()`);
+    .innerJoin(member, eq(session.memberId, member.id))
+    .where(and(sql`${session.expiresAt} > now()`, deps.teamId ? eq(member.teamId, deps.teamId) : undefined));
   return Number(row?.n ?? 0);
 }
 

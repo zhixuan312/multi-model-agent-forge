@@ -24,7 +24,7 @@ export default async function MembersPage() {
   if (!me) redirect('/login');
   if (me.role !== 'team_admin' || !me.teamId) redirect('/');
   const members = await listMembers({ teamId: me.teamId });
-  const activeSessions = await countActiveSessions();
+  const activeSessions = await countActiveSessions({ teamId: me.teamId });
 
   const rows: MemberRowData[] = members.map((m) => ({
     id: m.id,

@@ -20,7 +20,8 @@ export type PollLogEvent =
   | 'synthesize.failure'
   | 'auto_draft.failure'
   | 'handler.failed'
-  | 'settle.failed';
+  | 'settle.failed'
+  | 'details.flip_conflict';
 
 export interface PollLogRecord {
   ts: string;

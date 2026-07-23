@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { MmaClient } from '@/mma/client';
@@ -249,9 +249,14 @@ export class PollManager {
   ): Promise<void> {
     const usage = extractUsageFields(envelope);
     let effectiveState = state;
+    // Compare-and-set: only the poller that actually transitions the row out of dispatched/running
+    // runs the terminal handler, emits, and notifies. Two pollers for the same batch (multi-instance
+    // boot rehydrate, or a findInflight re-register racing an in-progress terminal) would otherwise
+    // double-run the file-writing handler and double-push the failure notification.
+    let transitioned = true;
     try {
       await this.db.transaction(async (tx) => {
-        await tx
+        const updated = await tx
           .update(mmaBatch)
           .set({
             status: state.status,
@@ -264,17 +269,26 @@ export class PollManager {
             ...(usage.cacheTokens !== null && { cacheTokens: usage.cacheTokens }),
             ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
           })
-          .where(eq(mmaBatch.id, entry.batchId));
+          .where(and(eq(mmaBatch.id, entry.batchId), inArray(mmaBatch.status, ['dispatched', 'running'])))
+          .returning({ id: mmaBatch.id });
+        if (updated.length === 0) { transitioned = false; return; } // already terminal — another poller won
 
         if (entry.taskId && entry.projectId) {
           try {
+            // markTerminal is the SOLE writer of this recorded-flip for a normal terminal, and a
+            // discover fan-out can flip many tasks near-simultaneously — a lost flip strands the
+            // task 'running' forever (synthesis only fires when ALL tasks are recorded). Raise the
+            // CAS ceiling for this hot path, and log (don't silently swallow) if it still loses so
+            // it's observable rather than a silent strand.
             await updateDetails(tx as unknown as Db, entry.projectId, (d) => {
               const task = d.stages.exploration.phases.discover.tasks.find((t) =>
                 t.attempts.some((a) => a.batchId === entry.batchId));
               if (task) task.status = 'recorded';
               return d;
-            });
-          } catch { /* details update is best-effort during poll */ }
+            }, 8);
+          } catch (flipErr) {
+            logPoll({ level: 'error', event: 'details.flip_conflict', batchId: entry.mmaBatchId, projectId: entry.projectId, detail: String(flipErr) });
+          }
         }
 
         // Call the registered on-terminal handler (if any)
@@ -320,6 +334,9 @@ export class PollManager {
         .where(eq(mmaBatch.id, entry.batchId));
       effectiveState = { status: 'failed', error: { code: 'handler_error', message: String(handlerErr) }, contextBlockId: null };
     }
+    // Another poller already processed this terminal — skip the duplicate timeline/notification/emit,
+    // just drop our tracking of it.
+    if (!transitioned) { this.deregister(entry.batchId); return; }
     // Resolve the running timeline line AFTER the terminal transaction (which may
     // itself have mutated details via the handler) so it's a clean, isolated
     // update. Duration = wall-clock from dispatch. Best-effort.

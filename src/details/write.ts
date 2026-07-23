@@ -6,18 +6,24 @@ import { reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-muta
 import { STAGE_ORDER, type StageKind, type ProjectPhase } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
-  constructor(projectId: string) {
-    super(`Optimistic lock failed for project ${projectId} after 3 retries`);
+  constructor(projectId: string, retries: number) {
+    super(`Optimistic lock failed for project ${projectId} after ${retries} retries`);
     this.name = 'DetailsVersionConflict';
   }
 }
 
+/**
+ * Optimistic (compare-and-set on detailsVersion) read-modify-write of project.details. `retries` is
+ * the CAS attempt ceiling — raise it for hot, high-contention paths (e.g. a discover fan-out where
+ * many tasks flip to `recorded` at once) so a legitimate write isn't lost to contention.
+ */
 export async function updateDetails(
   db: Db,
   projectId: string,
   mutator: (d: Details) => Details,
+  retries = 3,
 ): Promise<Details> {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < retries; attempt++) {
     const [row] = await db
       .select({ details: project.details, detailsVersion: project.detailsVersion })
       .from(project)
@@ -41,7 +47,7 @@ export async function updateDetails(
 
     if (result.length > 0) return validated;
   }
-  throw new DetailsVersionConflict(projectId);
+  throw new DetailsVersionConflict(projectId, retries);
 }
 
 /** Design (exploration·spec·plan) → build (execute·review) → learn (journal). */

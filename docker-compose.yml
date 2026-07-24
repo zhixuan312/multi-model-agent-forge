@@ -1,0 +1,100 @@
+# Forge + MMA, co-located (journal node 0028): same network, one shared workspace
+# volume, and one shared MMA home so Forge can read the bearer token MMA writes.
+#
+# Database: bring your own by default — set DATABASE_URL at a managed Postgres.
+# For a one-command demo instead, run with the optional local database:
+#   docker compose --profile postgres up
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FORGE_BUILD_GIT_SHA: ${FORGE_BUILD_GIT_SHA:-unknown}
+        FORGE_BUILD_BUILT_AT: ${FORGE_BUILD_BUILT_AT:-unknown}
+    image: ghcr.io/zhixuan312/forge:${FORGE_IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      FORGE_SECRET_KEY: ${FORGE_SECRET_KEY:?set FORGE_SECRET_KEY}
+      FORGE_WORKSPACE_ROOT: /workspace
+      MMA_BASE_URL: http://mma:7337
+
+      # Bearer resolution. Forge does not own the MMA token: it reads MMA_AUTH_TOKEN,
+      # else <MMA_HOME>/.mma/auth-token. MMA_HOME points at the shared volume that the
+      # mma service writes its token into, so the default path works with no manual
+      # step. Set MMA_AUTH_TOKEN to override with an explicit token.
+      MMA_HOME: /mma-home
+      MMA_AUTH_TOKEN: ${MMA_AUTH_TOKEN:-}
+      MMA_CLIENT: ${MMA_CLIENT:-}
+
+      # Generated MMA config. PROVIDER is the default for every tier; PROVIDER_<TIER>
+      # overrides one tier, so mixed claude/codex layouts work without mounting a
+      # config file. Each tier reads its OWN provider's key.
+      PROVIDER: ${PROVIDER:-anthropic}
+      PROVIDER_STANDARD: ${PROVIDER_STANDARD:-}
+      PROVIDER_COMPLEX: ${PROVIDER_COMPLEX:-}
+      PROVIDER_MAIN: ${PROVIDER_MAIN:-}
+      MODEL_STANDARD: ${MODEL_STANDARD:-}
+      MODEL_COMPLEX: ${MODEL_COMPLEX:-}
+      MODEL_MAIN: ${MODEL_MAIN:-}
+      BASE_URL_STANDARD: ${BASE_URL_STANDARD:-}
+      BASE_URL_COMPLEX: ${BASE_URL_COMPLEX:-}
+      BASE_URL_MAIN: ${BASE_URL_MAIN:-}
+      # Name the env var holding each tier's key. Needed for vendors that speak a
+      # standard protocol behind their own endpoint (DeepSeek, Z.ai/GLM, Kimi, MiniMax).
+      API_KEY_ENV_STANDARD: ${API_KEY_ENV_STANDARD:-}
+      API_KEY_ENV_COMPLEX: ${API_KEY_ENV_COMPLEX:-}
+      API_KEY_ENV_MAIN: ${API_KEY_ENV_MAIN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      - mma
+    networks:
+      - forge-net
+    ports:
+      - "${FORGE_PORT:-3000}:3000"
+    volumes:
+      - mma-workspace:/workspace
+      # Shared MMA home — Forge only ever READS the bearer from here.
+      - mma-home:/mma-home:ro
+
+  mma:
+    image: ${MMA_IMAGE:-ghcr.io/zhixuan312/multi-model-agent:latest}
+    environment:
+      PORT: 7337
+      # HOME drives where the engine mints ~/.mma/auth-token. Pointing it at the
+      # shared volume is what lets Forge read the same token.
+      HOME: /mma-home
+      # Same per-tier auth contract as Forge, so one .env configures both sides.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    networks:
+      - forge-net
+    ports:
+      - "${MMA_PORT:-7337}:7337"
+    volumes:
+      - mma-workspace:/workspace
+      - mma-home:/mma-home
+
+  postgres:
+    image: postgres:17
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: forge
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: forge
+    networks:
+      - forge-net
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+networks:
+  forge-net:
+    driver: bridge
+
+volumes:
+  mma-workspace:
+  mma-home:
+  postgres-data:

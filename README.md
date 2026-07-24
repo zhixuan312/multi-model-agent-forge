@@ -79,14 +79,20 @@ Forge inverts this. The system holds the knowledge, not the person. The process 
 ## Getting started
 
 ```bash
-# Prerequisites: Node >= 22, PostgreSQL, MMA server running
+# Prerequisites: Node >= 20.9.0, PostgreSQL, MMA server running
 pnpm install
-pnpm db:push          # apply schema to database
-pnpm db:seed          # seed initial data
+pnpm db:migrate
+pnpm db:seed-templates
 pnpm dev              # http://localhost:3000
 ```
 
 The MMA engine runs separately (`mma serve` on port 7337). Forge calls its `POST /task` endpoint to dispatch work.
+
+## Container bootstrap notes
+
+- Mount `~/.mma/config.json` into the container when you want a mixed-tier or pre-existing MMA config to win untouched.
+- Otherwise set `PROVIDER=anthropic` or `PROVIDER=openai` and optionally provide `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; the entrypoint generates one strict config for all three tiers.
+- OAuth mode is supported by mounting `~/.claude` and/or `~/.codex` and leaving the generated tiers keyless.
 
 ## Project structure
 

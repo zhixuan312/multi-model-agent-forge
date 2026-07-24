@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { afterEach } from 'vitest';
 import { resolveMmaClientConfig, readMmaBearer, DEFAULT_MMA_BASE_URL } from '@/mma/client-config';
 
 describe('resolveMmaClientConfig (bearer is the local mma token; never DB-stored)', () => {
@@ -71,5 +72,30 @@ describe('readMmaBearer', () => {
       if (prevHome === undefined) delete process.env.MMA_HOME;
       else process.env.MMA_HOME = prevHome;
     }
+  });
+});
+
+describe('resolveMmaClientConfig base URL precedence', () => {
+  afterEach(() => {
+    delete process.env.MMA_BASE_URL;
+  });
+
+  it('uses MMA_BASE_URL when no persisted settings row exists', () => {
+    process.env.MMA_BASE_URL = 'http://mma:7337';
+    const cfg = resolveMmaClientConfig({ settings: null, mainModel: null, bearer: 'tok' });
+    expect(cfg.baseUrl).toBe('http://mma:7337');
+  });
+
+  it('lets an explicitly persisted settings row win over the env var', () => {
+    process.env.MMA_BASE_URL = 'http://mma:7337';
+    const cfg = resolveMmaClientConfig({
+      settings: { mmaBaseUrl: 'http://elsewhere:9999' }, mainModel: null, bearer: 'tok',
+    });
+    expect(cfg.baseUrl).toBe('http://elsewhere:9999');
+  });
+
+  it('falls back to the loopback default when neither is set', () => {
+    const cfg = resolveMmaClientConfig({ settings: null, mainModel: null, bearer: 'tok' });
+    expect(cfg.baseUrl).toBe(DEFAULT_MMA_BASE_URL);
   });
 });

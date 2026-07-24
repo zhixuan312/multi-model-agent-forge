@@ -726,6 +726,12 @@
     "title": "Prefer an in-memory cache keyed by id over hand-rolled the transport layer"
   },
   {
+    "timestamp": "2026-07-24T00:00:00Z",
+    "op": "refine",
+    "id": "0037",
+    "title": "Re-record Forge RBAC reality now that team and org roles exist in production code"
+  },
+  {
     "timestamp": "2026-03-12T09:00:00Z",
     "op": "create",
     "id": "0102",

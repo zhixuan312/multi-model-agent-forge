@@ -1,4 +1,9 @@
-FROM node:20-bookworm-slim AS deps
+# Node 22 (current LTS) — satisfies engines.node >=20.9.0 and avoids shipping the
+# now-EOL Node 20. The Forge container runs only the Next app; the MMA engine is a
+# separate process reached over HTTP, so its own Node floor does not bind this image.
+
+# ---- deps: full install (dev + prod) for the build ----
+FROM node:22-bookworm-slim AS deps
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -10,7 +15,24 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-FROM node:20-bookworm-slim AS builder
+# ---- deps-prod: runtime-only node_modules (no devDeps) ----
+# tsx lives in dependencies (the entrypoint's db:migrate/db:seed-templates need it),
+# so a --prod install keeps the boot tooling while dropping vitest/eslint/typescript/
+# testing-library/etc. This is the node_modules the runner ships.
+FROM node:22-bookworm-slim AS deps-prod
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+# ---- builder ----
+FROM node:22-bookworm-slim AS builder
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -27,14 +49,14 @@ ARG FORGE_BUILD_BUILT_AT=unknown
 ENV FORGE_BUILD_GIT_SHA=$FORGE_BUILD_GIT_SHA
 ENV FORGE_BUILD_BUILT_AT=$FORGE_BUILD_BUILT_AT
 
-# Strip standalone's own traced node_modules: the runner copies the FULL pnpm
-# node_modules (needed for tsx/drizzle/postgres at db:migrate time), and overlaying
-# standalone's flattened tree onto the pnpm symlink-farm collides (real dir vs symlink,
-# e.g. puppeteer). server.js resolves fine against the full node_modules — same tree the
-# build ran against.
+# Strip standalone's own traced node_modules: the runner ships the full prod pnpm
+# tree (needed for tsx/drizzle/postgres at db:migrate time), and overlaying
+# standalone's flattened tree onto the pnpm symlink-farm collides (real dir vs
+# symlink, e.g. puppeteer). server.js resolves fine against the prod install.
 RUN pnpm build && rm -rf /app/.next/standalone/node_modules
 
-FROM node:20-bookworm-slim AS runner
+# ---- runner ----
+FROM node:22-bookworm-slim AS runner
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -42,6 +64,10 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# Non-root home + writable export root (default is <cwd>/.forge-exports, under the
+# root-owned /app; pin it to a dir we create and chown for the node user).
+ENV HOME=/home/node
+ENV FORGE_EXPORT_ROOT=/app/.forge-exports
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   chromium \
@@ -88,7 +114,7 @@ WORKDIR /app
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=deps-prod /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/scripts/container-bootstrap.mjs ./scripts/container-bootstrap.mjs
@@ -103,7 +129,19 @@ ENV FORGE_BUILD_BUILT_AT=$FORGE_BUILD_BUILT_AT
 
 RUN chmod +x ./docker/entrypoint.sh
 
+# Runtime-writable dirs for the non-root node user (parent /app is root-owned, so
+# these must be pre-created and chowned): Next's data/ISR cache and the export root.
+# The config home (~/.mma) sits under the node-owned /home/node and is made at runtime.
+RUN mkdir -p /app/.next/cache /app/.forge-exports \
+  && chown -R node:node /app/.next/cache /app/.forge-exports
+
 EXPOSE 3000
+
+USER node
+
+# Liveness on the public build-identity endpoint (Node 22 has global fetch).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["./docker/entrypoint.sh"]
 CMD ["node", "server.js"]

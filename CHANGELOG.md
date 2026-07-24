@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 First tagged, container-distributed Forge release.
 
 Image: `ghcr.io/zhixuan312/forge:0.1.0` (alias `:latest`)
-Digest (immutable release identity): _recorded below on push_
+Digest (immutable release identity): `ghcr.io/zhixuan312/forge@sha256:c38641252aa8ca788b735e5f56e08a8fb73873646bdaa5e911bf67016503f574`
 
 ### Added
 - Runtime version reporting through `GET /api/version` (`version` · `gitSha` · `builtAt`).

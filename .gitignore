@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but .env.example is the documented config CONTRACT for operators who deploy
+# the published image. It holds no secrets and MUST ship with the repo.
+!.env.example
 
 # vercel
 .vercel

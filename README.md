@@ -76,7 +76,25 @@ Forge inverts this. The system holds the knowledge, not the person. The process 
 - **Auth**: Session-based with Argon2 password hashing
 - **Time**: Asia/Singapore (UTC+8) for all scheduling and display
 
-## Getting started
+## Run the released image
+
+Forge ships as a versioned container image on GHCR — no repo checkout needed.
+
+```bash
+# with docker compose (brings up Forge + the optional postgres profile)
+FORGE_IMAGE_TAG=0.1.0 docker compose up -d          # pulls ghcr.io/zhixuan312/forge:0.1.0
+
+# or a single container against your own Postgres
+docker run -d -p 3000:3000 \
+  -e DATABASE_URL="postgres://user:pass@host:5432/forge" \
+  -e FORGE_SECRET_KEY="<32+ byte secret>" \
+  -e PROVIDER=anthropic -e ANTHROPIC_API_KEY="<key>" \
+  ghcr.io/zhixuan312/forge:0.1.0
+```
+
+The entrypoint creates the schema, runs migrations, and seeds templates on every start (idempotent), then serves on `http://localhost:3000`. Pin to a digest (`ghcr.io/zhixuan312/forge@sha256:…`, see the CHANGELOG) for an immutable deploy. See `.env.example` for the full configuration contract.
+
+## Getting started (development)
 
 ```bash
 # Prerequisites: Node >= 20.9.0, PostgreSQL, MMA server running

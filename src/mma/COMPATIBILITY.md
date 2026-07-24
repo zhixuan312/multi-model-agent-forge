@@ -1,6 +1,6 @@
 # Forge ↔ MMA engine compatibility
 
-**Matched engine version:** `5.12.0` (see `package.json#matchedMmaVersion`, wire `SCHEMA_VERSION` 6).
+**Matched engine version:** `5.13.0` (see `package.json#matchedMmaVersion`, wire `SCHEMA_VERSION` 6).
 
 Forge talks to the MMA engine over HTTP (never as a code import). This document is
 the evidence behind the "matched" version: it records the exact contract Forge speaks,
@@ -8,7 +8,7 @@ which engine capabilities Forge uses, and which it deliberately doesn't. When yo
 Forge to a newer engine, review the MMA `CHANGELOG.md` for the delta, update this matrix,
 adapt code, then bump `matchedMmaVersion`.
 
-Last full audit: 2026-07-23 (engine 5.0→5.12 reviewed route-by-route).
+Last full audit: 2026-07-24 (engine 5.0→5.13 reviewed route-by-route).
 
 ## Contract Forge speaks — verified aligned
 
@@ -23,6 +23,8 @@ Last full audit: 2026-07-23 (engine 5.0→5.12 reviewed route-by-route).
 | Findings | `weight: critical\|high\|medium\|low` (not `severity`/`confidence`) | `explore-core`, `review-findings`, `spec/audit-loop`, `ReviewStageClient` all read `f.weight` |
 | Review policy | `reviewed \| none` | `executePlan`/dispatch send only these |
 | Spec subset | `components: string[]` (5.8.7; omit = all 8) | `client.spec()` forwards `components` |
+| Journal record payload | `type:'journal_record'` with `records:[{prompt,topic}]` | Reflect dispatches chunked `records[]` payloads and loop maintenance sends the same request shape |
+| Journal topic | `topic` is an explicit per-record dimension | Forge sends repo-slug-derived topics for project learnings and `unscoped` for loop-maintenance records |
 | Context blocks | `contextBlockIds` (max 2), soft-skipped if missing | echo-only: Forge reuses the engine-minted `output.contextBlockId` as `contextBlockIds:[prevId]` on the next audit/review pass. It never calls `POST /context-blocks` and never pairs two (see deferred list) |
 | Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | reads `verified`; does NOT read `details.fieldErrors` (surfaces `error.code` only — minor UX gap) |
 | Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); `MmaClient` exposes only the primitives it actually uses — `dispatch`, `poll`, `dispatchAndWait`, `health`, `status`, `configureProvider` |
@@ -45,7 +47,6 @@ Forge's design doesn't need them. Listed so the "matched" claim is honest and co
 | `orchestrate` task type + `main` tier | 5.2.0 | Forge is the orchestrator — it drives the SDLC itself via its own stage handlers, so it never delegates a session-persistent "brain" to the engine |
 | `sessionIds` cross-call resume | 5.4.3 | Forge dispatches each stage as an independent task; it has no multi-call worker session to resume |
 | `agentTier` override | 5.6.1 | Forge relies on each type's default tier (`TYPE_REGISTRY.defaultTier`); it exposes no per-dispatch tier control |
-| journal `topic` dimension | 5.10.0 | Forge's journal is team-level and recall is unscoped today. Topic-scoped recall (e.g. per repo/project) is a **candidate enhancement**, not adopted yet — would need a decision on what the topic value is |
 | `output.reviewerNote` advisory | 5.12.0 | Forge surfaces terminal status + findings; it doesn't yet render the "reviewer unavailable" advisory note |
 | `debug` task type | — | Forge routes fixes through `orchestrate`/`delegate`; it never dispatches `debug` |
 | `POST /context-blocks` (create) + max-2 pairing | 5.7.0 | Forge only echoes an engine-minted block id between consecutive passes; it never creates a block for its own large inlined spec/plan bodies, nor pairs two blocks |

@@ -2,7 +2,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
-import { readExplorationSummary, readSpecFile, readPlanFile, journalFilePath } from '@/projects/project-files';
+import { readExplorationSummary, readSpecFile, readPlanFile } from '@/projects/project-files';
 import { getProject } from '@/projects/projects-core';
 
 export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): Promise<string> {
@@ -73,23 +73,25 @@ export async function buildHarvestPrompt(projectId: string, db: Db = getDb()): P
     sections.push(`## Audit Findings\n${auditSummaries}`);
   }
 
-  // MUST await: journalFilePath is async. Unawaited, the Promise interpolated into the prompt
-  // below renders as "[object Promise]", so the harvester is told to write to a bogus path.
-  const journalPath = await journalFilePath(projectId, db);
-
   return `Role: You are the learning harvester for Forge, a software delivery harness.
 
-Task: Analyze the project artifacts below and extract 10-20 learnings. Write them to \`${journalPath}\`.
+Task: Analyze the project artifacts below and return structured journal staging rows for Reflect.
 
 Input:
 
 ${sections.join('\n\n')}
 
 Constraints:
-- Extract learnings in TWO tiers: domain-specific and generic
-- Cover ALL 6 categories: Decision, Design, Behavior, Process, Knowledge, Style
-- Each learning: "When [situation], [action] because [reason]"
-- Include Principle, Evidence, Risk if ignored, Confidence, Tier, Source, Tags
-- Group under ## category headings, ### for each learning
-Write the file to \`${journalPath}\`.`;
+- Return JSON with a top-level \`records\` array.
+- Each record must have \`heading\`, \`body\`, and \`type\`.
+- \`type\` must be one of decision, design, behavior, process, knowledge, style.
+- Preserve the artifact order in the output array.
+- Do not write files to disk.
+
+Output format:
+{
+  "records": [
+    { "heading": "string", "body": "string", "type": "decision" }
+  ]
+}`;
 }

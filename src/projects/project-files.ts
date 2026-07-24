@@ -13,7 +13,7 @@ import { resolveProjectArtifactDir } from '@/projects/project-workspace';
  * optional `db` (defaults to the request DB; falls back to the global root when
  * the DB is unavailable). Artifacts are markdown files with YAML frontmatter.
  *
- * Files: exploration.md, spec.md, plan.md, journal.md.
+ * Files: exploration.md, spec.md, plan.md.
  */
 
 /* ── Shared frontmatter ──────────────────────────────────────────────── */
@@ -159,20 +159,3 @@ export async function writePlan(projectId: string, bodyMd: string, db?: Db): Pro
   return writeArtifact(projectId, PLAN_FILE, bodyMd, db);
 }
 
-/* ── Journal ─────────────────────────────────────────────────────── */
-
-const JOURNAL_FILE = 'journal.md';
-
-export type JournalFile = ArtifactFile;
-
-export async function journalFilePath(projectId: string, db?: Db): Promise<string> {
-  return artifactFilePath(projectId, JOURNAL_FILE, db);
-}
-
-export async function readJournalFile(projectId: string, db?: Db): Promise<JournalFile | null> {
-  return readArtifact(projectId, JOURNAL_FILE, db);
-}
-
-export async function writeJournal(projectId: string, bodyMd: string, db?: Db): Promise<{ filePath: string; version: number }> {
-  return writeArtifact(projectId, JOURNAL_FILE, bodyMd, db);
-}

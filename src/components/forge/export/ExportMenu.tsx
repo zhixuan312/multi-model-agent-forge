@@ -36,7 +36,6 @@ const ICON: Record<ExportKind, LucideIcon> = {
   exploration: Search,
   spec: FileText,
   plan: ClipboardList,
-  journal: BookOpen,
 };
 
 async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtifact[]> {

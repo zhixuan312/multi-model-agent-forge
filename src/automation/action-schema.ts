@@ -13,7 +13,8 @@ export const ACTION_KINDS = [
   // auto (executeDetailsAction switch)
   'dispatch_audit', 'apply_findings', 'approve_stage', 'advance_stage', 'advance_phase', 'reopen_stage',
   'dispatch_plan_author', 'validate_task', 'approve_task', 'dispatch_execute', 'dispatch_review',
-  'apply_review_findings', 'dispatch_harvest', 'approve_learning', 'dispatch_record', 'mark_complete',
+  'apply_review_findings', 'dispatch_harvest', 'approve_learning', 'edit_learning', 'remove_learning',
+  'dispatch_record', 'mark_complete',
   // Design-phase + cross-cutting (Task 8b)
   'propose_discover_tasks', 'run_discover_tasks', 'dispatch_synthesize', 'approve_component',
   'start_auto', 'take_over',

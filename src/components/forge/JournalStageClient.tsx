@@ -12,6 +12,8 @@ import {
   Lock,
   NotebookPen,
   BookOpen,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { AutomationBar } from '@/components/forge/AutomationBar';
@@ -147,7 +149,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
       .finally(() => { harvestFiredRef.current = false; setHarvestingLocal(false); });
   }
 
-  // Auto-trigger harvest when no journal.md exists (like plan auto-triggers author-plan)
+  // Auto-trigger harvest when the project has no harvested rows yet (like plan auto-triggers author-plan)
   useEffect(() => {
     if (!shouldAutoHarvest) return;
     runHarvest();
@@ -179,6 +181,37 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const [completing, setCompleting] = useState(false);
   const optimistic = useOptimisticAction();
 
+  // Curate a project_journal row: edit (heading + body) / remove. Both target the
+  // row by id and are only offered while the row is not yet `recorded` (immutable).
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+  function startEdit() {
+    if (!active) return;
+    setEditTitle(active.title);
+    setEditBody(active.body);
+    setEditing(true);
+  }
+  function saveEdit() {
+    if (!active) return;
+    const rowId = active.id;
+    const heading = editTitle.trim();
+    const body = editBody.trim();
+    if (!heading || !body) return;
+    setEditing(false);
+    void mma.transition('edit_learning', { rowId, heading, body })
+      .then(() => router.refresh())
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t save the edit — try again.' }); });
+  }
+  function removeLearning() {
+    if (!active) return;
+    const rowId = active.id;
+    const nextId = props.learnings.find((l) => l.id !== rowId)?.id ?? '';
+    void mma.transition('remove_learning', { rowId })
+      .then(() => { setEditing(false); setActiveId(nextId); router.refresh(); })
+      .catch(() => { showToast({ type: 'error', message: 'Couldn’t remove — try again.' }); });
+  }
+
   // Category groups for right panel
   const categories = useMemo(() => {
     const cats = new Map<string, JournalLearningView[]>();
@@ -193,10 +226,9 @@ export function JournalStageClient(props: JournalStageClientProps) {
   function toggleApprove() {
     if (!active || isApproved) return; // approvals are monotonic (approve_learning is one-way)
     const id = active.id;
-    const learningIndex = active.num - 1;
     void optimistic.run({
       apply: () => setLocalOverrides((o) => ({ ...o, [id]: 'kept' })),
-      commit: () => mma.transition('approve_learning', { learningIndex }),
+      commit: () => mma.transition('approve_learning', { rowId: id }),
       rollback: () => setLocalOverrides((o) => { const n = { ...o }; delete n[id]; return n; }),
       onSettled: () => { setLocalOverrides({}); router.refresh(); },
       error: 'Couldn’t approve — reverted.',
@@ -357,7 +389,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                     for (const l of pending) next[l.id] = 'kept';
                     return next;
                   }),
-                  commit: () => Promise.all(pending.map((l) => mma.transition('approve_learning', { learningIndex: l.num - 1 }))),
+                  commit: () => Promise.all(pending.map((l) => mma.transition('approve_learning', { rowId: l.id }))),
                   rollback: () => setLocalOverrides((o) => {
                     const next = { ...o };
                     for (const l of pending) delete next[l.id];
@@ -429,23 +461,60 @@ export function JournalStageClient(props: JournalStageClientProps) {
             <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
           </>
         }
-        title={active.title}
+        title={
+          editing ? (
+            <input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full rounded-[var(--r)] border border-line bg-surface px-3 py-1.5 text-sm font-semibold text-ink"
+              placeholder="Learning heading"
+            />
+          ) : (
+            active.title
+          )
+        }
         body={
-          <ProseBlock>
-            {active.body}
-          </ProseBlock>
+          editing ? (
+            <textarea
+              value={editBody}
+              onChange={(e) => setEditBody(e.target.value)}
+              rows={12}
+              className="w-full flex-1 resize-none rounded-[var(--r)] border border-line bg-surface px-3 py-2 font-mono text-sm text-ink"
+              placeholder="The learning, in the team's own words — this is what gets recorded to the journal."
+            />
+          ) : (
+            <ProseBlock>
+              {active.body}
+            </ProseBlock>
+          )
         }
         actions={
-          isApproved ? (
-            // Approvals are monotonic (approve_learning is one-way) — show a static
-            // confirmed state, not a Revoke affordance the model cannot honor.
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
-              <Check className="size-4 text-accent" /> Approved
+          editing ? (
+            <span className="flex items-center gap-2">
+              <Button size="sm" onClick={saveEdit} variant="primary" disabled={!editTitle.trim() || !editBody.trim()}>Save</Button>
+              <Button size="sm" onClick={() => setEditing(false)} variant="ghost">Cancel</Button>
             </span>
           ) : (
-            <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
-              Approve
-            </Button>
+            <span className="flex items-center gap-2">
+              {/* Curate controls — hidden once the row is recorded (immutable) or read-only. */}
+              {status[active.id] !== 'recorded' && !readOnly ? (
+                <>
+                  <Button size="sm" onClick={startEdit} variant="ghost" leftIcon={<Pencil />}>Edit</Button>
+                  <Button size="sm" onClick={removeLearning} variant="ghost" leftIcon={<Trash2 />}>Remove</Button>
+                </>
+              ) : null}
+              {isApproved ? (
+                // Approvals are monotonic (approve_learning is one-way) — show a static
+                // confirmed state, not a Revoke affordance the model cannot honor.
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
+                  <Check className="size-4 text-accent" /> Approved
+                </span>
+              ) : (
+                <Button size="sm" onClick={toggleApprove} disabled={readOnly} variant="primary" leftIcon={<Check />}>
+                  Approve
+                </Button>
+              )}
+            </span>
           )
         }
       />

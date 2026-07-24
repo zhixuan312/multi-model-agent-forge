@@ -64,13 +64,13 @@ describe('loadProjectSummary', () => {
       { id: 't1', title: 'Task 1', status: 'approved', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
       { id: 't2', title: 'Task 2', status: 'approved', approvals: ['m1'], attempts: [], reviewPolicy: 'reviewed' },
     ];
-    d.stages.journal.phases.journal.learnings = [
-      { heading: 'L1', type: 'decision', status: 'recorded' },
-      { heading: 'L2', type: 'insight', status: 'recorded' },
-    ];
-
+    // Recorded learnings now live in project_journal (FR-13), not details.
     const mockDb = createMockDb({
       'select:project': [{ name: 'Demo', createdAt: new Date('2026-06-01'), completedAt: null, details: d }],
+      'select:project_journal': [
+        { type: 'decision', status: 'recorded' },
+        { type: 'insight', status: 'recorded' },
+      ],
       'select:ops_mma_batch': [
         { status: 'done', costUsd: '0.05', savedVsMainUsd: '0.02', inputTokens: 1000, outputTokens: 500, durationMs: 3000 },
         { status: 'done', costUsd: '0.03', savedVsMainUsd: '0.01', inputTokens: 800, outputTokens: 300, durationMs: 2000 },

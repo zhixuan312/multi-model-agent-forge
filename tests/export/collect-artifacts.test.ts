@@ -18,20 +18,17 @@ const SPEC_BODY = '## 01. Context\nbody one\n\n## 03. Technical design\nbody thr
 
 /* Mock readSpecFile (sync) — collect-artifacts uses the sync variant for spec. */
 const readSpecFileMock = vi.fn<(id: string) => import('@/projects/project-files').SpecFile | null>();
-const readJournalFileMock = vi.fn<(id: string) => import('@/projects/project-files').JournalFile | null>();
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/projects/project-files')>();
   return {
     ...orig,
     readSpecFile: (...args: [string]) => readSpecFileMock(...args),
-    readJournalFile: (...args: [string]) => readJournalFileMock(...args),
   };
 });
 
 beforeEach(() => {
   readSpecFileMock.mockReset();
-  readJournalFileMock.mockReset();
 });
 
 afterAll(() => {
@@ -58,26 +55,10 @@ describe('collect-artifacts — ready/pending (Key flow A)', () => {
     const byKind = Object.fromEntries(menu.map((m) => [m.kind, m]));
     expect(byKind.spec.ready).toBe(true);
     expect(byKind.spec.version).toBe(1);
-    expect(byKind.journal.ready).toBe(false);
     expect(byKind.exploration.ready).toBe(false);
     expect(byKind.plan.ready).toBe(false);
-  });
-
-  it('journal file present ⇒ journal ready', async () => {
-    const projectId = 'proj-1';
-    const ownerId = 'member-1';
-    readSpecFileMock.mockReturnValue(null);
-    readJournalFileMock.mockReturnValue({ bodyMd: '# Journal', version: 1, updatedAt: '' });
-    const db = createMockDb({
-      'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'learn' }],
-        [{ ownerId, visibility: 'public', phase: 'learn' }],
-      ),
-      'select:project_audit_pass': [],
-      'select:project_participant': [],
-    });
-    const menu = await collectMenu(projectId, { id: ownerId, teamId: 'team-1' }, { db });
-    expect(menu.find((m) => m.kind === 'journal')!.ready).toBe(true);
+    // journal is no longer an exportable artifact — it must not appear in the menu.
+    expect(byKind.journal).toBeUndefined();
   });
 });
 
@@ -219,14 +200,13 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
     );
   });
 
-  it('collectReadyArtifacts returns ready ones in exploration→spec→plan→journal order (F20)', async () => {
+  it('collectReadyArtifacts returns ready ones in exploration→spec→plan order (F20)', async () => {
     const projectId = 'test-export-ready';
     const ownerId = 'member-1';
     const specStageId = 'stage-1';
     const { writeExplorationSummary } = await import('@/projects/project-files');
     await writeExplorationSummary(projectId, '## Background\n\nExploration content');
     readSpecFileMock.mockReturnValue(null);
-    readJournalFileMock.mockReturnValue(null);
     const db = createMockDb({
       'select:project_participant': [{ memberId: ownerId }],
       'select:project': seq(
@@ -271,23 +251,4 @@ describe('md-export + review adapter (F19/F25)', () => {
     expect(md.startsWith('# Custom report')).toBe(true);
   });
 
-  it('collectArtifact(journal) returns journal file content', async () => {
-    const projectId = 'proj-1';
-    const ownerId = 'member-1';
-    readSpecFileMock.mockReturnValue(null);
-    readJournalFileMock.mockReturnValue({ bodyMd: '# Journal\n\nTeam learnings', version: 1, updatedAt: '' });
-    const db = createMockDb({
-      'select:project_participant': [{ memberId: ownerId }],
-      'select:project': seq(
-        [{ ownerId, visibility: 'public', phase: 'learn' }],
-        [{ ownerId, visibility: 'public', phase: 'learn' }],
-      ),
-      'select:team_member': [{ displayName: 'Owner' }],
-      'select:project_stage': [{ id: 'stage-1' }],
-      'select:project_component': [],
-      'select:project_audit_pass': [],
-    });
-    const c = await collectArtifact(projectId, 'journal', { id: ownerId, teamId: 'team-1' }, { db });
-    expect(c.bodyMd).toContain('Journal');
-  });
 });

@@ -57,11 +57,12 @@ beforeEach(() => {
 const SPEC_BODY = '## 01. Context\nctx\n\n## 03. Technical design\ntech';
 
 describe('route helpers — kind validation (F27)', () => {
-  it('accepts the four kinds, rejects exploration_brief + junk', () => {
+  it('accepts the three kinds, rejects exploration_brief + junk', () => {
     expect(parseExportKind('spec')).toBe('spec');
     expect(parseExportKind('exploration')).toBe('exploration');
     expect(parseExportKind('plan')).toBe('plan');
-    expect(parseExportKind('journal')).toBe('journal');
+    // journal is no longer an exportable kind — it must be rejected.
+    expect(parseExportKind('journal')).toBeNull();
     expect(parseExportKind('exploration_brief')).toBeNull();
     expect(parseExportKind('nope')).toBeNull();
   });
@@ -128,7 +129,7 @@ describe('GET /export/artifacts (Key flow A)', () => {
     const body = await res.json();
     const byKind = Object.fromEntries(body.artifacts.map((a: { kind: string }) => [a.kind, a]));
     expect(byKind.spec.ready).toBe(true);
-    expect(byKind.journal.ready).toBe(false);
+    expect(byKind.journal).toBeUndefined();
   });
 
   it('403 for a non-collaborator on a private project', async () => {

@@ -5,7 +5,6 @@ import {
   readExplorationFile,
   readSpecFile,
   readPlanFile,
-  readJournalFile,
 } from '@/projects/project-files';
 
 export interface DownloadResult {
@@ -21,7 +20,7 @@ export class ArtifactNotFoundError extends Error {
   }
 }
 
-type DownloadableKind = 'exploration' | 'spec' | 'plan' | 'journal';
+type DownloadableKind = 'exploration' | 'spec' | 'plan';
 
 async function readArtifactFile(projectId: string, kind: DownloadableKind, db?: Db): Promise<{ bodyMd: string; version: number } | null> {
   if (kind === 'exploration') {
@@ -34,10 +33,6 @@ async function readArtifactFile(projectId: string, kind: DownloadableKind, db?: 
   }
   if (kind === 'plan') {
     const file = await readPlanFile(projectId, db);
-    return file ? { bodyMd: file.bodyMd, version: file.version } : null;
-  }
-  if (kind === 'journal') {
-    const file = await readJournalFile(projectId, db);
     return file ? { bodyMd: file.bodyMd, version: file.version } : null;
   }
   return null;

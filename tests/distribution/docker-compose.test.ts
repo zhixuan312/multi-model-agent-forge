@@ -4,29 +4,28 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('docker-compose topology', () => {
-  it('runs forge and mma on one network with one shared workspace volume', () => {
+  it('runs a single all-in-one forge service with a workspace-base volume', () => {
     const compose = readFileSync(join(process.cwd(), 'docker-compose.yml'), 'utf8');
 
     expect(compose).toContain('forge:');
-    expect(compose).toContain('mma:');
     expect(compose).toContain('forge-net:');
-    expect(compose).toContain('mma-workspace:');
-    expect(compose).toContain('- mma-workspace:/workspace');
-    expect(compose).toContain('FORGE_WORKSPACE_ROOT: /workspace');
+    expect(compose).toContain('forge-workspace:');
+    expect(compose).toContain('- forge-workspace:/workspace');
     expect(compose).toContain('DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}');
+    // No separate MMA service — the engine is bundled inside the forge image.
+    expect(compose).not.toMatch(/^ {2}mma:/m);
   });
 
-  it('gives Forge a working MMA bearer source', () => {
-    // Forge resolves the bearer from MMA_AUTH_TOKEN, else <MMA_HOME>/.mma/auth-token.
-    // Without one of those the whole topology fails at the first MMA call with
-    // "MMA bearer not found", so the shared mma-home volume is load-bearing.
+  it('bundles the MMA engine — no separate service or external bearer/URL wiring', () => {
+    // The engine runs on loopback inside the container and writes its bearer to the
+    // baked MMA_HOME (/home/node); reachability, token, and workspace file identity are
+    // all internal, so the compose sets no MMA_BASE_URL / MMA_HOME / MMA_AUTH_TOKEN and
+    // mounts no shared mma-home volume.
     const compose = readFileSync(join(process.cwd(), 'docker-compose.yml'), 'utf8');
 
-    expect(compose).toContain('MMA_HOME: /mma-home');
-    expect(compose).toContain('MMA_AUTH_TOKEN: ${MMA_AUTH_TOKEN:-}');
-    expect(compose).toContain('mma-home:/mma-home:ro'); // forge reads
-    expect(compose).toContain('- mma-home:/mma-home'); // mma writes
-    expect(compose).toContain('HOME: /mma-home'); // makes mma mint the token there
+    expect(compose).not.toContain('MMA_BASE_URL');
+    expect(compose).not.toContain('MMA_AUTH_TOKEN');
+    expect(compose).not.toContain('mma-home');
   });
 
   it('passes the full per-tier provider contract through to the container', () => {

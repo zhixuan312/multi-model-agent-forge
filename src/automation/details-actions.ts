@@ -2,6 +2,7 @@ import { relative } from 'node:path';
 import { eq, and, inArray, sql, asc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
+import { projectJournal } from '@/db/schema/project-journal';
 import { mmaBatch } from '@/db/schema/ops';
 import { qaMessage } from '@/db/schema/spec';
 import { specFilePath, planFilePath, readSpecFile, backupArtifact } from '@/projects/project-files';
@@ -24,6 +25,8 @@ import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } fr
 import type { AutoAction } from '@/automation/details-resolver';
 import { member } from '@/db/schema/identity';
 import { recordActivity } from '@/activity/project-activity';
+import { buildJournalRecordChunks } from '@/journal/journal-record-request';
+import { assertMutableJournalStatus } from '@/journal/project-journal-topic';
 
 /** Outcome of an action: `inflight` means an MMA batch for this (project, handler)
  * is already dispatched/running, so the driver must WAIT rather than record a step. */
@@ -488,24 +491,68 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     }
 
     case 'approve_learning': {
-      const idx = action.data?.learningIndex as number;
-      await updateDetails(db, projectId, (d) => {
-        if (d.stages.journal.phases.journal.learnings[idx]) {
-          d.stages.journal.phases.journal.learnings[idx].status = 'kept';
-        }
-        return d;
-      });
+      const rowId = action.data?.rowId as string | undefined;
+      if (!rowId) break;
+      const [row] = await db.select().from(projectJournal)
+        .where(and(eq(projectJournal.projectId, projectId), eq(projectJournal.id, rowId)))
+        .limit(1);
+      if (!row) break;
+      assertMutableJournalStatus(row.status);
+      await db.update(projectJournal).set({
+        status: 'kept',
+        updatedAt: new Date(),
+      }).where(eq(projectJournal.id, row.id));
+      projectEventBus.publish(projectId, { type: 'journal.updated', rowId, status: 'kept' });
+      break;
+    }
+
+    case 'edit_learning': {
+      const rowId = action.data?.rowId as string | undefined;
+      const heading = action.data?.heading as string | undefined;
+      const body = action.data?.body as string | undefined;
+      if (!rowId || !heading || !body) break;
+      const [row] = await db.select().from(projectJournal)
+        .where(and(eq(projectJournal.projectId, projectId), eq(projectJournal.id, rowId)))
+        .limit(1);
+      if (!row) break;
+      assertMutableJournalStatus(row.status);
+      await db.update(projectJournal).set({
+        heading,
+        body,
+        updatedAt: new Date(),
+      }).where(eq(projectJournal.id, row.id));
+      projectEventBus.publish(projectId, { type: 'journal.updated', rowId, status: row.status });
+      break;
+    }
+
+    case 'remove_learning': {
+      const rowId = action.data?.rowId as string | undefined;
+      if (!rowId) break;
+      const [row] = await db.select().from(projectJournal)
+        .where(and(eq(projectJournal.projectId, projectId), eq(projectJournal.id, rowId)))
+        .limit(1);
+      if (!row) break;
+      assertMutableJournalStatus(row.status);
+      await db.update(projectJournal).set({
+        status: 'removed',
+        updatedAt: new Date(),
+      }).where(eq(projectJournal.id, row.id));
+      projectEventBus.publish(projectId, { type: 'journal.updated', rowId, status: 'removed' });
       break;
     }
 
     case 'dispatch_record': {
-      const { buildRecordPrompt } = await import('@/journal/record-prompt');
-      const prompt = await buildRecordPrompt(projectId, db);
-      await dispatchMma({
-        db, mma, projectId, route: 'journal_record', handler: 'journal-record', cwd,
-        body: { prompt },
-        actorId: FORGE_MEMBER_ID, await: true,
-      });
+      const keptRows = await db.select().from(projectJournal)
+        .where(and(eq(projectJournal.projectId, projectId), eq(projectJournal.status, 'kept')))
+        .orderBy(asc(projectJournal.seq));
+      const chunks = buildJournalRecordChunks(keptRows);
+      for (const chunk of chunks) {
+        await dispatchMma({
+          db, mma, projectId, route: 'journal_record', handler: 'journal-record', cwd,
+          body: chunk.body,
+          actorId: FORGE_MEMBER_ID, await: true,
+        });
+      }
       break;
     }
 

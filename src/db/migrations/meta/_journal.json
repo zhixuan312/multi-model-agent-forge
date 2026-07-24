@@ -127,6 +127,13 @@
       "when": 1784900000000,
       "tag": "0017_restore_project_denorm_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784952000000,
+      "tag": "0018_project_journal",
+      "breakpoints": true
     }
   ]
 }

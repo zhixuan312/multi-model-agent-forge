@@ -17,7 +17,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
-import { readExplorationSummary, readSpecFile, readPlanFile, readJournalFile } from '@/projects/project-files';
+import { readExplorationSummary, readSpecFile, readPlanFile } from '@/projects/project-files';
 import { project } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
@@ -26,13 +26,12 @@ import type { CoverMeta, ExportKind, SectionHeaderMap } from '@/export/types';
 
 export type { ExportKind };
 
-const DELIVERABLE_KINDS: ExportKind[] = ['exploration', 'spec', 'plan', 'journal'];
+const DELIVERABLE_KINDS: ExportKind[] = ['exploration', 'spec', 'plan'];
 
 const KIND_LABEL: Record<ExportKind, string> = {
   exploration: 'Exploration',
   spec: 'Specification',
   plan: 'Plan',
-  journal: 'Journal',
 };
 
 /** One row in the `Export ▾` menu model (Key flow A). */
@@ -57,7 +56,7 @@ function pad2(n: number): string {
 /** Latest artifact for a deliverable kind. All read from physical files. */
 async function latestArtifact(
   projectId: string,
-  kind: 'exploration' | 'spec' | 'plan' | 'journal',
+  kind: 'exploration' | 'spec' | 'plan',
   db?: Db,
 ): Promise<{ id: string; bodyMd: string; version: number } | null> {
   if (kind === 'exploration') {
@@ -68,15 +67,8 @@ async function latestArtifact(
     const file = await readSpecFile(projectId, db);
     return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
   }
-  if (kind === 'plan') {
-    const file = await readPlanFile(projectId, db);
-    return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
-  }
-  if (kind === 'journal') {
-    const file = await readJournalFile(projectId, db);
-    return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
-  }
-  return null;
+  const file = await readPlanFile(projectId, db);
+  return file ? { id: projectId, bodyMd: file.bodyMd, version: file.version } : null;
 }
 
 /** Count clean spec audit passes from details. */

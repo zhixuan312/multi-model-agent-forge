@@ -29,7 +29,6 @@ const KICKER: Record<ExportKind, string> = {
   spec: 'Specification · Forge',
   exploration: 'Exploration · Forge',
   plan: 'Plan · Forge',
-  journal: 'Journal · Forge',
 };
 
 /** The cover kicker for a kind (F10): `Specification · Forge`, etc. */

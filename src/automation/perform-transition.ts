@@ -131,6 +131,10 @@ export async function performTransition(db: Db, projectId: string, input: Action
     },
   };
 
+  if (['approve_learning', 'edit_learning', 'remove_learning'].includes(action.kind) && !action.data?.rowId) {
+    throw new TransitionRejected('journal row id is required');
+  }
+
   // GATE 3 — single-flight lease. Advancing / MMA-dispatching actions are rejected
   // while a FRESH FOREIGN lease is held (another driver/transition in flight). The
   // auto driver holds a persistent lease + heartbeat (driveProject), so a second

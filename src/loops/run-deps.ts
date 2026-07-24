@@ -293,30 +293,14 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
     record: async (_repo, entries, loopRunId) => {
       try {
         const mma = await buildMmaClient({ db });
-        const text = entries.map((e) => `- [${e.tag}] ${e.text}`).join('\n');
         const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);
-        const prompt = `Role: You are the journal recorder for Forge, a software delivery harness. You write team learnings as durable journal nodes.
-
-Task: Record each learning below as a separate node in the team journal at .mma/journal/.
-
-Context: These learnings were captured from a maintenance loop run. Each has a tag (learned/missed/avoided) and an actionable insight.
-
-Input:
-
-${text}
-
-Constraints:
-- Record each learning as a separate journal node
-- Frame the title as "When [situation], [action] because [reason]" when possible
-- Include Context (what happened) and Consequences (what to do differently) sections
-- Tag "learned" → status: adopted; "missed" → status: adopted (with a note on what was missed); "avoided" → status: adopted
-- Link related nodes when the learning references prior decisions
-
-Output format:
-Write each node to .mma/journal/ using the journal_record tool. Each node must have OKF frontmatter (id, title, type, status: adopted, tags, timestamp, description) and body (## Context + ## Consequences).`;
+        const body = {
+          type: 'journal_record' as const,
+          records: entries.map((entry) => ({ prompt: entry.text, topic: 'unscoped' })),
+        };
         await dispatchMma({
           db, mma, projectId: null, route: 'journal_record', handler: null, label: 'loop-journal',
-          cwd: workspaceRoot, body: { prompt },
+          cwd: workspaceRoot, body,
           actorId: null, loopRunId, await: true,
         });
       } catch {

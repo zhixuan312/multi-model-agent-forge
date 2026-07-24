@@ -3,6 +3,7 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { projectActivity } from '@/db/schema/activity';
+import { projectJournal } from '@/db/schema/project-journal';
 import { readSpecFile, readPlanFile } from '@/projects/project-files';
 import { validateDetails } from '@/details/schema';
 import { mapActivityRowToEvent, type ProjectActivityEvent } from '@/activity/project-activity';
@@ -132,7 +133,11 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
       auditPasses.push({ scope: 'plan', passNo: p.passNo, status: p.status });
     }
     tasks = d.stages.plan.phases.refine.tasks.map((t) => ({ status: t.status }));
-    learnings = d.stages.journal.phases.journal.learnings;
+    // Recorded learnings now live in the project_journal table, not details (FR-13).
+    learnings = await db
+      .select({ type: projectJournal.type, status: projectJournal.status })
+      .from(projectJournal)
+      .where(eq(projectJournal.projectId, projectId));
   }
 
   const recorded = learnings.filter((l) => l.status === 'recorded');

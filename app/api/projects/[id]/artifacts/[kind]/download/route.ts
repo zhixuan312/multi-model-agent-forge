@@ -4,7 +4,7 @@ import { projectActorFromMember } from '@/auth/team-scope';
 import { downloadStageArtifact, ArtifactNotFoundError } from '@/build/export-download';
 import { ProjectAccessError } from '@/projects/projects-core';
 
-const DOWNLOADABLE_KINDS = ['exploration', 'spec', 'plan', 'journal'] as const;
+const DOWNLOADABLE_KINDS = ['exploration', 'spec', 'plan'] as const;
 type DownloadableKind = (typeof DOWNLOADABLE_KINDS)[number];
 
 export const runtime = 'nodejs';

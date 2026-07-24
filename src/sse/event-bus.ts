@@ -27,6 +27,8 @@ export type ProjectEvent =
       error: { code: string; message: string };
     }
   | { type: 'synthesis.updated'; artifactId: string; version: number }
+  // ── Reflect journal-row events (project_journal staging table) ────────────
+  | { type: 'journal.updated'; rowId: string; status: 'proposed' | 'kept' | 'removed' | 'recorded' }
   // ── Spec 7 build-monitor events (all project-scoped) ──────────────────────
   | {
       type: 'plan.authored';

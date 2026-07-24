@@ -15,8 +15,7 @@ function artifacts(over: Partial<Record<string, Partial<ExportMenuArtifact>>> = 
   const base: ExportMenuArtifact[] = [
     { kind: 'exploration', label: 'Exploration summary', ready: true, version: 1, lockedAudited: false },
     { kind: 'spec', label: 'Specification', ready: true, version: 1, lockedAudited: false },
-    { kind: 'plan', label: 'Plan', ready: true, version: 1, lockedAudited: false },
-    { kind: 'journal', label: 'Journal', ready: false, version: null, lockedAudited: false },
+    { kind: 'plan', label: 'Plan', ready: false, version: null, lockedAudited: false },
   ];
   return base.map((a) => ({ ...a, ...(over[a.kind] ?? {}) }));
 }
@@ -27,20 +26,22 @@ beforeEach(() => {
 });
 
 describe('ExportMenu (test 12, F10)', () => {
-  it('renders four artifact rows + the Bundle row; pending row is dimmed + disabled', async () => {
+  it('renders the three artifact rows + the Bundle row; pending row is dimmed + disabled', async () => {
     render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
     fireEvent.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByTestId('export-row-spec'));
 
+    // journal is no longer an exportable artifact — only exploration/spec/plan.
     expect(screen.getByTestId('export-row-exploration')).toBeInTheDocument();
     expect(screen.getByTestId('export-row-spec')).toBeInTheDocument();
     expect(screen.getByTestId('export-row-plan')).toBeInTheDocument();
+    expect(screen.queryByTestId('export-row-journal')).toBeNull();
     expect(screen.getByTestId('export-bundle')).toBeInTheDocument();
 
-    // pending journal row is dimmed + aria-disabled
-    const reviewRow = screen.getByTestId('export-row-journal');
-    expect(reviewRow).toHaveAttribute('aria-disabled', 'true');
-    expect(reviewRow.className).toContain('opacity-[.55]');
+    // the pending row (plan, not-ready) is dimmed + aria-disabled
+    const pendingRow = screen.getByTestId('export-row-plan');
+    expect(pendingRow).toHaveAttribute('aria-disabled', 'true');
+    expect(pendingRow.className).toContain('opacity-[.55]');
     expect(screen.getByText('pending')).toBeInTheDocument();
   });
 

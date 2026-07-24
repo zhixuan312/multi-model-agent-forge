@@ -20,47 +20,44 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
  * approval — it only ever sets a learning to 'kept', matching the resolver, which
  * never un-approves.
  */
-function journalWithLearning(status: 'proposed' | 'kept'): Details {
-  const d = buildInitialDetails();
-  d.stages.spec.status = 'done';
-  d.stages.plan.status = 'done';
-  d.stages.execute.status = 'done';
-  d.stages.review.status = 'done';
-  d.stages.journal.status = 'active';
-  d.stages.journal.phases.journal.status = 'active';
-  d.stages.journal.phases.journal.learnings = [{ heading: 'Prefer X over Y', type: 'decision', status }];
-  return d;
-}
+// approve/edit/remove now operate on a `project_journal` row (by `rowId`), not the
+// legacy details-array learnings. The mutable-status guard rejects recorded/removed rows.
+const journalRow = (status: 'proposed' | 'kept' | 'removed' | 'recorded') => ({
+  id: 'row-1', projectId: 'p', heading: 'Prefer X over Y', body: 'Prefer X over Y because…',
+  type: 'decision', topic: 'multi-model-agent-forge', status, seq: 0,
+});
 
-function writtenDetails(db: ReturnType<typeof createMockDb>): Details {
-  const setCall = db._callsFor('project').find((c) => c.method === 'set');
-  return (setCall!.args[0] as { details: Details }).details;
-}
-
-describe('executeDetailsAction — approve_learning (monotonic, behavioral)', () => {
-  const action = {
-    kind: 'approve_learning', note: '', stage: 'journal', phase: 'journal', data: { learningIndex: 0 },
+describe('executeDetailsAction — journal-row transitions (project_journal)', () => {
+  const approve = {
+    kind: 'approve_learning', note: '', stage: 'journal', phase: 'journal', data: { rowId: 'row-1' },
   } as unknown as AutoAction;
 
   beforeEach(() => recordActivity.mockClear());
 
-  it('sets the learning status to kept and returns ok', async () => {
+  it('approve_learning sets the row status to kept and returns ok', async () => {
     const db = createMockDb({
-      'select:project': [{ details: journalWithLearning('proposed'), detailsVersion: 1 }],
-      'update:project': [{ id: 'p' }],
+      'select:project_journal': [journalRow('proposed')],
+      'update:project_journal': [{ id: 'row-1' }],
     });
-    const result = await executeDetailsAction('p', action, db);
+    const result = await executeDetailsAction('p', approve, db);
     expect(result).toBe('ok');
-    expect(writtenDetails(db).stages.journal.phases.journal.learnings[0].status).toBe('kept');
+    expect(db._assertCalled('project_journal', 'update')).toBe(true);
   });
 
-  it('is idempotent — re-approving an already-kept learning leaves it kept (one-way)', async () => {
+  it('is idempotent — re-approving an already-kept row stays kept (kept is still mutable)', async () => {
     const db = createMockDb({
-      'select:project': [{ details: journalWithLearning('kept'), detailsVersion: 1 }],
-      'update:project': [{ id: 'p' }],
+      'select:project_journal': [journalRow('kept')],
+      'update:project_journal': [{ id: 'row-1' }],
     });
-    await executeDetailsAction('p', action, db);
-    expect(writtenDetails(db).stages.journal.phases.journal.learnings[0].status).toBe('kept');
+    const result = await executeDetailsAction('p', approve, db);
+    expect(result).toBe('ok');
+    expect(db._assertCalled('project_journal', 'update')).toBe(true);
+  });
+
+  it('rejects mutating a recorded row (FR-7 — recorded rows are immutable)', async () => {
+    const db = createMockDb({ 'select:project_journal': [journalRow('recorded')] });
+    await expect(executeDetailsAction('p', approve, db)).rejects.toThrow(/recorded/i);
+    expect(db._assertCalled('project_journal', 'update')).toBe(false);
   });
 });
 

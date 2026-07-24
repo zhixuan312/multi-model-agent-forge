@@ -57,6 +57,52 @@ describe('container MMA config generation', () => {
     expect(cfg.agents.main.apiKeyEnv).toBe('ANTHROPIC_API_KEY');
   });
 
+  it('supports third-party vendors that speak a standard protocol behind their own endpoint+key', () => {
+    // `type: claude` is a WIRE PROTOCOL, not a vendor. DeepSeek, Z.ai/GLM, Kimi and
+    // MiniMax all expose Anthropic-compatible APIs, so they are `claude` tiers with a
+    // custom baseUrl and their own key env var. This is the real-world config shape.
+    const cfg = buildGeneratedConfig('claude', {
+      MODEL_STANDARD: 'MiniMax-M3',
+      BASE_URL_STANDARD: 'https://api.minimax.io/anthropic',
+      API_KEY_ENV_STANDARD: 'MINIMAX_API_KEY',
+      MINIMAX_API_KEY: 'sk-minimax',
+      MODEL_COMPLEX: 'glm-5.2',
+      BASE_URL_COMPLEX: 'https://api.z.ai/api/anthropic',
+      API_KEY_ENV_COMPLEX: 'ZAI_API_KEY',
+      ZAI_API_KEY: 'sk-zai',
+      PROVIDER_MAIN: 'codex',
+      OPENAI_API_KEY: 'sk-oai',
+    });
+
+    expect(containerConfigSchema.parse(cfg)).toEqual({
+      agents: {
+        standard: {
+          type: 'claude',
+          model: 'MiniMax-M3',
+          baseUrl: 'https://api.minimax.io/anthropic',
+          apiKeyEnv: 'MINIMAX_API_KEY',
+        },
+        complex: {
+          type: 'claude',
+          model: 'glm-5.2',
+          baseUrl: 'https://api.z.ai/api/anthropic',
+          apiKeyEnv: 'ZAI_API_KEY',
+        },
+        main: { type: 'codex', model: 'gpt-5.5', apiKeyEnv: 'OPENAI_API_KEY' },
+      },
+    });
+  });
+
+  it('accepts protocol names and their friendly aliases interchangeably', () => {
+    const viaAlias = buildGeneratedConfig('anthropic', { ANTHROPIC_API_KEY: 'k' });
+    const viaProtocol = buildGeneratedConfig('claude', { ANTHROPIC_API_KEY: 'k' });
+    expect(viaAlias).toEqual(viaProtocol);
+
+    const openaiAlias = buildGeneratedConfig('openai', { OPENAI_API_KEY: 'k' });
+    const codexProtocol = buildGeneratedConfig('codex', { OPENAI_API_KEY: 'k' });
+    expect(openaiAlias).toEqual(codexProtocol);
+  });
+
   it('supports a per-tier base URL for OpenAI-compatible endpoints', () => {
     const cfg = buildGeneratedConfig('openai', {
       BASE_URL_STANDARD: 'https://self-hosted.example/v1',

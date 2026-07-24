@@ -5,32 +5,45 @@ import { spawn } from 'node:child_process';
 import postgres from 'postgres';
 
 const DEFAULT_MODELS = {
-  anthropic: { main: 'claude-opus-4-8', complex: 'claude-sonnet-4-5', standard: 'claude-haiku-4-5' },
-  openai: { main: 'gpt-5.5', complex: 'gpt-5.5', standard: 'gpt-5.5' },
+  claude: { main: 'claude-opus-4-8', complex: 'claude-sonnet-4-5', standard: 'claude-haiku-4-5' },
+  codex: { main: 'gpt-5.5', complex: 'gpt-5.5', standard: 'gpt-5.5' },
 };
 
 const TIERS = ['main', 'complex', 'standard'];
 
-/** Provider name -> engine agent `type` + the env var holding that provider's key. */
-const PROVIDERS = {
-  anthropic: { type: 'claude', apiKeyEnv: 'ANTHROPIC_API_KEY' },
-  openai: { type: 'codex', apiKeyEnv: 'OPENAI_API_KEY' },
+/**
+ * The engine's `type` is a WIRE PROTOCOL, not a vendor:
+ *   claude = Anthropic-compatible API   codex = OpenAI-compatible API
+ *
+ * Many vendors speak one of these two protocols behind their own base URL — e.g.
+ * DeepSeek, Z.ai/GLM, Kimi and MiniMax all expose Anthropic-compatible endpoints
+ * and are configured as `type: claude` with a custom `baseUrl` and their own key.
+ * So `anthropic`/`openai` here are protocol names (kept as friendly aliases for
+ * claude/codex), and the vendor is expressed by BASE_URL_<TIER> + API_KEY_ENV_<TIER>.
+ */
+const PROTOCOLS = {
+  claude: { type: 'claude', defaultApiKeyEnv: 'ANTHROPIC_API_KEY' },
+  codex: { type: 'codex', defaultApiKeyEnv: 'OPENAI_API_KEY' },
 };
+const PROTOCOL_ALIASES = { anthropic: 'claude', openai: 'codex' };
 
 /**
- * Resolve one tier's provider. `PROVIDER` is the default for every tier; a
- * per-tier `PROVIDER_<TIER>` overrides it. Mixed layouts are first-class:
- * codex and claude are peers, not a default and an exception.
+ * Resolve one tier's wire protocol. `PROVIDER` is the default for every tier; a
+ * per-tier `PROVIDER_<TIER>` overrides it. Mixed layouts are first-class: codex and
+ * claude are peers, not a default and an exception.
  */
 function providerForTier(tier, provider, env) {
-  const raw = (env[`PROVIDER_${tier.toUpperCase()}`] || provider || 'anthropic').trim().toLowerCase();
-  if (!PROVIDERS[raw]) {
+  const raw = (env[`PROVIDER_${tier.toUpperCase()}`] || provider || 'claude').trim().toLowerCase();
+  const name = PROTOCOL_ALIASES[raw] ?? raw;
+  if (!PROTOCOLS[name]) {
     throw new Error(
-      `Unknown provider "${raw}" for tier "${tier}". Use "anthropic" or "openai", ` +
-        `or mount your own ~/.mma/config.json for a layout this generator cannot express.`,
+      `Unknown provider "${raw}" for tier "${tier}". Use "claude"/"anthropic" (Anthropic-compatible) ` +
+        `or "codex"/"openai" (OpenAI-compatible). Point a tier at a specific vendor with ` +
+        `BASE_URL_${tier.toUpperCase()} and API_KEY_ENV_${tier.toUpperCase()}, or mount your own ` +
+        `~/.mma/config.json for a layout this generator cannot express.`,
     );
   }
-  return raw;
+  return name;
 }
 
 /**
@@ -48,12 +61,16 @@ export function buildGeneratedConfig(provider, env) {
   const agents = {};
 
   for (const tier of TIERS) {
+    const T = tier.toUpperCase();
     const name = providerForTier(tier, provider, env);
-    const { type, apiKeyEnv } = PROVIDERS[name];
-    // Each tier names ITS OWN key env var. A tier may also override its model and
-    // point at any OpenAI-compatible endpoint via a per-tier base URL.
-    const model = (env[`MODEL_${tier.toUpperCase()}`] || '').trim() || DEFAULT_MODELS[name][tier];
-    const baseUrl = (env[`BASE_URL_${tier.toUpperCase()}`] || '').trim();
+    const { type, defaultApiKeyEnv } = PROTOCOLS[name];
+
+    // Three independent knobs per tier: protocol (above), endpoint, and key env var.
+    // API_KEY_ENV_<TIER> lets a tier name ANY env var — required for vendors like
+    // DeepSeek/GLM/Kimi/MiniMax that speak a standard protocol but hold their own key.
+    const apiKeyEnv = (env[`API_KEY_ENV_${T}`] || '').trim() || defaultApiKeyEnv;
+    const model = (env[`MODEL_${T}`] || '').trim() || DEFAULT_MODELS[name][tier];
+    const baseUrl = (env[`BASE_URL_${T}`] || '').trim();
     const hasApiKey = Boolean(env[apiKeyEnv] && env[apiKeyEnv].trim());
 
     agents[tier] = {

@@ -7,8 +7,8 @@
  * Forge never stores or mutates it — the Connections page shows it read-only. It
  * is the single source of the MMA bearer and is never logged.
  *
- * Base URL falls back to the loopback default when no settings row exists yet
- * (F17 — NOT a DB column default).
+ * Base URL precedence is persisted Connections row, then `MMA_BASE_URL`, then
+ * the loopback default (F17 — NOT a DB column default).
  */
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -48,7 +48,11 @@ export function readMmaBearer(): string | null {
 }
 
 export function resolveMmaClientConfig(args: ResolveMmaClientConfigArgs): MmaClientConfig {
-  const baseUrl = args.settings?.mmaBaseUrl?.trim() || DEFAULT_MMA_BASE_URL;
+  // Precedence: persisted Connections row > MMA_BASE_URL env (container default) > loopback.
+  const baseUrl =
+    args.settings?.mmaBaseUrl?.trim() ||
+    process.env.MMA_BASE_URL?.trim() ||
+    DEFAULT_MMA_BASE_URL;
   const token = args.bearer !== undefined ? args.bearer : readMmaBearer();
   if (!token) {
     throw new Error(

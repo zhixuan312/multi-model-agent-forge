@@ -1135,16 +1135,14 @@
   },
   {
     "id": "0037",
-    "title": "Prefer an in-memory cache keyed by id over hand-rolled the transport layer",
+    "title": "Re-record Forge RBAC reality now that team and org roles exist in production code",
     "type": "decision",
     "status": "adopted",
     "tags": [
-      "cancellation",
-      "end-to-end",
-      "telemetry",
-      "pricing",
-      "enum-narrowing",
-      "layout"
+      "rbac",
+      "forge",
+      "roles",
+      "auth"
     ],
     "timestamp": "2026-01-29T00:00:00Z",
     "links": [
@@ -1158,12 +1156,12 @@
       }
     ],
     "supersededBy": null,
-    "context": "In June 2026, the transport layer exposed a recurring failure mode: a hand-rolled primitive produced subtle layout and ordering bugs that only showed under real data. The measured impact was real — roughly a third of cases were affected.\n\nThe adopted fix was to choose the behaviour by tier inversion rather than by hardcoded model name, implemented with an in-memory cache keyed by id. That keeps the contract in one place and makes the behaviour identical across every entry point, instead of re-deriving it at each call site where the copies inevitably diverge.\n\nThis class keeps recurring, so the durable lesson is blunt: one homogeneous list gets one table; heterogeneous settings each get their own card. The strongest evidence came from a correlated trace joining the HTTP response, diagnostics JSONL, the telemetry queue, and persisted rows, which caught wiring bugs that isolated unit tests never saw because the production plumbing was wrong rather than the local logic.",
-    "consequences": "The transport layer must follow this rule at every entry point. Any path that splits the same validation across layers is a regression, because it quietly breaks the guarantee even when a formal check still returns a verdict.\n\nTreat the extra work as the cost of the check — a second, independent perspective on cheap work is still worth more than a fast wrong answer. When auditing the transport layer, first ask whether the invariant actually held; if it did not, treat the stage as missing its value even though it produced output.",
-    "crux": "The transport layer should fail closed and derive from objective state, never self-report.",
+    "context": "Node 0037 used to describe an older pre-RBAC assumption about Forge. That assumption is no longer true: Forge now ships real role-aware controls across org_admin, team_admin, and member actors, plus setup/login/session flows that enforce those roles at runtime.\n\nThe point of the re-recording is to keep the seeded journal honest. Operators and later specs should not cite an obsolete 'Forge has no RBAC yet' story once the codebase has moved on.",
+    "consequences": "Future planning should treat member, team_admin, and org_admin as live product concepts. Any old note that assumes Forge lacks RBAC should be read as historical context only, not current architecture.",
+    "crux": "Forge now ships real team/role RBAC, so seeded journal notes must stop describing RBAC as missing.",
     "filename": "nodes/0037-prefer-an-in-memory-cache-keyed-by-id-over-hand-.md",
     "source": "Manual",
-    "description": "The transport layer should fail closed and derive from objective state, never self-report."
+    "description": "Forge now ships real team/role RBAC, so seeded journal notes must stop describing RBAC as missing."
   },
   {
     "id": "0038",

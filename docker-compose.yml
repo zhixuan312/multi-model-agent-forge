@@ -1,0 +1,58 @@
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FORGE_BUILD_GIT_SHA: ${FORGE_BUILD_GIT_SHA:-unknown}
+        FORGE_BUILD_BUILT_AT: ${FORGE_BUILD_BUILT_AT:-unknown}
+    image: ghcr.io/zhixuan312/forge:${FORGE_IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      PROVIDER: ${PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FORGE_SECRET_KEY: ${FORGE_SECRET_KEY:?set FORGE_SECRET_KEY}
+      FORGE_WORKSPACE_ROOT: /workspace
+      MMA_BASE_URL: http://mma:7337
+    depends_on:
+      - mma
+    networks:
+      - forge-net
+    ports:
+      - "${FORGE_PORT:-3000}:3000"
+    volumes:
+      - mma-workspace:/workspace
+
+  mma:
+    image: ${MMA_IMAGE:-ghcr.io/zhixuan312/multi-model-agent:latest}
+    environment:
+      PORT: 7337
+    networks:
+      - forge-net
+    ports:
+      - "${MMA_PORT:-7337}:7337"
+    volumes:
+      - mma-workspace:/workspace
+
+  postgres:
+    image: postgres:17
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: forge
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: forge
+    networks:
+      - forge-net
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+networks:
+  forge-net:
+    driver: bridge
+
+volumes:
+  mma-workspace:
+  postgres-data:

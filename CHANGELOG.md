@@ -10,7 +10,7 @@ maintainers stand up for cross-team collaboration. (MMA-only users continue to t
 the npm package and run `mma serve` themselves; this image is Forge.)
 
 Image: `ghcr.io/zhixuan312/forge:0.1.1` (alias `:latest`)
-Digest (immutable release identity): _recorded below on push_
+Digest (immutable release identity): `ghcr.io/zhixuan312/forge@sha256:fd42c893d14033e6f2fc76e96273c35c9ce99eab4ebfe4107b52b14956f5c633`
 
 ### Added
 - **Bundled MMA engine**, pinned to `package.json#matchedMmaVersion` (`5.13.0`) and

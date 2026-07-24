@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.1 - 2026-07-25
+
+All-in-one image: Forge now carries and supervises its matched MMA engine as a
+loopback co-process, so a single container is the entire deployment — the artifact
+maintainers stand up for cross-team collaboration. (MMA-only users continue to take
+the npm package and run `mma serve` themselves; this image is Forge.)
+
+Image: `ghcr.io/zhixuan312/forge:0.1.1` (alias `:latest`)
+Digest (immutable release identity): _recorded below on push_
+
+### Added
+- **Bundled MMA engine**, pinned to `package.json#matchedMmaVersion` (`5.13.0`) and
+  installed at build time — never `@latest`. The image ships as "Forge 0.1.1
+  containing MMA 5.13.0"; the pin advances only when a Forge release deliberately
+  adopts and re-tests a newer engine. Forge pins MMA, it does not chase it.
+- **Container supervisor** (`scripts/container-supervisor.mjs`) under `tini` (PID 1):
+  writes `~/.mma/config.json` from the per-tier env → starts `mma serve` on
+  `127.0.0.1:7337` → health-gates `GET /health` → runs the idempotent Forge DB
+  bootstrap → starts Forge. If either child process dies, the whole container comes
+  down so an orchestrator restarts a known-good whole, never a half-alive stack.
+
+### Changed
+- `docker-compose.yml`, the README run section, and the deployment guide now describe
+  the **single all-in-one topology** — one Forge container (Forge + bundled MMA) +
+  external Postgres + a bind-mounted workspace. The phantom separate `mma` service
+  (which referenced a container image that never existed) is removed; MMA reachability,
+  the shared auth token, and workspace file identity are now internal to the one
+  container and require no operator wiring.
+
 ## 0.1.0 - 2026-07-24
 
 First tagged, container-distributed Forge release.

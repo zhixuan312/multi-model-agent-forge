@@ -1,9 +1,13 @@
-# Forge + MMA, co-located (journal node 0028): same network, one shared workspace
-# volume, and one shared MMA home so Forge can read the bearer token MMA writes.
+# Forge — all-in-one. ONE container carries Forge + its matched MMA engine
+# (pinned at package.json#matchedMmaVersion, run as a loopback co-process). There
+# is no separate MMA service: MMA is loopback-only and lives inside this container,
+# so reachability, the shared bearer token, and workspace file identity are all
+# internal and need no wiring.
 #
-# Database: bring your own by default — set DATABASE_URL at a managed Postgres.
-# For a one-command demo instead, run with the optional local database:
-#   docker compose --profile postgres up
+# Database: bring your own by default — point DATABASE_URL at a managed Postgres.
+# For a one-command demo instead, start the optional local database too:
+#   docker compose --profile postgres up -d
+#   # then set DATABASE_URL=postgres://forge:forge@postgres:5432/forge in your .env
 services:
   forge:
     build:
@@ -16,21 +20,15 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       FORGE_SECRET_KEY: ${FORGE_SECRET_KEY:?set FORGE_SECRET_KEY}
-      FORGE_WORKSPACE_ROOT: /workspace
-      MMA_BASE_URL: http://mma:7337
 
-      # Bearer resolution. Forge does not own the MMA token: it reads MMA_AUTH_TOKEN,
-      # else <MMA_HOME>/.mma/auth-token. MMA_HOME points at the shared volume that the
-      # mma service writes its token into, so the default path works with no manual
-      # step. Set MMA_AUTH_TOKEN to override with an explicit token.
-      MMA_HOME: /mma-home
-      MMA_AUTH_TOKEN: ${MMA_AUTH_TOKEN:-}
-      MMA_CLIENT: ${MMA_CLIENT:-}
-
-      # Generated MMA config. PROVIDER is the default for every tier; PROVIDER_<TIER>
-      # overrides one tier, so mixed claude/codex layouts work without mounting a
-      # config file. Each tier reads its OWN provider's key.
-      PROVIDER: ${PROVIDER:-anthropic}
+      # Provider config is managed in the app (Settings → Models, org-admin), which
+      # calls MMA's /configure-provider and persists per-tier provider/model/endpoint/
+      # key to the MMA config volume below. These env vars are an OPTIONAL FIRST-BOOT
+      # SEED only — they generate the initial config when none exists yet; thereafter
+      # the UI is authoritative. Leave them empty to configure entirely in the UI.
+      # PROVIDER is the default protocol for every tier; PROVIDER_<TIER> overrides one
+      # tier (mixed claude/codex layouts work). Each tier reads its OWN provider's key.
+      PROVIDER: ${PROVIDER:-}
       PROVIDER_STANDARD: ${PROVIDER_STANDARD:-}
       PROVIDER_COMPLEX: ${PROVIDER_COMPLEX:-}
       PROVIDER_MAIN: ${PROVIDER_MAIN:-}
@@ -47,35 +45,27 @@ services:
       API_KEY_ENV_MAIN: ${API_KEY_ENV_MAIN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-    depends_on:
-      - mma
     networks:
       - forge-net
     ports:
       - "${FORGE_PORT:-3000}:3000"
     volumes:
-      - mma-workspace:/workspace
-      # Shared MMA home — Forge only ever READS the bearer from here.
-      - mma-home:/mma-home:ro
+      # Workspace BASE (FORGE_WORKSPACE_BASE=/workspace). Forge is multi-team: each
+      # team's workspace is a direct child (/workspace/<team>) that the bundled MMA
+      # operates in. A named volume persists every team's dir across restarts; swap
+      # for a host path (e.g. /srv/forge-workspace) to keep it on the host filesystem.
+      - forge-workspace:/workspace
+      # MMA config + bearer. Persists the per-tier provider config set in Settings →
+      # Models across container recreation (upgrades). Without this, UI-configured
+      # providers are lost when the container is replaced.
+      - forge-mma-config:/home/node/.mma
+      # OAuth (optional): mount your host creds read-only for keyless tiers.
+      # - ${HOME}/.claude:/home/node/.claude:ro
+      # - ${HOME}/.codex:/home/node/.codex:ro
+    restart: unless-stopped
 
-  mma:
-    image: ${MMA_IMAGE:-ghcr.io/zhixuan312/multi-model-agent:latest}
-    environment:
-      PORT: 7337
-      # HOME drives where the engine mints ~/.mma/auth-token. Pointing it at the
-      # shared volume is what lets Forge read the same token.
-      HOME: /mma-home
-      # Same per-tier auth contract as Forge, so one .env configures both sides.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-    networks:
-      - forge-net
-    ports:
-      - "${MMA_PORT:-7337}:7337"
-    volumes:
-      - mma-workspace:/workspace
-      - mma-home:/mma-home
-
+  # Optional local database for a one-command demo — enable with:
+  #   docker compose --profile postgres up -d
   postgres:
     image: postgres:17
     profiles: ["postgres"]
@@ -89,12 +79,13 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 networks:
   forge-net:
     driver: bridge
 
 volumes:
-  mma-workspace:
-  mma-home:
+  forge-workspace:
+  forge-mma-config:
   postgres-data:

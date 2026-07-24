@@ -78,21 +78,50 @@ Forge inverts this. The system holds the knowledge, not the person. The process 
 
 ## Run the released image
 
-Forge ships as a versioned container image on GHCR — no repo checkout needed.
+Forge ships as a versioned **all-in-one** container image on GHCR — no repo checkout
+needed. **One container carries Forge and its matched MMA engine** (pinned at
+`matchedMmaVersion`, run as a loopback co-process). You do **not** run MMA separately:
+engine reachability, the shared bearer token, and workspace file identity are all
+internal to the container. You provide a Postgres, a secret key, provider credentials,
+and a workspace mount.
+
+The only **required** configuration is a database and a secret key — providers are set up
+in the app afterward.
 
 ```bash
-# with docker compose (brings up Forge + the optional postgres profile)
-FORGE_IMAGE_TAG=0.1.0 docker compose up -d          # pulls ghcr.io/zhixuan312/forge:0.1.0
+# docker compose — Forge (with bundled MMA) + optional local Postgres
+DATABASE_URL="postgres://forge:forge@postgres:5432/forge" \
+FORGE_SECRET_KEY="<32+ byte secret>" \
+FORGE_IMAGE_TAG=0.1.1 docker compose --profile postgres up -d
 
 # or a single container against your own Postgres
 docker run -d -p 3000:3000 \
   -e DATABASE_URL="postgres://user:pass@host:5432/forge" \
   -e FORGE_SECRET_KEY="<32+ byte secret>" \
-  -e PROVIDER=anthropic -e ANTHROPIC_API_KEY="<key>" \
-  ghcr.io/zhixuan312/forge:0.1.0
+  -v forge-workspace:/workspace \
+  -v forge-mma-config:/home/node/.mma \
+  ghcr.io/zhixuan312/forge:0.1.1
 ```
 
-The entrypoint creates the schema, runs migrations, and seeds templates on every start (idempotent), then serves on `http://localhost:3000`. `PROVIDER` above is just the default protocol (`claude`/`anthropic` or `codex`/`openai`) — each agent tier (`standard` / `complex` / `main`) can use a **different provider, endpoint, and key** via `PROVIDER_<TIER>` / `BASE_URL_<TIER>` / `API_KEY_ENV_<TIER>`, or mount your own `~/.mma/config.json`. Pin to a digest (`ghcr.io/zhixuan312/forge@sha256:…`, see the CHANGELOG) for an immutable deploy. See `.env.example` for the full per-tier configuration contract.
+On start the supervisor starts the bundled MMA on `127.0.0.1:7337`, health-gates it,
+then creates the schema, runs migrations, and seeds templates (idempotent), and serves
+on `http://localhost:3000`. Open it, register the first admin at `/setup`, create your
+teams, add git connections, and **configure providers per tier in Settings → Models**.
+
+**Providers are configured in the app, not locked to a vendor.** The **Models** page
+(org-admin) sets each agent tier (`standard` / `complex` / `main`) to any
+provider/model/endpoint/key — Anthropic-compatible (`claude`) or OpenAI-compatible
+(`codex`), including vendors like DeepSeek / Z.ai / Kimi behind their own endpoint — and MMA
+validates and persists it (to the `/home/node/.mma` volume, so it survives upgrades). If you
+prefer, you can **seed** the initial config at first boot with env vars (`PROVIDER`,
+`PROVIDER_<TIER>`, `MODEL_<TIER>`, `BASE_URL_<TIER>`, `API_KEY_ENV_<TIER>`, and the key
+itself); those apply only when no config exists yet, then the UI is authoritative. Keyless
+tiers fall back to native OAuth — mount `~/.claude` / `~/.codex` to use it.
+
+The `/workspace` volume is where Forge clones each team's repos and where MMA operates. Pin
+to a digest (`ghcr.io/zhixuan312/forge@sha256:…`, see the CHANGELOG) for an immutable deploy.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the full guide (multi-tenant workspace
+layout, per-tier providers, backup/upgrade) and `.env.example` for every variable.
 
 ## Getting started (development)
 
@@ -108,9 +137,11 @@ The MMA engine runs separately (`mma serve` on port 7337). Forge calls its `POST
 
 ## Container bootstrap notes
 
-- Mount `~/.mma/config.json` into the container when you want a mixed-tier or pre-existing MMA config to win untouched.
-- Otherwise set `PROVIDER=anthropic` or `PROVIDER=openai` and optionally provide `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; the entrypoint generates one strict config for all three tiers.
-- OAuth mode is supported by mounting `~/.claude` and/or `~/.codex` and leaving the generated tiers keyless.
+- The image is **all-in-one**: `scripts/container-supervisor.mjs` (under `tini`) starts the bundled MMA engine on loopback, health-gates it, runs the DB bootstrap, then starts Forge. Both processes share one lifecycle — if either dies the container exits for a clean restart.
+- The bundled MMA is pinned at `package.json#matchedMmaVersion` and installed at build time. To move it, bump that field and cut a new Forge release — the image never pulls `@latest`.
+- Mount `~/.mma/config.json` (to `/home/node/.mma/config.json`) when you want a mixed-tier or pre-existing MMA config to win untouched.
+- Otherwise set `PROVIDER=anthropic` or `PROVIDER=openai` and optionally provide `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; the supervisor generates one strict config for all three tiers.
+- OAuth mode is supported by mounting `~/.claude` and/or `~/.codex` (to `/home/node/...`) and leaving the generated tiers keyless.
 
 ## Project structure
 

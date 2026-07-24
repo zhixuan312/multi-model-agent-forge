@@ -15,7 +15,7 @@ describe('Forge release contract', () => {
     const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8');
 
     expect(changelog).toContain('# Changelog');
-    expect(changelog).toContain('## 0.1.0 - 2026-07-24');
-    expect(changelog).toContain('First tagged, container-distributed Forge release.');
+    expect(changelog).toContain('## 0.1.1 - 2026-07-25');
+    expect(changelog).toContain('All-in-one image: Forge now carries and supervises its matched MMA engine');
   });
 });

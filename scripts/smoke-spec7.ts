@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     // 2. ONE real audit(subtype=plan) dispatch → poll → terminal.
     console.log(`Dispatching audit(subtype=plan) against ${dir} ...`);
-    const { batchId } = await client.auditPlan(dir, { paths: [planPath] });
+    const { batchId } = await client.dispatch('audit', { cwd: dir, body: { type: 'audit', subtype: 'plan', target: { paths: [planPath] } } });
     console.log(`  batchId=${batchId}; polling ...`);
 
     const deadline = Date.now() + 10 * 60_000;

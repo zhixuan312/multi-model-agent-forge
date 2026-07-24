@@ -41,7 +41,7 @@ describe('buildMmaClient', () => {
 
     try {
       const client = await buildMmaClient({ db: dbNoSettings(), tiers: noTiers });
-      const res = await client.investigate('/tmp/repo', { prompt: 'hi there' });
+      const res = await client.dispatch('investigate', { cwd: '/tmp/repo', body: { type: 'investigate', prompt: 'hi there' } });
       expect(res.batchId).toBe('b-1');
       expect(headerVal(calls[0]!.init, 'X-MMA-Main-Model')).toBe(DEFAULT_MAIN_MODEL);
     } finally {

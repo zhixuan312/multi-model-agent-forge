@@ -25,7 +25,7 @@ Last full audit: 2026-07-23 (engine 5.0→5.12 reviewed route-by-route).
 | Spec subset | `components: string[]` (5.8.7; omit = all 8) | `client.spec()` forwards `components` |
 | Context blocks | `contextBlockIds` (max 2), soft-skipped if missing | echo-only: Forge reuses the engine-minted `output.contextBlockId` as `contextBlockIds:[prevId]` on the next audit/review pass. It never calls `POST /context-blocks` and never pairs two (see deferred list) |
 | Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | reads `verified`; does NOT read `details.fieldErrors` (surfaces `error.code` only — minor UX gap) |
-| Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); the typed `MmaClient.investigate/research/spec/plan/…` wrapper methods are NOT on the live path — test-only, see deferred list |
+| Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); `MmaClient` exposes only the primitives it actually uses — `dispatch`, `poll`, `dispatchAndWait`, `health`, `status`, `configureProvider` |
 | `X-MMA-Main-Model` | required on `POST /task` (400 without) | always set — `server-client.ts` falls back to `DEFAULT_MAIN_MODEL` |
 
 ## Drift found and fixed in this alignment (2026-07-23)
@@ -52,15 +52,14 @@ Forge's design doesn't need them. Listed so the "matched" claim is honest and co
 | `details.fieldErrors` on configure-provider 400 | 5.12.0 | Forge surfaces `error.code` only |
 | richer `GET /status` (`inflight[]`, `projects[]`, `skillVersion`) | — | Forge reads only `version`/`pid`/`uptimeMs`/`counters.activeTasks` for the connection badge |
 
-## Known cleanup (not a drift, tracked here)
+## Client surface == what Forge uses
 
-`MmaClient` still carries ~10 typed wrapper methods (`investigate`, `research`,
-`journalRecall`, `auditPlan`, `auditSpec`, `auditInline`, `executePlan`, `review`,
-`spec`, `plan`) that build the correct current request shape but have **no production
-caller** — the live path is `dispatchMma()`'s inline bodies. They're exercised only by
-`tests/mma/{client,rod-methods}.test.ts`. Because prod never runs them, a future
-contract drift in those methods wouldn't be caught by a prod path. Candidate for
-removal (methods + their tests) to keep the client surface == what Forge actually uses.
+`MmaClient` exposes only the primitives the live path calls: `dispatch`, `poll`,
+`dispatchAndWait`, `health`, `status`, `configureProvider`. The ~10 typed per-type
+wrapper methods (`investigate`, `research`, `journalRecall`, `auditPlan`, `auditSpec`,
+`auditInline`, `executePlan`, `review`, `spec`, `plan`) that had no production caller —
+`dispatchMma()` builds those bodies inline — were removed (2026-07-24) so there is no
+dormant client surface that could drift from the engine unnoticed.
 
 ## How to re-align when the engine moves
 

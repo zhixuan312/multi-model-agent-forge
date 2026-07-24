@@ -36,6 +36,12 @@ describe('evaluateRequest (stateless cookie-presence pre-check, no DB)', () => {
     });
   });
 
+  it('lets /api/version through unauthenticated (release-identity probe)', () => {
+    expect(evaluateRequest({ pathname: '/api/version', hasSessionCookie: false })).toEqual({
+      action: 'next',
+    });
+  });
+
   it('lets any route through when a session cookie is present (presence only — no validation)', () => {
     expect(evaluateRequest({ pathname: '/projects', hasSessionCookie: true })).toEqual({ action: 'next' });
     expect(evaluateRequest({ pathname: '/settings', hasSessionCookie: true })).toEqual({ action: 'next' });

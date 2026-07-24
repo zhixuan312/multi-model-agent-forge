@@ -29,11 +29,13 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
-/** The only `/api` route reachable unauthenticated (so the login action can run
- *  before a session exists). Login is a server action on the page, but if an
- *  API login endpoint is added it lives here. */
+/** `/api` routes reachable unauthenticated:
+ *  - `/api/auth/login` — the login action must run before a session exists.
+ *  - `/api/version` — the release-identity probe. An operator running the image
+ *    must be able to read its version/gitSha/builtAt without first registering an
+ *    admin and logging in (non-sensitive build provenance only). */
 function isPublicApi(pathname: string): boolean {
-  return pathname === '/api/auth/login';
+  return pathname === '/api/auth/login' || pathname === '/api/version';
 }
 
 export function evaluateRequest(opts: {

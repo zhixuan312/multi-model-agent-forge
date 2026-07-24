@@ -27,7 +27,12 @@ ARG FORGE_BUILD_BUILT_AT=unknown
 ENV FORGE_BUILD_GIT_SHA=$FORGE_BUILD_GIT_SHA
 ENV FORGE_BUILD_BUILT_AT=$FORGE_BUILD_BUILT_AT
 
-RUN pnpm build
+# Strip standalone's own traced node_modules: the runner copies the FULL pnpm
+# node_modules (needed for tsx/drizzle/postgres at db:migrate time), and overlaying
+# standalone's flattened tree onto the pnpm symlink-farm collides (real dir vs symlink,
+# e.g. puppeteer). server.js resolves fine against the full node_modules — same tree the
+# build ran against.
+RUN pnpm build && rm -rf /app/.next/standalone/node_modules
 
 FROM node:20-bookworm-slim AS runner
 
@@ -78,12 +83,14 @@ RUN corepack enable
 
 WORKDIR /app
 
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=builder /app/node_modules ./node_modules
+# standalone first (it has NO node_modules now — stripped in builder), so its trimmed
+# package.json lands before the full one below overwrites it with the real db:* scripts.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/scripts/container-bootstrap.mjs ./scripts/container-bootstrap.mjs
 COPY --from=builder /app/docker/entrypoint.sh ./docker/entrypoint.sh
 COPY --from=builder /app/src/db ./src/db

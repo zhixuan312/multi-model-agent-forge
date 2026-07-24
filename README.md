@@ -92,7 +92,7 @@ docker run -d -p 3000:3000 \
   ghcr.io/zhixuan312/forge:0.1.0
 ```
 
-The entrypoint creates the schema, runs migrations, and seeds templates on every start (idempotent), then serves on `http://localhost:3000`. Pin to a digest (`ghcr.io/zhixuan312/forge@sha256:…`, see the CHANGELOG) for an immutable deploy. See `.env.example` for the full configuration contract.
+The entrypoint creates the schema, runs migrations, and seeds templates on every start (idempotent), then serves on `http://localhost:3000`. `PROVIDER` above is just the default protocol (`claude`/`anthropic` or `codex`/`openai`) — each agent tier (`standard` / `complex` / `main`) can use a **different provider, endpoint, and key** via `PROVIDER_<TIER>` / `BASE_URL_<TIER>` / `API_KEY_ENV_<TIER>`, or mount your own `~/.mma/config.json`. Pin to a digest (`ghcr.io/zhixuan312/forge@sha256:…`, see the CHANGELOG) for an immutable deploy. See `.env.example` for the full per-tier configuration contract.
 
 ## Getting started (development)
 

@@ -41,6 +41,7 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
   // arriving already-read) must count as read, not linger as a stale unread badge. Union keeps any
   // optimistic local marks that the refetch hasn't caught up to yet.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reconcile read-state on every refetch (functional update returns prev unchanged when nothing new, so no cascade)
     setReadIds((prev) => {
       const next = new Set(prev);
       for (const n of items) if (n.readAt) next.add(n.id);

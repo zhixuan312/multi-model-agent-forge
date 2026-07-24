@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Download, ChevronDown, Search, FileText, ClipboardList, BookOpen, Boxes, type LucideIcon } from 'lucide-react';
+import { Download, ChevronDown, Search, FileText, ClipboardList, Boxes, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
@@ -71,6 +71,7 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   useEffect(() => {
     if (!open) return;
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear any stale error each time the menu opens, before re-fetching the artifact list
     setError(null);
     void fetchArtifacts(projectId)
       .then((a) => { if (alive) setArtifacts(a); })

@@ -8,7 +8,7 @@ import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { nodeGitRunner, addWorktreeWithRetry } from '@/build/branch';
 import { nodeCommandRunner } from '@/build/command-runner';
 import { buildMmaClient } from '@/mma/server-client';
-import type { LoopRunDeps, LoopRepoTarget } from '@/loops/run-engine';
+import type { LoopRunDeps } from '@/loops/run-engine';
 import type { CurrentTeam } from '@/auth/team-scope';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { parseRemote, authPushUrl, type RemoteInfo } from '@/git/remote-provider';

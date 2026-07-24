@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { getTableColumns, getTableName } from 'drizzle-orm';
-import { project } from '@/db/schema/projects';
 import { projectJournal } from '@/db/schema/project-journal';
 
 describe('project journal schema and migration', () => {

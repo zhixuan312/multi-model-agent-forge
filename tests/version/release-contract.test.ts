@@ -16,6 +16,6 @@ describe('Forge release contract', () => {
 
     expect(changelog).toContain('# Changelog');
     expect(changelog).toContain('## 0.1.0 - 2026-07-24');
-    expect(changelog).toContain('- Initial semver-tagged Forge distribution release.');
+    expect(changelog).toContain('First tagged, container-distributed Forge release.');
   });
 });

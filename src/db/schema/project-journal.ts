@@ -1,4 +1,4 @@
-import { integer, index, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, uniqueIndex, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 import { project } from '@/db/schema/projects';
 
@@ -19,6 +19,8 @@ export const projectJournal = forge.table(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('project_journal_project_seq_idx').on(t.projectId, t.seq),
+    // Unique so a project's (proposed→recorded) rows keep a stable, gap-free order AND
+    // the count-then-insert backfill/harvest can't duplicate rows under a concurrent rerun.
+    uniqueIndex('project_journal_project_seq_idx').on(t.projectId, t.seq),
   ],
 );

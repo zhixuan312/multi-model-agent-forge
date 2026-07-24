@@ -25,6 +25,6 @@ describe('project journal schema and migration', () => {
     expect(sql).toContain('"topic" text NOT NULL');
     expect(sql).toContain('"status" text NOT NULL');
     expect(sql).toContain('ON DELETE cascade');
-    expect(sql).toContain('CREATE INDEX "project_journal_project_seq_idx"');
+    expect(sql).toContain('CREATE UNIQUE INDEX "project_journal_project_seq_idx"');
   });
 });

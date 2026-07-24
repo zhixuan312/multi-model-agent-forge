@@ -1,6 +1,7 @@
 import { asc, and, eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { projectJournal } from '@/db/schema/project-journal';
+import { correlateRecordedRows } from '@/journal/journal-record-request';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 
 async function handleJournalRecord(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
@@ -12,24 +13,20 @@ async function handleJournalRecord(db: Db, ctx: MmaBatchCtx, envelope: unknown):
   // FR-11c: a whole-request/whole-chunk failure leaves every row in this chunk `kept`.
   if (env.error != null || env.task?.status === 'failed') return;
 
-  // FR-11: correlate returned entries to rows by matching `learning` to row `body`
-  // (NOT array position — a failed entry desynchronizes indices). `seq` order
-  // disambiguates identical bodies (first unmatched wins).
+  // FR-11: correlate returned `recorded[]` to rows by matching `learning`→`body`
+  // (chunks dispatch sequentially, so recorded rows are excluded from `kept` before
+  // the next chunk's handler runs — see correlateRecordedRows). Unmatched kept rows
+  // (incl. any `failed[]`) stay `kept` and are retried on the next record trigger.
   const kept = await db.select().from(projectJournal)
     .where(and(eq(projectJournal.projectId, ctx.projectId), eq(projectJournal.status, 'kept')))
     .orderBy(asc(projectJournal.seq));
-  const recorded = env.output?.summary?.recorded ?? [];
-  const used = new Set<string>();
+  const matches = correlateRecordedRows(kept, env.output?.summary?.recorded ?? []);
   const now = new Date();
-  for (const rec of recorded) {
-    const row = kept.find((r) => r.body === rec.learning && !used.has(r.id));
-    if (!row) continue;
-    used.add(row.id);
+  for (const match of matches) {
     await db.update(projectJournal).set({
-      status: 'recorded', recordedNodeId: rec.nodeId, recordedAt: now, updatedAt: now,
-    }).where(eq(projectJournal.id, row.id));
+      status: 'recorded', recordedNodeId: match.nodeId, recordedAt: now, updatedAt: now,
+    }).where(eq(projectJournal.id, match.id));
   }
-  // Unmatched kept rows (incl. any in `failed[]`) stay `kept` and are retried on the next record trigger (FR-11a).
 }
 
 registerHandler('journal-record', handleJournalRecord);

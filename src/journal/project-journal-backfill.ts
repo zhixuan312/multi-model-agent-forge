@@ -55,8 +55,8 @@ export async function backfillProjectJournalIfNeeded(input: {
     .from(projectJournal)
     .where(eq(projectJournal.projectId, input.projectId));
 
-  if (existing[0]?.count ?? 0 > 0) {
-    return; // Already backfilled
+  if ((existing[0]?.count ?? 0) > 0) {
+    return; // Already backfilled — idempotent (paired with the unique (project_id, seq) index)
   }
 
   const d = input.details ? validateDetails(input.details) : null;

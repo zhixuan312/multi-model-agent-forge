@@ -1,4 +1,4 @@
-import { buildJournalRecordChunks, correlateChunkRows } from '@/journal/journal-record-request';
+import { buildJournalRecordChunks, correlateRecordedRows } from '@/journal/journal-record-request';
 
 describe('journal record request helpers', () => {
   it('chunks kept rows into 20-record records[] payloads and preserves order', () => {
@@ -16,19 +16,25 @@ describe('journal record request helpers', () => {
     expect(chunks[0].body.records[0]).toEqual({ prompt: 'Learning 0', topic: 'core-api' });
   });
 
-  it('matches returned learning text back to chunk rows, not array position', () => {
-    const rows = [
-      { id: 'a', body: 'same', topic: 'core', seq: 0 },
-      { id: 'b', body: 'same', topic: 'core', seq: 1 },
-      { id: 'c', body: 'other', topic: 'core', seq: 2 },
+  it('correlates recorded[] to rows by learning→body (not array position), seq disambiguates duplicates', () => {
+    const kept = [
+      { id: 'a', body: 'same', seq: 0 },
+      { id: 'b', body: 'same', seq: 1 },
+      { id: 'c', body: 'other', seq: 2 },
     ];
+    // Only one 'same' recorded → the lowest-seq unmatched row (a) wins; b stays kept.
+    const matches = correlateRecordedRows(kept, [
+      { learning: 'other', nodeId: 'node-c' },
+      { learning: 'same', nodeId: 'node-a' },
+    ]);
+    expect(matches).toEqual([
+      { id: 'c', nodeId: 'node-c' },
+      { id: 'a', nodeId: 'node-a' },
+    ]);
+  });
 
-    const result = correlateChunkRows(rows as never, {
-      recorded: [{ learning: 'same', nodeId: 'node-1' }],
-      failed: [{ learning: 'same', reason: 'duplicate' }, { learning: 'other', reason: 'transport' }],
-    });
-
-    expect(result.recorded.map((row) => row.id)).toEqual(['a']);
-    expect(result.failed.map((row) => row.id)).toEqual(['b', 'c']);
+  it('returns no match for a learning with no matching row body', () => {
+    const matches = correlateRecordedRows([{ id: 'a', body: 'x', seq: 0 }], [{ learning: 'y', nodeId: 'n' }]);
+    expect(matches).toEqual([]);
   });
 });

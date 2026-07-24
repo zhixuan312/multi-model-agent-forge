@@ -20,6 +20,6 @@ CREATE TABLE "forge"."project_journal" (
     ON UPDATE no action
 );
 --> statement-breakpoint
-CREATE INDEX "project_journal_project_seq_idx"
+CREATE UNIQUE INDEX "project_journal_project_seq_idx"
   ON "forge"."project_journal"
   USING btree ("project_id", "seq");

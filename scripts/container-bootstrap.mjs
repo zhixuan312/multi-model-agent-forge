@@ -33,7 +33,18 @@ function providerForTier(tier, provider, env) {
   return raw;
 }
 
+/**
+ * @typedef {{ type: string, model: string, baseUrl?: string, apiKeyEnv?: string }} GeneratedTier
+ * @typedef {{ agents: { main: GeneratedTier, complex: GeneratedTier, standard: GeneratedTier } }} GeneratedConfig
+ */
+
+/**
+ * @param {string} provider
+ * @param {Record<string, string | undefined>} env
+ * @returns {GeneratedConfig}
+ */
 export function buildGeneratedConfig(provider, env) {
+  /** @type {Record<string, GeneratedTier>} */
   const agents = {};
 
   for (const tier of TIERS) {
@@ -55,7 +66,7 @@ export function buildGeneratedConfig(provider, env) {
     };
   }
 
-  return { agents };
+  return /** @type {GeneratedConfig} */ ({ agents });
 }
 
 export async function resolveOrWriteConfig({ provider, env, homeDir = homedir(), configPathEnv = process.env.MMA_CONFIG_PATH }) {
@@ -116,12 +127,12 @@ export async function ensureBootOrder({
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const databaseUrl = process.env.DATABASE_URL?.trim();
-  const provider = process.env.PROVIDER?.trim();
+  // PROVIDER is the default for tiers that have no PROVIDER_<TIER> override, and is
+  // itself optional — an operator may set only per-tier providers. Validation of each
+  // resolved tier happens in providerForTier(), which throws on an unknown name.
+  const provider = process.env.PROVIDER?.trim() || 'anthropic';
 
   if (!databaseUrl) throw new Error('DATABASE_URL is required.');
-  if (provider !== 'anthropic' && provider !== 'openai') {
-    throw new Error('PROVIDER must be anthropic or openai.');
-  }
 
   await ensureBootOrder({
     databaseUrl,

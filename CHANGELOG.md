@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 First tagged, container-distributed Forge release.
 
 Image: `ghcr.io/zhixuan312/forge:0.1.0` (alias `:latest`)
-Digest (immutable release identity): `ghcr.io/zhixuan312/forge@sha256:5dd6e6243c16009c2335166f6775cc23c48065974bb3cdaeb3efc5a6d70c0d84`
+Digest (immutable release identity): _recorded below on push_
 
 ### Added
 - Runtime version reporting through `GET /api/version` (`version` · `gitSha` · `builtAt`).
@@ -20,5 +20,11 @@ Digest (immutable release identity): `ghcr.io/zhixuan312/forge@sha256:5dd6e6243c
 - Every team-scoped surface (projects, loops, workspace/repos, usage, team settings) filters strictly by the caller's team; provider configuration is org-admin-only and the team git token is team-admin-only.
 
 ### Fixed
-- Container image now builds: the runner no longer overlays the standalone bundle's traced `node_modules` onto the full pnpm tree (a real-dir-vs-symlink collision on `puppeteer`); standalone's bundled modules are stripped and the full install resolves the server plus the `db:migrate`/`db:seed-templates` tooling.
+- Container image now builds: the runner no longer overlays the standalone bundle's traced `node_modules` onto the full pnpm tree (a real-dir-vs-symlink collision on `puppeteer`); standalone's bundled modules are stripped and the prod install resolves the server plus the `db:migrate`/`db:seed-templates` tooling.
 - `GET /api/version` is reachable unauthenticated — an operator running the image can read its build identity (`version`/`gitSha`/`builtAt`, non-sensitive) without first registering an admin.
+
+### Image hardening (packaging)
+- Base bumped **Node 20 → Node 22** (current LTS; Node 20 is EOL ~2026-04). Still satisfies `engines.node >=20.9.0`.
+- Runner ships a **prod-only `node_modules`** (dedicated `deps-prod` stage; `tsx` + `dotenv` moved to `dependencies` as genuine boot-time deps) — image ~2.64GB → **~2.39GB**, no feature loss.
+- Runs as the **non-root `node` user**, with pre-created writable dirs for the Next data cache, the export root, and the `~/.mma` config home.
+- Added a `HEALTHCHECK` probing the (public) `/api/version`.

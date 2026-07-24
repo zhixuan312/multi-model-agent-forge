@@ -15,3 +15,7 @@ First tagged, container-distributed Forge release. Image digest: _recorded below
 ### Changed
 - Aligned the MMA client to the current engine contract (matched 5.13.0): corrected the `/status` counter field, adopted the array `journal_record` with a per-record `topic`, and removed the unused typed client wrappers so the client surface is exactly what Forge uses.
 - Every team-scoped surface (projects, loops, workspace/repos, usage, team settings) filters strictly by the caller's team; provider configuration is org-admin-only and the team git token is team-admin-only.
+
+### Fixed
+- Container image now builds: the runner no longer overlays the standalone bundle's traced `node_modules` onto the full pnpm tree (a real-dir-vs-symlink collision on `puppeteer`); standalone's bundled modules are stripped and the full install resolves the server plus the `db:migrate`/`db:seed-templates` tooling.
+- `GET /api/version` is reachable unauthenticated — an operator running the image can read its build identity (`version`/`gitSha`/`builtAt`, non-sensitive) without first registering an admin.

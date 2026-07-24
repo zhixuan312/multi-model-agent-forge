@@ -66,6 +66,7 @@ export function LoopsClient({
   // each render, so depending on the array itself would clear justTriggered every render
   // (an infinite loop). serverKey only changes when the actual set of running ids changes.
   const serverKey = runningLoopIds.join('|');
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear the optimistic just-triggered set when the authoritative server running-ids refetch (keyed on content, not array identity, so it doesn't loop)
   useEffect(() => { setJustTriggered(new Set()); }, [serverKey]);
 
   const running = useMemo(() => {

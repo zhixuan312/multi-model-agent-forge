@@ -45,3 +45,9 @@ mockup
 .forge-exports
 .superpowers
 .vercel
+
+# Local-only design/harness/test scaffolding — never part of the image build context
+.mma
+.e2e
+.claude
+.pnpm-store

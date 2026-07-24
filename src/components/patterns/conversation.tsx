@@ -120,6 +120,7 @@ export function ConversationComposer({
   // Latest value for async callbacks: the transcription onstop closure captured `value` at
   // record-START, so text typed WHILE recording was overwritten. Read the ref instead.
   const valueRef = useRef(value);
+  // eslint-disable-next-line react-hooks/refs -- intentional latest-value ref: the transcription onstop closure captured `value` at record-start, so it must read the newest value typed while recording
   valueRef.current = value;
 
   function submit(e?: FormEvent) {

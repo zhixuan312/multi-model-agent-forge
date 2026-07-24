@@ -174,6 +174,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   // Preserve an optimistic 'implementing' over a derived 'queued' so a mid-run refresh can't
   // regress an in-flight repo back to queued.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: re-derive jobs from refreshed props (functional update preserves an optimistic 'implementing' over a derived 'queued')
     setJobs((cur) => {
       const derived = computeJobs();
       const next: Record<string, RepoJobState> = {};

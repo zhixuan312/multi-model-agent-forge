@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## 0.1.0 - 2026-07-24
 
-- Initial semver-tagged Forge distribution release.
-- Added runtime version reporting through `GET /api/version`.
-- Added standalone-container packaging, compose topology, and provider-agnostic bootstrap docs.
+First tagged, container-distributed Forge release. Image digest: _recorded below on push_.
+
+### Added
+- Runtime version reporting through `GET /api/version` (`version` · `gitSha` · `builtAt`).
+- Standalone-container packaging (multi-stage `Dockerfile` over Next `output: "standalone"`), compose topology, and provider-agnostic bootstrap (`pnpm db:migrate`, `pnpm db:seed-templates`).
+- Database-backed project journal: a `project_journal` staging table replaces the physical `journal.md`. The Reflect stage harvests learnings into the table, the team curates them in place (edit / remove / approve), and on approval they are recorded to the MMA engine via the 5.13 array `journal_record` contract (`records:[{prompt,topic}]`, chunked ≤20, results correlated by content). Journal is no longer an exportable artifact — exploration, specification, and plan remain exportable.
+- `matchedMmaVersion` (`5.13.0`) + `src/mma/COMPATIBILITY.md` — the declared, evidence-backed engine contract Forge is built against.
+
+### Changed
+- Aligned the MMA client to the current engine contract (matched 5.13.0): corrected the `/status` counter field, adopted the array `journal_record` with a per-record `topic`, and removed the unused typed client wrappers so the client surface is exactly what Forge uses.
+- Every team-scoped surface (projects, loops, workspace/repos, usage, team settings) filters strictly by the caller's team; provider configuration is org-admin-only and the team git token is team-admin-only.

@@ -3,12 +3,11 @@ import { asc, eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
-import { project } from '@/db/schema/projects';
 import { projectJournal } from '@/db/schema/project-journal';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { buildJournalLearningView } from '@/journal/project-journal-view';
 import { backfillProjectJournalIfNeeded } from '@/journal/project-journal-backfill';
-import { JournalStageClient, type JournalLearningView } from '@/components/forge/JournalStageClient';
+import { JournalStageClient } from '@/components/forge/JournalStageClient';
 import { findInflight } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
 

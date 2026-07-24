@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## 0.1.0 - 2026-07-24
 
-First tagged, container-distributed Forge release. Image digest: _recorded below on push_.
+First tagged, container-distributed Forge release.
+
+Image: `ghcr.io/zhixuan312/forge:0.1.0` (alias `:latest`)
+Digest (immutable release identity): `ghcr.io/zhixuan312/forge@sha256:5dd6e6243c16009c2335166f6775cc23c48065974bb3cdaeb3efc5a6d70c0d84`
 
 ### Added
 - Runtime version reporting through `GET /api/version` (`version` · `gitSha` · `builtAt`).

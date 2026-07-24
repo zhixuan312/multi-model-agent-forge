@@ -23,5 +23,8 @@ export const containerConfigSchema = z
   })
   .strict();
 
-// @ts-expect-error — plain-JS boot script, intentionally untyped at the boundary.
+// Single source of truth: the generation logic lives in the plain-JS boot script,
+// because that script runs at container start with no TypeScript toolchain and no
+// build step. This module is a thin typed re-export — it must never re-declare the
+// tier/provider mapping, or the two copies will drift.
 export { buildGeneratedConfig, resolveOrWriteConfig } from '../../scripts/container-bootstrap.mjs';

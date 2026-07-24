@@ -13,8 +13,11 @@ describe('container bootstrap', () => {
       spawnStep: vi.fn(async (label: string) => {
         calls.push(label);
       }),
+      // Must return the same shape as the real resolveOrWriteConfig, otherwise the
+      // inferred parameter type rejects a void-returning mock.
       ensureConfig: vi.fn(async () => {
         calls.push('ensureConfig');
+        return { kind: 'generated', path: '/root/.mma/config.json' };
       }),
       createSchema: vi.fn(async () => {
         calls.push('schema');

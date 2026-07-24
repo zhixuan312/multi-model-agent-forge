@@ -9,19 +9,53 @@ const DEFAULT_MODELS = {
   openai: { main: 'gpt-5.5', complex: 'gpt-5.5', standard: 'gpt-5.5' },
 };
 
-export function buildGeneratedConfig(provider, env) {
-  const type = provider === 'anthropic' ? 'claude' : 'codex';
-  const apiKeyEnv = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
-  const hasApiKey = Boolean(env[apiKeyEnv] && env[apiKeyEnv].trim());
-  const models = DEFAULT_MODELS[provider];
+const TIERS = ['main', 'complex', 'standard'];
 
-  return {
-    agents: {
-      main: { type, model: models.main, ...(hasApiKey ? { apiKeyEnv } : {}) },
-      complex: { type, model: models.complex, ...(hasApiKey ? { apiKeyEnv } : {}) },
-      standard: { type, model: models.standard, ...(hasApiKey ? { apiKeyEnv } : {}) },
-    },
-  };
+/** Provider name -> engine agent `type` + the env var holding that provider's key. */
+const PROVIDERS = {
+  anthropic: { type: 'claude', apiKeyEnv: 'ANTHROPIC_API_KEY' },
+  openai: { type: 'codex', apiKeyEnv: 'OPENAI_API_KEY' },
+};
+
+/**
+ * Resolve one tier's provider. `PROVIDER` is the default for every tier; a
+ * per-tier `PROVIDER_<TIER>` overrides it. Mixed layouts are first-class:
+ * codex and claude are peers, not a default and an exception.
+ */
+function providerForTier(tier, provider, env) {
+  const raw = (env[`PROVIDER_${tier.toUpperCase()}`] || provider || 'anthropic').trim().toLowerCase();
+  if (!PROVIDERS[raw]) {
+    throw new Error(
+      `Unknown provider "${raw}" for tier "${tier}". Use "anthropic" or "openai", ` +
+        `or mount your own ~/.mma/config.json for a layout this generator cannot express.`,
+    );
+  }
+  return raw;
+}
+
+export function buildGeneratedConfig(provider, env) {
+  const agents = {};
+
+  for (const tier of TIERS) {
+    const name = providerForTier(tier, provider, env);
+    const { type, apiKeyEnv } = PROVIDERS[name];
+    // Each tier names ITS OWN key env var. A tier may also override its model and
+    // point at any OpenAI-compatible endpoint via a per-tier base URL.
+    const model = (env[`MODEL_${tier.toUpperCase()}`] || '').trim() || DEFAULT_MODELS[name][tier];
+    const baseUrl = (env[`BASE_URL_${tier.toUpperCase()}`] || '').trim();
+    const hasApiKey = Boolean(env[apiKeyEnv] && env[apiKeyEnv].trim());
+
+    agents[tier] = {
+      type,
+      model,
+      ...(baseUrl ? { baseUrl } : {}),
+      // Keyless => the tier falls back to that provider's native OAuth
+      // (~/.claude for claude, ~/.codex/auth.json for codex).
+      ...(hasApiKey ? { apiKeyEnv } : {}),
+    };
+  }
+
+  return { agents };
 }
 
 export async function resolveOrWriteConfig({ provider, env, homeDir = homedir(), configPathEnv = process.env.MMA_CONFIG_PATH }) {

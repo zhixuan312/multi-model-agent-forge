@@ -12,13 +12,12 @@ instructs — the application runtime itself came up correctly.
 > **Release note:** the image for this version **must be pushed multi-arch** (see
 > `DEPLOYMENT.md` §8) and the CHANGELOG digest updated **after** that push.
 
-> **Still open:** the bundled MMA engine pin (`package.json#matchedMmaVersion`) is
-> **unchanged at `5.13.0`** and must be bumped before this ships. 5.13.x gates its Claude
-> OAuth loader on `platform === 'darwin'`, so in the (Linux) container it never reads
-> `~/.claude/.credentials.json`: every Claude-OAuth tier reports "not verified" in
-> Settings → Models with valid credentials mounted, and any task on a Claude tier completes
-> with empty output. MMA 5.14.0 rewrote that loader to read and refresh on Linux, so the
-> target pin is ≥ 5.14.0 — awaiting the exact version.
+> **Bundled MMA engine bumped `5.13.0` → `5.15.3`.** 5.13.x gated its Claude OAuth loader on
+> `platform === 'darwin'`, so in the (Linux) container it never read
+> `~/.claude/.credentials.json`: every Claude-OAuth tier reported "not verified" in
+> Settings → Models with valid credentials mounted, and any task on a Claude tier completed
+> with empty output. MMA 5.14.0 rewrote that loader to read and refresh on Linux; the pin now
+> tracks `5.15.3`, so containerized Claude-OAuth tiers verify and run.
 
 ### Fixed
 - **The image no longer downloads pnpm at container start.** First boot runs

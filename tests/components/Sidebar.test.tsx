@@ -1,13 +1,19 @@
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Sidebar } from '@/components/forge/Sidebar';
+import { GUIDE_NAV_SECTIONS, GUIDE_PARTS } from '@/content/guide-nav';
 import type { AuthedMember } from '@/auth/auth-provider';
 
+const pathname = { current: '/projects' };
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/projects',
+  usePathname: () => pathname.current,
   // Sidebar now renders AccountMenu (footer), which uses useRouter for sign-out.
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
+
+beforeEach(() => {
+  pathname.current = '/projects';
+});
 
 const orgAdmin: AuthedMember = {
   id: 'a1',
@@ -58,14 +64,37 @@ describe('Sidebar role nav', () => {
     unmount2();
   });
 
-  it('shows exactly one Direction link to every authenticated role', () => {
+  it('shows exactly one Guide link to every authenticated role', () => {
     for (const who of [orgAdmin, teamAdmin, member]) {
       const { unmount } = render(<Sidebar member={who} />);
-      const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/direction');
+      const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/settings/guide');
       expect(links).toHaveLength(1);
-      expect(links[0]).toHaveTextContent('Direction');
+      expect(links[0]).toHaveTextContent('Guide');
       unmount();
     }
+  });
+
+  it('keeps the Guide section rail collapsed outside the Guide area', () => {
+    render(<Sidebar member={member} />);
+    expect(screen.queryByText(GUIDE_NAV_SECTIONS[0].title)).not.toBeInTheDocument();
+  });
+
+  it('expands the part-grouped section rail while inside the Guide area', () => {
+    pathname.current = `/settings/guide/${GUIDE_NAV_SECTIONS[1].id}`;
+    render(<Sidebar member={member} />);
+
+    for (const part of GUIDE_PARTS) {
+      expect(screen.getByText(part.title)).toBeInTheDocument();
+    }
+    for (const section of GUIDE_NAV_SECTIONS) {
+      const link = screen.getByText(section.title).closest('a');
+      expect(link).toHaveAttribute('href', `/settings/guide/${section.id}`);
+    }
+
+    // Only the open section is current; the Guide item itself keeps the accent bar.
+    expect(screen.getByText(GUIDE_NAV_SECTIONS[1].title).closest('a')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText(GUIDE_NAV_SECTIONS[0].title).closest('a')).not.toHaveAttribute('aria-current');
+    expect(screen.getByText('Guide').closest('a')).toHaveAttribute('aria-current', 'page');
   });
 
   it('marks the active route with aria-current', () => {

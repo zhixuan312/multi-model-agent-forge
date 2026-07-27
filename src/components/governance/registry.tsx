@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Cpu, Shield, Sparkles } from 'lucide-react';
 import { Avatar, AvatarGroup, Badge, Banner, Button, EmptyState, Field, Input, MetricCard } from '@/components/ui';
-import { SectionNavigator } from '@/components/patterns/section-navigator';
 import { AppShellPreview, AppShellVariant } from '@/components/governance/AppShellPreview';
 import { ContentAreaPreview, ContentAreaVariant } from '@/components/governance/ContentAreaPreview';
 import { LeftPanelPreview, LeftPanelVariant } from '@/components/governance/LeftPanelPreview';
@@ -18,7 +17,6 @@ export type GovernanceSlotId =
   // structural layers, in flow order: background → app shell → content shell →
   // stage flow (project-only) → left panel → right panel
   | 'background'
-  | 'sectionNavigator'
   | 'appShell'
   | 'contentShell'
   | 'stageFlow'
@@ -97,19 +95,6 @@ export interface GovernanceRegistryEntry {
   variants?: readonly GovernanceVariant[];
 }
 
-/** Inline sample for the Section-navigator preview — deliberately tiny and local so
- *  the registry never imports a feature's content module. */
-const SECTION_NAV_PREVIEW_SECTIONS = [
-  { id: 'preview-overview', part: 'intro', title: 'Overview', blurb: 'The first section — selected when the hash is empty or unknown.' },
-  { id: 'preview-details', part: 'intro', title: 'Details', blurb: 'A sibling section in the same part.' },
-  { id: 'preview-appendix', part: 'reference', title: 'Appendix', blurb: 'A section under a second part heading.' },
-] as const;
-
-const SECTION_NAV_PREVIEW_PARTS = [
-  { part: 'intro', title: 'Introduction' },
-  { part: 'reference', title: 'Reference' },
-] as const;
-
 export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEntry> = {
   background: {
     slotId: 'background',
@@ -135,32 +120,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       >
         Application background — <code className="text-ink-soft">var(--bg)</code> base + warm accent bloom
       </div>
-    ),
-  },
-  sectionNavigator: {
-    slotId: 'sectionNavigator',
-    label: 'Section navigator',
-    group: 'structural',
-    canonicalComponent: 'SectionNavigator',
-    canonicalFilePath: 'src/components/patterns/section-navigator.tsx',
-    consumers: [
-      { id: 'direction-page', label: 'Direction manifesto / user manual', filePath: 'app/(app)/direction/page.tsx' },
-    ],
-    deviations: [],
-    // The preview uses a small INLINE sample, never `@/content/direction-*`: the
-    // registry is shared by the settings bundle and sits outside the /direction
-    // route tree, so importing the manual here would both break the import
-    // boundary (scripts/check-direction-import-boundary.ts) and drag ~55 KB of
-    // content into every governance page.
-    renderPreview: () => (
-      <SectionNavigator sections={SECTION_NAV_PREVIEW_SECTIONS} parts={SECTION_NAV_PREVIEW_PARTS}>
-        {(section) => (
-          <div className="rounded-md border border-line bg-surface p-4">
-            <p className="text-sm font-semibold text-ink">{section.title}</p>
-            <p className="mt-1 text-xs text-ink-soft">{section.blurb}</p>
-          </div>
-        )}
-      </SectionNavigator>
     ),
   },
   appShell: {

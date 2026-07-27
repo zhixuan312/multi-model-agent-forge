@@ -75,9 +75,9 @@ Forge's product-specific direction.
 - Forge now has team tenancy + RBAC — this reflects current reality and supersedes
   the retired "no orgs / multi-team / RBAC" scope of journal node 0037.
 
-## /direction mirror note
+## /settings/guide mirror note
 
-The public `/direction` page mirrors this document's sections under the `forge`
-group. Keep them in sync via
+The in-app **Guide** (`/settings/guide`) mirrors this document's sections under the
+`forge` group. Keep them in sync via
 `multi-model-agent-telemetry-frontend/docs/direction-parity-checklist.md`; an edit
 here requires the mirrored page section to be updated in the same change.

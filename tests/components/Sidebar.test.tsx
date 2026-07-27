@@ -58,6 +58,16 @@ describe('Sidebar role nav', () => {
     unmount2();
   });
 
+  it('shows exactly one Direction link to every authenticated role', () => {
+    for (const who of [orgAdmin, teamAdmin, member]) {
+      const { unmount } = render(<Sidebar member={who} />);
+      const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/direction');
+      expect(links).toHaveLength(1);
+      expect(links[0]).toHaveTextContent('Direction');
+      unmount();
+    }
+  });
+
   it('marks the active route with aria-current', () => {
     render(<Sidebar member={member} />);
     const projects = screen.getByText('Projects').closest('a');

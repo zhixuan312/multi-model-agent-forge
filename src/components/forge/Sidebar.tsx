@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, type LucideIcon } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, Compass, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
@@ -44,6 +44,9 @@ const SECTIONS: NavSection[] = [
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
+      // The product manual is universal — every authenticated role reads the same
+      // Direction, so it carries neither `teamScoped` nor `adminOnly`.
+      { href: '/direction', label: 'Direction', icon: Compass },
     ],
   },
   {

@@ -54,11 +54,11 @@ describe('PUT /api/team/workspace', () => {
     expect((await PUT(req({ workspaceRootPath: '/etc/evil' }))).status).toBe(400);
   });
 
-  it('200 and returns the resolved path for a valid sibling child', async () => {
+  it('200 and returns the stored base-relative path for a valid sibling child', async () => {
     process.env.FORGE_WORKSPACE_BASE = '/forge/base';
     mockCaller = asMember('team_admin', 'team-1');
     const res = await PUT(req({ workspaceRootPath: '/forge/base/alpha' }));
     expect(res.status).toBe(200);
-    expect((await res.json()).workspaceRootPath).toBe('/forge/base/alpha');
+    expect((await res.json()).workspaceRootPath).toBe('alpha');
   });
 });

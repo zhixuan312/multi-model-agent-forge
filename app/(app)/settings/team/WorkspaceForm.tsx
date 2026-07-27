@@ -76,7 +76,10 @@ export function WorkspaceForm({ current }: { current: string }) {
       onCancel={cancel}
       onSubmit={submit}
     >
-      <Field label="Workspace root path" hint="Must sit directly under the operator workspace base.">
+      <Field
+        label="Workspace root path"
+        hint="A directory name directly under the operator workspace base. Stored relative to that base, so the value stays valid if the server moves."
+      >
         {(p) => <Input {...p} value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />}
       </Field>
     </FormPanel>

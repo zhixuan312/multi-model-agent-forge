@@ -254,13 +254,16 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       <Field label="Slug" hint="Unique identifier, e.g. platform-team — the team name is derived from it.">
         {(p) => <Input {...p} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="platform-team" />}
       </Field>
-      <Field label="Workspace root path" hint="Local filesystem root for this team's repos and journal.">
+      <Field
+        label="Workspace root path"
+        hint="Directory name for this team's repos and journal, directly under the operator workspace base."
+      >
         {(p) => (
           <Input
             {...p}
             value={workspaceRootPath}
             onChange={(e) => setWorkspaceRootPath(e.target.value)}
-            placeholder=".forge-workspace/platform"
+            placeholder="platform"
           />
         )}
       </Field>

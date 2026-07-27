@@ -34,6 +34,9 @@ describe('createTeamWithAdmin', () => {
     // the team name is derived from the slug
     const tv = db._callsFor('team').find((c) => c.method === 'values');
     expect(JSON.stringify(tv?.args)).toContain('Beta Squad');
+    // the workspace path is stored base-relative, never as an absolute host path
+    expect(JSON.stringify(tv?.args)).toContain('"beta"');
+    expect(JSON.stringify(tv?.args)).not.toContain('/forge/base');
     // the member is inserted as a team_admin bound to the freshly created team
     const mv = db._callsFor('team_member').find((c) => c.method === 'values');
     expect(JSON.stringify(mv?.args)).toContain('team_admin');

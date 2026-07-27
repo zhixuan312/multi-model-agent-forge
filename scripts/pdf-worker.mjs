@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * PDF subprocess worker — runs OUTSIDE Turbopack.
- * stdin: JSON { html, mermaidBundlePath?, mermaidAsDiagram, noSandbox?, timeoutMs? }
+ * stdin: JSON { html, mermaidBundlePath?, mermaidAsDiagram, noSandbox?, timeoutMs?,
+ *               launchTimeoutMs? }
  * stdout: raw PDF bytes
  */
 import puppeteer from 'puppeteer';
@@ -13,12 +14,21 @@ const input = await new Promise((resolve) => {
   process.stdin.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString())));
 });
 
-const { html, mermaidBundlePath, mermaidAsDiagram, noSandbox, timeoutMs = 30000 } = input;
+const {
+  html,
+  mermaidBundlePath,
+  mermaidAsDiagram,
+  noSandbox,
+  timeoutMs = 30000,
+  // Chromium cold start gets its own budget — puppeteer's 30s default is tight on
+  // a 1-vCPU host and surfaces as a spurious `pdf_engine_unavailable`.
+  launchTimeoutMs = 60000,
+} = input;
 
 const args = ['--disable-dev-shm-usage'];
 if (noSandbox !== false) args.push('--no-sandbox');
 
-const browser = await puppeteer.launch({ headless: true, args });
+const browser = await puppeteer.launch({ headless: true, args, timeout: launchTimeoutMs });
 try {
   const page = await browser.newPage();
 

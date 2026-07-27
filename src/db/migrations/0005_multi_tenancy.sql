@@ -1,4 +1,12 @@
-begin;
+-- NO explicit `begin`/`commit` here. The drizzle migrator already wraps the whole
+-- migration folder in ONE transaction (`session.transaction(...)` in pg-core's
+-- `migrate`), so a `begin` inside the script nests (Postgres: "there is already a
+-- transaction in progress") and a `commit` closes the migrator's OWN transaction
+-- early — which is why every boot logged `WARNING 25P01: there is no transaction in
+-- progress` when the migrator then issued its real COMMIT. Worse, the early commit
+-- meant a failure in a LATER migration could no longer roll this one back. Letting
+-- the migrator own the transaction keeps the DDL below atomic and the log clean.
+-- Net schema effect is identical to the previously-applied version of this file.
 
 -- Bootstrap-safe: this migration runs against BOTH a populated legacy DB (backfill
 -- roles/teams from the old is_admin flag) AND a truly-fresh DB (no members yet — the
@@ -88,5 +96,3 @@ begin
     raise exception 'Migration failed: at most one org_admin may exist (found more than one)';
   end if;
 end $$;
-
-commit;

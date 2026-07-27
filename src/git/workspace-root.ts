@@ -20,11 +20,17 @@ export function resolveWorkspaceBase(): string {
 
 /**
  * The absolute workspace root for a team — what MMA receives as `?cwd=` and what
- * the journal filesystem reads sit under. Stored team paths are normally absolute
- * (updateTeam persists the resolved path), but a bare/relative value (legacy seed
- * data) is resolved against the operator base so callers never hand MMA a
- * relative cwd (MMA rejects it with `invalid_cwd`). An empty value falls back to
- * the global workspace root.
+ * the journal filesystem reads sit under.
+ *
+ * The stored value is a path RELATIVE to the operator base (just the team's leaf
+ * segment), so a database backup is portable between hosts whose bases differ:
+ * restoring a dump into a container with `FORGE_WORKSPACE_BASE=/workspace` lands
+ * every team at `/workspace/<leaf>` with no manual path rewrite. An
+ * already-ABSOLUTE stored value is still honoured verbatim — rows written before
+ * that change (and any hand-edited row) must keep resolving. An empty value falls
+ * back to the global workspace root.
+ *
+ * Either way the result is absolute: MMA rejects a relative cwd with `invalid_cwd`.
  */
 export function resolveTeamWorkspaceRoot(team: { workspaceRootPath: string }): string {
   const p = team.workspaceRootPath?.trim() ?? '';
@@ -32,10 +38,33 @@ export function resolveTeamWorkspaceRoot(team: { workspaceRootPath: string }): s
   return isAbsolute(p) ? p : resolve(resolveWorkspaceBase(), p);
 }
 
+/**
+ * Normalise a candidate workspace path to the form that gets STORED: the leaf,
+ * relative to the operator base. This is the un-validated counterpart of
+ * `validateTeamWorkspacePath` — for the create paths, which historically accepted
+ * whatever the org admin typed. It only changes the ENCODING of the same
+ * directory (`/workspace/acme` and `acme` both store as `acme`), so a database
+ * dump restored onto a host with a different base still resolves.
+ *
+ * A degenerate candidate with no leaf (e.g. `/`) is returned unchanged rather
+ * than collapsed to an empty string, which the NOT NULL column would reject.
+ */
+export function toStoredWorkspacePath(candidate: string): string {
+  const trimmed = candidate.trim();
+  const leaf = basename(trimmed);
+  return leaf === '' ? trimmed : leaf;
+}
+
 export interface TeamWorkspacePathValidation {
   ok: boolean;
-  /** The absolute path to persist (present only when `ok`). */
+  /**
+   * The value to PERSIST (present only when `ok`) — relative to the operator
+   * base, so the row survives a move to a host with a different base. Resolve it
+   * with `resolveTeamWorkspaceRoot` before handing it to MMA or the filesystem.
+   */
   path?: string;
+  /** The resolved absolute path the candidate validated as (present only when `ok`). */
+  absolutePath?: string;
   /** Human-readable rejection reason (present only when `!ok`). */
   reason?: string;
 }
@@ -47,6 +76,11 @@ export interface TeamWorkspacePathValidation {
  * subtree. A bare or relative segment resolves under the base. `realpath` is
  * injectable for testing; the default canonicalises the leaf if it exists, else
  * the deepest existing ancestor (a not-yet-created team root is allowed).
+ *
+ * Every check runs on the RESOLVED ABSOLUTE path (that is the only form in which
+ * "direct child of the base" and "no symlink escape" mean anything), but what
+ * comes back in `path` is the base-relative leaf — the host-portable value to
+ * store. `absolutePath` carries the resolved form for callers that need it now.
  */
 export function validateTeamWorkspacePath(
   candidate: string,
@@ -91,5 +125,7 @@ export function validateTeamWorkspacePath(
   if (dirname(realAbs) !== realBase) {
     return { ok: false, reason: 'Workspace path must be a direct child of the operator workspace base.' };
   }
-  return { ok: true, path: abs };
+  // Persist the leaf, not `abs`: it is the same directory expressed relative to
+  // whatever base the running host has, which is what makes a DB dump portable.
+  return { ok: true, path: basename(abs), absolutePath: abs };
 }

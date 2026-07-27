@@ -35,12 +35,15 @@ export async function spawnPdfRender(
     mermaidAsDiagram: opts.mermaidAsDiagram ?? true,
     noSandbox: cfg.pdfNoSandbox,
     timeoutMs: cfg.pdfTimeoutMs,
+    launchTimeoutMs: cfg.pdfLaunchTimeoutMs,
   });
 
   return new Promise<Buffer>((resolve, reject) => {
     const proc = spawn('node', [workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: cfg.pdfTimeoutMs + 5000,
+      // The subprocess pays a Chromium cold start BEFORE it renders, so its wall
+      // clock must cover launch + render, not render alone.
+      timeout: cfg.pdfLaunchTimeoutMs + cfg.pdfTimeoutMs + 5000,
     });
 
     const chunks: Buffer[] = [];

@@ -167,11 +167,20 @@ export class PdfRenderer {
     this.now = deps.now ?? Date.now;
   }
 
-  /** Launch args (F12): --no-sandbox/--disable-dev-shm-usage gated by config. */
+  /**
+   * Launch args (F12): --no-sandbox/--disable-dev-shm-usage gated by config.
+   * `timeout` is the Chromium COLD-START budget (`FORGE_PDF_LAUNCH_TIMEOUT_MS`,
+   * default 60s) — puppeteer's own 30s default is tight on a 1-vCPU host and made
+   * the boot probe report a false `pdf_engine_unavailable`.
+   */
   private launchOpts(): Record<string, unknown> {
     const args: string[] = [];
     if (this.cfg.pdfNoSandbox) args.push('--no-sandbox', '--disable-dev-shm-usage');
-    const opts: Record<string, unknown> = { headless: true, args };
+    const opts: Record<string, unknown> = {
+      headless: true,
+      args,
+      timeout: this.cfg.pdfLaunchTimeoutMs,
+    };
     if (this.cfg.puppeteerExecutablePath) opts.executablePath = this.cfg.puppeteerExecutablePath;
     return opts;
   }

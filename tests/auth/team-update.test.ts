@@ -17,7 +17,10 @@ describe('updateTeam (org admin edits an existing team)', () => {
     const set = JSON.stringify(setCall?.args);
     expect(set).toContain('renamed-squad'); // slug
     expect(set).toContain('Renamed Squad'); // name derived from slug
-    expect(set).toContain('/forge/base/sub'); // resolved absolute path
+    // Stored base-relative (validated against the resolved /forge/base/sub), so the
+    // row survives a restore onto a host with a different FORGE_WORKSPACE_BASE.
+    expect(set).toContain('"sub"');
+    expect(set).not.toContain('/forge/base');
   });
 
   it('updates only the fields provided (slug alone re-derives the name)', async () => {

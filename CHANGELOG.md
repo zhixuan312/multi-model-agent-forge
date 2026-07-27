@@ -2,6 +2,78 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+Deployment-hardening pass driven by a full external-operator test of the `0.1.1` image on a
+clean Ubuntu 24.04 / 1 vCPU / 2 GB box. Every item below is a packaging, configuration, or
+documentation defect found by deploying the published artifact exactly as `DEPLOYMENT.md`
+instructs — the application runtime itself came up correctly.
+
+> **Release note:** the image for this version **must be pushed multi-arch** (see
+> `DEPLOYMENT.md` §8) and the CHANGELOG digest updated **after** that push.
+
+> **Still open:** the bundled MMA engine pin (`package.json#matchedMmaVersion`) is
+> **unchanged at `5.13.0`** and must be bumped before this ships. 5.13.x gates its Claude
+> OAuth loader on `platform === 'darwin'`, so in the (Linux) container it never reads
+> `~/.claude/.credentials.json`: every Claude-OAuth tier reports "not verified" in
+> Settings → Models with valid credentials mounted, and any task on a Claude tier completes
+> with empty output. MMA 5.14.0 rewrote that loader to read and refresh on Linux, so the
+> target pin is ≥ 5.14.0 — awaiting the exact version.
+
+### Fixed
+- **The image no longer downloads pnpm at container start.** First boot runs
+  `pnpm db:migrate` + `pnpm db:seed-templates`, and corepack was fetching the pinned pnpm
+  tarball from the npm registry right then — slow, a moving dependency on every fresh
+  container, and a hard failure on an air-gapped or egress-restricted host. pnpm is now
+  prepared at build time from `package.json#packageManager` into a shared `COREPACK_HOME`
+  (the default cache is per-user, and the build runs as root while the container runs as
+  `node`), with a build step that resolves it as the runtime user with the network disabled.
+- **`WARNING 25P01: there is no transaction in progress` on every boot.**
+  `0005_multi_tenancy.sql` wrapped itself in `begin`/`commit`, but the drizzle migrator
+  already runs the whole folder inside one transaction — the script's `commit` closed the
+  migrator's own transaction early (so a later failure could no longer roll this migration
+  back) and the migrator's real `COMMIT` then had nothing to commit. The script now lets the
+  migrator own the transaction; net schema effect unchanged.
+- **`pdf_engine_unavailable` from a Chromium launch timeout.** Browser cold start borrowed
+  puppeteer's 30 s default, which a 1-vCPU host (the documented minimum) can exceed — the
+  boot probe then declared the PDF engine broken on a healthy install. Launch now has its own
+  budget, `FORGE_PDF_LAUNCH_TIMEOUT_MS`, defaulting to 60 s and applied to both the in-process
+  renderer and the standalone worker.
+- **Skill-manifest drift warning on every boot.** `mma sync-skills` now runs at build time
+  against the codex client dir under the runtime user's home, so `mma serve` starts clean.
+
+### Changed
+- **`team.workspace_root_path` is stored relative to `FORGE_WORKSPACE_BASE`** (the team's
+  leaf directory) instead of as an absolute host path, making a database backup portable
+  between hosts: restoring a dump into a container whose base is `/workspace` used to leave
+  every team pointing at a nonexistent path that also failed the "direct child of the base"
+  validation, and needed a manual `UPDATE`. Validation still runs on the resolved absolute
+  path, and the runtime resolver **still accepts an already-absolute stored value**, so
+  pre-existing and hand-edited rows keep working. Migration `0019` rewrites existing absolute
+  rows to their leaf.
+
+### Added
+- **Multi-arch build instructions** (`DEPLOYMENT.md` §8, plus a header note in the
+  `Dockerfile`). `0.1.1` was published **arm64-only** — built with a plain `docker build` on
+  an Apple-Silicon Mac — so `docker pull` failed outright on every x86_64 server with
+  `no matching manifest for linux/amd64`. Releases now go out through
+  `docker buildx build --platform linux/amd64,linux/arm64 … --push`, with amd64 as the
+  priority target, followed by a `docker manifest inspect` check and a CHANGELOG digest update.
+  Nothing in the `Dockerfile` pins an architecture; the defect was purely in how it was pushed.
+- **OAuth credential-mount guidance** (`DEPLOYMENT.md` §5a). The container runs as `node`
+  (uid 1000) while `claude`/`codex login` write credentials `600 root`, so the documented
+  `-v $HOME/.claude:…:ro` mount silently produced no credentials. The guide now covers staging
+  a `chown 1000:1000` copy and mounting the credential **file**, the `--user` alternative, and
+  the fact that a `:ro` mount cannot persist an OAuth refresh — API keys are recommended for
+  an always-on server.
+- **Silent-login-loop diagnosis for plain-HTTP deploys.** In production the session cookie is
+  `Secure`, which a browser on `http://` discards: login succeeds server-side, the session
+  never sticks, and the user bounces back to `/login` with no error shown and no
+  `login.failure` logged. Forge now emits a `login.insecure_cookie` warning naming the cause
+  and the two fixes, and `DEPLOYMENT.md` §2 documents `FORGE_COOKIE_SECURE=false` next to the
+  TLS-proxy guidance. The check is deliberately conservative — it stays silent on HTTPS, on
+  `localhost`, and when no header reveals the scheme.
+
 ## 0.1.1 - 2026-07-25
 
 All-in-one image: Forge now carries and supervises its matched MMA engine as a

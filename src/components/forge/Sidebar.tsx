@@ -2,15 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, Compass, type LucideIcon } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, BookOpen, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Eyebrow } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
+import { GUIDE_NAV_SECTIONS, GUIDE_PARTS } from '@/content/guide-nav';
 import { TEAM_SETTINGS_HREFS, ORG_SETTINGS_HREFS } from '@/components/forge/settings-routes';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 const COMPONENTS_HREF = '/settings/components';
+const GUIDE_HREF = '/settings/guide';
 // A page is a stack of layers in flow order (background → app shell → content shell →
 // stage flow → panels), then the shared primitives used inside every layer.
 const SLOT_GROUPS = [
@@ -44,9 +46,6 @@ const SECTIONS: NavSection[] = [
       { href: '/loops', label: 'Loops', icon: Repeat, adminOnly: true, teamScoped: true },
       { href: '/journal', label: 'Journal', icon: NotebookPen, teamScoped: true },
       { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, teamScoped: true },
-      // The product manual is universal — every authenticated role reads the same
-      // Direction, so it carries neither `teamScoped` nor `adminOnly`.
-      { href: '/direction', label: 'Direction', icon: Compass },
     ],
   },
   {
@@ -54,6 +53,9 @@ const SECTIONS: NavSection[] = [
     label: 'Settings',
     items: [
       { href: '/usage', label: 'Usage', icon: BarChart3 },
+      // The product manual is universal — every authenticated role reads the same
+      // Guide, so it carries neither `teamScoped` nor `adminOnly`.
+      { href: '/settings/guide', label: 'Guide', icon: BookOpen },
       { href: '/settings/components', label: 'Components', icon: Boxes, adminOnly: 'org_admin' },
       { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin', owns: ORG_SETTINGS_HREFS },
       { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin', owns: TEAM_SETTINGS_HREFS },
@@ -161,6 +163,43 @@ export function Sidebar({
     );
   }
 
+  /** The Guide's table of contents, part-grouped — the manual's ONLY navigation.
+   *  Each section is its own page, so the centre area never carries a second menu. */
+  function renderGuideSections() {
+    return (
+      <div className="ml-3 mt-0.5 flex flex-col gap-1 border-l border-line pl-2">
+        {GUIDE_PARTS.map((part) => {
+          const sections = GUIDE_NAV_SECTIONS.filter((s) => s.part === part.part);
+          if (sections.length === 0) return null;
+          return (
+            <div key={part.part} className="flex flex-col gap-0.5">
+              <Eyebrow className="px-2 pt-1 !text-[0.625rem] text-ink-faint">{part.title}</Eyebrow>
+              {sections.map((section) => {
+                const href = `${GUIDE_HREF}/${section.id}`;
+                const active = pathname === href;
+                return (
+                  <Link
+                    key={section.id}
+                    href={href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'rounded-[var(--r)] px-2 py-1 text-[0.8125rem] transition-colors',
+                      active
+                        ? 'bg-accent-tint font-medium text-accent-deep'
+                        : 'text-ink-soft hover:bg-bg-sunk hover:text-ink',
+                    )}
+                  >
+                    {section.title}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <aside
       data-testid="sidebar"
@@ -193,6 +232,16 @@ export function Sidebar({
                     <div key={item.href} className="flex flex-col gap-0.5">
                       {renderLink(item, active)}
                       {active ? renderComponentSlots() : null}
+                    </div>
+                  );
+                }
+                // "Guide" expands into the manual's part-grouped section list while the
+                // reader is inside the Guide area — each section is its own page.
+                if (item.href === GUIDE_HREF) {
+                  return (
+                    <div key={item.href} className="flex flex-col gap-0.5">
+                      {renderLink(item, active)}
+                      {active ? renderGuideSections() : null}
                     </div>
                   );
                 }

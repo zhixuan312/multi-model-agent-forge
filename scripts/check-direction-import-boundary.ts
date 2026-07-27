@@ -1,18 +1,22 @@
 /**
- * Direction route-scope gate — `pnpm exec tsx scripts/check-direction-import-boundary.ts`.
+ * Guide route-scope gate — `pnpm exec tsx scripts/check-direction-import-boundary.ts`.
  *
- * The Direction manual is a large static document. It must download only on
- * `/direction`. Next.js splits client bundles per route from the STATIC IMPORT
- * GRAPH, so "no other route imports it" is exactly the property that keeps it off
- * every other route's payload — and unlike a build-manifest scan it is stable
- * across Next versions (Next 16 emits no per-route chunk manifest to parse).
+ * The Guide manual is a large static document. It must download only on
+ * `/settings/guide`. Next.js splits client bundles per route from the STATIC
+ * IMPORT GRAPH, so "no other route imports it" is exactly the property that keeps
+ * it off every other route's payload — and unlike a build-manifest scan it is
+ * stable across Next versions (Next 16 emits no per-route chunk manifest to parse).
  *
  * The checker is pure static analysis: it scans every `.ts`/`.tsx` under `app/`
  * and `src/` outside the two ALLOWED trees and fails naming any file that imports
  * the direction content or renderers.
  *
- *   Allowed importers: app/(app)/direction/**  (the route)
+ *   Allowed importers: app/(app)/settings/guide/**  (the route)
  *                      src/components/direction/**  (the renderers themselves)
+ *
+ * The Sidebar's Guide rail is NOT an exception to this: it imports
+ * `@/content/guide-nav`, a standalone id/part/title projection that carries none
+ * of the manual's prose.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -21,7 +25,7 @@ const SCAN_DIRS = ['app', 'src'];
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', '.git', 'coverage', '.e2e']);
 
 /** Trees that legitimately import the direction modules. */
-const ALLOWED_TREES = ['app/(app)/direction/', 'src/components/direction/'];
+const ALLOWED_TREES = ['app/(app)/settings/guide/', 'src/components/direction/'];
 
 /** Module specifiers that carry the manual's payload, in any `@/…` or relative form. */
 const DIRECTION_SPECIFIERS = [
@@ -83,14 +87,14 @@ export function findDirectionBoundaryViolations(root: string = process.cwd()): B
 
 /**
  * Throws naming every offending file when the direction modules leak outside the
- * `/direction` route tree; returns the number of scanned files when clean.
+ * `/settings/guide` route tree; returns the number of scanned files when clean.
  */
 export function checkDirectionImportBoundary(root: string = process.cwd()): number {
   const violations = findDirectionBoundaryViolations(root);
   if (violations.length > 0) {
     const lines = violations.map((v) => `  → ${v.file} imports '${v.specifier}'`).join('\n');
     throw new Error(
-      `Direction content escaped the /direction route tree — ${violations.length} out-of-boundary import(s):\n${lines}\n` +
+      `Guide content escaped the /settings/guide route tree — ${violations.length} out-of-boundary import(s):\n${lines}\n` +
         `Only ${ALLOWED_TREES.join(' and ')} may import the direction content/renderers.`,
     );
   }

@@ -9,7 +9,6 @@ describe('component governance registry', () => {
     expect(ids).toEqual([
       // structural layers in flow order (stage flow sits between the content shell and panels)
       'background',
-      'sectionNavigator',
       'appShell',
       'contentShell',
       'stageFlow',
@@ -29,7 +28,7 @@ describe('component governance registry', () => {
     const structural = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'structural');
     const project = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'project');
     const primitive = ids.filter((id) => GOVERNANCE_REGISTRY[id].group === 'primitive');
-    expect(structural).toHaveLength(7);
+    expect(structural).toHaveLength(6);
     expect(project).toHaveLength(0);
     expect(primitive).toHaveLength(8);
 

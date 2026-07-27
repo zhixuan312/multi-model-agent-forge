@@ -14,11 +14,23 @@ function tree(files: Record<string, string>) {
 }
 
 describe('checkDirectionImportBoundary', () => {
-  it('passes when only the /direction route tree and direction components import the content', () => {
+  it('passes when only the /settings/guide route tree and direction components import the content', () => {
     const root = tree({
-      'app/(app)/direction/page.tsx': "import { DIRECTION_SECTIONS, PARTS } from '@/content/direction-sections';",
+      'app/(app)/settings/guide/[sectionId]/page.tsx': "import { DIRECTION_SECTIONS } from '@/content/direction-sections';",
       'src/components/direction/DirectionSection.tsx': "import { PRINCIPLES } from '@/content/direction-reference';",
       'app/(app)/projects/page.tsx': "import { foo } from '@/lib/foo';",
+    });
+    try {
+      expect(() => checkDirectionImportBoundary(root)).not.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not flag the Sidebar for importing the lightweight guide-nav projection', () => {
+    const root = tree({
+      'app/(app)/settings/guide/page.tsx': "import { GUIDE_FIRST_SECTION_ID } from '@/content/guide-nav';",
+      'src/components/forge/Sidebar.tsx': "import { GUIDE_NAV_SECTIONS, GUIDE_PARTS } from '@/content/guide-nav';",
     });
     try {
       expect(() => checkDirectionImportBoundary(root)).not.toThrow();

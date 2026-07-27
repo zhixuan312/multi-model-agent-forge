@@ -5,7 +5,6 @@ export { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, SEVERITY_ORDE
 export { Message, MessageList, ConversationComposer, ConversationPane, type ConversationMessage, type ConversationComposerProps, type ConversationPaneProps } from './conversation';
 export { StageShell, type StageShellProps } from './stage-shell';
 export { StageNavigator, type NavItem, type NavGroup } from './stage-navigator';
-export { SectionNavigator, type SectionNavigatorProps } from './section-navigator';
 export { List, type ListRow, type ListSection } from './list';
 export { FormPanel } from './form-panel';
 export type { FormPanelValidate } from './form-panel';

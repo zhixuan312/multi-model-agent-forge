@@ -1,31 +1,37 @@
+import { Card } from '@/components/ui/card';
+import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { WRITE_STAGES } from '@/content/direction-reference';
 
 /**
- * The write-route execution lifecycle as a numbered vertical list — the full
- * set of stages a delegate / execute_plan task runs through, with what each
- * does. (register-block is skipped for write routes; compose + terminal
- * assemble the response.)
+ * The write-route execution lifecycle — the full set of stages a delegate /
+ * execute_plan task runs through, with what each does. One `Card` carrying a
+ * divided ordered list: the order is the sequence, so no connectors are drawn.
+ * (register-block is skipped for write routes; compose + terminal assemble the
+ * response.)
  */
 export function StageFlow() {
   return (
     <div className="flex flex-col gap-3">
-      <ol className="flex flex-col gap-1.5">
-        {WRITE_STAGES.map((s, i) => (
-          <li
-            key={s.name}
-            className="flex items-baseline gap-3 rounded-[var(--r-md)] border border-line bg-surface p-3"
-          >
-            <span className="grid size-5 shrink-0 place-items-center rounded-[6px] bg-surface-2 text-[10px] font-semibold text-ink-faint">
-              {i + 1}
-            </span>
-            <code className="shrink-0 text-xs font-semibold text-accent-deep">{s.name}</code>
-            <span className="min-w-0 flex-1 text-xs leading-relaxed text-ink-soft">{s.what}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="text-xs leading-relaxed text-ink-faint">
-        <code>register-block</code> is skipped for write routes; <code>compose</code> and <code>terminal</code> assemble and finalize the response.
-      </p>
+      <Card>
+        <ol className="divide-y divide-line">
+          {WRITE_STAGES.map((s, i) => (
+            <li key={s.name} className="flex flex-col gap-1 px-5 py-3.5 sm:flex-row sm:items-baseline sm:gap-4">
+              <div className="flex shrink-0 items-baseline gap-2.5 sm:w-40">
+                <Eyebrow as="span" className="tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </Eyebrow>
+                <Mono className="!text-xs font-medium !text-accent-deep">{s.name}</Mono>
+              </div>
+              <TextSm className="min-w-0 flex-1 !text-xs">{s.what}</TextSm>
+            </li>
+          ))}
+        </ol>
+      </Card>
+      <TextSm className="!text-xs !text-ink-faint">
+        <Mono className="!text-xs">register-block</Mono> is skipped for write routes;{' '}
+        <Mono className="!text-xs">compose</Mono> and <Mono className="!text-xs">terminal</Mono> assemble and finalize
+        the response.
+      </TextSm>
     </div>
   );
 }

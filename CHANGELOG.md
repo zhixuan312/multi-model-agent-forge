@@ -13,7 +13,9 @@ first to bundle the `codex` CLI so codex-protocol tiers run.
 
 > **Release note:** built and pushed **multi-arch** (`linux/amd64` + `linux/arm64`, see
 > `DEPLOYMENT.md` §8). Image: `ghcr.io/zhixuan312/forge:0.1.2` (alias `:latest`).
-> Digest (immutable, multi-arch index): `ghcr.io/zhixuan312/forge@sha256:__PENDING_PHASE_5__`.
+> Digest (immutable, multi-arch index):
+> `ghcr.io/zhixuan312/forge@sha256:12c4a2b575072307c1e6e03e23c369f21f989b17fc78c562f558894c8ec82e56`
+> (`linux/amd64` → `sha256:bd9a3c0a…`, `linux/arm64` → `sha256:f451b167…`).
 
 > **Bundled MMA engine bumped `5.13.0` → `5.15.4`.** 5.13.x gated its Claude OAuth loader on
 > `platform === 'darwin'`, so in the (Linux) container it never read

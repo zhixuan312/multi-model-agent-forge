@@ -2,6 +2,7 @@
   "name": "multi-model-agent-forge",
   "version": "0.1.1",
   "matchedMmaVersion": "5.15.3",
+  "matchedCodexVersion": "0.145.0",
   "private": true,
   "license": "MIT",
   "description": "Collaborative AI SDLC web app — team workflow on top of multi-model-agent",

@@ -167,14 +167,20 @@ RUN PNPM_VERSION="$(node -p "require('./package.json').packageManager.split('@')
   && chown -R node:node "$COREPACK_HOME" \
   && su node -s /bin/sh -c "COREPACK_HOME=$COREPACK_HOME COREPACK_ENABLE_NETWORK=0 pnpm --version"
 
-# Bundle the MMA engine, pinned to package.json#matchedMmaVersion (the single
-# source of truth for the pin — never @latest). The image ships as "Forge <ver>
-# containing MMA <matchedMmaVersion>"; the pin advances only when a Forge release
-# deliberately adopts and re-tests a newer engine. Installed globally (root) so the
-# non-root node user can run the `mma` binary at runtime.
+# Bundle the MMA engine + the codex CLI, each pinned in package.json (the single
+# source of truth for the pins — never @latest). The image ships as "Forge <ver>
+# containing MMA <matchedMmaVersion>"; a pin advances only when a Forge release
+# deliberately adopts and re-tests a newer version. Installed globally (root) so the
+# non-root node user can run the `mma`/`codex` binaries at runtime.
+#
+# codex is REQUIRED for codex-protocol tiers: MMA's codex provider spawns the `codex`
+# binary, so without it a codex tier *verifies* (creds present) but every task dies
+# with `codex_not_installed`. claude-protocol tiers use the Agent SDK and need no CLI.
 RUN MMA_VERSION="$(node -p "require('./package.json').matchedMmaVersion")" \
-  && echo "Bundling MMA engine @${MMA_VERSION}" \
-  && npm install -g "@zhixuan92/multi-model-agent@${MMA_VERSION}" \
+  && CODEX_VERSION="$(node -p "require('./package.json').matchedCodexVersion")" \
+  && echo "Bundling MMA engine @${MMA_VERSION} + codex CLI @${CODEX_VERSION}" \
+  && npm install -g "@zhixuan92/multi-model-agent@${MMA_VERSION}" "@openai/codex@${CODEX_VERSION}" \
+  && codex --version \
   && npm cache clean --force
 
 # Reconcile the MMA skill manifest at BUILD time. `mma serve` compares the shipped

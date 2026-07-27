@@ -25,6 +25,11 @@ describe('Docker assets', () => {
     // run as a loopback co-process by the supervisor, under tini as PID 1.
     expect(dockerfile).toContain('matchedMmaVersion');
     expect(dockerfile).toContain('npm install -g "@zhixuan92/multi-model-agent@${MMA_VERSION}"');
+    // The codex CLI is bundled alongside MMA, pinned at package.json#matchedCodexVersion.
+    // MMA's codex provider spawns the `codex` binary, so without it a codex-protocol tier
+    // verifies but every task dies with `codex_not_installed`.
+    expect(dockerfile).toContain('matchedCodexVersion');
+    expect(dockerfile).toContain('"@openai/codex@${CODEX_VERSION}"');
     expect(dockerfile).toContain('container-supervisor.mjs');
     expect(dockerfile).toContain('ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker/entrypoint.sh"]');
     // The supervisor owns `node server.js`, so there is no top-level CMD.

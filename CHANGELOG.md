@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-07-27
+
+Reframes the in-app product manifesto as a user-facing **Guide** ("what runs behind the scenes
+when you trigger a route") and aligns its pages with Forge's own design system. No engine, schema,
+or deployment change.
+
+> **Image digest:** `ghcr.io/zhixuan312/forge@sha256:__PENDING__` (recorded after the multi-arch push).
+
+### Changed
+- **Direction → Guide, now under Settings.** The manifesto moves to `/settings/guide` (a Settings
+  nav item alongside Usage / Team settings / Components); the product-direction masthead is dropped.
+- **Section navigation moved into the sidebar rail.** The part-grouped section list renders in the
+  left rail the same way the Components governance rail does, so the content area shows only the
+  selected section — no menu-inside-a-menu. Each section is its own route (`/settings/guide/<id>`).
+  The sidebar imports a lightweight `guide-nav` projection (drift-guarded by a test) rather than the
+  ~55 KB content; the import boundary is rescoped to the guide route.
+- **Guide renderers rebuilt on Forge primitives.** All eight section renderers now use
+  `Card`/`ProseBlock`/`Eyebrow`/`Badge`/`Table` with semantic tokens instead of ported telemetry
+  styling — no arrow glyphs or hand-rolled boxes. Removed the now-unused `SectionNavigator`
+  component and its governed slot.
+
+### Fixed
+- **`RouteBlock` referenced an undefined `--danger` CSS token** for the critical-severity color;
+  now uses the defined `rose`/`amber` severity badges.
+
 ## [0.1.2] - 2026-07-27
 
 Deployment-hardening release driven by a full external-operator test of the `0.1.1` image on a

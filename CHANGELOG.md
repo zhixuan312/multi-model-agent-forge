@@ -2,19 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.1.2] - 2026-07-27
 
-Deployment-hardening pass driven by a full external-operator test of the `0.1.1` image on a
+Deployment-hardening release driven by a full external-operator test of the `0.1.1` image on a
 clean Ubuntu 24.04 / 1 vCPU / 2 GB box. Every item below is a packaging, configuration, or
 documentation defect found by deploying the published artifact exactly as `DEPLOYMENT.md`
-instructs — the application runtime itself came up correctly.
+instructs — the application runtime itself came up correctly. This is the first **multi-arch**
+image (`0.1.1` shipped arm64-only and would not `docker pull` on any x86_64 server) and the
+first to bundle the `codex` CLI so codex-protocol tiers run.
 
-> **Release note:** this version was re-cut and pushed **multi-arch** (`linux/amd64` +
-> `linux/arm64`) on 2026-07-27, replacing the original arm64-only `0.1.1` image (see
-> `DEPLOYMENT.md` §8). Image: `ghcr.io/zhixuan312/forge:0.1.1` (alias `:latest`).
-> Digest (immutable, multi-arch index):
-> `ghcr.io/zhixuan312/forge@sha256:919d669e26cad5db730217b7df4950b637d808b62575f3364e88b606fc4ba845`
-> (`linux/amd64` → `sha256:5c65525f…`, `linux/arm64` → `sha256:3c256511…`).
+> **Release note:** built and pushed **multi-arch** (`linux/amd64` + `linux/arm64`, see
+> `DEPLOYMENT.md` §8). Image: `ghcr.io/zhixuan312/forge:0.1.2` (alias `:latest`).
+> Digest (immutable, multi-arch index): `ghcr.io/zhixuan312/forge@sha256:__PENDING_PHASE_5__`.
 
 > **Bundled MMA engine bumped `5.13.0` → `5.15.4`.** 5.13.x gated its Claude OAuth loader on
 > `platform === 'darwin'`, so in the (Linux) container it never read

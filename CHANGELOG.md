@@ -16,12 +16,17 @@ instructs — the application runtime itself came up correctly.
 > `ghcr.io/zhixuan312/forge@sha256:919d669e26cad5db730217b7df4950b637d808b62575f3364e88b606fc4ba845`
 > (`linux/amd64` → `sha256:5c65525f…`, `linux/arm64` → `sha256:3c256511…`).
 
-> **Bundled MMA engine bumped `5.13.0` → `5.15.3`.** 5.13.x gated its Claude OAuth loader on
+> **Bundled MMA engine bumped `5.13.0` → `5.15.4`.** 5.13.x gated its Claude OAuth loader on
 > `platform === 'darwin'`, so in the (Linux) container it never read
 > `~/.claude/.credentials.json`: every Claude-OAuth tier reported "not verified" in
 > Settings → Models with valid credentials mounted, and any task on a Claude tier completed
-> with empty output. MMA 5.14.0 rewrote that loader to read and refresh on Linux; the pin now
-> tracks `5.15.3`, so containerized Claude-OAuth tiers verify and run.
+> with empty output. MMA 5.14.0 rewrote that loader to read and refresh on Linux. **5.15.4**
+> additionally makes the refresh work in a minimal container — the refresh-on-expiry exchange
+> used to shell out to `curl` (absent from slim Node images), so an always-on container went
+> dark ~8h after the last manual refresh; it now runs in a Node subprocess and logs the
+> outcome. 5.15.4 also fails `/configure-provider` for a codex tier when the `codex` binary is
+> absent (paired with the codex-bundling fix below), so a codex tier can't verify green while
+> being unable to run.
 
 ### Fixed
 - **The image no longer downloads pnpm at container start.** First boot runs

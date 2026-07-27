@@ -1,7 +1,7 @@
 {
   "name": "multi-model-agent-forge",
   "version": "0.1.1",
-  "matchedMmaVersion": "5.15.3",
+  "matchedMmaVersion": "5.15.4",
   "matchedCodexVersion": "0.145.0",
   "private": true,
   "license": "MIT",

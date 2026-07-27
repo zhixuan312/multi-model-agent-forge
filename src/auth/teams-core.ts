@@ -5,7 +5,7 @@ import { team } from '@/db/schema/team';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { createMemberSchema } from '@/auth/members-core';
 import { hashPassword } from '@/auth/password';
-import { validateTeamWorkspacePath } from '@/git/workspace-root';
+import { toStoredWorkspacePath, validateTeamWorkspacePath } from '@/git/workspace-root';
 
 export interface TeamsDeps {
   db?: Db;
@@ -37,7 +37,12 @@ export async function createTeam(
   const parsed = createTeamSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid' };
   const db = deps.db ?? getDb();
-  const [created] = await db.insert(team).values(parsed.data).returning();
+  const [created] = await db
+    .insert(team)
+    // Store the base-relative leaf, never an absolute host path — see
+    // `toStoredWorkspacePath`. Keeps a DB dump portable across hosts.
+    .values({ ...parsed.data, workspaceRootPath: toStoredWorkspacePath(parsed.data.workspaceRootPath) })
+    .returning();
   return { kind: 'created', team: created };
 }
 
@@ -85,7 +90,11 @@ export async function createTeamWithAdmin(
 
   try {
     const result = await db.transaction(async (tx) => {
-      const [t] = await tx.insert(team).values({ name, slug, workspaceRootPath }).returning();
+      const [t] = await tx
+        .insert(team)
+        // Base-relative leaf, not the absolute host path (see `toStoredWorkspacePath`).
+        .values({ name, slug, workspaceRootPath: toStoredWorkspacePath(workspaceRootPath) })
+        .returning();
       const [m] = await tx
         .insert(member)
         .values({ username: admin.username, displayName: admin.displayName, role: 'team_admin', teamId: t.id })
@@ -115,7 +124,9 @@ export interface UpdateWorkspacePathDeps extends TeamsDeps {
 /**
  * FR-8 + FR-9: a team-admin sets their own team's workspace root. Validates the
  * candidate against the operator base (direct sibling child, no symlink escape)
- * BEFORE persisting; the stored value is the resolved absolute path.
+ * BEFORE persisting. Validation runs on the resolved ABSOLUTE path; what is
+ * stored (and returned) is the base-relative leaf, so the row stays meaningful
+ * after a DB restore onto a host with a different `FORGE_WORKSPACE_BASE`.
  */
 export async function updateTeamWorkspacePath(
   candidate: string,
@@ -144,7 +155,7 @@ export type UpdateTeamResult = { kind: 'saved' } | { kind: 'invalid'; reason: st
  * Org-admin edit of an existing team's slug / workspace root. Only the fields
  * provided are changed; the display name is re-derived whenever the slug changes.
  * A new workspace path is validated against the operator base (direct sibling
- * child, no symlink escape) and stored resolved.
+ * child, no symlink escape) and stored base-relative.
  */
 export async function updateTeam(
   candidate: unknown,

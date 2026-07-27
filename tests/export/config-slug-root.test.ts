@@ -13,6 +13,9 @@ describe('export config (F33)', () => {
   it('defaults all knobs when env is empty', () => {
     const c = loadExportConfig({});
     expect(c.pdfTimeoutMs).toBe(30_000);
+    // Chromium cold start gets its own, larger budget than a render (ISSUE-7):
+    // puppeteer's 30s default was too tight on a 1-vCPU host.
+    expect(c.pdfLaunchTimeoutMs).toBe(60_000);
     expect(c.pdfMaxSourceBytes).toBe(5_242_880);
     expect(c.pdfMaxQueue).toBe(8);
     expect(c.pdfNoSandbox).toBe(true);
@@ -23,16 +26,19 @@ describe('export config (F33)', () => {
   it('parses positive-int numerics from strings', () => {
     const c = loadExportConfig({
       FORGE_PDF_TIMEOUT_MS: '5000',
+      FORGE_PDF_LAUNCH_TIMEOUT_MS: '90000',
       FORGE_PDF_MAX_SOURCE_BYTES: '1024',
       FORGE_PDF_MAX_QUEUE: '3',
     });
     expect(c.pdfTimeoutMs).toBe(5000);
+    expect(c.pdfLaunchTimeoutMs).toBe(90_000);
     expect(c.pdfMaxSourceBytes).toBe(1024);
     expect(c.pdfMaxQueue).toBe(3);
   });
 
   it('rejects non-positive / non-int numerics', () => {
     expect(() => loadExportConfig({ FORGE_PDF_TIMEOUT_MS: '0' })).toThrow();
+    expect(() => loadExportConfig({ FORGE_PDF_LAUNCH_TIMEOUT_MS: '0' })).toThrow();
     expect(() => loadExportConfig({ FORGE_PDF_MAX_QUEUE: '-1' })).toThrow();
     expect(() => loadExportConfig({ FORGE_PDF_MAX_QUEUE: '2.5' })).toThrow();
   });

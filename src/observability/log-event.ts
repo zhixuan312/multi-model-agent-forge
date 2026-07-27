@@ -10,6 +10,7 @@ export type LogEventName =
   | 'login.success'
   | 'login.failure'
   | 'login.throttled'
+  | 'login.insecure_cookie'
   | 'session.logout'
   | 'session.revoke'
   | 'member.create'
@@ -28,6 +29,8 @@ export interface LogRecord {
   targetId?: string;
   rateLimitKey?: string;
   ip?: string;
+  /** Operator-facing explanation for events that need one (e.g. a config hint). */
+  detail?: string;
 }
 
 export type LogSink = (record: LogRecord) => void;
@@ -68,5 +71,6 @@ export function logEvent(
     ...(record.targetId !== undefined ? { targetId: record.targetId } : {}),
     ...(record.rateLimitKey !== undefined ? { rateLimitKey: record.rateLimitKey } : {}),
     ...(record.ip !== undefined ? { ip: record.ip } : {}),
+    ...(record.detail !== undefined ? { detail: record.detail } : {}),
   });
 }

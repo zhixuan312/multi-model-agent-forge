@@ -5,7 +5,13 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { attemptLogin } from '@/auth/login-core';
 import { resolveClientIp } from '@/auth/client-ip';
-import { sessionCookieOptions, SESSION_COOKIE_NAME } from '@/auth/cookie';
+import {
+  sessionCookieOptions,
+  secureCookieWillBeDropped,
+  INSECURE_COOKIE_HINT,
+  SESSION_COOKIE_NAME,
+} from '@/auth/cookie';
+import { logEvent } from '@/observability/log-event';
 
 const loginSchema = z.object({
   username: z.string().min(1),
@@ -54,6 +60,29 @@ export async function loginAction(
 
   // Success → set the session cookie, then redirect.
   const jar = await cookies();
-  jar.set(SESSION_COOKIE_NAME, result.token, sessionCookieOptions());
+  const opts = sessionCookieOptions();
+
+  // A Secure cookie served over plain HTTP is dropped by the browser: login
+  // succeeds server-side but the session never sticks and the user silently
+  // loops back to /login. Say so in the log rather than leaving the operator to
+  // infer it from `login.success` events that go nowhere.
+  if (
+    secureCookieWillBeDropped({
+      secure: opts.secure,
+      forwardedProto: hdrs.get('x-forwarded-proto'),
+      origin: hdrs.get('origin'),
+      referer: hdrs.get('referer'),
+    })
+  ) {
+    logEvent({
+      level: 'warn',
+      event: 'login.insecure_cookie',
+      actorId: result.memberId,
+      ip,
+      detail: INSECURE_COOKIE_HINT,
+    });
+  }
+
+  jar.set(SESSION_COOKIE_NAME, result.token, opts);
   redirect('/');
 }

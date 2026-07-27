@@ -1,6 +1,20 @@
 # Node 22 (current LTS) — satisfies engines.node >=20.9.0 and avoids shipping the
 # now-EOL Node 20. The Forge container runs only the Next app; the MMA engine is a
 # separate process reached over HTTP, so its own Node floor does not bind this image.
+#
+# MULTI-ARCH: nothing below pins a CPU architecture — `node:22-bookworm-slim` is a
+# multi-arch manifest, apt resolves Chromium and the Chrome shared libs per target,
+# PUPPETEER_SKIP_DOWNLOAD stops puppeteer fetching a host-arch browser, and both
+# the MMA engine and the pnpm/Next toolchain are pure JS. So this file cross-builds
+# as-is; it must be PUSHED multi-arch, which a plain `docker build && docker push`
+# on an Apple-Silicon Mac does NOT do (0.1.1 shipped arm64-only and would not pull
+# on any x86_64 server). Always release with:
+#
+#   docker buildx create --use
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -t ghcr.io/zhixuan312/forge:<tag> -t ghcr.io/zhixuan312/forge:latest --push .
+#
+# amd64 is the priority target (most cloud VMs). See DEPLOYMENT.md §8.
 
 # ---- deps: full install (dev + prod) for the build ----
 FROM node:22-bookworm-slim AS deps
@@ -79,6 +93,11 @@ ENV MMA_HOME=/home/node
 # fallback root for a team with no path set.
 ENV FORGE_WORKSPACE_BASE=/workspace
 ENV FORGE_WORKSPACE_ROOT=/workspace/default
+# Corepack cache shared across users. Its default is per-user (~/.cache/node/corepack)
+# and this stage builds as root while the container runs as `node`, so a per-user
+# cache would miss at runtime and corepack would re-download pnpm on first boot.
+ENV COREPACK_HOME=/usr/local/share/corepack
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   chromium \
@@ -135,6 +154,19 @@ COPY --from=builder /app/docker/entrypoint.sh ./docker/entrypoint.sh
 COPY --from=builder /app/src/db ./src/db
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
+# Vendor pnpm at BUILD time. First boot runs `pnpm db:migrate` + `pnpm db:seed-templates`
+# (see container-supervisor.mjs), and corepack would otherwise fetch the pinned pnpm
+# tarball from the npm registry as the container STARTS — slow, a moving dependency,
+# and a hard failure on an air-gapped or egress-restricted host. The version comes from
+# package.json#packageManager so it can never drift from the lockfile's pnpm.
+# The final `su node` step is the proof: it resolves pnpm as the RUNTIME user with the
+# network switched off, so a regression here fails the build instead of the deploy.
+RUN PNPM_VERSION="$(node -p "require('./package.json').packageManager.split('@')[1]")" \
+  && echo "Vendoring pnpm@${PNPM_VERSION}" \
+  && corepack prepare "pnpm@${PNPM_VERSION}" --activate \
+  && chown -R node:node "$COREPACK_HOME" \
+  && su node -s /bin/sh -c "COREPACK_HOME=$COREPACK_HOME COREPACK_ENABLE_NETWORK=0 pnpm --version"
+
 # Bundle the MMA engine, pinned to package.json#matchedMmaVersion (the single
 # source of truth for the pin — never @latest). The image ships as "Forge <ver>
 # containing MMA <matchedMmaVersion>"; the pin advances only when a Forge release
@@ -144,6 +176,19 @@ RUN MMA_VERSION="$(node -p "require('./package.json').matchedMmaVersion")" \
   && echo "Bundling MMA engine @${MMA_VERSION}" \
   && npm install -g "@zhixuan92/multi-model-agent@${MMA_VERSION}" \
   && npm cache clean --force
+
+# Reconcile the MMA skill manifest at BUILD time. `mma serve` compares the shipped
+# skills against each client install dir it can read and warns on every boot —
+# `WARN: skill manifest drift detected: codex/mma-delegate=missing, …` — which is
+# alarming noise in an image where MMA is used purely as an HTTP engine. Syncing here
+# leaves the codex client dir already consistent, so the check passes silently.
+# HOME is pinned to /home/node because the RUNTIME user reads these paths; syncing
+# into root's home would leave the runtime dirs untouched and the warning intact.
+# NOTE: mounting a host `~/.codex` over /home/node/.codex shadows this and the warning
+# returns — DEPLOYMENT.md §5 tells operators to mount the credential FILE instead.
+RUN mkdir -p /home/node/.codex /home/node/.mma \
+  && HOME=/home/node mma sync-skills --target=codex \
+  && chown -R node:node /home/node/.codex /home/node/.mma
 
 ARG FORGE_BUILD_GIT_SHA=unknown
 ARG FORGE_BUILD_BUILT_AT=unknown

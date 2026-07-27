@@ -45,6 +45,13 @@ services:
       API_KEY_ENV_MAIN: ${API_KEY_ENV_MAIN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Session-cookie transport. Blank (the default) marks the cookie Secure in
+      # production, which is correct behind a TLS proxy. Serving Forge directly over
+      # plain HTTP with Secure on makes the browser DISCARD the cookie: login succeeds
+      # server-side but the user is silently bounced back to /login. Set
+      # FORGE_COOKIE_SECURE=false in that case — see DEPLOYMENT.md §2.
+      FORGE_COOKIE_SECURE: ${FORGE_COOKIE_SECURE:-}
     networks:
       - forge-net
     ports:

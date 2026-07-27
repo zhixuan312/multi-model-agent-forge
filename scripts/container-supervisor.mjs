@@ -82,6 +82,23 @@ function runStep(name, cmd, args) {
   });
 }
 
+/**
+ * Reconcile the MMA skill manifest before `mma serve` reads it. The image already
+ * syncs at build time, but `~/.mma` is a MOUNTED VOLUME: an upgraded container
+ * inherits whatever manifest the old volume holds, and `mma serve` then greets the
+ * operator with a `skill drift` / `skill manifest drift detected` warning that
+ * means nothing here (Forge drives MMA over HTTP, not through a codex client).
+ * Purely local — the skills ship inside the mma package, so this makes no network
+ * call — and best-effort: it must never keep the container from booting.
+ */
+function reconcileSkillManifest() {
+  return new Promise((resolve) => {
+    const child = spawn('mma', ['sync-skills', '--target=codex'], { stdio: 'ignore', env: process.env });
+    child.on('exit', () => resolve());
+    child.on('error', () => resolve());
+  });
+}
+
 async function waitForHealth(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -110,6 +127,7 @@ async function main() {
   // native OAuth (~/.claude / ~/.codex — mount them to use OAuth instead of keys).
   const cfg = await resolveOrWriteConfig({ provider, env: process.env });
   log(`mma config: ${cfg.kind} at ${cfg.path}`);
+  await reconcileSkillManifest();
   spawnService('mma', 'mma', ['serve']);
   const healthy = await waitForHealth(MMA_HEALTH_URL, MMA_HEALTH_TIMEOUT_MS);
   if (!healthy) {

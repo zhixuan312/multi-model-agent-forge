@@ -1,11 +1,26 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { isAbsolute } from 'node:path';
 import { resolveProjectWorkspaceRoot, resolveProjectArtifactDir } from '@/projects/project-workspace';
 import { createMockDb } from '../test-utils/mock-db';
 
 describe('resolveProjectWorkspaceRoot (the team-scoped cwd for a project dispatch)', () => {
-  it("resolves a project to its team's absolute workspace root", async () => {
+  const BASE_ENV = process.env.FORGE_WORKSPACE_BASE;
+  afterEach(() => {
+    if (BASE_ENV === undefined) delete process.env.FORGE_WORKSPACE_BASE;
+    else process.env.FORGE_WORKSPACE_BASE = BASE_ENV;
+  });
+
+  it('joins a base-relative stored team path onto the operator base', async () => {
+    // The current storage form (migration 0019) — a leaf, not a host path.
+    process.env.FORGE_WORKSPACE_BASE = '/forge/base';
+    const db = createMockDb({ 'select:project': [{ workspaceRootPath: 'team-alpha' }] });
+    const r = await resolveProjectWorkspaceRoot('proj-1', db as never);
+    expect(r).toBe('/forge/base/team-alpha');
+  });
+
+  it("honours a LEGACY absolute stored team path verbatim (backward compatible)", async () => {
+    process.env.FORGE_WORKSPACE_BASE = '/workspace';
     const db = createMockDb({ 'select:project': [{ workspaceRootPath: '/forge/base/team-alpha' }] });
     const r = await resolveProjectWorkspaceRoot('proj-1', db as never);
     expect(r).toBe('/forge/base/team-alpha');

@@ -134,6 +134,13 @@
       "when": 1784952000000,
       "tag": "0018_project_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785110400000,
+      "tag": "0019_relative_workspace_root_path",
+      "breakpoints": true
     }
   ]
 }

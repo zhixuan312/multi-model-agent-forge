@@ -28,6 +28,7 @@ describe('distribution docs contract', () => {
       'FORGE_COOKIE_SECURE',
       'FORGE_DB_POOL_MAX',
       'FORGE_EXPORT_ROOT',
+      'FORGE_PDF_LAUNCH_TIMEOUT_MS',
       'FORGE_PDF_MAX_QUEUE',
       'FORGE_PDF_MAX_SOURCE_BYTES',
       'FORGE_PDF_NO_SANDBOX',

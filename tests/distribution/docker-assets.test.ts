@@ -31,6 +31,49 @@ describe('Docker assets', () => {
     expect(dockerfile).not.toContain('CMD ["node", "server.js"]');
   });
 
+  it('vendors pnpm at build time so first boot downloads nothing', () => {
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+
+    // The bootstrap runs `pnpm db:migrate`/`db:seed-templates` at container START.
+    // Without a build-time prepare, corepack fetches the pnpm tarball from the npm
+    // registry right then — fatal on an air-gapped host.
+    expect(dockerfile).toContain('corepack prepare "pnpm@${PNPM_VERSION}" --activate');
+    // Pinned from package.json#packageManager, never a literal that can drift.
+    expect(dockerfile).toContain("require('./package.json').packageManager");
+    // A shared cache: the build runs as root, the container runs as `node`, and
+    // corepack's default cache is per-user — a per-user cache would miss and re-download.
+    expect(dockerfile).toContain('ENV COREPACK_HOME=/usr/local/share/corepack');
+    // Proven offline for the runtime user at build time.
+    expect(dockerfile).toContain('COREPACK_ENABLE_NETWORK=0 pnpm --version');
+  });
+
+  it('reconciles the MMA skill manifest at build time (no boot-time drift WARN)', () => {
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+
+    expect(dockerfile).toContain('mma sync-skills --target=codex');
+    // Synced into the RUNTIME user's home — root's home is not what `mma serve` reads.
+    expect(dockerfile).toContain('HOME=/home/node mma sync-skills');
+
+    // ~/.mma is a mounted volume, so an UPGRADED container can inherit a stale
+    // manifest the build-time sync never sees. The supervisor re-reconciles (locally,
+    // no network) before `mma serve` reads it.
+    const supervisor = readFileSync(join(process.cwd(), 'scripts', 'container-supervisor.mjs'), 'utf8');
+    expect(supervisor).toContain("'sync-skills', '--target=codex'");
+    expect(supervisor).toContain('await reconcileSkillManifest();');
+  });
+
+  it('documents the multi-arch buildx push and pins no CPU architecture', () => {
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+
+    // 0.1.1 shipped arm64-only and would not pull on any x86_64 server.
+    expect(dockerfile).toContain('--platform linux/amd64,linux/arm64');
+    // Puppeteer must not fetch a host-arch browser; the image uses apt's Chromium.
+    expect(dockerfile).toContain('ENV PUPPETEER_SKIP_DOWNLOAD=true');
+    expect(dockerfile).toContain('ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium');
+    // No stage pins a platform — that would defeat the cross-build.
+    expect(dockerfile).not.toMatch(/FROM\s+--platform=/);
+  });
+
   it('runs non-root with a liveness healthcheck', () => {
     const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
 

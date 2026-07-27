@@ -166,6 +166,39 @@ describe('PdfRenderer — caps (F14/F15)', () => {
   });
 });
 
+describe('PdfRenderer — Chromium launch budget (ISSUE-7)', () => {
+  /** Capture the options object every `launch` call receives. */
+  function makeSpyPuppeteer(): { puppeteer: PuppeteerLike; opts: () => Record<string, unknown>[] } {
+    const seen: Record<string, unknown>[] = [];
+    return {
+      puppeteer: {
+        async launch(o) {
+          seen.push(o);
+          return { newPage: async () => makeFakePage(), close: async () => {}, connected: true };
+        },
+      },
+      opts: () => seen,
+    };
+  }
+
+  it('launches with the configured cold-start timeout, not puppeteer’s 30s default', async () => {
+    const { puppeteer, opts } = makeSpyPuppeteer();
+    const r = new PdfRenderer({ puppeteer, pdfPageTexts: NO_MEASURE });
+    await r.render(job());
+    expect(opts()[0]?.timeout).toBe(60_000);
+    await r.close();
+  });
+
+  it('honours FORGE_PDF_LAUNCH_TIMEOUT_MS, independently of the per-render timeout', async () => {
+    const { puppeteer, opts } = makeSpyPuppeteer();
+    const cfg = loadExportConfig({ FORGE_PDF_LAUNCH_TIMEOUT_MS: '120000', FORGE_PDF_TIMEOUT_MS: '30000' });
+    const r = new PdfRenderer({ puppeteer, config: cfg, pdfPageTexts: NO_MEASURE });
+    await r.probe();
+    expect(opts()[0]?.timeout).toBe(120_000);
+    await r.close();
+  });
+});
+
 describe('PdfRenderer — probe + logging', () => {
   it('probe() returns true on a healthy launch', async () => {
     const { puppeteer } = makeFakePuppeteer();

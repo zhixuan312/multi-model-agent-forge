@@ -4,6 +4,7 @@ import {
   hashToken,
   sessionCookieOptions,
   clearedCookieOptions,
+  secureCookieWillBeDropped,
   SESSION_COOKIE_NAME,
 } from '@/auth/cookie';
 import { SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
@@ -63,5 +64,54 @@ describe('sessionCookieOptions', () => {
 describe('clearedCookieOptions', () => {
   it('expires the cookie (Max-Age=0)', () => {
     expect(clearedCookieOptions().maxAge).toBe(0);
+  });
+});
+
+/**
+ * The silent-login-loop detector: production defaults the session cookie to
+ * `Secure`, and a browser on plain HTTP throws that cookie away — login succeeds
+ * server-side and the user still lands back on /login with no error. The check
+ * has to fire on exactly that case and stay quiet everywhere else, or the warning
+ * becomes noise an operator learns to ignore.
+ */
+describe('secureCookieWillBeDropped', () => {
+  it('fires when a Secure cookie is served over plain HTTP (the silent login loop)', () => {
+    expect(secureCookieWillBeDropped({ secure: true, forwardedProto: 'http' })).toBe(true);
+    expect(secureCookieWillBeDropped({ secure: true, origin: 'http://203.0.113.9:3000' })).toBe(true);
+    expect(secureCookieWillBeDropped({ secure: true, referer: 'http://forge.example.com/login' })).toBe(true);
+  });
+
+  it('reads the FIRST X-Forwarded-Proto hop (the browser-facing one)', () => {
+    expect(secureCookieWillBeDropped({ secure: true, forwardedProto: 'http, https' })).toBe(true);
+    expect(secureCookieWillBeDropped({ secure: true, forwardedProto: 'https, http' })).toBe(false);
+  });
+
+  it('prefers X-Forwarded-Proto over the Origin scheme (TLS terminates at the proxy)', () => {
+    // The proxy speaks https to the browser and plain http to Forge — not a defect.
+    expect(
+      secureCookieWillBeDropped({ secure: true, forwardedProto: 'https', origin: 'http://internal:3000' }),
+    ).toBe(false);
+  });
+
+  it('stays quiet when the cookie is not Secure', () => {
+    expect(secureCookieWillBeDropped({ secure: false, forwardedProto: 'http' })).toBe(false);
+  });
+
+  it('stays quiet on https', () => {
+    expect(secureCookieWillBeDropped({ secure: true, origin: 'https://forge.example.com' })).toBe(false);
+  });
+
+  it('stays quiet on localhost — browsers accept Secure cookies from a secure context', () => {
+    expect(secureCookieWillBeDropped({ secure: true, origin: 'http://localhost:3000' })).toBe(false);
+    expect(secureCookieWillBeDropped({ secure: true, origin: 'http://127.0.0.1:3000' })).toBe(false);
+  });
+
+  it('stays quiet when no header reveals the scheme (never guess)', () => {
+    expect(secureCookieWillBeDropped({ secure: true })).toBe(false);
+    expect(secureCookieWillBeDropped({ secure: true, forwardedProto: '', origin: null, referer: null })).toBe(false);
+  });
+
+  it('stays quiet on a malformed origin rather than crashing the login path', () => {
+    expect(secureCookieWillBeDropped({ secure: true, origin: 'not a url' })).toBe(false);
   });
 });

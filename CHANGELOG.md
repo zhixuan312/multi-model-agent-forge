@@ -9,8 +9,12 @@ clean Ubuntu 24.04 / 1 vCPU / 2 GB box. Every item below is a packaging, configu
 documentation defect found by deploying the published artifact exactly as `DEPLOYMENT.md`
 instructs — the application runtime itself came up correctly.
 
-> **Release note:** the image for this version **must be pushed multi-arch** (see
-> `DEPLOYMENT.md` §8) and the CHANGELOG digest updated **after** that push.
+> **Release note:** this version was re-cut and pushed **multi-arch** (`linux/amd64` +
+> `linux/arm64`) on 2026-07-27, replacing the original arm64-only `0.1.1` image (see
+> `DEPLOYMENT.md` §8). Image: `ghcr.io/zhixuan312/forge:0.1.1` (alias `:latest`).
+> Digest (immutable, multi-arch index):
+> `ghcr.io/zhixuan312/forge@sha256:919d669e26cad5db730217b7df4950b637d808b62575f3364e88b606fc4ba845`
+> (`linux/amd64` → `sha256:5c65525f…`, `linux/arm64` → `sha256:3c256511…`).
 
 > **Bundled MMA engine bumped `5.13.0` → `5.15.3`.** 5.13.x gated its Claude OAuth loader on
 > `platform === 'darwin'`, so in the (Linux) container it never read
@@ -40,6 +44,11 @@ instructs — the application runtime itself came up correctly.
   renderer and the standalone worker.
 - **Skill-manifest drift warning on every boot.** `mma sync-skills` now runs at build time
   against the codex client dir under the runtime user's home, so `mma serve` starts clean.
+- **codex-protocol tiers couldn't run — `codex_not_installed`.** The image bundled MMA but not
+  the `codex` CLI that MMA's codex provider spawns, so a codex tier *verified* (creds present)
+  yet every task died on the first subprocess. The `codex` CLI is now bundled at build time,
+  pinned at `package.json#matchedCodexVersion` (same discipline as the MMA pin — never `@latest`).
+  claude-protocol tiers were unaffected (they use the Agent SDK, no CLI).
 
 ### Changed
 - **`team.workspace_root_path` is stored relative to `FORGE_WORKSPACE_BASE`** (the team's

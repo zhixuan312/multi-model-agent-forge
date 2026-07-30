@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Releases are built and published by GitHub Actions, not from a maintainer's laptop**
+  (`.github/workflows/release.yml`, `workflow_dispatch`). Both architectures now build on
+  **native runners** (no QEMU emulation), each is **boot-tested against a real Postgres**, and
+  the push happens inside GitHub's network with the built-in `GITHUB_TOKEN` — so the ~12-minute
+  upload and the expiring registry token that left **0.1.3 tagged but never published** cannot
+  recur. The git tag is created **last**, only after the gates, both builds, both boot tests and
+  the GHCR push succeed, which makes an orphaned tag structurally impossible.
+- **The image digest now lives in the GitHub Release** for each version, not in this file. The
+  Release is immutable and needs no bot commit back to `master`; entries from 0.1.4 and earlier
+  keep their inline digests.
+
 ## [0.1.4] - 2026-07-30
 
 > **Image digest:** `ghcr.io/zhixuan312/forge@sha256:82bf9ac9beadc0f55bb67a48d0e112e2b3e55eb19b95d8eacb717b00d0f16809`

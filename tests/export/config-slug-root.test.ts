@@ -73,13 +73,15 @@ describe('slug (F4)', () => {
     expect(out.endsWith('-')).toBe(false);
   });
 
-  it('kind→noun map and md filenames', () => {
+  it('kind→noun map and md filenames — one entry per exportable kind', () => {
+    // The map is keyed on `ExportKind`, which the routes validate against, so these
+    // three are exhaustive: a fourth noun would be one no caller could ever request.
     expect(kindNoun('spec')).toBe('specification');
     expect(kindNoun('exploration')).toBe('exploration');
     expect(kindNoun('plan')).toBe('plan');
-    expect(kindNoun('journal')).toBe('journal');
     expect(mdFileName('spec')).toBe('specification.md');
-    expect(mdFileName('journal')).toBe('journal.md');
+    expect(mdFileName('exploration')).toBe('exploration.md');
+    expect(mdFileName('plan')).toBe('plan.md');
   });
 });
 

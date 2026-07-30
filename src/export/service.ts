@@ -20,13 +20,6 @@ import { recordExport } from '@/export/record';
 import type { ProjectActor } from '@/projects/projects-core';
 import type { ExportKind } from '@/export/types';
 
-/** No-component-selected guard (F-empty-set → 422). */
-export class NoComponentsSelectedError extends Error {
-  constructor() {
-    super('no_components_selected');
-    this.name = 'NoComponentsSelectedError';
-  }
-}
 /** Bundle with nothing ready (409 nothing_to_export). */
 export class NothingToExportError extends Error {
   constructor() {
@@ -104,24 +97,14 @@ export interface PdfDownload {
 export async function exportPdf(
   projectId: string,
   kind: ExportKind,
-  opts: { includeComponents?: string[]; mermaidAsDiagram: boolean },
+  opts: { mermaidAsDiagram: boolean },
   actor: ProjectActor,
   deps: ServiceDeps = {},
 ): Promise<PdfDownload> {
   const collected = await collectArtifact(projectId, kind, actor);
-  // Parse (spec fail-loud on zero ## NN.); honor includeComponents (F2).
-  const sections = parseArtifactSections(collected.bodyMd, kind, {
-    includeComponents: kind === 'spec' ? opts.includeComponents : undefined,
-  });
-  // Empty surviving set ⇒ 422 (only when the caller asked for a non-empty subset).
-  if (
-    kind === 'spec' &&
-    opts.includeComponents &&
-    opts.includeComponents.length > 0 &&
-    sections.length === 0
-  ) {
-    throw new NoComponentsSelectedError();
-  }
+  // Parse (spec fails loud on zero `## NN.`). Every export is the WHOLE artifact —
+  // section selection was removed with the PDF dialog it belonged to.
+  const sections = parseArtifactSections(collected.bodyMd, kind);
 
   const name = await projectName(projectId);
   const lede = await projectLede(projectId);

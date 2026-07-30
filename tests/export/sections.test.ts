@@ -31,20 +31,8 @@ describe('sections — spec split (F2/F21)', () => {
     expect(secs[1].title).toBe('Technical design');
   });
 
-  it('includeComponents=["01"] keeps ONLY §01 and drops §03 (F2)', () => {
-    const secs = parseArtifactSections(SPEC_BODY, 'spec', { includeComponents: ['01'] });
-    expect(secs.map((s) => s.nn)).toEqual(['01']);
-  });
 
-  it('empty includeComponents keeps all', () => {
-    const secs = parseArtifactSections(SPEC_BODY, 'spec', { includeComponents: [] });
-    expect(secs.map((s) => s.nn)).toEqual(['01', '03']);
-  });
 
-  it('includeComponents entries matching no section are silently ignored (intersection)', () => {
-    const secs = parseArtifactSections(SPEC_BODY, 'spec', { includeComponents: ['01', '99'] });
-    expect(secs.map((s) => s.nn)).toEqual(['01']);
-  });
 
   it('zero ## NN. matches in a spec falls back to generic H2 split', () => {
     const sections = parseArtifactSections('# Title\n\nno numbered headings here', 'spec');

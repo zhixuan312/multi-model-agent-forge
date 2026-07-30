@@ -317,7 +317,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'loops-table', label: 'Loops', filePath: 'app/(app)/loops/LoopsClient.tsx' },
       { id: 'members-table', label: 'Team settings › Members', filePath: 'app/(app)/settings/members/MemberTable.tsx' },
     ],
-    deviations: [{ id: 'forge-empty-state', label: 'Forge PageHeader helper', filePath: 'src/components/forge/PageHeader.tsx', line: null }],
+    deviations: [],
     renderPreview: () => (
       <EmptyState
         icon={<Cpu />}
@@ -339,7 +339,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     ],
     deviations: [
       { id: 'summary-phase-cards', label: 'SummaryPhase cards', filePath: 'src/components/forge/SummaryPhase.tsx', line: null },
-      { id: 'build-monitor-cards', label: 'BuildMonitor cards', filePath: 'src/components/forge/BuildMonitor.tsx', line: null },
     ],
     renderPreview: () => (
       <MetricCard
@@ -362,7 +361,6 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
       { id: 'login', label: 'Auth › Login', filePath: 'app/(auth)/login/LoginForm.tsx' },
       { id: 'setup', label: 'Auth › Setup', filePath: 'app/(auth)/setup/SetupForm.tsx' },
       { id: 'spec-plan-banner', label: 'Project › Spec / Plan › Banners', filePath: 'src/components/forge/SpecStageClient.tsx' },
-      { id: 'build-monitor', label: 'Build monitor', filePath: 'src/components/forge/BuildMonitor.tsx' },
     ],
     deviations: [],
     renderPreview: () => <Banner variant="warning" title="Content banner" description="A content-level alert with a title and message." />,

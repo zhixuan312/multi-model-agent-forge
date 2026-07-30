@@ -2,7 +2,7 @@
  * Combined-PDF assembler (Spec 8 §"Combined PDF (for the bundle)", F9/F20/F28/F32).
  *
  * Orchestrates the multi-artifact document: iterate ready artifacts in the fixed
- * authoring order exploration→spec→plan→review (F20), insert a per-artifact
+ * authoring order exploration→spec→plan (F20), insert a per-artifact
  * divider/cover page before each, concatenate their section HTML into ONE
  * continuous HTML doc, and hand a single `RenderJob` to `PdfRenderer` so
  * pagination + footers are continuous across artifact boundaries.

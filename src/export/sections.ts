@@ -7,11 +7,9 @@
  * number, REQUIRED trailing period. Zero matches in a `spec` artifact is a
  * contract violation (`SpecHeadingContractError` → 409 at the route).
  *
- * Non-spec artifacts (exploration/plan/review) split on every level-2 `##` (F5);
+ * Non-spec artifacts (exploration/plan) split on every level-2 `##` (F5);
  * content before the first `##` is the lead section.
  *
- * includeComponents (F2): the canonical key is the two-digit `NN`. An empty/absent
- * array keeps all; a present array keeps only sections whose `NN` is listed.
  *
  * HTML sanitization (F13/F20): markdown → HTML runs through unified
  * remark→rehype WITHOUT raw-HTML passthrough (raw HTML is dropped, never
@@ -54,11 +52,6 @@ export interface ParsedSection {
   html: string;
   /** Mermaid blocks found in this section. */
   mermaid: MermaidBlock[];
-}
-
-export interface ParseOptions {
-  /** Spec only: the `NN` keys to keep. Empty/absent ⇒ keep all. */
-  includeComponents?: string[];
 }
 
 /** The spec heading grammar (F21): `## NN. <Title>`, anchored at line start. */
@@ -167,18 +160,10 @@ function splitGeneric(bodyMd: string): RawSection[] {
 export function parseArtifactSections(
   bodyMd: string,
   kind: ParseArtifactKind,
-  opts: ParseOptions = {},
 ): ParsedSection[] {
   const raw = kind === 'spec' ? (splitSpec(bodyMd) ?? splitGeneric(bodyMd)) : splitGeneric(bodyMd);
 
-  const keep =
-    kind === 'spec' && opts.includeComponents && opts.includeComponents.length > 0
-      ? new Set(opts.includeComponents)
-      : null;
-
-  const filtered = keep ? raw.filter((s) => keep.has(s.nn)) : raw;
-
-  return filtered.map((s) => ({
+  return raw.map((s) => ({
     nn: s.nn,
     title: s.title,
     bodyMd: s.bodyMd,

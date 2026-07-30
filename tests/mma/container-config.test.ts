@@ -3,11 +3,32 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  buildGeneratedConfig,
-  containerConfigSchema,
-  resolveOrWriteConfig,
-} from '@/mma/container-config';
+import { z } from 'zod';
+// Imported straight from the boot script, which is the ONLY implementation: it runs at
+// container start with no TypeScript toolchain, so the generation logic cannot live in
+// `src/`. There used to be a `src/mma/container-config.ts` shim re-exporting these, but
+// nothing in production imported it — it existed purely to give this test a typed entry
+// point, i.e. test infrastructure shipped in the production tree.
+import { buildGeneratedConfig, resolveOrWriteConfig } from '../../scripts/container-bootstrap.mjs';
+
+/**
+ * The contract the generated config must satisfy: `.strict()` throughout, so a tier that
+ * grows an unexpected key fails here rather than at container start. This is an assertion
+ * tool for this test alone — MMA itself validates the config it loads.
+ */
+const tierSchema = z
+  .object({
+    type: z.enum(['claude', 'codex']),
+    model: z.string().min(1),
+    baseUrl: z.string().url().optional(),
+    apiKeyEnv: z.string().min(1).optional(),
+  })
+  .strict();
+const containerConfigSchema = z
+  .object({
+    agents: z.object({ main: tierSchema, complex: tierSchema, standard: tierSchema }).strict(),
+  })
+  .strict();
 
 describe('container MMA config generation', () => {
   it('generates anthropic tiers with only strict-schema fields', () => {

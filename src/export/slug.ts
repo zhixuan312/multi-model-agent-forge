@@ -10,11 +10,14 @@
  *   "…"              → "untitled"
  *
  * Per-artifact `.md` filenames use FIXED kind nouns (exploration.md,
- * specification.md, plan.md, review.md) — not the project slug. The project slug
+ * specification.md, plan.md) — not the project slug. The project slug
  * is only the combined PDF (`<slug>.pdf`) + bundle zip (`<slug>.zip`).
+ *
+ * Kinds come from `ExportKind`, the ONE definition of what can be exported — the
+ * routes validate against it, so a noun map keyed on anything wider would carry
+ * entries no caller can reach.
  */
-export type ExportArtifactKind = 'exploration' | 'spec' | 'plan' | 'journal';
-
+import type { ExportKind } from '@/export/types';
 const SLUG_MAX = 60;
 
 export function slug(input: string): string {
@@ -30,19 +33,18 @@ export function slug(input: string): string {
 }
 
 /** Kind → fixed file noun (the `.md` filename stem). */
-const KIND_NOUN: Record<ExportArtifactKind, string> = {
+const KIND_NOUN: Record<ExportKind, string> = {
   exploration: 'exploration',
   spec: 'specification',
   plan: 'plan',
-  journal: 'journal',
 };
 
 /** The fixed noun for a kind (e.g. `spec` → `specification`). */
-export function kindNoun(kind: ExportArtifactKind): string {
+export function kindNoun(kind: ExportKind): string {
   return KIND_NOUN[kind];
 }
 
 /** The per-artifact `.md` filename (fixed kind noun, never the project slug). */
-export function mdFileName(kind: ExportArtifactKind): string {
+export function mdFileName(kind: ExportKind): string {
   return `${KIND_NOUN[kind]}.md`;
 }

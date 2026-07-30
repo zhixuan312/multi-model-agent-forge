@@ -11,7 +11,7 @@ import {
   PdfQueueFullError,
   PdfEngineError,
 } from '@/export/pdf/render';
-import { NoComponentsSelectedError, NothingToExportError } from '@/export/service';
+import { NothingToExportError } from '@/export/service';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
@@ -40,7 +40,6 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
 });
 
 const artifactsRoute = await import('../../app/api/projects/[id]/export/artifacts/route');
-const sectionsRoute = await import('../../app/api/projects/[id]/export/sections/route');
 const mdRoute = await import('../../app/api/projects/[id]/export/md/route');
 
 function asMember(id: string): AuthedMember {
@@ -74,7 +73,6 @@ describe('route helpers — error → status mapping (F27, test 15)', () => {
     [new ArtifactNotReadyError('plan'), 409, 'artifact_not_ready'],
     [new SpecHeadingContractError('x'), 409, 'spec_heading_contract_mismatch'],
     [new NothingToExportError(), 409, 'nothing_to_export'],
-    [new NoComponentsSelectedError(), 422, 'no_components_selected'],
     [new PdfTooLargeError(), 413, 'export_too_large'],
     [new PdfQueueFullError(), 503, 'pdf_queue_full'],
     [new PdfTimeoutError(), 504, 'pdf_render_timeout'],
@@ -91,7 +89,7 @@ describe('route helpers — error → status mapping (F27, test 15)', () => {
 });
 
 describe('route modules — runtime config (F12, test 15)', () => {
-  const mods = ['artifacts', 'sections', 'md', 'pdf', 'bundle'];
+  const mods = ['artifacts', 'md', 'pdf', 'bundle'];
   it.each(mods)('%s route exports dynamic=force-dynamic + nodejs runtime', async (name) => {
     const mod = await import(`../../app/api/projects/[id]/export/${name}/route.ts`);
     expect(mod.dynamic).toBe('force-dynamic');
@@ -145,48 +143,6 @@ describe('GET /export/artifacts (Key flow A)', () => {
       params: Promise.resolve({ id: projectId }),
     });
     expect(res.status).toBe(403);
-  });
-});
-
-describe('GET /export/sections (F30)', () => {
-  it('returns [{NN,title}] for a spec', async () => {
-    const projectId = 'proj-1';
-    const ownerId = 'member-1';
-    mockCaller = asMember(ownerId);
-    readSpecFileMock.mockReturnValue({ version: 1, updatedAt: '', bodyMd: SPEC_BODY });
-    mockDb = createMockDb({
-      'select:project': [{ ownerId, visibility: 'public' }],
-    });
-    const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=spec'), {
-      params: Promise.resolve({ id: projectId }),
-    });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.sections).toEqual([
-      { nn: '01', title: 'Context' },
-      { nn: '03', title: 'Technical design' },
-    ]);
-  });
-
-  it('returns [] for a non-spec kind (no parse)', async () => {
-    const projectId = 'proj-1';
-    const ownerId = 'member-1';
-    mockCaller = asMember(ownerId);
-    mockDb = createMockDb({
-      'select:project': [{ ownerId, visibility: 'public' }],
-    });
-    const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=plan'), {
-      params: Promise.resolve({ id: projectId }),
-    });
-    expect((await res.json()).sections).toEqual([]);
-  });
-
-  it('400 for an unknown kind', async () => {
-    mockDb = createMockDb();
-    const res = await sectionsRoute.GET(new NextRequest('http://x/s?artifact=exploration_brief'), {
-      params: Promise.resolve({ id: 'p' }),
-    });
-    expect(res.status).toBe(400);
   });
 });
 

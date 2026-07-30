@@ -10,14 +10,13 @@ import { parseExportKind, unknownKindResponse, mapExportError } from '@/export/r
  * Forge-template PDF (two-pass TOC + in-page Mermaid) and streams it. Records
  * `export(format='pdf')` + action_log. Node runtime (Puppeteer).
  *
- * Body: { artifact, includeComponents?: string[] (NN keys), mermaidAsDiagram }
+ * Body: { artifact, mermaidAsDiagram }
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
   artifact: z.string(),
-  includeComponents: z.array(z.string()).optional(),
   mermaidAsDiagram: z.boolean().default(true),
 });
 
@@ -41,7 +40,7 @@ export async function POST(
     const { fileName, buffer } = await exportPdf(
       id,
       kind,
-      { includeComponents: parsed.data.includeComponents, mermaidAsDiagram: parsed.data.mermaidAsDiagram },
+      { mermaidAsDiagram: parsed.data.mermaidAsDiagram },
       actor,
     );
     return new NextResponse(new Uint8Array(buffer), {

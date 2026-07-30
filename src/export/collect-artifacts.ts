@@ -4,16 +4,14 @@
  * Responsibilities:
  *  - VISIBILITY: every read goes through `assertProjectReadable` first (private →
  *    throws `ProjectAccessError`, mapped to 403 at the route, F-visibility).
- *  - READY/PENDING: for each of the four deliverable kinds (exploration · spec ·
- *    plan · review), determine whether the latest artifact (or the review batch
- *    result) exists.
+ *  - READY/PENDING: for each of the three deliverable kinds (exploration · spec ·
+ *    plan), determine whether the latest artifact exists.
  *  - locked·audited flag (F4): the Specification menu badge is derived —
  *    `project.phase ∈ {build,done}` AND ≥1 clean spec audit.
  *  - COVER META (§1a): owner / visibility / components-N-approved /
  *    audit-clean-N / version (+ `· locked`).
  *  - PER-SECTION HEADER MAP (F1): for the spec, `NN → {status, roles}` from the
  *    details components.
- *  - REVIEW→MARKDOWN adapter (F25): normalize the review batch result.
  */
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
@@ -39,7 +37,7 @@ export interface ArtifactMenuItem {
   kind: ExportKind;
   label: string;
   ready: boolean;
-  /** Latest artifact version (null when pending / review). */
+  /** Latest artifact version (null when pending). */
   version: number | null;
   /** Spec only (F4): true ⟺ locked-phase AND ≥1 clean spec audit. */
   lockedAudited: boolean;
@@ -167,7 +165,7 @@ export async function collectMenu(
 /** A fully-collected artifact ready to feed the PDF/zip pipeline. */
 export interface CollectedArtifact {
   kind: ExportKind;
-  /** The markdown body (stored body_md, or review adapter output). */
+  /** The markdown body, as stored in `artifact.body_md`. */
   bodyMd: string;
   version: number | null;
   meta: CoverMeta;
@@ -204,7 +202,7 @@ export async function collectArtifact(
 
 /**
  * Collect ALL ready artifacts in the fixed authoring order
- * exploration→spec→plan→review (F20). Pending kinds are omitted. Used by the
+ * exploration→spec→plan (F20). Pending kinds are omitted. Used by the
  * bundle path. Visibility-guarded.
  */
 export async function collectReadyArtifacts(

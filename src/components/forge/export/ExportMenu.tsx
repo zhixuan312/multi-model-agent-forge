@@ -113,9 +113,9 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
     setBusy(true);
     try {
       const { included } = await downloadPost(`/api/projects/${projectId}/export/bundle`, {}, 'bundle.zip');
-      const names = (included ?? []).map((k) =>
-        k === 'spec' ? 'specification' : k === 'review' ? 'review' : k,
-      );
+      // `spec` is the only kind whose file name differs from its key; the server's
+      // `included` is an `ExportKind[]`, so there is nothing else to translate.
+      const names = (included ?? []).map((k) => (k === 'spec' ? 'specification' : k));
       onToast?.(`Bundle ready — ${names.join(', ')}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Bundle failed.');

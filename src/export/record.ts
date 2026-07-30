@@ -15,13 +15,14 @@ import { getDb, type Db } from '@/db/client';
 import { exportRecord } from '@/db/schema/build';
 import { loadExportConfig, type ExportConfig } from '@/export/config';
 import { resolveProjectExportPath, projectExportDir } from '@/export/export-root';
-import { slug, kindNoun, type ExportArtifactKind } from '@/export/slug';
+import { slug, kindNoun } from '@/export/slug';
+import type { ExportKind } from '@/export/types';
 import type { ExportFormat } from '@/db/enums';
 
 export interface RecordExportInput {
   projectId: string;
   /** The artifact kind (md/pdf) or null for a bundle. */
-  kind: ExportArtifactKind | null;
+  kind: ExportKind | null;
   format: ExportFormat;
   artifactVersion?: number | null;
   /** The bytes to persist on disk. */

@@ -7,7 +7,6 @@ import {
   ArtifactNotReadyError,
 } from '@/export/collect-artifacts';
 import { buildMdExport } from '@/export/md-export';
-import { reviewResultToMarkdown } from '@/export/review-adapter';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
@@ -222,33 +221,11 @@ describe('collect-artifacts — pending throws + ready collection order', () => 
   });
 });
 
-describe('md-export + review adapter (F19/F25)', () => {
+describe('md-export (F19)', () => {
   it('md-export is byte-faithful for a stored body', () => {
     const md = buildMdExport('spec', SPEC_BODY);
     expect(md.fileName).toBe('specification.md');
     expect(md.body).toBe(SPEC_BODY);
     expect(md.buffer.toString('utf-8')).toBe(SPEC_BODY);
   });
-
-  it('review adapter normalizes a structured result to markdown deterministically', () => {
-    const result = {
-      structuredReport: {
-        findingsOutcome: 'changes_required',
-        findings: [{ severity: 'high', title: 'Null deref', detail: 'Guard the call.' }],
-      },
-    };
-    const md1 = reviewResultToMarkdown(result);
-    const md2 = reviewResultToMarkdown(result);
-    expect(md1).toBe(md2);
-    expect(md1).toContain('# Review report');
-    expect(md1).toContain('Null deref');
-    expect(md1).toContain('high');
-    expect(buildMdExport('journal', md1).body).toBe(md1);
-  });
-
-  it('review adapter prefers a ready-made markdown body', () => {
-    const md = reviewResultToMarkdown({ report: '# Custom report\n\nbody' });
-    expect(md.startsWith('# Custom report')).toBe(true);
-  });
-
 });

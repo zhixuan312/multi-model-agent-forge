@@ -14,7 +14,7 @@ import {
   PdfEngineError,
 } from '@/export/pdf/render';
 import { ExportPathError } from '@/export/export-root';
-import { NoComponentsSelectedError, NothingToExportError } from '@/export/service';
+import { NothingToExportError } from '@/export/service';
 import type { ExportKind } from '@/export/types';
 
 const KINDS: ExportKind[] = ['exploration', 'spec', 'plan'];
@@ -46,9 +46,6 @@ export function mapExportError(e: unknown): NextResponse | null {
   }
   if (e instanceof NothingToExportError) {
     return NextResponse.json({ error: 'nothing_to_export' }, { status: 409 });
-  }
-  if (e instanceof NoComponentsSelectedError) {
-    return NextResponse.json({ error: 'no_components_selected' }, { status: 422 });
   }
   if (e instanceof PdfTooLargeError) {
     return NextResponse.json({ error: 'export_too_large' }, { status: 413 });

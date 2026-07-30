@@ -9,10 +9,11 @@
  */
 import { ZipArchive } from 'archiver';
 import { PassThrough, type Readable } from 'node:stream';
-import { mdFileName, slug, type ExportArtifactKind } from '@/export/slug';
+import { mdFileName, slug } from '@/export/slug';
+import type { ExportKind } from '@/export/types';
 
 export interface ZipEntryMd {
-  kind: ExportArtifactKind;
+  kind: ExportKind;
   body: string;
 }
 

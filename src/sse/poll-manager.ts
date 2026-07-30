@@ -22,7 +22,10 @@ import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registr
  * Server-owned MMA poll loop (Spec 5 §SSE). The browser NEVER polls MMA; this
  * singleton owns the poll loop over in-flight `mma_batch` rows, persists each
  * terminal envelope, flips the owning `exploration_task` to `recorded`, and
- * emits `task.progress`/`task.done`/`task.failed` to the per-project bus.
+ * emits `task.progress`/`task.done`/`task.failed`/`task.cancelled` to the per-project bus.
+ * It also owns cooperative cancellation (`requestCancel` → engine `DELETE /task/:id`):
+ * the request only marks the batch, and this same poll loop carries it through to the
+ * terminal `cancelled` envelope.
  *
  * Concrete, testable behaviors:
  *  - base poll interval 2s; transient errors back off `min(2s·2^n, 30s)` ±20% jitter,
@@ -31,6 +34,9 @@ import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registr
  *    (`forge_poll_timeout`) — the only non-MMA-originated failure transition.
  *  - rehydrates in-flight batches (`status IN ('dispatched','running')`) on boot.
  */
+
+/** Headline/phase shown while a requested cancellation hasn't yet been confirmed. */
+export const CANCELLING_HEADLINE = 'cancelling';
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;
@@ -46,11 +52,18 @@ export function backoffMs(attempt: number, rand: () => number = Math.random): nu
 
 /** What a single poll resolved to (returned by `pollOnce` for deterministic tests). */
 export type PollOutcome =
-  | { kind: 'pending'; headline: string }
+  | { kind: 'pending'; headline: string; cancellationRequested?: boolean }
   | { kind: 'terminal'; state: TerminalState }
   | { kind: 'timeout' }
   | { kind: 'transient'; attempt: number; backoffMs: number }
   | { kind: 'gone' };
+
+/** Outcome of `requestCancel` — idempotent, so a repeat call is `already_requested`. */
+export type CancelRequestOutcome =
+  | { kind: 'requested' }
+  | { kind: 'already_requested' }
+  | { kind: 'already_terminal'; status: string }
+  | { kind: 'not_tracked' };
 
 interface RegisteredBatch {
   batchId: string; // the row id
@@ -62,6 +75,14 @@ interface RegisteredBatch {
   createdAt: Date;
   attempt: number; // transient-error attempt counter
   timer: ReturnType<typeof setTimeout> | null;
+  /**
+   * A cancellation has been asked of the engine (via `DELETE /task/:id`) and not yet
+   * confirmed. Cancellation is COOPERATIVE: the engine keeps the task `running` until
+   * the runner stops, so the existing poll loop is what carries this through to the
+   * terminal `cancelled` envelope. Set either by our own `requestCancel` or by
+   * observing `cancellationRequested` on a 202 poll (another client cancelled it).
+   */
+  cancellationRequested: boolean;
 }
 
 export interface PollManagerDeps {
@@ -131,9 +152,89 @@ export class PollManager {
     createdAt: Date;
   }): void {
     if (this.inFlight.has(b.batchId)) return;
-    const entry: RegisteredBatch = { ...b, handler: b.handler ?? null, attempt: 0, timer: null };
+    const entry: RegisteredBatch = {
+      ...b,
+      handler: b.handler ?? null,
+      attempt: 0,
+      timer: null,
+      cancellationRequested: false,
+    };
     this.inFlight.set(b.batchId, entry);
     this.schedule(entry, POLL_BASE_INTERVAL_MS);
+  }
+
+  /** Whether a cancellation has been requested for a registered batch (UI "stopping…"). */
+  isCancellationRequested(batchRowId: string): boolean {
+    return this.inFlight.get(batchRowId)?.cancellationRequested ?? false;
+  }
+
+  /**
+   * Ask MMA to cancel a registered batch (`DELETE /task/:id`, engine 5.16). Returns
+   * once the request is ACCEPTED — not once the task has stopped: cancellation is
+   * cooperative, so the existing poll loop carries it to the terminal `cancelled`
+   * envelope, which `markTerminal` then persists as batch status `'cancelled'`.
+   *
+   * Idempotent: a repeat call for a batch we already asked about is a no-op
+   * (`already_requested`), never an error. An untracked batch id (never registered, or
+   * already terminal + deregistered) is `not_tracked` — also not an error.
+   */
+  async requestCancel(batchRowId: string): Promise<CancelRequestOutcome> {
+    const entry = this.inFlight.get(batchRowId);
+    if (!entry) return { kind: 'not_tracked' };
+    if (entry.cancellationRequested) return { kind: 'already_requested' };
+
+    const client = await this.client();
+    const res = await client.cancel(entry.mmaBatchId);
+    if (res.state === 'not_found') {
+      // The engine has no record of it. Let the poll loop settle it the way it already
+      // settles a 404 (markNotFound) rather than inventing a second terminal path here.
+      return { kind: 'not_tracked' };
+    }
+    if (res.state === 'already_terminal') {
+      // Completion won the race — the real terminal envelope is already waiting and the
+      // next poll persists it. Do NOT mark this as a cancellation.
+      return { kind: 'already_terminal', status: res.status };
+    }
+
+    this.markCancellationRequested(entry);
+    logPoll({
+      level: 'info',
+      event: 'poll.cancel_requested',
+      projectId: entry.projectId ?? undefined,
+      batchId: entry.mmaBatchId,
+      taskId: entry.taskId ?? undefined,
+    });
+    return { kind: 'requested' };
+  }
+
+  /**
+   * Record that a cancel is pending and tell the UI ("stopping…"). Emits the ordinary
+   * `task.progress`/`dispatch.progress` shape with a `cancelling` headline/phase, so no
+   * consumer needs a new event type just to render the interim state.
+   */
+  private markCancellationRequested(entry: RegisteredBatch): void {
+    if (entry.cancellationRequested) return;
+    entry.cancellationRequested = true;
+    if (!entry.projectId) return;
+    if (entry.taskId) {
+      this.bus.publish(entry.projectId, {
+        type: 'task.progress',
+        taskId: entry.taskId,
+        mmaBatchId: entry.batchId,
+        headline: CANCELLING_HEADLINE,
+        route: entry.route,
+        status: 'running',
+      });
+    }
+    if (entry.handler) {
+      this.bus.publish(entry.projectId, {
+        type: 'dispatch.progress',
+        batchId: entry.batchId,
+        handler: entry.handler,
+        phase: CANCELLING_HEADLINE,
+        elapsedMs: this.now() - entry.createdAt.getTime(),
+      });
+    }
   }
 
   private deregister(batchRowId: string): void {
@@ -189,9 +290,13 @@ export class PollManager {
     }
 
     if (res.state === 'pending') {
-      await this.markRunning(entry, res.headline);
+      // The engine reports a pending cancel on the 202 body — pick it up even when the
+      // request came from somewhere other than this manager (another Forge instance, or
+      // an operator calling the engine directly), so the UI still shows "stopping…".
+      if (res.cancellationRequested) this.markCancellationRequested(entry);
+      await this.markRunning(entry, entry.cancellationRequested ? CANCELLING_HEADLINE : res.headline);
       this.schedule(entry, POLL_BASE_INTERVAL_MS);
-      return { kind: 'pending', headline: res.headline };
+      return { kind: 'pending', headline: res.headline, cancellationRequested: entry.cancellationRequested };
     }
 
     const state = interpretTerminal(res.envelope);
@@ -356,7 +461,7 @@ export class PollManager {
         stage: 'exploration',
         phase: 'discover',
         label,
-        kind: effectiveState.status === 'failed' ? 'error' : 'done',
+        kind: effectiveState.status === 'done' ? 'done' : 'error',
         actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
         source: 'mma',
         durationMs: this.now() - entry.createdAt.getTime(),
@@ -491,8 +596,10 @@ export class PollManager {
 
   private emitTerminal(entry: RegisteredBatch, state: TerminalState): void {
     logPoll({
-      level: state.status === 'failed' ? 'warn' : 'info',
-      event: state.status === 'failed' ? 'task.failed' : 'task.done',
+      level: state.status === 'done' ? 'info' : 'warn',
+      event: state.status === 'done'
+        ? 'task.done'
+        : state.status === 'cancelled' ? 'task.cancelled' : 'task.failed',
       projectId: entry.projectId ?? undefined,
       batchId: entry.mmaBatchId,
       taskId: entry.taskId ?? undefined,
@@ -511,12 +618,17 @@ export class PollManager {
     }
     // Universal dispatch events for handler-based batches
     if (entry.handler && entry.projectId) {
-      this.bus.publish(entry.projectId, state.status === 'failed'
-        ? { type: 'dispatch.failed', batchId: entry.batchId, handler: entry.handler, error: state.error?.message ?? 'Unknown error' }
-        : { type: 'dispatch.done', batchId: entry.batchId, handler: entry.handler },
+      const handler = entry.handler;
+      const batchId = entry.batchId;
+      this.bus.publish(entry.projectId,
+        state.status === 'done' ? { type: 'dispatch.done', batchId, handler }
+        : state.status === 'cancelled'
+          ? { type: 'dispatch.cancelled', batchId, handler, error: state.error?.message ?? 'Cancelled' }
+          : { type: 'dispatch.failed', batchId, handler, error: state.error?.message ?? 'Unknown error' },
       );
     }
-    // Persist failure notifications to DB
+    // Persist failure notifications to DB. A cancellation is DELIBERATE — the person who
+    // asked for it doesn't need to be alerted that it happened, so no notification.
     if (state.status === 'failed' && entry.handler) {
       void this.insertFailureNotification(entry).catch(() => {});
     }

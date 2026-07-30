@@ -26,6 +26,15 @@ export type ProjectEvent =
       route: string;
       error: { code: string; message: string };
     }
+  // A caller cancelled the task (engine 5.16 `DELETE /task/:id`). Same shape as
+  // `task.failed` — but a DELIBERATE stop, so no retry/notification semantics.
+  | {
+      type: 'task.cancelled';
+      taskId: string;
+      mmaBatchId: string;
+      route: string;
+      error: { code: string; message: string };
+    }
   | { type: 'synthesis.updated'; artifactId: string; version: number }
   // ── Reflect journal-row events (project_journal staging table) ────────────
   | { type: 'journal.updated'; rowId: string; status: 'proposed' | 'kept' | 'removed' | 'recorded' }
@@ -56,6 +65,9 @@ export type ProjectEvent =
   | { type: 'dispatch.progress'; batchId: string; handler: string; phase: string; elapsedMs: number; totalTasks?: number; repoId?: string }
   | { type: 'dispatch.done'; batchId: string; handler: string; repoId?: string }
   | { type: 'dispatch.failed'; batchId: string; handler: string; error: string; repoId?: string }
+  // Deliberate cancellation of a handler-backed batch — terminal, but NOT a failure
+  // (no failure notification, no automation retry).
+  | { type: 'dispatch.cancelled'; batchId: string; handler: string; error: string; repoId?: string }
   // ── Stage-level sync events (multi-user real-time) ────────────────────
   | { type: 'spec.updated' }
   | { type: 'plan.updated'; taskId: string; chatReply: string; updated: boolean }

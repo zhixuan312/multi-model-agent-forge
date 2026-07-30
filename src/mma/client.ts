@@ -6,12 +6,18 @@
  *   - POST /task?cwd=<path>  → 202 { taskId, statusUrl }
  *   - GET  /task/:id         → 202 { taskId, status:'running', phase, elapsedMs, ... }  (application/json)
  *                              → 200 { task, output, execution, metrics, raw, error }   (6-field layered envelope)
+ *   - DELETE /task/:id       → 202 { taskId, status:'running', cancellationRequested:true }  (requested, not stopped)
+ *                              → 200 { taskId, status:<terminalState>, alreadyTerminal:true }
+ *                              → 404 unknown task
  *   - GET  /health           → 200 { status:'ok'|'drift' }              (unauthenticated)
  *   - GET  /status           → 200 { version, pid, counters:{activeTasks}, ... }  (Bearer)
  *   - POST /configure-provider → 200 { verified, applied, ... }         (Bearer)
  *
  * Auth: `Authorization: Bearer <token>` + `X-MMA-Client` + `X-MMA-Main-Model`.
  * The bearer token is NEVER logged.
+ *
+ * `MmaClient` exposes ONLY the primitives the live path calls — a dormant wrapper is a
+ * surface that can drift from the engine unnoticed. Keep it that way.
  */
 
 import type { ConfigureProviderRequest, ConfigureProviderResponse } from '@/mma/configure-provider';
@@ -46,8 +52,28 @@ export interface StatusResult {
 
 /** MMA poll result — pending returns structured JSON, terminal returns the result envelope. */
 export type BatchPollResult =
-  | { state: 'pending'; headline: string; phase?: string; elapsedMs?: number; totalTasks?: number }
+  | {
+      state: 'pending';
+      headline: string;
+      phase?: string;
+      elapsedMs?: number;
+      totalTasks?: number;
+      /** 5.16: a cancellation has been requested but the runner hasn't stopped yet. */
+      cancellationRequested?: boolean;
+    }
   | { state: 'terminal'; envelope: unknown }
+  | { state: 'not_found' };
+
+/**
+ * Result of `DELETE /task/:id` (engine 5.16). Cancellation is COOPERATIVE:
+ * `requested` means the engine accepted the request and the task is still running —
+ * it reaches terminal `cancelled` on a later poll (unless completion won the race).
+ * A 404 is a STATE, not an error: the task is already gone, so there is nothing to
+ * stop and the caller should not treat it as a failure.
+ */
+export type CancelTaskResult =
+  | { state: 'requested' }
+  | { state: 'already_terminal'; status: string }
   | { state: 'not_found' };
 
 /** The new MMA terminal response shape (v5.4+). */
@@ -188,6 +214,7 @@ export class MmaClient {
         phase: json?.phase as string | undefined,
         elapsedMs: json?.elapsedMs as number | undefined,
         totalTasks: json?.totalTasks as number | undefined,
+        cancellationRequested: json?.cancellationRequested === true,
       };
     }
     if (res.status === 200) {
@@ -198,6 +225,31 @@ export class MmaClient {
       return { state: 'not_found' as const };
     }
     throw new Error(`MMA poll of task ${batchId} returned HTTP ${res.status}`);
+  }
+
+  /**
+   * Request cooperative cancellation of one task: `DELETE /task/:id` (engine 5.16).
+   * Idempotent on the engine side, so repeat calls are safe. Never throws on 404 —
+   * an unknown task is returned as `{ state: 'not_found' }` so a caller cancelling a
+   * batch the engine already forgot doesn't have to treat it as an error.
+   */
+  async cancel(batchId: string): Promise<CancelTaskResult> {
+    let res: Response;
+    try {
+      res = await this.timedFetch(this.url(`/task/${encodeURIComponent(batchId)}`), {
+        method: 'DELETE',
+        headers: this.authedHeaders(),
+      });
+    } catch {
+      throw new Error(`MMA cancel of task ${batchId} failed (network error or timeout)`);
+    }
+    if (res.status === 202) return { state: 'requested' };
+    if (res.status === 200) {
+      const json = (await res.json().catch(() => null)) as { status?: unknown } | null;
+      return { state: 'already_terminal', status: typeof json?.status === 'string' ? json.status : 'unknown' };
+    }
+    if (res.status === 404) return { state: 'not_found' };
+    throw new Error(`MMA cancel of task ${batchId} returned HTTP ${res.status}`);
   }
 
   async health(): Promise<HealthResult> {

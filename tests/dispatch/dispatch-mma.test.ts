@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { dispatchMma, findInflight, PhaseBusyError } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, findInflight, PhaseBusyError, TaskCancelledError } from '@/dispatch/dispatch-helpers';
 import { appendBatchTerminalEvent, phaseKeyForHandler, FANOUT_HANDLERS } from '@/details/project-event-labels';
 import { registerHandler } from '@/dispatch/handler-registry';
 import type { MmaClient } from '@/mma/client';
@@ -446,5 +446,80 @@ describe('dispatchMma activity integration', () => {
 
   it('exports the fan-out handler allowlist (only multi-repo execute may run same-handler in parallel)', () => {
     expect([...FANOUT_HANDLERS]).toEqual(['execute-pipeline']);
+  });
+});
+
+/**
+ * Sync (`await:true`) terminal classification. The engine's `cancelled` terminal carries
+ * `error.code === 'aborted'`, so the old "non-null error ⇒ failed" rule made a deliberate
+ * stop look like a fault — and the driver's retry loop then re-dispatched the very work a
+ * human had cancelled. The classification must be three-way, driven by `task.status`.
+ */
+describe('dispatchMma sync terminal — cancelled vs failed vs done', () => {
+  const envelope = (status: string, error: Record<string, unknown> | null) => ({
+    task: { taskId: 'mma-1', type: 'audit', status },
+    output: { summary: null, filesChanged: [], contextBlockId: null },
+    error,
+  });
+
+  function db() {
+    return createMockDb({
+      'select:project': [{ teamId: 'team-1' }],
+      'select:ops_mma_batch': [],
+      'insert:ops_mma_batch': [{ id: 'row-c', createdAt: new Date() }],
+      'update:ops_mma_batch': [{ id: 'row-c' }],
+    });
+  }
+  const mma = (env: unknown) => ({ dispatchAndWait: async () => ({ batchId: 'mma-1', envelope: env }) }) as unknown as MmaClient;
+  const opts = { projectId: 'p', route: 'audit' as const, handler: null, cwd: '/w', body: { prompt: 'x' }, actorId: null, await: true };
+
+  it('a cancelled envelope throws TaskCancelledError and persists status=cancelled', async () => {
+    const d = db();
+    await expect(dispatchMma({
+      ...opts, db: d,
+      mma: mma(envelope('cancelled', { code: 'aborted', message: 'Execution cancelled by caller' })),
+    })).rejects.toBeInstanceOf(TaskCancelledError);
+
+    const statuses = d._callsFor('ops_mma_batch').filter((c) => c.method === 'set')
+      .map((c) => (c.args[0] as { status?: string })?.status);
+    expect(statuses).toContain('cancelled');
+    // It must NOT be recorded as a failure — that is what triggers the retry path.
+    expect(statuses).not.toContain('failed');
+  });
+
+  it('a failed envelope still throws a plain Error and persists status=failed (retry path intact)', async () => {
+    const d = db();
+    const err = await dispatchMma({
+      ...opts, db: d,
+      mma: mma(envelope('failed', { code: 'reviewer_parse_failed', message: 'boom' })),
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(TaskCancelledError);
+    expect((err as Error).message).toContain('reviewer_parse_failed');
+    expect(d._callsFor('ops_mma_batch').filter((c) => c.method === 'set')
+      .map((c) => (c.args[0] as { status?: string })?.status)).toContain('failed');
+  });
+
+  it('an interrupted envelope is treated as FAILED so the caller resubmits (retryable)', async () => {
+    const d = db();
+    const err = await dispatchMma({
+      ...opts, db: d,
+      mma: mma(envelope('interrupted', { code: 'daemon_restarted', message: 'The MMA daemon restarted before this task completed. Submit the task again.', retryable: true })),
+    }).catch((e) => e);
+    expect(err).not.toBeInstanceOf(TaskCancelledError);
+    expect((err as Error).message).toContain('daemon_restarted');
+    expect(d._callsFor('ops_mma_batch').filter((c) => c.method === 'set')
+      .map((c) => (c.args[0] as { status?: string })?.status)).toContain('failed');
+  });
+
+  it('done_with_concerns stays a SUCCESS — concerns are advisory', async () => {
+    const d = db();
+    const res = await dispatchMma({
+      ...opts, db: d,
+      mma: mma(envelope('done_with_concerns', { kind: 'not_applicable' })),
+    });
+    expect(res.batchRowId).toBe('row-c');
+    expect(d._callsFor('ops_mma_batch').filter((c) => c.method === 'set')
+      .map((c) => (c.args[0] as { status?: string })?.status)).toContain('done');
   });
 });

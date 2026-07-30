@@ -82,8 +82,16 @@ async function inflightGuard(db: Db, projectId: string, handler: string): Promis
  * handler only runs on SUCCESS. If the batch ends `failed`, the attempt is left
  * `running` and a WAITing resolver would deadlock forever. This ONE function (not a
  * bespoke reconcile per handler) flips every such `running` attempt whose MMA batch
- * is terminal-`failed` to `failed`, so the resolver re-dispatches (bounded by the
- * in-flight guard). All open attempts are checked in a single batch query.
+ * is terminal to the batch's own terminal status, so the resolver can act on it. All
+ * open attempts are checked in a single batch query.
+ *
+ * The flipped status is what decides retry-vs-park, and the two cases differ:
+ *   - `failed`    → the resolver re-dispatches (bounded by the in-flight guard + the
+ *                   per-route retry cap). An `interrupted` engine task lands here too
+ *                   (its envelope is `retryable`), which is correct: resubmit.
+ *   - `cancelled` → a human deliberately stopped this work. The resolver treats it as
+ *                   terminal-and-intentional and PARKS the stage — re-dispatching would
+ *                   undo the very thing the person asked for.
  */
 export async function reconcileStuckAttempts(db: Db, projectId: string): Promise<void> {
   const [pRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
@@ -91,37 +99,42 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
   const d = validateDetails(pRow.details);
   const open = openRunningAttempts(d).filter((x) => x.attempt.batchId);
   if (open.length === 0) return;
-  const failedRows = await db
-    .select({ id: mmaBatch.id })
+  const terminalRows = await db
+    .select({ id: mmaBatch.id, status: mmaBatch.status })
     .from(mmaBatch)
-    .where(and(inArray(mmaBatch.id, open.map((x) => x.attempt.batchId!)), eq(mmaBatch.status, 'failed')));
-  const failed = new Set(failedRows.map((r) => r.id));
-  const toFlip = open.filter((x) => failed.has(x.attempt.batchId!));
+    .where(and(
+      inArray(mmaBatch.id, open.map((x) => x.attempt.batchId!)),
+      inArray(mmaBatch.status, ['failed', 'cancelled']),
+    ));
+  const statusByBatch = new Map(terminalRows.map((r) => [r.id, r.status]));
+  const toFlip = open
+    .map((x) => ({ ...x, to: statusByBatch.get(x.attempt.batchId!) }))
+    .filter((x): x is typeof x & { to: 'failed' | 'cancelled' } => x.to === 'failed' || x.to === 'cancelled');
   if (toFlip.length === 0) return;
 
   await updateDetails(db, projectId, (det) => {
-    const stuck = new Set(toFlip.map((x) => x.attempt.batchId));
+    const stuck = new Map(toFlip.map((x) => [x.attempt.batchId!, x.to]));
     for (const { attempt } of openRunningAttempts(det)) {
-      if (attempt.batchId && stuck.has(attempt.batchId)) {
-        attempt.status = 'failed';
-      }
+      const to = attempt.batchId ? stuck.get(attempt.batchId) : undefined;
+      if (to) attempt.status = to;
     }
     return det;
   });
 
-  for (const { stage, phase, label } of toFlip) {
+  for (const { stage, phase, label, to } of toFlip) {
+    const note = to === 'cancelled' ? `${label} cancelled` : `${label} failed — retrying`;
     await recordActivity({
       db,
       projectId,
       stage,
       phase,
-      label: `${label} failed — retrying`,
+      label: note,
       kind: 'error',
       actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
       source: 'mma',
-      eventKey: `retry-error:${projectId}:${stage}:${phase}:${label}`,
+      eventKey: `${to === 'cancelled' ? 'cancelled' : 'retry-error'}:${projectId}:${stage}:${phase}:${label}`,
     });
-    projectEventBus.publish(projectId, { type: 'automation.progress', note: `${label} failed — retrying`, stage, phase, kind: 'error' });
+    projectEventBus.publish(projectId, { type: 'automation.progress', note, stage, phase, kind: 'error' });
   }
 }
 

@@ -1,6 +1,6 @@
 # Forge ↔ MMA engine compatibility
 
-**Matched engine version:** `5.15.3` (see `package.json#matchedMmaVersion`, wire `SCHEMA_VERSION` 6).
+**Matched engine version:** `5.16.0` (see `package.json#matchedMmaVersion`, wire `SCHEMA_VERSION` **6** — unchanged since 5.4, so 5.16 is a pure ADDITIVE alignment, no wire break).
 
 Forge talks to the MMA engine over HTTP (never as a code import). This document is
 the evidence behind the "matched" version: it records the exact contract Forge speaks,
@@ -8,7 +8,8 @@ which engine capabilities Forge uses, and which it deliberately doesn't. When yo
 Forge to a newer engine, review the MMA `CHANGELOG.md` for the delta, update this matrix,
 adapt code, then bump `matchedMmaVersion`.
 
-Last full audit: 2026-07-24 (engine 5.0→5.13 reviewed route-by-route).
+Last full audit: 2026-07-24 (engine 5.0→5.13 reviewed route-by-route); 5.16 lifecycle delta
+adopted 2026-07-30 (see "Adopted in 5.16" below).
 
 ## Contract Forge speaks — verified aligned
 
@@ -16,9 +17,12 @@ Last full audit: 2026-07-24 (engine 5.0→5.13 reviewed route-by-route).
 |---|---|---|
 | `POST /task` | `type` + `prompt` + `target:{paths\|inline}` (exactly one; empty `{}` rejected in 5.12) | `client.ts` builds exactly this; `spec`/`plan` assert exactly-one; `review` never sends empty `target` |
 | Task types | 12: audit, investigate, delegate, execute_plan, review, debug, research, journal_recall, journal_record, orchestrate, spec, plan | Forge dispatches: investigate, research, journal_recall, journal_record, audit(subtype plan/spec), execute_plan, review, spec, plan. No removed types |
-| Polling | `GET /task/:id` → **202 application/json** `{status, phase, elapsedMs, phaseElapsedMs, totalTasks?}` | `client.poll()` parses the structured-202 JSON (`phase`/`elapsedMs`/`totalTasks`) |
+| Polling | `GET /task/:id` → **202 application/json** `{status, phase, elapsedMs, phaseElapsedMs, totalTasks?, cancellationRequested?}` | `client.poll()` parses the structured-202 JSON (`phase`/`elapsedMs`/`totalTasks`/`cancellationRequested`) |
+| Cancellation | `DELETE /task/:id` → **202** `{taskId, status:'running', cancellationRequested:true}` (requested, not stopped) · **200** `{taskId, status:<terminal>, alreadyTerminal:true}` · **404** unknown | `client.cancel()` returns `requested`/`already_terminal`/`not_found` (never throws on 404); `PollManager.requestCancel()` is the idempotent entry point |
 | Terminal | **6-field** `{task, output, execution, metrics, raw, error}` | `MmaTerminalEnvelope` matches; parsed in `dispatch-helpers`/`poll-manager` |
-| Failure | Async failures return the 6-field envelope with the failure in `error` (non-null only when `status==='failed'`) | `dispatch-helpers.ts` treats non-null `envelope.error` as failure (not silent success) |
+| Terminal states | `completed` · `done_with_concerns` · `failed` · **`cancelled`** · **`interrupted`** (5.16) | `interpretTerminal()` reads `task.status`: `cancelled` → its own `cancelled` state; `interrupted` → `failed` (its `retryable:true` means resubmit) with the `daemon_restarted` code preserved; `done_with_concerns` stays a SUCCESS |
+| Failure | Async failures return the 6-field envelope with the failure in `error` | `interpretTerminal()` decides — NOT a bare `error != null` test, because `cancelled` (`code:'aborted'`) and `interrupted` (`code:'daemon_restarted'`) also carry an error |
+| Durable results | Terminal results survive a daemon restart; in-flight tasks are reconciled to `interrupted` instead of vanishing (404) | Forge's 404 path (`markNotFound` → `task_not_found`) is now the rare case; a restart normally arrives as an `interrupted` terminal envelope that retries cleanly |
 | Metrics | `metrics.{totalCostUsd, savedVsMainCostUsd, mainEquivalentCostUsd, totalDurationMs, totalUsage:{inputTokens,outputTokens,cachedReadTokens,cachedNonReadTokens}}`, all nullable | `extract-usage-fields.ts` reads these exact names, null-safe |
 | Findings | `weight: critical\|high\|medium\|low` (not `severity`/`confidence`) | `explore-core`, `review-findings`, `spec/audit-loop`, `ReviewStageClient` all read `f.weight` |
 | Review policy | `reviewed \| none` | `executePlan`/dispatch send only these |
@@ -29,6 +33,18 @@ Last full audit: 2026-07-24 (engine 5.0→5.13 reviewed route-by-route).
 | Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | reads `verified`; does NOT read `details.fieldErrors` (surfaces `error.code` only — minor UX gap) |
 | Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); `MmaClient` exposes only the primitives it actually uses — `dispatch`, `poll`, `dispatchAndWait`, `health`, `status`, `configureProvider` |
 | `X-MMA-Main-Model` | required on `POST /task` (400 without) | always set — `server-client.ts` falls back to `DEFAULT_MAIN_MODEL` |
+
+## Adopted in 5.16 (2026-07-30)
+
+Engine 5.16 is additive over the same REST API (`SCHEMA_VERSION` still 6). Three engine
+changes, and what Forge does with each:
+
+| Engine 5.16 change | Forge adoption |
+|---|---|
+| **`DELETE /task/:taskId`** — cooperative cancellation | Adopted. `MmaClient.cancel()` + `PollManager.requestCancel()` (idempotent) + `POST /api/projects/[id]/batches/[batchId]/cancel` (team+project scoped). Cancellation is REQUESTED, not immediate: the existing poll loop carries it to the terminal `cancelled` envelope. **No UI affordance yet** — backend capability only |
+| **`cancelled` terminal state** | Adopted, and it fixed a real Forge bug: `interpretTerminal` decided failure by "is `error` non-null", so a cancelled task (which carries `error.code === 'aborted'`) was indistinguishable from a failure — and Forge's automation would auto-retry work a human had just stopped. Now a first-class state end to end: `MMA_STATUS`/`attemptStatus` value, `task.cancelled`/`dispatch.cancelled` SSE events, `TaskCancelledError` on the sync dispatch path, and an automation resolver that PARKS the stage instead of re-dispatching |
+| **`interrupted` terminal state** (daemon restarted, `retryable: true`) | Adopted as a `failed` mapping — deliberately, since resubmitting IS the correct response, so it reuses the existing retry path. Its distinct `daemon_restarted` code + message survive to the UI rather than being flattened into a generic pipeline failure |
+| **Durable execution records** | No Forge change needed — it makes Forge's existing rehydrate/poll path strictly more reliable (a restart now yields an `interrupted` envelope rather than the 404 that `markNotFound` had to synthesize a failure for) |
 
 ## Drift found and fixed in this alignment (2026-07-23)
 
@@ -55,7 +71,7 @@ Forge's design doesn't need them. Listed so the "matched" claim is honest and co
 
 ## Client surface == what Forge uses
 
-`MmaClient` exposes only the primitives the live path calls: `dispatch`, `poll`,
+`MmaClient` exposes only the primitives the live path calls: `dispatch`, `poll`, `cancel`,
 `dispatchAndWait`, `health`, `status`, `configureProvider`. The ~10 typed per-type
 wrapper methods (`investigate`, `research`, `journalRecall`, `auditPlan`, `auditSpec`,
 `auditInline`, `executePlan`, `review`, `spec`, `plan`) that had no production caller —

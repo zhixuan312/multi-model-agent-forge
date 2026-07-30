@@ -97,8 +97,17 @@ export const MMA_ROUTE = [
 ] as const;
 export type MmaRoute = (typeof MMA_ROUTE)[number];
 
-/** mma_batch.status (schema.md §7). dispatched → running → done|failed. */
-export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed'] as const;
+/**
+ * mma_batch.status (schema.md §7). dispatched → running → done|failed|cancelled.
+ *
+ * `cancelled` (engine 5.16) is a DELIBERATE stop requested via `DELETE /task/:id` —
+ * terminal but NOT a fault, so automation must never re-dispatch it (see
+ * `reconcileStuckAttempts`). The engine's other new terminal state, `interrupted`
+ * (daemon restarted, `retryable: true`), intentionally lands here as `failed`:
+ * resubmitting is the correct response, so it shares the retry path.
+ */
+export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed', 'cancelled'] as const;
+export type MmaStatus = (typeof MMA_STATUS)[number];
 
 /* ── Spec 7: Build pipeline ─────────────────────────────────────────────── */
 

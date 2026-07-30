@@ -327,3 +327,86 @@ describe('MmaClient.configureProvider', () => {
     ).rejects.toThrow(/configure-provider/i);
   });
 });
+
+/**
+ * `DELETE /task/:id` (engine 5.16). Cancellation is COOPERATIVE: 202 means the request
+ * was accepted, not that the task stopped. A 404 is a STATE, not an error — cancelling a
+ * task the engine already forgot must not throw at the caller.
+ */
+describe('MmaClient.cancel', () => {
+  it('DELETEs /task/:id with the standard headers and reports `requested` on 202', async () => {
+    const { fn, calls } = stubFetch(
+      () =>
+        new Response(JSON.stringify({ taskId: 'b-1', status: 'running', cancellationRequested: true }), {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn, client: 'forge' });
+    expect(await client.cancel('b-1')).toEqual({ state: 'requested' });
+
+    const c = calls[0]!;
+    expect(c.url).toBe('http://127.0.0.1:7337/task/b-1');
+    expect(c.init?.method).toBe('DELETE');
+    expect(headerVal(c.init, 'Authorization')).toBe('Bearer secret-bearer-xyz');
+    expect(headerVal(c.init, 'X-MMA-Client')).toBe('forge');
+    expect(headerVal(c.init, 'X-MMA-Main-Model')).toBe('claude-opus-4-8');
+  });
+
+  it('200 + alreadyTerminal → already_terminal with the engine terminal state', async () => {
+    const { fn } = stubFetch(
+      () =>
+        new Response(JSON.stringify({ taskId: 'b-1', status: 'done_with_concerns', alreadyTerminal: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    expect(await client.cancel('b-1')).toEqual({ state: 'already_terminal', status: 'done_with_concerns' });
+  });
+
+  it('404 is returned as a state — it never throws', async () => {
+    const { fn } = stubFetch(() => new Response('{}', { status: 404 }));
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    await expect(client.cancel('gone')).resolves.toEqual({ state: 'not_found' });
+  });
+
+  it('url-encodes the task id', async () => {
+    const { fn, calls } = stubFetch(() => new Response('{}', { status: 202 }));
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    await client.cancel('a/b');
+    expect(calls[0]!.url).toBe('http://127.0.0.1:7337/task/a%2Fb');
+  });
+
+  it('throws on an unexpected status (e.g. 500) — that is a real fault', async () => {
+    const { fn } = stubFetch(() => new Response('boom', { status: 500 }));
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    await expect(client.cancel('b-1')).rejects.toThrow(/HTTP 500/);
+  });
+});
+
+describe('MmaClient.poll — cancellationRequested', () => {
+  it('surfaces a pending cancellation from the 202 body', async () => {
+    const { fn } = stubFetch(
+      () =>
+        new Response(JSON.stringify({ taskId: 'b-1', status: 'running', phase: 'implementing', cancellationRequested: true }), {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    expect(await client.poll('b-1')).toMatchObject({ state: 'pending', phase: 'implementing', cancellationRequested: true });
+  });
+
+  it('is false when the engine omits it (the ordinary running poll)', async () => {
+    const { fn } = stubFetch(
+      () =>
+        new Response(JSON.stringify({ taskId: 'b-1', status: 'running', phase: 'reviewing' }), {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = new MmaClient(baseCfg, { fetchImpl: fn });
+    expect(await client.poll('b-1')).toMatchObject({ state: 'pending', cancellationRequested: false });
+  });
+});

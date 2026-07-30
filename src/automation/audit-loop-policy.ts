@@ -21,13 +21,23 @@ export type AuditStep =
   | { kind: 'advance' }
   | { kind: 'wait' };
 
-/** Is the latest pass's audit or fix attempt currently running? */
+/**
+ * Is the latest pass's audit or fix attempt one the loop must not act over? True while
+ * an attempt is `running` (in flight), and also once one is `cancelled` (engine 5.16):
+ * a deliberate stop is terminal, so re-dispatching the same pass would undo it. Both
+ * suppress the loop's next step — auto WAITs, and the manual affordances stay hidden
+ * until a human takes over. A `failed` attempt is NOT in flight: it retries.
+ */
 export function auditInFlight(passes: AuditPassLike[]): boolean {
   const last = passes[passes.length - 1];
   if (!last) return false;
   const a = last.audit?.attempts ?? [];
   const f = last.fix?.attempts ?? [];
-  return a[a.length - 1]?.status === 'running' || f[f.length - 1]?.status === 'running';
+  return isParked(a[a.length - 1]) || isParked(f[f.length - 1]);
+}
+
+function isParked(attempt?: AttemptLike): boolean {
+  return attempt?.status === 'running' || attempt?.status === 'cancelled';
 }
 
 /**

@@ -408,10 +408,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
 
     case 'dispatch_execute': {
       // Identical to the manual "Run execution" button — the SAME shared core sets
-      // up the project branch (forge/<project> off origin/<default>), dispatches
-      // execute_plan ASYNC on it, and the handler pushes + opens the PR. The
+      // up the project branch (mma/<created-date>-<project-slug> off origin/<default>),
+      // dispatches execute_plan ASYNC on it, and the handler pushes + opens the PR. The
       // in-flight guard makes the driver WAIT while it runs; the execute-pipeline
       // handler records the implement attempt on terminal so the resolver advances.
+      // A `PhaseBusyError` out of the core (another project holds this repo's checkout)
+      // is caught by the driver as 'inflight' — the project waits and re-resolves.
       const repoList = action.data?.repos as Array<{ repoId: string; targetBranch: string }> | undefined;
       await startExecuteRun(db, mma, projectId, FORGE_MEMBER_ID, repoList);
       break;
@@ -472,15 +474,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const prompt = chosen.length > 0
         ? buildReviewFixPrompt(chosen)
         : 'Apply the code-review findings from the previous review pass to the code in this repository. Make the fixes directly.';
-      // `delegate` (worktree route): MMA cuts a worktree off the checked-out
-      // `forge/…` branch HEAD, the worker applies the fixes, and MMA force-commits
-      // the diff and fast-forward-merges it back onto the project branch — so MMA
-      // OWNS the commit (no Forge-side git add/commit). `reviewPolicy:'none'` keeps
-      // it a single-worker single-commit run. The worker runs in an isolated HEAD
-      // checkout, so the working tree MUST be clean at dispatch (execute + prior
-      // review-apply both commit, so it is). The handler records the fix + pushes.
-      // `passNo` + `findingIndices` ride in meta → the batch request column → the review
-      // page reads them back to show which findings are applied.
+      // `delegate`: MMA edits the checked-out `mma/…` project branch IN PLACE and commits
+      // there — it creates no branch and no worktree of its own, and MMA still OWNS the
+      // commit (no Forge-side git add/commit). `reviewPolicy:'none'` keeps it a
+      // single-worker single-commit run. A dirty tree at dispatch is no longer a
+      // correctness problem (the engine reports `dirtyAtDispatch` and sweeps it into the
+      // commit), but execute + prior review-apply both commit, so it is normally clean.
       await dispatchMma({
         db, mma, projectId, route: 'delegate', handler: 'review-apply', cwd: repoMeta.pathOnDisk,
         body: { prompt, reviewPolicy: 'none' },

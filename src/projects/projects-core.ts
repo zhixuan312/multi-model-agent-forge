@@ -27,6 +27,7 @@ import {
 } from '@/db/enums';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { slugRefComponent } from '@/build/slug';
 import {
   CREATE_PROJECT_FILE_ERROR,
   decodeUploadedArtifact,
@@ -107,7 +108,30 @@ export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
 export type CreateProjectResult =
   | { ok: true; id: string; entryStage: 'exploration' | 'spec' | 'plan' }
-  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string } };
+  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string; code?: 'duplicate_name' } };
+
+/**
+ * Is another project in this team already using the branch slug this name would produce?
+ *
+ * Uniqueness is evaluated on the SLUG, not on the raw or case-folded name, because the slug is
+ * what actually becomes the branch. `slugRefComponent` maps every character outside
+ * `[a-z0-9._-]` to `-` and collapses repeats, so "My Project", "My  Project" and "My/Project"
+ * are three distinct names — all of which pass a `lower(name)` comparison — that collide on the
+ * single branch `mma/<date>-my-project`. Comparing anything weaker than the slug would let two
+ * projects silently share one branch and interleave their commits.
+ *
+ * `exceptId` excludes the project being renamed, so re-casing a project's own name is a no-op
+ * rather than a conflict with itself.
+ */
+async function branchSlugTaken(db: Db, name: string, teamId: string, exceptId?: string): Promise<boolean> {
+  const target = slugRefComponent(name);
+  if (!target) return false;
+  const rows = await db
+    .select({ id: project.id, name: project.name })
+    .from(project)
+    .where(eq(project.teamId, teamId));
+  return rows.some((r) => r.id !== exceptId && slugRefComponent(r.name ?? '') === target);
+}
 
 /**
  * Create a project + seed the five-stage skeleton + repo subset + owner row +
@@ -137,6 +161,19 @@ export async function createProject(
   const subsetValidation = validateSubsetSelection(selectedDesignStages as DesignStageSelection[]);
   if (!subsetValidation.ok) {
     return { ok: false, error: { field: 'selectedDesignStages', message: subsetValidation.message } };
+  }
+
+  // Project branches are `mma/<created-date>-<project-slug>` with no disambiguating id, so the
+  // slug must be unique or two projects would share one branch. Checked before any write.
+  if (await branchSlugTaken(deps.db ?? getDb(), name, actor.teamId)) {
+    return {
+      ok: false,
+      error: {
+        field: 'name',
+        code: 'duplicate_name',
+        message: `Another project in this team already uses the branch name "${slugRefComponent(name)}". Pick a distinguishable name.`,
+      },
+    };
   }
 
   const db = deps.db ?? getDb();

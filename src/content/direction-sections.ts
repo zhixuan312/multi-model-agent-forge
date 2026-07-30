@@ -218,7 +218,7 @@ The work runs across **three layers**. Your own agent (or Forge, on a team's beh
     part: 'engine',
     subgroup: 'Write',
     title: 'Execute plan',
-    body: `\`execute_plan\` implements tasks from a **plan file on disk** — the task descriptors select plan headings verbatim, and **one worker session implements them sequentially, in order, in a single worktree**. It is *not* a parallel fan-out — that's \`delegate\`; \`execute_plan\` is the sequential, plan-driven counterpart. Per-task **review policy** is selectable (\`reviewed\` / \`none\`) so mechanical tasks skip cross-agent review while risky ones get the full pass. Each task runs the same reviewed write lifecycle as \`delegate\`. Reach for it when a written plan exists; \`delegate\` when it doesn't.`,
+    body: `\`execute_plan\` implements tasks from a **plan file on disk** — the task descriptors select plan headings verbatim, and **one worker session implements them sequentially, in order, on the branch the caller checked out**. It is *not* a parallel fan-out — that's \`delegate\`; \`execute_plan\` is the sequential, plan-driven counterpart. Per-task **review policy** is selectable (\`reviewed\` / \`none\`) so mechanical tasks skip cross-agent review while risky ones get the full pass. Each task runs the same reviewed write lifecycle as \`delegate\`. Reach for it when a written plan exists; \`delegate\` when it doesn't.`,
     underTheHood: `Primary: \`core/src/unified/two-phase-pipeline.ts\`, \`core/src/skills/execute_plan/\`.`,
   },
   // Journal recall — the read side of the project's durable learnings store.

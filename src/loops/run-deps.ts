@@ -176,6 +176,17 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       // the .git config lock during `worktree add`.
       withRepoGitLock(repo.pathOnDisk, async () => {
         await git(repo.pathOnDisk, ['worktree', 'prune']); // clear prunable leftovers (e.g. from a crashed run)
+        // Fail fast if this run's branch already exists. Loop branches carry a millisecond
+        // timestamp, so a collision means two fires landed in the same instant — which
+        // delivery dedup is supposed to prevent. Reusing the branch would interleave two runs'
+        // commits into one PR, so refuse rather than silently share it.
+        const exists = await git(repo.pathOnDisk, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+        if (exists.code === 0) {
+          throw new Error(
+            `loop branch "${branch}" already exists in ${repo.name} — refusing to reuse it. `
+            + 'Two runs sharing one branch would interleave their commits into a single PR.',
+          );
+        }
         // Fork from the FRESH remote base if the branch is pushed (it may have moved
         // since clone); fall back to the local branch when it isn't on the remote.
         await git(repo.pathOnDisk, ['fetch', 'origin', baseBranch]);

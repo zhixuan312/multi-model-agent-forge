@@ -4,6 +4,7 @@ import { getDb, type Db } from '@/db/client';
 import { loopRun, type LoopRow, type LoopRunRow } from '@/db/schema/loop';
 import type { LoopTrigger } from '@/db/enums';
 import { getLoopKind } from '@/loops/kind-registry';
+import { formatIsoDate, formatBranchTime } from '@/lib/format-date';
 import {
   planPrompt, parsePlan, PLAN_OUTPUT_FORMAT,
   journalPrompt, parseJournal, JOURNAL_OUTPUT_FORMAT,
@@ -109,10 +110,24 @@ function kebab(s: string): string {
   return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'loop';
 }
 
-/** `loop/<slug>/<YYYY-MM-DD>`, with a short run-id suffix to avoid same-day collisions. */
-export function buildBranch(loopName: string, date: Date, runId: string): string {
-  const day = date.toISOString().slice(0, 10);
-  return `loop/${kebab(loopName)}/${day}-${runId.slice(0, 8)}`;
+/**
+ * The loop-run branch: `mma/<YYYY-MM-DD-HHMMSSsss>-<loop-slug>`.
+ *
+ * Same `mma/<date>-<slug>` shape as project and flow branches; the only difference is that the
+ * date carries a millisecond time, because a loop fires repeatedly and each run needs its own
+ * branch. The old run-id suffix existed solely because the stamp was date-only ("avoid same-day
+ * collisions") — a timestamp does that job without a second disambiguator.
+ *
+ * Two fires within the same millisecond are prevented upstream by delivery-record dedup, not by
+ * this name; `runLoopForRepo` fails fast rather than reusing an existing branch, so two runs can
+ * never interleave commits into one PR.
+ *
+ * Stamped in Asia/Singapore, matching the schedule the loop was authored against
+ * (`LOOP_TIMEZONE`) and the run times the Loops UI shows — a UTC stamp would name the 07:00 SGT
+ * run with the previous day's date.
+ */
+export function buildBranch(loopName: string, date: Date): string {
+  return `mma/${formatIsoDate(date)}-${formatBranchTime(date)}-${kebab(loopName)}`;
 }
 
 function resolveGoalMd(loop: LoopRow, ctx: RunContext): string {
@@ -219,7 +234,7 @@ export async function runLoopForRepo(
   const baseBranch = loop.targetBranch?.trim() || (await deps.resolveCurrentBranch(repo));
   if (!baseBranch) return failed(`missing_base_branch: cannot resolve a base branch for ${repo.name}`);
 
-  const branch = buildBranch(loop.name, now(), ctx.runId);
+  const branch = buildBranch(loop.name, now());
   let worktree: string | null = null;
   try {
     // Stage 2 — worktree (forked from the freshly fetched remote base).
@@ -253,8 +268,8 @@ export async function runLoopForRepo(
     const verify = await deps.runVerify(repo, worktree, plan.verifyCommand);
     const keyChanges = out.keyChanges;
 
-    // Stage 7 — disposition. MMA's delegate runs in a nested worktree and merges
-    // its commit back into our branch, so we detect work by comparing the loop
+    // Stage 7 — disposition. MMA's delegate edits OUR loop worktree in place and commits
+    // on the branch we checked out there, so we detect work by comparing the loop
     // branch against the base branch (committed-ahead) — not `git status`, which
     // is clean once the change is committed. PR only when the branches differ.
     let status: LoopRunRow['status'] = 'no_changes';

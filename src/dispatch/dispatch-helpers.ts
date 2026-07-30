@@ -16,6 +16,7 @@ import {
 } from '@/details/project-event-labels';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { interpretTerminal } from '@/sse/envelope';
 
 /**
  * Thrown by the G2 guard when a project already has MMA in flight for a DIFFERENT
@@ -26,6 +27,20 @@ export class PhaseBusyError extends Error {
   constructor(readonly projectId: string, readonly wantPhase: string, readonly busyPhase: string) {
     super(`Project ${projectId} is busy in phase "${busyPhase}"; cannot start "${wantPhase}" (one phase at a time).`);
     this.name = 'PhaseBusyError';
+  }
+}
+
+/**
+ * Thrown by a SYNC (`await:true`) dispatch whose MMA task reached the engine's
+ * `cancelled` terminal state — someone asked for this work to stop. It is a distinct
+ * type because it must NOT be treated like a failure: the driver's retry loop would
+ * otherwise re-dispatch the very task a human just cancelled (the engine's cancelled
+ * envelope carries `error.code === 'aborted'`, so "has an error" can't tell them apart).
+ */
+export class TaskCancelledError extends Error {
+  constructor(readonly batchRowId: string, message = 'The MMA task was cancelled.') {
+    super(message);
+    this.name = 'TaskCancelledError';
   }
 }
 
@@ -323,13 +338,18 @@ export async function dispatchMma(
     // a provider 401). Treat that as failure — NOT a silent success — so the caller's
     // retry/stop logic engages. Otherwise an audit that recorded no pass would make
     // the resolver re-dispatch "pass 1" forever (the infinite-loop bug).
-    const envErr = (envelope as { error?: unknown } | null | undefined)?.error;
-    const taskFailed = envErr != null && typeof envErr === 'object';
+    //
+    // `interpretTerminal` (not a bare error-presence check) makes the call, because
+    // engine 5.16's `cancelled` terminal ALSO carries an error (`code: 'aborted'`).
+    // Reading that as a failure would make the driver retry a deliberate stop.
+    const terminal = interpretTerminal(envelope);
+    const taskCancelled = terminal.status === 'cancelled';
+    const taskFailed = terminal.status === 'failed';
     const usage = extractUsageFields(envelope);
     await opts.db
       .update(mmaBatch)
       .set({
-        status: taskFailed ? 'failed' : 'done',
+        status: taskCancelled ? 'cancelled' : taskFailed ? 'failed' : 'done',
         batchId: mmaBatchId,
         result: (envelope ?? {}) as object,
         terminalAt: new Date(),
@@ -342,12 +362,19 @@ export async function dispatchMma(
       })
       .where(eq(mmaBatch.id, batchRowId));
 
+    if (taskCancelled) {
+      // Deliberate stop: no success handler, no retry. `TaskCancelledError` is what tells
+      // the driver to park instead of burning its 3 attempts re-dispatching the work.
+      await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'cancelled', Date.now() - row.createdAt.getTime());
+      throw new TaskCancelledError(batchRowId, terminal.error?.message ?? 'The MMA task was cancelled.');
+    }
+
     if (taskFailed) {
       // Do NOT fire the success handler — record a failed milestone and throw so the
       // driver retries (bounded) and then stops with a clear error, instead of looping.
       await appendBatchTerminalEvent(opts.db, opts.projectId, opts.handler, batchRowId, 'failed', Date.now() - row.createdAt.getTime());
-      const e = envErr as { code?: string; message?: string };
-      throw new Error(`MMA task failed: ${e.code ?? 'error'}${e.message ? `: ${e.message}` : ''}`);
+      const e = terminal.error;
+      throw new Error(`MMA task failed: ${e?.code ?? 'error'}${e?.message ? `: ${e.message}` : ''}`);
     }
 
     // Fire the terminal handler. If it THROWS, the gating state it is the sole

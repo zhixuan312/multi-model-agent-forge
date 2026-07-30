@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+Aligns Forge to MMA engine **5.16.0** and adopts its new lifecycle surface. The engine change
+is additive over the same HTTP REST API (wire `SCHEMA_VERSION` is still **6**), so there is no
+wire break — and no database migration: `ops_mma_batch.status` is a `text` column with a
+TS-level enum, so its new value is a code change.
+
+### Fixed
+- **A cancelled MMA task was indistinguishable from a failed one, so automation retried it.**
+  `interpretTerminal()` decided failure purely by "is the envelope's `error` non-null", but the
+  engine's `cancelled` terminal carries `error.code === 'aborted'` — so a deliberate stop read as
+  a fault and Forge's auto driver re-dispatched the very work a human had just cancelled.
+  Cancellation is now a first-class terminal state throughout: `MMA_STATUS` and the details
+  `attemptStatus` gained `cancelled`, the poll manager persists it (not `failed`) and emits
+  `task.cancelled`/`dispatch.cancelled`, the sync dispatch path throws a distinct
+  `TaskCancelledError`, and the automation resolver PARKS the stage for a human instead of
+  re-dispatching. A failure still retries; `done_with_concerns` is still a success.
+
+### Added
+- **Cancel a running MMA batch** (engine 5.16 `DELETE /task/:taskId`). `MmaClient.cancel()`
+  distinguishes *requested* (202) from *already terminal* (200) and *unknown* (404, returned as a
+  state rather than thrown). `PollManager.requestCancel()` is the idempotent entry point:
+  cancellation is cooperative, so the request only marks the batch and the existing poll loop
+  carries it through to the terminal `cancelled` envelope. Reachable at
+  `POST /api/projects/[id]/batches/[batchId]/cancel`, gated on the caller being able to read that
+  project AND the batch belonging to it. No UI affordance yet — that is a separate decision.
+- **"Stopping…" state.** A pending cancellation (ours, or one seen via `cancellationRequested`
+  on the engine's 202 poll body — e.g. another instance cancelled it) surfaces on the batch's
+  progress events, so a client can show the interim state before the task actually stops.
+
+### Changed
+- **`matchedMmaVersion` → `5.16.0`**, with `src/mma/COMPATIBILITY.md` recording the new
+  cancellation/terminal-state contract and an "Adopted in 5.16" delta table.
+- **The engine's `interrupted` terminal state maps to `failed` — deliberately.** It means the
+  daemon restarted mid-task and carries `retryable: true`, so resubmitting is correct and it
+  reuses the existing retry path; its distinct `daemon_restarted` code and message are preserved
+  rather than flattened into a generic pipeline failure. Durable execution records also make the
+  old 404-after-restart path (`task_not_found`) the rare case rather than the normal one.
+
 ## [0.1.3] - 2026-07-27
 
 Reframes the in-app product manifesto as a user-facing **Guide** ("what runs behind the scenes

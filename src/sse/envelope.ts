@@ -6,10 +6,22 @@ import type { ProjectEvent } from '@/sse/event-bus';
  * `{kind:'not_applicable'}` on success. The context-block id (when present) is a
  * SINGLE top-level `envelope.contextBlockId` — never per-`results[i]` (verified
  * against MMA `lifecycle/task-executor.ts`).
+ *
+ * Engine 5.16 added two terminal states beyond `completed`/`done_with_concerns`/
+ * `failed`, BOTH of which carry a non-null `error` — so "has an error" is no longer
+ * a sufficient failure test:
+ *   - `cancelled`   — a caller asked for cancellation (`error.code === 'aborted'`).
+ *     This is DELIBERATE, not a fault: it must never look like a failure, or Forge's
+ *     automation would auto-retry work a human just stopped.
+ *   - `interrupted` — the daemon restarted mid-task (`error.code === 'daemon_restarted'`,
+ *     `retryable: true`). Resubmitting IS the correct response, so it maps to `failed`
+ *     — but its distinct code/message is preserved so the UI says "the engine
+ *     restarted", not a generic pipeline failure.
+ * `done_with_concerns` stays a SUCCESS (concerns are advisory).
  */
 
 export interface TerminalState {
-  status: 'done' | 'failed';
+  status: 'done' | 'failed' | 'cancelled';
   error: { code: string; message: string } | null;
   contextBlockId: string | null;
 }
@@ -23,7 +35,8 @@ function isNotApplicable(v: unknown): boolean {
 }
 
 /**
- * Interpret a terminal envelope (v5.4+): success vs failure + extract error/cbId.
+ * Interpret a terminal envelope (v5.4+): success vs failure vs cancellation +
+ * extract error/cbId.
  * Shape: { task: { status }, output: { contextBlockId }, error: { code, message } | null }
  */
 export function interpretTerminal(envelope: unknown): TerminalState {
@@ -46,6 +59,18 @@ export function interpretTerminal(envelope: unknown): TerminalState {
 
   const output = env.output as { contextBlockId?: unknown } | undefined;
   const cb = output?.contextBlockId;
+
+  // `task.status` is authoritative for cancellation: a cancelled task carries
+  // `error.code === 'aborted'`, which the error-presence test below would otherwise
+  // read as a failure. Keep the error for the UI message/context.
+  if (task?.status === 'cancelled') {
+    return {
+      status: 'cancelled',
+      error: error ?? { code: 'aborted', message: 'Execution cancelled by caller' },
+      contextBlockId: typeof cb === 'string' ? cb : null,
+    };
+  }
+
   return {
     status: error ? 'failed' : 'done',
     error,
@@ -59,13 +84,22 @@ export const FORGE_POLL_TIMEOUT_ERROR = {
   message: 'no terminal envelope within 15m',
 } as const;
 
-/** Build the SSE event for a terminal batch (done vs failed). */
+/** Build the SSE event for a terminal batch (done vs failed vs cancelled). */
 export function terminalEvent(args: {
   taskId: string;
   mmaBatchId: string;
   route: string;
   state: TerminalState;
 }): ProjectEvent {
+  if (args.state.status === 'cancelled') {
+    return {
+      type: 'task.cancelled',
+      taskId: args.taskId,
+      mmaBatchId: args.mmaBatchId,
+      route: args.route,
+      error: args.state.error ?? { code: 'aborted', message: 'Execution cancelled by caller' },
+    };
+  }
   if (args.state.status === 'failed') {
     return {
       type: 'task.failed',

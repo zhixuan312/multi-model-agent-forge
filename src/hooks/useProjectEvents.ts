@@ -82,6 +82,19 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
       void qc.invalidateQueries({ queryKey: explorationKeys.tasks(projectId) });
       break;
     }
+    // Terminal like task.failed, but the batch status stays `cancelled` so the rail can
+    // tell a deliberate stop from a fault. Without this the task would sit at `running`
+    // forever — the cancelled terminal never emits task.failed.
+    case 'task.cancelled': {
+      patchTask(qc, projectId, e.taskId, (t) => ({
+        ...t,
+        status: 'recorded',
+        batchStatus: 'cancelled',
+        error: e.error,
+      }));
+      void qc.invalidateQueries({ queryKey: explorationKeys.tasks(projectId) });
+      break;
+    }
     case 'synthesis.updated': {
       qc.setQueryData<ArtifactCacheEntry | undefined>(
         explorationKeys.artifact(projectId),

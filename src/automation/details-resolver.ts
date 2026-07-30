@@ -13,6 +13,19 @@ export interface AutoAction {
 const WAIT: AutoAction = { kind: 'wait', note: '', stage: '', phase: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete', stage: '', phase: '' };
 
+/**
+ * An attempt auto-mode must NOT act on. Two shapes, one answer (WAIT):
+ *  - `running`   — still in flight; acting now would double-dispatch.
+ *  - `cancelled` — a human deliberately stopped it (engine 5.16 terminal state). It is
+ *    terminal, so it will never flip on its own, and re-dispatching would undo the stop.
+ *    Auto parks the stage; the human resumes it by taking over. Note this is deliberately
+ *    NOT how `failed` behaves — a failure DOES retry (an engine `interrupted` task
+ *    surfaces as `failed` precisely so it gets resubmitted).
+ */
+function isParked(attempt?: { status: string }): boolean {
+  return attempt?.status === 'running' || attempt?.status === 'cancelled';
+}
+
 const STAGE_LABEL: Record<StageKind, string> = {
   exploration: 'Explore', spec: 'Spec', plan: 'Plan', execute: 'Execute', review: 'Review', journal: 'Journal',
 };
@@ -88,7 +101,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       if ((details.repos ?? []).length === 0) return WAIT;
       const authorAttempts = plan.phases.refine.attempts;
       const last = authorAttempts[authorAttempts.length - 1];
-      if (last?.status === 'running') return WAIT;
+      if (isParked(last)) return WAIT;
       // Bounded retry (matches the audit-loop's 5-pass cap): re-author only while
       // failed attempts are under the cap, so a persistently-failing plan-author
       // (e.g. MMA keeps writing a section-less plan) can't re-dispatch forever.
@@ -105,7 +118,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       if (t.approvals.length > 0) continue;
 
       const lastAttempt = t.attempts[t.attempts.length - 1];
-      if (lastAttempt?.status === 'running') return WAIT;
+      if (isParked(lastAttempt)) return WAIT;
       if (!lastAttempt || lastAttempt.status === 'failed') {
         return { kind: 'validate_task', note: `Validating task ${i + 1}/${tasks.length}: ${t.title}`, stage: 'plan', phase: 'refine', data: { taskId: t.id, taskTitle: t.title, taskNum: i + 1, totalTasks: tasks.length } };
       }
@@ -133,7 +146,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
     // flips it. This is what prevents a duplicate execute at the terminal moment.
     for (const repo of implRepos) {
       const last = repo.attempts[repo.attempts.length - 1];
-      if (last?.status === 'running') return WAIT;
+      if (isParked(last)) return WAIT;
     }
     // Dispatch when NO repo has a successful (done) attempt yet — covers the first
     // dispatch (empty) AND a retry after a `failed` attempt. Advancing on a failed
@@ -175,7 +188,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
   if (journal.status === 'active') {
     const harvestAttempts = journal.phases.journal.attempts;
     const lastHarvest = harvestAttempts[harvestAttempts.length - 1];
-    if (lastHarvest?.status === 'running') return WAIT;
+    if (isParked(lastHarvest)) return WAIT;
 
     if (!lastHarvest || lastHarvest.status === 'failed') {
       return { kind: 'dispatch_harvest', note: 'Harvesting learnings...', stage: 'journal', phase: 'journal' };
@@ -195,7 +208,7 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
     if (needsRecord) {
       const recordAttempts = journal.phases.summary.attempts;
       const lastRecord = recordAttempts[recordAttempts.length - 1];
-      if (lastRecord?.status === 'running') return WAIT;
+      if (isParked(lastRecord)) return WAIT;
       return { kind: 'dispatch_record', note: 'Recording learnings...', stage: 'journal', phase: 'summary' };
     }
 

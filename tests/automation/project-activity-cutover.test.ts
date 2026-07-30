@@ -34,7 +34,9 @@ describe('project_activity cutover', () => {
     d.stages.execute.phases.implement.repos = [{ repoId: 'repo-1', attempts: [{ batchId: 'batch-1', status: 'running', at: '2026-07-10T00:00:00.000Z' }] }];
     const db = createMockDb({
       'select:project': [{ details: d }, { details: d, detailsVersion: 1 }],
-      'select:ops_mma_batch': [{ id: 'batch-1' }],
+      // reconcileStuckAttempts reads the terminal STATUS too (failed → retry,
+      // cancelled → park), so the row must carry it as the real query returns it.
+      'select:ops_mma_batch': [{ id: 'batch-1', status: 'failed' }],
       'update:project': [{ id: 'proj-1' }],
       'select:team_member': [{ id: '00000000-0000-0000-0000-000000000000', displayName: 'Forge', avatarTint: '#9a6b4f' }],
     });

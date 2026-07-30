@@ -131,6 +131,18 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
           }
         }
 
+        // A deliberate stop, not a fault: clear the busy state and settle any waiter so
+        // the control isn't stuck spinning — but no failure notification refresh.
+        if (type === 'dispatch.cancelled') {
+          const handler = data.handler as string;
+          clearBusy(handler);
+          const pending = pendingRef.current.get(handler);
+          if (pending) {
+            pendingRef.current.delete(handler);
+            pending.reject((data.error as string) ?? 'Cancelled.');
+          }
+        }
+
         const eventHandler = eventsRef.current?.[type];
         if (eventHandler) {
           void Promise.resolve(eventHandler(data));

@@ -6,7 +6,10 @@ const stageStatus = z.enum(['pending', 'active', 'done', 'skipped']);
 // skipped stage). It is distinct from `done` (the phase produced output) — the stepper
 // renders it struck-through and non-navigable.
 const phaseStatus = z.enum(['pending', 'active', 'done', 'skipped']);
-const attemptStatus = z.enum(['running', 'done', 'failed']);
+// `cancelled` (engine 5.16) is terminal-and-INTENTIONAL: a human stopped this attempt.
+// Unlike `failed` it must never trigger a re-dispatch — the stage stays parked until a
+// human acts (see `resolveNextActionFromDetails` / `reconcileStuckAttempts`).
+const attemptStatus = z.enum(['running', 'done', 'failed', 'cancelled']);
 const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
 const planTaskStatus = z.enum(['pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed']);
 const learningStatus = z.enum(['proposed', 'kept', 'removed', 'recorded']);

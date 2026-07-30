@@ -130,8 +130,8 @@ export async function driveProject(projectId: string): Promise<void> {
       await db.update(project).set({ autoNote: action.note, updatedAt: new Date() }).where(eq(project.id, projectId));
 
       let lastErr: string | null = null;
-      let result: 'ok' | 'inflight' = 'ok';
-      const { PhaseBusyError } = await import('@/dispatch/dispatch-helpers');
+      let result: 'ok' | 'inflight' | 'cancelled' = 'ok';
+      const { PhaseBusyError, TaskCancelledError } = await import('@/dispatch/dispatch-helpers');
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           await performTransition(db, projectId, action, { mode: 'auto', actorId: driverId });
@@ -143,6 +143,9 @@ export async function driveProject(projectId: string): Promise<void> {
           // → WAIT (don't burn retries/stop auto); the in-flight phase settles and the
           // driver re-resolves. Only a real effect error retries/stops.
           if (err instanceof PhaseBusyError || err instanceof TransitionRejected) { result = 'inflight'; lastErr = null; break; }
+          // Someone cancelled this MMA task. Retrying would re-dispatch the very work
+          // they stopped — so break out immediately and park the project for a human.
+          if (err instanceof TaskCancelledError) { result = 'cancelled'; lastErr = null; break; }
           lastErr = err instanceof Error ? err.message : String(err);
           if (attempt < 3) {
             await emit(`Retry ${attempt}/3 — ${lastErr}`, 'error', action.stage, action.phase);
@@ -155,6 +158,17 @@ export async function driveProject(projectId: string): Promise<void> {
       // ops_mma_batch is the source of truth: an in-flight batch for this handler
       // means "already dispatched/running" → WAIT, don't re-fire.
       if (result === 'inflight') { await sleep(5000); continue; }
+
+      // A cancelled task PARKS the project: hand control back to the human who stopped
+      // it rather than looping (auto would immediately re-resolve the same action). Auto
+      // is switched off the same way the failure path does it, so manual actions and a
+      // later "Run automated" both work.
+      if (result === 'cancelled') {
+        await recordDriverOnlyLine(db, projectId, action.stage, action.phase, `${cleanLabel(action.note)} — cancelled`, 'error');
+        await setAutomationStatus(db, projectId, 'off');
+        await db.update(project).set({ autoMode: false, autoNote: 'Cancelled — take it from here', updatedAt: new Date() }).where(eq(project.id, projectId));
+        return;
+      }
 
       if (lastErr) {
         await recordDriverOnlyLine(db, projectId, action.stage, action.phase, `Failed — ${lastErr}`, 'error');

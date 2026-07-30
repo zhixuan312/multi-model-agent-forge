@@ -135,13 +135,15 @@ export async function appendBatchTerminalEvent(
   projectId: string | null | undefined,
   handler: string | null | undefined,
   batchRowId: string,
-  status: 'done' | 'failed',
+  status: 'done' | 'failed' | 'cancelled',
   durationMs?: number,
 ): Promise<void> {
   if (!projectId || !handler) return;
   const meta = HANDLER_EVENT[handler];
   if (!meta) return;
-  let label = status === 'failed' ? `${meta.label} — failed` : meta.label;
+  // A cancellation is neither a success milestone nor a fault — it gets its own label
+  // suffix, and shares the non-`done` activity kind so it never reads as completed work.
+  let label = status === 'done' ? meta.label : `${meta.label} — ${status}`;
   // Enrich a successful audit terminal with the pass it just recorded, so the durable line
   // reads "Audited spec — pass 2 · revised" (the detail the live SSE progression showed) rather
   // than a bare "Audited spec" once you navigate away and back. The handler wrote the pass to
@@ -153,7 +155,7 @@ export async function appendBatchTerminalEvent(
       if (row?.details) label = auditTerminalLabel(meta.label, readPasses(validateDetails(row.details)));
     } catch { /* keep the base label */ }
   }
-  const kind = status === 'failed' ? 'error' : 'done';
+  const kind = status === 'done' ? 'done' : 'error';
   const eventKey = `${handler}:${batchRowId}`;
   const resolved = await resolveRunningActivity({
     db,

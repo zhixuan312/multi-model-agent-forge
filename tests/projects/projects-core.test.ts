@@ -540,3 +540,47 @@ describe('createProject — subset creation', () => {
     expect(db._assertCalled('project', 'insert')).toBe(false);
   });
 });
+
+describe('createProject — branch-slug uniqueness', () => {
+  const mk = (existing: Array<{ id: string; name: string }>) =>
+    createMockDb({
+      'select:workspace_repo': [{ id: repo1, name: 'repo-a', pathOnDisk: '/tmp/a', defaultBranch: 'main' }],
+      'select:project': existing,
+      'insert:project': [{ id: 'new-proj' }],
+    });
+
+  const create = (name: string, db: ReturnType<typeof createMockDb>) =>
+    createProject({ name, visibility: 'public', repoIds: [repo1] }, { id: 'owner-1', teamId: 'team-1' }, { db: db as never });
+
+  it('allows a name whose slug is free', async () => {
+    const res = await create('Brand New Thing', mk([{ id: 'p1', name: 'Something Else' }]));
+    expect(res.ok).toBe(true);
+  });
+
+  /**
+   * The reason uniqueness is enforced on the SLUG rather than on the name: these two names are
+   * distinct under any case-insensitive comparison, yet both slugify to `my-project` and would
+   * therefore claim the identical branch `mma/<date>-my-project` once short ids were dropped —
+   * silently interleaving two projects' commits.
+   */
+  it('rejects a text-distinct name that slugifies onto an existing project', async () => {
+    const res = await create('My/Project', mk([{ id: 'p1', name: 'My Project' }]));
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.code).toBe('duplicate_name');
+      expect(res.error.field).toBe('name');
+    }
+  });
+
+  it('rejects a name differing only by case or spacing', async () => {
+    for (const name of ['MY PROJECT', 'My  Project']) {
+      const res = await create(name, mk([{ id: 'p1', name: 'My Project' }]));
+      expect(res.ok, name).toBe(false);
+    }
+  });
+
+  it('scopes the check to the team (an empty team list never collides)', async () => {
+    const res = await create('My Project', mk([]));
+    expect(res.ok).toBe(true);
+  });
+});

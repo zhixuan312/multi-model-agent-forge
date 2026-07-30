@@ -14,7 +14,7 @@ const PROJECTS_NOTE = `### The pipeline
 - **Explore** — describe the idea, attach context, let agents research
 - **Spec** — AI-guided requirements with Q&A per section
 - **Plan** — task breakdown with audit before execution
-- **Execute** — agents build in isolated worktrees
+- **Execute** — agents build on a dedicated branch per project
 - **Review** — human review of every commit
 - **Journal** — capture what the team learned
 

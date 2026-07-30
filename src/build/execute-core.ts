@@ -8,7 +8,7 @@ export { groupTasksByRepo, buildForgeBranch, listRemoteBranches };
 // Import types for use in this file
 import type { TaskForGrouping, RepoGroup } from '@/build/execute-types';
 
-function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, projectShortId: string): RepoGroup[] {
+function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, projectCreatedAt: Date): RepoGroup[] {
   const map = new Map<string, RepoGroup>();
   for (const t of tasks) {
     let group = map.get(t.targetRepoId);
@@ -21,7 +21,7 @@ function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, project
         branches: [t.defaultBranch],
         targetBranch: t.defaultBranch,
         tasks: [],
-        forgeBranch: buildForgeBranch(projectName, projectShortId),
+        forgeBranch: buildForgeBranch(projectName, projectCreatedAt),
       };
       map.set(t.targetRepoId, group);
     }
@@ -30,9 +30,24 @@ function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, project
   return [...map.values()];
 }
 
-function buildForgeBranch(projectName: string, shortId: string): string {
+/**
+ * The project branch: `mma/<YYYY-MM-DD>-<project-slug>`.
+ *
+ * One `mma/` namespace across every caller — this, `/mma:flow`, and Forge loops — so a branch
+ * name says what produced it without a per-caller prefix to remember.
+ *
+ * The date is the project's CREATION date, deliberately, not today's: `startExecuteRun` reuses
+ * an existing project branch across retries, so a date that moved would fork a new branch on
+ * every attempt and strand the earlier work.
+ *
+ * There is no trailing short id any more. It existed only to disambiguate same-named projects,
+ * and `createProject` now rejects a name whose slug collides within the team — which is the
+ * stronger check, since two DIFFERENT names ("My Project" / "My/Project") slugify identically
+ * and would have collided regardless of case-insensitive name uniqueness.
+ */
+function buildForgeBranch(projectName: string, createdAt: Date): string {
   const slug = slugRefComponent(projectName);
-  return `forge/${slug}-${shortId}`;
+  return `mma/${createdAt.toISOString().slice(0, 10)}-${slug}`;
 }
 
 async function listRemoteBranches(repoPath: string): Promise<string[]> {

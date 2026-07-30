@@ -82,7 +82,12 @@ export interface MmaTerminalEnvelope {
   output: { summary: unknown; filesChanged: string[]; contextBlockId: string | null };
   execution: {
     sessions: { implementer: string; reviewer: string | null };
-    worktree: { merged: boolean; branch: string; path?: string } | null;
+    /** Permanently null — the engine no longer creates worktrees. Kept as a structural
+     *  response key by the engine, so it is still present on every envelope. */
+    worktree: null;
+    /** True when the checkout already had uncommitted changes at dispatch, which the
+     *  engine's `git add -A` then swept into its commit. */
+    dirtyAtDispatch?: boolean;
   };
   metrics: {
     totalDurationMs: number;

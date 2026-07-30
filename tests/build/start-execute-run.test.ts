@@ -24,7 +24,8 @@ describe('startExecuteRun — plan path is a resolved string, not a Promise (exe
 
   it('dispatches execute_plan with target.paths[0] as the awaited plan-file STRING', async () => {
     const db = createMockDb({
-      'select:project': [{ name: 'Proj', details: buildInitialDetails() }],
+      // createdAt is load-bearing: the project branch is mma/<created-date>-<slug>.
+      'select:project': [{ name: 'Proj', details: buildInitialDetails(), createdAt: new Date('2026-07-31T00:00:00Z') }],
       'select:workspace_repo': [{ name: 'demo', pathOnDisk: '/repos/demo' }],
     });
     const res = await startExecuteRun(db, {} as never, 'p1', 'actor', [{ repoId: 'r1', targetBranch: 'main' }]);

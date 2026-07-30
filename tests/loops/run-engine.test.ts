@@ -61,8 +61,16 @@ const setPatch = (d: ReturnType<typeof makeDeps>) => {
 };
 
 describe('buildBranch', () => {
-  it('is loop/<slug>/<date>-<shortRunId>', () => {
-    expect(buildBranch('Code Hygiene!', new Date('2026-06-15T03:00:00Z'), 'abcdef12-xxxx')).toBe('loop/code-hygiene/2026-06-15-abcdef12');
+  // Same mma/<date>-<slug> shape as project + flow branches; the date carries a millisecond
+  // time because a loop fires repeatedly and each run needs its own branch.
+  it('is mma/<date>-<time>-<slug> with no run-id suffix', () => {
+    expect(buildBranch('Code Hygiene!', new Date('2026-06-15T03:04:05.678Z'))).toBe('mma/2026-06-15-030405678-code-hygiene');
+  });
+
+  it('distinguishes two runs of the same loop on the same day', () => {
+    const a = buildBranch('Nightly', new Date('2026-06-15T03:00:00.001Z'));
+    const b = buildBranch('Nightly', new Date('2026-06-15T03:00:00.002Z'));
+    expect(a).not.toBe(b);
   });
 });
 

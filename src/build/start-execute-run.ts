@@ -5,7 +5,6 @@ import type { MmaClient } from '@/mma/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
 import { planFilePath, readPlanFile } from '@/projects/project-files';
-import { projectShortId } from '@/build/slug';
 import { buildForgeBranch } from '@/build/execute-core';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
@@ -26,12 +25,12 @@ export interface ExecuteRunResult {
 /**
  * The SINGLE shared implementation of "start executing the plan", called by BOTH
  * the manual `start-execute` route and the auto driver's `dispatch_execute`. For
- * each repo it ensures the project branch (`forge/<slug>-<shortId>`) exists off
+ * each repo it ensures the project branch (`mma/<created-date>-<slug>`) exists off
  * `origin/<targetBranch>` and is checked out, then dispatches `execute_plan`
  * ASYNC with the branch meta the `execute-pipeline` handler needs to push and open
- * the PR (project branch → target). MMA branches from the project branch and merges
- * its worktree back into it, so the implementation lands on the project branch and
- * master stays clean. The handler (on async terminal) records the implement attempt
+ * the PR (project branch → target). MMA edits the checked-out project branch IN PLACE and
+ * commits there — it creates no branch and no worktree of its own — so the implementation
+ * lands on the project branch and master stays clean. The handler (on async terminal) records the implement attempt
  * that advances the resolver, so the driver only needs the in-flight guard to WAIT.
  */
 export async function startExecuteRun(
@@ -42,7 +41,7 @@ export async function startExecuteRun(
   repoList?: Array<{ repoId: string; targetBranch: string }>,
 ): Promise<ExecuteRunResult> {
   const [proj] = await db
-    .select({ name: project.name, details: project.details })
+    .select({ name: project.name, details: project.details, createdAt: project.createdAt })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
@@ -59,7 +58,8 @@ export async function startExecuteRun(
   // MUST await: planFilePath is async. Unawaited, planPath was a Promise that serialised to
   // `[{}]` in target.paths → MMA rejected every execute_plan dispatch with 400 (retry loop).
   const planPath = await planFilePath(projectId, db);
-  const forgeBranch = buildForgeBranch(proj.name ?? projectId, projectShortId(projectId));
+  // Creation date, not today's — the branch must be stable so retries reuse it.
+  const forgeBranch = buildForgeBranch(proj.name ?? projectId, proj.createdAt);
 
   const dispatched: ExecuteDispatch[] = [];
   const errors: Array<{ repoId: string; error: string }> = [];

@@ -7,7 +7,6 @@ import { mmaBatch } from '@/db/schema/ops';
 import { buildPr, project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError, getProject } from '@/projects/projects-core';
 import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
-import { projectShortId } from '@/build/slug';
 import { ExecuteStageClient, type RepoTerminalResult } from '@/components/forge/ExecuteStageClient';
 import { validateDetails } from '@/details/schema';
 
@@ -66,8 +65,8 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     };
   });
 
-  const shortId = projectShortId(id);
-  const groups = groupTasksByRepo(tasks, proj.name, shortId);
+  // Creation date, not today's — the project branch must be stable across retries.
+  const groups = groupTasksByRepo(tasks, proj.name, proj.createdAt);
 
   for (const g of groups) {
     const remote = await listRemoteBranches(g.pathOnDisk);
@@ -89,8 +88,6 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     const env = b.result as Record<string, unknown> | null;
     const output = (env?.output ?? {}) as Record<string, unknown>;
     const metrics = (env?.metrics ?? {}) as Record<string, unknown>;
-    const execution = (env?.execution ?? {}) as Record<string, unknown>;
-    const worktree = (execution.worktree ?? {}) as Record<string, unknown>;
     const filesChanged = Array.isArray(output.filesChanged) ? output.filesChanged as string[] : [];
 
     terminalResults[rid] = {
@@ -98,8 +95,6 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       durationMs: typeof metrics.totalDurationMs === 'number' ? metrics.totalDurationMs : (b.durationMs ?? null),
       costUsd: typeof metrics.totalCostUsd === 'number' ? metrics.totalCostUsd : (b.costUsd ? Number(b.costUsd) : null),
       filesChanged,
-      worktreeMerged: worktree.merged === true,
-      branch: typeof worktree.branch === 'string' ? worktree.branch : null,
     };
   }
 

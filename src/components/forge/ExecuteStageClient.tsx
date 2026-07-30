@@ -47,11 +47,11 @@ const CONFIGURE_NOTE = `### Configure — set up for execution
 
 ### What happens next
 
-- A forge branch is created from your target
-- Each task runs sequentially in an isolated worktree
+- A branch is created from your target
+- Each task runs sequentially on that branch
 - A pull request is created per repo when complete`;
 
-const EXECUTING_NOTE = `- Tasks run sequentially in an isolated worktree
+const EXECUTING_NOTE = `- Tasks run sequentially on the project branch
 - Reviewer verifies the implementation after
 - PR created automatically when complete`;
 
@@ -62,8 +62,6 @@ export interface RepoTerminalResult {
   durationMs: number | null;
   costUsd: number | null;
   filesChanged: string[];
-  worktreeMerged: boolean;
-  branch: string | null;
 }
 
 export interface ExecuteStageClientProps {

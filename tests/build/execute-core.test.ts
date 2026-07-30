@@ -7,7 +7,7 @@ describe('groupTasksByRepo', () => {
       { id: '2', title: 'T2', orderIndex: 1, targetRepoId: 'r2', repoName: 'utils', repoPath: '/w/utils', defaultBranch: 'develop', status: 'queued' },
       { id: '3', title: 'T3', orderIndex: 2, targetRepoId: 'r1', repoName: 'demo', repoPath: '/w/demo', defaultBranch: 'main', status: 'queued' },
     ];
-    const groups = groupTasksByRepo(tasks as any, 'My Project', 'abc123');
+    const groups = groupTasksByRepo(tasks as any, 'My Project', new Date('2026-07-31T00:00:00Z'));
     expect(groups).toHaveLength(2);
     expect(groups[0].repoId).toBe('r1');
     expect(groups[0].tasks).toHaveLength(2);
@@ -21,19 +21,32 @@ describe('groupTasksByRepo', () => {
     const tasks = [
       { id: '1', title: 'T1', orderIndex: 0, targetRepoId: 'r1', repoName: 'demo', repoPath: '/w', defaultBranch: 'main', status: 'queued' },
     ];
-    const groups = groupTasksByRepo(tasks as any, 'Removal of DB', '1ae242c8');
-    expect(groups[0].forgeBranch).toBe('forge/removal-of-db-1ae242c8');
+    const groups = groupTasksByRepo(tasks as any, 'Removal of DB', new Date('2026-07-31T00:00:00Z'));
+    expect(groups[0].forgeBranch).toBe('mma/2026-07-31-removal-of-db');
     expect(groups[0].targetBranch).toBe('main');
   });
 });
 
 describe('buildForgeBranch', () => {
-  it('builds kebab-case branch from project name + short id', () => {
-    expect(buildForgeBranch('Removal of DB', '1ae242c8')).toBe('forge/removal-of-db-1ae242c8');
+  // One `mma/<date>-<slug>` shape across every caller; no trailing short id, because
+  // createProject now rejects a name whose slug collides within the team.
+  it('builds mma/<created-date>-<slug>', () => {
+    expect(buildForgeBranch('Removal of DB', new Date('2026-07-31T00:00:00Z'))).toBe('mma/2026-07-31-removal-of-db');
   });
 
   it('handles special characters', () => {
-    expect(buildForgeBranch('My Project (v2)', 'abcd1234')).toBe('forge/my-project-v2-abcd1234');
+    expect(buildForgeBranch('My Project (v2)', new Date('2026-01-02T00:00:00Z'))).toBe('mma/2026-01-02-my-project-v2');
+  });
+
+  it('uses the CREATION date so retries reuse the same branch', () => {
+    const created = new Date('2026-03-04T12:00:00Z');
+    expect(buildForgeBranch('Same Project', created)).toBe(buildForgeBranch('Same Project', created));
+    expect(buildForgeBranch('Same Project', created)).toBe('mma/2026-03-04-same-project');
+  });
+
+  it('gives text-distinct but slug-equal names the SAME branch — why uniqueness is enforced on the slug', () => {
+    const d = new Date('2026-07-31T00:00:00Z');
+    expect(buildForgeBranch('My Project', d)).toBe(buildForgeBranch('My/Project', d));
   });
 });
 

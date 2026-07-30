@@ -29,7 +29,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   if (!repoMeta) throw new Error(`Repo ${repoId} not found in project details`);
 
   // COMPLETION INVARIANT: only record execute as DONE if MMA actually COMMITTED code
-  // onto the project branch. execute_plan self-commits per task in a worktree and
+  // onto the project branch. execute_plan commits on the checked-out project branch and
   // ff-merges back; if it produced NO commits ahead of the base, advancing to Review
   // would be a false completion (the exact skip the invariant bans). Verify the
   // commit count; if zero, THROW → the batch is marked failed → reconcile flips the

@@ -68,6 +68,21 @@ export function formatIsoDate(input: Date | string | number): string {
 }
 
 /**
+ * Compact SGT time-of-day for branch names: "HHMMSSmmm" (e.g. "070405123").
+ *
+ * Separate from `sgtParts` because a branch stamp needs seconds and milliseconds to keep
+ * repeated loop runs on distinct branches, and `Intl` is not asked for those fields.
+ * Asia/Singapore is a FIXED UTC+8 offset with no DST, so shifting the instant and reading
+ * the UTC fields is exact — this shortcut is not valid for a DST-observing zone.
+ */
+export function formatBranchTime(input: Date | string | number): string {
+  const d = toDate(input);
+  if (!d) return '000000000';
+  const iso = new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString();
+  return `${iso.slice(11, 13)}${iso.slice(14, 16)}${iso.slice(17, 19)}${iso.slice(20, 23)}`;
+}
+
+/**
  * Frontmatter timestamp in SGT: "2026-07-01 08:04"
  */
 export function formatTimestamp(input: Date | string | number): string {

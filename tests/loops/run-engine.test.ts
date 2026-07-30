@@ -63,8 +63,16 @@ const setPatch = (d: ReturnType<typeof makeDeps>) => {
 describe('buildBranch', () => {
   // Same mma/<date>-<slug> shape as project + flow branches; the date carries a millisecond
   // time because a loop fires repeatedly and each run needs its own branch.
-  it('is mma/<date>-<time>-<slug> with no run-id suffix', () => {
-    expect(buildBranch('Code Hygiene!', new Date('2026-06-15T03:04:05.678Z'))).toBe('mma/2026-06-15-030405678-code-hygiene');
+  it('is mma/<date>-<time>-<slug> with no run-id suffix, stamped in SGT', () => {
+    // 03:04:05.678Z is 11:04:05.678 in Asia/Singapore (UTC+8), the zone loops are
+    // scheduled and displayed in.
+    expect(buildBranch('Code Hygiene!', new Date('2026-06-15T03:04:05.678Z'))).toBe('mma/2026-06-15-110405678-code-hygiene');
+  });
+
+  it('stamps the SGT day, not the UTC day, for a run before 08:00 SGT', () => {
+    // 23:30Z on the 14th is 07:30 SGT on the 15th — the Loops UI says the 15th, so the
+    // branch must too.
+    expect(buildBranch('Nightly', new Date('2026-06-14T23:30:00.000Z'))).toBe('mma/2026-06-15-073000000-nightly');
   });
 
   it('distinguishes two runs of the same loop on the same day', () => {

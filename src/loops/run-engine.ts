@@ -4,6 +4,7 @@ import { getDb, type Db } from '@/db/client';
 import { loopRun, type LoopRow, type LoopRunRow } from '@/db/schema/loop';
 import type { LoopTrigger } from '@/db/enums';
 import { getLoopKind } from '@/loops/kind-registry';
+import { formatIsoDate, formatBranchTime } from '@/lib/format-date';
 import {
   planPrompt, parsePlan, PLAN_OUTPUT_FORMAT,
   journalPrompt, parseJournal, JOURNAL_OUTPUT_FORMAT,
@@ -120,13 +121,13 @@ function kebab(s: string): string {
  * Two fires within the same millisecond are prevented upstream by delivery-record dedup, not by
  * this name; `runLoopForRepo` fails fast rather than reusing an existing branch, so two runs can
  * never interleave commits into one PR.
+ *
+ * Stamped in Asia/Singapore, matching the schedule the loop was authored against
+ * (`LOOP_TIMEZONE`) and the run times the Loops UI shows — a UTC stamp would name the 07:00 SGT
+ * run with the previous day's date.
  */
 export function buildBranch(loopName: string, date: Date): string {
-  const stamp = date.toISOString().replace(/[-:T]/g, '').replace(/\..*$/, '');
-  const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
-  const day = date.toISOString().slice(0, 10);
-  const time = `${stamp.slice(8, 14)}${ms}`;
-  return `mma/${day}-${time}-${kebab(loopName)}`;
+  return `mma/${formatIsoDate(date)}-${formatBranchTime(date)}-${kebab(loopName)}`;
 }
 
 function resolveGoalMd(loop: LoopRow, ctx: RunContext): string {

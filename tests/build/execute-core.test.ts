@@ -48,6 +48,13 @@ describe('buildForgeBranch', () => {
     const d = new Date('2026-07-31T00:00:00Z');
     expect(buildForgeBranch('My Project', d)).toBe(buildForgeBranch('My/Project', d));
   });
+
+  it('dates the branch in SGT, matching the creation date the UI shows', () => {
+    // 22:00Z on the 30th is 06:00 SGT on the 31st. The project page renders "Jul 31",
+    // so a UTC-dated branch would read a day behind for every project created between
+    // 00:00 and 08:00 SGT.
+    expect(buildForgeBranch('Night Owl', new Date('2026-07-30T22:00:00Z'))).toBe('mma/2026-07-31-night-owl');
+  });
 });
 
 describe('inferExecutePhase', () => {

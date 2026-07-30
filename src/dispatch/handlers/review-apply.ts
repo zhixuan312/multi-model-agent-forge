@@ -6,6 +6,7 @@ import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordReviewFix } from '@/automation/details-mutations';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
+import { buildForgeBranch } from '@/build/execute-core';
 
 /**
  * After review findings are applied: record the fix on the latest review pass in
@@ -19,7 +20,11 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
  * derived from the repo (not the request) so the push works regardless of trigger.
  */
 async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
-  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, ctx.projectId)).limit(1);
+  const [row] = await db
+    .select({ details: project.details, name: project.name, createdAt: project.createdAt })
+    .from(project)
+    .where(eq(project.id, ctx.projectId))
+    .limit(1);
   if (!row?.details) return;
   const d = validateDetails(row.details);
   const req = ctx.request as { repoId?: string } | null;
@@ -33,11 +38,17 @@ async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): 
   if (!cwd) return;
   try {
     const branch = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
-    // Guard the prefix so we only ever force-push a branch Forge created. This is the ONLY
-    // runtime branch-prefix check in the codebase and it gates a FORCE push, so a stale prefix
-    // fails silently — review fixes simply stop reaching the PR — rather than erroring.
-    if (branch.startsWith('mma/')) {
+    // Match THIS project's branch exactly, not just the `mma/` prefix. Several projects can
+    // share one clone, so a prefix test would happily FORCE-push whichever project's branch
+    // happened to be checked out — overwriting a sibling project's remote with our commits.
+    // An exact match makes the wrong-checkout case a silent no-op (review fixes stop reaching
+    // the PR) instead of destroying someone else's work; the mismatch is logged so it is
+    // diagnosable rather than invisible.
+    const expected = buildForgeBranch(row.name ?? ctx.projectId, row.createdAt);
+    if (branch === expected) {
       execFileSync('git', ['-C', cwd, 'push', 'origin', branch, '--force'], { timeout: 60_000 });
+    } else {
+      console.error(`[forge] review-apply: ${cwd} is on "${branch}", expected "${expected}" — skipping push`);
     }
   } catch (pushErr) {
     console.error(`[forge] push after review-apply failed:`, pushErr);

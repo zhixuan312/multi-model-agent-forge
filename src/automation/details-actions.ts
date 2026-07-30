@@ -408,10 +408,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
 
     case 'dispatch_execute': {
       // Identical to the manual "Run execution" button — the SAME shared core sets
-      // up the project branch (forge/<project> off origin/<default>), dispatches
-      // execute_plan ASYNC on it, and the handler pushes + opens the PR. The
+      // up the project branch (mma/<created-date>-<project-slug> off origin/<default>),
+      // dispatches execute_plan ASYNC on it, and the handler pushes + opens the PR. The
       // in-flight guard makes the driver WAIT while it runs; the execute-pipeline
       // handler records the implement attempt on terminal so the resolver advances.
+      // A `PhaseBusyError` out of the core (another project holds this repo's checkout)
+      // is caught by the driver as 'inflight' — the project waits and re-resolves.
       const repoList = action.data?.repos as Array<{ repoId: string; targetBranch: string }> | undefined;
       await startExecuteRun(db, mma, projectId, FORGE_MEMBER_ID, repoList);
       break;

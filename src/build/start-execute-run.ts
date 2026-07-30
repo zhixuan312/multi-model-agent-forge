@@ -1,12 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { execFileSync } from 'node:child_process';
 import type { Db } from '@/db/client';
 import type { MmaClient } from '@/mma/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
+import { mmaBatch } from '@/db/schema/ops';
 import { planFilePath, readPlanFile } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
-import { dispatchMma } from '@/dispatch/dispatch-helpers';
+import { dispatchMma, PhaseBusyError } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordExecuteAttempt } from '@/automation/details-mutations';
@@ -71,6 +72,28 @@ export async function startExecuteRun(
       .where(eq(repo.id, repoId))
       .limit(1);
     if (!repoRow) { errors.push({ repoId, error: 'Repo not found' }); continue; }
+
+    // ONE project at a time per repo CHECKOUT. Since caller-owned branches the engine has no
+    // worktree of its own — it edits and commits in THIS clone — so checking our branch out
+    // while another project's run is live would swap the tree underneath that run, and its
+    // `git add -A` would sweep our files into its commit. Batch rows carry the `cwd`, so an
+    // in-flight batch on this path belonging to a DIFFERENT project is the signal to back off.
+    // Throwing `PhaseBusyError` reuses the semantics the auto driver already has for "someone
+    // else is mid-flight": WAIT and re-resolve, rather than burn a retry or fail the project.
+    // Deliberately checked BEFORE the checkout below, which is the only place Forge ever
+    // switches branches in a shared clone — that git call is the hazard, not the dispatch.
+    const busy = await db
+      .select({ projectId: mmaBatch.projectId })
+      .from(mmaBatch)
+      .where(and(
+        eq(mmaBatch.cwd, repoRow.pathOnDisk),
+        inArray(mmaBatch.status, ['dispatched', 'running']),
+        ne(mmaBatch.projectId, projectId),
+      ))
+      .limit(1);
+    if (busy.length > 0) {
+      throw new PhaseBusyError(projectId, 'execute', `repo ${repoRow.name} (held by project ${busy[0].projectId})`);
+    }
 
     // Ensure the project branch: reuse it if it exists, else fork it from
     // origin/<targetBranch>. Execute (and everything after) runs on this branch.

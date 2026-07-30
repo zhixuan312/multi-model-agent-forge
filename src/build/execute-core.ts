@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { slugRefComponent } from '@/build/slug';
+import { formatIsoDate } from '@/lib/format-date';
 
 // Re-export types + inferExecutePhase for server-side consumers
 export { type TaskForGrouping, type RepoGroup, type ExecutePhase, inferExecutePhase } from '@/build/execute-types';
@@ -44,10 +45,14 @@ function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, project
  * and `createProject` now rejects a name whose slug collides within the team — which is the
  * stronger check, since two DIFFERENT names ("My Project" / "My/Project") slugify identically
  * and would have collided regardless of case-insensitive name uniqueness.
+ *
+ * The date is rendered in Asia/Singapore, the product's one timezone, so the branch reads the
+ * same day the UI shows for that project. UTC would disagree for projects created between
+ * 00:00 and 08:00 SGT — a third of every day naming its branch with yesterday's date.
  */
 function buildForgeBranch(projectName: string, createdAt: Date): string {
   const slug = slugRefComponent(projectName);
-  return `mma/${createdAt.toISOString().slice(0, 10)}-${slug}`;
+  return `mma/${formatIsoDate(createdAt)}-${slug}`;
 }
 
 async function listRemoteBranches(repoPath: string): Promise<string[]> {

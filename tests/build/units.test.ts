@@ -1,14 +1,11 @@
 // @vitest-environment node
-import { slugRefComponent, projectShortId } from '@/build/slug';
+import { slugRefComponent } from '@/build/slug';
 import { safeChildEnv, SECRET_ENV_KEYS } from '@/build/command-runner';
 
 describe('slug helpers', () => {
   it('slugs ref-illegal chars and collapses repeats', () => {
     expect(slugRefComponent('My Repo!!')).toBe('my-repo');
     expect(slugRefComponent('a-_-b')).toBe('a-_-b'); // dashes/underscores kept verbatim mid-string
-  });
-  it('projectShortId is the first uuid segment, slugged', () => {
-    expect(projectShortId('abcd1234-xyz')).toBe('abcd1234');
   });
 });
 

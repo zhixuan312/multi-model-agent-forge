@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.4] - 2026-07-30
 
-> **Image digest:** `ghcr.io/zhixuan312/forge@sha256:__PENDING__` (recorded after the multi-arch push).
+> **Image digest:** `ghcr.io/zhixuan312/forge@sha256:82bf9ac9beadc0f55bb67a48d0e112e2b3e55eb19b95d8eacb717b00d0f16809`
+> — the immutable release identity (multi-arch index: `linux/amd64` + `linux/arm64`).
+> Per-arch: amd64 `sha256:d0d173ac1192e6481b1828d13f686bdad7eedb59cf1f1329be832cc39e0f1c17`,
+> arm64 `sha256:f7895ad741d9fea94a779b31a41e62ecb249e9700d7311ccca7ce0794e192061`.
+> Built from `3e0adec` at `2026-07-30T04:07:26Z`.
 
 > **Supersedes 0.1.3, which was never published.** `v0.1.3` was tagged but its image never reached
 > GHCR, so no operator could pull it. 0.1.4 contains everything in 0.1.3 (Settings › Guide with the
@@ -54,7 +58,7 @@ Reframes the in-app product manifesto as a user-facing **Guide** ("what runs beh
 when you trigger a route") and aligns its pages with Forge's own design system. No engine, schema,
 or deployment change.
 
-> **Image digest:** `ghcr.io/zhixuan312/forge@sha256:__PENDING__` (recorded after the multi-arch push).
+> **No image was ever published for this version** — see the 0.1.4 note above; 0.1.4 supersedes it.
 
 ### Changed
 - **Direction → Guide, now under Settings.** The manifesto moves to `/settings/guide` (a Settings

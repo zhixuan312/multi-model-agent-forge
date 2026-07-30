@@ -681,8 +681,30 @@ export async function archiveProject(
       .where(eq(project.id, projectId));
   });
 
+  await releaseProjectWorktrees(db, projectId);
   await recordArchiveActivityBestEffort(db, projectId, actor, 'Archived project');
   return { archived: true };
+}
+
+/**
+ * Reclaim the per-repo checkouts an archived project was holding. Unlike a loop run's
+ * worktree — torn down at the end of the run — a project's must survive execute → review →
+ * fix → PR, which can span days, so archiving is the first point at which it is certainly
+ * finished with. Best-effort and non-fatal: the BRANCH and any open PR are untouched, so a
+ * failure here costs disk, never work, and unarchiving simply recreates the checkout on the
+ * next execute.
+ */
+async function releaseProjectWorktrees(db: Db, projectId: string): Promise<void> {
+  try {
+    const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+    if (!row?.details) return;
+    const { removeProjectWorktree } = await import('@/build/project-worktree');
+    for (const r of validateDetails(row.details).repos) {
+      await removeProjectWorktree({ repoPathOnDisk: r.pathOnDisk, projectId });
+    }
+  } catch (err) {
+    console.error(`[forge] could not release worktrees for archived project ${projectId}:`, err);
+  }
 }
 
 export async function unarchiveProject(

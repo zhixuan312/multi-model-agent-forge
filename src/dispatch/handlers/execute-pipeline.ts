@@ -8,6 +8,7 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordImplementAttempt } from '@/automation/details-mutations';
+import { projectWorktreePath } from '@/build/project-worktree';
 
 async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   const request = ctx.request as {
@@ -28,6 +29,10 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   const repoMeta = d.repos.find((r) => r.id === repoId);
   if (!repoMeta) throw new Error(`Repo ${repoId} not found in project details`);
 
+  // Every git op below targets the project's OWN worktree, the same checkout the engine
+  // just committed in — not the shared clone, which no longer sits on any project's branch.
+  const worktree = projectWorktreePath(repoMeta.pathOnDisk, ctx.projectId);
+
   // COMPLETION INVARIANT: only record execute as DONE if MMA actually COMMITTED code
   // onto the project branch. execute_plan commits directly on the checked-out project
   // branch; if it produced NO commits ahead of the base, advancing to Review
@@ -37,7 +42,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   if (forgeBranch && targetBranch) {
     let commitCount = 0;
     try {
-      const out = execFileSync('git', ['-C', repoMeta.pathOnDisk, 'rev-list', '--count', `origin/${targetBranch}..HEAD`], { encoding: 'utf8', timeout: 30_000 }).trim();
+      const out = execFileSync('git', ['-C', worktree, 'rev-list', '--count', `origin/${targetBranch}..HEAD`], { encoding: 'utf8', timeout: 30_000 }).trim();
       commitCount = Number(out) || 0;
     } catch (revErr) {
       throw new Error(`execute: unable to verify committed code on ${forgeBranch}: ${String(revErr)}`);
@@ -57,7 +62,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
 
   // Push forge branch to origin
   try {
-    execFileSync('git', ['-C', repoMeta.pathOnDisk, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
+    execFileSync('git', ['-C', worktree, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
   } catch (pushErr) {
     console.error(`[forge] git push failed for ${repoMeta.name}:`, pushErr);
   }
@@ -92,7 +97,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
         projectName: proj?.name ?? ctx.projectId,
         branch: forgeBranch,
         targetBranch,
-        repoPath: repoMeta.pathOnDisk,
+        repoPath: worktree,
         tasks,
       },
     );

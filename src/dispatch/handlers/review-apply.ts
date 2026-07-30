@@ -7,6 +7,7 @@ import { updateDetails } from '@/details/write';
 import { recordReviewFix } from '@/automation/details-mutations';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { buildForgeBranch } from '@/build/execute-core';
+import { projectWorktreePath } from '@/build/project-worktree';
 
 /**
  * After review findings are applied: record the fix on the latest review pass in
@@ -33,9 +34,11 @@ async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): 
 
   await updateDetails(db, ctx.projectId, (det) => recordReviewFix(det, repoId, ctx.batchRowId, new Date().toISOString()));
 
-  // Push the project branch so the PR reflects the fixes MMA committed.
-  const cwd = d.repos.find((r) => r.id === repoId)?.pathOnDisk;
-  if (!cwd) return;
+  // Push the project branch so the PR reflects the fixes MMA committed. The project's own
+  // worktree, not the shared clone — that is where the engine was pointed and committed.
+  const repoPath = d.repos.find((r) => r.id === repoId)?.pathOnDisk;
+  if (!repoPath) return;
+  const cwd = projectWorktreePath(repoPath, ctx.projectId);
   try {
     const branch = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
     // Match THIS project's branch exactly, not just the `mma/` prefix. Several projects can

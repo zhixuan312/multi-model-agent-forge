@@ -20,6 +20,7 @@ import {
   recordAuthorAttempt, recordTaskValidation, recordHarvestAttempt, openRunningAttempts,
 } from '@/automation/details-mutations';
 import { startExecuteRun } from '@/build/start-execute-run';
+import { projectWorktreePath } from '@/build/project-worktree';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
 import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } from '@/review/review-findings';
 import type { AutoAction } from '@/automation/details-resolver';
@@ -433,7 +434,10 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         const repoEntry = d.stages.review.phases.review.repos.find((x) => x.repoId === r.id);
         const prevBlockId = lastReadBlockId(repoEntry?.reviewPasses[repoEntry.reviewPasses.length - 1]?.review?.attempts);
         await dispatchMma({
-          db, mma, projectId, route: 'review', handler: 'code-review', cwd: r.pathOnDisk,
+          // The project's own worktree — the shared clone no longer carries this
+          // project's branch, so reviewing it would review the wrong code.
+          db, mma, projectId, route: 'review', handler: 'code-review',
+          cwd: projectWorktreePath(r.pathOnDisk, projectId),
           body: { target: { paths: ['.'] }, prompt: 'Review all changed files.', ...(prevBlockId ? { contextBlockIds: [prevBlockId] } : {}) },
           actorId: FORGE_MEMBER_ID, meta: { repoId: r.id }, await: true,
         });
@@ -474,14 +478,15 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const prompt = chosen.length > 0
         ? buildReviewFixPrompt(chosen)
         : 'Apply the code-review findings from the previous review pass to the code in this repository. Make the fixes directly.';
-      // `delegate`: MMA edits the checked-out `mma/…` project branch IN PLACE and commits
-      // there — it creates no branch and no worktree of its own, and MMA still OWNS the
-      // commit (no Forge-side git add/commit). `reviewPolicy:'none'` keeps it a
-      // single-worker single-commit run. A dirty tree at dispatch is no longer a
-      // correctness problem (the engine reports `dirtyAtDispatch` and sweeps it into the
-      // commit), but execute + prior review-apply both commit, so it is normally clean.
+      // `delegate`: MMA edits the project's OWN worktree in place and commits there — it
+      // creates no branch and no worktree of its own, and MMA still OWNS the commit (no
+      // Forge-side git add/commit). `reviewPolicy:'none'` keeps it a single-worker
+      // single-commit run. A dirty tree at dispatch is no longer a correctness problem
+      // (the engine reports `dirtyAtDispatch` and sweeps it into the commit), but execute
+      // + prior review-apply both commit, so it is normally clean.
       await dispatchMma({
-        db, mma, projectId, route: 'delegate', handler: 'review-apply', cwd: repoMeta.pathOnDisk,
+        db, mma, projectId, route: 'delegate', handler: 'review-apply',
+        cwd: projectWorktreePath(repoMeta.pathOnDisk, projectId),
         body: { prompt, reviewPolicy: 'none' },
         actorId: FORGE_MEMBER_ID, meta: { repoId: entry.repoId, passNo, findingIndices: indices }, await: true,
       });

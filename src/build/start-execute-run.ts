@@ -1,13 +1,12 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
-import { execFileSync } from 'node:child_process';
+import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import type { MmaClient } from '@/mma/client';
 import { project } from '@/db/schema/projects';
 import { repo } from '@/db/schema/workspace';
-import { mmaBatch } from '@/db/schema/ops';
 import { planFilePath, readPlanFile } from '@/projects/project-files';
 import { buildForgeBranch } from '@/build/execute-core';
-import { dispatchMma, PhaseBusyError } from '@/dispatch/dispatch-helpers';
+import { ensureProjectWorktree } from '@/build/project-worktree';
+import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordExecuteAttempt } from '@/automation/details-mutations';
@@ -27,12 +26,16 @@ export interface ExecuteRunResult {
  * The SINGLE shared implementation of "start executing the plan", called by BOTH
  * the manual `start-execute` route and the auto driver's `dispatch_execute`. For
  * each repo it ensures the project branch (`mma/<created-date>-<slug>`) exists off
- * `origin/<targetBranch>` and is checked out, then dispatches `execute_plan`
- * ASYNC with the branch meta the `execute-pipeline` handler needs to push and open
- * the PR (project branch → target). MMA edits the checked-out project branch IN PLACE and
- * commits there — it creates no branch and no worktree of its own — so the implementation
- * lands on the project branch and master stays clean. The handler (on async terminal) records the implement attempt
- * that advances the resolver, so the driver only needs the in-flight guard to WAIT.
+ * `origin/<targetBranch>` and is checked out IN THIS PROJECT'S OWN WORKTREE, then
+ * dispatches `execute_plan` ASYNC with the branch meta the `execute-pipeline` handler
+ * needs to push and open the PR (project branch → target). MMA edits that worktree in
+ * place and commits there — it creates no branch and no worktree of its own — so the
+ * implementation lands on the project branch and master stays clean. The handler (on
+ * async terminal) records the implement attempt that advances the resolver, so the
+ * driver only needs the in-flight guard to WAIT.
+ *
+ * The worktree is what keeps projects that share a repo from colliding; see
+ * `build/project-worktree.ts` for why a shared clone was unsafe.
  */
 export async function startExecuteRun(
   db: Db,
@@ -73,40 +76,18 @@ export async function startExecuteRun(
       .limit(1);
     if (!repoRow) { errors.push({ repoId, error: 'Repo not found' }); continue; }
 
-    // ONE project at a time per repo CHECKOUT. Since caller-owned branches the engine has no
-    // worktree of its own — it edits and commits in THIS clone — so checking our branch out
-    // while another project's run is live would swap the tree underneath that run, and its
-    // `git add -A` would sweep our files into its commit. Batch rows carry the `cwd`, so an
-    // in-flight batch on this path belonging to a DIFFERENT project is the signal to back off.
-    // Throwing `PhaseBusyError` reuses the semantics the auto driver already has for "someone
-    // else is mid-flight": WAIT and re-resolve, rather than burn a retry or fail the project.
-    // Deliberately checked BEFORE the checkout below, which is the only place Forge ever
-    // switches branches in a shared clone — that git call is the hazard, not the dispatch.
-    const busy = await db
-      .select({ projectId: mmaBatch.projectId })
-      .from(mmaBatch)
-      .where(and(
-        eq(mmaBatch.cwd, repoRow.pathOnDisk),
-        inArray(mmaBatch.status, ['dispatched', 'running']),
-        ne(mmaBatch.projectId, projectId),
-      ))
-      .limit(1);
-    if (busy.length > 0) {
-      throw new PhaseBusyError(projectId, 'execute', `repo ${repoRow.name} (held by project ${busy[0].projectId})`);
-    }
-
-    // Ensure the project branch: reuse it if it exists, else fork it from
-    // origin/<targetBranch>. Execute (and everything after) runs on this branch.
+    // Check the project branch out in THIS PROJECT'S OWN worktree, exactly as a loop run
+    // gets its own. Several projects can target one repo, so working in the shared clone
+    // meant a second project's checkout could swap the tree out from under the first
+    // project's running engine. A private checkout removes that shared state outright —
+    // no scheduling, no waiting, and it is where every later stage operates too.
+    let worktree: string;
     try {
-      const exists = execFileSync('git', ['-C', repoRow.pathOnDisk, 'branch', '--list', forgeBranch], { encoding: 'utf8' }).trim();
-      if (exists) {
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'checkout', forgeBranch]);
-      } else {
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'fetch', 'origin', targetBranch], { timeout: 30_000 });
-        execFileSync('git', ['-C', repoRow.pathOnDisk, 'checkout', '-b', forgeBranch, `origin/${targetBranch}`]);
-      }
+      worktree = await ensureProjectWorktree({
+        repoPathOnDisk: repoRow.pathOnDisk, projectId, branch: forgeBranch, targetBranch,
+      });
     } catch (err) {
-      errors.push({ repoId, error: `Branch: ${(err as Error).message}` });
+      errors.push({ repoId, error: `Worktree: ${(err as Error).message}` });
       continue;
     }
 
@@ -117,7 +98,7 @@ export async function startExecuteRun(
         .filter((t) => !t.targetRepoId || t.targetRepoId === repoId)
         .map((t) => t.title);
       const { batchRowId } = await dispatchMma({
-        db, mma, projectId, route: 'execute_plan', handler: 'execute-pipeline', cwd: repoRow.pathOnDisk,
+        db, mma, projectId, route: 'execute_plan', handler: 'execute-pipeline', cwd: worktree,
         body: { type: 'execute_plan', target: { paths: [planPath] }, tasks: [], reviewPolicy: 'reviewed' },
         actorId,
         meta: { forgeBranch, targetBranch, repoId, actorId, tasks: taskTitles },

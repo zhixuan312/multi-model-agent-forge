@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.1.4] - 2026-07-30
+
+> **Image digest:** `ghcr.io/zhixuan312/forge@sha256:__PENDING__` (recorded after the multi-arch push).
+
+> **Supersedes 0.1.3, which was never published.** `v0.1.3` was tagged but its image never reached
+> GHCR, so no operator could pull it. 0.1.4 contains everything in 0.1.3 (Settings › Guide with the
+> sidebar-rail navigation and the Forge-native section renderers) plus the engine-5.16 adoption
+> below. Pull `0.1.4`; the `v0.1.3` tag has no image by design.
 
 Aligns Forge to MMA engine **5.16.0** and adopts its new lifecycle surface. The engine change
 is additive over the same HTTP REST API (wire `SCHEMA_VERSION` is still **6**), so there is no

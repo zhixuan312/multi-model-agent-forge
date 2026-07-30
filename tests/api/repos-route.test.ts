@@ -18,7 +18,6 @@ vi.mock('@/git/repos-core', () => ({ listRepos, cloneAndRegister, pullExisting, 
 
 const { GET: reposGET, POST: reposPOST } = await import('../../app/api/repos/route');
 const { PUT: repoPUT, DELETE: repoDELETE } = await import('../../app/api/repos/[id]/route');
-const { GET: mpGET } = await import('../../app/api/model-profiles/route');
 
 function asAdmin(): AuthedMember {
   return { id: 'a', username: 'admin', displayName: 'A', avatarTint: '#000', role: 'team_admin', teamId: 'team-1' };
@@ -98,16 +97,5 @@ describe('repos API route handlers', () => {
     mockCaller = asAdmin();
     expect((await reposGET()).status).toBe(200);
     expect(listRepos).toHaveBeenCalledWith({ teamId: 'team-1' });
-  });
-
-  it('model-profiles route is admin-gated and returns the catalog shape', async () => {
-    mockCaller = null;
-    expect((await mpGET()).status).toBe(401);
-    mockCaller = asAdmin();
-    const res = await mpGET();
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { available: boolean; profiles: unknown[] };
-    expect(typeof body.available).toBe('boolean');
-    expect(Array.isArray(body.profiles)).toBe(true);
   });
 });

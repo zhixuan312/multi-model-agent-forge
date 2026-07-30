@@ -21,6 +21,7 @@ import {
 } from '@/automation/details-mutations';
 import { startExecuteRun } from '@/build/start-execute-run';
 import { projectWorktreePath } from '@/build/project-worktree';
+import { cancelInFlightBatches } from '@/dispatch/cancel-inflight';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
 import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } from '@/review/review-findings';
 import type { AutoAction } from '@/automation/details-resolver';
@@ -741,22 +742,20 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const [pr] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
       const driverId = pr?.details ? validateDetails(pr.details).automation.driverId : undefined;
       if (driverId) await releaseDriverLease(db, projectId, driverId).catch(() => {});
+      // Stopping the driver only stops the NEXT dispatch. The task the engine was already
+      // given keeps running — burning tokens, and still committing to the project branch
+      // after a human took the wheel — so ask MMA to stop the in-flight work too.
+      // Cooperative: this requests the stop; the poll loop carries each batch to `cancelled`.
+      await cancelInFlightBatches(db, projectId);
       break;
     }
 
     default:
       break;
   }
-  // Wiring: call `await recordTransitionActivity(db, projectId, action)` once at the end of
-  // executeDetailsAction, AFTER the switch has committed the effect for the approve_task /
-  // advance_phase / advance_stage cases (the helper's own kind-guard makes it a no-op for
-  // every other action kind, so a single tail call is sufficient and cannot double-write).
-  //
-  // ALSO: the existing confirm_components case in executeDetailsAction currently calls the
-  // 3-arg `confirmComponents(db, projectId, kinds as never)` while it already computes
-  // `const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;`. Update that call
-  // to `confirmComponents(db, projectId, kinds as never, { actorId })` so the confirm-selection
-  // activity row is attributed to the triggering member (or Forge in auto mode) per FR-7.
+  // Runs AFTER the switch has committed the effect. The helper's own kind-guard makes it a
+  // no-op for every action kind that is not approve_task / advance_phase / advance_stage,
+  // so one tail call covers all three and cannot double-write.
   await recordTransitionActivity(db, projectId, action);
   return 'ok';
 }

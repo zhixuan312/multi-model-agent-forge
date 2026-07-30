@@ -3,7 +3,7 @@ import { ShieldCheck, CalendarClock, Monitor } from 'lucide-react';
 import { currentMember } from '@/auth/current-member';
 import { getProfileMeta } from '@/auth/profile-core';
 import { PageFrame } from '@/components/ui';
-import { formatDate, formatRelative } from '@/lib/format-relative';
+import { formatDate, formatRelative } from '@/lib/format-date';
 import { ProfileForm } from './ProfileForm';
 
 /**

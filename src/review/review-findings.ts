@@ -1,8 +1,17 @@
 /**
- * Shared code-review finding helpers. A review pass is `revised` (needs a fix
- * pass) when it carries any critical/high finding, else `clean` (advance). Lenient
- * about where findings live in the envelope (`output.findings` or
- * `output.summary.findings`) and about the severity key (`severity` or `weight`).
+ * Shared code-review finding helpers. A review pass is `revised` (needs a fix pass) when
+ * it carries any critical/high finding, else `clean` (advance).
+ *
+ * ONE parse, used by every consumer. The gate (`hasBlockingReviewFindings`) and the
+ * display/fix path (`extractReviewFindings`) previously read the envelope by different
+ * rules — different location, different severity key — so a pass could be gated on one
+ * severity while the review page and the worker's fix prompt showed another. They now
+ * share `extractReviewFindings`, which makes that class of drift impossible.
+ *
+ * The measured contract (37 real `code-review` envelopes in the batch store): findings
+ * live at `output.summary.findings[]` with a `weight` key — `output.findings` and a
+ * `severity` key occurred 0 times, as did a string-valued `summary`. The tolerance for
+ * those shapes is kept because it is free, but it is tolerance, not the contract.
  */
 export interface RawReviewFinding {
   weight: string;
@@ -29,7 +38,9 @@ export function extractReviewFindings(envelope: unknown): RawReviewFinding[] {
   const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
   const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];
   return findings.map((f) => ({
-    weight: (f.weight as string) ?? 'medium',
+    // `severity` is accepted as an alias so the one parse is at least as lenient as the
+    // two it replaced; every observed envelope uses `weight`.
+    weight: (f.weight as string) ?? (f.severity as string) ?? 'medium',
     category: (f.category as string) ?? '',
     claim: (f.claim as string) ?? '',
     evidence: (f.evidence as string) ?? '',
@@ -50,14 +61,8 @@ export function buildReviewFixPrompt(findings: RawReviewFinding[]): string {
 }
 
 export function hasBlockingReviewFindings(envelope: unknown): boolean {
-  const env = envelope as Record<string, unknown>;
-  const output = (env?.output ?? {}) as Record<string, unknown>;
-  const lists: unknown[] = [];
-  if (Array.isArray(output.findings)) lists.push(...output.findings);
-  const summary = output.summary as Record<string, unknown> | undefined;
-  if (summary && Array.isArray(summary.findings)) lists.push(...summary.findings);
-  return lists.some((f) => {
-    const sev = String((f as Record<string, unknown>)?.severity ?? (f as Record<string, unknown>)?.weight ?? '').toLowerCase();
-    return sev === 'critical' || sev === 'high';
+  return extractReviewFindings(envelope).some((f) => {
+    const w = f.weight.toLowerCase();
+    return w === 'critical' || w === 'high';
   });
 }

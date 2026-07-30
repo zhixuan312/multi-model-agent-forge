@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { vi } from 'vitest';
-import { startLoopRun, listLoopRuns } from '@/loops/run-now';
+import { startLoopRun } from '@/loops/run-now';
 import type { LoopRunDeps } from '@/loops/run-engine';
 import { createMockDb } from '../test-utils/mock-db';
 
@@ -94,21 +94,6 @@ describe('startLoopRun', () => {
       },
       {},
     );
-  });
-});
-
-describe('listLoopRuns', () => {
-  it('returns the loop run rows', async () => {
-    const db = createMockDb({ 'select:loop_run': [{ id: 'run-1' }, { id: 'run-2' }] });
-    expect(await listLoopRuns('loop-1', { db })).toHaveLength(2);
-  });
-
-  // Tenant scope: the route passes the caller's teamId so a team_admin cannot read another team's
-  // run history by id. (The mock cannot evaluate the WHERE; the teamId predicate is tsc-verified —
-  // this locks that the scoped call path stays wired and non-throwing.)
-  it('accepts a teamId scope', async () => {
-    const db = createMockDb({ 'select:loop_run': [{ id: 'run-1' }] });
-    expect(await listLoopRuns('loop-1', { db, teamId: 'team-1' })).toHaveLength(1);
   });
 });
 

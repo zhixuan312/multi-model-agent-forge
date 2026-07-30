@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { inArray, desc, eq, and } from 'drizzle-orm';
+import { inArray, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
-import { loop as loopTable, loopRun, type LoopRunRow } from '@/db/schema/loop';
+import { loop as loopTable, loopRun } from '@/db/schema/loop';
 import { team } from '@/db/schema/team';
 import type { LoopTrigger } from '@/db/enums';
 import { runLoop, type LoopRepoTarget, type LoopRunDeps } from '@/loops/run-engine';
@@ -107,17 +107,6 @@ export async function startLoopRun(
   else void Promise.resolve(exec).catch(() => {});
 
   return { kind: 'started', runId };
-}
-
-/** Run history for a loop, newest first (the per-repo rows; group by `runId` in the UI). */
-export async function listLoopRuns(loopId: string, deps: { db?: Db; teamId?: string } = {}): Promise<LoopRunRow[]> {
-  const db = deps.db ?? getDb();
-  // Scope to the caller's team — otherwise a team_admin could read another team's run history by id.
-  return db
-    .select()
-    .from(loopRun)
-    .where(and(eq(loopRun.loopId, loopId), deps.teamId ? eq(loopRun.teamId, deps.teamId) : undefined))
-    .orderBy(desc(loopRun.startedAt));
 }
 
 export { loopTable };

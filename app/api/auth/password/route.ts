@@ -4,6 +4,7 @@ import { currentSession } from '@/auth/current-member';
 import { changeOwnPassword } from '@/auth/change-password-core';
 import { sessionCookieOptions, SESSION_COOKIE_NAME } from '@/auth/cookie';
 import { passwordSchema } from '@/auth/password';
+import { logEvent } from '@/observability/log-event';
 
 const bodySchema = z.object({
   currentPassword: z.string().min(1),
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     case 'no_identity':
       return NextResponse.json({ error: 'No local identity for this member.' }, { status: 400 });
     case 'success': {
+      // Security-relevant: a successful change drops every OTHER session for this member.
+      // The catalog has always carried `session.revoke`; nothing emitted it, so the one
+      // auth event that invalidates other devices left no trace in the operational log.
+      logEvent({ event: 'session.revoke', actorId: resolved.member.id, targetId: resolved.member.id, detail: 'own password changed' });
       const res = NextResponse.json({ ok: true });
       // re-issue: replace this device's cookie with the fresh session token
       res.cookies.set(SESSION_COOKIE_NAME, result.token, sessionCookieOptions());

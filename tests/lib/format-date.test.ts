@@ -1,4 +1,4 @@
-import { formatRelative, formatDate } from '@/lib/format-relative';
+import { formatRelative, formatDate } from '@/lib/format-date';
 
 const NOW = new Date('2026-06-09T12:00:00Z');
 const ago = (ms: number) => new Date(NOW.getTime() - ms);

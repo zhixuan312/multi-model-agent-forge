@@ -32,7 +32,7 @@ import { listPins } from '@/journal/pins-core';
 import { topFaqs } from '@/journal/faqs-core';
 import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
 import { parseRecallEnvelope } from '@/journal/recall';
-import { formatDate } from '@/lib/format-relative';
+import { formatDate } from '@/lib/format-date';
 import type { JournalReadOutcome } from '@/journal/types';
 import type { IndexLookupRow } from '@/journal/citations';
 import type { PinnedView, FaqView } from '@/journal/recall-content';

@@ -80,15 +80,6 @@ export async function markAllRead(memberId: string | null, db?: Db): Promise<voi
     );
 }
 
-export async function dismiss(id: string, memberId: string, db?: Db): Promise<void> {
-  const d = db ?? getDb();
-  // Same ownership scope as markRead — never dismiss another member's notification by id.
-  await d
-    .update(notification)
-    .set({ dismissedAt: new Date() })
-    .where(and(eq(notification.id, id), or(eq(notification.memberId, memberId), isNull(notification.memberId))));
-}
-
 // ── Insert ─────────────────────────────────────────────────────────
 
 export interface CreateNotification {

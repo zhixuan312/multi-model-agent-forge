@@ -12,8 +12,7 @@ import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
 import { MmaClient } from '@/mma/client';
 import { resolveMmaClientConfig } from '@/mma/client-config';
-import { readMmaTiers, type MmaTiers } from '@/mma/mma-config-reader';
-import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
+import { readMmaTiers, DEFAULT_MAIN_MODEL, type MmaTiers } from '@/mma/mma-config-reader';
 
 export interface BuildMmaClientDeps {
   db?: Db;

@@ -9,6 +9,13 @@ import { join } from 'node:path';
  * never writes it. Auth is shown as `api-key` when the agent carries an
  * `apiKeyEnv`, else `oauth` (the subscription/default path).
  */
+/**
+ * The model used when the `main` tier carries no explicit model. MMA requires
+ * `X-MMA-Main-Model` on every route (400 `main_model_required` otherwise), so a dispatch
+ * made before anyone visits the Models tab still needs a value.
+ */
+export const DEFAULT_MAIN_MODEL = 'claude-opus-4-8';
+
 export type TierKey = 'main' | 'complex' | 'standard';
 
 export interface TierConfig {

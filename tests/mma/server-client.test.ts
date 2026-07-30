@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { vi } from 'vitest';
 import { buildMmaClient } from '@/mma/server-client';
-import { DEFAULT_MAIN_MODEL } from '@/anthropic/client';
+import { DEFAULT_MAIN_MODEL } from '@/mma/mma-config-reader';
 
 /**
  * Regression: MMA rejects every tool route with 400 `main_model_required` when

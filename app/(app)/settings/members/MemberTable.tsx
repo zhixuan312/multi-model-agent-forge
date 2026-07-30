@@ -28,7 +28,7 @@ import {
   SearchInput,
   toolbarControlWidth,
 } from '@/components/ui';
-import { formatDate } from '@/lib/format-relative';
+import { formatDate } from '@/lib/format-date';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 
 export interface MemberRowData {

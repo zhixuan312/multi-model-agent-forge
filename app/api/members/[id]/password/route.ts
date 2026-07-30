@@ -33,6 +33,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       return NextResponse.json({ error: 'Member not found.' }, { status: 404 });
     case 'reset':
       logEvent({ event: 'member.reset_password', actorId: gate.actor.id, targetId: id });
+      // The reset also drops every session the target had — logged separately so a
+      // forced sign-out is greppable on its own, not inferred from the reset.
+      logEvent({ event: 'session.revoke', actorId: gate.actor.id, targetId: id, detail: 'admin password reset' });
       return new NextResponse(null, { status: 204 });
   }
 }

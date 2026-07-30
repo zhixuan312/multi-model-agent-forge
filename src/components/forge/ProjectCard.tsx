@@ -12,7 +12,7 @@ import {
   AvatarGroup,
 } from '@/components/ui';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
-import { formatRelative } from '@/lib/format-relative';
+import { formatRelative } from '@/lib/format-date';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 import type { ArtifactKind } from '@/db/enums';
 

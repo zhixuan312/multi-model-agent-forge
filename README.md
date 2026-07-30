@@ -92,7 +92,7 @@ in the app afterward.
 # docker compose — Forge (with bundled MMA) + optional local Postgres
 DATABASE_URL="postgres://forge:forge@postgres:5432/forge" \
 FORGE_SECRET_KEY="<32+ byte secret>" \
-FORGE_IMAGE_TAG=0.1.1 docker compose --profile postgres up -d
+FORGE_IMAGE_TAG=0.1.4 docker compose --profile postgres up -d
 
 # or a single container against your own Postgres
 docker run -d -p 3000:3000 \
@@ -100,7 +100,7 @@ docker run -d -p 3000:3000 \
   -e FORGE_SECRET_KEY="<32+ byte secret>" \
   -v forge-workspace:/workspace \
   -v forge-mma-config:/home/node/.mma \
-  ghcr.io/zhixuan312/forge:0.1.1
+  ghcr.io/zhixuan312/forge:0.1.4
 ```
 
 On start the supervisor starts the bundled MMA on `127.0.0.1:7337`, health-gates it,

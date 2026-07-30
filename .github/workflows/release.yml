@@ -1,0 +1,332 @@
+# Forge release — the whole artifact tail, run on GitHub's infrastructure.
+#
+# WHY THIS EXISTS. Forge ships as a container image to third-party operators, and the
+# release used to be built and pushed from a maintainer's laptop. That failed badly:
+# the multi-arch upload takes ~12 minutes over a slow link and outlived the GHCR auth
+# token four times, which is how 0.1.3 ended up TAGGED BUT NEVER PUBLISHED (it had to
+# be superseded by 0.1.4). Here the image never crosses a home network — GitHub builds
+# it and pushes to GHCR, both inside GitHub's own infrastructure — and auth is the
+# built-in GITHUB_TOKEN, which cannot expire mid-push.
+#
+# WHY THE TAG IS CREATED LAST. The tag is the PROOF of a finished release, not the
+# trigger for one. Nothing is tagged until the gates, both native builds, both boot
+# tests and the GHCR push have all succeeded, so the "tagged but no image" state that
+# produced the 0.1.3 mess is structurally impossible.
+#
+# WHY NO SEPARATE ci.yml. This is a single-maintainer repo, so per-PR gating is
+# redundant with the `gates` job below — and a tag can never outrun a red tree because
+# `gates` blocks the build. Use `dry_run: true` to run gates + build + boot test with
+# no publish when you just want a check.
+#
+# WHO CAN RUN IT. The repo is public (that is what makes the runners, including the
+# arm64 ones, free) but only collaborators with write access can dispatch a workflow.
+# Fork PRs get no token and cannot push to GHCR.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release — MUST already equal package.json#version on master'
+        required: true
+        type: string
+      dry_run:
+        description: 'Verify only: run gates + build + boot test, publish nothing'
+        required: false
+        default: false
+        type: boolean
+
+# Least privilege: package write to push the image, contents write to create the tag
+# and the GitHub Release. No PAT, no CR_PAT secret.
+permissions:
+  contents: write
+  packages: write
+
+# Two releases at once would race the :latest tag and the manifest.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/forge
+
+jobs:
+  # ── 1. Gates ────────────────────────────────────────────────────────────────
+  # These are the same commands the maintainer runs locally; running them here means
+  # a release can never be cut from a tree that does not pass them. Node 22 matches
+  # the image base (node:22-bookworm-slim), so CI and the artifact agree.
+  gates:
+    runs-on: ubuntu-24.04
+    outputs:
+      built_at: ${{ steps.stamp.outputs.built_at }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse to release from a non-default branch
+        if: ${{ inputs.dry_run == false && github.ref != 'refs/heads/master' }}
+        run: |
+          echo "::error::Real releases must be dispatched from master (got ${{ github.ref }})."
+          exit 1
+
+      # The version is an INPUT rather than something CI bumps, because the bump +
+      # CHANGELOG + doc sweep are judgement work that belongs in a reviewed PR. CI's
+      # job is to prove the input matches what was actually merged.
+      - name: Version input must match package.json
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "${{ inputs.version }}" ]; then
+            echo "::error::input version '${{ inputs.version }}' != package.json '$PKG'. Merge the bump first."
+            exit 1
+          fi
+          echo "version=$PKG"
+
+      # Re-releasing an existing version would move a published tag and break the
+      # digest-as-provenance rule.
+      - name: Tag must not already exist
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::tag v${{ inputs.version }} already exists. Bump to a new version."
+            exit 1
+          fi
+
+      # One timestamp for the whole release so every arch carries identical provenance.
+      - id: stamp
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4          # reads packageManager: pnpm@10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test                      # tests/setup.ts deletes DATABASE_URL — no DB needed
+      - run: pnpm build
+      - run: pnpm governance:check
+      - run: pnpm exec tsx scripts/check-direction-import-boundary.ts
+
+      - name: Assert standalone output exists
+        run: test -d .next/standalone || { echo "::error::next build produced no standalone output"; exit 1; }
+
+  # ── 2. Build + boot-test + push, once per architecture, NATIVELY ────────────
+  # Each arch builds on its own native runner, so nothing runs under QEMU emulation.
+  # That matters beyond speed: the emulated boot used to produce FALSE failures (a
+  # healthcheck that timed out only because Node cold-start was slow under QEMU, and a
+  # chromium launch that blew its 30s budget). Native runners give honest signals — and
+  # this is the first time amd64 is boot-tested at all, since the maintainer's Mac is arm64.
+  build:
+    needs: gates
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-24.04       # native amd64 — the arch operators actually deploy
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm   # native arm64 — free on public repos
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build once into the local daemon so the boot gate below has something to RUN.
+      # A multi-arch --push leaves nothing local, which is why this is a separate step.
+      - name: Build ${{ matrix.arch }} (load locally)
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --load \
+            --build-arg FORGE_BUILD_GIT_SHA=$(git rev-parse --short HEAD) \
+            --build-arg FORGE_BUILD_BUILT_AT=${{ needs.gates.outputs.built_at }} \
+            --cache-from type=registry,ref=${{ env.IMAGE }}:buildcache-${{ matrix.arch }} \
+            --cache-to   type=registry,ref=${{ env.IMAGE }}:buildcache-${{ matrix.arch }},mode=max \
+            -t forge-candidate:${{ matrix.arch }} \
+            .
+
+      # ── The gate the test suite structurally cannot provide ──────────────────
+      # tests/setup.ts deletes DATABASE_URL by construction, so migrations and seeds are
+      # covered by NO test. A green suite says nothing about database health. Postgres is
+      # started as a sibling container on a user-defined network (rather than a GH service
+      # container) so the Forge container can resolve it by name exactly as in production.
+      - name: Boot gate — real Postgres, then prove restart is idempotent
+        run: |
+          set -euo pipefail
+          docker network create forge-rel-net
+          docker run -d --name pg --network forge-rel-net \
+            -e POSTGRES_PASSWORD=scratch -e POSTGRES_DB=forge postgres:17
+          for i in $(seq 1 30); do
+            docker exec pg pg_isready -U postgres >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+          docker run -d --name forge --network forge-rel-net \
+            -e DATABASE_URL="postgresql://postgres:scratch@pg:5432/forge" \
+            -e FORGE_SECRET_KEY="$(openssl rand -base64 32)" \
+            -e FORGE_COOKIE_SECURE=false \
+            -p 3000:3000 forge-candidate:${{ matrix.arch }}
+
+          up() {
+            for i in $(seq 1 60); do
+              [ "$(curl -s -o /dev/null -w '%{http_code}' -m 3 http://localhost:3000/api/version || echo 000)" = "200" ] && return 0
+              sleep 2
+            done
+            echo "::error::image never served /api/version"; docker logs forge 2>&1 | tail -60; return 1
+          }
+
+          up
+          BODY="$(curl -fsS -m 5 http://localhost:3000/api/version)"; echo "first boot: $BODY"
+          # The image must be able to identify itself: right version, real provenance.
+          echo "$BODY" | node -e "
+            const d=JSON.parse(require('fs').readFileSync(0,'utf8'));
+            const bad=[];
+            if (d.version !== '${{ inputs.version }}') bad.push('version '+d.version);
+            for (const k of ['gitSha','builtAt']) if (!d[k] || d[k]==='unknown') bad.push(k+' '+d[k]);
+            if (bad.length) { console.error('::error::/api/version wrong: '+bad.join(', ')); process.exit(1); }
+          "
+          # /login legitimately 307s to /setup on a fresh database (first-run admin
+          # registration), so accept either and require /setup itself to serve.
+          echo "login=$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://localhost:3000/login)"
+          [ "$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://localhost:3000/setup)" = "200" ] \
+            || { echo "::error::/setup did not serve"; exit 1; }
+
+          # The entrypoint re-runs schema-create → migrate → seed on EVERY start, so a
+          # restart must no-op cleanly. Benign "already exists, skipping" notices are
+          # expected; a 25P01 or a duplicate-key failure is a real migration defect.
+          docker restart forge >/dev/null
+          up
+          echo "after restart: $(curl -fsS -m 5 http://localhost:3000/api/version)"
+          if docker logs forge 2>&1 | grep -qiE '25P01|no transaction in progress|duplicate key|unique violation|unhandled'; then
+            echo "::error::restart bootstrap was not idempotent"; docker logs forge 2>&1 | tail -60; exit 1
+          fi
+          [ "$(docker inspect forge --format '{{.State.Running}}')" = "true" ] \
+            || { echo "::error::container died"; exit 1; }
+          echo "boot gate PASSED on ${{ matrix.arch }}"
+
+      # Only now publish. Layers are already built, so this is a cache hit plus an
+      # upload. push-by-digest keeps the arch images untagged; the manifest job below
+      # is what binds them to :VERSION and :latest.
+      - name: Push ${{ matrix.arch }} by digest
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --build-arg FORGE_BUILD_GIT_SHA=$(git rev-parse --short HEAD) \
+            --build-arg FORGE_BUILD_BUILT_AT=${{ needs.gates.outputs.built_at }} \
+            --cache-from type=registry,ref=${{ env.IMAGE }}:buildcache-${{ matrix.arch }} \
+            --output type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true \
+            --metadata-file /tmp/meta.json \
+            .
+          jq -r '."containerimage.digest"' /tmp/meta.json > /tmp/digest-${{ matrix.arch }}.txt
+          echo "pushed ${{ matrix.arch }} → $(cat /tmp/digest-${{ matrix.arch }}.txt)"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.dry_run == false }}
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digest-${{ matrix.arch }}.txt
+          retention-days: 1
+
+  # ── 3. Assemble the multi-arch index, then tag + release ───────────────────
+  publish:
+    needs: build
+    if: ${{ inputs.dry_run == false }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with: { pattern: digest-*, merge-multiple: true, path: /tmp/digests }
+
+      - name: Create the multi-arch manifest
+        run: |
+          set -euo pipefail
+          AMD="$(cat /tmp/digests/digest-amd64.txt)"
+          ARM="$(cat /tmp/digests/digest-arm64.txt)"
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE }}:${{ inputs.version }} \
+            -t ${{ env.IMAGE }}:latest \
+            "${{ env.IMAGE }}@$AMD" "${{ env.IMAGE }}@$ARM"
+
+      # Regression guard for the 0.1.1 defect: it shipped arm64-ONLY, so `docker pull`
+      # failed on every x86_64 server ("no matching manifest for linux/amd64"). amd64 is
+      # the priority target and must never silently drop out of the index again.
+      - name: Hard gate — index must carry BOTH amd64 and arm64
+        id: digest
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect ${{ env.IMAGE }}:${{ inputs.version }} | tee /tmp/index.txt
+          grep -q 'linux/amd64' /tmp/index.txt || { echo "::error::amd64 missing from index"; exit 1; }
+          grep -q 'linux/arm64' /tmp/index.txt || { echo "::error::arm64 missing from index"; exit 1; }
+          INDEX="$(docker buildx imagetools inspect ${{ env.IMAGE }}:${{ inputs.version }} \
+                    --format '{{json .Manifest}}' | jq -r '.digest')"
+          echo "index=$INDEX" >> "$GITHUB_OUTPUT"
+          echo "release identity → ${{ env.IMAGE }}@$INDEX"
+
+      # Prove the third-party path from a clean state, on the arch operators deploy to.
+      # NOTE: `docker image inspect --format '{{.Architecture}}'` is EMPTY for an image
+      # pulled via a multi-arch index on Docker 29, so assert the arch from inside the
+      # running container instead. The image has an ENTRYPOINT (tini → supervisor), so
+      # --entrypoint must be overridden or the args go to the supervisor.
+      - name: Consumer verification — pull as an outsider
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 ${{ env.IMAGE }}:${{ inputs.version }}
+          ARCH="$(docker run --rm --entrypoint node --platform linux/amd64 \
+                   ${{ env.IMAGE }}:${{ inputs.version }} -e 'process.stdout.write(process.arch)')"
+          [ "$ARCH" = "x64" ] || { echo "::error::pulled amd64 image reports arch=$ARCH"; exit 1; }
+          echo "amd64 consumer pull OK (process.arch=$ARCH)"
+
+      # The tag is created only now — after everything above passed. See the header note.
+      - name: Tag the release
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      # The GitHub Release is the digest's home: immutable, discoverable, and it needs no
+      # bot commit back to master (which would fight branch protection). CHANGELOG.md
+      # points here rather than duplicating the digest.
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Lift this version's CHANGELOG section, if it has one.
+          awk -v v="${{ inputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" {f=1; next}
+            f && /^## \[/ {exit}
+            f {print}
+          ' CHANGELOG.md > /tmp/notes.md || true
+
+          {
+            echo
+            echo '### Image'
+            echo
+            echo '```'
+            echo '${{ env.IMAGE }}@${{ steps.digest.outputs.index }}'
+            echo '```'
+            echo
+            echo "Pull \`${{ env.IMAGE }}:${{ inputs.version }}\` — or pin the digest above for an immutable deploy."
+            echo "Platforms: \`linux/amd64\`, \`linux/arm64\`. Boot-tested against real Postgres on both."
+          } >> /tmp/notes.md
+
+          gh release create "v${{ inputs.version }}" \
+            --title "Forge ${{ inputs.version }}" \
+            --notes-file /tmp/notes.md

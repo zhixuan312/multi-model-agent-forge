@@ -22,7 +22,6 @@ import { fieldBase, fieldSingleLine } from '@/components/ui/field-styles';
  * a sentinel value (e.g. "__all") and map it to your empty state.
  */
 export const Select = SelectPrimitive.Root;
-export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
 
 export function SelectTrigger({
@@ -80,20 +79,6 @@ export function SelectContent({
   );
 }
 
-export function SelectLabel({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Label>) {
-  return (
-    <SelectPrimitive.Label
-      className={cn(
-        'px-2.5 py-1.5 font-mono text-[0.625rem] font-medium uppercase tracking-[0.06em] text-ink-faint',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
 
 export function SelectItem({
   className,
@@ -122,9 +107,3 @@ export function SelectItem({
   );
 }
 
-export function SelectSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
-  return <SelectPrimitive.Separator className={cn('my-1 h-px bg-line', className)} {...props} />;
-}

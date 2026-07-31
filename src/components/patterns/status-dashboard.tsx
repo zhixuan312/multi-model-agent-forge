@@ -46,7 +46,7 @@ export const SCROLL_PANE = 'min-h-0 overflow-y-auto -mx-3 -mt-3 -mb-6 px-3 pt-3 
 /** The same pane, from `lg` up. Spelled out literally, NOT built at runtime: Tailwind
  *  scans source text, so a computed class string generates no CSS — the identical trap
  *  that made the `@utility` version silently do nothing. */
-export const SCROLL_PANE_LG =
+const SCROLL_PANE_LG =
   'lg:min-h-0 lg:overflow-y-auto lg:-mx-3 lg:-mt-3 lg:-mb-6 lg:px-3 lg:pt-3 lg:pb-6';
 
 export function StatusDashboard({ metrics, primary, aside, align = 'stretch', scroll = 'inner', className }: StatusDashboardProps) {

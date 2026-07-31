@@ -29,20 +29,15 @@ export * from './avatar-group';
 export * from './metric-card';
 export * from './next-action-pill';
 export * from './stage-rail';
-export * from './skeleton';
 export * from './spinner';
 export * from './separator';
-export * from './kbd';
 export * from './tooltip';
 
 // Overlays & navigation
-export * from './tabs';
 export * from './dropdown-menu';
-export * from './dialog';
 export * from './breadcrumb';
 
 // Layout
-export * from './page-header';
 export * from './section';
 export * from './grid';
 export * from './split';

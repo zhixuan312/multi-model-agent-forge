@@ -1,12 +1,12 @@
 import { type HTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/cn';
-import { Title, Text } from '@/components/ui/typography';
+import { Title } from '@/components/ui/typography';
 
 /**
  * Card — the standard surface. `header`/`footer` slots sit on a sunk band so
  * actions and titles read as distinct zones from the body. Compose with
- * `CardHeader`/`CardTitle`/`CardDescription`/`CardContent`/`CardFooter`.
+ * `CardHeader`/`CardTitle`/`CardContent`/`CardFooter`.
  */
 // Every card carries `forge-spotlight` — the accent ring + bloom on hover is the house
 // look, not an interactivity cue. `interactive` adds the pointer cursor on top for cards
@@ -42,14 +42,6 @@ export function CardTitle({ className, children, ...rest }: HTMLAttributes<HTMLH
     <Title as="h2" className={cn('!text-base', className)} {...(rest as object)}>
       {children}
     </Title>
-  );
-}
-
-export function CardDescription({ className, children, ...rest }: HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <Text className={cn('t-sm', className)} {...(rest as object)}>
-      {children}
-    </Text>
   );
 }
 

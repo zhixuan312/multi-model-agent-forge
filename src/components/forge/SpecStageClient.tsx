@@ -1573,7 +1573,7 @@ function DocumentScreen({
     setApplying(true);
     setApplyingPass(passNo);
     setApplyCount(indices.length);
-    void mma.transition('apply_findings', { findingIndices: indices })
+    void mma.transition('apply_findings', { findingIndices: indices, passNo })
       .then(() => {
         setApplying(false);
         setAppliedPasses((prev) => new Set(prev).add(passNo));
@@ -1581,7 +1581,14 @@ function DocumentScreen({
         setSelectedFindings([]);
         refresh();
       })
-      .catch(() => { setApplying(false); setApplyingPass(null); });
+      .catch(() => {
+        // Surface the failure. This used to reset the flags silently, so a failed apply
+        // looked identical to one that had not been started — the Plan stage has always
+        // toasted here.
+        setApplying(false);
+        setApplyingPass(null);
+        showToast({ type: 'error', message: 'Couldn’t apply findings — try again.' });
+      });
   }
 
   return (

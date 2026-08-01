@@ -251,10 +251,21 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const passes = scope === 'spec'
         ? d.stages.spec.phases.finalize.auditPasses
         : d.stages.plan.phases.validate.auditPasses;
-      const lastPass = passes[passes.length - 1];
-      if (!lastPass?.audit?.attempts?.[0]?.batchId) break;
+      // Apply the pass the CALLER named, falling back to the latest.
+      //
+      // `findingIndices` are positions in ONE pass's parsed findings, and the client reads
+      // its rows from `auditPassHistory`, which parses per pass. The rail lets a user select
+      // an older round, so pinning this to `passes[last]` meant indices chosen against pass N
+      // were applied to pass M's findings — silently fixing the wrong things. Auto mode and
+      // "apply all" send no passNo and keep the previous behaviour exactly.
+      const requestedPassNo = (action.data as { passNo?: unknown } | undefined)?.passNo;
+      const targetPass =
+        typeof requestedPassNo === 'number'
+          ? passes.find((p) => p.passNo === requestedPassNo)
+          : passes[passes.length - 1];
+      if (!targetPass?.audit?.attempts?.[0]?.batchId) break;
       const [batch] = await db.select({ result: mmaBatch.result }).from(mmaBatch)
-        .where(eq(mmaBatch.id, lastPass.audit.attempts[0].batchId)).limit(1);
+        .where(eq(mmaBatch.id, targetPass.audit.attempts[0].batchId)).limit(1);
       if (!batch?.result) break;
       // Use the CANONICAL audit parser (the same one that set this pass's `revised`
       // verdict) — a `revised` pass therefore always yields non-empty findings here,
@@ -462,9 +473,17 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       // the fix prompt and (b) record which indices were applied (drives the per-pass
       // applied UI). Manual sends `findingIndices`; auto sends none → apply ALL. Same
       // dispatch either way — only the array size differs.
-      const lastPass = entry.reviewPasses[entry.reviewPasses.length - 1];
-      const passNo = (action.data?.passNo as number | undefined) ?? lastPass?.passNo;
-      const reviewBatchId = lastPass?.review?.attempts?.[0]?.batchId;
+      // Resolve ONE pass and take both the findings and the recorded passNo from it.
+      // This used to record the caller's `passNo` while reading findings from the LAST
+      // pass, so naming an older round marked that round applied using a different
+      // round's findings.
+      const requestedPassNo = action.data?.passNo as number | undefined;
+      const targetPass =
+        typeof requestedPassNo === 'number'
+          ? entry.reviewPasses.find((p) => p.passNo === requestedPassNo)
+          : entry.reviewPasses[entry.reviewPasses.length - 1];
+      const passNo = targetPass?.passNo;
+      const reviewBatchId = targetPass?.review?.attempts?.[0]?.batchId;
       let allFindings: RawReviewFinding[] = [];
       if (reviewBatchId) {
         const [rb] = await db.select({ result: mmaBatch.result }).from(mmaBatch).where(eq(mmaBatch.id, reviewBatchId)).limit(1);

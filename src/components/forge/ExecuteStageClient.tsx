@@ -112,6 +112,14 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
   const derivedPhase = inferExecutePhase(props.repoGroups);
   const [execPhase, setExecPhaseRaw] = useState<ExecutePhase>(props.initialPhase ?? derivedPhase);
 
+  /**
+   * Execute's configure→implement is a VIEW transition only: the resolver never advances
+   * the execute phase status (auto goes dispatch_execute → advance_stage), so persisting
+   * it would diverge from auto. Keep it local, like the auto path.
+   *
+   * There used to be a second name, `advanceExecPhase`, that only called this — one
+   * operation reachable under two names, which reads as if they differ.
+   */
   const setExecPhase = (p: ExecutePhase) => {
     setExecPhaseRaw(p);
     if (typeof window !== 'undefined') {
@@ -119,12 +127,6 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
       url.searchParams.set('phase', p);
       router.push(url.pathname + url.search, { scroll: false });
     }
-  };
-  // Execute's configure→implement is a VIEW transition only: the resolver never
-  // advances the execute phase status (auto goes dispatch_execute → advance_stage),
-  // so persisting it would diverge from auto. Keep it local, like the auto path.
-  const advanceExecPhase = (p: ExecutePhase) => {
-    setExecPhase(p);
   };
   const [branches, setBranches] = useState<Record<string, string>>(
     () => Object.fromEntries(props.repoGroups.map((g) => [g.repoId, g.targetBranch])),
@@ -212,7 +214,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
 
   async function startExecution() {
     if (mma.busyRef.current.has('execute-pipeline') || anyDone) {
-      advanceExecPhase('implement');
+      setExecPhase('implement');
       return;
     }
     setDispatching(true);
@@ -224,7 +226,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
         repos: props.repoGroups.map((g) => ({ repoId: g.repoId, targetBranch: branches[g.repoId] })),
       });
       setDispatching(false);
-      advanceExecPhase('implement');
+      setExecPhase('implement');
       setJobs(Object.fromEntries(props.repoGroups.map((g) => [g.repoId, { status: 'implementing' as const }])));
       void mma.waitFor('execute-pipeline').catch(() => {
         showToast({ type: 'error', message: 'The build run failed — see notifications for details.' });

@@ -63,8 +63,17 @@ import { cn } from '@/lib/cn';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { showToast } from '@/components/ui/toast';
 
-/** Per-route prompt floor — pulled from the client-safe schema constants. */
-const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
+/**
+ * Per-route prompt floor — pulled from the client-safe schema constants.
+ *
+ * TOTAL over `string`, deliberately. `RailTask.kind` is a `string` off the wire, so callers
+ * were casting with `as never` to satisfy the narrow union — which silenced the mismatch
+ * rather than handling it. An unrecognised kind then made `PROMPT_FLOORS[kind]` `undefined`,
+ * and `length < undefined` is ALWAYS false: the "prompt too short" check quietly stopped
+ * applying and the hint rendered as "Needs ≥ undefined characters". Returning 0 means "no
+ * floor", which both reads correctly and keeps the hint hidden (`length < 0` is false).
+ */
+const promptFloor = (kind: string): number => PROMPT_FLOORS[kind as keyof typeof PROMPT_FLOORS] ?? 0;
 
 /**
  * `ExploreStageClient` (Spec 5) — the exploration stage island. Three phases:
@@ -768,7 +777,7 @@ function FanOutCard(props: {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {items.map((t) => {
                     const isDraft = t.status === 'draft';
-                    const subFloor = isDraft && t.prompt.trim().length < promptFloor(t.kind as never);
+                    const subFloor = isDraft && t.prompt.trim().length < promptFloor(t.kind);
                     return (
                       <div
                         key={t.id}
@@ -822,7 +831,7 @@ function FanOutCard(props: {
                             />
                             {subFloor ? (
                               <span className="mt-1 text-[11px] text-[var(--rose)]">
-                                Needs ≥ {promptFloor(t.kind as never)} characters
+                                Needs ≥ {promptFloor(t.kind)} characters
                               </span>
                             ) : null}
                           </>

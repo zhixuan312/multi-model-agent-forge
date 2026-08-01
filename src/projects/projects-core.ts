@@ -147,11 +147,16 @@ export async function createProject(
   const parsed = createProjectSchema.safeParse(input);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const field = issue?.path[0];
+    // CHECK the reported path against the fields the client knows how to highlight, rather
+    // than asserting with `as never`. Zod can report an issue on any path; the cast claimed
+    // it was always one of these five, so an issue on anything else would have been handed
+    // to the client as a field name it cannot resolve.
+    const KNOWN_FIELDS = ['name', 'repoIds', 'visibility', 'selectedDesignStages', 'artifact'] as const;
+    const field = KNOWN_FIELDS.find((f) => f === issue?.path[0]);
     return {
       ok: false,
       error: {
-        field: typeof field === 'string' ? (field as never) : undefined,
+        field,
         message: issue?.message ?? 'Invalid input.',
       },
     };

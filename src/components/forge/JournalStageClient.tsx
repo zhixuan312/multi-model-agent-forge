@@ -58,7 +58,6 @@ export interface JournalStageClientProps {
   projectId: string;
   projectName: string;
   learnings: JournalLearningView[];
-  hasJournalFile: boolean;
   harvesting: boolean;
   recording: boolean;
   activeLearningId?: string;
@@ -91,17 +90,19 @@ export function JournalStageClient(props: JournalStageClientProps) {
   const allRecordedInit = props.learnings.length > 0 && props.learnings.every((l) => l.status === 'recorded');
   const derivedPhase: ReflectPhase = allRecordedInit && props.summary ? 'summary' : 'journal';
   const [phase, setPhaseRaw] = useState<ReflectPhase>(props.initialPhase ?? derivedPhase);
+  /**
+   * Journal's journal→summary is a VIEW transition only: the resolver drives the journal
+   * stage by harvest/approve/record/complete (never an explicit phase advance), so this
+   * stays local to match the auto path.
+   *
+   * There used to be a second name, `advancePhase`, that only called this — one operation
+   * under two names, which reads as if they differ.
+   */
   const setPhase = (p: ReflectPhase) => {
     setPhaseRaw(p);
     const url = new URL(window.location.href);
     url.searchParams.set('phase', p);
     router.push(url.pathname + url.search, { scroll: false });
-  };
-  // Journal's journal→summary is a VIEW transition only: the resolver drives the
-  // journal stage by harvest/approve/record/complete (never an explicit phase
-  // advance), so keep this local to match the auto path.
-  const advancePhase = (p: ReflectPhase) => {
-    setPhase(p);
   };
 
   useStagePhaseUrl(phase);
@@ -131,7 +132,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   const [harvestingLocal, setHarvestingLocal] = useState(false);
   const [recordingLocal, setRecordingLocal] = useState(false);
-  const shouldAutoHarvest = !props.hasJournalFile && props.learnings.length === 0 && !props.harvesting;
+  // Auto-harvest when the project has no learnings yet. There was also a
+  // `!props.hasJournalFile` clause, but the component's only call site passed a hardcoded
+  // `false`, so it was always true and the prop never gated anything. Removed rather than
+  // left as a permanently-inert condition; if the "a journal file already exists" guard is
+  // wanted, it needs a real value computed on the page.
+  const shouldAutoHarvest = props.learnings.length === 0 && !props.harvesting;
   const harvesting = props.harvesting || harvestingLocal || shouldAutoHarvest;
   const recording = props.recording || recordingLocal;
 
@@ -441,7 +447,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
                     .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
                     .finally(() => setRecordingLocal(false));
                 }
-                advancePhase('summary');
+                setPhase('summary');
               }}
             >
               {recording ? 'Recording…' : 'Continue to Summary'}

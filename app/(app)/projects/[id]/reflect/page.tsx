@@ -60,7 +60,6 @@ export default async function JournalStagePage({ params, searchParams }: { param
       projectId={id}
       projectName={proj.name}
       learnings={learnings}
-      hasJournalFile={false}
       harvesting={!!pendingHarvest}
       recording={!!pendingRecord}
       activeLearningId={activeLearningId}

@@ -16,7 +16,7 @@ const repo1 = '00000000-0000-4000-8000-000000000001';
 const repo2 = '00000000-0000-4000-8000-000000000002';
 
 describe('createProject — seeding + validation', () => {
-  it('creates project with details initialized', async () => {
+  it('seeds the project row with an initialised details document', async () => {
     const ownerId = 'owner-1';
     const projectId = 'proj-1';
     const mockDb = createMockDb({
@@ -34,9 +34,17 @@ describe('createProject — seeding + validation', () => {
     );
     expect(res.ok).toBe(true);
     expect(mockDb._wasCalled('project', 'insert')).toBe(true);
+    // Both cases below were titled "…with details initialized" while asserting only
+    // `ok` — the details document itself went unchecked. It is the whole point of the
+    // seed: an absent one leaves every stage unreadable to the resolver.
+    const seeded = mockDb._callsFor('project').find((c) => c.method === 'values')?.args[0] as
+      | { details?: { stages?: Record<string, unknown> } }
+      | undefined;
+    expect(seeded?.details?.stages).toBeDefined();
+    expect(Object.keys(seeded!.details!.stages!)).toContain('exploration');
   });
 
-  it('creates the project with details initialized', async () => {
+  it('persists the chosen visibility, not just a default', async () => {
     const ownerId = 'owner-2';
     const projectId = 'proj-2';
     const mockDb = createMockDb({
@@ -50,6 +58,12 @@ describe('createProject — seeding + validation', () => {
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
+    // This case existed only to run the private path; without asserting the column it
+    // was indistinguishable from the public case above.
+    const inserted = mockDb._callsFor('project').find((c) => c.method === 'values')?.args[0] as
+      | { visibility?: string }
+      | undefined;
+    expect(inserted?.visibility).toBe('private');
   });
 
   it('rejects create when a repo id is not owned by the actor team', async () => {

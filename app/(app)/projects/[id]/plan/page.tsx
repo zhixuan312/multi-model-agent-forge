@@ -54,13 +54,10 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  const { member } = await import('@/db/schema/identity');
-  const allMembers = await db
-    .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
-    .from(member);
-  const projectMembers = allMembers
-    .filter((m) => m.id !== me.id)
-    .map((m) => ({ id: m.id, displayName: m.displayName, avatarTint: m.avatarTint }));
+  // Team-scoped (FR-9): the invite / @-mention pool is this team's members, never every
+  // member of every team. `listTeamMemberRefs` is the one implementation of that scope.
+  const { listTeamMemberRefs } = await import('@/auth/members-core');
+  const projectMembers = (await listTeamMemberRefs(me.teamId, { db })).filter((m) => m.id !== me.id);
 
   return (
     <PlanStageClient

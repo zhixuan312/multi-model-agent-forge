@@ -4,6 +4,7 @@ import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity, session } from '@/db/schema/identity';
 import { hashPassword, passwordSchema } from '@/auth/password';
 import { sessionStore, type SessionStore } from '@/auth/session-store';
+import type { MemberRef } from '@/collab/types';
 
 /**
  * Members CRUD core (Spec 1 §Members CRUD API). Dependency-injected and pure of
@@ -259,6 +260,31 @@ export interface MemberListRow {
   avatarTint: string;
   isAdmin: boolean;
   createdAt: Date;
+}
+
+/**
+ * The collaborator pool for a project surface: everyone in ONE team, as `MemberRef`s for
+ * the invite / @-mention pickers.
+ *
+ * Team-scoped by construction (FR-9). The spec and plan pages each inlined
+ * `select(...).from(member)` with NO where clause, so their invite pickers listed every
+ * member of every team — one org's display names and avatar tints visible to another —
+ * and re-read the whole member table on each render. One accessor, one predicate, both
+ * pages: the scope cannot be forgotten at a call site any more.
+ */
+export async function listTeamMemberRefs(
+  teamId: string | null | undefined,
+  deps: MembersDeps = {},
+): Promise<MemberRef[]> {
+  // No team (an org admin with no team context) has no project collaborators to offer.
+  // Returning [] is deliberate: falling back to "every member" is the bug this replaces.
+  if (!teamId) return [];
+  const db = deps.db ?? getDb();
+  return db
+    .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.teamId, teamId))
+    .orderBy(member.displayName);
 }
 
 /** List members for the admin Members surface (newest-derived ordering: by name). */

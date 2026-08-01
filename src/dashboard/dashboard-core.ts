@@ -129,13 +129,14 @@ export async function dashboardProjects(
   // member-ids per stage. Union them across stages, drop the owner (shown separately),
   // resolve to names. NOT the whole roster: a project shows only who worked on it, so
   // a solo-driven project correctly shows just its owner.
-  const memberById = new Map(
-    (await db.select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint }).from(member))
-      .map((m) => [m.id, m]),
-  );
   // Only spec / plan / journal carry a participants roster in details.
   const PARTICIPANT_STAGES = ['spec', 'plan', 'journal'] as const;
-  const collabByP = new Map<string, DashboardCollaborator[]>();
+
+  // Collect the participant ids FIRST, then resolve exactly those. This used to read the
+  // whole `member` table to build a lookup map and then use a handful of entries, so the
+  // query grew with the organisation while the result never did.
+  const idsByProject = new Map<string, Set<string>>();
+  const needed = new Set<string>();
   for (const r of detailsRows) {
     if (!r.details) continue;
     try {
@@ -143,11 +144,28 @@ export async function dashboardProjects(
       const ids = new Set<string>();
       for (const k of PARTICIPANT_STAGES) for (const pid of d.stages[k].participants) ids.add(pid);
       ids.delete(r.ownerId);
-      collabByP.set(
-        r.id,
-        [...ids].map((id) => memberById.get(id)).filter((m): m is DashboardCollaborator => !!m),
-      );
+      idsByProject.set(r.id, ids);
+      for (const id of ids) needed.add(id);
     } catch { /* invalid details — skip */ }
+  }
+
+  const memberById = new Map(
+    needed.size === 0
+      ? []
+      : (
+          await db
+            .select({ id: member.id, displayName: member.displayName, avatarTint: member.avatarTint })
+            .from(member)
+            .where(inArray(member.id, [...needed]))
+        ).map((m) => [m.id, m] as const),
+  );
+
+  const collabByP = new Map<string, DashboardCollaborator[]>();
+  for (const [projectId, ids] of idsByProject) {
+    collabByP.set(
+      projectId,
+      [...ids].map((id) => memberById.get(id)).filter((m): m is DashboardCollaborator => !!m),
+    );
   }
 
   const DESIGN_STAGES = new Set(['exploration', 'spec', 'plan']);

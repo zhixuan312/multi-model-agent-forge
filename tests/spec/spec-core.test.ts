@@ -7,10 +7,10 @@ import {
   loadAllMessages,
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
+import { buildInitialDetails } from '@/details/schema';
 
 describe('ensureSpecStage — reads from details', () => {
   it('returns the active spec stage from details', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
     const d = buildInitialDetails();
     d.stages.spec.status = 'active';
@@ -26,7 +26,6 @@ describe('ensureSpecStage — reads from details', () => {
   });
 
   it('flips a pending spec stage to active via details', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-2';
     const d = buildInitialDetails();
     d.stages.spec.status = 'pending';
@@ -42,7 +41,6 @@ describe('ensureSpecStage — reads from details', () => {
 
 describe('captureIntent', () => {
   it('writes intent to details via setBriefText', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-3';
     const ownerId = 'owner-3';
     const d = buildInitialDetails();
@@ -58,7 +56,6 @@ describe('captureIntent', () => {
 
 describe('captureIntent activity row', () => {
   it('records the capture_intent action in project_activity', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const d = buildInitialDetails();
     const db = createMockDb({
       'select:project': [{ details: d, detailsVersion: 1 }],
@@ -99,7 +96,6 @@ describe('section + project_qa_message persistence (DB integration)', () => {
 
 describe('loadOutline', () => {
   it('returns components with template labels + their ordered sections', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-outline';
     const comp1Id = 'comp-1';
     const comp2Id = 'comp-2';

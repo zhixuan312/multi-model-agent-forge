@@ -7,10 +7,10 @@ import {
   addTask,
 } from '@/exploration/explore-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
+import { buildInitialDetails } from '@/details/schema';
 
 describe('brief persistence', () => {
   it('saves and reads the brief via details', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-1';
     const ownerId = 'owner-1';
     const d = buildInitialDetails();
@@ -30,7 +30,6 @@ describe('brief persistence', () => {
 
 describe('rail + summary reads', () => {
   it('reads tasks from details + joins ops_mma_batch for results', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-2';
     const d = buildInitialDetails();
     d.stages.exploration.phases.discover.tasks = [{
@@ -71,7 +70,6 @@ describe('rail + summary reads', () => {
 
 describe('task editing via details', () => {
   it('adds a manual research draft task via updateDetails', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-4';
     const ownerId = 'owner-4';
     const d = buildInitialDetails();

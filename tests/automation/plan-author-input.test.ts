@@ -2,6 +2,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it, expect } from 'vitest';
+import { buildPlanAuthoringRequest } from '@/automation/plan-author-input';
 
 const cleanupPaths: string[] = [];
 
@@ -11,7 +12,6 @@ afterEach(async () => {
 
 describe('buildPlanAuthoringRequest', () => {
   it('fails when no linked repositories exist', async () => {
-    const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     await expect(buildPlanAuthoringRequest({
       repos: [],
       specPath: '/tmp/spec.md',
@@ -21,7 +21,6 @@ describe('buildPlanAuthoringRequest', () => {
   });
 
   it('fails when a repo path is blank', async () => {
-    const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     await expect(buildPlanAuthoringRequest({
       repos: [{ id: 'r1', name: 'forge', pathOnDisk: '   ', defaultBranch: 'main' }],
       specPath: '/tmp/spec.md',
@@ -31,7 +30,6 @@ describe('buildPlanAuthoringRequest', () => {
   });
 
   it('fails when a linked repo path is not a directory', async () => {
-    const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     const dir = await mkdtemp(join(tmpdir(), 'forge-plan-author-'));
     const filePath = join(dir, 'repo.txt');
     cleanupPaths.push(dir);
@@ -46,7 +44,6 @@ describe('buildPlanAuthoringRequest', () => {
   });
 
   it('passes the spec by path and carries the validated repo list in the prompt', async () => {
-    const { buildPlanAuthoringRequest } = await import('@/automation/plan-author-input');
     const repoDir = await mkdtemp(join(tmpdir(), 'forge-plan-author-repo-'));
     const normalizedRepoDir = await realpath(repoDir);
     cleanupPaths.push(repoDir);

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
+import { getStagePermissions } from '@/projects/stage-gate';
 
 function makeDetails(stageStatuses: Record<string, string>) {
   const d = buildInitialDetails();
@@ -14,7 +15,6 @@ function makeDetails(stageStatuses: Record<string, string>) {
 
 describe('getStagePermissions', () => {
   it('all stages mutable when project is fresh', async () => {
-    const { getStagePermissions } = await import('@/projects/stage-gate');
     const d = makeDetails({ exploration: 'pending', spec: 'pending', plan: 'pending', execute: 'pending', review: 'pending', journal: 'pending' });
     const db = createMockDb({ 'select:project': [{ completedAt: null, details: d }] });
     const perms = await getStagePermissions(db, 'p1');
@@ -23,7 +23,6 @@ describe('getStagePermissions', () => {
   });
 
   it('design stages stay editable during design phase', async () => {
-    const { getStagePermissions } = await import('@/projects/stage-gate');
     const d = makeDetails({ exploration: 'active', spec: 'active', plan: 'pending', execute: 'pending', review: 'pending', journal: 'pending' });
     const db = createMockDb({ 'select:project': [{ completedAt: null, details: d }] });
     const perms = await getStagePermissions(db, 'p1');
@@ -32,7 +31,6 @@ describe('getStagePermissions', () => {
   });
 
   it('design stages lock when execute is done', async () => {
-    const { getStagePermissions } = await import('@/projects/stage-gate');
     const d = makeDetails({ exploration: 'done', spec: 'done', plan: 'done', execute: 'done', review: 'active', journal: 'pending' });
     const db = createMockDb({ 'select:project': [{ completedAt: null, details: d }] });
     const perms = await getStagePermissions(db, 'p1');
@@ -44,7 +42,6 @@ describe('getStagePermissions', () => {
   });
 
   it('review locks when done', async () => {
-    const { getStagePermissions } = await import('@/projects/stage-gate');
     const d = makeDetails({ exploration: 'done', spec: 'done', plan: 'done', execute: 'done', review: 'done', journal: 'active' });
     const db = createMockDb({ 'select:project': [{ completedAt: null, details: d }] });
     const perms = await getStagePermissions(db, 'p1');

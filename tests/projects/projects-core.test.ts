@@ -9,6 +9,8 @@ import {
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
+import { buildInitialDetails } from '@/details/schema';
+import { archivedProjects, archiveProject, unarchiveProject } from '@/projects/projects-core';
 
 const repo1 = '00000000-0000-4000-8000-000000000001';
 const repo2 = '00000000-0000-4000-8000-000000000002';
@@ -141,7 +143,6 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
     // The column drift bug: a completed project whose `phase` column was left at an
     // old value must still render as completed, because the card reads the derived
     // value from details (the source of truth), not the column.
-    const { buildInitialDetails } = await import('@/details/schema');
     const d = buildInitialDetails();
     for (const s of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
       d.stages[s].status = 'done';
@@ -212,7 +213,6 @@ describe('mutation authorization', () => {
   });
 
   it('changeRepos updates details repos', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-9';
     const ownerId = 'owner-9';
     const d = buildInitialDetails();
@@ -231,7 +231,6 @@ describe('mutation authorization', () => {
     // The repo lookup is team-scoped (eq(repo.teamId, actor.teamId)); a foreign id is
     // excluded, so fewer rows come back than were requested and the change is rejected —
     // never silently dropping the foreign repo or binding its path.
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-9x';
     const ownerId = 'owner-9x';
     const d = buildInitialDetails();
@@ -252,7 +251,6 @@ describe('mutation authorization', () => {
 
 describe('getProjectRepos — reads from details', () => {
   it('returns repos from details', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const projectId = 'proj-10';
     const d = buildInitialDetails();
     d.repos = [
@@ -301,7 +299,6 @@ describe('createProject activity row', () => {
 
 describe('archive list reads', () => {
   it('visibleProjects excludes archived rows and archivedProjects returns only archived rows newest-first', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const activeDetails = buildInitialDetails();
     const archivedOlderDetails = buildInitialDetails();
     const archivedNewerDetails = buildInitialDetails();
@@ -352,7 +349,6 @@ describe('archive list reads', () => {
       'select:team_member': [{ id: 'owner-1', displayName: 'Owner', avatarTint: '#fff' }],
     });
 
-    const { archivedProjects } = await import('@/projects/projects-core');
     const active = await visibleProjects({ id: 'owner-1', teamId: 'team-1' }, { db: mockDb });
     const archived = await archivedProjects({ id: 'owner-1', teamId: 'team-1' }, { db: mockDb });
 
@@ -378,7 +374,6 @@ describe('archive mutations', () => {
       'insert:project_activity': new Error('activity insert failed'),
     });
 
-    const { archiveProject } = await import('@/projects/projects-core');
     const result = await archiveProject(projectId, { id: ownerId, teamId: 'team-1' }, { db: mockDb });
 
     expect(result.archived).toBe(true);
@@ -401,7 +396,6 @@ describe('archive mutations', () => {
       ),
     });
 
-    const { archiveProject } = await import('@/projects/projects-core');
     const result = await archiveProject('proj-a', { id: 'owner-a', teamId: 'team-1' }, { db: mockDb });
 
     expect(result.archived).toBe(true);
@@ -418,7 +412,6 @@ describe('archive mutations', () => {
       'insert:project_activity': [],
     });
 
-    const { unarchiveProject } = await import('@/projects/projects-core');
     const result = await unarchiveProject('proj-u', { id: 'owner-u', teamId: 'team-1' }, { db: archivedDb });
     expect(result.archived).toBe(false);
     expect(archivedDb._wasCalled('project', 'update')).toBe(true);
@@ -442,7 +435,6 @@ describe('archive mutations', () => {
       ),
     });
 
-    const { archiveProject } = await import('@/projects/projects-core');
     await expect(
       archiveProject('proj-forbidden', { id: 'reader-1', teamId: 'team-1' }, { db: mockDb }),
     ).rejects.toThrow(ProjectAccessError);

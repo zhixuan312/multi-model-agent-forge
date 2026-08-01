@@ -7,7 +7,7 @@ import {
   secureCookieWillBeDropped,
   SESSION_COOKIE_NAME,
 } from '@/auth/cookie';
-import { SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
+import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
 
 describe('mintSessionToken', () => {
   it('mints an opaque token with ≥32 bytes of entropy (base64url, no padding)', () => {
@@ -46,6 +46,15 @@ describe('sessionCookieOptions', () => {
     expect(opts.sameSite).toBe('lax');
     expect(opts.maxAge).toBe(Math.floor(SESSION_ABSOLUTE_TTL_MS / 1000));
     expect(opts.path).toBe('/');
+  });
+
+  it('takes SameSite from COOKIE_SAMESITE — the declared CSRF control, not a copy of it', () => {
+    // SameSite=Lax is what stops a cross-site POST carrying the session, which is why only
+    // a handful of mutating routes add an explicit origin check on top. The value used to be
+    // hardcoded here while `COOKIE_SAMESITE` sat unused, so changing the documented control
+    // would have had no effect. Assert they are the SAME value, not merely both 'lax'.
+    expect(sessionCookieOptions({ secure: false }).sameSite).toBe(COOKIE_SAMESITE);
+    expect(clearedCookieOptions({ secure: false }).sameSite).toBe(COOKIE_SAMESITE);
   });
 
   it('sets Secure when requested (production / FORGE_COOKIE_SECURE=true)', () => {

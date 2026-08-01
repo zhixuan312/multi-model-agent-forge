@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { SESSION_ABSOLUTE_TTL_MS, SESSION_COOKIE_NAME } from '@/auth/config';
+import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS, SESSION_COOKIE_NAME } from '@/auth/config';
 
 export { SESSION_COOKIE_NAME };
 
@@ -28,7 +28,7 @@ export function hashToken(token: string): string {
 /** The subset of Next.js cookie attributes this app sets. */
 export interface SessionCookieOptions {
   httpOnly: true;
-  sameSite: 'lax';
+  sameSite: typeof COOKIE_SAMESITE;
   secure: boolean;
   path: '/';
   maxAge: number;
@@ -54,7 +54,11 @@ export function shouldUseSecureCookie(): boolean {
 export function sessionCookieOptions(opts?: { secure?: boolean }): SessionCookieOptions {
   return {
     httpOnly: true,
-    sameSite: 'lax',
+    // SameSite is THE CSRF control (see `COOKIE_SAMESITE`): a cross-site POST does not
+    // carry the cookie, so state-changing routes see no session. Read from the constant
+    // rather than repeating the literal — the constant documents the control, and a
+    // hardcoded copy here meant changing it would have had no effect.
+    sameSite: COOKIE_SAMESITE,
     secure: opts?.secure ?? shouldUseSecureCookie(),
     path: '/',
     maxAge: Math.floor(SESSION_ABSOLUTE_TTL_MS / 1000),

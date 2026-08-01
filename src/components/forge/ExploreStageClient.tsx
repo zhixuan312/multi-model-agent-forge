@@ -110,7 +110,6 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   useProjectEvents(props.projectId);
   const readOnly = props.readOnly ?? false;
   const lockedReason = props.lockedReason;
-  const locked = readOnly;
 
   // Seed the live caches from RSC first paint.
   if (qc.getQueryData(explorationKeys.tasks(props.projectId)) === undefined) {
@@ -195,7 +194,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
 
   // Exploration sub-phase transitions go through the unified engine as
   // `advance_phase` (the resolver picks the correct next phase from state).
-  async function advancePhase(_targetPhase: string): Promise<boolean> {
+  async function advancePhase(): Promise<boolean> {
     try {
       await mma.transition('advance_phase');
       return true;
@@ -220,14 +219,14 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   // best-effort (the explicit Analyze is still the authoritative save).
   const savedBriefRef = useRef(props.initialBrief);
   useEffect(() => {
-    if (locked || proposing || brief === savedBriefRef.current) return;
+    if (readOnly || proposing || brief === savedBriefRef.current) return;
     const t = setTimeout(() => {
       savedBriefRef.current = brief;
       void mma.transition('set_brief', { text: brief }).catch(() => {});
     }, 1200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce on brief; mma.transition is stable
-  }, [brief, locked, proposing]);
+  }, [brief, readOnly, proposing]);
 
   async function run(): Promise<void> {
     try {
@@ -274,7 +273,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   })();
 
   // Publish the viewing sub-phase to the stepper (does NOT persist to DB — that's
-  // done explicitly in "Continue to X" handlers via advancePhaseAndTransition).
+  // done explicitly in the "Continue to X" handlers via advancePhase()).
   const subPhase = viewOverride
     ? viewOverride
     : phase === 'synthesis' ? 'synthesize' : phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : 'discover';
@@ -284,12 +283,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   useEffect(() => {
     // `!synthError` guard: after a failed synthesis, don't auto-refire (that would loop on a
     // persistent failure) — the SummaryPane's Retry button is the recovery path.
-    if (phase === 'synthesis' && !bodyMd && !synthesizing && !locked && !synthError && !synthFired.current) {
+    if (phase === 'synthesis' && !bodyMd && !synthesizing && !readOnly && !synthError && !synthFired.current) {
       synthFired.current = true;
       resynthesize();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: fires once when entering synthesis; resynthesize is stable and adding it would retrigger
-  }, [phase, bodyMd, synthesizing, locked, synthError]);
+  }, [phase, bodyMd, synthesizing, readOnly, synthError]);
 
   useEffect(() => {
     return stagePhaseStore.onNavigate((key) => {
@@ -393,9 +392,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                     else if (drafts.length > 0) { run(); }
                     // Only move the view if the server actually advanced the phase —
                     // a rejected transition must NOT navigate.
-                    if (await advancePhase('discover')) setViewOverride('discover');
+                    if (await advancePhase()) setViewOverride('discover');
                   }}
-                  disabled={locked || proposing || tasks.length === 0}
+                  disabled={readOnly || proposing || tasks.length === 0}
                   loading={proposing}
                   rightIcon={<ArrowRight />}
                 >
@@ -418,10 +417,10 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <div className="flex min-h-0 flex-1 flex-col">
                 <ConversationComposer
                   value={brief}
-                  onChange={locked ? () => {} : setBrief}
-                  onSend={locked ? () => {} : () => { analyze(); setBriefView('tasks'); }}
-                  voice={props.voiceEnabled && !locked}
-                  disabled={locked || proposing}
+                  onChange={readOnly ? () => {} : setBrief}
+                  onSend={readOnly ? () => {} : () => { analyze(); setBriefView('tasks'); }}
+                  voice={props.voiceEnabled && !readOnly}
+                  disabled={readOnly || proposing}
                   placeholder="Tell Forge everything you know…"
                   submitLabel={hasAnalyzed ? 'Re-analyze' : 'Analyze sources'}
                   rows={0}
@@ -453,8 +452,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               repoOptions={props.repoOptions}
               onChanged={refreshTasks}
               onRun={run}
-              canRun={drafts.length > 0 && !proposing && !locked}
-              disabled={proposing || locked}
+              canRun={drafts.length > 0 && !proposing && !readOnly}
+              disabled={proposing || readOnly}
               headerAction={
                 <TabBar tabs={BRIEF_TABS} activeTab="tasks" onTabChange={(v) => setBriefView(v as 'input' | 'tasks')} />
               }
@@ -477,8 +476,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <Button
                   variant="primary"
                   className="w-full"
-                  onClick={async () => { if (await advancePhase('synthesize')) setViewOverride('synthesize'); }}
-                  disabled={!allDone || locked || synthesizing}
+                  onClick={async () => { if (await advancePhase()) setViewOverride('synthesize'); }}
+                  disabled={!allDone || readOnly || synthesizing}
                   loading={synthesizing}
                   rightIcon={<ArrowRight />}
                 >
@@ -552,7 +551,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader>
                 <CardTitle>Synthesis</CardTitle>
-                <Button size="sm" variant="primary" onClick={locked ? () => {} : resynthesize} disabled={locked || synthesizing} loading={synthesizing} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
+                <Button size="sm" variant="primary" onClick={readOnly ? () => {} : resynthesize} disabled={readOnly || synthesizing} loading={synthesizing} leftIcon={bodyMd ? <RefreshCw /> : <Sparkles />}>
                   {synthesizing ? 'Synthesizing…' : bodyMd ? 'Re-synthesize' : 'Synthesize'}
                 </Button>
               </CardHeader>
@@ -566,7 +565,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 <StageAdvance
                   href={`/projects/${props.projectId}/spec`}
                   label="Continue to Spec"
-                  disabled={!bodyMd || locked}
+                  disabled={!bodyMd || readOnly}
                   projectId={props.projectId}
                   from="exploration"
                 />
@@ -578,11 +577,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             <SummaryPane
               className="min-h-0 flex-1"
               projectName={props.projectName}
-              bodyMd={bodyMd as string}
+              bodyMd={bodyMd}
               version={version}
               synthesizing={synthesizing}
               synthError={synthError}
-              onRetry={locked ? undefined : resynthesize}
+              onRetry={readOnly ? undefined : resynthesize}
             />
         </StageShell>
       )}
@@ -955,7 +954,9 @@ function AddTaskForm(props: {
 function SummaryPane(props: {
   className?: string;
   projectName: string;
-  bodyMd: string;
+  /** Null until the synthesis lands — the empty/loading/error states below are the
+   *  whole point of this pane, so the type must admit it rather than be cast away. */
+  bodyMd: string | null;
   version: number | null;
   synthesizing?: boolean;
   synthError?: boolean;

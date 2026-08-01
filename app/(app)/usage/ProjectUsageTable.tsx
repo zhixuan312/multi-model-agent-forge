@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { useExpandedRow } from '@/hooks/useExpandedRow';
 import { FolderKanban, ChevronRight } from 'lucide-react';
 import {
   Card,
@@ -34,12 +35,7 @@ export function ProjectUsageTable({
 }) {
   const [search, setSearch] = useState('');
   const [phase, setPhase] = useState<PhaseFilter>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggle = useCallback(
-    (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
-    [],
-  );
+  const { expandedId, toggle } = useExpandedRow();
 
   const columns = useMemo<ColumnDef<ProjectUsageRow>[]>(
     () => [

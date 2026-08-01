@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { useExpandedRow } from '@/hooks/useExpandedRow';
 import { Repeat, ChevronRight } from 'lucide-react';
 import {
   Card,
@@ -31,12 +32,7 @@ export function LoopUsageTable({
 }) {
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggle = useCallback(
-    (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
-    [],
-  );
+  const { expandedId, toggle } = useExpandedRow();
 
   const columns = useMemo<ColumnDef<LoopUsageRow>[]>(
     () => [

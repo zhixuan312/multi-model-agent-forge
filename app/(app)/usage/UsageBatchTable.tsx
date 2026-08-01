@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { useExpandedRow } from '@/hooks/useExpandedRow';
 import { BarChart3, ChevronRight } from 'lucide-react';
 import {
   Card,
@@ -44,12 +45,7 @@ export function UsageBatchTable({
 }) {
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggle = useCallback(
-    (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
-    [],
-  );
+  const { expandedId, toggle } = useExpandedRow();
 
   const columns = useMemo<ColumnDef<BatchRowData>[]>(
     () => [

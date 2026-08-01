@@ -9,14 +9,24 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
-    // Auth integration tests share a single live Postgres (one `forge` schema).
-    // Run test files sequentially in one worker so DB-mutating files don't
-    // interleave — global throwaway-row cleanup in one file's afterAll would
-    // otherwise race another file's in-flight rows (FK violations).
-    fileParallelism: false,
-    // Spec-4 orchestrator tests chain several live-DB round-trips per assertion
-    // (grounding fetch + draft) against a single shared Postgres connection; the
-    // 5s default is too tight for those multi-query flows.
+    // Files run in parallel. This was previously `fileParallelism: false`, justified
+    // by "auth integration tests share a single live Postgres" — which cannot happen:
+    // `tests/setup.ts` deletes DATABASE_URL, so no test reaches a database at all.
+    //
+    // The constraint that WAS real (and undocumented) was on disk: two files both
+    // wrote and `rmSync`-ed `<cwd>/.forge-workspace/.mma/projects/proj-1`, the same
+    // path, so running them concurrently raced. `tests/setup.ts` now gives each file
+    // its own `FORGE_WORKSPACE_ROOT` temp dir, which removes the collision — and
+    // keeps tests out of the operator's real workspace. Serial: ~106s. Parallel: ~29s.
+    //
+    // Before turning this off again, check for genuinely SHARED mutable state (a
+    // fixed on-disk path, a real service) — not for a database, which is unreachable.
+
+    // Generous per-test ceiling. Not because anything here is slow on its own (1761
+    // tests take ~30s in total), but because under full file parallelism a worker can
+    // be starved long enough for the 5s default to fire spuriously. It exists to stop
+    // contention from being reported as a test failure; a test that genuinely needs
+    // seconds of wall-clock is a bug to fix, not a budget to spend.
     testTimeout: 20_000,
   },
   resolve: {

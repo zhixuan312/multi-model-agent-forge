@@ -1,12 +1,5 @@
 // @vitest-environment node
-import { rmSync } from 'fs';
-import { join } from 'path';
 
-afterAll(() => {
-  for (const id of ['proj-3']) {
-    rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', id), { recursive: true, force: true });
-  }
-});
 import {
   saveBrief,
   readRailTasks,

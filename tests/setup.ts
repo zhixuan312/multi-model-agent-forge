@@ -1,5 +1,8 @@
 import 'dotenv/config'
 import '@testing-library/jest-dom/vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 // PRODUCTION-SAFETY INVARIANT: tests must NEVER reach a real database. The app's
 // DATABASE_URL points at the live (production) Postgres, and there is no separate
@@ -14,6 +17,25 @@ import '@testing-library/jest-dom/vitest'
 // unit tests over `createMockDb()` (tests/test-utils/mock-db.ts), and the real
 // schema is proven at release time by the container boot gate, not from here.
 delete process.env.DATABASE_URL
+
+// The same invariant for the FILESYSTEM, which the database guard above does not
+// cover. `resolveWorkspaceRoot()` defaults to `<cwd>/.forge-workspace` — in a dev
+// checkout that is the operator's REAL workspace, holding real cloned repos and
+// real project artifacts under `.mma/projects/<uuid>/`. Tests that exercise the
+// artifact-write path were therefore creating and `rmSync`-ing directories inside
+// it. Nothing was ever destroyed (the fixtures use `proj-1`-style ids, never a real
+// UUID), but "no test id has collided with a real one yet" is not a guarantee —
+// `rmSync(..., { recursive: true, force: true })` is one shared id away from
+// deleting a real project's spec and plan.
+//
+// Point every run at a private temp root instead. Setup files run once per test
+// FILE, so each file gets its own root: tests cannot reach the real workspace, and
+// cannot collide with each other over a shared path either.
+const testWorkspaceRoot = mkdtempSync(join(tmpdir(), 'forge-test-workspace-'))
+process.env.FORGE_WORKSPACE_ROOT = testWorkspaceRoot
+afterAll(() => {
+  rmSync(testWorkspaceRoot, { recursive: true, force: true })
+})
 
 // jsdom shims for Radix UI primitives (shadcn). Radix measures elements and uses
 // pointer-capture APIs that jsdom does not implement; provide no-op stand-ins so

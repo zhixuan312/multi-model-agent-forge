@@ -10,9 +10,6 @@ import { buildMdExport } from '@/export/md-export';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
-import { rmSync } from 'fs';
-import { join } from 'path';
-
 const SPEC_BODY = '## 01. Context\nbody one\n\n## 03. Technical design\nbody three';
 
 /* Mock readSpecFile (sync) — collect-artifacts uses the sync variant for spec. */
@@ -28,12 +25,6 @@ vi.mock('@/projects/project-files', async (importOriginal) => {
 
 beforeEach(() => {
   readSpecFileMock.mockReset();
-});
-
-afterAll(() => {
-  for (const id of ['proj-1', 'test-export-ready']) {
-    rmSync(join(process.cwd(), '.forge-workspace', '.mma', 'projects', id), { recursive: true, force: true });
-  }
 });
 
 describe('collect-artifacts — ready/pending (Key flow A)', () => {

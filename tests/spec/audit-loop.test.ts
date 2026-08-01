@@ -5,7 +5,7 @@ import {
   auditPassHistory,
 
 } from '@/spec/audit-loop';
-import { auditEnvelope } from './mock-mma';
+import { auditEnvelope } from './audit-envelope';
 import { buildInitialDetails } from '@/details/schema';
 import { createMockDb, seq } from '../test-utils/mock-db';
 

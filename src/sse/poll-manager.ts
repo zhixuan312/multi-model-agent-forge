@@ -17,6 +17,7 @@ import { appendBatchTerminalEvent, buildDiscoverTerminalLabel } from '@/details/
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
+import { errName } from '@/lib/err';
 
 /**
  * Server-owned MMA poll loop (Spec 5 §SSE). The browser NEVER polls MMA; this
@@ -701,13 +702,6 @@ export class PollManager {
     }
     this.inFlight.clear();
   }
-}
-
-function errName(err: unknown): string {
-  if (err && typeof err === 'object' && 'name' in err && typeof (err as { name: unknown }).name === 'string') {
-    return (err as { name: string }).name;
-  }
-  return 'Error';
 }
 
 /** Process-wide singleton — auto-rehydrates on first creation. */

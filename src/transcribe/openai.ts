@@ -2,6 +2,7 @@ import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
 import { logPoll } from '@/observability/poll-log';
+import { errName } from '@/lib/err';
 
 /**
  * Server-side voice transcription via OpenAI `gpt-4o-transcribe` (Spec 5 §Voice).
@@ -140,9 +141,3 @@ export async function transcribe(
   return { text: typeof json?.text === 'string' ? json.text : '' };
 }
 
-function errName(err: unknown): string {
-  if (err && typeof err === 'object' && 'name' in err && typeof (err as { name: unknown }).name === 'string') {
-    return (err as { name: string }).name;
-  }
-  return 'Error';
-}

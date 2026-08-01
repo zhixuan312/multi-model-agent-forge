@@ -14,6 +14,7 @@ import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { logPoll } from '@/observability/poll-log';
 import type { MmaRoute } from '@/db/enums';
+import { errName } from '@/lib/err';
 
 /**
  * Dispatch selected `draft` exploration tasks — one `ops_mma_batch` per task,
@@ -236,9 +237,3 @@ export async function dispatchTasks(
   return outcomes;
 }
 
-function errName(err: unknown): string {
-  if (err && typeof err === 'object' && 'name' in err && typeof (err as { name: unknown }).name === 'string') {
-    return (err as { name: string }).name;
-  }
-  return 'Error';
-}

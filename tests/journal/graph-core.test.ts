@@ -3,6 +3,7 @@ import {
   computeDegrees,
   labelRanks,
   layoutNodes,
+  settleIterations,
   birthOrder,
   scaleBirths,
   centerPositions,
@@ -330,6 +331,59 @@ describe('journal graph core', () => {
     });
     it('magnitude tolerates a zero-degree graph', () => {
       expect(magnitude(0, 0)).toBe(0);
+    });
+  });
+
+  describe('settleIterations — bounding the all-pairs settle', () => {
+    it('leaves small graphs at full quality', () => {
+      // The repulsion pass is all-pairs, so cost is O(iterations x n^2). Graphs up to 300
+      // nodes — the overwhelmingly common case — must be byte-identical to before.
+      expect(settleIterations(1)).toBe(520);
+      expect(settleIterations(230)).toBe(520);
+      expect(settleIterations(300)).toBe(520);
+    });
+
+    it('cuts the pass count past the threshold so total work stays near the budget', () => {
+      // Measured at the old fixed 520 passes: n=1000 took 747ms on the main thread inside a
+      // useMemo, which visibly freezes the tab. Scaling as 1/n^2 holds the product roughly
+      // constant — but ONLY until the floor takes over, at n = sqrt(budget / 90) ≈ 721.
+      // Beyond that the floor deliberately wins, so asserting the budget there would be
+      // asserting the opposite of the intended behaviour.
+      expect(settleIterations(400)).toBeLessThan(520);
+      const budget = 520 * 300 * 300;
+      for (const n of [400, 500, 600, 700]) {
+        expect(settleIterations(n) * n * n).toBeLessThanOrEqual(budget * 1.05);
+      }
+    });
+
+    it('lets the floor win past ~721 nodes — legibility over the work budget', () => {
+      const budget = 520 * 300 * 300;
+      expect(settleIterations(900)).toBe(90);
+      // Work now exceeds the budget on purpose; what matters is that it grows only
+      // linearly in n^2 at a fixed 90 passes, instead of quadratically at 520.
+      expect(settleIterations(900) * 900 * 900).toBeGreaterThan(budget);
+      expect(settleIterations(900) * 900 * 900).toBeLessThan(520 * 900 * 900);
+    });
+
+    it('never falls below the floor, so a huge graph still settles', () => {
+      // Below some number of passes the layout would stay at its random seeding, which
+      // looks broken rather than merely coarse.
+      expect(settleIterations(100_000)).toBeGreaterThanOrEqual(90);
+    });
+
+    it('is monotonically non-increasing in n', () => {
+      let prev = Infinity;
+      for (let n = 1; n <= 3000; n += 97) {
+        const it = settleIterations(n);
+        expect(it).toBeLessThanOrEqual(prev);
+        prev = it;
+      }
+    });
+
+    it('keeps layout deterministic for a given seed — the property that must not break', () => {
+      const a = layoutNodes(nodes, edges, { seed: 42 });
+      const b = layoutNodes(nodes, edges, { seed: 42 });
+      expect([...a.entries()]).toEqual([...b.entries()]);
     });
   });
 });

@@ -68,6 +68,32 @@ export function magnitude(degree: number, maxDegree: number): number {
   return Math.pow(clamp(degree / maxDegree, 0, 1), 0.65);
 }
 
+/** The full-quality settle count, used for every graph up to `SETTLE_FULL_NODES`. */
+const SETTLE_ITERATIONS = 520;
+/** Below this node count the layout is unchanged — the overwhelmingly common case. */
+const SETTLE_FULL_NODES = 300;
+
+/**
+ * How many settle passes to run for `n` nodes.
+ *
+ * The repulsion pass is all-pairs, so cost is O(iterations x n^2). Measured on this
+ * machine at the fixed 520 passes: n=230 → 39ms, n=500 → 173ms, n=1000 → 747ms, and it
+ * keeps squaring. That runs inside a `useMemo` on the main thread, so a large team journal
+ * would visibly freeze the tab when the graph tab opens.
+ *
+ * Graphs up to `SETTLE_FULL_NODES` are untouched. Past that the pass count falls as 1/n^2
+ * to hold the total work near that budget, with a floor so the layout still settles into
+ * something legible rather than staying at its random seeding.
+ *
+ * This bounds the constant, not the asymptote — a journal in the tens of thousands needs a
+ * Barnes-Hut approximation or a worker, which is a different change from this audit's scope.
+ */
+export function settleIterations(n: number): number {
+  if (n <= SETTLE_FULL_NODES) return SETTLE_ITERATIONS;
+  const budget = SETTLE_ITERATIONS * SETTLE_FULL_NODES * SETTLE_FULL_NODES;
+  return Math.max(90, Math.round(budget / (n * n)));
+}
+
 /**
  * Deterministic 3D layout: categories are seeded as constellations on a sphere, then a
  * cooled force pass (repulsion + edge springs + cluster cohesion) settles them.
@@ -81,7 +107,7 @@ export function layoutNodes(
   if (!nodes.length) return out;
 
   const rnd = mulberry32(opts.seed ?? DEFAULT_LAYOUT.seed);
-  const iterations = opts.iterations ?? 520;
+  const iterations = opts.iterations ?? settleIterations(nodes.length);
 
   const cats = [...new Set(nodes.map((n) => n.type ?? 'other'))].sort();
   const anchor = new Map<string, Vec3>();
@@ -186,7 +212,6 @@ export function birthOrder(
   return new Map(order.map((id, i) => [id, start + i * step]));
 }
 
-/** 0 → 1 over `dur` seconds once `elapsed` passes `birth`. */
 /**
  * Centre the cloud on the origin and report its bounding radius. The category anchors
  * are biased upward on purpose (constellations overhead), so without this the whole
@@ -292,6 +317,7 @@ export function wrapLines(
   return lines;
 }
 
+/** 0 → 1 over `dur` seconds once `elapsed` passes `birth`. */
 export function ignite(birth: number, elapsed: number, dur = 0.62): number {
   const t = (elapsed - birth) / dur;
   return t <= 0 ? 0 : t >= 1 ? 1 : t;

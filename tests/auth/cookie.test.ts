@@ -5,6 +5,7 @@ import {
   sessionCookieOptions,
   clearedCookieOptions,
   secureCookieWillBeDropped,
+  shouldUseSecureCookie,
   SESSION_COOKIE_NAME,
 } from '@/auth/cookie';
 import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
@@ -122,5 +123,76 @@ describe('secureCookieWillBeDropped', () => {
 
   it('stays quiet on a malformed origin rather than crashing the login path', () => {
     expect(secureCookieWillBeDropped({ secure: true, origin: 'not a url' })).toBe(false);
+  });
+});
+
+/**
+ * `shouldUseSecureCookie` decides whether the session cookie carries `Secure`. The
+ * suite exercised `sessionCookieOptions({ secure })` with the flag passed in
+ * explicitly, which bypasses this resolution entirely — so the DEFAULT behaviour of a
+ * security control was untested.
+ *
+ * The case worth pinning hardest is the last one: an explicit `FORGE_COOKIE_SECURE`
+ * beats `NODE_ENV`, so `false` in production genuinely does ship a non-Secure session
+ * cookie. That is deliberate (an operator terminating TLS elsewhere needs it), but it
+ * is the kind of override that should fail a test if someone ever inverts the
+ * precedence by accident.
+ */
+describe('shouldUseSecureCookie', () => {
+  const SECURE_ENV = process.env.FORGE_COOKIE_SECURE;
+  const NODE_ENV = process.env.NODE_ENV;
+
+  // `process.env.NODE_ENV` is typed read-only by @types/node; write through a mutable
+  // view rather than casting at each assignment.
+  const env = process.env as Record<string, string | undefined>;
+
+  const set = (secure: string | undefined, nodeEnv: string) => {
+    if (secure === undefined) delete env.FORGE_COOKIE_SECURE;
+    else env.FORGE_COOKIE_SECURE = secure;
+    env.NODE_ENV = nodeEnv;
+  };
+
+  afterEach(() => {
+    if (SECURE_ENV === undefined) delete env.FORGE_COOKIE_SECURE;
+    else env.FORGE_COOKIE_SECURE = SECURE_ENV;
+    env.NODE_ENV = NODE_ENV;
+  });
+
+  it('defaults ON in production when the override is unset', () => {
+    set(undefined, 'production');
+    expect(shouldUseSecureCookie()).toBe(true);
+  });
+
+  it('defaults OFF outside production, so local http dev is not broken', () => {
+    set(undefined, 'development');
+    expect(shouldUseSecureCookie()).toBe(false);
+  });
+
+  it('treats a BLANK override as unset rather than as false', () => {
+    // An empty env var is what an unset shell variable expands to; it must not be
+    // read as an explicit "no" that silently disables Secure in production.
+    set('   ', 'production');
+    expect(shouldUseSecureCookie()).toBe(true);
+  });
+
+  it('accepts "true" case-insensitively and trimmed', () => {
+    for (const v of ['true', 'TRUE', 'True', '  true  ']) {
+      set(v, 'development');
+      expect(shouldUseSecureCookie()).toBe(true);
+    }
+  });
+
+  it('treats any other non-blank value as false — only "true" enables it', () => {
+    for (const v of ['1', 'yes', 'on', 'false']) {
+      set(v, 'development');
+      expect(shouldUseSecureCookie()).toBe(false);
+    }
+  });
+
+  it('lets an explicit override BEAT NODE_ENV in both directions', () => {
+    set('false', 'production');
+    expect(shouldUseSecureCookie()).toBe(false);
+    set('true', 'development');
+    expect(shouldUseSecureCookie()).toBe(true);
   });
 });

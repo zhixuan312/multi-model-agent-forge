@@ -91,3 +91,33 @@ describe('distribution docs contract', () => {
     }
   });
 });
+
+describe('GUIDELINES <-> in-app guide', () => {
+  /**
+   * GUIDELINES.md's "mirror note" names the `forge`-group section ids by hand. It used to
+   * point at `multi-model-agent-telemetry-frontend/docs/direction-parity-checklist.md` as
+   * the way to keep the two in sync — a file that does not exist in any repo, so the
+   * instruction was unfollowable and nothing noticed. Derive the ids from the code instead
+   * of restating them, so adding or renaming a forge guide section fails here until the
+   * document is updated too.
+   */
+  it('names exactly the forge-group section ids that guide-nav actually defines', async () => {
+    const { GUIDE_NAV_SECTIONS } = await import('@/content/guide-nav');
+    const guidelines = readFileSync(join(process.cwd(), 'GUIDELINES.md'), 'utf8');
+
+    const forgeIds = GUIDE_NAV_SECTIONS.filter((s) => s.part === 'forge').map((s) => s.id);
+    expect(forgeIds.length).toBeGreaterThan(0);
+
+    for (const id of forgeIds) {
+      expect(guidelines).toContain(`\`${id}\``);
+    }
+    // and does not advertise a forge section that no longer exists
+    const cited = [...guidelines.matchAll(/`(forge-[a-z-]+)`/g)].map((m) => m[1]);
+    expect([...new Set(cited)].sort()).toEqual([...forgeIds].sort());
+  });
+
+  it('does not point at the checklist file that never existed', () => {
+    const guidelines = readFileSync(join(process.cwd(), 'GUIDELINES.md'), 'utf8');
+    expect(guidelines).not.toMatch(/Keep them in sync via/);
+  });
+});

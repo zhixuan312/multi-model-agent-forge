@@ -11,7 +11,8 @@ orchestration app built on top of the engine (over HTTP). Where the engine, used
 directly, is the flexible individual path, Forge gives a team the same lifecycle
 made *standard*: consistent stages, review gates, roles, and a shared knowledge
 graph. Forge owns the SDLC chain and its gates; the engine executes each stateless
-per-stage rod. The global north star is `DIRECTION.md`; this document carries
+per-stage rod. The global north star is `DIRECTION.md` in the **engine** repo
+(`multi-model-agent/DIRECTION.md`) — it is not checked in here; this document carries
 Forge's product-specific direction.
 
 ## Product-specific principles
@@ -77,7 +78,17 @@ Forge's product-specific direction.
 
 ## /settings/guide mirror note
 
-The in-app **Guide** (`/settings/guide`) mirrors this document's sections under the
-`forge` group. Keep them in sync via
-`multi-model-agent-telemetry-frontend/docs/direction-parity-checklist.md`; an edit
-here requires the mirrored page section to be updated in the same change.
+The in-app **Guide** (`/settings/guide`) covers the same ground as this document under
+its `forge` group — four sections, listed in `src/content/guide-nav.ts`: `forge-role`,
+`forge-spine`, `forge-automation`, `forge-collaboration`. The prose lives under
+`app/(app)/settings/guide/`.
+
+They are NOT a section-for-section mirror (this document has six `##` headings, the
+group has four), so treat it as a coverage obligation rather than a diff: a change here
+that alters what Forge *is* or *does* must be reflected in the matching guide section in
+the same change.
+
+This previously pointed at
+`multi-model-agent-telemetry-frontend/docs/direction-parity-checklist.md` as the way to
+keep them in sync. No such file exists — that repo has no `docs/` directory at all — so
+the instruction could not be followed.

@@ -173,7 +173,10 @@ describe('computeAllStages', () => {
     });
   });
 
-  it('treats skipped stages as reachable passed stages', () => {
+  // Titled "…as reachable passed stages" until this audit, which contradicted the
+  // subset-run case above (skipped stages are explicitly NOT reachable) and was not
+  // what the body asserts — it checks the VISUAL only.
+  it('renders a skipped stage with its own visual, distinct from done and not_started', () => {
     const result = computeAllStages(
       [
         { kind: 'exploration', status: 'done' },
@@ -187,5 +190,8 @@ describe('computeAllStages', () => {
     );
     expect(result.find((s) => s.kind === 'execute')!.visual).toBe('skipped');
     expect(result.find((s) => s.kind === 'review')!.visual).toBe('skipped');
+    // …and stays non-navigable, agreeing with the subset-run case above.
+    expect(reachables(result)).not.toContain('execute');
+    expect(reachables(result)).not.toContain('review');
   });
 });

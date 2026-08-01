@@ -148,6 +148,13 @@
       "when": 1785196800000,
       "tag": "0020_hot_path_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785283200000,
+      "tag": "0021_recall_feed_index",
+      "breakpoints": true
     }
   ]
 }

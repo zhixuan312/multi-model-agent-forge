@@ -32,7 +32,10 @@ export const mmaBatch = forge.table(
     durationMs: integer('duration_ms'),
     loopRunId: uuid('loop_run_id'),
   },
-  (t) => [index('mma_batch_team_created_idx').on(t.teamId, t.createdAt), index('mma_batch_project_created_idx').on(t.projectId, t.createdAt), index('mma_batch_batch_id_idx').on(t.batchId), index('mma_batch_loop_run_idx').on(t.loopRunId)],
+  (t) => [index('mma_batch_team_created_idx').on(t.teamId, t.createdAt), index('mma_batch_project_created_idx').on(t.projectId, t.createdAt), index('mma_batch_batch_id_idx').on(t.batchId), index('mma_batch_loop_run_idx').on(t.loopRunId),
+    // Journal → Recall feed: both equality predicates first so the index seeks, then
+    // created_at DESC so the LIMIT 5 walks the index instead of sorting.
+    index('mma_batch_dispatcher_route_created_idx').on(t.dispatchedBy, t.route, t.createdAt.desc())],
 );
 
 export type MmaBatchRow = typeof mmaBatch.$inferSelect;

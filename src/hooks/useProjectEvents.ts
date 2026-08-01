@@ -187,6 +187,6 @@ export function useProjectEvents(
     };
 
     return () => es.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one SSE connection per project; `router` is stable in Next and adding it would tear the stream down and reopen it
   }, [projectId, qc]);
 }

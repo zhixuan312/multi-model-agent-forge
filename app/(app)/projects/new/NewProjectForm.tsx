@@ -169,7 +169,7 @@ function ArtifactUpload({
   // correctly persists across that switch.
   useEffect(() => {
     onFileChange(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: the effect exists to report an empty slot on (re)mount, which is exactly when the artifact KIND changed (see the note above)
   }, []);
 
   function isMarkdown(name: string) {

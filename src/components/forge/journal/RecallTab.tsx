@@ -110,7 +110,7 @@ export function RecallTab({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile the pinned list from the server when the id signature changes
     setPins(pinned);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are the STABLE id signature, not `pinned` itself: the prop is a fresh array every render, so depending on it would re-run forever
   }, [pinnedSig]);
 
   // Recent answers = the server-recorded recalls PLUS an optimistic entry for a recall
@@ -131,7 +131,7 @@ export function RecallTab({
       const pendingOptimistic = local.filter((r) => r._optimistic && r.batchId && !serverKeys.has(r.batchId));
       return [...pendingOptimistic, ...recentRecalls];
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are the STABLE server signature, not `recentRecalls`: the prop is a fresh array every render, so depending on it would re-run forever
   }, [serverSig]);
 
   const trimmed = query.trim();

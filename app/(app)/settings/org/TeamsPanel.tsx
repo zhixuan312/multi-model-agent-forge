@@ -242,7 +242,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     ],
     // `startEdit` / `toggleMembers` are stable enough for the row actions — they
     // only read state via setters, so the columns never need to rebuild.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- columns are built once: the row-action handlers only call setters, so they never need to rebuild (see the note above)
     [],
   );
 

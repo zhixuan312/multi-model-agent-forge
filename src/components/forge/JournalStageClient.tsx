@@ -157,7 +157,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
   useEffect(() => {
     if (!shouldAutoHarvest) return;
     runHarvest();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only auto-trigger; `runHarvest` is re-created each render and is already guarded by `harvestFiredRef`
   }, []);
 
   const active = props.learnings.find((l) => l.id === activeId);

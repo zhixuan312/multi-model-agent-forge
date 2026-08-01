@@ -90,7 +90,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         if (data) setBusyHandlers(new Set(data.handlers));
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate once per project; `opts` is a fresh object literal every render, so depending on it would refetch on every parent re-render
   }, [projectId]);
 
   // Single SSE connection per project

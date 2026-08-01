@@ -441,7 +441,7 @@ function DetailStage({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- follow the AI's auto-approval by advancing the active task from status changes
       if (next) setActiveId(next.id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows `status` changes ONLY; `active`/`allTasks` are read at fire time and adding them would re-run on every task edit
   }, [status]);
 
   const [refiningTasks, setRefiningTasks] = useState<Set<string>>(new Set());

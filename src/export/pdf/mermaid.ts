@@ -50,7 +50,7 @@ export async function runMermaid(page: MermaidPage, opts: RunMermaidOptions): Pr
   await page.addScriptTag({ content: mermaidBundle() });
 
   return await page.evaluate(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this body is serialized and evaluated inside the PAGE, where the injected bundle attaches `window.mermaid` at runtime; there is no ambient type for it on this side of the boundary
     const w = window as any;
     const mermaid = w.mermaid;
     if (!mermaid) return 0;

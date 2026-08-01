@@ -875,7 +875,7 @@ function CraftStage({
       }
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keys off `components` only; the previous map is read via the functional updater, so it is not a dependency
   }, [components]);
 
   // Real-time chat: listen for chat.message SSE events and append to discussion
@@ -1522,7 +1522,7 @@ function DocumentScreen({
       autoTried.current = true;
       void runAssemble();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `runAssemble` is deliberately excluded: it is recreated each render and the one-shot is already guarded by the `autoTried` ref
   }, [allApproved, spec, readOnly]);
 
   const [applying, setApplying] = useState(!!pendingApply);

@@ -1,10 +1,9 @@
 // @vitest-environment node
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { currentJournalLogCount, isPinStale } from '@/journal/journal-rev';
-
-// tests/journal/fixtures has a real .mma/journal/log.md with 7 entries.
-const FIXTURE_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+// tests/journal/fixtures has a real .mma/journal/log.md with 7 entries. Imported rather
+// than re-derived: this file used to compute the same path by hand, so a fixture move
+// would have left one of the two pointing at nothing.
+import { FIXTURE_ROOT } from './fixtures';
 
 describe('journal-rev', () => {
   it('counts the log.md entries at the workspace root', async () => {

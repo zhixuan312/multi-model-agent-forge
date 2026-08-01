@@ -52,6 +52,9 @@ describe('ExportMenu (test 12, F10)', () => {
 
     const specRow = screen.getByTestId('export-row-spec');
     const buttons = specRow.querySelectorAll('button');
+    // Assert the count FIRST: `forEach` over an empty NodeList runs no assertion at all,
+    // so without this the test would still pass if the row rendered no actions.
+    expect(buttons).toHaveLength(2); // .md and PDF
     buttons.forEach((b) => expect(b).not.toBeDisabled());
   });
 

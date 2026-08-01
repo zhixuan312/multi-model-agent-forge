@@ -32,6 +32,7 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { AutomationBar } from '@/components/forge/AutomationBar';
+import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
 
 const AUTOMATION_NOTE = `### What is this?
 
@@ -70,23 +71,6 @@ const STAGES = [
 
 const STAGE_ORDER = STAGES.map((s) => s.key);
 type StageKey = typeof STAGE_ORDER[number];
-
-function formatElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return `${m}m ${rem}s`;
-}
-
-/** Compact per-activity duration, e.g. "0.4s", "12.6s", "2m 3s". */
-function formatDur(ms: number): string {
-  if (ms < 950) return `${Math.max(0, Math.round(ms / 100) / 10)}s`;
-  const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  const m = Math.floor(s / 60);
-  return `${m}m ${Math.round(s % 60)}s`;
-}
 
 function Stat({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -398,7 +382,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
                       </span>
                       {dur != null && (
                         <span className={cn('mt-0.5 shrink-0 font-mono text-[10px] tabular-nums', l.done ? 'text-ink-faint' : 'text-accent/70')}>
-                          {formatDur(dur)}
+                          {formatActivityDuration(dur)}
                         </span>
                       )}
                     </div>

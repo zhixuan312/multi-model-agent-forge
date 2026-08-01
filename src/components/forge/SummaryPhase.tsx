@@ -23,30 +23,10 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
+import { formatActivityDuration, formatDurationHm } from '@/lib/format-duration';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import type { StageKind } from '@/db/enums';
 import type { ProjectSummary } from '@/projects/project-summary';
-
-export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const secs = Math.round(ms / 1000);
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  // floor, not round: 95 min is 1h 35m, not 2h 35m (round would carry the hour AND
-  // still show the 35 remainder).
-  const hours = Math.floor(mins / 60);
-  return `${hours}h ${mins % 60}m`;
-}
-
-/** Compact per-activity duration, matching the live overlay ("0.4s", "2m 48s"). */
-function formatDur(ms: number): string {
-  if (ms < 950) return `${Math.max(0, Math.round(ms / 100) / 10)}s`;
-  const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  const m = Math.floor(s / 60);
-  return `${m}m ${Math.round(s % 60)}s`;
-}
 
 function formatTokens(n: number): string {
   if (n < 1000) return String(n);
@@ -62,7 +42,7 @@ function stageDuration(startedAt: string | Date | null, completedAt: string | Da
   if (!startedAt || !completedAt) return '—';
   const start = typeof startedAt === 'string' ? new Date(startedAt).getTime() : startedAt.getTime();
   const end = typeof completedAt === 'string' ? new Date(completedAt).getTime() : completedAt.getTime();
-  return formatDuration(end - start);
+  return formatDurationHm(end - start);
 }
 
 const STAGE_ORDER = ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'];
@@ -132,7 +112,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
                     </span>
                   </span>
                   {/* col 3 — duration (fixed, always reserved so col 2 can't eat it) */}
-                  <span className="mt-px text-right font-mono text-[10px] tabular-nums text-ink-faint">{e.durationMs != null ? formatDur(e.durationMs) : ''}</span>
+                  <span className="mt-px text-right font-mono text-[10px] tabular-nums text-ink-faint">{e.durationMs != null ? formatActivityDuration(e.durationMs) : ''}</span>
                 </div>
               ))
             )}
@@ -162,10 +142,10 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
           rows={[
             ...orderedStages.map((s) => ({
               label: STAGE_LABEL[s.kind as StageKind] ?? s.kind,
-              value: s.activeMs > 0 ? formatDuration(s.activeMs) : stageDuration(s.startedAt, s.completedAt),
+              value: s.activeMs > 0 ? formatDurationHm(s.activeMs) : stageDuration(s.startedAt, s.completedAt),
             })),
           ]}
-          footer={{ label: 'Total', value: totalProjectMs > 0 ? formatDuration(totalProjectMs) : '—' }}
+          footer={{ label: 'Total', value: totalProjectMs > 0 ? formatDurationHm(totalProjectMs) : '—' }}
         />
 
         {(() => {
@@ -199,7 +179,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
             { label: 'MMA calls', value: String(summary.effort.totalCalls) },
             { label: 'Input tokens', value: formatTokens(summary.effort.totalInputTokens) },
             { label: 'Output tokens', value: formatTokens(summary.effort.totalOutputTokens) },
-            { label: 'Compute time', value: formatDuration(summary.effort.totalDurationMs) },
+            { label: 'Compute time', value: formatDurationHm(summary.effort.totalDurationMs) },
           ]}
           footer={{
             label: 'Total tokens',

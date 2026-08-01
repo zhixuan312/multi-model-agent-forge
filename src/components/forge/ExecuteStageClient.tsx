@@ -38,6 +38,7 @@ import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { formatElapsed } from '@/lib/format-duration';
 
 const CONFIGURE_NOTE = `### Configure — set up for execution
 
@@ -87,13 +88,6 @@ interface RepoJobState {
   filesChanged?: string[];
   prUrl?: string | null;
   error?: string;
-}
-
-function formatElapsed(ms: number): string {
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.floor(secs / 60);
-  return `${mins}m ${secs % 60}s`;
 }
 
 function progressPct(status: RepoJobStatus): number {

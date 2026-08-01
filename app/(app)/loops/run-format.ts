@@ -1,3 +1,5 @@
+import { formatDateTime } from '@/lib/format-date';
+
 /** Badge tint per run status. */
 export const RUN_STATUS_VARIANT: Record<string, 'sage' | 'rose' | 'steel' | 'neutral'> = {
   changed: 'sage',
@@ -18,8 +20,6 @@ export const statusLabel = (s: string): string => RUN_STATUS_LABEL[s] ?? s;
 
 /** Capitalize the first letter — for short tokens like the trigger. */
 export const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
-
-import { formatDateTime } from '@/lib/format-date';
 
 export function fmtRunTime(v: string | Date | null): string {
   if (!v) return '—';

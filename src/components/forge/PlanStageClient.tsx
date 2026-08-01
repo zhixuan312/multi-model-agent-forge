@@ -51,7 +51,7 @@ import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
-import type { PlanPhaseSeed, PlanAuditFinding } from '@/build/plan-types';
+import type { PlanPhaseSeed } from '@/build/plan-types';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
@@ -90,7 +90,7 @@ type TaskStatus = 'proposed' | 'detailed' | 'approved';
 
 type Msg =
   | { id: string; role: 'forge' | 'user'; text: string }
-  | { id: string; role: 'audit'; passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }
+  | { id: string; role: 'audit'; passNo: number; verdict: 'clean' | 'revised'; findings: Finding[] }
   | { id: string; role: 'draft'; md: string; version: number };
 
 export interface PlanStageClientProps {
@@ -106,7 +106,7 @@ export interface PlanStageClientProps {
   /** Plan-level reviewers (invited once, may approve any task) — persisted member ids. */
   initialParticipantIds?: string[];
   planMd: string;
-  auditRounds: PlanAuditFinding[][];
+  auditRounds: Finding[][];
   auditApplied?: boolean[];
   voiceEnabled?: boolean;
   pendingAuthor?: string | null;
@@ -261,7 +261,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
 
   const approvedCount = allTasks.filter((t) => status[t.id] === 'approved').length;
   const allApproved = allTasks.length > 0 && approvedCount === allTasks.length;
-  const auditClean = rounds[rounds.length - 1]?.verdict === 'clean';
 
   const auditing = !!props.pendingAudit || auditingLocal;
   const auditingRef = useRef(false);
@@ -355,7 +354,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
         />
       ) : (
         <ValidateStage
-          projectId={props.projectId}
           projectName={props.projectName}
           planMd={props.planMd}
           readOnly={readOnly}
@@ -368,7 +366,6 @@ export function PlanStageClient(props: PlanStageClientProps) {
           onApplyFindings={applyFindings}
           rounds={rounds}
           locked={locked}
-          auditClean={auditClean}
           onRunAudit={runAudit}
           onLock={async () => {
             setLocked(true);
@@ -653,7 +650,7 @@ function DetailStage({
       // `validate_task`. `mma.dispatch(url, handler)` is on the centralized client path;
       // the backend uses dispatchMma + the registered `plan-refine` handler.
       void mma.dispatch(
-        `/projects/${projectId}/plan/tasks/${refineTaskId}/refine`,
+        `/api/projects/${projectId}/plan/tasks/${refineTaskId}/refine`,
         'plan-refine',
         { message: cleanText },
       ).catch(() => {
@@ -830,7 +827,6 @@ function ValidateStage({
   onRunAudit,
   onLock,
 }: {
-  projectId: string;
   projectName: string;
   planMd: string;
   readOnly: boolean;
@@ -841,9 +837,8 @@ function ValidateStage({
   appliedPasses: Set<number>;
   applyCount: number;
   onApplyFindings: (indices: number[], passNo?: number) => void;
-  rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: PlanAuditFinding[] }[];
+  rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: Finding[] }[];
   locked: boolean;
-  auditClean: boolean;
   onRunAudit: () => void;
   onLock: () => void;
 }) {

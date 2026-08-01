@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { AuditVerdict } from '@/db/enums';
+import type { Finding } from '@/components/patterns/findings';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
@@ -15,10 +16,14 @@ import { validateDetails } from '@/details/schema';
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 /** A single parsed finding (the two fields Forge relies on + display fields). */
-export interface ParsedFinding {
-  severity: FindingSeverity;
-  category: string;
-  claim: string;
+/**
+ * A finding parsed out of an audit envelope: the canonical render contract with
+ * `evidence`/`suggestion` GUARANTEED present (the parser defaults them to ''). Extending
+ * `Finding` rather than restating its fields means the shape has one definition — adding a
+ * field to the rendered contract cannot silently skip the parser. `Finding` is a type-only
+ * import from a `'use client'` module, which erases at compile time.
+ */
+export interface ParsedFinding extends Finding {
   evidence: string;
   suggestion: string;
 }

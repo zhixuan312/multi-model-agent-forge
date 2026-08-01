@@ -243,7 +243,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     canonicalFilePath: 'src/components/ui/button.tsx',
     consumers: [
       { id: 'stage-advance', label: 'Project › Stage advance', filePath: 'src/components/forge/StageAdvance.tsx' },
-      { id: 'settings-actions', label: 'Settings forms (Save / Cancel)', filePath: 'src/components/forge/SettingCard.tsx' },
+      { id: 'settings-actions', label: 'Settings forms (Save / Cancel)', filePath: 'src/components/patterns/form-panel.tsx' },
       { id: 'new-project', label: 'New project (Create)', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
     ],
     deviations: [],

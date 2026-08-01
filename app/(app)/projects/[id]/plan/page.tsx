@@ -74,13 +74,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       phases={planView.phases}
       initialParticipantIds={planView.participantIds}
       planMd={planView.planMd ?? ''}
-      auditRounds={planView.auditHistory.map((h) => h.findings.map((f) => ({
-        severity: f.severity,
-        category: f.category,
-        claim: f.claim,
-        evidence: f.evidence,
-        suggestion: f.suggestion,
-      })))}
+      auditRounds={planView.auditHistory.map((h) => h.findings)}
       auditApplied={planView.auditHistory.map((h) => h.applied)}
       initialMessages={planView.messages}
       voiceEnabled={voiceEnabled}

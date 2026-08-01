@@ -1,10 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import {
-  checkConformance,
   summarizeConformance,
   CONFORMANCE_RULES,
-  type ConformanceViolation,
   type GovernanceSlotId,
   type LayerConformance,
   type SourceFile,
@@ -41,16 +39,6 @@ export function collectSourceFiles(root: string): SourceFile[] {
     }
   }
   return files;
-}
-
-/** All conformance violations across the repo, in registry-rule order. */
-export function runConformanceCheck(root: string = process.cwd()): ConformanceViolation[] {
-  return checkConformance(collectSourceFiles(root), CONFORMANCE_RULES);
-}
-
-/** Violations for a single governed layer (used per-slot on the govern page). */
-export function conformanceForSlot(slotId: GovernanceSlotId, root: string = process.cwd()): ConformanceViolation[] {
-  return runConformanceCheck(root).filter((v) => v.slotId === slotId);
 }
 
 /**

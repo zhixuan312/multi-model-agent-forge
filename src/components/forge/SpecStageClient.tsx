@@ -72,12 +72,16 @@ import type { ComponentKind, ProjectPhase } from '@/db/enums';
  * per component), finalize (assemble spec + audit + apply fixes + freeze).
  */
 
-/** One row in the audit-pass timeline ("pass 1: 2 findings → revised"). */
+/**
+ * One row in the audit-pass timeline ("pass 1: 2 findings → revised") — the CLIENT
+ * narrowing of `spec/audit-loop`'s row (which also carries `createdAt`, unused here).
+ * Findings use the canonical `Finding` contract, so no field-by-field remap is needed.
+ */
 export interface AuditPassView {
   passNo: number;
   findingsCount: number;
   verdict: 'clean' | 'revised';
-  findings?: AuditFinding[];
+  findings?: Finding[];
   applied?: boolean;
 }
 
@@ -267,7 +271,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     autoDraftFired.current = true;
     setError(null);
     // Correct hook signature is dispatch(url, handler, body?) — mirror the existing HEAD call.
-    void mma.dispatch(`/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
+    void mma.dispatch(`/api/projects/${props.projectId}/spec/auto-draft`, 'spec-auto-draft')
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   }, [phase, needsAutoDraft, autoDrafting, mma, props.projectId]);
 
@@ -318,7 +322,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
       {/* BODY — every phase carries its own rails; no top status row. */}
       {phase === 'outline' ? (
         <OutlineStage
-          projectId={props.projectId}
           intent={intent}
           picked={picked}
           onPick={setPicked}
@@ -376,7 +379,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           readOnly={readOnly}
           mmaReady={props.mmaReady}
           initialAuditHistory={props.initialAuditHistory}
-          voiceEnabled={props.voiceEnabled ?? false}
           pendingApply={props.pendingApply}
           mma={mma}
           currentMember={props.currentMember}
@@ -384,7 +386,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
           components={components}
           specApprovers={specApprovers}
           setSpecApprovers={setSpecApprovers}
-          onAdvance={() => router.push(`/projects/${props.projectId}/plan`)}
           onAssembled={(v) => setSpec(v)}
           onError={setError}
         />
@@ -470,7 +471,6 @@ function OutlineStage({
   onGoToCraft,
   onError,
 }: {
-  projectId: string;
   intent: string;
   picked: Set<ComponentKind>;
   onPick: (s: Set<ComponentKind>) => void;
@@ -1188,7 +1188,7 @@ function CraftStage({
           }));
         },
         commit: async () => {
-          const r = await fetch(`/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
+          const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
           if (!r.ok) throw new Error(`Request failed (${r.status}).`);
         },
         rollback: () => {
@@ -1460,7 +1460,6 @@ function DocumentScreen({
   readOnly: boolean;
   mmaReady: boolean;
   initialAuditHistory: AuditPassView[];
-  voiceEnabled: boolean;
   pendingApply?: string | null;
   mma: MmaDispatchState;
   currentMember: MemberRef;
@@ -1468,7 +1467,6 @@ function DocumentScreen({
   components: ComponentView[];
   specApprovers: string[];
   setSpecApprovers: (v: string[]) => void;
-  onAdvance: () => void;
   onAssembled: (v: { version: number; bodyMd: string }) => void;
   onError: (m: string | null) => void;
 }) {
@@ -1502,7 +1500,7 @@ function DocumentScreen({
     setAssembling(true);
     try {
       const data = await postJson<{ artifact: { version: number; body_md: string } }>(
-        `/projects/${projectId}/spec/assemble`,
+        `/api/projects/${projectId}/spec/assemble`,
         {},
       );
       onError(null);
@@ -1630,7 +1628,7 @@ function DocumentScreen({
                 <PatternAuditRoundCard
                   passNo={r.passNo}
                   verdict={r.verdict}
-                  findings={r.findings as Finding[]}
+                  findings={r.findings}
                   applied={r.applied || appliedPasses.has(r.passNo)}
                   active={selectedPass === r.passNo && docView === 'conversation'}
                   onClick={() => { setSelectedPass(r.passNo); setDocView('conversation'); }}
@@ -1717,7 +1715,7 @@ function DocumentScreen({
             </div>
           ) : activeRound ? (
             <FindingsGrid
-              findings={activeRound.findings as Finding[]}
+              findings={activeRound.findings}
               selectable
               selectedIndices={selectedFindings}
               onToggle={toggleFinding}
@@ -1745,7 +1743,7 @@ function DocumentScreen({
                         ? specApprovers.filter((a: string) => a !== currentMember.id)
                         : [...specApprovers, currentMember.id]),
                       commit: async () => {
-                        const r = await fetch(`/projects/${projectId}/spec/approve`, {
+                        const r = await fetch(`/api/projects/${projectId}/spec/approve`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ action }),
@@ -1797,14 +1795,4 @@ function DocumentScreen({
   );
 }
 
-
-
-
-export interface AuditFinding {
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  category: string;
-  claim: string;
-  evidence?: string;
-  suggestion?: string;
-}
 

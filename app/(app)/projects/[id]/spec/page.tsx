@@ -95,7 +95,12 @@ export default async function SpecStagePage({
       defaultKinds={defaultComponentKinds()}
       initialComponents={components}
       initialSpec={latestSpec ? { version: latestSpec.version, bodyMd: latestSpec.bodyMd } : null}
-      initialAuditHistory={auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings.map((f) => ({ severity: f.severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion })) }))}
+      initialAuditHistory={
+        /* Narrows the server row to what the client needs (`createdAt` is unused there).
+           Findings pass straight through: `ParsedFinding` extends the same `Finding`
+           contract the grid renders, so there is nothing to remap field by field. */
+        auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings }))
+      }
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}
       initialMessages={initialMessages}

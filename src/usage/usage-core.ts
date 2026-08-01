@@ -353,19 +353,35 @@ async function usageOverviewOrg(
   let totalMemberCount = 0;
   const costByTeam: OrgTeamUsageRow[] = [];
 
-  for (const row of costByTeamRows) {
-    const [teamRow] = await db.select({ name: team.name }).from(team).where(eq(team.id, row.teamId!)).limit(1);
-    const [memberCountRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(member)
-      .where(eq(member.teamId, row.teamId!));
+  // Two batched reads instead of two PER TEAM. This loop used to issue `select team` plus
+  // `count(member)` for every row, sequentially awaited, so an org with T teams paid 2T
+  // round-trips to render one dashboard.
+  const teamIds = costByTeamRows.map((r) => r.teamId).filter((id): id is string => !!id);
+  const teamNameById = new Map(
+    teamIds.length === 0
+      ? []
+      : (await db.select({ id: team.id, name: team.name }).from(team).where(inArray(team.id, teamIds)))
+          .map((t) => [t.id, t.name] as const),
+  );
+  const memberCountByTeam = new Map(
+    teamIds.length === 0
+      ? []
+      : (
+          await db
+            .select({ teamId: member.teamId, count: sql<number>`count(*)::int` })
+            .from(member)
+            .where(inArray(member.teamId, teamIds))
+            .groupBy(member.teamId)
+        ).map((r) => [r.teamId, r.count] as const),
+  );
 
-    const memberCount = memberCountRow?.count ?? 0;
+  for (const row of costByTeamRows) {
+    const memberCount = memberCountByTeam.get(row.teamId!) ?? 0;
     totalMemberCount += memberCount;
 
     costByTeam.push({
       teamId: row.teamId!,
-      teamName: teamRow?.name ?? 'Unknown',
+      teamName: teamNameById.get(row.teamId!) ?? 'Unknown',
       memberCount,
       costUsd: row.costUsd,
       savedUsd: row.savedUsd,

@@ -42,6 +42,18 @@ export async function GET(
   const pm = getPollManager();
   const alive: string[] = [];
 
+  // Both of these are loop-invariant: `id` is the route param, so the project row is the
+  // same on every iteration, and the MMA client reads the same connection settings each
+  // time. They were rebuilt per pending batch. The client stays LAZY (built on first
+  // actual need, inside the try) so a connection failure still fails only the row that
+  // needed it, exactly as before, rather than the whole request.
+  const [proj] = await db
+    .select({ name: project.name, ownerId: project.ownerId })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1);
+  let mmaClient: Awaited<ReturnType<typeof buildMmaClient>> | null = null;
+
   for (const row of rows) {
     if (!row.handler) continue;
     if (!row.batchId) { alive.push(row.handler); continue; }
@@ -52,14 +64,13 @@ export async function GET(
     }
 
     try {
-      const mma = await buildMmaClient({ db });
-      const probe = await mma.poll(row.batchId);
+      mmaClient ??= await buildMmaClient({ db });
+      const probe = await mmaClient.poll(row.batchId);
       if (probe.state === 'not_found') {
         await db
           .update(mmaBatch)
           .set({ status: 'failed', result: { error: { code: 'task_not_found', message: 'MMA task no longer exists — server restarted.' } } as object, terminalAt: new Date() })
           .where(eq(mmaBatch.id, row.id));
-        const [proj] = await db.select({ name: project.name, ownerId: project.ownerId }).from(project).where(eq(project.id, id)).limit(1);
         await pushDispatchFailure({ projectId: id, projectName: proj?.name ?? '', ownerId: proj?.ownerId ?? null, handler: row.handler, batchId: row.id }, db);
         projectEventBus.publish(id, {
           type: 'dispatch.failed',

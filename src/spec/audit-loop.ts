@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { AuditVerdict } from '@/db/enums';
 import type { Finding } from '@/components/patterns/findings';
@@ -144,16 +144,27 @@ export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' 
     ? d.stages.spec.phases.finalize.auditPasses
     : d.stages.plan.phases.validate.auditPasses;
 
+  // One read for every pass's envelope, not one read PER pass. This loop used to await a
+  // single-row `select` inside it, so a project on its fifth audit round paid five
+  // sequential round-trips to render the history rail.
+  const batchIds = passes
+    .map((p) => p.audit?.attempts?.[0]?.batchId)
+    .filter((id): id is string => !!id);
+  const resultByBatch = new Map(
+    batchIds.length === 0
+      ? []
+      : (await dbi.select({ id: mmaBatch.id, result: mmaBatch.result }).from(mmaBatch).where(inArray(mmaBatch.id, batchIds)))
+          .map((b) => [b.id, b.result] as const),
+  );
+
   const results: AuditPassView[] = [];
   for (const p of passes) {
     let findings: ParsedFinding[] = [];
     const batchId = p.audit?.attempts?.[0]?.batchId;
-    if (batchId) {
-      const [batch] = await dbi.select({ result: mmaBatch.result }).from(mmaBatch).where(eq(mmaBatch.id, batchId)).limit(1);
-      if (batch?.result) {
-        const parsed = parseAuditEnvelope(batch.result);
-        if (parsed.kind === 'report') findings = parsed.findings;
-      }
+    const result = batchId ? resultByBatch.get(batchId) : undefined;
+    if (result) {
+      const parsed = parseAuditEnvelope(result);
+      if (parsed.kind === 'report') findings = parsed.findings;
     }
     results.push({
       passNo: p.passNo,

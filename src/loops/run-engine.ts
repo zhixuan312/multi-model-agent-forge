@@ -251,7 +251,13 @@ export async function runLoopForRepo(
       sessionId = planTurn.sessionId;
       const parsed = parsePlan(planTurn.output);
       if (parsed) plan = parsed.recalls.length || parsed.verifyCommand ? parsed : plan;
-    } catch {}
+    } catch (e) {
+      // Planning is OPTIONAL: a failed turn leaves `plan` at its default and the run
+      // continues, which is the intended behaviour. Log it though — swallowed silently,
+      // a persistently failing plan step is invisible and the loop just quietly runs
+      // un-planned forever.
+      console.warn(JSON.stringify({ event: 'loop_plan_turn_failed', repo: repo.name, reason: (e as Error)?.message ?? String(e) }));
+    }
 
     // Stage 4 — recall (worker fan-out of the planned queries).
     const recallTexts: string[] = [];
@@ -302,7 +308,12 @@ export async function runLoopForRepo(
       });
       const parsed = parseJournal(jTurn.output);
       if (parsed) journalEntries = parsed.entries;
-    } catch {}
+    } catch (e) {
+      // Journal composition is OPTIONAL: the run's outcome is already decided, so a failed
+      // turn must not fail it. Logged for the same reason as the plan turn above — a run
+      // that never records what it learned should be diagnosable.
+      console.warn(JSON.stringify({ event: 'loop_journal_turn_failed', repo: repo.name, reason: (e as Error)?.message ?? String(e) }));
+    }
 
     // Stage 9 — record + report.
     if (journalEntries.length) await deps.record(repo, journalEntries, runRowId);

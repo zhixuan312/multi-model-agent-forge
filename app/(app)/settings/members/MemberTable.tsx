@@ -30,6 +30,7 @@ import {
 } from '@/components/ui';
 import { formatDate } from '@/lib/format-date';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
+import { generatePassword } from '@/auth/generate-password';
 
 export interface MemberRowData {
   id: string;
@@ -59,15 +60,6 @@ export function memberEditOutcome(args: {
       : { error: args.passwordError, refresh: false, done: false };
   }
   return { error: null, refresh: true, done: true };
-}
-
-/** Generate a readable random password (≥ PASSWORD_MIN_LENGTH). */
-function generatePassword(): string {
-  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const len = Math.max(PASSWORD_MIN_LENGTH, 16);
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 }
 
 /** A password field with a Generate affordance (shown as plain text before submit). */

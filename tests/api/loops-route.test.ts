@@ -4,17 +4,23 @@ import { NextResponse } from 'next/server';
 import type { AuthedMember } from '@/auth/auth-provider';
 
 let mockCaller: AuthedMember | null = null;
+// The loops routes gate on `resolveAdminTeam`, NOT `resolveAdminActor`: an org admin
+// passes the admin check but owns no team, and the loops cores treat a missing team as
+// "no filter" (see tests/loops/cross-team-guard.test.ts). The stub mirrors the real
+// helper — admin AND a team, or an error response.
 vi.mock('@/auth/admin-gate-handler', () => ({
-  resolveAdminActor: async () =>
-    mockCaller && mockCaller.role === 'team_admin'
-      ? { ok: true, actor: mockCaller }
-      : {
-          ok: false,
-          response: NextResponse.json(
-            { error: mockCaller ? 'Admin privileges required.' : 'Unauthorized' },
-            { status: mockCaller ? 403 : 401 },
-          ),
-        },
+  resolveAdminTeam: async () => {
+    if (!mockCaller) {
+      return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    }
+    if (mockCaller.role !== 'team_admin') {
+      return { ok: false, response: NextResponse.json({ error: 'Admin privileges required.' }, { status: 403 }) };
+    }
+    if (!mockCaller.teamId) {
+      return { ok: false, response: NextResponse.json({ error: 'Select a team first.' }, { status: 400 }) };
+    }
+    return { ok: true, actor: mockCaller, teamId: mockCaller.teamId };
+  },
 }));
 
 let createResult: unknown = { kind: 'created', loop: { id: 'l1' }, eventToken: null };

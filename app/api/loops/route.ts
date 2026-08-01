@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { resolveAdminActor } from '@/auth/admin-gate-handler';
+import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { listLoops, createLoop, toPublicLoop } from '@/loops/loops-core';
 
 /**
@@ -8,18 +8,18 @@ import { listLoops, createLoop, toPublicLoop } from '@/loops/loops-core';
  * to HTTP status.
  */
 export async function GET(): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
-  const loops = await listLoops({ teamId: gate.actor.teamId ?? undefined });
+  const loops = await listLoops({ teamId: gate.teamId });
   return NextResponse.json({ loops: loops.map(toPublicLoop) });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
 
   const json = await req.json().catch(() => null);
-  const result = await createLoop(json, { actorId: gate.actor.id, teamId: gate.actor.teamId ?? undefined });
+  const result = await createLoop(json, { actorId: gate.actor.id, teamId: gate.teamId });
   switch (result.kind) {
     case 'created':
       return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken }, { status: 201 });

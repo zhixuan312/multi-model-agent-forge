@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { resolveAdminActor } from '@/auth/admin-gate-handler';
+import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop, toPublicLoop } from '@/loops/loops-core';
 
 /**
@@ -9,21 +9,21 @@ import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop, toPublicLoop } f
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const loop = await getLoop(id, { teamId: gate.actor.teamId ?? undefined });
+  const loop = await getLoop(id, { teamId: gate.teamId });
   return loop ? NextResponse.json(toPublicLoop(loop)) : NextResponse.json({ error: 'not_found' }, { status: 404 });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const json = (await req.json().catch(() => null)) as { rotateEventToken?: boolean } | null;
 
   if (json?.rotateEventToken) {
-    const rotated = await rotateLoopEventToken(id, { teamId: gate.actor.teamId ?? undefined });
+    const rotated = await rotateLoopEventToken(id, { teamId: gate.teamId });
     switch (rotated.kind) {
       case 'rotated':
         return NextResponse.json({ loop: toPublicLoop(rotated.loop), eventToken: rotated.eventToken });
@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     }
   }
 
-  const result = await updateLoop(id, json, { teamId: gate.actor.teamId ?? undefined });
+  const result = await updateLoop(id, json, { teamId: gate.teamId });
   switch (result.kind) {
     case 'updated':
       return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken });
@@ -54,10 +54,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
-  const gate = await resolveAdminActor();
+  const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
-  const result = await deleteLoop(id, { teamId: gate.actor.teamId ?? undefined });
+  const result = await deleteLoop(id, { teamId: gate.teamId });
   return result.kind === 'deleted'
     ? new NextResponse(null, { status: 204 })
     : NextResponse.json({ error: 'not_found' }, { status: 404 });

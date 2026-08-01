@@ -188,15 +188,3 @@ export async function exportBundle(
     exportId,
   };
 }
-
-/* ── sections list (for the dialog, F30) ────────────────────────────────── */
-
-export async function specSectionList(
-  projectId: string,
-  actor: ProjectActor,
-): Promise<{ nn: string; title: string }[]> {
-  const collected = await collectArtifact(projectId, 'spec', actor);
-  return parseArtifactSections(collected.bodyMd, 'spec')
-    .filter((s) => s.title.length > 0)
-    .map((s) => ({ nn: s.nn, title: s.title }));
-}

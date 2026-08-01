@@ -50,10 +50,6 @@ async function enterFullscreen() {
   return wrap;
 }
 
-/**
- * Click across the canvas until a star is hit. Star positions come from a seeded layout,
- * so this is deterministic — we just don't want the test hard-coding projected pixels.
- */
 /** The learning the panel is currently about — read off its label, not its body (which lists neighbours too). */
 function panelSubject() {
   const panel = screen.getByTestId('graph-detail-panel');
@@ -61,6 +57,10 @@ function panelSubject() {
   return nodes.find((n) => label === `Details for ${n.title}`)!;
 }
 
+/**
+ * Click across the canvas until a star is hit. Star positions come from a seeded layout,
+ * so this is deterministic — we just don't want the test hard-coding projected pixels.
+ */
 async function clickAStar() {
   const canvas = screen.getByLabelText('Journal knowledge graph');
   for (let y = 20; y < 600; y += 20) {
@@ -164,10 +164,12 @@ describe('JournalGraph3D', () => {
 
       const before = panelSubject();
       const hop = within(panel).queryAllByRole('button').find((b) => /relates|refines/.test(b.textContent ?? ''));
-      if (hop) {
-        await act(async () => { fireEvent.click(hop); });
-        expect(panelSubject().id).not.toBe(before.id); // the panel followed the thread
-      }
+      // Asserted, not `if (hop)`-guarded: every node in the fixture has at least one edge
+      // (0001–0002–0003), so a missing hop button is a real failure of the thing this test
+      // is named for. Guarding it meant the test could pass having verified no travel at all.
+      expect(hop, 'every fixture node has a connection, so a hop button must render').toBeDefined();
+      await act(async () => { fireEvent.click(hop!); });
+      expect(panelSubject().id).not.toBe(before.id); // the panel followed the thread
     });
 
     it('opens the learning and closes on demand', async () => {

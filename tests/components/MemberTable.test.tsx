@@ -54,6 +54,23 @@ describe('MemberForm', () => {
     expect(body).toHaveProperty('isAdmin');
   });
 
+  it('surfaces a THROWN fetch instead of failing silently', async () => {
+    // A network failure (offline, DNS, aborted) rejects rather than returning !res.ok, so it
+    // never reached the error branch. The handler used to have try/finally with no catch:
+    // busy cleared, nothing shown, and the form looked like it had simply ignored the click.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    render(<MemberForm mode="add" onDone={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Ada Lovelace' } });
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /save member/i }));
+
+    await waitFor(() => expect(screen.getByText(/network error/i)).toBeInTheDocument());
+    // And the form is usable again rather than stuck in its busy state.
+    await waitFor(() => expect(screen.getByRole('button', { name: /save member/i })).toBeEnabled());
+  });
+
   it('copies the entered password to the clipboard', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

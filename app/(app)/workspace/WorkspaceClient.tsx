@@ -253,6 +253,10 @@ function RepoEditForm({ repo: r, onDone }: { repo: RepoCardData; onDone: () => v
       }
       onDone();
       router.refresh();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }
@@ -343,6 +347,10 @@ function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => v
         return;
       }
       onCloned();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }

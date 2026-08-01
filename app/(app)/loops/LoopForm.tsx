@@ -109,6 +109,10 @@ export function LoopForm({
       setRevealedToken(revealed);
       router.refresh();
       if (!revealed) onDone();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }
@@ -131,6 +135,10 @@ export function LoopForm({
       }
       setRevealedToken(body?.eventToken ?? null);
       router.refresh();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }

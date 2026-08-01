@@ -323,6 +323,10 @@ export function MemberForm({
         }
         onDone();
         router.refresh();
+      } catch {
+        // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+        // without this the handler fell straight through `finally` and surfaced nothing.
+        setError('Network error — please retry.');
       } finally {
         setBusy(false);
       }
@@ -369,6 +373,10 @@ export function MemberForm({
       if (outcome.refresh) router.refresh();
       if (outcome.error) { setError(outcome.error); return; }
       if (outcome.done) onDone();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }
@@ -387,6 +395,10 @@ export function MemberForm({
       }
       onDone();
       router.refresh();
+    } catch {
+      // A THROWN fetch (offline, DNS, aborted) never reaches the !res.ok branch, so
+      // without this the handler fell straight through `finally` and surfaced nothing.
+      setError('Network error — please retry.');
     } finally {
       setBusy(false);
     }

@@ -35,7 +35,7 @@ describe('driver lease (G1)', () => {
   it('releaseDriverLease issues an UPDATE scoped to this driver', async () => {
     const db = createMockDb({ 'update:project': [] });
     await releaseDriverLease(db, 'p1', 'driver-A');
-    expect(db._assertCalled('project', 'update')).toBe(true);
+    expect(db._wasCalled('project', 'update')).toBe(true);
   });
 });
 

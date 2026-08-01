@@ -63,7 +63,7 @@ describe('createAdminMember', () => {
     const db = createMockDb({ 'insert:team_member': [created] });
     const m = await createAdminMember(db, { displayName: 'Admin', username: 'admin', password: STRONG });
     expect(m.role).toBe('org_admin');
-    expect(db._assertCalled('team_identity', 'insert')).toBe(true);
+    expect(db._wasCalled('team_identity', 'insert')).toBe(true);
     const idValues = db._callsFor('team_identity').find((c) => c.method === 'values');
     expect(JSON.stringify(idValues?.args)).not.toContain(STRONG);
   });
@@ -80,7 +80,7 @@ describe('registerFirstAdmin', () => {
     const db = createMockDb({ 'select:team_member': [{ count: 1 }] });
     const res = await registerFirstAdmin({ displayName: 'X', username: 'x', password: STRONG }, { db });
     expect(res.kind).toBe('already_setup');
-    expect(db._assertCalled('team_member', 'insert')).toBe(false);
+    expect(db._wasCalled('team_member', 'insert')).toBe(false);
   });
 
   it('creates the first admin when the team is empty', async () => {

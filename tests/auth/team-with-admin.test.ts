@@ -27,9 +27,9 @@ describe('createTeamWithAdmin', () => {
     if (res.kind !== 'created') return;
     expect(res.team.id).toBe('team-9');
     expect(res.admin.username).toBe('bianca');
-    expect(db._assertCalled('team', 'insert')).toBe(true);
-    expect(db._assertCalled('team_member', 'insert')).toBe(true);
-    expect(db._assertCalled('team_identity', 'insert')).toBe(true);
+    expect(db._wasCalled('team', 'insert')).toBe(true);
+    expect(db._wasCalled('team_member', 'insert')).toBe(true);
+    expect(db._wasCalled('team_identity', 'insert')).toBe(true);
 
     // the team name is derived from the slug
     const tv = db._callsFor('team').find((c) => c.method === 'values');
@@ -63,6 +63,6 @@ describe('createTeamWithAdmin', () => {
       { db },
     );
     expect(res.kind).toBe('duplicate_username');
-    expect(db._assertCalled('team', 'insert')).toBe(false);
+    expect(db._wasCalled('team', 'insert')).toBe(false);
   });
 });

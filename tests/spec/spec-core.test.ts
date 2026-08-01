@@ -52,7 +52,7 @@ describe('captureIntent', () => {
     });
 
     await captureIntent(mockDb, projectId, '  We need a faster checkout flow.  ', ownerId);
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 });
 

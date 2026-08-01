@@ -12,7 +12,7 @@ describe('updateTeam (org admin edits an existing team)', () => {
       { teamId: 'team-1', db, base: '/forge/base', realpath: passthrough },
     );
     expect(res.kind).toBe('saved');
-    expect(db._assertCalled('team', 'update')).toBe(true);
+    expect(db._wasCalled('team', 'update')).toBe(true);
     const setCall = db._callsFor('team').find((c) => c.method === 'set');
     const set = JSON.stringify(setCall?.args);
     expect(set).toContain('renamed-squad'); // slug
@@ -39,7 +39,7 @@ describe('updateTeam (org admin edits an existing team)', () => {
       { teamId: 'team-1', db, base: '/forge/base', realpath: passthrough },
     );
     expect(res.kind).toBe('invalid');
-    expect(db._assertCalled('team', 'update')).toBe(false);
+    expect(db._wasCalled('team', 'update')).toBe(false);
   });
 
   it('rejects an empty update (no fields)', async () => {

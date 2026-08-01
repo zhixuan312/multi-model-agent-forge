@@ -36,7 +36,7 @@ describe('changeOwnPassword', () => {
     const db = createMockDb({ 'select:team_identity': [{ id: 'i1', passwordHash: hash }] });
     const res = await changeOwnPassword({ memberId: 'm1', currentPassword: 'WRONG', newPassword: NEXT }, { db, store: store() });
     expect(res.kind).toBe('wrong_current_password');
-    expect(db._assertCalled('team_identity', 'update')).toBe(false);
+    expect(db._wasCalled('team_identity', 'update')).toBe(false);
   });
 
   it('rotates the hash, re-issues the caller session, and revokes the others', async () => {
@@ -45,7 +45,7 @@ describe('changeOwnPassword', () => {
     const st = store();
     const res = await changeOwnPassword({ memberId: 'm1', currentPassword: CURRENT, newPassword: NEXT }, { db, store: st });
     expect(res).toEqual({ kind: 'success', token: 'fresh-token' });
-    expect(db._assertCalled('team_identity', 'update')).toBe(true);
+    expect(db._wasCalled('team_identity', 'update')).toBe(true);
     expect(st.create).toHaveBeenCalledWith('m1');
     expect(st.revokeAllForMemberExcept).toHaveBeenCalledWith('m1', 's-new');
     const set = db._callsFor('team_identity').find((c) => c.method === 'set');

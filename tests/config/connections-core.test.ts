@@ -88,7 +88,7 @@ describe('updateConnections', () => {
     if (res.kind !== 'saved') return;
     expect(res.connections.gitTokenSet).toBe(false); // no teamId provided, so git token not set
     expect(secrets.puts).toHaveLength(0); // no secrets stored
-    expect(db._assertCalled('team', 'update')).toBe(false); // team not updated
+    expect(db._wasCalled('team', 'update')).toBe(false); // team not updated
   });
 
   it('mma base URL alone (no git token, no team) UPDATEs the singleton — org admin', async () => {
@@ -101,7 +101,7 @@ describe('updateConnections', () => {
     await updateConnections({ mmaBaseUrl: 'http://new-url' }, { db, secrets, isOrgAdmin: true });
 
     expect(secrets.puts).toHaveLength(0); // no new secrets
-    expect(db._assertCalled('team_connection', 'update')).toBe(true);
+    expect(db._wasCalled('team_connection', 'update')).toBe(true);
 
     const set = db._callsFor('team_connection').find((c) => c.method === 'set');
     expect(JSON.stringify(set?.args)).toContain('http://new-url'); // url updated
@@ -115,8 +115,8 @@ describe('updateConnections', () => {
     });
     const secrets = createMockSecretStore();
     await updateConnections({ gitToken: 'ghs_secret' }, { db, teamId: 'team-1', secrets });
-    expect(db._assertCalled('team', 'update')).toBe(true);
-    expect(db._assertCalled('team_connection', 'update')).toBe(false);
+    expect(db._wasCalled('team', 'update')).toBe(true);
+    expect(db._wasCalled('team_connection', 'update')).toBe(false);
   });
 });
 
@@ -127,7 +127,7 @@ describe('updateConnections — org-owned fields are org_admin only (speech-to-t
     const secrets = createMockSecretStore();
     await updateConnections({ openaiTranscriptionKey: 'sk_new' }, { db, secrets, teamId: 't1', isOrgAdmin: false });
     expect(secrets.puts.some((p) => p.label === 'openai-transcription')).toBe(false);
-    expect(db._assertCalled('team_connection', 'update')).toBe(false);
+    expect(db._wasCalled('team_connection', 'update')).toBe(false);
   });
 
   it('applies openaiTranscriptionKey for an org admin', async () => {
@@ -149,6 +149,6 @@ describe('updateConnections — org-owned fields are org_admin only (speech-to-t
     const secrets = createMockSecretStore();
     await updateConnections({ gitToken: 'ghs_x' }, { db, secrets, teamId: 't1', isOrgAdmin: false });
     expect(secrets.puts.some((p) => p.label === 'git-token')).toBe(true);
-    expect(db._assertCalled('team', 'update')).toBe(true);
+    expect(db._wasCalled('team', 'update')).toBe(true);
   });
 });

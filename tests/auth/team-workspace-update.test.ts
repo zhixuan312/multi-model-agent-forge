@@ -16,7 +16,7 @@ describe('updateTeamWorkspacePath', () => {
     const db = createMockDb({});
     const r = await updateTeamWorkspacePath('/etc/evil', { teamId: 'team-1', db, base: '/forge/base', realpath: identity });
     expect(r.kind).toBe('invalid');
-    expect(db._assertCalled('team', 'update')).toBe(false);
+    expect(db._wasCalled('team', 'update')).toBe(false);
   });
 
   it('rejects the base itself', async () => {
@@ -33,7 +33,7 @@ describe('updateTeamWorkspacePath', () => {
     const r = await updateTeamWorkspacePath('alpha', { teamId: 'team-1', db, base: '/forge/base', realpath: identity });
     expect(r.kind).toBe('saved');
     if (r.kind === 'saved') expect(r.workspaceRootPath).toBe('alpha');
-    expect(db._assertCalled('team', 'update')).toBe(true);
+    expect(db._wasCalled('team', 'update')).toBe(true);
   });
 
   it('persists the leaf even when the admin typed the full absolute path', async () => {

@@ -31,7 +31,7 @@ describe('brief persistence', () => {
     });
 
     await saveBrief(projectId, 'first dump', { id: ownerId }, mockDb);
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 });
 
@@ -89,6 +89,6 @@ describe('task editing via details', () => {
 
     const { id } = await addTask(projectId, { kind: 'research', prompt: 'what external options exist for this?' }, { id: ownerId }, mockDb);
     expect(id).toBe('task-0');
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 });

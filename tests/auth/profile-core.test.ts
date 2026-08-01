@@ -36,7 +36,7 @@ describe('updateOwnProfile', () => {
     const db = createMockDb({ 'update:team_member': [{ displayName: 'Ada', avatarTint: '#123456' }] });
     const res = await updateOwnProfile('m1', { displayName: 'Ada', avatarTint: '#123456' }, { db });
     expect(res).toEqual({ kind: 'updated', displayName: 'Ada', avatarTint: '#123456' });
-    expect(db._assertCalled('team_member', 'update')).toBe(true);
+    expect(db._wasCalled('team_member', 'update')).toBe(true);
   });
 });
 

@@ -16,7 +16,7 @@ describe('pins-core', () => {
     expect(pin.question).toBe('how does X work?');
     expect(pin.journalLogCount).toBe(5);
     expect(pin.findings).toEqual([FINDING]);
-    expect(db._assertCalled('journal_pin', 'insert')).toBe(true);
+    expect(db._wasCalled('journal_pin', 'insert')).toBe(true);
   });
 
   it('listPins returns the member rows', async () => {

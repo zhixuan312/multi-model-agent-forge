@@ -52,8 +52,12 @@ export function createMockSecretStore(): SecretStore & {
  * with the same mock (so the txn sees the same canned data + records its calls).
  *
  * Every method invocation is recorded for white-box assertions:
- *   db._assertCalled('team_member', 'insert')
+ *   expect(db._wasCalled('team_member', 'insert')).toBe(true)
  *   db._callsFor('team_connection')
+ *
+ * `_wasCalled` is a PREDICATE, not an assertion — it returns a boolean and never
+ * throws, so it must be wrapped in `expect(...)`. It was once named `_assertCalled`,
+ * which invited writing it as a bare statement that silently checked nothing.
  */
 export interface MockQueryCall {
   op: 'select' | 'insert' | 'update' | 'delete';
@@ -70,7 +74,7 @@ export type MockResponses = Record<string, Responder>;
 export interface MockDb {
   _calls: MockQueryCall[];
   _callsFor(table: string): MockQueryCall[];
-  _assertCalled(table: string, method: string): boolean;
+  _wasCalled(table: string, method: string): boolean;
   _reset(): void;
 }
 
@@ -115,7 +119,7 @@ export function createMockDb(responses: MockResponses = {}): Db & MockDb {
         }
         return (...args: unknown[]) => {
           // `select().from(table)` sets the response key; record a synthetic
-          // 'select' marker once the table is known so `_assertCalled(t,'select')` works.
+          // 'select' marker once the table is known so `_wasCalled(t,'select')` works.
           if ((prop === 'from' || prop === 'into') && args[0]) {
             ctx.table = tableName(args[0]);
             calls.push({ op: ctx.op, method: ctx.op, table: ctx.table, args });
@@ -153,7 +157,7 @@ export function createMockDb(responses: MockResponses = {}): Db & MockDb {
     },
     _calls: calls,
     _callsFor: (table: string) => calls.filter((c) => c.table === table),
-    _assertCalled: (table: string, method: string) =>
+    _wasCalled: (table: string, method: string) =>
       calls.some((c) => c.table === table && c.method === method),
     _reset: () => {
       calls.length = 0;

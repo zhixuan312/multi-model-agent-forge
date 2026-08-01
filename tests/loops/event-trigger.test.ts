@@ -76,7 +76,7 @@ describe('acceptLoopEvent', () => {
       deps: { db, starter, randomId: () => 'run-1' },
     });
     expect(res.kind).toBe('internal_error');
-    expect(db._assertCalled('loop_event_delivery', 'delete')).toBe(true);
+    expect(db._wasCalled('loop_event_delivery', 'delete')).toBe(true);
   });
 
   it('rejects wrong mode, bad token, bad body, and unknown loops', async () => {

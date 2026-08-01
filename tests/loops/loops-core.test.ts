@@ -63,7 +63,7 @@ describe('createLoop', () => {
     const db = createMockDb({ 'select:loop_def': [] });
     expect((await createLoop({ ...VALID, mode: 'event', cron: '0 3 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect((await createLoop({ ...VALID, mode: 'recurring', cron: null }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
-    expect(db._assertCalled('loop_def', 'insert')).toBe(false);
+    expect(db._wasCalled('loop_def', 'insert')).toBe(false);
   });
 });
 
@@ -91,7 +91,7 @@ describe('updateLoop', () => {
   it('rejects bad mode transitions before writing', async () => {
     const db = createMockDb({ 'select:loop_def': [loopRow({ mode: 'manual', cron: null })] });
     expect((await updateLoop('loop-1', { mode: 'event', cron: '0 4 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
-    expect(db._assertCalled('loop_def', 'update')).toBe(false);
+    expect(db._wasCalled('loop_def', 'update')).toBe(false);
   });
 });
 

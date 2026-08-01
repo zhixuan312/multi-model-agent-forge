@@ -44,8 +44,8 @@ describe('createMember', () => {
     expect(res.kind).toBe('created');
     if (res.kind !== 'created') return;
     expect(res.member.id).toBe('m1');
-    expect(db._assertCalled('team_member', 'insert')).toBe(true);
-    expect(db._assertCalled('team_identity', 'insert')).toBe(true);
+    expect(db._wasCalled('team_member', 'insert')).toBe(true);
+    expect(db._wasCalled('team_identity', 'insert')).toBe(true);
     const idValues = db._callsFor('team_identity').find((c) => c.method === 'values');
     expect(JSON.stringify(idValues?.args)).not.toContain(STRONG); // argon2 hash, not plaintext
   });
@@ -59,7 +59,7 @@ describe('createMember', () => {
   it('returns duplicate_username on the case-insensitive pre-check', async () => {
     const db = createMockDb({ 'select:team_member': [{ id: 'existing' }] });
     expect((await createMember({ displayName: 'A', username: 'ADA', password: STRONG }, 'team-1', { db })).kind).toBe('duplicate_username');
-    expect(db._assertCalled('team_member', 'insert')).toBe(false);
+    expect(db._wasCalled('team_member', 'insert')).toBe(false);
   });
 
   it('maps a 23505 unique-violation race to duplicate_username', async () => {
@@ -80,13 +80,13 @@ describe('setMemberAdmin (last-admin invariant)', () => {
   it('refuses to demote the only admin (last_admin)', async () => {
     const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
     expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('last_admin');
-    expect(db._assertCalled('team_member', 'update')).toBe(false);
+    expect(db._wasCalled('team_member', 'update')).toBe(false);
   });
 
   it('demotes when other admins remain', async () => {
     const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 2 }]) });
     expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('updated');
-    expect(db._assertCalled('team_member', 'update')).toBe(true);
+    expect(db._wasCalled('team_member', 'update')).toBe(true);
   });
 
   it('promotes without a guard check', async () => {
@@ -106,7 +106,7 @@ describe('resetMemberPassword', () => {
     const store = stubStore();
     const res = await resetMemberPassword('m1', { newPassword: STRONG }, { db, store });
     expect(res.kind).toBe('reset');
-    expect(db._assertCalled('team_identity', 'update')).toBe(true);
+    expect(db._wasCalled('team_identity', 'update')).toBe(true);
     expect(store.revokeAllForMember).toHaveBeenCalledWith('m1');
   });
 });
@@ -118,13 +118,13 @@ describe('member mutations — team scope (cross-tenant isolation)', () => {
   it('setMemberAdmin: a scoped miss (target in another team) → not_found, no update', async () => {
     const db = createMockDb({ 'select:team_member': [] });
     expect((await setMemberAdmin('other-team-member', { isAdmin: true }, { db, teamId: 'team-A' })).kind).toBe('not_found');
-    expect(db._assertCalled('team_member', 'update')).toBe(false);
+    expect(db._wasCalled('team_member', 'update')).toBe(false);
   });
 
   it('deleteMember: a scoped miss → not_found, no delete', async () => {
     const db = createMockDb({ 'select:team_member': [] });
     expect((await deleteMember('other-team-member', { db, teamId: 'team-A' })).kind).toBe('not_found');
-    expect(db._assertCalled('team_member', 'delete')).toBe(false);
+    expect(db._wasCalled('team_member', 'delete')).toBe(false);
   });
 
   it('resetMemberPassword: a scoped miss → not_found BEFORE the identity is read or the hash written', async () => {
@@ -132,7 +132,7 @@ describe('member mutations — team scope (cross-tenant isolation)', () => {
     const store = stubStore();
     const res = await resetMemberPassword('other-team-member', { newPassword: STRONG }, { db, store, teamId: 'team-A' });
     expect(res.kind).toBe('not_found');
-    expect(db._assertCalled('team_identity', 'update')).toBe(false);
+    expect(db._wasCalled('team_identity', 'update')).toBe(false);
     expect(store.revokeAllForMember).not.toHaveBeenCalled();
   });
 
@@ -152,13 +152,13 @@ describe('deleteMember (last-admin invariant)', () => {
   it('refuses to delete the only admin', async () => {
     const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
     expect((await deleteMember('m1', { db })).kind).toBe('last_admin');
-    expect(db._assertCalled('team_member', 'delete')).toBe(false);
+    expect(db._wasCalled('team_member', 'delete')).toBe(false);
   });
 
   it('deletes a non-admin', async () => {
     const db = createMockDb({ 'select:team_member': [{ id: 'm1', isAdmin: false }] });
     expect((await deleteMember('m1', { db })).kind).toBe('deleted');
-    expect(db._assertCalled('team_member', 'delete')).toBe(true);
+    expect(db._wasCalled('team_member', 'delete')).toBe(true);
   });
 });
 

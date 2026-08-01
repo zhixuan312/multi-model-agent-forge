@@ -29,7 +29,7 @@ describe('project activity core', () => {
       actorId: 'm1',
       eventKey: 'draft:p1',
     });
-    expect(db._assertCalled('project_activity', 'onConflictDoNothing')).toBe(true);
+    expect(db._wasCalled('project_activity', 'onConflictDoNothing')).toBe(true);
     // The idempotency index is PARTIAL (UNIQUE ... WHERE event_key IS NOT NULL). The
     // ON CONFLICT arbiter MUST carry the same `where` predicate, or Postgres rejects it
     // at runtime with 42P10 (no matching unique/exclusion constraint). Asserting the

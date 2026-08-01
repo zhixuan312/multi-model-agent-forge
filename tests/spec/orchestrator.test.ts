@@ -23,7 +23,7 @@ describe('confirmComponents', () => {
       'update:project': [{ id: projectId }],
     });
     await confirmComponents(mockDb, projectId, ['context']);
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 
   it('is additive on re-open — no duplicate components', async () => {
@@ -36,7 +36,7 @@ describe('confirmComponents', () => {
       'update:project': [{ id: projectId }],
     });
     await confirmComponents(mockDb, projectId, ['context', 'problem']);
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 });
 
@@ -88,7 +88,7 @@ describe('onHumanSatisfied', () => {
       'update:project': [{ id: projectId }],
     });
     await onHumanSatisfied({ db: mockDb }, projectId, componentId, 'member-1');
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 
   it('records the approver in spec.participants too (an approver is a participant)', async () => {

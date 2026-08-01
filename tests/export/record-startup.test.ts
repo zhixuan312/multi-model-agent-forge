@@ -36,7 +36,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
     );
 
     expect(res.filePath.startsWith(join(cfg.exportRoot, projectId) + sep)).toBe(true);
-    expect(db._assertCalled('project_export', 'insert')).toBe(true);
+    expect(db._wasCalled('project_export', 'insert')).toBe(true);
 
     const insertCalls = db._callsFor('project_export');
     const valueCall = insertCalls.find((c) => c.method === 'values');
@@ -66,7 +66,7 @@ describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
       { config: cfg, db },
     );
 
-    expect(db._assertCalled('project_export', 'insert')).toBe(true);
+    expect(db._wasCalled('project_export', 'insert')).toBe(true);
     const insertCalls = db._callsFor('project_export');
     const valueCall = insertCalls.find((c) => c.method === 'values');
     expect(valueCall?.args).toEqual([

@@ -1,0 +1,17 @@
+# pnpm settings. This file — NOT the `pnpm` field in package.json — is where pnpm 10
+# reads configuration from; that field is silently ignored ("no longer read by pnpm")
+# and warned about on every command.
+#
+# There is no `packages:` key on purpose: Forge is a single package, not a monorepo.
+# This file exists solely to give the settings below a home pnpm actually honours.
+
+# pnpm 10 blocks dependency install scripts by default. These four are the only
+# dependencies permitted to run theirs; each ships a native binary or browser:
+#   esbuild, sharp, unrs-resolver — prebuilt platform binaries
+#   puppeteer                     — Chromium download (disabled in the container via
+#                                   PUPPETEER_SKIP_DOWNLOAD; the image uses apt chromium)
+onlyBuiltDependencies:
+  - esbuild
+  - puppeteer
+  - sharp
+  - unrs-resolver

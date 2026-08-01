@@ -5,7 +5,7 @@
   "matchedCodexVersion": "0.145.0",
   "private": true,
   "license": "MIT",
-  "description": "Collaborative AI SDLC web app — team workflow on top of multi-model-agent",
+  "description": "Collaborative AI SDLC web app \u2014 team workflow on top of multi-model-agent",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.0.0"
@@ -83,13 +83,5 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.8"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "puppeteer",
-      "sharp",
-      "unrs-resolver"
-    ]
   }
 }

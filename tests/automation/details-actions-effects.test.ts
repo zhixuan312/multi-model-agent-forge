@@ -41,7 +41,7 @@ describe('executeDetailsAction — journal-row transitions (project_journal)', (
     });
     const result = await executeDetailsAction('p', approve, db);
     expect(result).toBe('ok');
-    expect(db._assertCalled('project_journal', 'update')).toBe(true);
+    expect(db._wasCalled('project_journal', 'update')).toBe(true);
   });
 
   it('is idempotent — re-approving an already-kept row stays kept (kept is still mutable)', async () => {
@@ -51,13 +51,13 @@ describe('executeDetailsAction — journal-row transitions (project_journal)', (
     });
     const result = await executeDetailsAction('p', approve, db);
     expect(result).toBe('ok');
-    expect(db._assertCalled('project_journal', 'update')).toBe(true);
+    expect(db._wasCalled('project_journal', 'update')).toBe(true);
   });
 
   it('rejects mutating a recorded row (FR-7 — recorded rows are immutable)', async () => {
     const db = createMockDb({ 'select:project_journal': [journalRow('recorded')] });
     await expect(executeDetailsAction('p', approve, db)).rejects.toThrow(/recorded/i);
-    expect(db._assertCalled('project_journal', 'update')).toBe(false);
+    expect(db._wasCalled('project_journal', 'update')).toBe(false);
   });
 });
 

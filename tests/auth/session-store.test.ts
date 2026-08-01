@@ -39,11 +39,11 @@ describe('PostgresSessionStore (mock DB)', () => {
   it('touch updates the row; revoke deletes it', async () => {
     const touchDb = createMockDb();
     await new PostgresSessionStore(touchDb).touch('s1');
-    expect(touchDb._assertCalled('team_session', 'update')).toBe(true);
+    expect(touchDb._wasCalled('team_session', 'update')).toBe(true);
 
     const revokeDb = createMockDb();
     await new PostgresSessionStore(revokeDb).revoke('s1');
-    expect(revokeDb._assertCalled('team_session', 'delete')).toBe(true);
+    expect(revokeDb._wasCalled('team_session', 'delete')).toBe(true);
   });
 
   it('deleteExpiredSessions (reaper) returns the count of removed rows', async () => {

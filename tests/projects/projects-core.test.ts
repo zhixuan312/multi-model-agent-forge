@@ -31,7 +31,7 @@ describe('createProject — seeding + validation', () => {
       { db: mockDb },
     );
     expect(res.ok).toBe(true);
-    expect(mockDb._assertCalled('project', 'insert')).toBe(true);
+    expect(mockDb._wasCalled('project', 'insert')).toBe(true);
   });
 
   it('creates the project with details initialized', async () => {
@@ -193,7 +193,7 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
     });
 
     await visibleProjects({ id: 'owner-a', teamId: 'team-b' }, { db });
-    expect(db._assertCalled('project', 'where')).toBe(true);
+    expect(db._wasCalled('project', 'where')).toBe(true);
   });
 });
 
@@ -208,7 +208,7 @@ describe('mutation authorization', () => {
     });
 
     await changeVisibility(projectId, 'private', { id: ownerId, teamId: 'team-1' }, { db: mockDb });
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 
   it('changeRepos updates details repos', async () => {
@@ -224,7 +224,7 @@ describe('mutation authorization', () => {
     });
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId, teamId: 'team-1' }, { db: mockDb });
-    expect(mockDb._assertCalled('project', 'update')).toBe(true);
+    expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 
   it('changeRepos rejects a repo id not owned by the actor team (fewer rows returned)', async () => {
@@ -246,7 +246,7 @@ describe('mutation authorization', () => {
     await expect(
       changeRepos(projectId, ['mine', 'foreign-team-repo'], { id: ownerId, teamId: 'team-1' }, { db: mockDb }),
     ).rejects.toThrow(/do not belong to your team/i);
-    expect(mockDb._assertCalled('project', 'update')).toBe(false);
+    expect(mockDb._wasCalled('project', 'update')).toBe(false);
   });
 });
 
@@ -405,7 +405,7 @@ describe('archive mutations', () => {
     const result = await archiveProject('proj-a', { id: 'owner-a', teamId: 'team-1' }, { db: mockDb });
 
     expect(result.archived).toBe(true);
-    expect(mockDb._assertCalled('project', 'update')).toBe(false);
+    expect(mockDb._wasCalled('project', 'update')).toBe(false);
   });
 
   it('unarchiveProject sets archived=false for the owner and is a no-op for an active row', async () => {
@@ -421,7 +421,7 @@ describe('archive mutations', () => {
     const { unarchiveProject } = await import('@/projects/projects-core');
     const result = await unarchiveProject('proj-u', { id: 'owner-u', teamId: 'team-1' }, { db: archivedDb });
     expect(result.archived).toBe(false);
-    expect(archivedDb._assertCalled('project', 'update')).toBe(true);
+    expect(archivedDb._wasCalled('project', 'update')).toBe(true);
 
     const activeDb = createMockDb({
       'select:project': seq(
@@ -431,7 +431,7 @@ describe('archive mutations', () => {
     });
 
     await unarchiveProject('proj-u2', { id: 'owner-u', teamId: 'team-1' }, { db: activeDb });
-    expect(activeDb._assertCalled('project', 'update')).toBe(false);
+    expect(activeDb._wasCalled('project', 'update')).toBe(false);
   });
 
   it('archiveProject rejects a readable non-owner with ProjectAccessError', async () => {
@@ -504,7 +504,7 @@ describe('createProject — subset creation', () => {
       ok: false,
       error: { field: 'artifact', message: 'file failed to load or parse — re-upload' },
     });
-    expect(db._assertCalled('project', 'insert')).toBe(false);
+    expect(db._wasCalled('project', 'insert')).toBe(false);
   });
 
   it('rejects a spec-start subset with no uploaded exploration and creates no row (FR-3)', async () => {
@@ -515,7 +515,7 @@ describe('createProject — subset creation', () => {
       // no uploadedArtifact
     }, { id: 'owner-1', teamId: 'team-1' }, { db });
     expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
-    expect(db._assertCalled('project', 'insert')).toBe(false);
+    expect(db._wasCalled('project', 'insert')).toBe(false);
   });
 
   it('rejects a plan-start subset with no uploaded spec and creates no row (FR-4)', async () => {
@@ -526,7 +526,7 @@ describe('createProject — subset creation', () => {
       // no uploadedArtifact
     }, { id: 'owner-1', teamId: 'team-1' }, { db });
     expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
-    expect(db._assertCalled('project', 'insert')).toBe(false);
+    expect(db._wasCalled('project', 'insert')).toBe(false);
   });
 
   it('rejects a spec-start subset whose upload is a spec (wrong upstream kind) (FR-3)', async () => {
@@ -537,7 +537,7 @@ describe('createProject — subset creation', () => {
       uploadedArtifact: { kind: 'spec', filename: 'x.md', content: '## Context\n\ntext' },
     }, { id: 'owner-1', teamId: 'team-1' }, { db });
     expect(res).toMatchObject({ ok: false, error: { field: 'artifact' } });
-    expect(db._assertCalled('project', 'insert')).toBe(false);
+    expect(db._wasCalled('project', 'insert')).toBe(false);
   });
 });
 

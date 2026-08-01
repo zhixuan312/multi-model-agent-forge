@@ -24,6 +24,6 @@ describe('pushDispatchFailure — team scoping via owner targeting', () => {
       { projectId: 'p1', projectName: 'Team-A Secret', ownerId: null, handler: 'execute-pipeline', batchId: 'b1' },
       db as never,
     );
-    expect(db._assertCalled('ops_notification', 'insert')).toBe(false);
+    expect(db._wasCalled('ops_notification', 'insert')).toBe(false);
   });
 });

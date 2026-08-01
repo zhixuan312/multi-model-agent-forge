@@ -141,6 +141,13 @@
       "when": 1785110400000,
       "tag": "0019_relative_workspace_root_path",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785196800000,
+      "tag": "0020_hot_path_indexes",
+      "breakpoints": true
     }
   ]
 }

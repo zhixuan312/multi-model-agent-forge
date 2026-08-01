@@ -66,14 +66,54 @@ describe('0019 relative workspace_root_path', () => {
   });
 
   it('is registered in the drizzle journal so the migrator actually runs it', () => {
-    const journal = JSON.parse(
-      readFileSync(join(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8'),
-    ) as { entries: { idx: number; tag: string; when: number }[] };
-    const entry = journal.entries.find((e) => e.tag === '0019_relative_workspace_root_path');
-    expect(entry).toBeDefined();
-    // Ordering is by `when`; a new migration must sort after every existing one or
-    // the migrator skips it on an already-migrated database.
-    const others = journal.entries.filter((e) => e.tag !== '0019_relative_workspace_root_path');
-    expect(entry!.when).toBeGreaterThan(Math.max(...others.map((e) => e.when)));
+    expect(journalEntries().map((e) => e.tag)).toContain('0019_relative_workspace_root_path');
+  });
+});
+
+/** The drizzle journal, ordered as written. */
+function journalEntries(): { idx: number; tag: string; when: number }[] {
+  return (
+    JSON.parse(readFileSync(join(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8')) as {
+      entries: { idx: number; tag: string; when: number }[];
+    }
+  ).entries;
+}
+
+/**
+ * The journal invariant itself, not a snapshot of it.
+ *
+ * This assertion used to be pinned to 0019 — "0019's `when` is greater than every other
+ * entry's" — which held only while 0019 happened to be the newest migration. Adding 0020
+ * broke it, even though 0020 was registered correctly. A test that encodes "the current
+ * last migration is last" fails on every legitimate addition and teaches people to edit the
+ * assertion rather than check the rule. The rule is what matters: the migrator orders by
+ * `when`, so an entry that does not sort after the ones before it is silently skipped on an
+ * already-migrated database.
+ */
+describe('drizzle journal ordering', () => {
+  it('every migration sorts strictly after the one before it', () => {
+    const entries = journalEntries();
+    expect(entries.length).toBeGreaterThan(0);
+    for (let i = 1; i < entries.length; i++) {
+      expect(
+        entries[i].when,
+        `${entries[i].tag} must sort after ${entries[i - 1].tag}`,
+      ).toBeGreaterThan(entries[i - 1].when);
+    }
+  });
+
+  it('idx is dense, zero-based and matches the file order', () => {
+    journalEntries().forEach((e, i) => expect(e.idx).toBe(i));
+  });
+
+  it('every journal tag has a matching .sql file, and every .sql file is registered', () => {
+    // Either half missing is a silent no-op: an unregistered file never runs, and a
+    // registered-but-absent tag makes the migrator throw at boot.
+    const tags = new Set(journalEntries().map((e) => e.tag));
+    const files = new Set(
+      readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).map((f) => f.replace(/\.sql$/, '')),
+    );
+    expect([...tags].filter((t) => !files.has(t))).toEqual([]);
+    expect([...files].filter((f) => !tags.has(f))).toEqual([]);
   });
 });

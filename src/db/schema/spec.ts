@@ -21,5 +21,10 @@ export const qaMessage = forge.table(
     authorId: uuid('author_id').references(() => member.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('qa_message_target_seq_idx').on(t.targetId, t.seq)],
+  (t) => [
+    index('qa_message_target_seq_idx').on(t.targetId, t.seq),
+    // Per-project reads (spec page load, journal harvest). The composite above leads with
+    // target_id, so it cannot serve a project_id lookup.
+    index('qa_message_project_idx').on(t.projectId),
+  ],
 );

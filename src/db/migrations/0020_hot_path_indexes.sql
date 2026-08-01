@@ -1,0 +1,31 @@
+-- Index the one foreign key that carries a hot, growing read path and has no covering index.
+--
+-- Method: cross-reference every `references()` column in the schema against the columns
+-- actually used in WHERE clauses. Ten FKs have no index of their own; checking each one
+-- individually reduced that to exactly one worth adding, which is why this migration is
+-- three lines and not ten.
+--
+--   project_qa_message.project_id  — ADDED
+--     `loadAllMessages` (runs on every spec page load) and the journal harvest prompt both
+--     filter on it. The table's existing index is (target_id, seq), which cannot serve a
+--     project_id lookup because target_id leads. The table grows with every Q&A message
+--     ever sent, so this is the one that degrades with use.
+--
+-- Considered and deliberately NOT added:
+--   project_journal.project_id     — already covered by uniqueIndex(project_id, seq).
+--   loop_event_delivery.loop_id    — already covered by uniqueIndex(loop_id, idempotency_key).
+--   team_member.team_id            — every member query filters on it (FR-9 team isolation),
+--                                    so it looks like the obvious candidate, but the table
+--                                    holds single- to double-digit rows. Postgres will
+--                                    sequential-scan regardless; an index is pure write
+--                                    overhead. Revisit past a few thousand members.
+--   ops_mma_batch.dispatched_by    — both call sites pair it with an already-indexed column
+--                                    (batch_id, or project_id), which narrows to ~1 row first.
+--   project_activity.actor_id, team_secret.created_by, loop_def.created_by,
+--   loop_run.repo_id, loop_run.mma_batch_id, ops_mma_batch.target_repo_id,
+--   project_qa_message.author_id   — never appear in a WHERE clause anywhere in the codebase.
+--
+-- Additive and idempotent: CREATE INDEX IF NOT EXISTS only. Nothing is altered or dropped,
+-- so this is safe to apply to a live database and safe to re-run.
+
+CREATE INDEX IF NOT EXISTS "qa_message_project_idx" ON "forge"."project_qa_message" ("project_id");

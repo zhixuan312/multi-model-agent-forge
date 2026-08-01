@@ -64,10 +64,18 @@ describe('combined-html (F9/F20/F28/F32)', () => {
     expect(jobObj.sectionKeys).toEqual(expect.arrayContaining(['01', '03']));
   });
 
-  it('a present-but-malformed spec falls back to generic split (no throw)', () => {
+  // An unnumbered spec is the NORMAL case, not a malformed one — mma-spec emits
+  // `## <component>`, and no spec artifact on disk uses the numbered form. Asserts the
+  // job's contents rather than `toBeDefined()`: not throwing is a weaker claim than the
+  // fallback actually yielding a renderable section.
+  it('an unnumbered spec still contributes its content to the combined job', () => {
     const badSpec: CollectedArtifact = { ...spec, bodyMd: 'no numbered headings' };
     const job = buildCombinedJob([exploration, badSpec], 'Proj', false);
-    expect(job).toBeDefined();
+    expect(job.sourceBytes).toBe(
+      Buffer.byteLength(exploration.bodyMd) + Buffer.byteLength(badSpec.bodyMd),
+    );
+    expect(job.sectionKeys.length).toBeGreaterThan(0);
+    expect(job.buildHtml(undefined)).toContain('no numbered headings');
   });
 });
 

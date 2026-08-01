@@ -167,3 +167,53 @@ describe('template — mermaid mode', () => {
     expect(html).toContain('flowchart LR');
   });
 });
+
+/**
+ * Title-less sections must reach the PDF body.
+ *
+ * The body used to reuse the TOC's `.filter((s) => s.title.length > 0)`. Filtering the
+ * TOC is right — a lead section has no title to list — but applying it to the body
+ * silently DELETED that content from the export. Two real cases hit it: any prose
+ * before the first `##` (which `splitGeneric` emits as a title-less lead section, its
+ * own comment promising it is "kept on the page after the cover"), and a document with
+ * no headings at all, which exported as a cover page and nothing else.
+ *
+ * These assert the content is present, not merely that some section rendered — the old
+ * behaviour produced a perfectly valid, perfectly empty document.
+ */
+describe('template — title-less sections are rendered, not dropped', () => {
+  const render = (bodyMd: string, kind: 'spec' | 'plan' = 'spec') =>
+    renderArtifactHtml({
+      kind,
+      projectName: 'Proj',
+      lede: '',
+      meta: META,
+      sections: parseArtifactSections(bodyMd, kind),
+      mermaidAsDiagram: false,
+    } as TemplateInput);
+
+  it('keeps lead prose that appears before the first ## heading', () => {
+    const html = render('Intro prose that belongs to nobody.\n\n## Phase one\n\ndetail', 'plan');
+    expect(html).toContain('Intro prose that belongs to nobody.');
+    expect(html).toContain('detail');
+  });
+
+  it('renders a document with NO headings at all instead of an empty body', () => {
+    const html = render('Just a paragraph, no headings anywhere.');
+    expect(html).toContain('Just a paragraph, no headings anywhere.');
+    expect(html).toContain('<table class="section"');
+  });
+
+  it('omits the <h2> for a title-less section but still emits its body', () => {
+    const html = render('Only a lead paragraph.');
+    expect(html).toContain('Only a lead paragraph.');
+    // the cover has an <h1>; a title-less section must not invent an empty <h2>
+    expect(html).not.toContain('<h2></h2>');
+  });
+
+  it('still lists ONLY titled sections in the contents', () => {
+    const html = render('Lead prose.\n\n## Real heading\n\nbody', 'plan');
+    const tocTitles = [...html.matchAll(/<span class="toc-title">([^<]*)<\/span>/g)].map((m) => m[1]);
+    expect(tocTitles).toEqual(['Real heading']);
+  });
+});

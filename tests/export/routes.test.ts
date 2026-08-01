@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server';
 import type { AuthedMember } from '@/auth/auth-provider';
 import { parseExportKind, mapExportError } from '@/export/route-helpers';
 import { ArtifactNotReadyError } from '@/export/collect-artifacts';
-import { SpecHeadingContractError } from '@/export/sections';
 import {
   PdfTimeoutError,
   PdfTooLargeError,
@@ -71,7 +70,6 @@ describe('route helpers — error → status mapping (F27, test 15)', () => {
   const cases: [unknown, number, string][] = [
     [new ProjectAccessError(), 403, 'forbidden'],
     [new ArtifactNotReadyError('plan'), 409, 'artifact_not_ready'],
-    [new SpecHeadingContractError('x'), 409, 'spec_heading_contract_mismatch'],
     [new NothingToExportError(), 409, 'nothing_to_export'],
     [new PdfTooLargeError(), 413, 'export_too_large'],
     [new PdfQueueFullError(), 503, 'pdf_queue_full'],

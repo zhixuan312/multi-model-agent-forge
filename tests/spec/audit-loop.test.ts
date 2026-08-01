@@ -64,14 +64,12 @@ describe('parseAuditEnvelope (pure)', () => {
 
 describe('nextPassNo', () => {
   it('returns 1 when no passes exist', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const d = buildInitialDetails();
     const mockDb = createMockDb({ 'select:project': [{ details: d }] });
     expect(await nextPassNo(mockDb, 'proj-1')).toBe(1);
   });
 
   it('returns count+1 from details audit passes', async () => {
-    const { buildInitialDetails } = await import('@/details/schema');
     const d = buildInitialDetails();
     d.stages.spec.phases.finalize.auditPasses = [
       { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },

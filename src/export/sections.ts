@@ -4,12 +4,18 @@
  * mermaid blocks, and converts each section body to SANITIZED HTML.
  *
  * Spec heading contract (F21): `## NN. <Title>` — level-2, zero-padded two-digit
- * number, REQUIRED trailing period. Zero matches in a `spec` artifact is a
- * contract violation (`SpecHeadingContractError` → 409 at the route).
+ * number, REQUIRED trailing period. This is now a LEGACY form that nothing emits:
+ * mma-spec writes `## <component>` with `### <section>` beneath it, and 0 of the 27
+ * spec artifacts on disk are numbered. It is still recognised when present, but the
+ * real path for a spec is the generic split below.
+ *
+ * Zero matches used to be described as a fail-loud contract violation (409 via
+ * `SpecHeadingContractError`). No code ever threw it, and enforcing it would have
+ * rejected every spec in the product — so the fallback IS the contract, and the
+ * error class has been removed rather than wired up.
  *
  * Non-spec artifacts (exploration/plan) split on every level-2 `##` (F5);
  * content before the first `##` is the lead section.
- *
  *
  * HTML sanitization (F13/F20): markdown → HTML runs through unified
  * remark→rehype WITHOUT raw-HTML passthrough (raw HTML is dropped, never
@@ -24,17 +30,6 @@ import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 
 export type ParseArtifactKind = 'exploration' | 'spec' | 'plan' | 'journal';
-
-/** Thrown when a `spec` body yields zero `## NN.` sections (F21, fail-loud). */
-export class SpecHeadingContractError extends Error {
-  /** First 200 chars of the offending body, for the route log. */
-  readonly sample: string;
-  constructor(sample: string) {
-    super('spec_heading_contract_mismatch');
-    this.name = 'SpecHeadingContractError';
-    this.sample = sample.slice(0, 200);
-  }
-}
 
 /** A mermaid fenced block extracted from a section (the raw diagram source). */
 export interface MermaidBlock {
@@ -155,7 +150,12 @@ function splitGeneric(bodyMd: string): RawSection[] {
 /**
  * Parse an artifact body into page-able, sanitized sections.
  *
- * @throws SpecHeadingContractError when `kind==='spec'` and zero `## NN.` match.
+ * Never throws on shape. A spec is TRIED as `## NN.` first and falls back to the
+ * generic `##` split — which is the path every real spec takes: mma-spec emits
+ * `## <component>` with `### <section>` beneath it, not numbered headings (0 of 27
+ * spec artifacts on disk use the numbered form). An earlier design failed loud here
+ * via `SpecHeadingContractError`; that error was never thrown by any code path, and
+ * making it throw would have 409'd every export in the product.
  */
 export function parseArtifactSections(
   bodyMd: string,

@@ -116,7 +116,6 @@ describe('findInflight — project-level single-flight (handler omitted)', () =>
  */
 describe('dispatchMma — sync handler receives body + meta merged as request', () => {
   it('merges meta (e.g. taskId) into ctx.request, not just body', async () => {
-    const { registerHandler } = await import('@/dispatch/handler-registry');
     let seen: unknown = null;
     registerHandler('test-capture-request', async (_db, ctx) => { seen = ctx.request; });
 
@@ -242,7 +241,6 @@ describe('dispatchMma — a throwing terminal handler fails the batch + rethrows
   };
 
   it('marks the row failed and rethrows when the sync handler throws', async () => {
-    const { registerHandler } = await import('@/dispatch/handler-registry');
     registerHandler('test-throwing-handler', async () => { throw new Error('handler boom'); });
 
     const db = createMockDb({
@@ -403,7 +401,6 @@ describe('dispatchMma activity integration', () => {
   it('creates a running row for tracked handlers including spec-auto-draft', async () => {
     recordActivity.mockClear();
     // Register a no-op handler to prevent the real handler from running
-    const { registerHandler } = await import('@/dispatch/handler-registry');
     registerHandler('spec-auto-draft', async () => {});
 
     const db = createMockDb({

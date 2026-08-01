@@ -7,8 +7,8 @@
  * continuous HTML doc, and hand a single `RenderJob` to `PdfRenderer` so
  * pagination + footers are continuous across artifact boundaries.
  *
- * A present-but-malformed spec (zero `## NN.`) aborts the whole bundle with
- * `SpecHeadingContractError` (F32) — surfaced by the route as 409.
+ * A present-but-malformed spec does NOT abort the bundle: `parseArtifactSections`
+ * falls back to a generic `##` split, which is the path every real spec takes.
  */
 import {
   parseArtifactSections,
@@ -116,18 +116,12 @@ function combinedSectionKeys(artifacts: CollectedArtifact[]): string[] {
   return keys;
 }
 
-/**
- * Build a `RenderJob` for the combined PDF. Throws `SpecHeadingContractError`
- * eagerly if a present spec is malformed (F32) — callers map to 409.
- */
+/** Build a `RenderJob` for the combined PDF. */
 export function buildCombinedJob(
   artifacts: CollectedArtifact[],
   projectName: string,
   mermaidAsDiagram: boolean,
 ): RenderJob {
-  // Validate the spec heading contract up front (parse throws on zero ## NN.).
-  for (const a of artifacts) sectionsFor(a);
-
   const sourceBytes = artifacts.reduce((n, a) => n + Buffer.byteLength(a.bodyMd), 0);
   return {
     sourceBytes,

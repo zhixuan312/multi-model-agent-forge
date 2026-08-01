@@ -4,7 +4,6 @@ import {
   markdownToSafeHtml,
   extractMermaid,
   hasMermaid,
-  SpecHeadingContractError,
 } from '@/export/sections';
 
 const SPEC_BODY = [
@@ -31,21 +30,24 @@ describe('sections — spec split (F2/F21)', () => {
     expect(secs[1].title).toBe('Technical design');
   });
 
+  // The fallback is not an edge case: mma-spec emits `## <component>`, so it is the
+  // path EVERY real spec takes. These assert the resulting sections, not just a count —
+  // "length >= 1" passed equally well when the split was wrong.
+  it('a spec with unnumbered ## headings splits on them, keeping the titles', () => {
+    const sections = parseArtifactSections('## Context\n\nbody a\n\n## Problem\n\nbody b', 'spec');
+    expect(sections.map((s) => s.title)).toEqual(['Context', 'Problem']);
+    expect(sections[0].bodyMd).toContain('body a');
+  });
 
-
-
-  it('zero ## NN. matches in a spec falls back to generic H2 split', () => {
+  it('a spec with NO headings at all yields one section rather than throwing', () => {
     const sections = parseArtifactSections('# Title\n\nno numbered headings here', 'spec');
-    expect(sections.length).toBeGreaterThanOrEqual(1);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].bodyMd).toContain('no numbered headings here');
   });
 
-  it('a section title without a trailing period falls back to generic split', () => {
+  it('a single-digit "## 1." is NOT the numbered form (two digits required) — generic split', () => {
     const sections = parseArtifactSections('## 1. one\n\nbody', 'spec');
-    expect(sections.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('SpecHeadingContractError is exported for backward compat', () => {
-    expect(SpecHeadingContractError).toBeDefined();
+    expect(sections.map((s) => s.title)).toEqual(['1. one']);
   });
 });
 

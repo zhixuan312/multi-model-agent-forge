@@ -6,7 +6,6 @@
 import { NextResponse } from 'next/server';
 import { ProjectAccessError } from '@/projects/projects-core';
 import { ArtifactNotReadyError } from '@/export/collect-artifacts';
-import { SpecHeadingContractError } from '@/export/sections';
 import {
   PdfTimeoutError,
   PdfTooLargeError,
@@ -40,9 +39,6 @@ export function mapExportError(e: unknown): NextResponse | null {
   }
   if (e instanceof ArtifactNotReadyError) {
     return NextResponse.json({ error: 'artifact_not_ready' }, { status: 409 });
-  }
-  if (e instanceof SpecHeadingContractError) {
-    return NextResponse.json({ error: 'spec_heading_contract_mismatch' }, { status: 409 });
   }
   if (e instanceof NothingToExportError) {
     return NextResponse.json({ error: 'nothing_to_export' }, { status: 409 });

@@ -227,8 +227,16 @@ export function renderArtifactHtml(input: TemplateInput): string {
     input.sections,
     input.tocRanges,
   );
+  // Every section is rendered, INCLUDING title-less ones. The TOC above filters
+  // those out (there is no title to list), and the same filter used to be applied
+  // here — which silently dropped their content from the PDF entirely. A title-less
+  // section is not an edge case: `splitGeneric` emits one for any prose before the
+  // first `##` ("lead content", its own comment says, "kept on the page after the
+  // cover"), and one for a document with no headings at all — which exported as a
+  // cover page and nothing else. `renderSection` already handles an empty title
+  // (it omits the `<h2>` and the "(continued)" label falls back), so that support
+  // was unreachable rather than absent.
   const body = input.sections
-    .filter((s) => s.title.length > 0)
     .map((s) => renderSection(s, input.sectionHeaders, input.mermaidAsDiagram))
     .join('\n');
 

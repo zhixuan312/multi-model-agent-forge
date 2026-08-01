@@ -102,7 +102,8 @@ export async function exportPdf(
   deps: ServiceDeps = {},
 ): Promise<PdfDownload> {
   const collected = await collectArtifact(projectId, kind, actor);
-  // Parse (spec fails loud on zero `## NN.`). Every export is the WHOLE artifact —
+  // Parse. A spec with no `## NN.` headings falls back to a generic `##` split (the
+  // path every real spec takes). Every export is the WHOLE artifact —
   // section selection was removed with the PDF dialog it belonged to.
   const sections = parseArtifactSections(collected.bodyMd, kind);
 
@@ -159,7 +160,6 @@ export async function exportBundle(
   const name = await projectName(projectId);
   const renderer = deps.renderer ?? getPdfRenderer();
 
-  // Combined PDF (throws SpecHeadingContractError on a malformed present spec, F32).
   const combinedPdf = await renderer.render(buildCombinedJob(ready, name, opts.mermaidAsDiagram));
 
   const { stream, entryNames, fileName, done } = buildBundleZip({

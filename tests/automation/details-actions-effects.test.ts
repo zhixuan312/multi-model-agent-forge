@@ -113,6 +113,47 @@ describe('executeDetailsAction — set_brief (intent + derived summary)', () => 
     expect(write.summary).toBe(shortText);
     expect(write.summary!.includes('…')).toBe(false);
   });
+
+  // `data` arrives as Record<string, unknown> off the wire. The handler used to cast it
+  // with `as string` and only null-check, so a non-string — or a brief of unbounded length
+  // — reached the `brief_md` text column and `intentMd`. `briefSchema` declared the 100k
+  // ceiling from the start; nothing applied it until now.
+  it('rejects a brief over the 100k ceiling instead of writing it', async () => {
+    const db = createMockDb({
+      'select:project': [{ details: briefState(), detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    await expect(executeDetailsAction('proj-1', {
+      kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief',
+      data: { text: 'x'.repeat(100_001), actorId: FORGE_MEMBER_ID },
+    } as never, db)).rejects.toThrow(/100,000 characters/);
+    expect(intentColumnWrite(db).intentMd).toBeUndefined();
+  });
+
+  it('rejects a non-string brief instead of casting it', async () => {
+    const db = createMockDb({
+      'select:project': [{ details: briefState(), detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    await expect(executeDetailsAction('proj-1', {
+      kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief',
+      data: { text: { not: 'a string' }, actorId: FORGE_MEMBER_ID },
+    } as never, db)).rejects.toThrow(/at most 100,000 characters/);
+    expect(intentColumnWrite(db).intentMd).toBeUndefined();
+  });
+
+  it('still accepts a brief exactly at the ceiling', async () => {
+    const db = createMockDb({
+      'select:project': [{ details: briefState(), detailsVersion: 1 }],
+      'update:project': [{ id: 'proj-1' }],
+    });
+    const atLimit = 'y'.repeat(100_000);
+    await executeDetailsAction('proj-1', {
+      kind: 'set_brief', note: 'Save brief', stage: 'exploration', phase: 'brief',
+      data: { text: atLimit, actorId: FORGE_MEMBER_ID },
+    } as never, db);
+    expect(intentColumnWrite(db).intentMd).toBe(atLimit);
+  });
 });
 
 describe('executeDetailsAction activity attribution', () => {

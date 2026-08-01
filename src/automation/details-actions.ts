@@ -651,10 +651,16 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     //    implementation each, from explore/brief (saveBrief) and the spec outline
     //    confirm (confirmComponents).
     case 'set_brief': {
-      const text = action.data?.text as string | undefined;
-      if (text == null) break;
+      if (action.data?.text == null) break;
+      const { saveBrief, briefSchema } = await import('@/exploration/explore-core');
+      // Validate rather than cast. `data` arrives as `Record<string, unknown>` off the
+      // wire, so `as string` admitted a non-string — and a brief of unbounded length —
+      // straight into a `text` column and into `intentMd`. `briefSchema` declared the
+      // 100k ceiling all along; nothing applied it.
+      const parsed = briefSchema.safeParse({ text: action.data.text });
+      if (!parsed.success) throw new Error('Brief must be text of at most 100,000 characters.');
+      const text = parsed.data.text;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
-      const { saveBrief } = await import('@/exploration/explore-core');
       const { deriveSummary } = await import('@/spec/summary');
       await saveBrief(projectId, text, { id: actorId }, db);
       // The brief IS the intent — persist it verbatim and derive the one-line card

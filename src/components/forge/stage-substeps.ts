@@ -82,11 +82,6 @@ export function useStageSubPhase(): string {
   return useSyncExternalStore(stagePhaseStore.subscribe, stagePhaseStore.get, () => '');
 }
 
-/** Whether the active page exposes sub-phase navigation (so the chips become clickable). */
-export function useStageNavigable(): boolean {
-  return useSyncExternalStore(stagePhaseStore.subscribe, stagePhaseStore.hasNavigator, () => false);
-}
-
 /**
  * Publish the active sub-phase — to the stepper AND to the URL.
  *

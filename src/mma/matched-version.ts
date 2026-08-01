@@ -21,9 +21,6 @@ import pkg from '../../package.json';
 export const MATCHED_MMA_VERSION: string =
   (pkg as { matchedMmaVersion?: string }).matchedMmaVersion ?? '0.0.0';
 
-/** Where to review what changed between the matched version and a newer engine. */
-export const MMA_CHANGELOG_URL = 'https://github.com/zhixuan312/multi-model-agent/blob/master/CHANGELOG.md';
-
 export type MmaVersionMatch = 'matched' | 'engine-ahead' | 'engine-behind' | 'unknown';
 
 export interface MmaVersionStatus {

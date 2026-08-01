@@ -23,10 +23,6 @@ export function formatDuration(ms: number | null): string {
   return `${hours.toFixed(1)}h`;
 }
 
-export function formatAgentHours(ms: number | null): string {
-  return formatDuration(ms);
-}
-
 export function formatRoi(saved: number | null, actual: number | null): string {
   if (saved === null || actual === null || actual === 0) return '—';
   const roi = (saved + actual) / actual;

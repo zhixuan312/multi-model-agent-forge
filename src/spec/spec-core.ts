@@ -230,46 +230,6 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
   return views;
 }
 
-/** The repaint payload returned by the nod handler. */
-export interface SectionRepaint {
-  component: {
-    status: ComponentStatus;
-    aiSatisfied: boolean;
-    humanSatisfied: boolean;
-    forced: boolean;
-    stale: boolean;
-  };
-  qaMessages: Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>;
-}
-
-/** Build the repaint payload for a component after a mutation. */
-export async function buildSectionRepaint(db: Db, sectionId: string): Promise<SectionRepaint> {
-  const dbi = db ?? getDb();
-  // sectionId is `{componentId}-{sectionKey}` — extract componentId
-  const componentId = sectionId.includes('-') ? sectionId.slice(0, 36) : sectionId;
-
-  // Find the project that has this component in details
-  const rows = await dbi.select({ id: project.id, details: project.details }).from(project);
-  for (const r of rows) {
-    if (!r.details) continue;
-    const d = validateDetails(r.details);
-    const comp = d.stages.spec.phases.craft.components.find((c) => c.id === componentId);
-    if (comp) {
-      const hasApproval = comp.approvals.length > 0;
-      return {
-        component: {
-          status: hasApproval ? 'approved' : 'gathering',
-          aiSatisfied: true,
-          humanSatisfied: hasApproval,
-          forced: false,
-          stale: false,
-        },
-        qaMessages: await loadComponentMessages(dbi, componentId),
-      };
-    }
-  }
-  throw new Error(`No component '${componentId}' found in any project details.`);
-}
 
 /** Load all qa_messages for every component in a project, keyed by componentId. */
 export async function loadAllMessages(

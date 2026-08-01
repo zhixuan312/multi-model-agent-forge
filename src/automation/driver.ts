@@ -201,7 +201,3 @@ export async function driveProject(projectId: string): Promise<void> {
     await releaseDriverLease(db, projectId, driverId).catch(() => {});
   }
 }
-
-export function isDriverRunning(projectId: string): boolean {
-  return activeDrivers.get(projectId) ?? false;
-}

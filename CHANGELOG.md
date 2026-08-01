@@ -16,6 +16,38 @@ All notable changes to this project will be documented in this file.
   Release is immutable and needs no bot commit back to `master`; entries from 0.1.4 and earlier
   keep their inline digests.
 
+### Removed
+- **Dead code sweep.** An import-graph walk from the real production entry points, a
+  route-caller walk, and an export-reference pass removed ~40 files that nothing reached:
+  five unused design-system primitives (`dialog`, `tabs`, `kbd`, `page-header`, `skeleton`)
+  and five now-unused dependencies with them, `src/anthropic/` (Forge reaches models only
+  through MMA — the client was never instantiated in production), 14 unwired scripts, and
+  the selective-spec-export feature orphaned when PDF export became a direct download.
+- **Eight API routes with no caller**, nearly all left behind when a page moved to
+  server-side data loading: `/api/mma-health`, `/api/model-profiles`, `/api/usage`,
+  `/api/journal/log`, `/api/loops/[id]/runs`, `/api/projects/[id]/review/passes`,
+  `/api/projects/[id]/artifacts/[kind]/download`, `/api/notifications/[id]/dismiss`.
+
+### Changed
+- **All HTTP endpoints now live under `app/api/`.** Five route handlers sat under
+  `app/(app)/` beside page files, which also split middleware behaviour — `/api/*` returns a
+  401 JSON while everything else redirects to `/login`, so an expired session failed
+  differently depending on the endpoint. Internal paths only; no external contract changes.
+- **`engines.node` is now `>=22.0.0`**, matching what actually runs. It declared `>=20.9.0`
+  while every Dockerfile stage, CI, and the bundled MMA engine required 22 — so a Node 20
+  install succeeded and then failed at runtime on the engine co-process.
+
+### Fixed
+- **"Stop & take over" now stops the engine.** It cleared automation and released the driver
+  lease but never cancelled the task MMA had already been given, which kept running — still
+  spending tokens, and still committing to the project branch after a human took the wheel.
+- **The spec audit gate and the review UI now read findings by the same rules.** The gate
+  accepted envelope shapes the display path did not, so a finding could gate a stage while
+  the page and the fix prompt both labelled it `medium`.
+- **`session.revoke` and `startup.fatal` are now emitted.** Both were in the operational log
+  catalogue but never written, so a password change silently signing out every other device,
+  and the one fatal boot path, left no structured trace.
+
 ## [0.1.4] - 2026-07-30
 
 > **Image digest:** `ghcr.io/zhixuan312/forge@sha256:82bf9ac9beadc0f55bb67a48d0e112e2b3e55eb19b95d8eacb717b00d0f16809`

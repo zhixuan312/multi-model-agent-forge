@@ -126,7 +126,7 @@ layout, per-tier providers, backup/upgrade) and `.env.example` for every variabl
 ## Getting started (development)
 
 ```bash
-# Prerequisites: Node >= 20.9.0, PostgreSQL, MMA server running
+# Prerequisites: Node >= 22, PostgreSQL, MMA server running
 pnpm install
 pnpm db:migrate
 pnpm db:seed-templates

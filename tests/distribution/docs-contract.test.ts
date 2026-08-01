@@ -3,15 +3,48 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+/** The declared runtime floor, e.g. ">=22.0.0". */
+const enginesNode: string = (
+  JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as { engines: { node: string } }
+).engines.node;
+
+/** Major version out of a range like ">=22.0.0" → 22. */
+function majorOf(range: string): number {
+  const m = range.match(/(\d+)/);
+  if (!m) throw new Error(`cannot read a major version from engines.node "${range}"`);
+  return Number(m[1]);
+}
+
 describe('distribution docs contract', () => {
   it('keeps the README bootstrap aligned with the real scripts and Node engine', () => {
     const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
 
-    expect(readme).toContain('Node >= 20.9.0');
+    // DERIVED from package.json, never a hardcoded literal. This assertion used to spell
+    // out "Node >= 20.9.0", so it kept passing while `engines`, the Dockerfile, CI and the
+    // bundled engine had all moved on — locking the README to a stale number instead of to
+    // the truth.
+    expect(readme).toContain(`Node >= ${majorOf(enginesNode)}`);
     expect(readme).toContain('pnpm db:migrate');
     expect(readme).toContain('pnpm db:seed-templates');
     expect(readme).not.toMatch(/pnpm db:push(\s|$)/);
     expect(readme).not.toMatch(/pnpm db:seed(\s|$)/);
+  });
+
+  it('declares a Node floor the Dockerfile and CI actually run on', () => {
+    // The drift this catches: `engines` said >=20.9.0 while every `FROM node:` line was 22,
+    // CI used 22, and the bundled MMA engine requires >=22 — so a Node 20 install passed
+    // `pnpm install` and then failed at runtime on the co-process.
+    const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+    const bases = [...dockerfile.matchAll(/^FROM node:(\d+)/gm)].map((m) => Number(m[1]));
+    expect(bases.length).toBeGreaterThan(0);
+    for (const base of bases) expect(base).toBeGreaterThanOrEqual(majorOf(enginesNode));
+    // Every stage must agree with every other — a mixed-base image is its own bug.
+    expect(new Set(bases).size).toBe(1);
+
+    const workflow = readFileSync(join(process.cwd(), '.github/workflows/release.yml'), 'utf8');
+    for (const m of workflow.matchAll(/node-version:\s*'?(\d+)/g)) {
+      expect(Number(m[1])).toBeGreaterThanOrEqual(majorOf(enginesNode));
+    }
   });
 
   it('documents every env var Forge actually reads at runtime', () => {

@@ -5,6 +5,7 @@ import { Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Button, TextStrong, Micro, Mono } from '@/components/ui';
 import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
+import { showToast } from '@/components/ui/toast';
 
 export interface FormPanelValidate {
   validating: boolean;
@@ -57,7 +58,10 @@ export function FormPanel({
 }: {
   /** Accessible name for the <form> — say which record, e.g. "Edit member". */
   ariaLabel: string;
-  onSubmit: () => void;
+  /** May be async. Every current caller wraps its own body in try/catch, but the contract
+   *  must admit the promise so a future one that forgets cannot become an unhandled
+   *  rejection with no user-visible error. */
+  onSubmit: () => void | Promise<void>;
   /** The fields — stacked, or wrapped in a `FieldGrid` for two columns. */
   children: ReactNode;
   heading?: ReactNode;
@@ -91,12 +95,13 @@ export function FormPanel({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit();
+    // `onSubmit` is typed `void | Promise<void>`; a rejected promise here would otherwise
+    // be unhandled — silently no saved form and no error anywhere.
+    void Promise.resolve(onSubmit()).catch((err: unknown) => {
+      showToast({ type: 'error', message: err instanceof Error ? err.message : 'Something went wrong — try again.' });
+    });
   };
 
-  // The header is a two-column row: the left column stacks heading + summary, the right holds
-  // Edit. `items-center` centres Edit against that whole stack instead of pinning it to the
-  // first line, so it stays centred whether the summary is present or not.
   // The header is a two-column row: the left column stacks heading + summary, the right holds
   // Edit. `items-center` centres Edit against that whole stack instead of pinning it to the
   // first line, so it stays centred whether the summary is present or not.

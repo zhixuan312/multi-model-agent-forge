@@ -70,6 +70,33 @@ const gathering: ComponentView[] = [{
   sections: [{ id: 's1', key: 'background', label: 'Background', draftMd: null, orderIndex: 0 }],
 }];
 
+/**
+ * The same ~18 props were repeated verbatim in all seven cases below — about half the
+ * file — so adding a required prop meant editing seven places, and the ONE prop each
+ * case actually varies was buried in the noise. Defaults here, per-case overrides at the
+ * call site, so each test states only what it is about.
+ */
+const BASE_PROPS = {
+  projectId: 'p1',
+  projectName: 'Proj',
+  intentMd: 'Intent',
+  phase: 'design',
+  mainTierReady: true,
+  mmaReady: true,
+  defaultKinds: ['context'],
+  initialComponents: gathering,
+  initialSpec: null,
+  initialAuditHistory: [],
+  currentMember: { id: 'me', displayName: 'admin', avatarTint: '#c4521e' },
+  projectMembers: [],
+  initialMessages: {},
+  voiceEnabled: false,
+  specApprovers: [],
+} as unknown as React.ComponentProps<typeof SpecStageClient>;
+
+const renderSpec = (overrides: Partial<React.ComponentProps<typeof SpecStageClient>> = {}) =>
+  wrap(<SpecStageClient {...BASE_PROPS} {...overrides} />);
+
 describe('SpecStageClient', () => {
   beforeEach(() => {
     dispatchAutoDraft.mockClear();
@@ -84,149 +111,46 @@ describe('SpecStageClient', () => {
     // busyHandlers.has('spec-auto-draft')) must suppress it. This case FAILS at HEAD.
     it('does not fire when spec-auto-draft is busy even if pendingAutoDraft is unset', () => {
       busyHandlers = new Set(['spec-auto-draft']);
-      wrap(
-        <SpecStageClient
-          projectId="p1"
-          projectName="Proj"
-          intentMd="Intent"
-          phase="design"
-          mainTierReady
-          mmaReady
-          defaultKinds={['context']}
-          initialComponents={gathering}
-          initialSpec={null}
-          initialAuditHistory={[]}
-          currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-          projectMembers={[]}
-          initialMessages={{}}
-          voiceEnabled={false}
-          specApprovers={[]}
-          initialPhase="craft"
-        />,
-      );
+      renderSpec({ initialPhase: 'craft' });
       expect(dispatchAutoDraft).not.toHaveBeenCalled();
     });
 
     it('does not fire when pendingAutoDraft is already present', () => {
-      wrap(
-        <SpecStageClient
-          projectId="p1"
-          projectName="Proj"
-          intentMd="Intent"
-          phase="design"
-          mainTierReady
-          mmaReady
-          defaultKinds={['context']}
-          initialComponents={gathering}
-          initialSpec={null}
-          initialAuditHistory={[]}
-          currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-          projectMembers={[]}
-          initialMessages={{}}
-          voiceEnabled={false}
-          specApprovers={[]}
-          pendingAutoDraft="batch-1"
-          initialPhase="craft"
-        />,
-      );
+      renderSpec({ pendingAutoDraft: 'batch-1', initialPhase: 'craft' });
       expect(dispatchAutoDraft).not.toHaveBeenCalled();
     });
 
     it('does not fire when needsAutoDraft is false because the section is already drafted', () => {
-      wrap(
-        <SpecStageClient
-          projectId="p1"
-          projectName="Proj"
-          intentMd="Intent"
-          phase="design"
-          mainTierReady
-          mmaReady
-          defaultKinds={['context']}
-          initialComponents={[{ ...gathering[0], status: 'drafted', aiSatisfied: true, sections: [{ ...gathering[0].sections[0], draftMd: 'ready' }] }]}
-          initialSpec={null}
-          initialAuditHistory={[]}
-          currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-          projectMembers={[]}
-          initialMessages={{}}
-          voiceEnabled={false}
-          specApprovers={[]}
-          initialPhase="craft"
-        />,
-      );
+      renderSpec({
+        initialComponents: [
+          { ...gathering[0], status: 'drafted', aiSatisfied: true, sections: [{ ...gathering[0].sections[0], draftMd: 'ready' }] },
+        ],
+        initialPhase: 'craft',
+      });
       expect(dispatchAutoDraft).not.toHaveBeenCalled();
     });
   });
 
   it('shows the Team-Settings entry guard when the main tier is not configured', () => {
-    wrap(
-      <SpecStageClient
-        projectId="p1"
-        projectName="Proj"
-        intentMd="Intent"
-        phase="design"
-        mainTierReady={false}
-        mmaReady={false}
-        defaultKinds={['context']}
-        initialComponents={draftedComponents}
-        initialSpec={null}
-        initialAuditHistory={[]}
-        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-        projectMembers={[]}
-        initialMessages={{}}
-        voiceEnabled={false}
-        specApprovers={[]}
-      />,
-    );
+    renderSpec({ mainTierReady: false, mmaReady: false, initialComponents: draftedComponents });
     expect(screen.getByText(/Configure the main tier in Team Settings/)).toBeInTheDocument();
   });
 
   it('auto-constructs drafted components and shows draft ready for review', () => {
-    wrap(
-      <SpecStageClient
-        projectId="p1"
-        projectName="Proj"
-        intentMd="Intent"
-        phase="design"
-        mainTierReady={true}
-        mmaReady={true}
-        defaultKinds={['context']}
-        initialComponents={draftedComponents}
-        initialSpec={null}
-        initialAuditHistory={[]}
-        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-        projectMembers={[]}
-        initialMessages={{}}
-        voiceEnabled={false}
-        specApprovers={[]}
-      />,
-    );
+    renderSpec({ initialComponents: draftedComponents });
     expect(screen.getByText('Spec')).toBeInTheDocument();
     expect(screen.getByText('Discussion')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Approve/ })).toBeInTheDocument();
   });
 
   it('does NOT render an Open Questions section — sections arrive drafted; questions come from the refine Q&A', () => {
-    wrap(
-      <SpecStageClient
-        projectId="proj-1"
-        projectName="Proj"
-        intentMd="Intent"
-        phase="design"
-        mainTierReady={true}
-        mmaReady={true}
-        defaultKinds={['context']}
-        initialComponents={draftedComponents}
-        initialSpec={null}
-        initialAuditHistory={[]}
-        currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-        projectMembers={[]}
-        initialMessages={{
-          'proj-1': [{ id: 'msg-project', sender: 'forge', bodyMd: '**Open Questions**\n\nWho owns rollout?', authorId: null }],
-        }}
-        voiceEnabled={false}
-        specApprovers={[]}
-      />,
-    );
+    renderSpec({
+      projectId: 'proj-1',
+      initialComponents: draftedComponents,
+      initialMessages: {
+        'proj-1': [{ id: 'msg-project', sender: 'forge', bodyMd: '**Open Questions**\n\nWho owns rollout?', authorId: null }],
+      },
+    });
 
     expect(screen.queryByText(/Open Questions/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Who owns rollout/)).not.toBeInTheDocument();
@@ -238,26 +162,11 @@ describe('SpecStageClient', () => {
       // is still running server-side, so mma.busyHandlers rehydrated it via /pending-handlers.
       // The running indicator MUST come from busyHandlers, not only the ephemeral local flag.
       busyHandlers = new Set(['spec-audit']);
-      wrap(
-        <SpecStageClient
-          projectId="p1"
-          projectName="Proj"
-          intentMd="Intent"
-          phase="design"
-          mainTierReady
-          mmaReady
-          defaultKinds={['context']}
-          initialComponents={draftedComponents}
-          initialSpec={{ version: 1, bodyMd: '# Spec\n\n## Context\n\nBackground prose.' }}
-          initialAuditHistory={[]}
-          currentMember={{ id: 'me', displayName: 'admin', avatarTint: '#c4521e' }}
-          projectMembers={[]}
-          initialMessages={{}}
-          voiceEnabled={false}
-          specApprovers={[]}
-          initialPhase="finalize"
-        />,
-      );
+      renderSpec({
+        initialComponents: draftedComponents,
+        initialSpec: { version: 1, bodyMd: '# Spec\n\n## Context\n\nBackground prose.' },
+        initialPhase: 'finalize',
+      });
       expect(screen.getByText('Auditing…')).toBeInTheDocument();
     });
   });

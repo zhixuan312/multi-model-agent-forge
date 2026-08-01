@@ -9,17 +9,30 @@ import { project } from '@/db/schema/projects';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 
 /**
- * Shared guard for spec write handlers: CSRF → auth → membership → phase guard.
- * Returns either an error `NextResponse` or the resolved actor. `member` carries
- * the full authed member (displayName/tint) for routes that emit SSE/notifications;
- * `memberId` is the convenience accessor most callers use.
+ * The single guard for every project write handler: CSRF → auth → membership, plus an
+ * optional phase check.
+ *
+ * There used to be three of these — `guardSpecWrite` (spec), `guardExploreWrite`
+ * (explore) and `guardBuildWrite` (build). The latter two were byte-for-byte identical,
+ * and the first was the same thing plus the optional phase check, each shipping its own
+ * `GuardedActor` interface. Three copies of a SECURITY guard means a correction to the
+ * CSRF/auth ordering has to be made — and remembered — in three places.
+ *
+ * The duplication had already produced a visible inconsistency: under
+ * `plan/tasks/[taskId]/`, `refine` guarded with the build variant while its siblings
+ * `message` and `invite` used the spec one, so adjacent routes on the same resource were
+ * protected by different (if equivalent) code.
+ *
+ * Returns an error `NextResponse` to hand straight back, or the resolved actor.
  */
 export interface GuardedActor {
+  /** The convenience accessor most callers use. */
   memberId: string;
+  /** The full authed member (displayName/tint) for routes that emit SSE or notifications. */
   member: AuthedMember;
 }
 
-export async function guardSpecWrite(
+export async function guardProjectWrite(
   req: NextRequest,
   projectId: string,
   opts: { requireUnfrozen?: boolean } = {},
@@ -32,8 +45,9 @@ export async function guardSpecWrite(
   const actor = projectActorFromMember(me);
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Membership predicate (public OR project_member). 403 on a write (the actor
-  // already knows the project exists if they reached here).
+  // Membership predicate (public OR project_member). 403 on a write — the actor
+  // already knows the project exists if they reached here, so there is nothing to
+  // hide behind the read path's anti-enumeration 404.
   try {
     await assertProjectReadable(projectId, actor);
   } catch (e) {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
-import { guardExploreWrite } from '@/exploration/guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { addTask, readRailTasks, TaskLockedError } from '@/exploration/explore-core';
 
 /** `GET` — the rail task list (joined to mma_batch); `POST` — add a draft task. */
@@ -39,7 +39,7 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id } = await params;
 
-  const guard = await guardExploreWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
   const json = await req.json().catch(() => null);

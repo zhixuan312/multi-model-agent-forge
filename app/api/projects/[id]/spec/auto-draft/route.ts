@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
@@ -14,7 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
   const db = getDb();

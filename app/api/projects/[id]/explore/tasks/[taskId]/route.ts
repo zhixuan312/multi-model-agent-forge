@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { guardExploreWrite } from '@/exploration/guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { editTask, removeTask, TaskLockedError } from '@/exploration/explore-core';
 
 export const runtime = 'nodejs';
@@ -16,7 +16,7 @@ export async function PATCH(
 ): Promise<NextResponse> {
   const { id, taskId } = await params;
 
-  const guard = await guardExploreWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
   const json = await req.json().catch(() => null);
@@ -38,7 +38,7 @@ export async function DELETE(
 ): Promise<NextResponse> {
   const { id, taskId } = await params;
 
-  const guard = await guardExploreWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
   try {

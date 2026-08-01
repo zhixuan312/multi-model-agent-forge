@@ -6,7 +6,7 @@ import { member } from '@/db/schema/identity';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { insertNotification } from '@/collab/notification-store';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { teamSpecTemplate } from '@/db/schema/team';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -17,7 +17,7 @@ export async function POST(
   const { id } = await params;
   // CSRF + auth + tenant scope — this route was reachable by any authed member against any
   // team's project, injecting participants and spamming notifications to arbitrary member ids.
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 

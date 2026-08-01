@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/db/client';
 import { updateDetails } from '@/details/write';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { projectEventBus } from '@/sse/event-bus';
 import { recordActivity } from '@/activity/project-activity';
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
   // CSRF + auth + tenant scope — without it, any authed member could approve/revoke another
   // team's spec finalize gate.
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 

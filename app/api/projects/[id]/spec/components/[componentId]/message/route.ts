@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { projectEventBus } from '@/sse/event-bus';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, componentId } = await ctx.params;
   // CSRF + auth + tenant scope (project must belong to the caller's team) — without
   // assertProjectReadable this route let any authed member post into another team's spec chat.
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 

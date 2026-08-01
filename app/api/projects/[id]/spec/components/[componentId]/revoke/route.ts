@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { getDb } from '@/db/client';
 import { updateDetails } from '@/details/write';
 import { projectEventBus } from '@/sse/event-bus';
@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string; componentId: string }> };
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, componentId } = await ctx.params;
 
-  const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
+  const guard = await guardProjectWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
 
   const me = await currentMember();

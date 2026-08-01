@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
-import { guardBuildWrite } from '@/build/guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
@@ -17,7 +17,7 @@ type Ctx = { params: Promise<{ id: string; taskId: string }> };
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, taskId } = await ctx.params;
 
-  const guard = await guardBuildWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
 
   const db = getDb();

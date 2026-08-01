@@ -5,7 +5,7 @@ import { project } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { updateDetails } from '@/details/write';
 import { insertNotification } from '@/collab/notification-store';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { validateDetails } from '@/details/schema';
 
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id } = await params;
   // CSRF + auth + tenant scope — same IDOR class as the spec invite route.
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 

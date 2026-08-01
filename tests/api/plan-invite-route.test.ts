@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import type { AuthedMember } from '@/auth/auth-provider';
 import { createMockDb } from '../test-utils/mock-db';
 
-// The route delegates CSRF + auth + tenant scope to the shared `guardSpecWrite` (proven across
+// The route delegates CSRF + auth + tenant scope to the shared `guardProjectWrite` (proven across
 // ~10 routes); here we mock the guard to isolate the route's OWN logic: invitee-in-team check,
 // plan-level participant persistence, and the single notification. `guardResult` is either the
 // resolved actor or an error NextResponse (the unauth path).
@@ -12,7 +12,7 @@ let guardResult: { memberId: string; member: AuthedMember } | NextResponse = Nex
 let capturedMutator: ((d: { stages: { plan: { participants: string[] } } }) => unknown) | null = null;
 const insertNotification = vi.fn(async () => 'n1');
 
-vi.mock('@/spec/handler-guard', () => ({ guardSpecWrite: async () => guardResult }));
+vi.mock('@/auth/guard-project-write', () => ({ guardProjectWrite: async () => guardResult }));
 vi.mock('@/details/write', () => ({ updateDetails: vi.fn(async (_db: unknown, _id: string, fn: (d: unknown) => unknown) => { capturedMutator = fn as never; }) }));
 vi.mock('@/collab/notification-store', () => ({ insertNotification }));
 vi.mock('@/details/schema', () => ({ validateDetails: (x: unknown) => x }));

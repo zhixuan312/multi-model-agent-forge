@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getLatestSpec } from '@/spec/assemble';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,7 +11,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
 
-  const guard = await guardSpecWrite(req, id, { requireUnfrozen: true });
+  const guard = await guardProjectWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
 
   const spec = await getLatestSpec(null, id);

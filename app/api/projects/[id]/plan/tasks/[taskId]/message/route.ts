@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
-import { guardSpecWrite } from '@/spec/handler-guard';
+import { guardProjectWrite } from '@/auth/guard-project-write';
 import { projectEventBus } from '@/sse/event-bus';
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string; taskId: string }> };
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id, taskId } = await ctx.params;
   // CSRF + auth + tenant scope — same IDOR class as the spec message route.
-  const guard = await guardSpecWrite(req, id);
+  const guard = await guardProjectWrite(req, id);
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 

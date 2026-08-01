@@ -80,6 +80,9 @@ export interface AuditPassView {
   verdict: 'clean' | 'revised';
   findings?: Finding[];
   applied?: boolean;
+  /** WHICH findings were applied. Marks only those rows, leaving the rest selectable so a
+   *  partial apply can be finished — the whole-round `applied` boolean cannot express that. */
+  appliedIndices?: number[];
 }
 
 interface SpecStageClientProps {
@@ -1444,7 +1447,7 @@ function DocumentScreen({
   const refresh = useCallback(() => router.refresh(), [router]);
   const optimistic = useOptimisticAction();
   const initialRounds = useMemo(() =>
-    initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false })),
+    initialAuditHistory.map((p) => ({ passNo: p.passNo, verdict: p.verdict, findings: p.findings ?? [], applied: p.applied ?? false, appliedIndices: p.appliedIndices ?? [] })),
     [initialAuditHistory],
   );
   const [rounds] = useServerState(initialRounds);
@@ -1695,7 +1698,9 @@ function DocumentScreen({
               selectedIndices={selectedFindings}
               onToggle={toggleFinding}
               applying={applying}
-              applied={activeRound.applied || appliedPasses.has(activeRound.passNo)}
+              // Mark only the applied rows, leaving the rest selectable so a partial apply
+              // can be finished — `applied={…}` would green every finding and lock the grid.
+              appliedIndices={activeRound.appliedIndices}
               readOnly={readOnly}
             />
           ) : (
@@ -1745,7 +1750,9 @@ function DocumentScreen({
                 selectedCount={selectedFindings.length}
                 total={activeRound.findings.length}
                 applying={applying}
-                readOnly={readOnly || activeRound.applied || appliedPasses.has(activeRound.passNo)}
+                // Locked only when EVERY finding has been applied. It used to lock on the
+                // first apply of any subset, stranding the remaining findings.
+                readOnly={readOnly || activeRound.appliedIndices.length >= activeRound.findings.length}
                 onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
                 onApply={() => apply(activeRound.passNo, selectedFindings)}
               />

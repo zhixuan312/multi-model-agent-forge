@@ -96,7 +96,7 @@ export default async function SpecStagePage({
         /* Narrows the server row to what the client needs (`createdAt` is unused there).
            Findings pass straight through: `ParsedFinding` extends the same `Finding`
            contract the grid renders, so there is nothing to remap field by field. */
-        auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, findings: p.findings }))
+        auditHistory.map((p) => ({ passNo: p.passNo, findingsCount: p.findingsCount, verdict: p.verdict, applied: p.applied, appliedIndices: p.appliedIndices, findings: p.findings }))
       }
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}
       projectMembers={projectMembers}

@@ -281,14 +281,22 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const selected = Array.isArray(selRaw)
         ? selRaw.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < allFindings.length)
         : [];
-      const findings = selected.length > 0 ? selected.map((i) => allFindings[i]) : allFindings;
+      // The effective indices, whether the caller named a subset or asked for all. Recorded
+      // below so the UI can show WHICH findings were applied.
+      const indices = selected.length > 0 ? selected : allFindings.map((_, i) => i);
+      const findings = indices.map((i) => allFindings[i]);
       if (findings.length === 0) break;
       await backupArtifact(projectId, scope === 'spec' ? 'spec.md' : 'plan.md');
       const prompt = buildRevisePrompt(filePath, findings);
       await dispatchMma({
         db, mma, projectId, route: 'orchestrate', handler: `${scope}-audit-apply`, cwd,
         body: { prompt, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, await: true,
+        // `passNo` + `findingIndices` ride in meta → the batch `request` column → the stage
+        // page reads them back to mark exactly the applied rows. The review-apply dispatch
+        // has always done this; the audit path recorded NOTHING, so its UI could only fall
+        // back to a whole-round boolean that marks un-applied findings as applied and locks
+        // the round before a partial apply can be finished.
+        actorId: FORGE_MEMBER_ID, meta: { passNo: targetPass.passNo, findingIndices: indices }, await: true,
       });
       break;
     }

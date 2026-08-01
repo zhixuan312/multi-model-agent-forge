@@ -26,7 +26,6 @@ const attemptSchema = z.object({
 const auditPassSchema = z.object({
   passNo: z.number(),
   status: auditPassStatus,
-  appliedIndexes: z.array(z.number()).optional(),
   audit: z.object({ attempts: z.array(attemptSchema) }).optional(),
   fix: z.object({ attempts: z.array(attemptSchema) }).optional(),
 });
@@ -34,7 +33,6 @@ const auditPassSchema = z.object({
 const reviewPassSchema = z.object({
   passNo: z.number(),
   status: auditPassStatus,
-  appliedIndexes: z.array(z.number()).optional(),
   review: z.object({ attempts: z.array(attemptSchema) }).optional(),
   fix: z.object({ attempts: z.array(attemptSchema) }).optional(),
 });

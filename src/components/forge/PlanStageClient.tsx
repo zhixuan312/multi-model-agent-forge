@@ -105,6 +105,9 @@ export interface PlanStageClientProps {
   planMd: string;
   auditRounds: Finding[][];
   auditApplied?: boolean[];
+  /** Per round, WHICH findings were applied (indices into that round's findings). Marks only
+   *  those rows so the rest stay selectable and a partial apply can be finished. */
+  auditAppliedIndices?: number[][];
   voiceEnabled?: boolean;
   pendingAuthor?: string | null;
   pendingAudit?: string | null;
@@ -190,9 +193,14 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const initialRounds = useMemo(
     () => props.auditRounds.map((findings, i) => {
       const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
-      return { passNo: i + 1, verdict: hasCritHigh ? 'revised' as const : 'clean' as const, findings };
+      return {
+        passNo: i + 1,
+        verdict: hasCritHigh ? 'revised' as const : 'clean' as const,
+        findings,
+        appliedIndices: props.auditAppliedIndices?.[i] ?? [],
+      };
     }),
-    [props.auditRounds],
+    [props.auditRounds, props.auditAppliedIndices],
   );
   const [rounds] = useServerState(initialRounds);
   const optimistic = useOptimisticAction();

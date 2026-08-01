@@ -129,7 +129,6 @@ describe('validateDetails', () => {
     d.stages.spec.phases.finalize.auditPasses = [{
       passNo: 1,
       status: 'revised',
-      appliedIndexes: [0, 1, 2],
       audit: { attempts: [{ batchId: 'a1', status: 'done', at: '2026-07-01T00:00:00Z' }] },
       fix: { attempts: [{ batchId: 'f1', status: 'done', at: '2026-07-01T00:01:00Z' }] },
     }];

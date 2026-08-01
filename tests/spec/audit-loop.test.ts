@@ -6,7 +6,8 @@ import {
 
 } from '@/spec/audit-loop';
 import { auditEnvelope } from './mock-mma';
-import { createMockDb } from '../test-utils/mock-db';
+import { buildInitialDetails } from '@/details/schema';
+import { createMockDb, seq } from '../test-utils/mock-db';
 
 describe('parseAuditEnvelope (pure)', () => {
   it('parses findings + flags critical/high', () => {
@@ -90,5 +91,61 @@ describe('auditPassHistory', () => {
     });
     const history = await auditPassHistory(mockDb, 'proj-1');
     expect(history).toEqual([]);
+  });
+
+  /**
+   * `appliedIndices` is what lets a stage mark ONLY the findings that were applied. Without
+   * it the UI can express applied-ness only as a whole-round boolean, which greens findings
+   * nobody applied and locks the round — so applying 2 of 5 stranded the other 3. Review
+   * always derived this from the apply batches; the audit path recorded nothing, so the
+   * dispatch now writes `passNo` + `findingIndices` and this reads them back.
+   */
+  describe('appliedIndices', () => {
+    const AT = '2026-08-01T00:00:00.000Z';
+    const envelope = (n: number) => ({
+      output: { summary: { findings: Array.from({ length: n }, (_, i) => ({
+        severity: 'high', category: 'gap', claim: `finding ${i}`, evidence: '', suggestion: '',
+      })) } },
+    });
+
+    function dbWith(applyRequests: unknown[]) {
+      const d = buildInitialDetails();
+      d.stages.spec.phases.finalize.auditPasses = [
+        { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'b1', status: 'done', at: AT }] } },
+      ] as never;
+      return createMockDb({
+        'select:project': [{ details: d }],
+        // First batch read resolves the pass envelope; the second is the apply-batch scan.
+        'select:ops_mma_batch': seq([{ id: 'b1', result: envelope(5) }], applyRequests.map((r) => ({ request: r }))),
+      });
+    }
+
+    it('reports exactly the indices the apply batch recorded', async () => {
+      const [pass] = await auditPassHistory(dbWith([{ passNo: 1, findingIndices: [0, 2] }]), 'p1');
+      expect(pass.appliedIndices).toEqual([0, 2]);
+      expect(pass.findings).toHaveLength(5);
+    });
+
+    it('unions and sorts across several partial applies of the same pass', async () => {
+      const [pass] = await auditPassHistory(
+        dbWith([{ passNo: 1, findingIndices: [3] }, { passNo: 1, findingIndices: [0, 3] }]), 'p1');
+      expect(pass.appliedIndices).toEqual([0, 3]);
+    });
+
+    it('ignores batches for a DIFFERENT pass', async () => {
+      const [pass] = await auditPassHistory(dbWith([{ passNo: 2, findingIndices: [1] }]), 'p1');
+      expect(pass.appliedIndices).toEqual([]);
+    });
+
+    it('is empty when nothing was applied, so no row is falsely marked', async () => {
+      const [pass] = await auditPassHistory(dbWith([]), 'p1');
+      expect(pass.appliedIndices).toEqual([]);
+    });
+
+    it('tolerates a malformed request rather than throwing', async () => {
+      const [pass] = await auditPassHistory(
+        dbWith([{ passNo: 'one', findingIndices: 'nope' }, { passNo: 1, findingIndices: [4] }]), 'p1');
+      expect(pass.appliedIndices).toEqual([4]);
+    });
   });
 });

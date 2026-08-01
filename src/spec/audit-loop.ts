@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { AuditVerdict } from '@/db/enums';
 import type { Finding } from '@/components/patterns/findings';
@@ -131,7 +131,17 @@ export interface AuditPassView {
   verdict: AuditVerdict;
   createdAt: Date;
   findings: ParsedFinding[];
+  /** Any fix attempt was recorded for this pass. Kept for the rail's "applied" chip. */
   applied: boolean;
+  /**
+   * WHICH findings were applied, by index into `findings`.
+   *
+   * Derived from the apply batches' recorded `findingIndices`, the way the Review stage has
+   * always done it. Without this the UI could only fall back to the whole-round `applied`
+   * boolean, which marks un-applied findings as applied and locks the round — so a user who
+   * applied 2 of 5 could neither see which 2 nor finish the other 3.
+   */
+  appliedIndices: number[];
 }
 
 /** The full audit-pass history for a project+scope, oldest-first. */
@@ -157,6 +167,22 @@ export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' 
           .map((b) => [b.id, b.result] as const),
   );
 
+  // One read for every pass's applied indices. `apply_findings` records `passNo` +
+  // `findingIndices` in the dispatch meta, which lands in the batch `request` column.
+  const applyBatches = await dbi
+    .select({ request: mmaBatch.request })
+    .from(mmaBatch)
+    .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, `${scope}-audit-apply`)))
+    .orderBy(mmaBatch.createdAt);
+  const appliedByPass = new Map<number, Set<number>>();
+  for (const b of applyBatches) {
+    const req = (b.request ?? {}) as { passNo?: unknown; findingIndices?: unknown };
+    if (typeof req.passNo !== 'number' || !Array.isArray(req.findingIndices)) continue;
+    const set = appliedByPass.get(req.passNo) ?? new Set<number>();
+    for (const i of req.findingIndices) if (Number.isInteger(i)) set.add(i as number);
+    appliedByPass.set(req.passNo, set);
+  }
+
   const results: AuditPassView[] = [];
   for (const p of passes) {
     let findings: ParsedFinding[] = [];
@@ -173,6 +199,7 @@ export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' 
       createdAt: new Date(),
       findings,
       applied: !!p.fix?.attempts?.length,
+      appliedIndices: [...(appliedByPass.get(p.passNo) ?? [])].sort((a, b) => a - b),
     });
   }
   return results;

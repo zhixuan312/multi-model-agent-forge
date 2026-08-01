@@ -73,6 +73,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
       planMd={planView.planMd ?? ''}
       auditRounds={planView.auditHistory.map((h) => h.findings)}
       auditApplied={planView.auditHistory.map((h) => h.applied)}
+      auditAppliedIndices={planView.auditHistory.map((h) => h.appliedIndices)}
       initialMessages={planView.messages}
       voiceEnabled={voiceEnabled}
       pendingAuthor={pendingAuthor}

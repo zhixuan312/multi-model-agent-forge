@@ -35,10 +35,9 @@ export function hasApproved(ps: Participant[], memberId: string): boolean {
 export function addParticipant(
   ps: Participant[],
   member: MemberRef,
-  addedBy: string | null,
 ): Participant[] {
   if (ps.some((p) => p.member.id === member.id)) return ps;
-  return [...ps, { member, addedBy, approvedAt: null }];
+  return [...ps, { member, approvedAt: null }];
 }
 
 /**
@@ -52,7 +51,7 @@ export function recordApproval(
 ): Participant[] {
   const base = ps.some((p) => p.member.id === member.id)
     ? ps
-    : [...ps, { member, addedBy: null, approvedAt: null }];
+    : [...ps, { member, approvedAt: null }];
   return base.map((p) =>
     p.member.id === member.id && p.approvedAt === null ? { ...p, approvedAt: at } : p,
   );

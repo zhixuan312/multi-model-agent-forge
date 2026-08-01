@@ -21,7 +21,6 @@ export function buildJournalLearningView(rows: ProjectJournalViewRow[]) {
       category: row.type,
       source: 'Manual' as const,
       status: row.status as 'proposed' | 'kept' | 'recorded',
-      isManual: true,
       recordedNodeId: row.recordedNodeId,
     }));
 }

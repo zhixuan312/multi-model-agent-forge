@@ -165,6 +165,17 @@ export function NodesView({
                   </span>
                 ) : null}
                 <StatusBadge status={n.status} />
+                {n.fileMissing ? (
+                  // `store-reader` lists index rows whose node file is gone and sets this
+                  // flag to "flag missing" — but nothing rendered it, so a broken entry
+                  // looked identical to a healthy one. Text label, never colour alone.
+                  <span
+                    title="This entry is in the journal index but its node file is missing."
+                    className="rounded-[var(--r-sm)] border border-[var(--rose)]/40 bg-rose-tint px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--rose)]"
+                  >
+                    file missing
+                  </span>
+                ) : null}
               </span>
               <span className="text-sm text-ink">{n.title}</span>
               {n.tags.length ? (

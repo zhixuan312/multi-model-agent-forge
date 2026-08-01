@@ -567,8 +567,11 @@ describe('createProject — branch-slug uniqueness', () => {
     const res = await create('My/Project', mk([{ id: 'p1', name: 'My Project' }]));
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.error.code).toBe('duplicate_name');
+      // Assert what the CLIENT actually consumes. There used to be a `code:
+      // 'duplicate_name'` here, but `NewProjectState` omits it and the form reads only
+      // `field` and `message` — so this test was the sole thing keeping the field alive.
       expect(res.error.field).toBe('name');
+      expect(res.error.message).toMatch(/already uses the branch name/i);
     }
   });
 

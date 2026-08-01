@@ -14,8 +14,7 @@ import {
   GitBranch,
   ListTree,
   Loader2,
-  RotateCcw,
-} from 'lucide-react';
+  RotateCcw } from 'lucide-react';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
@@ -45,8 +44,7 @@ import {
   CardFooter,
   Badge,
   Banner,
-  TextSm,
-} from '@/components/ui';
+  TextSm } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
@@ -82,8 +80,7 @@ const PLAN_PHASE_NOTES: Record<string, string> = {
 
 - Task ordering and dependencies
 - Missing test coverage
-- Gaps between spec requirements and plan tasks`,
-};
+- Gaps between spec requirements and plan tasks` };
 
 type PlanPhase = 'refine' | 'validate';
 type TaskStatus = 'proposed' | 'detailed' | 'approved';
@@ -215,8 +212,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   const [auditingLocal, setAuditingLocal] = useState(false);
   const mma = useMmaDispatch(props.projectId, {
     onDone: {
-      'plan-refine': refresh,
-    },
+      'plan-refine': refresh },
     events: {
       'plan.updated': (data) => {
         window.dispatchEvent(new CustomEvent('plan:updated', { detail: data }));
@@ -224,9 +220,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
       },
       'chat.message': (data) => {
         window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
-      },
-    },
-  });
+      } } });
   const authoring = !!props.pendingAuthor || authoringLocal;
 
   // Auto-trigger plan authoring if no plan exists yet. A synchronous ref guards
@@ -347,8 +341,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
               rollback: () => setLocalOverrides((o) => { const n = { ...o }; delete n[id]; return n; }),
               onSettled: () => { setLocalOverrides({}); router.refresh(); },
               error: 'Couldn’t approve task — reverted.',
-              retryable: true,
-            });
+              retryable: true });
           }}
           onValidate={() => advancePhase('validate')}
         />
@@ -399,8 +392,7 @@ function DetailStage({
   projectMembers,
   initialMessages,
   onToggleApprove,
-  onValidate,
-}: {
+  onValidate }: {
   projectId: string;
   phases: PlanPhaseSeed[];
   participantIds: string[];
@@ -468,11 +460,11 @@ function DetailStage({
     return participantIds
       .map((pid) => memberById.get(pid))
       .filter((m): m is NonNullable<typeof m> => !!m)
-      .map((member) => ({ member, addedBy: null, approvedAt: null }));
+      .map((member) => ({ member, approvedAt: null }));
   });
   const optimistic = useOptimisticAction();
   const meParticipant: Participant | null = currentMember
-    ? { member: currentMember, addedBy: null, approvedAt: null }
+    ? { member: currentMember, approvedAt: null }
     : null;
   const allParticipants: Participant[] = meParticipant
     ? [meParticipant, ...planParticipants.filter((p) => p.member.id !== meParticipant.member.id)]
@@ -485,8 +477,7 @@ function DetailStage({
       setRefiningTasks((prev) => { const next = new Set(prev); next.delete(detail.taskId!); return next; });
       setThreads((th) => ({
         ...th,
-        [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }],
-      }));
+        [detail.taskId!]: [...(th[detail.taskId!] ?? []), { id: nid(), role: 'forge', text: detail.chatReply! }] }));
     }
     window.addEventListener('plan:updated', onPlanUpdated);
     return () => window.removeEventListener('plan:updated', onPlanUpdated);
@@ -520,8 +511,7 @@ function DetailStage({
         [detail.targetId!]: [
           ...(th[detail.targetId!] ?? []),
           { id: detail.message!.id, role: detail.message!.sender === 'forge' ? 'forge' as const : 'user' as const, text: detail.message!.bodyMd },
-        ],
-      }));
+        ] }));
     }
     window.addEventListener('chat:message', onChatMessage);
     return () => window.removeEventListener('chat:message', onChatMessage);
@@ -599,8 +589,7 @@ function DetailStage({
   const discussion: DiscussionMsg[] = msgs.map((m) => ({
     id: m.id,
     authorId: m.role === 'user' ? (currentMember?.id ?? 'me') : 'forge',
-    body: (m as { text: string }).text,
-  }));
+    body: (m as { text: string }).text }));
 
   /** Resolve a member id for attribution (you · project pool). */
   function memberById(id: string): MemberRef | undefined {
@@ -616,21 +605,18 @@ function DetailStage({
     const tempId = `tmp-${Date.now()}`;
     setThreads((th) => ({
       ...th,
-      [active.id]: [...(th[active.id] ?? []), { id: tempId, role: 'user', text }],
-    }));
+      [active.id]: [...(th[active.id] ?? []), { id: tempId, role: 'user', text }] }));
 
     fetch(`/api/projects/${projectId}/plan/tasks/${active.id}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bodyMd: text }),
-    })
+      body: JSON.stringify({ bodyMd: text }) })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`send failed (${r.status})`))))
       .then((data: { id: string }) => {
         seenMsgIds.current.add(data.id);
         setThreads((th) => ({
           ...th,
-          [active.id]: (th[active.id] ?? []).map((m) => m.id === tempId ? { ...m, id: data.id } : m),
-        }));
+          [active.id]: (th[active.id] ?? []).map((m) => m.id === tempId ? { ...m, id: data.id } : m) }));
       })
       .catch(() => {
         // Roll back the optimistic message (it never persisted) + surface the failure, instead
@@ -657,8 +643,7 @@ function DetailStage({
         setRefiningTasks((prev) => { const next = new Set(prev); next.delete(refineTaskId); return next; });
         setThreads((th) => ({
           ...th,
-          [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }],
-        }));
+          [active.id]: [...(th[active.id] ?? []), { id: nid(), role: 'forge', text: 'The refinement failed — try again or approve as-is.' }] }));
       });
     }
   }
@@ -706,9 +691,7 @@ function DetailStage({
               index: t.num || 0,
               done: status[t.id] === 'approved',
               active: t.id === active?.id,
-              onClick: () => setActiveId(t.id),
-            })),
-          }))}
+              onClick: () => setActiveId(t.id) })) }))}
           footer={
             <Button className="w-full" onClick={onValidate} disabled={!allApproved || readOnly} rightIcon={<ArrowRight />}>
               Continue to Validate
@@ -733,7 +716,7 @@ function DetailStage({
               onAdd={(m) => {
                 if (planParticipants.some((p) => p.member.id === m.id)) return;
                 void optimistic.run({
-                  apply: () => setPlanParticipants((prev) => [...prev, { member: m, addedBy: null, approvedAt: null }]),
+                  apply: () => setPlanParticipants((prev) => [...prev, { member: m, approvedAt: null }]),
                   commit: async () => {
                     // ONE invite — plan participants are plan-level, persisted once. Fanning out
                     // to every task spammed the invitee with N duplicate notifications.
@@ -742,14 +725,12 @@ function DetailStage({
                     const r = await fetch(`/api/projects/${projectId}/plan/tasks/${anchorTask.id}/invite`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ memberId: m.id }),
-                    });
+                      body: JSON.stringify({ memberId: m.id }) });
                     if (!r.ok) throw new Error('Invite failed.');
                   },
                   rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
                   error: 'Couldn’t invite — reverted.',
-                  retryable: true,
-                });
+                  retryable: true });
               }}
               disabled={readOnly}
             />
@@ -825,8 +806,7 @@ function ValidateStage({
   rounds,
   locked,
   onRunAudit,
-  onLock,
-}: {
+  onLock }: {
   projectName: string;
   planMd: string;
   readOnly: boolean;

@@ -20,35 +20,8 @@ export interface MemberRef {
  */
 export interface Participant {
   member: MemberRef;
-  /** Member id who pulled them in (via @-mention); null = author / seed. */
-  addedBy: string | null;
   /** ISO timestamp of their approval, or null when still pending. */
   approvedAt: string | null;
-}
-
-export type NotificationKind = 'section_mention' | 'section_approved' | 'dispatch_failed';
-
-export interface NotificationMeta {
-  stage?: string;
-  phase?: string;
-}
-
-/** One entry in a member's notification feed (the bell / inbox). */
-export interface NotificationItem {
-  id: string;
-  kind: NotificationKind;
-  /** Who triggered it (the mentioner / approver). */
-  actor: MemberRef;
-  projectId: string;
-  projectName: string;
-  /** Human label of the unit, e.g. "Proposed Design". */
-  unitLabel: string;
-  /** Deep link to the unit. */
-  href: string;
-  /** ISO timestamp. */
-  createdAt: string;
-  read: boolean;
-  meta?: NotificationMeta;
 }
 
 /**

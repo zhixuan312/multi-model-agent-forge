@@ -24,8 +24,7 @@ import {
   Loader2,
   Shield,
   RotateCcw,
-  type LucideIcon,
-} from 'lucide-react';
+  type LucideIcon } from 'lucide-react';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { SelectableTile } from '@/components/patterns/cards';
@@ -50,8 +49,7 @@ import {
   Banner,
   Input,
   Text,
-  TextSm,
-} from '@/components/ui';
+  TextSm } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { COMPONENT_TEMPLATES, DOC_TEMPLATES, type DocTemplate } from '@/spec/components';
 import { ParticipantStrip, ApproverCluster } from '@/components/forge/collab/Participants';
@@ -60,8 +58,7 @@ import {
   addParticipant,
   recordApproval,
   hasApproved,
-  pending as pendingParticipants,
-} from '@/collab/section-approval';
+  pending as pendingParticipants } from '@/collab/section-approval';
 import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
 import type { ComponentKind, ProjectPhase } from '@/db/enums';
@@ -128,8 +125,7 @@ const KIND_ICON: Record<ComponentKind, LucideIcon> = {
   technical_design: Blocks,
   testing_plan: FlaskConical,
   risks: AlertTriangle,
-  stories_tasks: ListTodo,
-};
+  stories_tasks: ListTodo };
 
 /** True when the picked set exactly equals a template's component set. */
 function sameKinds(picked: Set<ComponentKind>, kinds: ComponentKind[]): boolean {
@@ -154,8 +150,7 @@ const KIND_CARDS: KindCard[] = COMPONENT_TEMPLATES.map((t) => ({
   label: t.label,
   roles: t.primaryRoles,
   sections: t.sections.map((s) => s.label),
-  default: t.default,
-}));
+  default: t.default }));
 
 /** Distinct disciplines across the component library — the role filter chips. */
 const ALL_ROLES: string[] = [...new Set(KIND_CARDS.flatMap((c) => c.roles))];
@@ -164,8 +159,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  });
+    body: JSON.stringify(body ?? {}) });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error ?? `Request failed (${res.status}).`);
@@ -243,8 +237,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
     onDone: {
       'spec-auto-draft': () => void refreshComponents(),
       'spec-refine': () => void refreshComponents(),
-      'spec-audit': refresh,
-    },
+      'spec-audit': refresh },
     events: {
       'spec.updated': () => void refreshComponents(),
       'chat.message': (data) => {
@@ -252,9 +245,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
       },
       'chat.typing': (data) => {
         window.dispatchEvent(new CustomEvent('chat:typing', { detail: data }));
-      },
-    },
-  });
+      } } });
 
   const needsAutoDraft = components.length > 0 && components.some(
     (c) => c.status === 'gathering' && c.sections.some((s) => !s.draftMd),
@@ -427,8 +418,7 @@ const SPEC_PHASE_NOTES: Record<string, string> = {
 ### When to advance
 
 - Audit must pass clean (no critical or high findings)
-- All approvers confirmed → Continue to Plan unlocks`,
-};
+- All approvers confirmed → Continue to Plan unlocks` };
 
 function SpecNote({ phase }: { phase: string }) {
   return <RailNote icon={<Lightbulb />}>{SPEC_PHASE_NOTES[phase] ?? SPEC_PHASE_NOTES.outline}</RailNote>;
@@ -439,8 +429,7 @@ function SpecNote({ phase }: { phase: string }) {
 function SearchField({
   value,
   onChange,
-  placeholder,
-}: {
+  placeholder }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
@@ -469,8 +458,7 @@ function OutlineStage({
   mma,
   onConfirmed,
   onGoToCraft,
-  onError,
-}: {
+  onError }: {
   intent: string;
   picked: Set<ComponentKind>;
   onPick: (s: Set<ComponentKind>) => void;
@@ -493,8 +481,7 @@ function OutlineStage({
       onError(null);
       onConfirmed();
     },
-    onError: (e: Error) => onError(e.message),
-  });
+    onError: (e: Error) => onError(e.message) });
 
   function toggle(kind: ComponentKind): void {
     if (readOnly) return;
@@ -694,8 +681,7 @@ function TemplateRow({
   count,
   selected,
   disabled,
-  onClick,
-}: {
+  onClick }: {
   label: string;
   description: string;
   count: number;
@@ -779,8 +765,7 @@ function CraftStage({
   mma,
   onPatch,
   onEditOutline,
-  onConsolidate,
-}: {
+  onConsolidate }: {
   projectId: string;
   components: ComponentView[];
   loading?: boolean;
@@ -834,22 +819,21 @@ function CraftStage({
       const dbDiscussion: DiscussionMsg[] = dbMessages.map((m) => ({
         id: m.id,
         authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
-        body: m.bodyMd,
-      }));
+        body: m.bodyMd }));
       const approvers = c.approvedBy as string[];
       const meApprovedAt = approvers.includes(currentMember.id) ? new Date().toISOString() : null;
       const participants: Participant[] = [
-        { member: currentMember, addedBy: null, approvedAt: meApprovedAt },
+        { member: currentMember, approvedAt: meApprovedAt },
       ];
       for (const pid of (c.participantIds ?? []) as string[]) {
         if (pid === currentMember.id) continue;
         const m = allPool.find((p) => p.id === pid);
-        if (m) participants.push({ member: m, addedBy: null, approvedAt: approvers.includes(pid) ? new Date().toISOString() : null });
+        if (m) participants.push({ member: m, approvedAt: approvers.includes(pid) ? new Date().toISOString() : null });
       }
       for (const aid of approvers) {
         if (!participants.some((p) => p.member.id === aid)) {
           const approver = allPool.find((m) => m.id === aid);
-          if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+          if (approver) participants.push({ member: approver, approvedAt: new Date().toISOString() });
         }
       }
       out[c.id] = { participants, discussion: dbDiscussion };
@@ -869,17 +853,17 @@ function CraftStage({
         const approverList = c.approvedBy as string[];
         const meApproved = approverList.includes(currentMember.id) ? new Date().toISOString() : null;
         const participants: Participant[] = [
-          { member: currentMember, addedBy: null, approvedAt: meApproved },
+          { member: currentMember, approvedAt: meApproved },
         ];
         for (const pid of (c.participantIds ?? []) as string[]) {
           if (pid === currentMember.id) continue;
           const m = allPool.find((p) => p.id === pid);
-          if (m) participants.push({ member: m, addedBy: null, approvedAt: approverList.includes(pid) ? new Date().toISOString() : null });
+          if (m) participants.push({ member: m, approvedAt: approverList.includes(pid) ? new Date().toISOString() : null });
         }
         for (const aid of approverList) {
           if (!participants.some((p) => p.member.id === aid)) {
             const approver = allPool.find((m) => m.id === aid);
-            if (approver) participants.push({ member: approver, addedBy: null, approvedAt: new Date().toISOString() });
+            if (approver) participants.push({ member: approver, approvedAt: new Date().toISOString() });
           }
         }
         const old = prev[c.id];
@@ -928,9 +912,7 @@ function CraftStage({
           ...prev,
           [cid]: {
             ...u,
-            discussion: [...u.discussion, { id: msg.id, authorId: msg.authorId, body: msg.bodyMd }],
-          },
-        };
+            discussion: [...u.discussion, { id: msg.id, authorId: msg.authorId, body: msg.bodyMd }] } };
       });
       if (msg.authorId === 'forge') {
         setRefiningComponents((prev) => { const next = new Set(prev); next.delete(cid); return next; });
@@ -1053,19 +1035,17 @@ function CraftStage({
     const compId = active.id;
     const prevCollab = collab[compId];
     void optimistic.run({
-      apply: () => patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m, currentMember.id) })),
+      apply: () => patchCollab((u) => ({ ...u, participants: addParticipant(u.participants, m) })),
       commit: async () => {
         const r = await fetch(`/api/projects/${projectId}/spec/invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memberId: m.id, componentId: compId }),
-        });
+          body: JSON.stringify({ memberId: m.id, componentId: compId }) });
         if (!r.ok) throw new Error(`Request failed (${r.status}).`);
       },
       rollback: () => setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } })),
       error: 'Couldn’t invite — reverted.',
-      retryable: true,
-    });
+      retryable: true });
   }
 
   async function submit(): Promise<void> {
@@ -1081,8 +1061,7 @@ function CraftStage({
       discussion: [
         ...u.discussion,
         { id: tempId, authorId: currentMember.id, body: text },
-      ],
-    }));
+      ] }));
     // Persist to DB BEFORE any @Forge refine: refine_component reads the persisted thread, so
     // dispatching it before the row commits makes Forge miss the just-sent message. And on a
     // failed send, roll the optimistic message back + surface the error — never leave a phantom
@@ -1091,15 +1070,13 @@ function CraftStage({
       const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bodyMd: text }),
-      });
+        body: JSON.stringify({ bodyMd: text }) });
       if (!r.ok) throw new Error(`send failed (${r.status})`);
       const data = (await r.json()) as { id: string };
       seenMsgIds.current.add(data.id); // mark seen so the SSE echo is skipped
       patchCollab((u) => ({
         ...u,
-        discussion: u.discussion.map((d) => d.id === tempId ? { ...d, id: data.id } : d),
-      }));
+        discussion: u.discussion.map((d) => d.id === tempId ? { ...d, id: data.id } : d) }));
     } catch {
       patchCollab((u) => ({ ...u, discussion: u.discussion.filter((d) => d.id !== tempId) }));
       showToast({ type: 'error', message: 'Couldn’t send your message — try again.' });
@@ -1124,8 +1101,7 @@ function CraftStage({
             discussion: [
               ...u.discussion,
               { id: `f-${compId}-${(u.discussion?.length ?? 0)}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
-            ],
-          }));
+            ] }));
         });
     } else if (forgeTagged && !drafted) {
       // @Forge refines a DRAFTED section — on a still-gathering one it would silently do nothing
@@ -1146,8 +1122,7 @@ function CraftStage({
       apply: () => {
         patchCollab((u) => ({
           ...u,
-          participants: recordApproval(u.participants, currentMember, new Date().toISOString()),
-        }));
+          participants: recordApproval(u.participants, currentMember, new Date().toISOString()) }));
         // Patch approvedBy too, not just status: the re-seed effect rebuilds
         // participants from approvedBy on any `components` change, so without this the
         // optimistic approval is wiped on the very next render — which is why it looked
@@ -1160,8 +1135,7 @@ function CraftStage({
         setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
       },
       error: 'Couldn’t approve — reverted.',
-      retryable: true,
-    });
+      retryable: true });
     // Stay on the just-approved section so the button flips to "Revoke" and the
     // approval is visible immediately. (Previously it auto-jumped to the next open
     // section, so you never saw your own approval land.)
@@ -1184,8 +1158,7 @@ function CraftStage({
           onPatch(compId, { status: nextApprovedBy.length > 0 ? 'approved' : 'drafted', approvedBy: nextApprovedBy });
           patchCollab((u) => ({
             ...u,
-            participants: u.participants.map((p) => (p.member.id === currentMember.id ? { ...p, approvedAt: null } : p)),
-          }));
+            participants: u.participants.map((p) => (p.member.id === currentMember.id ? { ...p, approvedAt: null } : p)) }));
         },
         commit: async () => {
           const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
@@ -1196,8 +1169,7 @@ function CraftStage({
           setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } }));
         },
         error: 'Couldn’t revoke — reverted.',
-        retryable: true,
-      });
+        retryable: true });
     }
     setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -1394,8 +1366,7 @@ function ComponentRow({
   active,
   participants,
   displayState,
-  onClick,
-}: {
+  onClick }: {
   c: ComponentView;
   active: boolean;
   participants: Participant[];
@@ -1451,8 +1422,7 @@ function DocumentScreen({
   specApprovers,
   setSpecApprovers,
   onAssembled,
-  onError,
-}: {
+  onError }: {
   projectId: string;
   projectName: string;
   spec: { version: number; bodyMd: string } | null;
@@ -1689,9 +1659,7 @@ function DocumentScreen({
               .filter(Boolean)
               .map((m) => ({
                 member: m!,
-                addedBy: null,
-                approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null,
-              }));
+                approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null }));
             return (
               <div className="shrink-0 border-b border-line px-5 py-2.5">
                 <ParticipantStrip
@@ -1753,14 +1721,12 @@ function DocumentScreen({
                         const r = await fetch(`/api/projects/${projectId}/spec/approve`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action }),
-                        });
+                          body: JSON.stringify({ action }) });
                         if (!r.ok) throw new Error(`Request failed (${r.status}).`);
                       },
                       rollback: () => setSpecApprovers(prev),
                       error: isApproved ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
-                      retryable: true,
-                    });
+                      retryable: true });
                   }}
                   variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
                   leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}

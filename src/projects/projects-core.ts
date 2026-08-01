@@ -108,7 +108,7 @@ export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
 export type CreateProjectResult =
   | { ok: true; id: string; entryStage: 'exploration' | 'spec' | 'plan' }
-  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string; code?: 'duplicate_name' } };
+  | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string } };
 
 /**
  * Is another project in this team already using the branch slug this name would produce?
@@ -175,7 +175,6 @@ export async function createProject(
       ok: false,
       error: {
         field: 'name',
-        code: 'duplicate_name',
         message: `Another project in this team already uses the branch name "${slugRefComponent(name)}". Pick a distinguishable name.`,
       },
     };

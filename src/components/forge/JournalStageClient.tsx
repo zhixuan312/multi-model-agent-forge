@@ -51,7 +51,6 @@ export interface JournalLearningView {
   category: LearningCategory;
   source: LearningSource;
   status: 'proposed' | 'kept' | 'recorded';
-  isManual: boolean;
   recordedNodeId?: string | null;
 }
 
@@ -59,7 +58,6 @@ export interface JournalStageClientProps {
   projectId: string;
   projectName: string;
   learnings: JournalLearningView[];
-  journalMd: string;
   hasJournalFile: boolean;
   harvesting: boolean;
   recording: boolean;

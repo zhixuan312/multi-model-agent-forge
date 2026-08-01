@@ -30,6 +30,9 @@ export interface ProfileEntry {
 /** A provider group in the source `model-profiles.json` (loosely typed). */
 export interface ProfileGroup {
   provider: string;
+  /** Present in the file, not consumed here — declared so the type describes the real
+   *  JSON shape and `flattenProfiles` is verifiably tolerant of groups that carry them
+   *  (see tests/mma/model-profiles.test.ts). */
   naming?: string;
   defaults?: Record<string, unknown>;
   profiles: ProfileEntry[];

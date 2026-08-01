@@ -54,6 +54,7 @@ import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
+import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
 
 const PLAN_PHASE_NOTES: Record<string, string> = {
   refine: `### Refine — review the tasks
@@ -633,9 +634,9 @@ function DetailStage({
         showToast({ type: 'error', message: 'Couldn’t send your message — try again.' });
       });
 
-    const forgeTagged = /@forge\b/i.test(text);
+    const forgeTagged = isForgeMention(text);
     if (forgeTagged) {
-      const cleanText = text.replace(/@forge\s*/gi, '').trim() || 'Refine this task based on the discussion.';
+      const cleanText = stripForgeMention(text, 'Refine this task based on the discussion.');
       const refineTaskId = active.id;
       setRefiningTasks((prev) => new Set(prev).add(refineTaskId));
       setTaskView('discussion');

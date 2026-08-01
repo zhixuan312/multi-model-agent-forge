@@ -62,6 +62,7 @@ import {
 import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
 import type { ComponentKind, ProjectPhase } from '@/db/enums';
+import { isForgeMention } from '@/spec/forge-mention';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -1088,7 +1089,7 @@ function CraftStage({
 
     // @Forge triggers the AI to process and respond — the message is now persisted, so
     // refine_component reads the just-sent line.
-    const forgeTagged = /@forge\b/i.test(text);
+    const forgeTagged = isForgeMention(text);
     if (forgeTagged && drafted) {
       setRefiningComponents((prev) => new Set(prev).add(compId));
       setCraftView('conversation');

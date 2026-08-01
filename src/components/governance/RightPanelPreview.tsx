@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Check, GitBranch, Loader2, PencilLine, RotateCcw, Search, Shield } from 'lucide-react';
 import {
   Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Label, Micro, Mono,
@@ -123,6 +123,11 @@ function CardListDemo({ on }: { on: ReadonlySet<string> }) {
   const [selected, setSelected] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canAdvance = rounds.some((r) => r.verdict === 'clean');
+
+  // The ref existed to hold this handle and nothing ever cleared it. Switching governance
+  // variant unmounts this preview mid-run, which then left a pending timer that woke up to
+  // set state on a component that no longer exists.
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const runAudit = () => {
     if (auditing) return;

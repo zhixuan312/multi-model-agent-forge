@@ -93,6 +93,12 @@ export function RecallTab({
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState('');
   const resumedRef = useRef(false);
+  // Aborted on unmount. `pollUntilTerminal` loops under a 5-minute ceiling, so navigating
+  // away mid-recall used to leave it fetching every 1.5–30s against a page that no longer
+  // exists — real network work, not merely a stray setState.
+  const pollAbortRef = useRef<AbortController | null>(null);
+  if (pollAbortRef.current === null) pollAbortRef.current = new AbortController();
+  useEffect(() => () => pollAbortRef.current?.abort(), []);
 
   // Pinned Q&A — server-loaded initial list, then mutated locally on
   // pin/unpin/refresh so the surface stays responsive without a full reload.
@@ -159,6 +165,8 @@ export function RecallTab({
         addRecent(inflight.question, result, inflight.batchId!);
         setStatus('idle');
       } catch (e) {
+        // An abort is this component going away, not a failure worth showing.
+        if ((e as Error)?.name === 'AbortError') return;
         setError((e as Error).message);
         setStatus('error');
       }
@@ -171,11 +179,15 @@ export function RecallTab({
     // Exponential backoff (base 1.5s → cap 30s) under the 5-min hard ceiling — never
     // faster than the base interval, so a slow recall doesn't hammer the row endpoint.
     let delay = POLL_INTERVAL_MS;
+    const signal = pollAbortRef.current!.signal;
+    const stop = () => new DOMException('Recall polling stopped.', 'AbortError');
     for (;;) {
+      if (signal.aborted) throw stop();
       if (Date.now() > deadline) throw new Error('Recall timed out — please retry.');
       await new Promise((r) => setTimeout(r, delay));
+      if (signal.aborted) throw stop();
       delay = Math.min(Math.round(delay * 1.5), POLL_MAX_INTERVAL_MS);
-      const pollRes = await fetch(`/api/journal/recall/${batchId}`);
+      const pollRes = await fetch(`/api/journal/recall/${batchId}`, { signal });
       if (!pollRes.ok) throw new Error('Journal recall poll failed — please retry.');
       const poll = (await pollRes.json()) as PollResult;
       if (poll.state === 'terminal') {
@@ -241,6 +253,8 @@ export function RecallTab({
       setStatus('idle');
       router.refresh(); // reconcile with the server-recorded recall (FAQ counts, etc.)
     } catch (e) {
+      // Aborted by unmount — the user navigated away; nobody is left to show an error to.
+      if ((e as Error)?.name === 'AbortError') return;
       setError((e as Error).message);
       setStatus('error');
     }
@@ -416,6 +430,8 @@ export function RecallTab({
       addRecent(p.question, parsed, batchId);
     } catch (e) {
       setPins((prev) => prev.map((x) => (x.id === p.id ? clearBusy(x) : x)));
+      // Aborted by unmount — no toast for a page the user has already left.
+      if ((e as Error)?.name === 'AbortError') return;
       showToast({ type: 'error', message: (e as Error).message || 'Could not refresh this pin.' });
     }
   }

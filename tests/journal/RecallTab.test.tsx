@@ -170,3 +170,44 @@ describe('RecallTab — pin from a recent answer (AC-10)', () => {
     expect(posts[0]!.body).toMatchObject({ question: 'q one two three', answerMd: 'Recalled answer.' });
   });
 });
+
+describe('RecallTab — polling stops when the tab unmounts', () => {
+  it('issues no further polls after unmount, instead of running for up to five minutes', async () => {
+    // `pollUntilTerminal` loops under a 5-minute ceiling with exponential backoff, sleeping
+    // BEFORE each fetch. Without the AbortController it kept polling
+    // /api/journal/recall/:id after the user navigated away — real network work against a
+    // page that no longer exists. Assert the observable behaviour: the poll count stops.
+    vi.useFakeTimers();
+    try {
+      const pollUrls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.startsWith('/api/journal/recall/')) {
+          pollUrls.push(u);
+          return new Response(JSON.stringify({ state: 'running' }), { status: 200 });
+        }
+        return new Response('{}', { status: 200 });
+      }));
+
+      const recentRecalls: RecentRecall[] = [
+        { id: 'r1', question: 'an in-flight question', status: 'running', batchId: 'b-live' },
+      ];
+      const { unmount } = render(
+        <RecallTab index={INDEX} pinned={[]} faqs={[]} recentRecalls={recentRecalls} />,
+      );
+
+      // Let the resume effect run and the loop take its first few polls.
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      const before = pollUrls.length;
+      expect(before).toBeGreaterThan(0);
+
+      unmount();
+
+      // Well past several backoff intervals — a live loop would have polled again.
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(pollUrls.length).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

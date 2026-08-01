@@ -334,7 +334,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'profile-password', label: 'Profile › Password', filePath: 'app/(app)/profile/ProfileForm.tsx' },
     ],
     deviations: [
-      { id: 'models-configure', label: 'Org settings › Models (hand-rolled shell + segmented controls)', filePath: 'app/(app)/settings/models/ModelsPanel.tsx' },
+      { id: 'models-configure', label: 'Org settings › Models (hand-rolled shell)', filePath: 'app/(app)/settings/models/ModelsPanel.tsx' },
       { id: 'new-project', label: 'New project (CardFooter submit, raw radios)', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
       { id: 'slot-editor', label: 'Components › Slot editor (auto-save, no submit)', filePath: 'app/(app)/settings/components/SlotEditor.tsx' },
       { id: 'explore-add-task', label: 'Project › Explore › Add task (raw controls)', filePath: 'src/components/forge/ExploreStageClient.tsx' },

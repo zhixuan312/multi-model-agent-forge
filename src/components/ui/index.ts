@@ -14,6 +14,7 @@ export * from './field-styles';
 export * from './input';
 export * from './textarea';
 export * from './select';
+export * from './segmented';
 export * from './checkbox';
 export * from './switch';
 

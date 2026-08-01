@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, KeyRound } from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { Button, Input, Field, Textarea, Label, Micro } from '@/components/ui';
+import { Button, Input, Field, Textarea, Label, Micro, Segmented } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
@@ -16,39 +15,6 @@ export interface RepoOption {
 }
 
 /** Small segmented control (radiogroup) — mirrors the Models tab toggles. */
-export function Segmented({
-  value,
-  onChange,
-  options,
-  label,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  label: string;
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="inline-flex w-fit rounded-[var(--r-md)] border border-line bg-surface p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-label={o.label}
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'focus-ring rounded-[calc(var(--r-md)-2px)] px-3 py-1 text-sm transition-colors',
-            value === o.value ? 'bg-accent-tint font-medium text-accent-deep' : 'text-ink-soft hover:text-ink',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 type LoopMode = 'recurring' | 'manual' | 'event';
 
 export function LoopForm({

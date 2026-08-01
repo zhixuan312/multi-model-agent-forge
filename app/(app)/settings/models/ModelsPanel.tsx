@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Card, CardContent, Field, Input, Button, Badge, Micro, Label, TextStrong, Mono } from '@/components/ui';
+import { Card, CardContent, Field, Input, Button, Badge, Micro, Label, TextStrong, Mono, Segmented } from '@/components/ui';
 import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
 import type { MmaTiers, TierKey, TierConfig } from '@/mma/mma-config-reader';
 import type { FlatProfile } from '@/mma/model-profiles';
@@ -162,6 +162,7 @@ function ConfigureForm({
       <div className="flex flex-col gap-1.5">
         <Label as="span">Dialect</Label>
         <Segmented
+          label="Dialect"
           value={dialect}
           onChange={(v) => {
             setDialect(v as Dialect);
@@ -200,6 +201,7 @@ function ConfigureForm({
       <div className="flex flex-col gap-1.5">
         <Label as="span">Sign-in</Label>
         <Segmented
+          label="Sign-in"
           value={authMode}
           onChange={(v) => {
             setAuthMode(v as AuthMode);
@@ -319,33 +321,3 @@ function ResultLadder({ result }: { result: ConfigureResponse }) {
   );
 }
 
-/** A small segmented control (radiogroup) for the dialect / auth toggles. */
-function Segmented({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div role="radiogroup" className="inline-flex w-fit rounded-[var(--r-md)] border border-line bg-surface p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'focus-ring rounded-[calc(var(--r-md)-2px)] px-3 py-1 text-sm transition-colors',
-            value === o.value ? 'bg-accent-tint font-medium text-accent-deep' : 'text-ink-soft hover:text-ink',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}

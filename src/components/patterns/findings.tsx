@@ -77,8 +77,13 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
         </TableCell>
         <TableCell className="w-10 px-0 py-3 pr-4">
           {hasDetails ? (
+            // Icon-only, so it needs BOTH a name and a state: without them a screen reader
+            // announces an unlabelled "button" and never says whether the finding's
+            // evidence is currently showing.
             <button
               type="button"
+              aria-label={expanded ? 'Hide finding details' : 'Show finding details'}
+              aria-expanded={expanded}
               onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
               className="grid size-6 place-items-center rounded text-ink-faint hover:bg-surface-2 hover:text-ink"
             >

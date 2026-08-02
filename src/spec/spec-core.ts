@@ -20,10 +20,10 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
  */
 
 /** Resolve spec stage from details. Returns status + approvers. */
-export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: string; status: string; approvers: string[] }> {
+export async function ensureSpecStage(db: Db, projectId: string): Promise<{ status: string; approvers: string[] }> {
   const dbi = db ?? getDb();
   const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
-  if (!row?.details) return { id: projectId, status: 'pending', approvers: [] };
+  if (!row?.details) return { status: 'pending', approvers: [] };
   const d = validateDetails(row.details);
   const spec = d.stages.spec;
   if (spec.status === 'pending') {
@@ -34,7 +34,7 @@ export async function ensureSpecStage(db: Db, projectId: string): Promise<{ id: 
       return det;
     });
   }
-  return { id: projectId, status: spec.status === 'pending' ? 'active' : spec.status, approvers: spec.phases.finalize.approvals ?? [] };
+  return { status: spec.status === 'pending' ? 'active' : spec.status, approvers: spec.phases.finalize.approvals ?? [] };
 }
 
 /** Capture / update the project intent and derive the summary (pure, no LLM). */
@@ -96,9 +96,8 @@ export interface ComponentView {
 
 /** Load the full component/section outline for a project's spec stage, ordered.
  * Section content comes from spec.md (file = source of truth), metadata from details. */
-export async function loadOutline(db: Db, _stageId: string, projectId?: string): Promise<ComponentView[]> {
+export async function loadOutline(db: Db, projectId: string): Promise<ComponentView[]> {
   const dbi = db ?? getDb();
-  if (!projectId) return [];
 
   const [projRow] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!projRow?.details) return [];
@@ -234,10 +233,8 @@ export async function loadOutline(db: Db, _stageId: string, projectId?: string):
 /** Load all qa_messages for every component in a project, keyed by componentId. */
 export async function loadAllMessages(
   db: Db,
-  _stageId: string,
-  projectId?: string,
+  projectId: string,
 ): Promise<Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId: string | null }>>> {
-  if (!projectId) return {};
   const rows = await db
     .select({ id: qaMessage.id, targetId: qaMessage.targetId, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
     .from(qaMessage)

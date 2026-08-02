@@ -57,11 +57,12 @@ export default async function SpecStagePage({
     .limit(1);
   if (!proj) notFound();
 
-  const stageRow = await ensureSpecStage(db, id);
-  const components = await loadOutline(db, stageRow.id, id);
+  // Runs before loadOutline: it flips a pending spec stage to active in `details`, which
+  // the outline then reads.
+  const { approvers: specApprovers } = await ensureSpecStage(db, id);
+  const components = await loadOutline(db, id);
   const latestSpec = await getLatestSpec(db, id);
-  const specApprovers = stageRow.approvers;
-  const initialMessages = await loadAllMessages(db, stageRow.id, id);
+  const initialMessages = await loadAllMessages(db, id);
   // Entry precondition (F27/F30): the main tier must be a configured claude
   // provider with a key (non-null api_key_ref) for the Q&A loop to run.
   const mainTierReady = hasMmaToken();

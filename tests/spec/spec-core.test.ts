@@ -114,7 +114,7 @@ describe('loadOutline', () => {
       ],
     });
 
-    const outline = await loadOutline(mockDb, 'ignored', projectId);
+    const outline = await loadOutline(mockDb, projectId);
     expect(outline.map((c) => c.kind)).toEqual(['context', 'problem']);
     expect(outline[0].label).toBe('Context');
     expect(outline[0].sections.map((s) => s.key)).toEqual(['background']);
@@ -131,7 +131,7 @@ describe('loadAllMessages', () => {
       ],
     });
 
-    const result = await loadAllMessages(mockDb, 'ignored', 'proj-1');
+    const result = await loadAllMessages(mockDb, 'proj-1');
     expect(result['proj-1']).toHaveLength(1);
     expect(result['proj-1'][0].bodyMd).toContain('Open Questions');
     expect(result['comp-1']).toHaveLength(1);

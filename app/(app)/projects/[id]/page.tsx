@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { getProject } from '@/projects/projects-core';
-import { projectIndexTarget } from '@/projects/index-target';
+import { stageRoute } from '@/projects/stage-route';
 
 /**
  * Project index — redirect to the current stage via the `STAGE_ROUTE` map; for a
@@ -17,5 +17,5 @@ export default async function ProjectIndexPage({
 
   const project = await getProject(id);
   if (!project) notFound();
-  redirect(projectIndexTarget(id, project.phase, project.currentStage ?? 'exploration'));
+  redirect(stageRoute(project.currentStage ?? 'exploration', id));
 }

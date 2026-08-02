@@ -31,14 +31,14 @@ describe('craft component status reflects real content, not bare skeleton headin
   it('a spec.md with only empty headings → components are gathering (Drafting…), not drafted (Ready)', async () => {
     // The outline writes all headings up front; the MMA draft batch has not written content yet.
     (readSpecFile as ReturnType<typeof vi.fn>).mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '## Context\n\n## Problem\n' });
-    const outline = await loadOutline(mockDbWith(), 'ignored', 'p1');
+    const outline = await loadOutline(mockDbWith(), 'p1');
     expect(outline.find((c) => c.kind === 'context')!.status).toBe('gathering');
     expect(outline.find((c) => c.kind === 'problem')!.status).toBe('gathering');
   });
 
   it('once a section has real body content → that component is drafted (Ready)', async () => {
     (readSpecFile as ReturnType<typeof vi.fn>).mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '## Context\n\nReal background prose about the team and product.\n\n## Problem\n' });
-    const outline = await loadOutline(mockDbWith(), 'ignored', 'p1');
+    const outline = await loadOutline(mockDbWith(), 'p1');
     expect(outline.find((c) => c.kind === 'context')!.status).toBe('drafted');   // has content
     expect(outline.find((c) => c.kind === 'problem')!.status).toBe('gathering'); // still empty
   });

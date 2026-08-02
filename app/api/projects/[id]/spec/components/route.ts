@@ -14,7 +14,7 @@ export const runtime = 'nodejs';
  * mutates the URL via `replaceState`) and can serve a stale 0-component snapshot, leaving
  * a blank "No components yet" view until a hard reload. A direct client fetch (the pattern
  * the Explore stage already uses for its tasks/artifact) lands the fresh data deterministically.
- * Read-only: `loadOutline` derives the components from `project.details` and ignores the stage id.
+ * Read-only: `loadOutline` derives the components from `project.details`.
  */
 export async function GET(
   req: NextRequest,
@@ -32,6 +32,6 @@ export async function GET(
     throw e;
   }
 
-  const components = await loadOutline(getDb(), '', id);
+  const components = await loadOutline(getDb(), id);
   return NextResponse.json(components);
 }

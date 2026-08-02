@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import {
   summarizeConformance,
-  CONFORMANCE_RULES,
+  hasConformanceRule,
   type GovernanceSlotId,
   type LayerConformance,
   type SourceFile,
@@ -47,7 +47,7 @@ export function collectSourceFiles(root: string): SourceFile[] {
  * `undefined` so the govern page simply omits the conformance card rather than erroring.
  */
 export function summarizeForSlot(slotId: GovernanceSlotId, root: string = process.cwd()): LayerConformance | undefined {
-  if (!CONFORMANCE_RULES.some((r) => r.slotId === slotId)) return undefined;
+  if (!hasConformanceRule(slotId)) return undefined;
   try {
     return summarizeConformance(collectSourceFiles(root)).find((s) => s.slotId === slotId);
   } catch {

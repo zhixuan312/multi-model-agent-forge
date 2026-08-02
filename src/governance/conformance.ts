@@ -160,23 +160,6 @@ export const CONFORMANCE_RULES: readonly ConformanceRule[] = [
   },
 ];
 
-/** Run every rule over every in-scope file and collect the violations. */
-export function checkConformance(
-  files: readonly SourceFile[],
-  rules: readonly ConformanceRule[] = CONFORMANCE_RULES,
-): ConformanceViolation[] {
-  const out: ConformanceViolation[] = [];
-  for (const rule of rules) {
-    for (const f of files) {
-      if (!rule.scope(f.path)) continue;
-      for (const v of rule.violations(f)) {
-        out.push({ slotId: rule.slotId, file: f.path, kind: v.kind, reason: v.reason });
-      }
-    }
-  }
-  return out;
-}
-
 /** Per-layer conformance — how many files were checked and which depart from the convention. */
 export interface LayerConformance {
   slotId: GovernanceSlotId;
@@ -190,6 +173,8 @@ export function summarizeConformance(
   files: readonly SourceFile[],
   rules: readonly ConformanceRule[] = CONFORMANCE_RULES,
 ): LayerConformance[] {
+  // The one pass over rules × files. Callers wanting a flat list take
+  // `.flatMap((l) => l.violations)` rather than re-walking the same grid.
   return rules.map((rule) => {
     const inScope = files.filter((f) => rule.scope(f.path));
     const violations: ConformanceViolation[] = [];

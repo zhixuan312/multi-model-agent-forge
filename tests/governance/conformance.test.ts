@@ -1,5 +1,4 @@
 import {
-  checkConformance,
   summarizeConformance,
   hasConformanceRule,
   CONFORMANCE_RULES,
@@ -7,7 +6,7 @@ import {
 } from '@/governance/conformance';
 
 function check(files: SourceFile[]) {
-  return checkConformance(files, CONFORMANCE_RULES);
+  return summarizeConformance(files, CONFORMANCE_RULES).flatMap((l) => l.violations);
 }
 const forSlot = (files: SourceFile[], slotId: string) => check(files).filter((v) => v.slotId === slotId);
 

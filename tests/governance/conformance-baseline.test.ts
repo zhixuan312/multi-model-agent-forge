@@ -1,5 +1,5 @@
 import { collectSourceFiles } from '@/governance/conformance-scan';
-import { summarizeConformance, checkConformance } from '@/governance/conformance';
+import { summarizeConformance } from '@/governance/conformance';
 
 /**
  * The conformance RATCHET. Runs the real rules over the real repo. Today every governed
@@ -17,7 +17,7 @@ describe('conformance baseline (whole repo)', () => {
   });
 
   it('has ZERO structural conformance violations', () => {
-    const violations = checkConformance(files);
+    const violations = summarizeConformance(files).flatMap((l) => l.violations);
     // Print offenders on failure so the message is actionable.
     expect(violations).toEqual([]);
   });

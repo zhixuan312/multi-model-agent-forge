@@ -1,5 +1,5 @@
 import { asc, eq, inArray } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
+import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
 import { teamSpecTemplate } from '@/db/schema/team';
@@ -21,14 +21,13 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /** Resolve spec stage from details. Returns status + approvers. */
 export async function ensureSpecStage(db: Db, projectId: string): Promise<{ status: string; approvers: string[] }> {
-  const dbi = db ?? getDb();
-  const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!row?.details) return { status: 'pending', approvers: [] };
   const d = validateDetails(row.details);
   const spec = d.stages.spec;
   if (spec.status === 'pending') {
     const { updateDetails } = await import('@/details/write');
-    await updateDetails(dbi, projectId, (det) => {
+    await updateDetails(db, projectId, (det) => {
       det.stages.spec.status = 'active';
       det.stages.spec.startedAt = new Date().toISOString();
       return det;
@@ -44,10 +43,9 @@ export async function captureIntent(
   intentMd: string,
   actorId: string,
 ): Promise<void> {
-  const dbi = db ?? getDb();
   const { setBriefText } = await import('@/details/write');
-  await setBriefText(dbi, projectId, intentMd);
-  const [actor] = await dbi
+  await setBriefText(db, projectId, intentMd);
+  const [actor] = await db
     .select({ displayName: member.displayName, avatarTint: member.avatarTint })
     .from(member)
     .where(eq(member.id, actorId))
@@ -55,7 +53,7 @@ export async function captureIntent(
   // Universal attribution: capture_intent is reachable from the auto driver (actorId=FORGE)
   // as well as a human, so derive source from the actor. See FR-7 "Universal actor resolution".
   await recordActivity({
-    db: dbi,
+    db,
     projectId,
     stage: 'exploration',
     phase: 'brief',
@@ -97,9 +95,7 @@ export interface ComponentView {
 /** Load the full component/section outline for a project's spec stage, ordered.
  * Section content comes from spec.md (file = source of truth), metadata from details. */
 export async function loadOutline(db: Db, projectId: string): Promise<ComponentView[]> {
-  const dbi = db ?? getDb();
-
-  const [projRow] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  const [projRow] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!projRow?.details) return [];
   const d = validateDetails(projRow.details);
   const comps = d.stages.spec.phases.craft.components;
@@ -132,7 +128,7 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
   // Load templates by ID from DB
   const templateIds = comps.map((c) => c.templateId);
   const tplRows = templateIds.length > 0
-    ? await dbi.select().from(teamSpecTemplate).where(inArray(teamSpecTemplate.id, templateIds))
+    ? await db.select().from(teamSpecTemplate).where(inArray(teamSpecTemplate.id, templateIds))
     : [];
   const tplById = new Map(tplRows.map((r) => [r.id, r]));
 
@@ -141,7 +137,7 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
     const hasApproved = comps.some((c) => c.approvals.length > 0);
     if (hasApproved) {
       const { updateDetails } = await import('@/details/write');
-      await updateDetails(dbi, projectId, (det) => {
+      await updateDetails(db, projectId, (det) => {
         for (const c of det.stages.spec.phases.craft.components) {
           c.approvals = [];
         }
@@ -149,7 +145,7 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
       });
       const compIds = comps.map((c) => c.id);
       if (compIds.length > 0) {
-        await dbi.delete(qaMessage).where(inArray(qaMessage.targetId, compIds));
+        await db.delete(qaMessage).where(inArray(qaMessage.targetId, compIds));
       }
     }
   }
@@ -164,7 +160,7 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
     const compIds = comps.map((c) => c.id);
     if (compIds.length > 0) {
       const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
-      const msgs = await dbi
+      const msgs = await db
         .select({ targetId: qaMessage.targetId, authorId: qaMessage.authorId, meta: qaMessage.meta })
         .from(qaMessage)
         .where(inArray(qaMessage.targetId, compIds))
@@ -256,9 +252,8 @@ export async function loadComponentMessages(
   db: Db,
   componentId: string,
 ): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> {
-  const dbi = db ?? getDb();
   const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
-  const rows = await dbi
+  const rows = await db
     .select({ id: qaMessage.id, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
     .from(qaMessage)
     .where(eq(qaMessage.targetId, componentId))

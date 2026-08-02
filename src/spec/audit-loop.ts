@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
+import type { Db } from '@/db/client';
 import type { AuditVerdict } from '@/db/enums';
 import type { Finding } from '@/components/patterns/findings';
 import { mmaBatch } from '@/db/schema/ops';
@@ -147,8 +147,7 @@ export interface AuditPassView {
 
 /** The full audit-pass history for a project+scope, oldest-first. */
 export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' | 'plan' = 'spec'): Promise<AuditPassView[]> {
-  const dbi = db ?? getDb();
-  const [row] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
   if (!row?.details) return [];
   const d = validateDetails(row.details);
   const passes = scope === 'spec'
@@ -164,13 +163,13 @@ export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' 
   const resultByBatch = new Map(
     batchIds.length === 0
       ? []
-      : (await dbi.select({ id: mmaBatch.id, result: mmaBatch.result }).from(mmaBatch).where(inArray(mmaBatch.id, batchIds)))
+      : (await db.select({ id: mmaBatch.id, result: mmaBatch.result }).from(mmaBatch).where(inArray(mmaBatch.id, batchIds)))
           .map((b) => [b.id, b.result] as const),
   );
 
   // One read for every pass's applied indices. `apply_findings` records `passNo` +
   // `findingIndices` in the dispatch meta, which lands in the batch `request` column.
-  const applyBatches = await dbi
+  const applyBatches = await db
     .select({ request: mmaBatch.request })
     .from(mmaBatch)
     .where(and(eq(mmaBatch.projectId, projectId), eq(mmaBatch.handler, `${scope}-audit-apply`)))

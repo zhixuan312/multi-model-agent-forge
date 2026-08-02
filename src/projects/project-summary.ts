@@ -1,5 +1,5 @@
 import { eq, asc } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
+import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { mmaBatch } from '@/db/schema/ops';
 import { projectActivity } from '@/db/schema/activity';
@@ -34,15 +34,13 @@ export interface ProjectSummary {
 }
 
 export async function loadProjectSummary(db: Db, projectId: string): Promise<ProjectSummary> {
-  const dbi = db ?? getDb();
-
-  const [proj] = await dbi
+  const [proj] = await db
     .select({ name: project.name, createdAt: project.createdAt, completedAt: project.completedAt, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))
     .limit(1);
 
-  const batches = await dbi
+  const batches = await db
     .select({
       status: mmaBatch.status, costUsd: mmaBatch.costUsd, savedVsMainUsd: mmaBatch.savedVsMainUsd,
       inputTokens: mmaBatch.inputTokens, outputTokens: mmaBatch.outputTokens, durationMs: mmaBatch.durationMs,
@@ -63,7 +61,7 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
   let learnings: Array<{ type: string; status: string }> = [];
   let events: ProjectActivityEvent[] = [];
 
-  const activityRows = await dbi
+  const activityRows = await db
     .select()
     .from(projectActivity)
     .where(eq(projectActivity.projectId, projectId))

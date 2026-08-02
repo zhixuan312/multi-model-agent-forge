@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
+import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
 
@@ -19,9 +19,7 @@ export interface StagePermissions {
 }
 
 export async function getStagePermissions(db: Db, projectId: string): Promise<StagePermissions> {
-  const dbi = db ?? getDb();
-
-  const [proj] = await dbi
+  const [proj] = await db
     .select({ completedAt: project.completedAt, details: project.details })
     .from(project)
     .where(eq(project.id, projectId))

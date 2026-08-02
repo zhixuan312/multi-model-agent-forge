@@ -1,5 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
-import { getDb, type Db } from '@/db/client';
+import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
@@ -80,8 +80,6 @@ export function groupTasksIntoPhases(tasks: PlanTaskView[]): PlanPhaseView[] {
 
 /** Load the full plan view for a project — tasks from plan.md, metadata from DB. */
 export async function loadPlanView(db: Db, projectId: string): Promise<PlanView> {
-  const dbi = db ?? getDb();
-
   const planFile = await readPlanFile(projectId);
   const planMd = planFile?.bodyMd ?? null;
 
@@ -90,7 +88,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     // Clear stale tasks from details
     const { updateDetails } = await import('@/details/write');
     try {
-      await updateDetails(dbi, projectId, (d) => {
+      await updateDetails(db, projectId, (d) => {
         d.stages.plan.phases.refine.tasks = [];
         d.stages.plan.phases.refine.file = undefined;
         return d;
@@ -106,7 +104,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     // Load DB metadata (approvals, status, participants) keyed by title
     // Read task metadata from details
     const { validateDetails } = await import('@/details/schema');
-    const [proj] = await dbi.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
+    const [proj] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
     const d = proj?.details ? validateDetails(proj.details) : null;
     const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
     participantIds = d?.stages.plan.participants ?? [];
@@ -145,14 +143,14 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   }
 
   const phases = groupTasksIntoPhases(tasks);
-  const planHistory = await auditPassHistory(dbi, projectId, 'plan');
+  const planHistory = await auditPassHistory(db, projectId, 'plan');
 
   // Load discussion messages for all plan tasks (keyed by taskId)
   const taskIds = tasks.map((t) => t.id).filter((id) => !id.startsWith('file-task-'));
   const messages: PlanView['messages'] = {};
   if (taskIds.length > 0) {
     const { inArray } = await import('drizzle-orm');
-    const rows = await dbi
+    const rows = await db
       .select({ id: qaMessage.id, targetId: qaMessage.targetId, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
       .from(qaMessage)
       .where(inArray(qaMessage.targetId, taskIds))

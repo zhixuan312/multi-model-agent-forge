@@ -39,13 +39,10 @@ export type LogSink = (record: LogRecord) => void;
 let sink: LogSink = (record) => {
   const line = JSON.stringify(record);
   if (record.level === 'error') {
-     
     console.error(line);
   } else if (record.level === 'warn') {
-     
     console.warn(line);
   } else {
-     
     console.log(line);
   }
 };

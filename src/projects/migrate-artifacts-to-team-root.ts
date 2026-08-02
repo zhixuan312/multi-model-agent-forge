@@ -125,16 +125,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .then((reports) => {
       for (const r of reports) {
         const extra = r.conflicts?.length ? ` conflicts=[${r.conflicts.join(', ')}]` : '';
-         
         console.log(`${r.result.padEnd(18)} ${r.projectId}  ${r.from} -> ${r.to}${extra}`);
       }
       const moved = reports.filter((r) => r.result === 'moved' || r.result === 'merged').length;
-       
       console.log(`\n${dryRun ? '[dry-run] ' : ''}${reports.length} project(s), ${moved} relocated.`);
       process.exit(0);
     })
     .catch((err) => {
-       
       console.error(err);
       process.exit(1);
     });

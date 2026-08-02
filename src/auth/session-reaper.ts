@@ -16,13 +16,11 @@ export async function reapExpiredSessions(): Promise<number> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   reapExpiredSessions()
     .then(async (count) => {
-       
       console.log(`Reaped ${count} expired session(s).`);
       await getSql().end();
       process.exit(0);
     })
     .catch(async (err) => {
-       
       console.error('Session reaping failed:', err);
       try {
         await getSql().end();

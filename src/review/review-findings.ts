@@ -14,6 +14,7 @@
  * those shapes is kept because it is free, but it is tolerance, not the contract.
  */
 import { isBlockingSeverity } from '@/lib/severity';
+
 export interface RawReviewFinding {
   weight: string;
   category: string;
@@ -62,7 +63,5 @@ export function buildReviewFixPrompt(findings: RawReviewFinding[]): string {
 }
 
 export function hasBlockingReviewFindings(envelope: unknown): boolean {
-  return extractReviewFindings(envelope).some((f) => {
-    return isBlockingSeverity(f.weight);
-  });
+  return extractReviewFindings(envelope).some((f) => isBlockingSeverity(f.weight));
 }

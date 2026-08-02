@@ -121,3 +121,34 @@ describe('GUIDELINES <-> in-app guide', () => {
     expect(guidelines).not.toMatch(/Keep them in sync via/);
   });
 });
+
+describe('README <-> the real stage lifecycle', () => {
+  /**
+   * README printed a FOUR-stage arrow ("explore → plan → build → review") in two places
+   * while the product has SIX stages, and used "build" as a stage name — `build` is a
+   * PHASE (`design`/`build`/`learn`); the stage is `execute`, served at `/execute`.
+   *
+   * Derived from `STAGE_ROUTE`, not restated, so adding or renaming a stage fails here
+   * instead of leaving the front-door doc describing a lifecycle the product does not have.
+   */
+  it('names every stage segment, in order, wherever it prints the lifecycle arrow', async () => {
+    const { STAGE_ROUTE } = await import('@/projects/stage-route');
+    const { STAGE_KIND } = await import('@/db/enums');
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+
+    const arrow = STAGE_KIND.map((k) => STAGE_ROUTE[k]).join(' → ');
+    expect(readme, `README should print the full stage arrow: ${arrow}`).toContain(arrow);
+    // and must not still claim the old four-stage shape
+    expect(readme).not.toContain('explore → plan → build → review');
+  });
+
+  it('lists every stage LABEL in the pillars section', async () => {
+    const { STAGE_LABEL } = await import('@/projects/stage-lifecycle');
+    const { STAGE_KIND } = await import('@/db/enums');
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    for (const kind of STAGE_KIND) {
+      expect(readme, `README should name the "${STAGE_LABEL[kind]}" stage`).toContain(`**${STAGE_LABEL[kind]}**`);
+    }
+  });
+});
+

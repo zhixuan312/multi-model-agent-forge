@@ -10,10 +10,14 @@ Forge is designed around one principle: **teams outperform individuals**. Knowle
 
 The AI software development lifecycle as a team workflow. Business users, engineers, and product managers each contribute what they're best at — without anyone needing to open a terminal.
 
-- **Explore** — business user describes the problem in their own language; AI-driven interview captures domain expertise into a structured spec
+The lifecycle is six stages — the labels below are exactly what the stepper shows:
+
+- **Explore** — business user describes the problem in their own language; investigation, research and journal recall fan out in parallel, then synthesize a grounded brief
+- **Spec** — components are drafted and approved per section, then audited to a clean pass
 - **Plan** — engineer reviews the technical plan; architecture and risk decisions stay with human judgment
-- **Build** — MMA workers execute autonomously with spec-audit and plan-audit gates
-- **Review** — quality gates require both AI and human satisfaction before approval
+- **Execute** — MMA workers implement the approved tasks autonomously, each in the project's own worktree
+- **Review** — code review runs per repo; quality gates require both AI and human satisfaction before approval
+- **Reflect** — learnings are harvested from the run and recorded into the team journal
 
 Each stage routes to the person best suited for that job. The business user for the problem. The engineer for the solution. Both for the decision.
 
@@ -148,7 +152,7 @@ The MMA engine runs separately (`mma serve` on port 7337). Forge calls its `POST
 ```
 app/
   (app)/           UI pages
-    projects/        SDLC workflow (explore → plan → build → review)
+    projects/        SDLC workflow (explore → spec → plan → execute → review → reflect)
     journal/         Team knowledge graph viewer
     loops/           Operational loop management
     settings/        Workspace config (models, members, connections)
@@ -171,7 +175,9 @@ src/
 ## Key concepts
 
 - **Workspace**: a team's top-level container — one MMA config, one journal, shared settings
-- **Project**: a unit of work flowing through explore → plan → build → review
+- **Project**: a unit of work flowing through explore → spec → plan → execute → review → reflect.
+  Those six STAGES group into three PHASES (`design` · `build` · `learn`) — "build" is a
+  phase, not a stage, and the execute stage's URL segment is `/execute`
 - **Loop**: a recurring automated maintenance job (scheduled, governed, always PR-for-review)
 - **Journal**: team-level knowledge graph — decisions, designs, behaviors, processes, learnings, style conventions
 - **Project Activity**: a durable timeline of all events in a project — spec drafts, approvals, component confirmations, user transitions, and discover tasks. Stored in the `project_activity` table with actor attribution and source tracking (user vs. MMA)

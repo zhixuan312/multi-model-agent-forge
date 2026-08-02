@@ -5,6 +5,7 @@ import type { Finding } from '@/components/patterns/findings';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
+import { SEVERITY_ORDER, isBlockingSeverity, type Severity } from '@/lib/severity';
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
@@ -13,7 +14,7 @@ import { validateDetails } from '@/details/schema';
  */
 
 /** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */
-export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type FindingSeverity = Severity;
 
 /** A single parsed finding (the two fields Forge relies on + display fields). */
 /**
@@ -43,7 +44,7 @@ export type AuditParseResult =
       kind: 'missing_report';
     };
 
-const VALID_SEVERITY = new Set<FindingSeverity>(['critical', 'high', 'medium', 'low']);
+const VALID_SEVERITY = new Set<FindingSeverity>(SEVERITY_ORDER);
 
 /**
  * Parse the MMA `audit` terminal envelope. PURE — no DB, no network. Returns the
@@ -104,7 +105,7 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
     })
     .filter((f) => VALID_SEVERITY.has(f.severity));
 
-  const hasCriticalOrHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
+  const hasCriticalOrHigh = findings.some((f) => isBlockingSeverity(f.severity));
   const ctxBlock = (output.contextBlockId ?? env.contextBlockId) as string | undefined;
   const contextBlockId = typeof ctxBlock === 'string' && ctxBlock.length > 0 ? ctxBlock : null;
 

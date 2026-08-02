@@ -55,6 +55,7 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
 import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
+import { isBlockingSeverity } from '@/lib/severity';
 
 const PLAN_PHASE_NOTES: Record<string, string> = {
   refine: `### Refine — review the tasks
@@ -193,7 +194,7 @@ export function PlanStageClient(props: PlanStageClientProps) {
   };
   const initialRounds = useMemo(
     () => props.auditRounds.map((findings, i) => {
-      const hasCritHigh = findings.some((f) => f.severity === 'critical' || f.severity === 'high');
+      const hasCritHigh = findings.some((f) => isBlockingSeverity(f.severity));
       return {
         passNo: i + 1,
         verdict: hasCritHigh ? 'revised' as const : 'clean' as const,

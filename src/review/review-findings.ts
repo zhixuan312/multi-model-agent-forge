@@ -13,6 +13,7 @@
  * `severity` key occurred 0 times, as did a string-valued `summary`. The tolerance for
  * those shapes is kept because it is free, but it is tolerance, not the contract.
  */
+import { isBlockingSeverity } from '@/lib/severity';
 export interface RawReviewFinding {
   weight: string;
   category: string;
@@ -62,7 +63,6 @@ export function buildReviewFixPrompt(findings: RawReviewFinding[]): string {
 
 export function hasBlockingReviewFindings(envelope: unknown): boolean {
   return extractReviewFindings(envelope).some((f) => {
-    const w = f.weight.toLowerCase();
-    return w === 'critical' || w === 'high';
+    return isBlockingSeverity(f.weight);
   });
 }

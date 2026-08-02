@@ -9,6 +9,7 @@ import { setBriefText } from '@/details/write';
 import { getBriefText, getRepos } from '@/details/read';
 import { validateDetails } from '@/details/schema';
 import type { RailTask } from '@/hooks/useProjectEvents';
+import { compareSeverity } from '@/lib/severity';
 
 /**
  * Brief persistence + the explore rail/summary reads.
@@ -80,8 +81,9 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
         : typeof s.summary === 'string' ? s.summary
         : null;
       const findings = Array.isArray(s.findings) ? s.findings as Array<Record<string, unknown>> : [];
-      const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-      findings.sort((a, b) => (SEVERITY_ORDER[String(a.weight)] ?? 9) - (SEVERITY_ORDER[String(b.weight)] ?? 9));
+      // Ordering lives in @/lib/severity — findings.tsx is a client module, so the two
+      // sides cannot share a constant directly; they share this one instead.
+      findings.sort((a, b) => compareSeverity(String(a.weight), String(b.weight)));
       const parts: string[] = [];
       if (answer) parts.push(answer);
       if (findings.length > 0) {

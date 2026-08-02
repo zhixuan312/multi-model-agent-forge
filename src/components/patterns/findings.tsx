@@ -5,6 +5,7 @@ import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Badge, Button } from '@/components/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SEVERITY_ORDER as SHARED_SEVERITY_ORDER } from '@/lib/severity';
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -14,7 +15,7 @@ export interface Finding {
   suggestion?: string;
 }
 
-export const SEVERITY_ORDER: Finding['severity'][] = ['critical', 'high', 'medium', 'low'];
+export const SEVERITY_ORDER: Finding['severity'][] = [...SHARED_SEVERITY_ORDER];
 
 const SEVERITY_STYLE_MAP: Record<Finding['severity'], string> = {
   critical: 'bg-rose-tint text-[var(--rose)]',

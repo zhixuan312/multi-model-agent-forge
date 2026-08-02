@@ -7,6 +7,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { Avatar } from '@/components/ui';
 import { ForgeMark } from '@/components/forge/ForgeMark';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
+import { mentionSpans } from '@/collab/mentions';
 
 /**
  * The people-and-AI turns of a section, rendered inline as one continuous chat
@@ -58,27 +59,23 @@ export function DiscussionThread({
   );
 }
 
-/** Render body text with any `@Display Name` tokens (for pool members) styled. */
+/** Highlight every resolvable @-mention. Who counts as a mention is `mentionSpans`' call,
+ *  shared with the composer's participant resolution so the two can't drift. */
 function renderBody(body: string, pool: MemberRef[]): React.ReactNode {
   if (pool.length === 0) return body;
-  // Longest names first so "@Bo Chen" wins over "@Bo".
-  const names = [...pool].map((m) => m.displayName).sort((a, b) => b.length - a.length);
-  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const re = new RegExp(`@(?:${escaped.join('|')})`, 'g');
+  const spans = mentionSpans(body, pool);
+  if (spans.length === 0) return body;
   const out: React.ReactNode[] = [];
   let last = 0;
-  let match: RegExpExecArray | null;
-  let i = 0;
-  while ((match = re.exec(body)) !== null) {
-    if (match.index > last) out.push(<Fragment key={`t${i}`}>{body.slice(last, match.index)}</Fragment>);
+  spans.forEach((s, i) => {
+    if (s.start > last) out.push(<Fragment key={`t${i}`}>{body.slice(last, s.start)}</Fragment>);
     out.push(
       <span key={`m${i}`} className="font-semibold text-accent">
-        {match[0]}
+        {s.text}
       </span>,
     );
-    last = match.index + match[0].length;
-    i += 1;
-  }
+    last = s.end;
+  });
   if (last < body.length) out.push(<Fragment key="tail">{body.slice(last)}</Fragment>);
   return out;
 }

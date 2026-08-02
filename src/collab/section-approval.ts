@@ -56,27 +56,3 @@ export function recordApproval(
     p.member.id === member.id && p.approvedAt === null ? { ...p, approvedAt: at } : p,
   );
 }
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Extract @-mentions from free text, resolving against a member pool by display
- * name. Longest names match first and are consumed, so "@Bo Chen" resolves to
- * Bo Chen — not also a shorter "Bo". Case-insensitive; order follows the pool's
- * longest-first match order. Unresolvable `@text` is ignored (no throw).
- */
-export function parseMentions(text: string, pool: MemberRef[]): MemberRef[] {
-  let work = text;
-  const hits: MemberRef[] = [];
-  const byLen = [...pool].sort((a, b) => b.displayName.length - a.displayName.length);
-  for (const m of byLen) {
-    const re = new RegExp(`@${escapeRegExp(m.displayName)}(?![\\w])`, 'i');
-    if (re.test(work)) {
-      hits.push(m);
-      work = work.replace(re, ' '); // consume so a shorter prefix can't re-match
-    }
-  }
-  return hits;
-}

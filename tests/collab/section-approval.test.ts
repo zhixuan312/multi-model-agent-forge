@@ -4,8 +4,8 @@ import {
   isHumanApproved,
   hasApproved,
   addParticipant,
-  recordApproval,
-  parseMentions } from '@/collab/section-approval';
+  recordApproval
+} from '@/collab/section-approval';
 import type { MemberRef, Participant } from '@/collab/types';
 
 const bo: MemberRef = { id: 'bo', displayName: 'Bo Chen', avatarTint: '#355a74' };
@@ -67,35 +67,5 @@ describe('recordApproval', () => {
     const start: Participant[] = [{ member: bo, approvedAt: '2026-06-13T09:00:00.000Z' }];
     const next = recordApproval(start, bo, '2026-06-13T11:00:00.000Z');
     expect(next[0]!.approvedAt).toBe('2026-06-13T09:00:00.000Z');
-  });
-});
-
-describe('parseMentions', () => {
-  const pool = [bo, priya, { id: 'bo2', displayName: 'Bo', avatarTint: '#000' }];
-
-  it('resolves a single @-mention by display name', () => {
-    expect(parseMentions('hey @Priya Nair can you check this', pool).map((m) => m.id)).toEqual(['priya']);
-  });
-
-  it('matches the longest name first so "@Bo Chen" is not also read as "@Bo"', () => {
-    const hits = parseMentions('ping @Bo Chen please', pool).map((m) => m.id);
-    expect(hits).toEqual(['bo']);
-  });
-
-  it('still resolves a bare "@Bo" to the short-named member', () => {
-    expect(parseMentions('ping @Bo please', pool).map((m) => m.id)).toEqual(['bo2']);
-  });
-
-  it('resolves multiple distinct mentions', () => {
-    const hits = parseMentions('@Bo Chen and @Priya Nair', pool).map((m) => m.id).sort();
-    expect(hits).toEqual(['bo', 'priya']);
-  });
-
-  it('is case-insensitive and ignores unresolvable text', () => {
-    expect(parseMentions('@bo chen and @Nobody Here', pool).map((m) => m.id)).toEqual(['bo']);
-  });
-
-  it('returns nothing when there are no mentions', () => {
-    expect(parseMentions('just a plain comment', pool)).toEqual([]);
   });
 });

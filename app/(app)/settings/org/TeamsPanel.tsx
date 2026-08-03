@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
 import { responseError } from '@/lib/err';
+import { SetIndicator } from '@/components/patterns';
 import {
   Card,
   Field,
@@ -225,13 +226,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
         header: 'Git token',
         size: 120,
         cell: ({ row }) =>
-          row.original.gitTokenSet ? (
-            <Badge variant="sage" dot size="sm">
-              set
-            </Badge>
-          ) : (
-            <Badge size="sm">not set</Badge>
-          ),
+          <SetIndicator set={row.original.gitTokenSet} />,
       },
       {
         id: 'actions',

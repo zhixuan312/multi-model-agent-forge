@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Badge } from '@/components/ui';
-import { FormPanel } from '@/components/patterns';
+import { Field, Input } from '@/components/ui';
+import { FormPanel, SetIndicator } from '@/components/patterns';
 import { responseError } from '@/lib/err';
 
 /**
@@ -51,15 +51,7 @@ export function WorkspaceForm({ current }: { current: string }) {
     <FormPanel
       heading="Workspace path"
       ariaLabel="Workspace path"
-      indicator={
-        current.trim() !== '' ? (
-          <Badge variant="sage" dot size="sm">
-            set
-          </Badge>
-        ) : (
-          <Badge size="sm">not set</Badge>
-        )
-      }
+      indicator={<SetIndicator set={current.trim() !== ''} />}
       disclosure={{
         open,
         summary: current,

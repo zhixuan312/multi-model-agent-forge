@@ -3,7 +3,7 @@
 import type { FormEvent, ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Card, CardContent, Button, TextStrong, Micro, Mono } from '@/components/ui';
+import { Badge, Card, CardContent, Button, TextStrong, Micro, Mono, type BadgeProps } from '@/components/ui';
 import { VerifyResultBox } from '@/components/patterns/verify-result-box';
 import { showToast } from '@/components/ui/toast';
 
@@ -36,6 +36,26 @@ export interface FormPanelValidate {
  *     <FieldGrid>…</FieldGrid>
  *   </FormPanel>
  */
+/**
+ * The set / not-set indicator for a stored credential — the value itself is never sent
+ * to the browser, so this is all a card can honestly show.
+ *
+ * Written out four times (org Connections ×2, team Git token, team Workspace path, and
+ * the Teams table's git column). `FormPanel` takes it as its `indicator` prop, so it
+ * belongs beside it.
+ */
+export function SetIndicator({ set, ...rest }: { set: boolean } & Omit<BadgeProps, 'variant' | 'size' | 'dot' | 'children'>) {
+  return set ? (
+    <Badge variant="sage" dot size="sm" {...rest}>
+      set
+    </Badge>
+  ) : (
+    <Badge size="sm" {...rest}>
+      not set
+    </Badge>
+  );
+}
+
 export function FormPanel({
   ariaLabel,
   onSubmit,

@@ -6,7 +6,7 @@ export { Message, MessageList, ConversationComposer, ConversationPane, type Conv
 export { StageShell, type StageShellProps } from './stage-shell';
 export { StageNavigator, type NavItem, type NavGroup } from './stage-navigator';
 export { List, type ListRow, type ListSection } from './list';
-export { FormPanel } from './form-panel';
+export { FormPanel, SetIndicator } from './form-panel';
 export type { FormPanelValidate } from './form-panel';
 export { DocumentShell, type DocumentShellTab } from './document-shell';
 export { StatCard, StatCardGrid, SelectableTile, type StatCardRow } from './cards';

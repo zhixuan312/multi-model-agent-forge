@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Badge } from '@/components/ui';
-import { FormPanel } from '@/components/patterns';
+import { Field, Input } from '@/components/ui';
+import { FormPanel, SetIndicator } from '@/components/patterns';
 import { responseError } from '@/lib/err';
 
 /**
@@ -53,15 +53,7 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
     <FormPanel
       heading="Git token"
       ariaLabel="Git token"
-      indicator={
-        tokenSet ? (
-          <Badge variant="sage" dot size="sm">
-            set
-          </Badge>
-        ) : (
-          <Badge size="sm">not set</Badge>
-        )
-      }
+      indicator={<SetIndicator set={tokenSet} />}
       disclosure={{
         open,
         summary: 'Clones and pulls every repository for this team',

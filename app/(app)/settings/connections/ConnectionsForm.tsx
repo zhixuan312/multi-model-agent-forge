@@ -5,13 +5,12 @@ import { useRouter } from 'next/navigation';
 import {
   Field,
   Input,
-  Badge,
 } from '@/components/ui';
 import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
-import { FormPanel } from '@/components/patterns';
+import { FormPanel, SetIndicator } from '@/components/patterns';
 import { responseError } from '@/lib/err';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
@@ -40,18 +39,6 @@ export interface ConnectionsData {
 // surface handles only the MMA engine and the org voice/transcription key.
 type Conn = 'mma' | 'openai';
 type ValidateResult = { ok: boolean; detail: string };
-
-function SetIndicator({ set, testid }: { set: boolean; testid: string }) {
-  return set ? (
-    <Badge data-testid={testid} variant="sage" dot size="sm">
-      set
-    </Badge>
-  ) : (
-    <Badge data-testid={testid} size="sm">
-      not set
-    </Badge>
-  );
-}
 
 /**
  * Org connections form: MMA (the local engine — base URL + an optional advanced
@@ -154,7 +141,7 @@ export function ConnectionsForm({
         <FormPanel
           heading="MMA"
           ariaLabel="MMA connection"
-          indicator={<SetIndicator set={mmaBearer !== null} testid="mma-token-indicator" />}
+          indicator={<SetIndicator set={mmaBearer !== null} data-testid="mma-token-indicator" />}
           disclosure={{
             open: open === 'mma',
             summary: mmaBaseUrl,
@@ -203,7 +190,7 @@ export function ConnectionsForm({
         <FormPanel
           heading="Speech to text"
           ariaLabel="Speech to text"
-          indicator={<SetIndicator set={initial.openaiTranscriptionKeySet} testid="openai-key-indicator" />}
+          indicator={<SetIndicator set={initial.openaiTranscriptionKeySet} data-testid="openai-key-indicator" />}
           disclosure={{
             open: open === 'openai',
             summary: 'OpenAI key for voice notes — transcribes speech into text (optional)',

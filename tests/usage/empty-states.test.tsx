@@ -45,3 +45,26 @@ describe('empty states distinguish "nothing there" from "nothing matches"', () =
     expect(screen.queryByText('No loops yet')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The row-expand toggles were permanently labelled "Expand" with no `aria-expanded` —
+ * a screen reader heard the same thing whether the row was open or shut, and `isOpen`,
+ * computed directly above each one, only ever rotated the chevron.
+ */
+describe('row expand toggles carry their state', () => {
+  const rows = [{ loopId: 'l1', loopName: 'Nightly', runs: 2, costUsd: 1, tokens: 10, durationMs: 5 }] as never;
+
+  it('names what expands and reports whether it is open', async () => {
+    render(<LoopUsageTable data={rows} detailByLoop={{}} />);
+    const toggle = screen.getByRole('button', { name: 'Route breakdown for Nightly' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Route breakdown for Nightly' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('no longer offers an unlabelled "Expand"', () => {
+    render(<LoopUsageTable data={rows} detailByLoop={{}} />);
+    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
+  });
+});

@@ -83,7 +83,17 @@ export function ProjectUsageTable({
         cell: ({ row }) => {
           const isOpen = expandedId === row.original.projectId;
           return (
-            <Button size="sm" variant="ghost" onClick={() => toggle(row.original.projectId)} aria-label="Expand">
+            // `aria-expanded` carries the state and the label names WHAT expands. This
+            // was a permanent "Expand" with no state at all, so a screen reader heard the
+            // same thing whether the row was open or shut — and `isOpen`, computed right
+            // above, only ever rotated the chevron.
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => toggle(row.original.projectId)}
+              aria-expanded={isOpen}
+              aria-label={`Route breakdown for ${row.original.projectName}`}
+            >
               <ChevronRight className={`size-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
             </Button>
           );

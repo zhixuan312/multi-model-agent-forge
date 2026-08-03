@@ -95,7 +95,17 @@ export function LoopUsageTable({
         cell: ({ row }) => {
           const isOpen = expandedId === row.original.loopId;
           return (
-            <Button size="sm" variant="ghost" onClick={() => toggle(row.original.loopId)} aria-label="Expand">
+            // `aria-expanded` carries the state and the label names WHAT expands. This
+            // was a permanent "Expand" with no state at all, so a screen reader heard the
+            // same thing whether the row was open or shut — and `isOpen`, computed right
+            // above, only ever rotated the chevron.
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => toggle(row.original.loopId)}
+              aria-expanded={isOpen}
+              aria-label={`Route breakdown for ${row.original.loopName}`}
+            >
               <ChevronRight className={`size-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
             </Button>
           );

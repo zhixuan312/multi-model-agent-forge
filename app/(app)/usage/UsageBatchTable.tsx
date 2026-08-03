@@ -94,7 +94,17 @@ export function UsageBatchTable({
           const id = `${row.original.source}-${row.original.route}`;
           const isOpen = expandedId === id;
           return (
-            <Button size="sm" variant="ghost" onClick={() => toggle(id)} aria-label="Expand">
+            // `aria-expanded` carries the state and the label names WHAT expands. This
+            // was a permanent "Expand" with no state at all, so a screen reader heard the
+            // same thing whether the row was open or shut — and `isOpen`, computed right
+            // above, only ever rotated the chevron.
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => toggle(id)}
+              aria-expanded={isOpen}
+              aria-label={`Route breakdown for ${row.original.routeLabel}`}
+            >
               <ChevronRight className={`size-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
             </Button>
           );

@@ -5,6 +5,7 @@ import { member, memberIdentity, session } from '@/db/schema/identity';
 import { hashPassword, passwordSchema } from '@/auth/password';
 import { sessionStore, type SessionStore } from '@/auth/session-store';
 import type { MemberRef } from '@/collab/types';
+import { isUniqueViolation } from '@/db/errors';
 
 /**
  * Members CRUD core (Spec 1 §Members CRUD API). Dependency-injected and pure of
@@ -341,14 +342,4 @@ async function countOtherAdmins(db: Db, exceptMemberId: string, teamId?: string)
 function isAdminRole(row: { role?: string; isAdmin?: boolean }): boolean {
   if (typeof row.isAdmin === 'boolean') return row.isAdmin;
   return row.role === 'team_admin' || row.role === 'org_admin';
-}
-
-/** Detect a Postgres unique-constraint violation (SQLSTATE 23505). */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code?: unknown }).code === '23505'
-  );
 }

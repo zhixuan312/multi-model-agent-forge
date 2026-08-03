@@ -5,6 +5,7 @@
  * is the auto/best-practice step; the manual early-exit (advance after ≥1 pass) is
  * layered in `allowedActions.addManualExtras`, NOT here — so this stays mode-free.
  */
+import { isParked } from '@/automation/attempt-status';
 export const AUDIT_PASS_CAP = 5;
 
 interface AttemptLike { status: string }
@@ -34,10 +35,6 @@ export function auditInFlight(passes: AuditPassLike[]): boolean {
   const a = last.audit?.attempts ?? [];
   const f = last.fix?.attempts ?? [];
   return isParked(a[a.length - 1]) || isParked(f[f.length - 1]);
-}
-
-function isParked(attempt?: AttemptLike): boolean {
-  return attempt?.status === 'running' || attempt?.status === 'cancelled';
 }
 
 /**

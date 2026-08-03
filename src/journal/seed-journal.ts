@@ -17,11 +17,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
 import type { JournalNode, LogEntry } from '@/journal/types';
-
-/** `<root>/.mma/journal` — the team journal location (mirrors store-reader). */
-function journalDirFor(root: string): string {
-  return join(root, '.mma', 'journal');
-}
+import { journalDirFor } from '@/journal/store-reader';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, 'seed-data');

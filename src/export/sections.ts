@@ -56,7 +56,8 @@ const H2_RE = /^##\s+(.+?)\s*$/gm;
 /** Mermaid fenced block. */
 const MERMAID_FENCE_RE = /```mermaid\s*\n([\s\S]*?)```/g;
 
-function pad2(n: number): string {
+/** Two-digit section number (`01`, `02`) — shared with collect-artifacts. */
+export function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 

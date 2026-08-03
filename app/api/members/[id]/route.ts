@@ -1,19 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
-import { setMemberAdmin, deleteMember, type MembersDeps } from '@/auth/members-core';
-import type { AuthedMember } from '@/auth/auth-provider';
+import { setMemberAdmin, deleteMember } from '@/auth/members-core';
 import { logEvent } from '@/observability/log-event';
+import { memberScope } from '@/auth/member-scope';
 
 type Ctx = { params: Promise<{ id: string }> };
-
-/**
- * Scope member mutations to the actor's team. An org_admin owns every team (no scope);
- * a team_admin may only touch members of their OWN team — the sentinel guarantees a
- * team_admin with a null teamId matches nobody rather than falling through unscoped.
- */
-function memberScope(actor: AuthedMember): Pick<MembersDeps, 'teamId'> {
-  return actor.role === 'org_admin' ? {} : { teamId: actor.teamId ?? '__no_team__' };
-}
 
 /**
  * Admin Members API — toggle admin (Spec 1 §Members CRUD API).

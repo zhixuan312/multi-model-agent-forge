@@ -21,6 +21,7 @@ import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
 import { validateDetails } from '@/details/schema';
 import type { CoverMeta, ExportKind, SectionHeaderMap } from '@/export/types';
+import { pad2 } from '@/export/sections';
 
 export type { ExportKind };
 
@@ -45,10 +46,6 @@ export interface ArtifactMenuItem {
 
 function titleCase(s: string): string {
   return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
 }
 
 /** Latest artifact for a deliverable kind. All read from physical files. */

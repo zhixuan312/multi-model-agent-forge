@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
 import { team } from '@/db/schema/team';
-import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import { type SecretStore } from '@/secrets/secret-store';
+import { resolveSecrets } from '@/secrets/resolve-secrets';
 
 /**
  * Connections core (Spec 2 §Connections). Reads/updates the singleton
@@ -30,10 +31,6 @@ export interface ConnectionsDeps {
   /** Whether the caller is an org admin — REQUIRED to write the org-owned singleton fields
    *  (mmaBaseUrl, openaiTranscriptionKey). A team admin may only rotate the team git token. */
   isOrgAdmin?: boolean;
-}
-
-async function resolveSecrets(deps: ConnectionsDeps): Promise<SecretStore> {
-  return deps.secrets ?? (await PostgresSecretStore.create({ db: deps.db }));
 }
 
 /** The Connections view — base URL is shown; tokens are booleans, never values. */

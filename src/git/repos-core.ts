@@ -12,9 +12,11 @@ import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { team } from '@/db/schema/team';
-import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
+import { type SecretStore } from '@/secrets/secret-store';
 import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
 import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
+import { isUniqueViolation } from '@/db/errors';
+import { resolveSecrets } from '@/secrets/resolve-secrets';
 
 export interface ReposDeps {
   db?: Db;
@@ -86,10 +88,6 @@ export type CloneRepoResult =
   | { kind: 'invalid'; message?: string }
   | { kind: 'duplicate_name' }
   | { kind: 'error'; message: string; repo?: RepoView };
-
-async function resolveSecrets(deps: ReposDeps): Promise<SecretStore> {
-  return deps.secrets ?? (await PostgresSecretStore.create({ db: deps.db }));
-}
 
 async function resolveTeamRow(db: Db, teamId?: string): Promise<typeof team.$inferSelect | null> {
   if (!teamId) return null;
@@ -263,10 +261,6 @@ export async function deleteRepo(id: string, deps: ReposDeps = {}): Promise<Dele
   const where = deps.teamId ? and(eq(repo.id, id), eq(repo.teamId, deps.teamId)) : eq(repo.id, id);
   const rows = await db.delete(repo).where(where).returning({ id: repo.id });
   return rows.length > 0 ? { kind: 'deleted' } : { kind: 'not_found' };
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
 }
 
 /**

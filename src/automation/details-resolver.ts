@@ -1,6 +1,7 @@
 import type { Details } from '@/details/schema';
 import type { StageKind } from '@/db/enums';
 import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
+import { isParked } from '@/automation/attempt-status';
 
 export interface AutoAction {
   kind: string;
@@ -12,19 +13,6 @@ export interface AutoAction {
 
 const WAIT: AutoAction = { kind: 'wait', note: '', stage: '', phase: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete', stage: '', phase: '' };
-
-/**
- * An attempt auto-mode must NOT act on. Two shapes, one answer (WAIT):
- *  - `running`   — still in flight; acting now would double-dispatch.
- *  - `cancelled` — a human deliberately stopped it (engine 5.16 terminal state). It is
- *    terminal, so it will never flip on its own, and re-dispatching would undo the stop.
- *    Auto parks the stage; the human resumes it by taking over. Note this is deliberately
- *    NOT how `failed` behaves — a failure DOES retry (an engine `interrupted` task
- *    surfaces as `failed` precisely so it gets resubmitted).
- */
-function isParked(attempt?: { status: string }): boolean {
-  return attempt?.status === 'running' || attempt?.status === 'cancelled';
-}
 
 const STAGE_LABEL: Record<StageKind, string> = {
   exploration: 'Explore', spec: 'Spec', plan: 'Plan', execute: 'Execute', review: 'Review', journal: 'Journal',

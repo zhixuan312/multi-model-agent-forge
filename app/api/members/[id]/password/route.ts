@@ -1,15 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { resetMemberPassword } from '@/auth/members-core';
-import type { AuthedMember } from '@/auth/auth-provider';
 import { logEvent } from '@/observability/log-event';
+import { memberScope } from '@/auth/member-scope';
 
 type Ctx = { params: Promise<{ id: string }> };
-
-/** Org_admin = every team (unscoped); team_admin = own team only (sentinel = matches nobody). */
-function memberScope(actor: AuthedMember): { teamId?: string } {
-  return actor.role === 'org_admin' ? {} : { teamId: actor.teamId ?? '__no_team__' };
-}
 
 /**
  * Admin Members API — reset a target member's password (Spec 1 §Members CRUD API).

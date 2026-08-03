@@ -86,4 +86,20 @@ describe('NodeDetail', () => {
     expect(screen.getByText(/could not parse this node/i)).toBeInTheDocument();
     expect(screen.getByText('nodes/0006-broken.md')).toBeInTheDocument();
   });
+
+  /**
+   * `timestamp` is ISO-8601, and the header printed it verbatim — `2026-05-24T00:00:00Z`
+   * sat next to the status badge. `format-date.ts` says every date display in the product
+   * goes through it; this one did not.
+   */
+  it('renders the node timestamp as a date, not a raw ISO string', () => {
+    render(<NodeDetail node={{ ...NODE, timestamp: '2026-05-24T00:00:00Z' }} inbound={[]} onNavigate={() => {}} />);
+    expect(screen.queryByText(/T00:00:00Z/)).not.toBeInTheDocument();
+    expect(screen.getByText('May 24, 2026')).toBeInTheDocument();
+  });
+
+  it('renders a date-only frontmatter timestamp the same way', () => {
+    render(<NodeDetail node={{ ...NODE, timestamp: '2026-05-28' }} inbound={[]} onNavigate={() => {}} />);
+    expect(screen.getByText('May 28, 2026')).toBeInTheDocument();
+  });
 });

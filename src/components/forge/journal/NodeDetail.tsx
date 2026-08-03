@@ -4,9 +4,9 @@ import { FileText } from 'lucide-react';
 import { Title, Eyebrow, Mono, Micro, TextSm } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
-import { cn } from '@/lib/cn';
 import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
-import { categoryStyle } from '@/components/forge/journal/category-style';
+import { CategoryChip } from '@/components/forge/journal/category-style';
+import { formatDate } from '@/lib/format-date';
 
 
 /**
@@ -50,13 +50,12 @@ export function NodeDetail({
       <header>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <Mono className="!text-xs text-ink-faint">{node.id}</Mono>
-          {node.type ? (
-            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', categoryStyle(node.type))}>
-              {node.type}
-            </span>
-          ) : null}
+          {node.type ? <CategoryChip category={node.type} /> : null}
           <StatusBadge status={node.status} />
-          <Micro className="text-ink-faint">{node.timestamp}</Micro>
+          {/* `timestamp` is ISO-8601 — this printed `2026-05-24T00:00:00Z` verbatim in the
+              header. Node timestamps are date-granularity (frontmatter carries a bare date
+              or a midnight Z), so the date alone is the honest render. */}
+          <Micro className="text-ink-faint">{formatDate(node.timestamp)}</Micro>
         </div>
 
         <Title as="h2" className="mt-2.5 !text-2xl !leading-snug">
@@ -103,7 +102,7 @@ export function NodeDetail({
               </Eyebrow>
               <dl className="mt-3 flex flex-col gap-3">
                 {rels.map((r) => (
-                  <div key={r.key}>
+                  <div key={r.label}>
                     <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-soft">
                       <span aria-hidden className="text-ink-faint">{arrowFor(r)}</span>
                       <span className="truncate">{r.label}</span>
@@ -150,7 +149,7 @@ function KnowledgeSection({ label, body }: { label: string; body: string }) {
 }
 
 // ── edge grouping ─────────────────────────────────────────────
-type Rel = { key: string; label: string; ids: string[]; dirs: Set<'in' | 'out'> };
+type Rel = { label: string; ids: string[]; dirs: Set<'in' | 'out'> };
 
 /** Lineage → dependency → hierarchy → association → conflict. Unknown labels last. */
 const REL_ORDER = [
@@ -167,7 +166,7 @@ function groupEdges(links: JournalNode['links'], inbound: InboundEdge[]): Rel[] 
   const add = (label: string, dir: 'in' | 'out', id: string) => {
     let r = map.get(label);
     if (!r) {
-      r = { key: label, label, ids: [], dirs: new Set() };
+      r = { label, ids: [], dirs: new Set() };
       map.set(label, r);
     }
     r.dirs.add(dir);

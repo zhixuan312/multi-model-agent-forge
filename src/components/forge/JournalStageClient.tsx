@@ -15,7 +15,6 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { SummaryPhase } from '@/components/forge/SummaryPhase';
 import {
@@ -36,7 +35,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
-import { categoryStyle } from '@/components/forge/journal/category-style';
+import { CategoryChip } from '@/components/forge/journal/category-style';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
 
@@ -419,7 +418,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
               title: l.title,
               meta: (
                 <span className="flex items-center gap-2">
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', categoryStyle(l.category))}>{l.category}</span>
+                  <CategoryChip category={l.category} size="sm" />
                   <span>{l.source}</span>
                 </span>
               ),
@@ -461,7 +460,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
         meta={
           <>
             <Badge variant="neutral" size="sm">Learning {active.num}</Badge>
-            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', categoryStyle(active.category))}>{active.category}</span>
+            <CategoryChip category={active.category} />
           </>
         }
         title={

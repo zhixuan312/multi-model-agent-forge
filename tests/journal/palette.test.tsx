@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { statusStyle, opStyle } from '@/components/forge/journal/palette';
 import { resolveCitations, UNKNOWN_NODE_TITLE } from '@/journal/citations';
 import { StatusBadge, StatusDot } from '@/components/forge/journal/StatusBadge';
+import { CategoryChip, categoryStyle } from '@/components/forge/journal/category-style';
 
 describe('journal palette', () => {
   it('binds every status, and falls back to neutral without throwing', () => {
@@ -71,5 +72,37 @@ describe('StatusBadge', () => {
   it('carries the status TEXT, never colour alone', () => {
     render(<StatusBadge status="superseded" />);
     expect(screen.getByText('superseded')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The category MAP was extracted after existing three times; the MARKUP that renders it
+ * stayed duplicated in `NodeDetail`, `JournalStageClient`'s header and its list rows —
+ * the same utilities written out three times, any of which could have drifted.
+ */
+describe('CategoryChip', () => {
+  it('renders the category text with its tint', () => {
+    const { container } = render(<CategoryChip category="decision" />);
+    expect(screen.getByText('decision')).toBeInTheDocument();
+    for (const cls of categoryStyle('decision').split(' ')) {
+      expect(container.firstElementChild!.className).toContain(cls);
+    }
+  });
+
+  it('tints an unrecognised category neutrally rather than leaving it unstyled', () => {
+    const { container } = render(<CategoryChip category="not-a-category" />);
+    expect(container.firstElementChild!.className).toContain(categoryStyle('style').split(' ')[0]!);
+  });
+
+  it('has a compact size for list rows and a header size, differing only in scale', () => {
+    const { container: sm } = render(<CategoryChip category="design" size="sm" />);
+    const { container: md } = render(<CategoryChip category="design" size="md" />);
+    expect(sm.firstElementChild!.className).toContain('text-[9px]');
+    expect(md.firstElementChild!.className).toContain('text-[10px]');
+    // Same tint either way — size must not change the colour.
+    for (const cls of categoryStyle('design').split(' ')) {
+      expect(sm.firstElementChild!.className).toContain(cls);
+      expect(md.firstElementChild!.className).toContain(cls);
+    }
   });
 });

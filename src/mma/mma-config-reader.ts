@@ -8,30 +8,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { TIERS, type MmaTiers } from '@/mma/tiers';
 
-/**
- * The model used when the `main` tier carries no explicit model. MMA requires
- * `X-MMA-Main-Model` on every route (400 `main_model_required` otherwise), so a dispatch
- * made before anyone visits the Models tab still needs a value.
- */
-export const DEFAULT_MAIN_MODEL = 'claude-opus-4-8';
-
-export type TierKey = 'main' | 'complex' | 'standard';
-
-export interface TierConfig {
-  dialect: string;
-  model: string;
-  baseUrl: string | null;
-  authMode: 'oauth' | 'api-key';
-}
-
-export type MmaTiers = Record<TierKey, TierConfig | null>;
-
-/**
- * The tiers, in display order. Exported because the Models panel needs the same order and
- * was keeping its own copy — one list, one order.
- */
-export const TIERS: readonly TierKey[] = ['main', 'complex', 'standard'];
+// The tier vocabulary lives in `@/mma/tiers` — a module with no Node imports, because a
+// client component needs it and THIS module reads the filesystem. Not re-exported from here:
+// one way in, per development-mode.md.
 
 /** Pure: map a parsed config object → the three tier views. */
 export function parseMmaTiers(json: unknown): MmaTiers {

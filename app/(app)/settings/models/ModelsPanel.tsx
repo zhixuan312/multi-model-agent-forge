@@ -6,7 +6,9 @@ import { Check, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Field, Input, Button, Badge, Micro, Label, TextStrong, Mono, Segmented } from '@/components/ui';
 import { VerifyResultBox } from '@/components/patterns/verify-result-box';
-import { TIERS, type MmaTiers, type TierKey, type TierConfig } from '@/mma/mma-config-reader';
+// From `@/mma/tiers`, NOT the config reader: that module opens `~/.mma/config.json` and
+// imports `node:fs`, and pulling it into this client component broke `next build`.
+import { TIERS, type MmaTiers, type TierKey, type TierConfig } from '@/mma/tiers';
 import type { ConfigureProviderResponse, Dialect as ProviderDialect } from '@/mma/configure-provider';
 import type { FlatProfile } from '@/mma/model-profiles';
 

@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ModelsPanel } from '../../app/(app)/settings/models/ModelsPanel';
-import type { MmaTiers } from '@/mma/mma-config-reader';
+import type { MmaTiers } from '@/mma/tiers';
 import type { FlatProfile } from '@/mma/model-profiles';
 
 const refresh = vi.fn();

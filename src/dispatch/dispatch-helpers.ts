@@ -18,6 +18,7 @@ import {
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_ACTOR } from '@/automation/forge-member';
 import { interpretTerminal } from '@/sse/envelope';
+import { INFLIGHT_MMA_STATUS } from '@/db/enums';
 
 /**
  * Thrown by the G2 guard when a project already has MMA in flight for a DIFFERENT
@@ -120,7 +121,7 @@ export async function findInflight(
   actorId?: string | null,
 ): Promise<string | null> {
   const conditions = [
-    inArray(mmaBatch.status, ['dispatched', 'running']),
+    inArray(mmaBatch.status, INFLIGHT_MMA_STATUS),
   ];
 
   // `handler` omitted → PROJECT-LEVEL single-flight check (ANY in-flight MMA batch
@@ -259,7 +260,7 @@ export async function dispatchMma(
       const inflight = await tx
         .select({ handler: mmaBatch.handler })
         .from(mmaBatch)
-        .where(and(eq(mmaBatch.projectId, pid), inArray(mmaBatch.status, ['dispatched', 'running'])));
+        .where(and(eq(mmaBatch.projectId, pid), inArray(mmaBatch.status, INFLIGHT_MMA_STATUS)));
 
       // Same-handler conflict: a second concurrent dispatch of the SAME non-fan-out handler is a
       // duplicate (double-clicked Audit / Review / Refine / Apply, or two teammates near-

@@ -19,6 +19,7 @@ import { recordActivity } from '@/activity/project-activity';
 import { FORGE_ACTOR } from '@/automation/forge-member';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 import { errName } from '@/lib/err';
+import { INFLIGHT_MMA_STATUS } from '@/db/enums';
 
 /**
  * Server-owned MMA poll loop (Spec 5 §SSE). The browser NEVER polls MMA; this
@@ -376,7 +377,7 @@ export class PollManager {
             ...(usage.cacheTokens !== null && { cacheTokens: usage.cacheTokens }),
             ...(usage.durationMs !== null && { durationMs: usage.durationMs }),
           })
-          .where(and(eq(mmaBatch.id, entry.batchId), inArray(mmaBatch.status, ['dispatched', 'running'])))
+          .where(and(eq(mmaBatch.id, entry.batchId), inArray(mmaBatch.status, INFLIGHT_MMA_STATUS)))
           .returning({ id: mmaBatch.id });
         if (updated.length === 0) { transitioned = false; return; } // already terminal — another poller won
 
@@ -672,7 +673,7 @@ export class PollManager {
         request: mmaBatch.request,
       })
       .from(mmaBatch)
-      .where(inArray(mmaBatch.status, ['dispatched', 'running']));
+      .where(inArray(mmaBatch.status, INFLIGHT_MMA_STATUS));
 
     if (rows.length === 0) return 0;
 

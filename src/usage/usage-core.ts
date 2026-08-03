@@ -13,6 +13,7 @@ import { member } from '@/db/schema/identity';
 import type { Period } from '@/usage/period';
 import type { UsageSource } from '@/usage/source';
 import { DISPLAY_TIMEZONE } from '@/lib/format-date';
+import { TERMINAL_MMA_STATUS } from '@/db/enums';
 
 /**
  * The zone the reporting periods are cut in — "this week" means Monday 00:00 in the
@@ -78,7 +79,7 @@ function getTimezoneOffsetMs(tz: string, date: Date): number {
 }
 
 function terminalFilter(cutoff: Date | null) {
-  const base = inArray(mmaBatch.status, ['done', 'failed']);
+  const base = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   if (!cutoff) return base;
   return and(base, gte(mmaBatch.createdAt, cutoff))!;
 }
@@ -229,7 +230,7 @@ async function usageOverviewTeam(
       .where(extraWhere);
 
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   const [loopsRow] = await sourceAgg(
@@ -309,7 +310,7 @@ async function usageOverviewOrg(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
 
   // Headline totals
   const [headlineRow] = await db
@@ -485,7 +486,7 @@ export async function usageByProject(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   const rows = await db
@@ -648,7 +649,7 @@ export async function usageStandalone(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   const rows = await db
@@ -736,7 +737,7 @@ export async function routeAggForSource(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   let sourceCond;
@@ -759,7 +760,7 @@ export async function routeAggForProject(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   return routeAggQuery(
@@ -776,7 +777,7 @@ export async function routeAggForLoop(
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
-  const termCond = inArray(mmaBatch.status, ['done', 'failed']);
+  const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
   const teamCond = teamScopeFilter(deps.teamId);
 
   // All batches linked to this loop's runs via loop_run_id or legacy mma_batch_id

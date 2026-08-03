@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { getPollManager } from '@/sse/poll-manager';
+import { INFLIGHT_MMA_STATUS } from '@/db/enums';
 
 /**
  * Ask MMA to stop every batch still in flight for a project.
@@ -24,7 +25,7 @@ export async function cancelInFlightBatches(db: Db, projectId: string): Promise<
   const rows = await db
     .select({ id: mmaBatch.id })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, projectId), inArray(mmaBatch.status, ['dispatched', 'running'])));
+    .where(and(eq(mmaBatch.projectId, projectId), inArray(mmaBatch.status, INFLIGHT_MMA_STATUS)));
 
   let requested = 0;
   for (const row of rows) {

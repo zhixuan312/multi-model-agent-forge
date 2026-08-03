@@ -9,6 +9,7 @@ import { getPollManager } from '@/sse/poll-manager';
 import { buildMmaClient } from '@/mma/server-client';
 import { projectEventBus } from '@/sse/event-bus';
 import { pushDispatchFailure } from '@/collab/notification-store';
+import { INFLIGHT_MMA_STATUS } from '@/db/enums';
 
 export async function GET(
   req: NextRequest,
@@ -35,7 +36,7 @@ export async function GET(
   const rows = await db
     .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, handler: mmaBatch.handler, createdAt: mmaBatch.createdAt })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.projectId, id), inArray(mmaBatch.status, ['dispatched', 'running'])));
+    .where(and(eq(mmaBatch.projectId, id), inArray(mmaBatch.status, INFLIGHT_MMA_STATUS)));
 
   const pm = getPollManager();
   const alive: string[] = [];

@@ -135,6 +135,29 @@ export type MmaRoute = (typeof MMA_ROUTE)[number];
 export const MMA_STATUS = ['dispatched', 'running', 'done', 'failed', 'cancelled'] as const;
 export type MmaStatus = (typeof MMA_STATUS)[number];
 
+/**
+ * The two states a batch is still WORKING in. Everything else is finished.
+ *
+ * Declared as the in-flight set and the terminal set DERIVED from it, rather than the other
+ * way round, because that is the direction that fails safe: a status added to `MMA_STATUS`
+ * becomes terminal automatically, and has to be named here to be treated as in-flight.
+ *
+ * The alternative is what was there — `['dispatched', 'running']` written out six times and
+ * `['done', 'failed']` written out EIGHT times — and the eight were wrong. Engine 5.16 added
+ * `cancelled`, which `dispatch-helpers` persists together with the batch's `costUsd`,
+ * tokens and duration, and every query on the Usage page filtered it out. The cost dashboard
+ * under-reported real spend by the whole cost of every cancelled run, silently, because a
+ * subset like that is invisible to the single-source ratchet by design.
+ */
+export const INFLIGHT_MMA_STATUS = ['dispatched', 'running'] as const satisfies readonly MmaStatus[];
+export type InflightMmaStatus = (typeof INFLIGHT_MMA_STATUS)[number];
+
+/** Every state a batch is FINISHED in — `MMA_STATUS` minus the in-flight ones. */
+export type TerminalMmaStatus = Exclude<MmaStatus, InflightMmaStatus>;
+export const TERMINAL_MMA_STATUS: readonly TerminalMmaStatus[] = MMA_STATUS.filter(
+  (s): s is TerminalMmaStatus => !(INFLIGHT_MMA_STATUS as readonly string[]).includes(s),
+);
+
 /* ── Spec 7: Build pipeline ─────────────────────────────────────────────── */
 
 /**

@@ -46,6 +46,27 @@ function HeaderRow({ breadcrumb, actions }: { breadcrumb?: boolean; actions?: Re
   );
 }
 
+/** The sub-nav row (ShellSubNav). Written out twice — once under the anatomy header and
+ *  once in the two-row header scenario — differing only in which edge carries the rule. */
+function SubNav({ className }: { className: string }) {
+  return (
+    <div className={`flex h-12 items-center gap-1 border-line bg-surface-2 px-5 ${className}`}>
+      {['Overview', 'Activity', 'Settings'].map((t, i) => (
+        <span
+          key={t}
+          className={
+            i === 0
+              ? 'border-b-2 border-accent px-3 py-2 text-sm font-medium text-ink'
+              : 'px-3 py-2 text-sm text-ink-soft'
+          }
+        >
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Framed({ note, children }: { note: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
@@ -65,20 +86,7 @@ const RENDERS: Record<string, () => ReactNode> = {
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <HeaderRow actions={<Button variant="primary" size="sm">Action</Button>} />
-          <div className="flex h-12 items-center gap-1 border-b border-line bg-surface-2 px-5">
-            {['Overview', 'Activity', 'Settings'].map((t, i) => (
-              <span
-                key={t}
-                className={
-                  i === 0
-                    ? 'border-b-2 border-accent px-3 py-2 text-sm font-medium text-ink'
-                    : 'px-3 py-2 text-sm text-ink-soft'
-                }
-              >
-                {t}
-              </span>
-            ))}
-          </div>
+          <SubNav className="border-b" />
           <div className="flex-1 bg-bg p-4 text-sm text-ink-faint">Page body — the only region that scrolls; the header stays put.</div>
         </div>
       </div>
@@ -108,20 +116,7 @@ const RENDERS: Record<string, () => ReactNode> = {
       <Framed note="A second row (ShellSubNav) sits directly under the header for tabs / stage nav — actions stay in the header row above.">
         <>
           <HeaderRow actions={<Button variant="primary" size="sm">Action</Button>} />
-          <div className="flex h-12 items-center gap-1 border-t border-line bg-surface-2 px-5">
-            {['Overview', 'Activity', 'Settings'].map((t, i) => (
-              <span
-                key={t}
-                className={
-                  i === 0
-                    ? 'border-b-2 border-accent px-3 py-2 text-sm font-medium text-ink'
-                    : 'px-3 py-2 text-sm text-ink-soft'
-                }
-              >
-                {t}
-              </span>
-            ))}
-          </div>
+          <SubNav className="border-t" />
         </>
       </Framed>
     </div>

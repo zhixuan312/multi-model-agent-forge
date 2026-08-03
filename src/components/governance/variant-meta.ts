@@ -142,11 +142,11 @@ export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
     label: 'Advance button',
     // Two forms of the same affordance, and one modifier:
     //   `StageAdvance` (black) crosses a STAGE boundary; a primary Button (terracotta)
-    //   crosses a PHASE boundary inside a stage; `gate` adds the padlock to a stage advance
-    //   that commits something irreversible — Plan→Execute, Execute→Review, Review→Reflect
-    //   and "Mark complete", which ends the project.
+    //   crosses a PHASE boundary inside a stage; `irreversible` adds the padlock to a stage
+    //   advance that commits something that cannot be taken back — Plan→Execute,
+    //   Execute→Review, Review→Reflect and "Mark complete", which ends the project.
     // Anything not previewed on this page must not appear in a stage client.
-    canonicalComponent: 'StageAdvance (stage · optional gate) · Button primary (phase)',
+    canonicalComponent: 'StageAdvance (stage · optional irreversible) · Button primary (phase)',
     canonicalFilePath: 'src/components/forge/StageAdvance.tsx',
     consumers: [
       { id: 'explore-advance', label: 'Project › Explore', filePath: 'src/components/forge/ExploreStageClient.tsx' },
@@ -155,7 +155,7 @@ export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
       { id: 'execute-advance', label: 'Project › Execute', filePath: 'src/components/forge/ExecuteStageClient.tsx' },
       { id: 'review-advance', label: 'Project › Review', filePath: 'src/components/forge/ReviewStageClient.tsx' },
       { id: 'journal-advance', label: 'Project › Journal (phase advance)', filePath: 'src/components/forge/JournalStageClient.tsx' },
-      { id: 'summary-advance', label: 'Project › Journal › Summary (gated — completes the project)', filePath: 'src/components/forge/SummaryPhase.tsx' },
+      { id: 'summary-advance', label: 'Project › Journal › Summary (irreversible — completes the project)', filePath: 'src/components/forge/SummaryPhase.tsx' },
     ],
   },
   {
@@ -216,12 +216,12 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
     id: 'cardList',
     label: 'Card list',
     // A generic run/result panel: a header action, a scrollable list of result cards,
-    // and a gated advance footer. The audit-run lifecycle is one instance of it.
-    canonicalComponent: 'Card — header action + scrollable card list + gated advance footer',
+    // and an advance footer. The audit-run lifecycle is one instance of it.
+    canonicalComponent: 'Card — header action + scrollable card list + advance footer',
     canonicalFilePath: 'src/components/ui/card.tsx',
     affordances: [
       { id: 'headerAction', label: 'Header action', canonicalComponent: 'Button (run / generate / re-run)', canonicalFilePath: 'src/components/ui/button.tsx', defaultOn: true },
-      { id: 'advance', label: 'Advance footer', canonicalComponent: 'StageAdvance (gated, locks the stage)', canonicalFilePath: 'src/components/forge/StageAdvance.tsx', defaultOn: true },
+      { id: 'advance', label: 'Advance footer', canonicalComponent: 'StageAdvance (marks the advance irreversible)', canonicalFilePath: 'src/components/forge/StageAdvance.tsx', defaultOn: true },
     ],
     consumers: [
       { id: 'plan-validate', label: 'Project › Plan › Validate (audit rounds)', filePath: 'src/components/forge/PlanStageClient.tsx' },

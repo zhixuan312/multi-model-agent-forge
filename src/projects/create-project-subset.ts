@@ -78,8 +78,10 @@ export async function parseSpecUpload(db: Db, content: string): Promise<
   const kinds = headings.map(labelToKind);
   if (kinds.some((kind) => !kind)) return { ok: false, message: CREATE_PROJECT_FILE_ERROR };
 
-  // Whole-table read (no filter) — the project's team is the only template set at
-  // create time; no `eq`/where clause is needed.
+  // Whole-table read (no filter). Despite the `team_` prefix, `team_spec_template` is
+  // GLOBAL: it has no team column and `kind` is UNIQUE, so there is exactly one row per
+  // kind and the kind→id map below is unambiguous. (The reason is the schema, not "only
+  // one team exists yet" — if a team column is ever added, this read needs a filter.)
   const rows = await db
     .select({ id: teamSpecTemplate.id, kind: teamSpecTemplate.kind })
     .from(teamSpecTemplate);

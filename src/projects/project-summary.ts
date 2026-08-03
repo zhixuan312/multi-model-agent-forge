@@ -132,12 +132,15 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
       auditPasses.push({ scope: 'plan', passNo: p.passNo, status: p.status });
     }
     tasks = d.stages.plan.phases.refine.tasks.map((t) => ({ status: t.status }));
-    // Recorded learnings now live in the project_journal table, not details (FR-13).
-    learnings = await db
-      .select({ type: projectJournal.type, status: projectJournal.status })
-      .from(projectJournal)
-      .where(eq(projectJournal.projectId, projectId));
   }
+
+  // Learnings live in the project_journal table, not in details (FR-13) — so this read is
+  // outside the details branch it used to sit inside, where a project without details
+  // reported zero recorded knowledge despite having rows.
+  learnings = await db
+    .select({ type: projectJournal.type, status: projectJournal.status })
+    .from(projectJournal)
+    .where(eq(projectJournal.projectId, projectId));
 
   const recorded = learnings.filter((l) => l.status === 'recorded');
   const byType: Record<string, number> = {};

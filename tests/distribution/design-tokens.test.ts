@@ -61,6 +61,24 @@ describe('design tokens', () => {
     expect([...new Set(missing)], 'components read CSS variables that globals.css never declares').toEqual([]);
   });
 
+  it('app chrome uses tokens, not raw hex colours', () => {
+    // `bg-[#f0ede8]` on the Execute progress track was the outlier: every other progress bar
+    // in the app uses `bg-surface-2`, so in the cool build palette — the phase Execute
+    // actually runs in — that one track stayed warm beige while everything around it went
+    // frost. JournalGraph3D is exempt: it is a 3D star-field with a deliberate bespoke
+    // palette of its own (see graph-palette.ts), not themed app chrome.
+    const EXEMPT = ['src/components/forge/journal/JournalGraph3D.tsx'];
+    const offenders: string[] = [];
+    for (const rel of files) {
+      if (EXEMPT.some((e) => rel.endsWith(e))) continue;
+      const text = readFileSync(join(ROOT, rel), 'utf8');
+      for (const m of text.matchAll(/(?:bg|text|border|ring|fill|stroke|from|to|via)-\[(#[0-9a-fA-F]{3,8})\]/g)) {
+        offenders.push(`${m[0]} (in ${rel})`);
+      }
+    }
+    expect(offenders, 'use a design token instead of a raw hex').toEqual([]);
+  });
+
   it('no component hardcodes a fallback hex behind a token', () => {
     // `var(--danger,#c0492f)` is worse than a missing token: it renders, so nothing looks
     // broken, while quietly opting that element out of the theme.

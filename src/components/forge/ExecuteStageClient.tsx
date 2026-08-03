@@ -79,7 +79,13 @@ export interface ExecuteStageClientProps {
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 
-type RepoJobStatus = 'queued' | 'implementing' | 'reviewing' | 'done' | 'failed';
+/**
+ * `'reviewing'` used to be a member here and was never assigned: `computeJobs` yields
+ * queued / implementing / done / failed, and `startExecution` sets implementing. Everything
+ * behind it was unreachable — an 80% step on the progress bar, and an
+ * "Implemented -> Reviewing" pill swap that no run could reach.
+ */
+type RepoJobStatus = 'queued' | 'implementing' | 'done' | 'failed';
 interface RepoJobState {
   status: RepoJobStatus;
   elapsedMs?: number;
@@ -92,7 +98,6 @@ interface RepoJobState {
 
 function progressPct(status: RepoJobStatus): number {
   if (status === 'implementing') return 40;
-  if (status === 'reviewing') return 80;
   if (status === 'done' || status === 'failed') return 100;
   return 0;
 }
@@ -407,7 +412,7 @@ function MonitorPhase({
   const failedCount = repoGroups.filter((g) => jobs[g.repoId]?.status === 'failed').length;
   const totalTasks = repoGroups.reduce((n, g) => n + g.tasks.length, 0);
   const maxElapsed = Math.max(...repoGroups.map((g) => jobs[g.repoId]?.elapsedMs ?? 0));
-  const anyRunning = repoGroups.some((g) => { const s = jobs[g.repoId]?.status; return s === 'implementing' || s === 'reviewing'; });
+  const anyRunning = repoGroups.some((g) => jobs[g.repoId]?.status === 'implementing');
 
   return (
     <StageShell
@@ -492,8 +497,7 @@ function MonitorPhase({
 function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; pr?: { url: string; branch: string; targetBranch: string } }) {
   const isDone = job.status === 'done';
   const isFailed = job.status === 'failed';
-  const isRunning = job.status === 'implementing' || job.status === 'reviewing';
-  const isReviewing = job.status === 'reviewing';
+  const isRunning = job.status === 'implementing';
 
   const borderColor = isDone ? 'border-[var(--sage-tint)]' : isFailed ? 'border-[var(--rose-tint)]' : isRunning ? 'border-accent-tint' : 'border-line';
 
@@ -514,7 +518,7 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
       </div>
       <div className="space-y-3 px-4 py-3">
         {/* Progress bar */}
-        <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ede8]">
+        <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
           <div
             className={cn('h-full rounded-full transition-all duration-700', isDone ? 'bg-[var(--sage)]' : isFailed ? 'bg-[var(--rose)]' : 'bg-accent')}
             style={{ width: `${progressPct(job.status)}%` }}
@@ -524,13 +528,13 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
         {/* Phase pills (running) */}
         {isRunning && (
           <div className="flex items-center gap-1.5">
-            <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isReviewing ? 'bg-[var(--sage-tint)] text-[var(--sage-deep)]' : 'bg-accent-tint text-accent-deep')}>
-              {isReviewing ? <CheckCircle2 className="size-2.5" /> : <Loader2 className="size-2.5 animate-spin" />}
-              {isReviewing ? 'Implemented' : 'Implementing'}
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-semibold text-accent-deep">
+              <Loader2 className="size-2.5 animate-spin" />
+              Implementing
             </span>
             <ArrowRight className="size-2.5 text-line-strong" />
-            <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', isReviewing ? 'bg-accent-tint text-accent-deep' : 'text-ink-faint')}>
-              {isReviewing ? <Loader2 className="size-2.5 animate-spin" /> : <Circle className="size-2.5" />}
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-ink-faint">
+              <Circle className="size-2.5" />
               Reviewing
             </span>
             <ArrowRight className="size-2.5 text-line-strong" />

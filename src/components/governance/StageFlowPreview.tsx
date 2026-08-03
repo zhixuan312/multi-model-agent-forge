@@ -104,13 +104,13 @@ const RENDERS: Record<string, () => ReactNode> = {
       <Labeled label="Stage advance, disabled — the stage's gate is not cleared yet">
         <StageAdvance onClick={() => {}} label="Continue to Plan" disabled />
       </Labeled>
-      <Labeled label="Gated stage advance — commits something irreversible (black + lock)">
+      <Labeled label="Irreversible stage advance — commits something that cannot be taken back (black + lock)">
         <StageAdvance onClick={() => {}} label="Continue to Execute" irreversible />
       </Labeled>
-      <Labeled label="Gated stage advance, disabled — the gate has not cleared yet">
+      <Labeled label="Irreversible stage advance, disabled — the stage's gate has not cleared yet">
         <StageAdvance onClick={() => {}} label="Continue to Review" irreversible disabled />
       </Labeled>
-      <Labeled label="Gated stage advance, spent — the project is complete; the control stays, disabled">
+      <Labeled label="Irreversible stage advance, spent — the project is complete; the control stays, disabled">
         <StageAdvance onClick={() => {}} label="Completed" irreversible disabled />
       </Labeled>
       <Labeled label="Advance failed — an error toast (click to trigger, bottom-right)">
@@ -131,7 +131,10 @@ const RENDERS: Record<string, () => ReactNode> = {
         <AutomationBar projectId="preview" disabled={false} idleHint="AI clears every gate — you review the PR at the end." />
       </Labeled>
       <Labeled label="Idle, disabled — the stage can't hand over yet (Explore · Spec before Finalize)">
-        <AutomationBar projectId="preview" disabled idleHint="Automation unlocks at the Document phase — Outline & Craft are hand-authored." />
+        {/* Verbatim from SpecStageClient. It said "the Document phase" here long after the
+            product string was corrected — the spec stage's phases are Outline · Craft ·
+            Finalize; there is no Document phase. */}
+        <AutomationBar projectId="preview" disabled idleHint="Automation unlocks at the Finalize phase — Outline & Craft are hand-authored." />
       </Labeled>
       <Labeled label="Locked — the stage is read-only, and says why">
         <AutomationBar projectId="preview" disabled lockedReason="Locked — execution is in progress." />

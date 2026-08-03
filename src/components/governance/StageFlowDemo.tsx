@@ -158,7 +158,7 @@ export function StageFlowDemo() {
     viewedStage.kind === 'exploration'
       ? 'Automation unlocks once the spec is set — Design stages are hand-authored.'
       : inSpecPreFinalize
-        ? 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
+        ? 'Automation unlocks at the Finalize phase — Outline & Craft are hand-authored.'
         : 'Spec is ready — let Forge clear every gate through to the end.';
 
   return (

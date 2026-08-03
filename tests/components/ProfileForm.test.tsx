@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ProfileForm } from '../../app/(app)/profile/ProfileForm';
 import type { AuthedMember } from '@/auth/auth-provider';
+import { tintName } from '@/components/ui/avatar-picker';
 
 const { refresh, push } = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -77,12 +78,18 @@ describe('ProfileForm', () => {
     expect(radios.some((r) => r.getAttribute('aria-checked') === 'true')).toBe(true);
   });
 
+  /**
+   * `#9a6b4f` is the DB default, stored lowercase — a member who never picked a colour must
+   * still show a selected swatch. Asserted through `tintName` rather than the literal label,
+   * because the label is now the colour's SPOKEN name; the point of this case is which swatch
+   * is checked, not how it is worded.
+   */
   it('shows the default schema avatar tint (#9a6b4f) as a selected swatch', () => {
     render(<ProfileForm member={{ ...me, avatarTint: '#9a6b4f' }} />);
     openAccount();
     expect(screen.getByRole('radio', { checked: true })).toHaveAttribute(
       'aria-label',
-      'Avatar colour #9a6b4f',
+      `Avatar colour: ${tintName('#9a6b4f')}`,
     );
   });
 

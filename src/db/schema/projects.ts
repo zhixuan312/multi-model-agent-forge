@@ -13,6 +13,11 @@ export const project = forge.table(
     name: text('name').notNull(),
     summary: text('summary'),
     intentMd: text('intent_md'),
+    /**
+     * LEGACY — nothing reads or writes it. The brain-dump moved into
+     * `details.stages.exploration.phases.brief.text`; the column is kept because dropping
+     * one is destructive and old rows may still hold text. Do not start writing it.
+     */
     briefMd: text('brief_md'),
     ownerId: uuid('owner_id').notNull().references(() => member.id),
     visibility: text('visibility', { enum: PROJECT_VISIBILITY }).notNull(),

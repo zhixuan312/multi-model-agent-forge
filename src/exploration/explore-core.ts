@@ -13,9 +13,15 @@ import { compareSeverity } from '@/lib/severity';
 
 /**
  * Brief persistence + the explore rail/summary reads.
- * Brain-dump text: `project.brief_md` column in DB (short user input, never exported).
- * Rail tasks: `exploration_task` joined to `mma_batch` for live status.
+ *
+ * Brain-dump text: `details.stages.exploration.phases.brief.text` (via `setBriefText`).
+ * Rail tasks: `details.stages.exploration.phases.discover.tasks`, joined to `ops_mma_batch`
+ *   for live status.
  * Exploration summary: file-based at `.mma/projects/<id>/exploration.md`.
+ *
+ * Both of the first two used to be described as their own storage — a `project.brief_md`
+ * column and an `exploration_task` table. The column exists and is dead; the table never
+ * did. Everything moved into `details` and nothing here reads either.
  */
 
 export const briefSchema = z.object({ text: z.string().max(100_000) });

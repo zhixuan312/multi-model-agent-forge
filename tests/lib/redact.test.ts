@@ -106,3 +106,28 @@ describe('redactMessage', () => {
     expect(redactMessage('   ')).toBe('Something went wrong.');
   });
 });
+
+/**
+ * `redactMessage` took `instanceof Error`, so anything thrown from another realm — a
+ * DOMException from a worker, a `{ message }` from a fetch polyfill — lost its message and
+ * became the generic string. Its sibling `errName` documents why duck-typing is right for
+ * caught values; this one disagreed with it.
+ */
+describe('a caught value that is not a same-realm Error', () => {
+  it('uses the message of a plain object that carries one', () => {
+    expect(redactMessage({ name: 'AbortError', message: 'The request was aborted.' }))
+      .toBe('The request was aborted.');
+  });
+
+  it('still redacts inside it — nothing about the source is trusted', () => {
+    expect(redactMessage({ message: 'auth failed: token=sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz' }))
+      .not.toContain('sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz');
+  });
+
+  it('is still generic for a value with no message at all', () => {
+    expect(redactMessage({ code: 42 })).toBe('Something went wrong.');
+    expect(redactMessage(null)).toBe('Something went wrong.');
+    expect(redactMessage(undefined)).toBe('Something went wrong.');
+    expect(redactMessage({ message: 12 })).toBe('Something went wrong.');
+  });
+});

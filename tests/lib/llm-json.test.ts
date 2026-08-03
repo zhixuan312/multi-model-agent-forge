@@ -98,3 +98,47 @@ describe('parseLlmJson — the fence is a hint, not the last word', () => {
     expect(parseLlmJson('```ts\nconst x = 1;\n```\nno payload here')).toBeNull();
   });
 });
+
+/**
+ * A brace in the PROSE ahead of the payload used to swallow the whole reply: the scan
+ * started at the first `{` it saw, found `{name}`, failed to parse it, and stopped. The
+ * module header records what a null means on the audit paths — no findings extracted,
+ * verdict clean, stage advances — so a model that writes `{placeholder}` in a sentence
+ * could turn a failing audit into a passing one. Models write braces in prose.
+ */
+describe('a container-shaped thing in the prose does not shadow the payload', () => {
+  it('finds the payload after a brace in an unfenced reply', () => {
+    const raw = 'Use {name} as the key. Report: {"findings":[]}';
+    expect(parseLlmJson(raw)).toEqual({ findings: [] });
+    expect(extractJsonText(raw)).toBe('{"findings":[]}');
+  });
+
+  it('finds it after several', () => {
+    const raw = 'Set {a} then {b} then [c]. Result: {"ok":true}';
+    expect(parseLlmJson(raw)).toEqual({ ok: true });
+  });
+
+  it('finds a payload that follows a NON-json fenced block', () => {
+    const raw = '```ts\nconst x = { a: 1 };\n```\n{"findings":[{"severity":"critical"}]}';
+    expect(parseLlmJson(raw)).toEqual({ findings: [{ severity: 'critical' }] });
+  });
+
+  it('still returns the FIRST value when several parse — the payload is not the last brace', () => {
+    expect(parseLlmJson('{"first":1} and then {"second":2}')).toEqual({ first: 1 });
+  });
+
+  it('still reports truncated output as text rather than as absent JSON', () => {
+    // The caller distinguishes "cut off" from "no findings" by the parse failing.
+    // A reply cut mid-object, but past at least one inner closer — the shape that reaches
+    // the fallback. With no closer at all there is nothing to slice and null is correct.
+    const cut = '{"findings":[{"severity":"critical"}';
+    expect(extractJsonText(cut)).toBe('{"findings":[{"severity":"critical"}');
+    expect(parseLlmJson(cut)).toBeNull();
+    expect(extractJsonText('{"findings":[{"severity":"critical"')).toBeNull();
+  });
+
+  it('gives up after a bounded number of starts rather than scanning forever', () => {
+    const noise = '{x} '.repeat(200);
+    expect(parseLlmJson(`${noise}{"ok":true}`)).toBeNull();
+  });
+});

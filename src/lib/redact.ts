@@ -57,11 +57,23 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 /** Any remaining control characters. */
 const CONTROL_RE = /[\x00-\x1f\x7f]/g;
 
+/**
+ * Duck-typed, not `instanceof Error` — the same call `errName` makes, for the same reason.
+ * These helpers exist for values caught in a `catch`, where the thing thrown frequently is
+ * not a same-realm `Error`: a DOMException crossing a worker or iframe boundary, or a plain
+ * `{ message }` from a fetch polyfill. Both fail `instanceof` while carrying the message
+ * that matters, and returning the generic string for them loses the only diagnosis there
+ * was. Redaction runs on the result either way, so nothing is trusted about the source.
+ */
+function hasMessage(v: unknown): v is { message: string } {
+  return !!v && typeof v === 'object' && 'message' in v && typeof (v as { message: unknown }).message === 'string';
+}
+
 export function redactMessage(input: unknown): string {
   let raw: string;
   if (typeof input === 'string') {
     raw = input;
-  } else if (input instanceof Error && typeof input.message === 'string') {
+  } else if (hasMessage(input)) {
     raw = input.message;
   } else {
     return GENERIC;

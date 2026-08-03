@@ -54,6 +54,14 @@ const CONTAINER_HEADING_RE = /^## .+/;
  * parsers carried that guard; it never fired.
  */
 export function parseMarkdownOutline(md: string, opts: OutlineOptions): OutlineSection[] {
+  // `.test()` on a `g`- or `y`-flagged RegExp is STATEFUL: it resumes from `lastIndex`, so
+  // it matches every OTHER heading and reports false in between. On a parser whose line
+  // numbers splice real files, that is a corrupted plan.md rather than a wrong answer.
+  // Neither caller passes one today, and nothing stopped one from starting to.
+  const itemHeading =
+    opts.itemHeading.global || opts.itemHeading.sticky
+      ? new RegExp(opts.itemHeading.source, opts.itemHeading.flags.replace(/[gy]/g, ''))
+      : opts.itemHeading;
   const lines = md.split('\n');
   const sections: OutlineSection[] = [];
   let container = '';
@@ -88,7 +96,7 @@ export function parseMarkdownOutline(md: string, opts: OutlineOptions): OutlineS
     if (CONTAINER_HEADING_RE.test(line)) {
       flush(i - 1);
       container = line.replace(/^##\s*/, '').trim();
-    } else if (opts.itemHeading.test(line)) {
+    } else if (itemHeading.test(line)) {
       flush(i - 1);
       current = { container, heading: line, startLine: i, bodyLines: [] };
     } else if (opts.implicitSection && !current && container && line.trim() && !line.startsWith('#')) {

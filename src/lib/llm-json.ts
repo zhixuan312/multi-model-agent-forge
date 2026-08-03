@@ -53,20 +53,57 @@ function balancedEnd(text: string, open: number): number {
   return -1;
 }
 
+/** How many container starts to try in one body before giving up. Prose rarely has more. */
+const MAX_STARTS = 20;
+
+/**
+ * Every complete JSON value in `body`, in order, starting from each `{` or `[`.
+ *
+ * This yielded only the FIRST one, which meant a single brace in the prose ahead of the
+ * payload swallowed the whole reply: `Use {name} as the key. Report: {"findings":[…]}`
+ * scanned `{name}`, failed to parse it, and returned null — and this module's own header
+ * records what null means on the audit paths, where an unparseable reply reads as a clean
+ * one. Models write braces in prose. Trying the next start costs nothing.
+ */
+function* jsonValues(body: string): Generator<string> {
+  let from = 0;
+  for (let tried = 0; tried < MAX_STARTS; tried++) {
+    const opens = ['{', '['].map((c) => body.indexOf(c, from)).filter((i) => i !== -1);
+    if (opens.length === 0) return;
+    const open = Math.min(...opens);
+
+    const end = balancedEnd(body, open);
+    if (end !== -1) {
+      yield body.slice(open, end);
+      from = open + 1;
+      continue;
+    }
+
+    // Unbalanced (truncated output): fall back to the last matching closer, which is the
+    // most JSON a reply like that can offer. Still likely to fail JSON.parse — that is the
+    // caller's signal that the response was cut off, not that there were no findings.
+    // Nothing after an unclosed container can close either, so this is the last candidate.
+    const last = body.lastIndexOf(CLOSER[body[open]!]!);
+    if (last > open) yield body.slice(open, last + 1);
+    return;
+  }
+}
+
 /** The first complete JSON value in `body`, or null if it holds no container. */
 function firstJsonValue(body: string): string | null {
-  const opens = ['{', '['].map((c) => body.indexOf(c)).filter((i) => i !== -1);
-  if (opens.length === 0) return null;
-  const open = Math.min(...opens);
+  for (const v of jsonValues(body)) return v;
+  return null;
+}
 
-  const end = balancedEnd(body, open);
-  if (end !== -1) return body.slice(open, end);
-
-  // Unbalanced (truncated output): fall back to the last matching closer, which is the
-  // most JSON a reply like that can offer. Still likely to fail JSON.parse — that is the
-  // caller's signal that the response was cut off, not that there were no findings.
-  const last = body.lastIndexOf(CLOSER[body[open]!]!);
-  return last > open ? body.slice(open, last + 1) : null;
+/** Does this text parse? Used to prefer a candidate that is real JSON over one that merely
+ *  looks like a container. */
+function parses(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -88,6 +125,14 @@ function jsonCandidates(raw: string): string[] {
  */
 export function extractJsonText(raw: string): string | null {
   if (!raw) return null;
+  // Prefer a value that actually parses, wherever it sits…
+  for (const candidate of jsonCandidates(raw)) {
+    for (const value of jsonValues(candidate)) {
+      if (parses(value)) return value;
+    }
+  }
+  // …and fall back to the first container-shaped thing, so a TRUNCATED reply still comes
+  // back as text the caller can fail on explicitly rather than as "there was no JSON".
   for (const candidate of jsonCandidates(raw)) {
     const found = firstJsonValue(candidate);
     if (found !== null) return found;
@@ -106,12 +151,12 @@ export function extractJsonText(raw: string): string | null {
 export function parseLlmJson<T = unknown>(raw: string | undefined | null): T | null {
   if (typeof raw !== 'string' || !raw) return null;
   for (const candidate of jsonCandidates(raw)) {
-    const text = firstJsonValue(candidate);
-    if (text === null) continue;
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      // Try the next place the payload might be.
+    for (const text of jsonValues(candidate)) {
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        // Try the next place the payload might be.
+      }
     }
   }
   return null;

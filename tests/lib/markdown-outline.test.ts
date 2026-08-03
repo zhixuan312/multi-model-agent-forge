@@ -94,3 +94,36 @@ describe('the two callers keep their own heading rules', () => {
     expect(parseSpecSections('### Loose\n\nbody')[0].component).toBe('');
   });
 });
+
+/**
+ * `.test()` on a `g`-flagged RegExp resumes from `lastIndex`, so it matches every OTHER
+ * heading and returns false in between — the sections in the gaps get absorbed into their
+ * predecessor's body, and `startLine`/`endLine` shift with them. `replaceTaskSection`
+ * splices a file using those numbers, so this would corrupt a plan.md rather than merely
+ * return the wrong shape. Neither caller passes a global regex; nothing stopped one from
+ * starting to.
+ */
+describe('a stateful caller-supplied heading regex', () => {
+  // ADJACENT headings, deliberately. A non-matching body line between them resets
+  // `lastIndex` back to 0, so a fixture with bodies hides the bug entirely — the first
+  // version of this test did exactly that and passed against the unfixed parser.
+  const md = ['### One', '### Two', '### Three', 'c'].join('\n');
+
+  it('gives the same outline whether or not the regex is global', () => {
+    const plain = parseMarkdownOutline(md, { itemHeading: /^### .+/ });
+    const global = parseMarkdownOutline(md, { itemHeading: /^### .+/g });
+    expect(plain.map((s) => s.heading)).toEqual(['### One', '### Two', '### Three']);
+    expect(global).toEqual(plain);
+  });
+
+  it('and the same for a sticky one', () => {
+    expect(parseMarkdownOutline(md, { itemHeading: /^### .+/y }))
+      .toEqual(parseMarkdownOutline(md, { itemHeading: /^### .+/ }));
+  });
+
+  it('does not mutate the caller’s regex', () => {
+    const re = /^### .+/g;
+    parseMarkdownOutline(md, { itemHeading: re });
+    expect(re.lastIndex).toBe(0);
+  });
+});

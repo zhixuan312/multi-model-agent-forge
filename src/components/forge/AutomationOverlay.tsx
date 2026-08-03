@@ -35,6 +35,7 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
 import { STAGE_ORDER, type StageKind } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
+import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 
 const AUTOMATION_NOTE = `### What is this?
 
@@ -181,13 +182,13 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
         }
         const now = Date.now();
         const closed = prev.map((l) => (l.done ? l : { ...l, done: true, durationMs: l.durationMs ?? now - l.startedAt }));
-        return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: 'Forge', actorTint: '#9a6b4f', kind, done: true, error: kind === 'error', durationMs }];
+        return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: FORGE_DISPLAY_NAME, actorTint: FORGE_AVATAR_TINT, kind, done: true, error: kind === 'error', durationMs }];
       }
       const last = prev[prev.length - 1];
       if (last && last.text === text && !last.done) return prev; // no duplicate running line
       const now = Date.now();
       const closed = prev.map((l) => (l.done ? l : { ...l, done: true, durationMs: l.durationMs ?? now - l.startedAt }));
-      return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: 'Forge', actorTint: '#9a6b4f', kind: 'action', done: false }];
+      return [...closed, { time: formatTime(new Date(now)), startedAt: now, text, actorName: FORGE_DISPLAY_NAME, actorTint: FORGE_AVATAR_TINT, kind: 'action', done: false }];
     });
   }, []);
 

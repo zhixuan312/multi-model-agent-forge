@@ -10,7 +10,7 @@ import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
 import { projectEventBus } from '@/sse/event-bus';
-import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { FORGE_MEMBER_ID, FORGE_ACTOR } from '@/automation/forge-member';
 import { updateDetails, advanceStage, advancePhase, reopenStage, setAutomationStatus } from '@/details/write';
 import { releaseDriverLease } from '@/automation/driver-lease';
 import type { StageKind } from '@/db/enums';
@@ -132,7 +132,7 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
       phase,
       label: note,
       kind: 'error',
-      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      actor: FORGE_ACTOR,
       source: 'mma',
       eventKey: `${to === 'cancelled' ? 'cancelled' : 'retry-error'}:${projectId}:${stage}:${phase}:${label}`,
     });

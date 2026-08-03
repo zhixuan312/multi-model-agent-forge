@@ -63,6 +63,7 @@ import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
 import type { ComponentKind, ProjectPhase } from '@/db/enums';
 import { isForgeMention } from '@/spec/forge-mention';
+import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -1018,7 +1019,7 @@ function CraftStage({
   // unconditionally); showingDraft/hasQuestions here are plain derived values.
   const activeCollab = collab[active.id] ?? { participants: [], discussion: [] };
   const iApproved = hasApproved(activeCollab.participants, currentMember.id);
-  const forgeMember: MemberRef = { id: 'forge', displayName: 'Forge', avatarTint: '#9a6b4f' };
+  const forgeMember: MemberRef = { id: 'forge', displayName: FORGE_DISPLAY_NAME, avatarTint: FORGE_AVATAR_TINT };
   const otherMembers = activeCollab.participants
     .filter((p) => p.member.id !== currentMember.id && p.member.id !== 'forge')
     .map((p) => p.member)

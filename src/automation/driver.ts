@@ -7,7 +7,7 @@ import { isBatchBackedAction } from '@/automation/details-actions';
 import { performTransition, TransitionRejected } from '@/automation/perform-transition';
 import { allowedActions } from '@/automation/allowed-actions';
 import { recordActivity } from '@/activity/project-activity';
-import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { FORGE_ACTOR } from '@/automation/forge-member';
 import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
 import { setAutomationStatus } from '@/details/write';
 
@@ -39,7 +39,7 @@ export async function recordDriverOnlyLine(
     phase,
     label,
     kind,
-    actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+    actor: FORGE_ACTOR,
     source: 'mma',
   });
   projectEventBus.publish(projectId, { type: 'automation.progress', note: label, stage, phase, kind });

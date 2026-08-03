@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
-import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { FORGE_ACTOR } from '@/automation/forge-member';
 import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
 
@@ -177,7 +177,7 @@ export async function appendBatchTerminalEvent(
       phase: meta.phase,
       label,
       kind,
-      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      actor: FORGE_ACTOR,
       source: 'mma',
       durationMs,
       eventKey,

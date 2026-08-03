@@ -15,7 +15,7 @@ import {
   FANOUT_HANDLERS,
 } from '@/details/project-event-labels';
 import { recordActivity } from '@/activity/project-activity';
-import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { FORGE_ACTOR } from '@/automation/forge-member';
 import { interpretTerminal } from '@/sse/envelope';
 
 /**
@@ -310,7 +310,7 @@ export async function dispatchMma(
       phase: meta.phase,
       label: meta.label,
       kind: 'running',
-      actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+      actor: FORGE_ACTOR,
       source: 'mma',
       eventKey: `${opts.handler}:${batchRowId}`,
       createdAt: row.createdAt,

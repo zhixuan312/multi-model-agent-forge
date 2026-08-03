@@ -15,7 +15,7 @@ import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
 import { appendBatchTerminalEvent, buildDiscoverTerminalLabel } from '@/details/project-event-labels';
 import { recordActivity } from '@/activity/project-activity';
-import { FORGE_MEMBER_ID } from '@/automation/forge-member';
+import { FORGE_ACTOR } from '@/automation/forge-member';
 import { getHandler, ensureHandlersRegistered } from '@/dispatch/handler-registry';
 import { errName } from '@/lib/err';
 
@@ -463,7 +463,7 @@ export class PollManager {
         phase: 'discover',
         label,
         kind: effectiveState.status === 'done' ? 'done' : 'error',
-        actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+        actor: FORGE_ACTOR,
         source: 'mma',
         durationMs: this.now() - entry.createdAt.getTime(),
         eventKey: `discover-task:${entry.batchId}`,
@@ -520,7 +520,7 @@ export class PollManager {
           phase: 'discover',
           label,
           kind: 'error',
-          actor: { id: FORGE_MEMBER_ID, name: 'Forge', tint: '#9a6b4f' },
+          actor: FORGE_ACTOR,
           source: 'mma',
           durationMs,
           eventKey: `discover-task:${entry.batchId}`,

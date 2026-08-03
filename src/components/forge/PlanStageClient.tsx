@@ -45,6 +45,7 @@ import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
 import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
 import { isBlockingSeverity } from '@/lib/severity';
+import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 
 /** Refine tabs — the task's plan text, then its discussion. */
 const REFINE_TABS: readonly DocumentShellTab[] = [
@@ -497,7 +498,7 @@ function DetailStage({
   // hook order changes between renders (rules of hooks). None of them depend on
   // `active` or anything computed after the returns.
   const forgeMentionPool = useMemo(() => {
-    const forge = { id: 'forge', displayName: 'Forge', avatarTint: '#8B6914' };
+    const forge = { id: 'forge', displayName: FORGE_DISPLAY_NAME, avatarTint: FORGE_AVATAR_TINT };
     return [forge, ...projectMembers];
   }, [projectMembers]);
 

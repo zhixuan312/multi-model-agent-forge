@@ -135,7 +135,7 @@ async function branchSlugTaken(db: Db, name: string, teamId: string, exceptId?: 
 
 /**
  * Create a project + seed the stage skeleton (one per STAGE_ORDER entry) + repo subset + owner row +
- * the create_project audit row — ALL in one transaction (a partial failure
+ * its `Created project` activity row — ALL in one transaction (a partial failure
  * rolls everything back). `exploration` is seeded `active`, the rest `pending`;
  * `phase='design'`, `current_stage='exploration'`, `summary`/`intent_md` NULL.
  */
@@ -528,7 +528,7 @@ export async function getProjectStages(
 
 /**
  * `changeVisibility` — OWNER-ONLY. Read-guard first (404 anti-enumeration), then
- * the owner gate (403 on fail, no log row). Row update + audit insert are atomic.
+ * the owner gate (403 on fail, no log row).
  */
 export async function changeVisibility(
   projectId: string,
@@ -548,18 +548,15 @@ export async function changeVisibility(
     throw new ProjectAccessError('Only the owner may change visibility.');
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(project)
-      .set({ visibility, updatedAt: new Date() })
-      .where(eq(project.id, projectId));
-  });
+  await db
+    .update(project)
+    .set({ visibility, updatedAt: new Date() })
+    .where(eq(project.id, projectId));
 }
 
 /**
  * `changeRepos` — EQUAL-RIGHTS (any read-permitted member). Replaces the full
- * subset (delete-then-insert) and must still satisfy ≥ 1 repo. Row replace +
- * audit insert are atomic.
+ * subset in `details` and must still satisfy ≥ 1 repo.
  */
 export async function changeRepos(
   projectId: string,
@@ -588,12 +585,10 @@ export async function changeRepos(
     return d;
   });
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(project)
-      .set({ updatedAt: new Date() })
-      .where(eq(project.id, projectId));
-  });
+  await db
+    .update(project)
+    .set({ updatedAt: new Date() })
+    .where(eq(project.id, projectId));
 }
 
 async function assertProjectOwner(
@@ -664,15 +659,13 @@ export async function archiveProject(
     return { archived: true };
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(project)
-      .set({
-        archived: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(project.id, projectId));
-  });
+  await db
+    .update(project)
+    .set({
+      archived: true,
+      updatedAt: new Date(),
+    })
+    .where(eq(project.id, projectId));
 
   await releaseProjectWorktrees(db, projectId);
   await recordArchiveActivityBestEffort(db, projectId, actor, 'Archived project');
@@ -711,15 +704,13 @@ export async function unarchiveProject(
     return { archived: false };
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(project)
-      .set({
-        archived: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(project.id, projectId));
-  });
+  await db
+    .update(project)
+    .set({
+      archived: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(project.id, projectId));
 
   await recordArchiveActivityBestEffort(db, projectId, actor, 'Unarchived project');
   return { archived: false };

@@ -81,8 +81,15 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
   const costArea = `${costLine} L${x(points.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)} L${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
   const savedLine = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.savedUsd).toFixed(1)}`).join(' ');
 
-  const yTicks: number[] = [];
-  for (let v = 0; v <= maxCost + step / 2; v += step) yTicks.push(v);
+  // Multiply, do not accumulate. `v += step` compounds binary-float error, and this axis
+  // reaches sub-dollar steps by construction (`niceScale(Math.max(1, …))` gives step 0.2
+  // for any team spending under $1) — so the third gridline rendered as
+  // `$0.6000000000000001`. Multiplying keeps each tick a clean multiple, and the rounding
+  // absorbs the remaining representation error.
+  const tickCount = Math.floor((maxCost + step / 2) / step);
+  const yTicks: number[] = Array.from({ length: tickCount + 1 }, (_, i) =>
+    Number((i * step).toFixed(10)),
+  );
 
   // Label every day when the series is short, otherwise thin to ~6 evenly-spaced.
   const xTickIdx =

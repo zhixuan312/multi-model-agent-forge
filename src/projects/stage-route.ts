@@ -20,6 +20,17 @@ export const STAGE_ROUTE: Record<StageKind, string> = {
   journal: 'reflect',
 };
 
+/**
+ * The same map read backwards: URL segment → `stage_kind`.
+ *
+ * DERIVED, never written out. `AutomationGate` kept its own forward copy and
+ * `LiveStageStepper` its own inverse — three spellings of one relationship, all agreeing,
+ * which is precisely the state in which the next edit to one of them goes unnoticed.
+ */
+export const SEGMENT_TO_STAGE: Record<string, StageKind> = Object.fromEntries(
+  (Object.entries(STAGE_ROUTE) as [StageKind, string][]).map(([kind, segment]) => [segment, kind]),
+) as Record<string, StageKind>;
+
 /** Build the absolute stage URL for a project (`/projects/<id>/<segment>`). */
 export function stageRoute(kind: StageKind, projectId: string): string {
   return `/projects/${projectId}/${STAGE_ROUTE[kind]}`;

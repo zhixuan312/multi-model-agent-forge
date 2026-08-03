@@ -4,16 +4,7 @@ import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { ProjectActivityEvent } from '@/activity/project-activity';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
-
-/** Stage kind → its route segment (inverse of LiveStageStepper's SEGMENT_TO_STAGE). */
-const STAGE_TO_SEGMENT: Record<string, string> = {
-  exploration: 'explore',
-  spec: 'spec',
-  plan: 'plan',
-  execute: 'execute',
-  review: 'review',
-  journal: 'reflect',
-};
+import { STAGE_ROUTE } from '@/projects/stage-route';
 
 /**
  * Whether automation is running is SERVER state (`project.autoMode`). `autoOverride`
@@ -96,7 +87,7 @@ export function AutomationGate({ projectId, projectName, autoMode, autoNote, cur
   const prevRunning = useRef(running);
   useEffect(() => {
     if (prevRunning.current && !running) {
-      const targetSeg = STAGE_TO_SEGMENT[currentStage];
+      const targetSeg = STAGE_ROUTE[currentStage as keyof typeof STAGE_ROUTE];
       if (targetSeg && targetSeg !== seg) router.push(`/projects/${projectId}/${targetSeg}`);
     }
     prevRunning.current = running;

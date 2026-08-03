@@ -1,4 +1,4 @@
-import { STAGE_ROUTE, stageRoute } from '@/projects/stage-route';
+import { STAGE_ROUTE, SEGMENT_TO_STAGE, stageRoute } from '@/projects/stage-route';
 import { STAGE_KIND } from '@/db/enums';
 
 describe('stage-route', () => {
@@ -33,5 +33,19 @@ describe('stage-route', () => {
   it('stageRoute(journal, id) → /projects/<id>/reflect (never /journal)', () => {
     expect(stageRoute('journal', 'abc')).toBe('/projects/abc/reflect');
     expect(stageRoute('journal', 'abc')).not.toContain('journal');
+  });
+
+  it('SEGMENT_TO_STAGE round-trips every kind, so the two directions cannot drift', () => {
+    // AutomationGate and LiveStageStepper each used to carry their own copy of this
+    // relationship — one forward, one inverse. Derived from STAGE_ROUTE, that is impossible.
+    for (const kind of STAGE_KIND) {
+      expect(SEGMENT_TO_STAGE[STAGE_ROUTE[kind]]).toBe(kind);
+    }
+    expect(Object.keys(SEGMENT_TO_STAGE)).toHaveLength(STAGE_KIND.length);
+  });
+
+  it('maps the renamed segments back to their enum kind', () => {
+    expect(SEGMENT_TO_STAGE.explore).toBe('exploration');
+    expect(SEGMENT_TO_STAGE.reflect).toBe('journal');
   });
 });

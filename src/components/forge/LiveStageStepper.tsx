@@ -4,15 +4,7 @@ import { useSelectedLayoutSegment } from 'next/navigation';
 import { StageStepper } from '@/components/forge/StageStepper';
 import { STAGE_SUBSTEPS, stagePhaseStore, useStageSubPhase } from '@/components/forge/stage-substeps';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
-
-const SEGMENT_TO_STAGE: Record<string, StageKind> = {
-  explore: 'exploration',
-  spec: 'spec',
-  plan: 'plan',
-  execute: 'execute',
-  review: 'review',
-  reflect: 'journal',
-};
+import { SEGMENT_TO_STAGE } from '@/projects/stage-route';
 
 export function LiveStageStepper({
   projectId,

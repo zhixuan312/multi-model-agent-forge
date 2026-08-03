@@ -451,8 +451,9 @@ const SPEC_PHASE_NOTES: Record<string, string> = {
 
 ### When to advance
 
-- Audit must pass clean (no critical or high findings)
-- All approvers confirmed → Continue to Plan unlocks` };
+- One approval on the spec unlocks **Continue to Plan** — sign off yourself, or wait for a teammate
+- The audit is not a gate: you can advance with findings open, and you can advance without
+  having run one. Run it anyway — Plan is authored from this document` };
 
 function SpecNote({ phase }: { phase: string }) {
   return <RailNote icon={<Lightbulb />}>{SPEC_PHASE_NOTES[phase] ?? SPEC_PHASE_NOTES.outline}</RailNote>;
@@ -1505,10 +1506,14 @@ function DocumentScreen({
   const [rounds] = useServerState(initialRounds);
   const [docView, setDocView] = useState<'conversation' | 'document'>(spec ? 'document' : 'conversation');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
-  // Auto-select latest pass when new audit completes
+  // Auto-select the latest pass when a new audit completes — on GROWTH, not on "there are
+  // some". An effect keyed on a value also runs on mount, where the initializer above has
+  // already chosen the same pass; the Plan stage had the identical line and there it also
+  // forced the tab, overriding its own initializer on every visit.
+  const prevRoundCount = useRef(rounds.length);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select the newest audit pass when rounds grow
-    if (rounds.length > 0) setSelectedPass(rounds[rounds.length - 1].passNo);
+    if (rounds.length > prevRoundCount.current) setSelectedPass(rounds[rounds.length - 1].passNo);
+    prevRoundCount.current = rounds.length;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;

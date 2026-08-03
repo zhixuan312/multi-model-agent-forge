@@ -46,6 +46,7 @@ import type { Participant } from '@/collab/types';
 import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
 import { isBlockingSeverity } from '@/lib/severity';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
+import { localId } from '@/lib/local-id';
 
 /** Refine tabs — the task's plan text, then its discussion. */
 const REFINE_TABS: readonly DocumentShellTab[] = [
@@ -121,8 +122,7 @@ export interface PlanStageClientProps {
   lockedReason?: string;
 }
 
-let _id = 0;
-const nid = () => `pm${_id++}`;
+const nid = () => localId('pm');
 
 /**
  * A task's discussion is "refining" when either the local set knows a refine is in flight
@@ -613,7 +613,7 @@ function DetailStage({
     if (!text || (active && isTaskRefining(active.id, refiningTasks, mma.busyHandlers))) return;
     setInput('');
 
-    const tempId = `tmp-${Date.now()}`;
+    const tempId = localId('tmp');
     setThreads((th) => ({
       ...th,
       [active.id]: [...(th[active.id] ?? []), { id: tempId, role: 'user', text }] }));

@@ -64,6 +64,7 @@ import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab
 import type { ComponentKind, ProjectPhase } from '@/db/enums';
 import { isForgeMention } from '@/spec/forge-mention';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
+import { localId } from '@/lib/local-id';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -1060,7 +1061,7 @@ function CraftStage({
     setInput('');
 
     // Optimistic local append — sender sees immediately
-    const tempId = `tmp-${Date.now()}`;
+    const tempId = localId('tmp');
     patchCollab((u) => ({
       ...u,
       discussion: [

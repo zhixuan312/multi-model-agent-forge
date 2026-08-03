@@ -22,6 +22,7 @@ import { RecallAnswer } from '@/components/forge/journal/RecallView';
 import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
 import type { IndexLookupRow } from '@/journal/citations';
 import type { PinnedView, FaqView } from '@/journal/recall-content';
+import { responseError } from '@/lib/err';
 
 /**
  * The Recall tab. The 2/3 canvas leads with the live answer (when asked), then
@@ -224,8 +225,7 @@ export function RecallTab({
         body: JSON.stringify({ question, answerMd: parsed.summary, findings: parsed.findings, citationIds: parsed.citationIds }),
       });
       if (res.status !== 201) {
-        const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        showToast({ type: 'error', message: b?.error ?? 'Could not pin this answer.' });
+        showToast({ type: 'error', message: await responseError(res, 'Could not pin this answer.') });
         return false;
       }
       const created = (await res.json()) as PinnedView;

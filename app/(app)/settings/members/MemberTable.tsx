@@ -31,6 +31,7 @@ import {
 import { formatDate } from '@/lib/format-date';
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import { generatePassword } from '@/auth/generate-password';
+import { responseError } from '@/lib/err';
 
 export interface MemberRowData {
   id: string;
@@ -42,6 +43,9 @@ export interface MemberRowData {
 }
 
 type RoleFilter = 'all' | 'admin' | 'member';
+
+/** The member's role, as shown in the row subtitle AND the Role column — one spelling. */
+const roleLabel = (isAdmin: boolean) => (isAdmin ? 'Admin' : 'Member');
 
 /**
  * A member edit is two sequential writes (role PATCH, then password POST). Decide the outcome
@@ -62,10 +66,10 @@ export function memberEditOutcome(args: {
   return { error: null, refresh: true, done: true };
 }
 
-/** A password field with a Generate affordance (shown as plain text before submit). */
 /** The inline text action inside a field row (Copy · Generate). */
 const INLINE_ACTION = 'focus-ring rounded-sm text-xs font-semibold text-accent hover:underline';
 
+/** A password field with a Generate affordance (shown as plain text before submit). */
 function PasswordField({
   id,
   label,
@@ -176,7 +180,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
                 <TextStrong className="block truncate !text-sm !text-ink" title={m.displayName}>
                   {m.displayName}
                 </TextStrong>
-                <Micro className="block">{m.isAdmin ? 'Admin' : 'Member'}</Micro>
+                <Micro className="block">{roleLabel(m.isAdmin)}</Micro>
               </div>
             </div>
           );
@@ -202,7 +206,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
             variant={row.original.isAdmin ? 'accent' : 'neutral'}
             size="sm"
           >
-            {row.original.isAdmin ? 'Admin' : 'Member'}
+            {roleLabel(row.original.isAdmin)}
           </Badge>
         ),
       },
@@ -321,8 +325,7 @@ export function MemberForm({
           body: JSON.stringify({ displayName: displayName.trim(), username: username.trim(), password, isAdmin }),
         });
         if (!res.ok) {
-          const b = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(b?.error ?? 'Could not add the member.');
+          setError(await responseError(res, 'Could not add the member.'));
           return;
         }
         onDone();
@@ -353,8 +356,7 @@ export function MemberForm({
         });
         if (!res.ok) {
           // The role change itself failed → nothing committed; plain error, no refresh.
-          const b = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(b?.error ?? 'Could not update the member.');
+          setError(await responseError(res, 'Could not update the member.'));
           return;
         }
         roleChanged = true;
@@ -367,8 +369,7 @@ export function MemberForm({
           body: JSON.stringify({ newPassword: password }),
         });
         if (!res.ok) {
-          const b = (await res.json().catch(() => null)) as { error?: string } | null;
-          passwordError = b?.error ?? 'Could not reset the password.';
+          passwordError = await responseError(res, 'Could not reset the password.');
         }
       }
       // A committed role change must refresh (else the table is stale) and be reported even if
@@ -393,8 +394,7 @@ export function MemberForm({
     try {
       const res = await fetch(`/api/members/${existing.id}`, { method: 'DELETE' });
       if (!res.ok && res.status !== 204) {
-        const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(b?.error ?? 'Could not delete the member.');
+        setError(await responseError(res, 'Could not delete the member.'));
         return;
       }
       onDone();

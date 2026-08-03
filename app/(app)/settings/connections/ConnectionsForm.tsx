@@ -13,6 +13,7 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
 import { FormPanel } from '@/components/patterns';
+import { responseError } from '@/lib/err';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -126,8 +127,7 @@ export function ConnectionsForm({
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(b?.error ?? 'Could not save.');
+        setError(await responseError(res, 'Could not save.'));
         return;
       }
       setOpenaiKey('');

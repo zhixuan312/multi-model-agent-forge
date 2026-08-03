@@ -28,6 +28,7 @@ import {
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { filterRepos } from '@/git/repo-filter';
+import { responseError } from '@/lib/err';
 
 export interface RepoCardData {
   id: string;
@@ -258,8 +259,7 @@ function RepoEditForm({ repo: r, onDone }: { repo: RepoCardData; onDone: () => v
         }),
       });
       if (!res.ok) {
-        const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(b?.error ?? 'Could not update the repo.');
+        setError(await responseError(res, 'Could not update the repo.'));
         return;
       }
       onDone();
@@ -353,8 +353,7 @@ function CloneForm({ onDone, onCloned }: { onDone: () => void; onCloned: () => v
         body: JSON.stringify({ name, url, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }),
       });
       if (!res.ok) {
-        const b = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(b?.error ?? 'Could not clone the repo.');
+        setError(await responseError(res, 'Could not clone the repo.'));
         return;
       }
       onCloned();

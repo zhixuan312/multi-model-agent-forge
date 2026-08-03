@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { errName } from '@/lib/err';
+import { errName, responseError } from '@/lib/err';
 
 /**
  * `errName` was three character-for-character copies (exploration/dispatch,
@@ -31,5 +31,29 @@ describe('errName', () => {
     // It runs inside catch blocks; throwing here would replace the original failure.
     expect(() => errName(Object.create(null))).not.toThrow();
     expect(() => errName(Symbol('s'))).not.toThrow();
+  });
+});
+
+/**
+ * Every failing fetch in the app hand-wrote the same three lines — ten times across five
+ * files. The `.catch(() => null)` is the part that matters and the part easiest to omit:
+ * a 500 that returns an HTML error page makes `res.json()` THROW, and a handler without
+ * it reports nothing at all.
+ */
+describe('responseError', () => {
+  const res = (body: unknown): Response => ({ json: async () => body } as unknown as Response);
+
+  it('prefers the server error message', async () => {
+    expect(await responseError(res({ error: 'Username taken.' }), 'fallback')).toBe('Username taken.');
+  });
+
+  it('falls back when the body carries no error field', async () => {
+    expect(await responseError(res({}), 'Could not add the member.')).toBe('Could not add the member.');
+    expect(await responseError(res(null), 'fallback')).toBe('fallback');
+  });
+
+  it('falls back rather than throwing when the body is not JSON at all', async () => {
+    const html = { json: async () => { throw new SyntaxError('Unexpected token <'); } } as unknown as Response;
+    await expect(responseError(html, 'Could not save.')).resolves.toBe('Could not save.');
   });
 });

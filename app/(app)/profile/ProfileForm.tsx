@@ -18,6 +18,7 @@ import type { MetricCardProps } from '@/components/ui/metric-card';
 
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
+import { responseError } from '@/lib/err';
 
 const PROFILE_NOTE = `### Your account
 
@@ -60,8 +61,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         body: JSON.stringify({ displayName: displayName.trim(), avatarTint: tint }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setAccountError(body?.error ?? 'Could not save your profile.');
+        setAccountError(await responseError(res, 'Could not save your profile.'));
         return;
       }
       setAccountOpen(false);
@@ -101,8 +101,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setPasswordError(body?.error ?? 'Could not update your password.');
+        setPasswordError(await responseError(res, 'Could not update your password.'));
         return;
       }
       setPasswordOpen(false);

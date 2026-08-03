@@ -69,6 +69,34 @@ export function memberEditOutcome(args: {
 /** The inline text action inside a field row (Copy · Generate). */
 const INLINE_ACTION = 'focus-ring rounded-sm text-xs font-semibold text-accent hover:underline';
 
+/** The Role picker. Add and Edit rendered the same eleven lines, differing only in
+ *  whether it is disabled (the team's last admin cannot be demoted). */
+function RoleField({
+  isAdmin,
+  onChange,
+  disabled,
+}: {
+  isAdmin: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Field label="Role">
+      {(p) => (
+        <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => onChange(v === 'admin')} disabled={disabled}>
+          <SelectTrigger {...p}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="member">{roleLabel(false)}</SelectItem>
+            <SelectItem value="admin">{roleLabel(true)}</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </Field>
+  );
+}
+
 /** A password field with a Generate affordance (shown as plain text before submit). */
 function PasswordField({
   id,
@@ -423,36 +451,12 @@ export function MemberForm({
                 <Input {...p} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. j.wong" className="font-mono" />
               )}
             </Field>
-            <Field label="Role">
-              {(p) => (
-                <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => setIsAdmin(v === 'admin')}>
-                  <SelectTrigger {...p}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
+            <RoleField isAdmin={isAdmin} onChange={setIsAdmin} />
             <PasswordField id="add-password" label="Password" value={password} onChange={setPassword} />
           </>
         ) : (
           <>
-            <Field label="Role">
-              {(p) => (
-                <Select value={isAdmin ? 'admin' : 'member'} onValueChange={(v) => setIsAdmin(v === 'admin')} disabled={isLastAdmin}>
-                  <SelectTrigger {...p}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
+            <RoleField isAdmin={isAdmin} onChange={setIsAdmin} disabled={isLastAdmin} />
             <PasswordField id={`reset-${existing!.id}`} label="New password" hint="blank keeps it" value={password} onChange={setPassword} />
           </>
         )}

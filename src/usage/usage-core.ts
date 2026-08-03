@@ -12,9 +12,23 @@ import { member } from '@/db/schema/identity';
 
 import type { Period } from '@/usage/period';
 import type { UsageSource } from '@/usage/source';
+import { DISPLAY_TIMEZONE } from '@/lib/format-date';
 
-const TIMEZONE = 'Asia/Singapore';
+/**
+ * The zone the reporting periods are cut in — "this week" means Monday 00:00 in the
+ * product's timezone, and the daily chart buckets must agree with the dates shown beside
+ * them. This was a fourth hardcoded `'Asia/Singapore'`: `format-date` exports
+ * `DISPLAY_TIMEZONE` precisely so `LOOP_TIMEZONE` can be pinned to it, and this copy sat
+ * outside that ratchet — change the product's zone and the usage boundaries would quietly
+ * keep the old one.
+ */
+const TIMEZONE = DISPLAY_TIMEZONE;
 
+/**
+ * The start of a reporting period, or null for 'all'. Exported for its own test — the
+ * calendar arithmetic (Monday 00:00, month start, DST-free offset) is the part worth
+ * pinning, and every query below goes through it.
+ */
 export function periodCutoff(period: Period, now: Date = new Date()): Date | null {
   if (period === 'all') return null;
   if (period === '30d') return new Date(now.getTime() - 30 * 86_400_000);
@@ -149,21 +163,11 @@ export interface UsagePoint {
   count: number;
 }
 
-export interface TeamUsageDrilldown {
-  teamId: string;
-  teamName: string;
-  costUsd: number;
-  savedUsd: number;
-  dispatchCount: number;
-  byRoute: OrgInfraBreakdownRow[];
-}
-
 export interface OrgOverviewResult {
   headline: OrgUsageHeadline;
   costByTeam: OrgTeamUsageRow[];
   infraBreakdown: OrgInfraBreakdownRow[];
   trend: { orgTotal: UsagePoint[] };
-  teamDrilldown: TeamUsageDrilldown;
 }
 
 export interface UsageDeps {
@@ -413,9 +417,10 @@ async function usageOverviewOrg(
     avgCostUsd: r.avgCostUsd,
   }));
 
-  // Trend: org-total daily series (SGT day buckets) — cost, savings, and dispatch
-  // count per day feed the dashboard's volume-and-cost chart. Per-team sparklines
-  // are left empty until a per-team daily rollup is added.
+  // Trend: org-total daily series (day buckets in TIMEZONE) — cost, savings, and dispatch
+  // count per day feed the dashboard's volume-and-cost chart. Org total only; there is no
+  // per-team series in the result (the comment here used to promise per-team sparklines
+  // "left empty", but the field they would have filled does not exist).
   // Inline the timezone as a SQL literal (not a bind param) so the SELECT and
   // GROUP BY day-bucket expressions are textually identical — Postgres rejects a
   // parameterised timezone in GROUP BY as an ungrouped-column reference. TIMEZONE
@@ -438,22 +443,17 @@ async function usageOverviewOrg(
 
   headline.trendRatio = trendRatio(orgTotal.map((p) => p.costUsd));
 
-  // Team drilldown: select first team for now (simplified)
-  const teamDrilldown: TeamUsageDrilldown = {
-    teamId: costByTeamRows[0]?.teamId ?? '',
-    teamName: costByTeam[0]?.teamName ?? 'N/A',
-    costUsd: costByTeamRows[0]?.costUsd ?? 0,
-    savedUsd: costByTeamRows[0]?.savedUsd ?? 0,
-    dispatchCount: 0, // Would require separate query
-    byRoute: infraBreakdown,
-  };
-
+  // No `teamDrilldown` here any more. It picked `costByTeamRows[0]` — an arbitrary team —
+  // carried `dispatchCount: 0` with a comment saying a real count "would require a
+  // separate query", and set `byRoute` to the ORG-WIDE breakdown, so it labelled every
+  // team's routes as that one team's. Nothing rendered it. Building a real per-team
+  // drilldown is a feature; shipping a placeholder shaped like one is how a wrong number
+  // reaches a page later.
   return {
     headline,
     costByTeam,
     infraBreakdown,
     trend,
-    teamDrilldown,
   };
 }
 
@@ -474,15 +474,6 @@ export interface ProjectUsageRow {
   taskCount: number;
   costUsd: number;
   savedUsd: number;
-  tokens: number;
-  durationMs: number;
-}
-
-export interface ProjectStageRow {
-  stage: string;
-  label: string;
-  taskCount: number;
-  costUsd: number;
   tokens: number;
   durationMs: number;
 }
@@ -696,14 +687,6 @@ export async function usageStandalone(
 }
 
 // ── Overview by-route-per-source (for expandable source rows) ────────────
-
-export interface SourceRouteRow {
-  route: string;
-  routeLabel: string;
-  taskCount: number;
-  costUsd: number;
-  durationMs: number;
-}
 
 export interface RouteAggRow {
   route: string;

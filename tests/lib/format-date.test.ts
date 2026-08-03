@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   formatRelative,
   formatDate,
@@ -174,5 +176,42 @@ describe('formatRelative — exact bucket boundaries', () => {
 describe('display timezone vs the zone cron fires in', () => {
   it('are the same zone', () => {
     expect(LOOP_TIMEZONE).toBe(DISPLAY_TIMEZONE);
+  });
+
+  /**
+   * A third copy is what this ratchet was blind to. `usage-core` had its own
+   * `const TIMEZONE = 'Asia/Singapore'` cutting "this week"/"this month" and bucketing the
+   * daily chart — so changing the product's zone would have moved every displayed date
+   * while leaving the reporting boundaries and the chart columns on the old one. Derived
+   * from the source, so a fourth copy fails here rather than drifting quietly.
+   */
+  it('is the only place the zone is written down in CODE', () => {
+    const roots = ['src', 'app', 'scripts'];
+    const walk = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) out.push(...walk(full));
+        else if (/\.(ts|tsx|mjs)$/.test(e.name)) out.push(full);
+      }
+      return out;
+    };
+    // Comments are stripped first. Several modules NAME the zone in prose to explain why
+    // they stamp a branch or a run in it, which is documentation worth keeping — the thing
+    // that must not be duplicated is the VALUE.
+    const stripComments = (src: string) =>
+      src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const quoted = [`'${DISPLAY_TIMEZONE}'`, `"${DISPLAY_TIMEZONE}"`];
+
+    const ALLOWED = new Set(['src/lib/format-date.ts', 'src/loops/cron.ts']);
+    const offenders = roots
+      .flatMap((r) => (existsSync(join(process.cwd(), r)) ? walk(join(process.cwd(), r)) : []))
+      .map((f) => f.replace(process.cwd() + '/', ''))
+      .filter((f) => !ALLOWED.has(f))
+      .filter((f) => {
+        const code = stripComments(readFileSync(join(process.cwd(), f), 'utf8'));
+        return quoted.some((q) => code.includes(q));
+      });
+    expect(offenders, 'import DISPLAY_TIMEZONE instead of writing the zone out again').toEqual([]);
   });
 });

@@ -58,7 +58,6 @@ export default async function JournalStagePage({ params, searchParams }: { param
   return (
     <JournalStageClient
       projectId={id}
-      projectName={proj.name}
       learnings={learnings}
       harvesting={!!pendingHarvest}
       recording={!!pendingRecord}

@@ -108,7 +108,6 @@ interface SpecStageClientProps {
   /** Whether OpenAI transcription key is configured — enables voice input. */
   voiceEnabled?: boolean;
   /** In-flight audit batch ID (from DB on page load). */
-  pendingAudit?: string | null;
   /** In-flight auto-draft batch ID (from DB on page load). */
   pendingAutoDraft?: string | null;
   /** In-flight audit-apply batch ID (from DB on page load). */

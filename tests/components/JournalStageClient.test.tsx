@@ -21,7 +21,6 @@ const renderStage = (learnings: JournalLearningView[]) =>
   render(
     <JournalStageClient
       projectId="p1"
-      projectName="Payments"
       learnings={learnings}
       harvesting={false}
       recording={false}

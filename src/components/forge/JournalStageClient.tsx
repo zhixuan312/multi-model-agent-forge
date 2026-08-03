@@ -59,7 +59,6 @@ export interface JournalLearningView {
 
 export interface JournalStageClientProps {
   projectId: string;
-  projectName: string;
   learnings: JournalLearningView[];
   harvesting: boolean;
   recording: boolean;

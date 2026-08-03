@@ -78,7 +78,6 @@ export default async function SpecStagePage({
   const { listTeamMemberRefs } = await import('@/auth/members-core');
   const projectMembers = (await listTeamMemberRefs(me.teamId, { db })).filter((m) => m.id !== me.id);
 
-  const pendingAudit = await findInflight(db, id, 'spec-audit');
   const pendingAutoDraft = await findInflight(db, id, 'spec-auto-draft');
   const pendingApply = await findInflight(db, id, 'spec-audit-apply');
 
@@ -103,7 +102,6 @@ export default async function SpecStagePage({
       projectMembers={projectMembers}
       initialMessages={initialMessages}
       voiceEnabled={voiceEnabled}
-      pendingAudit={pendingAudit}
       pendingAutoDraft={pendingAutoDraft}
       pendingApply={pendingApply}
       specApprovers={specApprovers}

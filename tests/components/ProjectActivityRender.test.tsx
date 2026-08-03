@@ -83,4 +83,27 @@ describe('project activity rendering', () => {
     expect(screen.getByText('Drafted spec')).toBeInTheDocument();
     expect(screen.getByText('1.2s')).toBeInTheDocument();
   });
+
+  it('announces automation progress — the log is a live region', () => {
+    // Automation is the one surface where the app works on its own for minutes at a time.
+    // None of it reached a screen reader: stage advances, step completions and failures
+    // were purely visual. The conversation log and the Execute stage were already live
+    // regions; this one was not.
+    wrap(
+      <AutomationOverlay
+        projectId="proj-1"
+        projectName="Demo"
+        autoMode
+        autoNote=""
+        currentStage="spec"
+        phase="active"
+        stagePhase="craft"
+        events={events}
+      />,
+    );
+
+    const log = screen.getByRole('log', { name: 'Automation progress' });
+    expect(log).toHaveAttribute('aria-live', 'polite');
+    expect(log).toHaveTextContent('Drafted spec');
+  });
 });

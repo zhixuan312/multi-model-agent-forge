@@ -346,7 +346,17 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             {logs.length > 0 && <Badge variant="neutral" size="sm">{logs.length}</Badge>}
           </CardHeader>
 
-          <CardContent className="min-h-0 flex-1 overflow-y-auto">
+          {/* A live region, like the conversation log and the Execute stage already are.
+              Automation is the one surface where the app acts on its own for minutes at a
+              time, and none of it — stage advances, step completions, failures — reached a
+              screen reader: the progress was purely visual. `polite` so it queues behind
+              whatever the user is doing rather than interrupting. */}
+          <CardContent
+            role="log"
+            aria-live="polite"
+            aria-label="Automation progress"
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
             {countdown > 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16">
                 <p className="text-sm text-ink-faint">Waiting to start…</p>

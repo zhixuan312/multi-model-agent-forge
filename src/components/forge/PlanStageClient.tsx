@@ -172,13 +172,23 @@ export function PlanStageClient(props: PlanStageClientProps) {
       router.push(url.pathname + url.search, { scroll: false });
     }
   };
-  const advancePhase = async (p: PlanPhase) => {
-    // Plan phase status gates the resolver (validate.status==='active' runs the audit
-    // loop), so refine→validate goes through the unified engine as advance_phase.
-    await mma.transition('advance_phase').catch(() => {
+  /**
+   * Plan phase status gates the resolver (validate.status==='active' runs the audit loop),
+   * so refine→validate goes through the unified engine as advance_phase.
+   *
+   * A REJECTED advance must not move the view — this toasted and switched anyway, putting
+   * the stepper and URL on a phase the server had not entered, where the audit loop will
+   * not run. Same fix as SpecStageClient; the Explore stage already stated the rule.
+   */
+  const advancePhase = async (p: PlanPhase): Promise<boolean> => {
+    try {
+      await mma.transition('advance_phase');
+    } catch {
       showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
-    });
+      return false;
+    }
     setPhase(p);
+    return true;
   };
   const serverStatus = useMemo(
     () => Object.fromEntries(allTasks.map((t) => [t.id, (t.dbStatus === 'committed' || t.dbStatus === 'approved' ? 'approved' : 'proposed') as TaskStatus])),

@@ -114,3 +114,39 @@ describe('Plan · Validate — which tab opens', () => {
     expect(screen.getByRole('tab', { name: 'Audit' })).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+describe('Plan · Refine — advancing to Validate', () => {
+  const renderRefine = () =>
+    render(
+      <PlanStageClient
+        {...({
+          projectId: 'p1', projectName: 'Payments', mmaReady: true,
+          phases: phases(), planMd: '# Plan', auditRounds: [], initialPhase: 'refine',
+        } as unknown as PlanStageClientProps)}
+      />,
+    );
+
+  /**
+   * A rejected `advance_phase` used to toast AND switch the view, so the stepper and the URL
+   * sat on a phase the server had never entered — where the resolver runs no audit loop —
+   * with only a toast, already scrolled away, to explain it. The Explore stage states this
+   * rule at its own advance: "a rejected transition must NOT navigate".
+   */
+  it('stays on Refine when the server rejects the advance', async () => {
+    transition.mockRejectedValueOnce(new Error('409'));
+    renderRefine();
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Validate/ }));
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalled());
+
+    // Refine's rail is still the one on screen; Validate's is not.
+    expect(screen.getByRole('button', { name: /Continue to Validate/ })).toBeInTheDocument();
+    expect(screen.queryByText('Audit rounds')).toBeNull();
+  });
+
+  it('moves to Validate when the advance succeeds', async () => {
+    renderRefine();
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Validate/ }));
+    expect(await screen.findByText('Audit rounds')).toBeInTheDocument();
+  });
+});

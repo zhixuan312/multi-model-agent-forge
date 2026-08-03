@@ -213,13 +213,25 @@ export function SpecStageClient(props: SpecStageClientProps) {
     url.searchParams.set('phase', p);
     window.history.replaceState(null, '', url.pathname + url.search);
   };
-  const advancePhase = async (p: SpecPhase) => {
-    // Spec phase status gates the resolver (finalize.status==='active' runs the audit
-    // loop), so the advance goes through the unified engine as advance_phase.
-    await mma.transition('advance_phase').catch(() => {
+  /**
+   * Spec phase status gates the resolver (finalize.status==='active' runs the audit loop),
+   * so the advance goes through the unified engine as advance_phase.
+   *
+   * A REJECTED advance must not move the view. This caught the rejection, toasted, and then
+   * switched the phase anyway — leaving the stepper and the URL on a phase the server had
+   * not entered, showing UI the resolver would not service (no audit loop, no automation)
+   * with only a toast, already scrolled away, to explain it. The Explore stage states this
+   * rule outright at its own advance; Spec and Plan both broke it.
+   */
+  const advancePhase = async (p: SpecPhase): Promise<boolean> => {
+    try {
+      await mma.transition('advance_phase');
+    } catch {
       showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
-    });
+      return false;
+    }
     setPhase(p);
+    return true;
   };
   // Wrap refresh in a transition so callers can show a loading state while the
   // fresh RSC data (e.g. the freshly-created components after "Continue to
@@ -268,9 +280,9 @@ export function SpecStageClient(props: SpecStageClientProps) {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Auto-draft failed.'));
   }, [phase, needsAutoDraft, autoDrafting, mma, props.projectId]);
 
-  // Publish the live sub-phase to the stepper (Outline · Craft · Document).
+  // Publish the live sub-phase to the stepper (Outline · Craft · Finalize).
   useStagePhaseUrl(phase);
-  // Let the stepper's sub-phase chips jump back to a phase (Craft/Document need a confirmed outline).
+  // Let the stepper's sub-phase chips jump back to a phase (Craft/Finalize need a confirmed outline).
   useEffect(
     () =>
       stagePhaseStore.onNavigate((key) => {
@@ -342,11 +354,18 @@ export function SpecStageClient(props: SpecStageClientProps) {
             // view — so Craft renders already populated. This deliberately does NOT use
             // router.refresh(): that RSC round-trip raced the phase switch + replaceState and
             // served a stale 0-component snapshot, leaving a blank "No components yet" view.
-            await mma.transition('advance_phase').catch(() => {
+            let advanced = true;
+            try {
+              await mma.transition('advance_phase');
+            } catch {
               showToast({ type: 'error', message: 'Couldn’t advance the phase — try again.' });
-            });
+              advanced = false;
+            }
+            // The components exist either way (`select_components` already created them), so
+            // load them regardless — but only MOVE if the server actually advanced. Outline
+            // then shows the confirmed set, and its own "Continue" is the way forward.
             await refreshComponents();
-            setPhase('craft');
+            if (advanced) setPhase('craft');
             // Re-render the server layout so its stepper reflects the advance (Outline → done,
             // Craft → active). Safe now that components are client-owned: this refresh updates
             // the layout + other RSC props WITHOUT resetting the freshly-fetched component list.

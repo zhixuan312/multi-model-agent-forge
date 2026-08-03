@@ -161,9 +161,12 @@ export const STAGE_FLOW_VARIANTS: readonly VariantMeta[] = [
   {
     id: 'automation',
     label: 'Automation bar',
-    // One strip, five states — idle · idle-disabled · locked · starting · driving · viewing —
-    // all previewed on this page. The stage clients render the first three; AutomationOverlay
-    // renders the rest by passing `state`, rather than hand-rolling a copy of the markup.
+    // One strip. Four `state` values, in six presentations — idle · idle-disabled · locked ·
+    // starting · driving · viewing — all previewed on this page (`tests/governance/
+    // stage-advance-forms` fails if a state gains no panel). The stage clients render the
+    // first three, passing no `state` at all; AutomationOverlay renders the rest by passing
+    // `state`, rather than hand-rolling a copy of the markup. This said "five states" and
+    // then listed six, in both places it was written.
     //
     // It is also the automation TOGGLE, with one source of truth (`useAutomationRunning`, in
     // AutomationGate): "Run automated" swaps the whole project shell to the cool `build`
@@ -340,7 +343,6 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'models-configure', label: 'Org settings › Models (hand-rolled shell)', filePath: 'app/(app)/settings/models/ModelsPanel.tsx' },
       { id: 'new-project', label: 'New project (CardFooter submit, raw radios)', filePath: 'app/(app)/projects/new/NewProjectForm.tsx' },
       { id: 'slot-editor', label: 'Components › Slot editor (auto-save, no submit)', filePath: 'app/(app)/settings/components/SlotEditor.tsx' },
-      { id: 'explore-add-task', label: 'Project › Explore › Add task (raw controls)', filePath: 'src/components/forge/ExploreStageClient.tsx' },
     ],
   },
   {

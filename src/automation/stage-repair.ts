@@ -35,7 +35,11 @@ export function repairActiveStage(d: Details): { changed: boolean } {
     const first = STAGE_FIRST_PHASE[firstRunnable];
     const phases = d.stages[firstRunnable].phases as Record<string, { status: string }>;
     if (phases[first] && phases[first].status === 'pending') phases[first].status = 'active';
-    return { changed: true };
+    changed = true;
+    // Falls through to the phase check below rather than returning. Reopening a stage
+    // whose FIRST phase is already `done` left it with no active phase at all, so
+    // `allowedActions` had nothing to offer and the project stalled — the very state
+    // the check below exists to heal.
   }
 
   // Exactly one active stage now — ensure it has an active phase. If none is active,

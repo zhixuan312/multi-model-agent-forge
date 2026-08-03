@@ -47,6 +47,23 @@ describe('repairActiveStage (exactly one active stage invariant, spec §2 / AC16
     expect(changed).toBe(true);
     expect(d.stages.plan.status).toBe('active');
   });
+  /**
+   * The two branches must agree on what "repaired" means. Activating a stage whose
+   * FIRST phase is already done left it with no active phase at all — so
+   * `allowedActions` had nothing to offer and the project stalled, which is the exact
+   * state the one-active-stage branch is written to heal.
+   */
+  it('zero active, reopened stage is mid-way → activates its first PENDING phase', () => {
+    const d = withStatuses({ exploration: 'done', spec: 'done', plan: 'pending' });
+    d.stages.plan.phases.refine.status = 'done';
+    const { changed } = repairActiveStage(d);
+    expect(changed).toBe(true);
+    expect(d.stages.plan.status).toBe('active');
+    const phases = Object.values(d.stages.plan.phases as Record<string, { status: string }>);
+    expect(phases.some((p) => p.status === 'active'), 'no phase active — the stage is unreachable').toBe(true);
+    expect(d.stages.plan.phases.refine.status).toBe('done');
+  });
+
   it('zero active, all done → no activation (completion path handles it)', () => {
     const d = withStatuses({ exploration: 'done', spec: 'done', plan: 'done', execute: 'done', review: 'done', journal: 'done' });
     const { changed } = repairActiveStage(d);

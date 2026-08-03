@@ -505,6 +505,19 @@ function OutlineStage({
   }
 
   const valid = intent.trim() !== '' && picked.size > 0;
+  /**
+   * WHY Continue is disabled. Both gates are invisible from this screen: the intent is
+   * carried from the Exploration brief and is not editable here, and an empty selection is
+   * only obvious if you notice the count on the Custom row. `projects-core` already names
+   * the missing-intent case as one that leaves the outline "permanently stuck with no UI to
+   * unblock them" — it seeds intent for subset projects for exactly that reason. A disabled
+   * button that does not say why is the same dead end with fewer clues.
+   */
+  const blockedReason = readOnly || valid
+    ? null
+    : intent.trim() === ''
+      ? 'This spec needs the exploration brief — it carries the intent the outline is built from.'
+      : 'Pick at least one component to include.';
 
   const [compQuery, setCompQuery] = useState('');
   const [tplQuery, setTplQuery] = useState('');
@@ -591,7 +604,10 @@ function OutlineStage({
               )}
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex-col !items-stretch gap-2">
+            {blockedReason && !alreadyConfirmed ? (
+              <TextSm role="status" className="!text-xs !text-ink-soft">{blockedReason}</TextSm>
+            ) : null}
             {/* Outline→Craft is a PHASE advance inside Spec, so it's the accent Button its
                 peers use ("Continue to Finalize" / "Validate" / "Implement") — not the ink
                 StageAdvance, which is reserved for crossing a stage boundary. */}

@@ -194,3 +194,38 @@ describe('SpecStageClient', () => {
     });
   });
 });
+
+describe('Spec · Outline — why Continue is disabled', () => {
+  const renderOutline = (intentMd: string | null) =>
+    wrap(
+      <SpecStageClient
+        {...({
+          projectId: 'p1', projectName: 'Payments', intentMd, phase: 'design',
+          mainTierReady: true, mmaReady: true, defaultKinds: ['context'],
+          initialComponents: [], initialSpec: null, initialAuditHistory: [],
+          currentMember: { id: 'm1', displayName: 'Me', avatarTint: '#000' },
+          projectMembers: [], initialMessages: {}, voiceEnabled: false,
+          specApprovers: [], initialPhase: 'outline',
+        } as unknown as Parameters<typeof SpecStageClient>[0])}
+      />,
+    );
+
+  /**
+   * Both gates on Continue are invisible from this screen: the intent is carried from the
+   * Exploration brief and is not editable here. `projects-core` already names the
+   * missing-intent case as one that leaves the outline "permanently stuck with no UI to
+   * unblock them" — it seeds intent for subset projects for exactly that reason. A disabled
+   * button that does not say why is the same dead end with fewer clues.
+   */
+  it('names the missing exploration brief', () => {
+    renderOutline(null);
+    expect(screen.getByTestId('outline-continue')).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent(/exploration brief/i);
+  });
+
+  it('says nothing when the outline is ready to confirm', () => {
+    renderOutline('We are building a payments API.');
+    expect(screen.getByTestId('outline-continue')).toBeEnabled();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});

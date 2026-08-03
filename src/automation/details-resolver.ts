@@ -1,4 +1,5 @@
 import type { Details } from '@/details/schema';
+import { STAGE_ORDER } from '@/db/enums';
 import type { StageKind } from '@/db/enums';
 import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { isParked } from '@/automation/attempt-status';
@@ -55,7 +56,11 @@ function stageWorkDone(d: Details, stage: StageKind): boolean {
  * running — so a driver glitch can never silently ship a false completion.
  */
 export function firstUnderdoneStage(d: Details): StageKind | null {
-  for (const stage of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) {
+  // DERIVED from the canonical order, not listed. Omission here weakens the guard: a
+  // stage added to `STAGE_KIND` and forgotten in a hand-written list would simply stop
+  // being checked, and this is the check that makes a false "Project complete"
+  // impossible. `journal` is the one deliberate exclusion (see above).
+  for (const stage of STAGE_ORDER.filter((s) => s !== 'journal')) {
     if (isSkipped(d, stage)) continue;
     if (!stageWorkDone(d, stage)) return stage;
   }

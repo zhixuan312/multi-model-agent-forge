@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildInitialDetails, buildSubsetDetails, type Details } from '@/details/schema';
 import { firstUnderdoneStage, resolveNextActionFromDetails } from '@/automation/details-resolver';
+import { STAGE_ORDER } from '@/db/enums';
 
 /** Populate the DEFINING work record of every stage — the proof each ran. Without
  * these, the completion invariant treats a status-only "done" as a skipped stage. */
@@ -472,6 +473,49 @@ function withSubsetJournalBoundary(): Details {
 describe('firstUnderdoneStage', () => {
   it('ignores skipped execute/review on subset projects', () => {
     const d = withSubsetJournalBoundary();
+    expect(firstUnderdoneStage(d)).toBeNull();
+  });
+
+  /**
+   * The stage list is derived from `STAGE_ORDER` rather than written out, because
+   * omission here WEAKENS the guard: a stage added to the enum and forgotten in a
+   * hand-written list would simply stop being checked, and this is the check that makes a
+   * false "Project complete" impossible.
+   */
+  it('checks every stage except journal, whatever the enum holds', () => {
+    /** Undo the one record `stageWorkDone` reads for this stage. */
+    const unrecord: Record<string, (d: Details) => void> = {
+      exploration: (d) => {
+        d.stages.exploration.phases.synthesize.file = null;
+        d.stages.exploration.phases.synthesize.status = 'pending';
+      },
+      spec: (d) => {
+        d.stages.spec.phases.finalize.approvals = [];
+      },
+      plan: (d) => {
+        d.stages.plan.phases.refine.tasks = [];
+      },
+      execute: (d) => {
+        d.stages.execute.phases.implement.repos = [];
+      },
+      review: (d) => {
+        d.stages.review.phases.review.repos = [];
+      },
+    };
+    for (const stage of STAGE_ORDER) {
+      if (stage === 'journal') continue;
+      const undo = unrecord[stage];
+      expect(undo, `no un-record case for new stage "${stage}" — add one`).toBeDefined();
+      const d = withAllStageWork(buildInitialDetails());
+      undo(d);
+      expect(firstUnderdoneStage(d), stage).toBe(stage);
+    }
+  });
+
+  /** Journal is excluded on purpose — the completion boundary checks its harvest separately. */
+  it('never reports journal, even with no harvest recorded', () => {
+    const d = withAllStageWork(buildInitialDetails());
+    d.stages.journal.phases.journal.attempts = [];
     expect(firstUnderdoneStage(d)).toBeNull();
   });
 });

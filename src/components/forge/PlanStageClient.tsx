@@ -24,17 +24,6 @@ import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { ProseBlock } from '@/components/patterns/prose-block';
 
-/** Refine tabs — the task's plan text, then its discussion. */
-const REFINE_TABS: readonly DocumentShellTab[] = [
-  { id: 'plan', label: 'Plan' },
-  { id: 'discussion', label: 'Discussion' },
-];
-
-/** Validate tabs — the whole plan document, then the audit findings against it. */
-const VALIDATE_TABS: readonly DocumentShellTab[] = [
-  { id: 'document', label: 'Plan' },
-  { id: 'audit', label: 'Audit' },
-];
 import {
   Button,
   Card,
@@ -56,6 +45,18 @@ import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
 import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
 import { isBlockingSeverity } from '@/lib/severity';
+
+/** Refine tabs — the task's plan text, then its discussion. */
+const REFINE_TABS: readonly DocumentShellTab[] = [
+  { id: 'plan', label: 'Plan' },
+  { id: 'discussion', label: 'Discussion' },
+];
+
+/** Validate tabs — the whole plan document, then the audit findings against it. */
+const VALIDATE_TABS: readonly DocumentShellTab[] = [
+  { id: 'document', label: 'Plan' },
+  { id: 'audit', label: 'Audit' },
+];
 
 const PLAN_PHASE_NOTES: Record<string, string> = {
   refine: `### Refine — review the tasks
@@ -95,7 +96,6 @@ type Msg =
 export interface PlanStageClientProps {
   projectId: string;
   projectName: string;
-  intentMd: string;
   phase?: ProjectPhase;
   mmaReady: boolean;
   currentMember?: { id: string; displayName: string; avatarTint: string };

@@ -36,7 +36,7 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
     ? (phaseParam as PlanPhase)
     : lastPhase ?? undefined;
   const [proj] = await db
-    .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
+    .select({ name: project.name, phase: project.phase })
     .from(project)
     .where(eq(project.id, id))
     .limit(1);
@@ -63,7 +63,6 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
     <PlanStageClient
       projectId={id}
       projectName={proj.name}
-      intentMd={proj.intentMd ?? ''}
       phase={proj.phase}
       mmaReady={mmaReady}
       currentMember={{ id: me.id, displayName: me.displayName, avatarTint: me.avatarTint }}

@@ -1,9 +1,12 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '@/db/client';
+import type { ActivityKind, ActivitySource } from '@/db/enums';
 import { projectActivity, type ProjectActivityRow } from '@/db/schema/activity';
 
-export type ActivityKind = 'action' | 'running' | 'done' | 'error';
-export type ActivitySource = 'user' | 'mma';
+// The column's own value sets, from `db/enums.ts`. These were re-spelled here as unions
+// while the column spelled them out again inline, so NEITHER copy was visible to the
+// single-source ratchet that exists to catch exactly this.
+export type { ActivityKind, ActivitySource };
 
 export interface ActivityActor {
   id: string | null;

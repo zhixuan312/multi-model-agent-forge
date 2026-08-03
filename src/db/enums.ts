@@ -207,3 +207,14 @@ export type DiscoverTaskKind = (typeof DISCOVER_TASK_KIND)[number];
  */
 export const NOTIFICATION_KIND = ['dispatch_failed', 'section_invite'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KIND)[number];
+
+/**
+ * `project_activity.kind` — what a row on the project timeline represents. `running` is the
+ * in-flight state a terminal `done`/`error` RESOLVES IN PLACE (one logical row, not two).
+ */
+export const ACTIVITY_KIND = ['action', 'running', 'done', 'error'] as const;
+export type ActivityKind = (typeof ACTIVITY_KIND)[number];
+
+/** `project_activity.source` — who caused the row: a person, or an MMA worker. */
+export const ACTIVITY_SOURCE = ['user', 'mma'] as const;
+export type ActivitySource = (typeof ACTIVITY_SOURCE)[number];

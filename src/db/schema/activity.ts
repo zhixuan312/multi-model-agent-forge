@@ -1,3 +1,4 @@
+import { ACTIVITY_KIND, ACTIVITY_SOURCE } from '@/db/enums';
 import {
   bigserial,
   index,
@@ -21,11 +22,11 @@ export const projectActivity = forge.table(
     stage: text('stage').notNull(),
     phase: text('phase').notNull(),
     label: text('label').notNull(),
-    kind: text('kind', { enum: ['action', 'running', 'done', 'error'] }).notNull(),
+    kind: text('kind', { enum: ACTIVITY_KIND }).notNull(),
     actorId: uuid('actor_id').references(() => member.id, { onDelete: 'set null' }),
     actorName: text('actor_name').notNull(),
     actorTint: text('actor_tint').notNull(),
-    source: text('source', { enum: ['user', 'mma'] }).notNull(),
+    source: text('source', { enum: ACTIVITY_SOURCE }).notNull(),
     durationMs: integer('duration_ms'),
     eventKey: text('event_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

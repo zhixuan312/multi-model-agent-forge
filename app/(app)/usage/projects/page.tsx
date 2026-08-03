@@ -48,7 +48,7 @@ export default async function UsageProjectsPage({
   return (
     <PageFrame
       title="Usage"
-      subnav={<UsageTabsNav active="projects" period={period} />}
+      subnav={<UsageTabsNav active="projects" period={period} role={member.role} />}
       width="full"
       fill
       actions={

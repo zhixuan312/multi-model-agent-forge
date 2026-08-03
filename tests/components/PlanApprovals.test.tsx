@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PlanStageClient, type PlanStageClientProps } from '@/components/forge/PlanStageClient';
-import type { PlanPhaseSeed } from '@/build/plan-types';
+import type { PlanPhaseView } from '@/plan/plan-core';
 
 vi.mock('@/hooks/useMmaDispatch', () => ({
   useMmaDispatch: () => ({
@@ -19,8 +19,8 @@ const task = (id: string, dbStatus: string) => ({
   id, num: 1, title: `Task ${id}`, body: 'body', targetRepo: 'main',
   files: [], dependsOn: [], dbStatus,
 });
-const phases = (dbStatus: string): PlanPhaseSeed[] =>
-  [{ id: 'ph1', title: 'Phase 1', tasks: [task('t1', dbStatus)] }] as unknown as PlanPhaseSeed[];
+const phases = (dbStatus: string): PlanPhaseView[] =>
+  [{ id: 'ph1', title: 'Phase 1', tasks: [task('t1', dbStatus)] }] as unknown as PlanPhaseView[];
 
 const renderPlan = (dbStatus: string) =>
   render(

@@ -7,7 +7,8 @@ import { SEVERITY_ORDER, compareSeverity, isBlockingSeverity } from '@/lib/sever
  *
  * - "PlanAuditFinding includes evidence and suggestion fields" built an object literal in
  *   the test and asserted it carried the fields just written into it. `PlanAuditFinding`
- *   is a real exported interface (`src/build/plan-types.ts`) that was never referenced.
+ *   was a real exported interface that nothing referenced — since deleted along with the
+ *   rest of `build/plan-types.ts`, which duplicated `plan-core`'s view types.
  * - "sorts findings by severity order" declared `const SEVERITY_ORDER = [...]` INSIDE the
  *   test and sorted a local array with a local comparator — a test of `Array.prototype.sort`.
  *   The real `SEVERITY_ORDER` is exported and drives `FindingsGrid`'s display order.

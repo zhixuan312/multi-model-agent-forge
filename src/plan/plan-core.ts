@@ -13,6 +13,14 @@ import { parsePlanSections } from '@/plan/plan-file-ops';
  * provide metadata only (approval status, participants, execution state).
  */
 
+/**
+ * The Plan-stage task contract, shared by the server loader and the client island.
+ *
+ * `build/plan-types.ts` held a field-for-field duplicate (`PlanTaskSeed`/`PlanPhaseSeed`)
+ * justified as keeping `fs` out of the client bundle — but `import type` is erased at
+ * compile time, so it never could. Two definitions of one shape means a field added here
+ * is silently missing over there.
+ */
 export interface PlanTaskView {
   id: string;
   num: number;

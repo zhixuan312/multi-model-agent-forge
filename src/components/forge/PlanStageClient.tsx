@@ -37,7 +37,7 @@ import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
-import type { PlanPhaseSeed } from '@/build/plan-types';
+import type { PlanPhaseView } from '@/plan/plan-core';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
@@ -103,7 +103,7 @@ export interface PlanStageClientProps {
   currentMember?: { id: string; displayName: string; avatarTint: string };
   projectMembers?: { id: string; displayName: string; avatarTint: string }[];
   initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
-  phases: PlanPhaseSeed[];
+  phases: PlanPhaseView[];
   /** Plan-level reviewers (invited once, may approve any task) — persisted member ids. */
   initialParticipantIds?: string[];
   planMd: string;
@@ -405,7 +405,7 @@ function DetailStage({
   onToggleApprove,
   onValidate }: {
   projectId: string;
-  phases: PlanPhaseSeed[];
+  phases: PlanPhaseView[];
   participantIds: string[];
   status: Record<string, TaskStatus>;
   readOnly: boolean;

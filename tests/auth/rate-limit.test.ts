@@ -49,14 +49,47 @@ describe('LoginRateLimiter — two independent sliding-window counters', () => {
     expect(rl.check({ username: 'alice', ip: '3.3.3.3' }).throttled).toBe(true);
   });
 
-  it('a successful login resets BOTH of that attempt\'s counters', () => {
+  it('a successful login clears that USERNAME\'s counter', () => {
     const rl = new LoginRateLimiter();
     for (let i = 0; i < LOGIN_RATELIMIT_MAX; i++) {
-      rl.recordFailure({ username: 'carol', ip: '4.4.4.4' });
+      rl.recordFailure({ username: 'carol', ip: `4.4.4.${i}` });
     }
-    expect(rl.check({ username: 'carol', ip: '4.4.4.4' }).throttled).toBe(true);
-    rl.recordSuccess({ username: 'carol', ip: '4.4.4.4' });
-    expect(rl.check({ username: 'carol', ip: '4.4.4.4' }).throttled).toBe(false);
+    expect(rl.check({ username: 'carol', ip: '9.9.9.9' }).throttled).toBe(true);
+    rl.recordSuccess({ username: 'carol', ip: '9.9.9.9' });
+    expect(rl.check({ username: 'carol', ip: '9.9.9.9' }).throttled).toBe(false);
+  });
+
+  /**
+   * It used to clear the IP counter too, which handed the per-IP half of the limiter to
+   * anyone holding ONE valid credential: fail nine times across nine other usernames, log
+   * in as yourself, and the address is clear again — repeat without limit. Per-account
+   * lockout still held, but per-IP is the counter that bounds total failure volume from a
+   * host, which is what spraying across many usernames looks like.
+   */
+  it('a successful login does NOT clear the IP counter', () => {
+    const rl = new LoginRateLimiter();
+    // Nine failures against other people's accounts, all from one address.
+    for (let i = 0; i < LOGIN_RATELIMIT_MAX; i++) {
+      rl.recordFailure({ username: `victim-${i}`, ip: '4.4.4.4' });
+    }
+    expect(rl.check({ username: 'attacker', ip: '4.4.4.4' }).throttled).toBe(true);
+
+    // The attacker logs in with their OWN valid credential.
+    rl.recordSuccess({ username: 'attacker', ip: '4.4.4.4' });
+
+    // The address is still throttled — the reset does not travel to the IP bucket.
+    const v = rl.check({ username: 'victim-99', ip: '4.4.4.4' });
+    expect(v.throttled).toBe(true);
+    expect(v.key).toBe('ip:4.4.4.4');
+  });
+
+  it('and the IP counter still clears on its own window', () => {
+    let now = 1_000_000;
+    const rl = new LoginRateLimiter(() => now);
+    for (let i = 0; i < LOGIN_RATELIMIT_MAX; i++) rl.recordFailure({ username: `u${i}`, ip: '5.5.5.5' });
+    expect(rl.check({ username: 'z', ip: '5.5.5.5' }).throttled).toBe(true);
+    now += LOGIN_RATELIMIT_WINDOW_MS + 1;
+    expect(rl.check({ username: 'z', ip: '5.5.5.5' }).throttled).toBe(false);
   });
 
   it('the window resets after LOGIN_RATELIMIT_WINDOW_MS (clock injected)', () => {

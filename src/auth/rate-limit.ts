@@ -7,7 +7,19 @@ import { LOGIN_RATELIMIT_MAX, LOGIN_RATELIMIT_WINDOW_MS } from '@/auth/config';
  *
  * Two independent counters (not one `username+IP` composite) so an attacker
  * rotating IPs can't evade per-account lockout, and a NAT'd user can't evade
- * per-IP lockout. A successful login resets BOTH of that attempt's counters.
+ * per-IP lockout.
+ *
+ * A successful login resets the USERNAME counter only. It used to reset both, which
+ * handed the per-IP half to anyone holding one valid credential: fail nine times across
+ * nine other usernames, log in as yourself, and the IP counter is clear again — repeat
+ * without limit. Per-account lockout still held (the victims' own counters are untouched),
+ * but per-IP is the counter that bounds TOTAL failure volume from one host, which is
+ * exactly what password spraying across many usernames looks like.
+ *
+ * The cost is a shared-NAT office: ten wrong passwords in fifteen minutes now throttles
+ * that address until the window elapses, with no way to clear it early. That is what a
+ * per-IP limit means, and `LOGIN_RATELIMIT_MAX` / `LOGIN_RATELIMIT_WINDOW` are env knobs
+ * for a deployment that needs a wider one.
  *
  * Single-instance, in-memory (no DB table — F6); the Redis-backed limiter
  * arrives with Redis in Spec 5. The window is fixed-per-key: a counter resets
@@ -114,10 +126,13 @@ export class LoginRateLimiter {
     }
   }
 
-  /** A successful login clears BOTH of this attempt's counters. */
+  /**
+   * A successful login clears this USERNAME's counter. The IP counter is deliberately
+   * left alone — see the module docstring; clearing it makes the per-IP limit resettable
+   * on demand by anyone who can log in at all.
+   */
   recordSuccess(keys: AttemptKeys): void {
     this.counters.delete(normUser(keys.username));
-    this.counters.delete(normIp(keys.ip));
   }
 }
 

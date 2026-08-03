@@ -1,5 +1,3 @@
-import { SESSION_COOKIE_NAME } from '@/auth/config';
-
 /**
  * Stateless cookie-presence pre-check logic for the Edge middleware (F28). NO
  * DB, NO is_admin — middleware can't open a Postgres connection on the Edge
@@ -55,5 +53,3 @@ export function evaluateRequest(opts: {
   if (isApi) return { action: 'unauthorized' };
   return { action: 'redirect', to: '/login' };
 }
-
-export { SESSION_COOKIE_NAME };

@@ -4,7 +4,8 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
 import { z } from 'zod';
 import { currentSession } from '@/auth/current-member';
 import { changeOwnPassword } from '@/auth/change-password-core';
-import { sessionCookieOptions, SESSION_COOKIE_NAME } from '@/auth/cookie';
+import { sessionCookieOptions } from '@/auth/cookie';
+import { SESSION_COOKIE_NAME } from '@/auth/config';
 import { passwordSchema } from '@/auth/password';
 import { logEvent } from '@/observability/log-event';
 

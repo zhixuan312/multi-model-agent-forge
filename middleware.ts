@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { evaluateRequest, SESSION_COOKIE_NAME } from '@/auth/middleware-core';
+import { evaluateRequest } from '@/auth/middleware-core';
+import { SESSION_COOKIE_NAME } from '@/auth/config';
 import { unauthorized } from '@/auth/api-responses';
 
 /**

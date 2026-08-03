@@ -2,7 +2,8 @@ import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { sessionStore } from '@/auth/session-store';
-import { clearedCookieOptions, SESSION_COOKIE_NAME } from '@/auth/cookie';
+import { clearedCookieOptions } from '@/auth/cookie';
+import { SESSION_COOKIE_NAME } from '@/auth/config';
 import { logEvent } from '@/observability/log-event';
 
 /**

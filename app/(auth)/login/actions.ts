@@ -9,8 +9,8 @@ import {
   sessionCookieOptions,
   secureCookieWillBeDropped,
   INSECURE_COOKIE_HINT,
-  SESSION_COOKIE_NAME,
 } from '@/auth/cookie';
+import { SESSION_COOKIE_NAME } from '@/auth/config';
 import { logEvent } from '@/observability/log-event';
 
 const loginSchema = z.object({

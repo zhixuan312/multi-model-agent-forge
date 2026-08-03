@@ -1,7 +1,6 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS, SESSION_COOKIE_NAME } from '@/auth/config';
+import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
 
-export { SESSION_COOKIE_NAME };
 
 /** Number of CSPRNG bytes in an opaque session token (≥32, Spec 1 Login §3). */
 const TOKEN_BYTES = 32;

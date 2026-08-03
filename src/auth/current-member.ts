@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { eq, max } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
-import { SESSION_COOKIE_NAME } from '@/auth/cookie';
+import { SESSION_COOKIE_NAME } from '@/auth/config';
 import { SESSION_IDLE_TTL_MS } from '@/auth/config';
 import {
   sessionStore,

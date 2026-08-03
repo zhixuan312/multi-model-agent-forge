@@ -6,9 +6,8 @@ import {
   clearedCookieOptions,
   secureCookieWillBeDropped,
   shouldUseSecureCookie,
-  SESSION_COOKIE_NAME,
 } from '@/auth/cookie';
-import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
+import { COOKIE_SAMESITE, SESSION_ABSOLUTE_TTL_MS, SESSION_COOKIE_NAME } from '@/auth/config';
 
 describe('mintSessionToken', () => {
   it('mints an opaque token with ≥32 bytes of entropy (base64url, no padding)', () => {

@@ -7,8 +7,12 @@ import { errName } from '@/lib/err';
 /**
  * Server-side voice transcription via OpenAI `gpt-4o-transcribe` (Spec 5 §Voice).
  * The OpenAI key is resolved from `settings_connection.openai_transcription_key_ref`
- * and NEVER reaches the browser; the audio bytes + key are never logged. This is
- * the ONLY non-Anthropic, non-MMA external call in the product.
+ * and NEVER reaches the browser; the audio bytes + key are never logged.
+ *
+ * This used to claim it was "the ONLY non-Anthropic, non-MMA external call in the
+ * product". It is not: `config/connections-probe.ts` calls `api.github.com/user` and the
+ * provider's `/models`, and `build/pr.ts` calls the GitHub API. It IS the only outbound
+ * call that ships user CONTENT, which is the property worth stating.
  */
 
 export const TRANSCRIBE_MODEL = 'gpt-4o-transcribe';
@@ -19,7 +23,13 @@ export const TRANSCRIBE_TIMEOUT_MS = 60_000;
 
 /** Max clip byte size (OpenAI's own per-file ceiling). */
 export const MAX_CLIP_BYTES = 25 * 1024 * 1024;
-/** Max clip duration (a Forge cost/upload ceiling, not OpenAI's). */
+/**
+ * Max clip duration (a Forge cost/upload ceiling, not OpenAI's).
+ *
+ * The duration is reported by the CLIENT — nothing here decodes the audio — so this is a
+ * cost hint, not an enforced bound. `MAX_CLIP_BYTES` is the guard that actually holds,
+ * because the byte size is measured server-side off the Blob.
+ */
 export const MAX_DURATION_MS = 600_000;
 /** Accepted clip MIME allow-list (rejected before the OpenAI call). */
 export const ACCEPTED_AUDIO_MIME = [

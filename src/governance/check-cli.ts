@@ -2,8 +2,9 @@
  * Governance conformance CLI — `pnpm governance:check`.
  *
  * Scans app/ + src/ and reports, per governed layer, every page/component that bypasses
- * the canonical component. Exits 1 when any layer has violations so CI (or a pre-push
- * hook) fails on a regression; exits 0 when the whole app conforms.
+ * the canonical component. Exits 1 when any layer has violations, 0 when the whole app
+ * conforms. The gate is `.github/workflows/release.yml` — it runs this after
+ * typecheck/lint/test/build, so a release cannot ship a regression. There is no git hook.
  *
  *   pnpm governance:check            # human-readable report
  *   pnpm governance:check --json     # machine-readable, for tooling

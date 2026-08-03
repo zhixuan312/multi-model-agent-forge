@@ -54,8 +54,17 @@ const isGovernancePreview = (p: string) => p.includes('src/components/governance
 /** `src/export/**` builds PDF/HTML export documents as strings, not app UI. */
 const isExportBuilder = (p: string) => p.includes('src/export/');
 
-/** The exact StageShell dashboard grid — the structure the Content Shell standardises. */
-const DASHBOARD_GRID = 'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch';
+/**
+ * The distinguishing fragment of the dashboard grid the Content Shell standardises.
+ *
+ * This was the FULL class string including `lg:items-stretch` — a utility
+ * `status-dashboard.tsx` no longer emits (it now bounds the row with
+ * `lg:grid-rows-[minmax(0,1fr)]` instead). No file in the repo contained the old string,
+ * so the rule matched nothing, reported a permanently clean layer, and would not have
+ * flagged a page hand-rolling the CURRENT grid. Pinned to the utilities that make it
+ * that grid, not to the whole list, so a cosmetic tweak cannot switch the rule off again.
+ */
+const DASHBOARD_GRID_RE = /grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3/;
 /** RailNote's exact tinted-note signature (r-lg + /40 tint) — a tinted menu row won't match. */
 const RAIL_NOTE_SIGNATURE = 'rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40';
 
@@ -104,8 +113,8 @@ export const CONFORMANCE_RULES: readonly ConformanceRule[] = [
       !is(p, 'src/components/patterns/stage-shell.tsx') &&
       !is(p, 'src/components/patterns/status-dashboard.tsx'),
     violations: (f) =>
-      f.content.includes(DASHBOARD_GRID)
-        ? [{ kind: 'extra' as const, reason: 'hand-rolls the dashboard grid (lg:grid-cols-3 lg:items-stretch) instead of StageShell' }]
+      DASHBOARD_GRID_RE.test(f.content)
+        ? [{ kind: 'extra' as const, reason: 'hand-rolls the dashboard grid (min-h-0 flex-1 … lg:grid-cols-3) instead of StageShell' }]
         : [],
   },
   {

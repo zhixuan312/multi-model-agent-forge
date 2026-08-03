@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   summarizeConformance,
   hasConformanceRule,
@@ -66,7 +68,22 @@ describe('governance conformance checker', () => {
   });
 
   describe('content shell', () => {
-    const GRID = 'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch';
+    /**
+     * The grid class string taken from the CANONICAL component, not written out here.
+     *
+     * This test used to hardcode `…lg:grid-cols-3 lg:items-stretch`, a utility
+     * `status-dashboard.tsx` had already dropped. The fixture matched the rule's constant
+     * and the rule's constant matched the fixture, so both agreed — about a string that
+     * appeared nowhere in the repo. The layer reported clean forever and a page
+     * hand-rolling the real grid would have sailed through. Reading the component means
+     * the next cosmetic tweak fails HERE instead of silently disarming the rule.
+     */
+    const GRID = (() => {
+      const src = readFileSync(join(process.cwd(), 'src/components/patterns/status-dashboard.tsx'), 'utf8');
+      const line = src.split('\n').find((l) => l.includes('lg:grid-cols-3'));
+      if (!line) throw new Error('status-dashboard.tsx no longer declares the lg:grid-cols-3 dashboard grid');
+      return line.trim().replace(/^'|',?$/g, '');
+    })();
 
     it('flags a hand-rolled dashboard grid (extra)', () => {
       const v = forSlot([{ path: 'app/(app)/foo/page.tsx', content: `<div className="${GRID}">x</div>` }], 'contentShell');

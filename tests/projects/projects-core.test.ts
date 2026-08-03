@@ -81,6 +81,13 @@ describe('createProject — seeding + validation', () => {
       { db: mockDb },
     );
     expect(res.ok).toBe(false);
+    // …and says WHICH field. Every failure inside the create transaction used to surface as
+    // `{ field: 'artifact', message: 'file failed to load or parse — re-upload' }`, so a
+    // cross-team repo id told the user to re-upload a file they may not have attached.
+    if (!res.ok) {
+      expect(res.error.field).toBe('repoIds');
+      expect(res.error.message).toMatch(/do not belong to your team/i);
+    }
   });
 
   it('rejects an empty/whitespace name', async () => {
@@ -610,6 +617,20 @@ describe('createProject — branch-slug uniqueness', () => {
       expect(res.error.field).toBe('name');
       expect(res.error.message).toMatch(/already uses the branch name/i);
     }
+  });
+
+  /**
+   * The slug check lives INSIDE the create transaction, behind a per-team advisory lock. It
+   * used to run before it — a pre-check and nothing more, since there is no DB constraint
+   * behind it (uniqueness is on the slug, and the slug rule is JS the database cannot
+   * evaluate). Two creates a moment apart both read "free" and both inserted, and the two
+   * projects then shared one branch.
+   */
+  it('takes the per-team lock before deciding the slug is free', async () => {
+    const db = mk([{ id: 'p1', name: 'My Project' }]);
+    await create('Another Name', db);
+    const locked = db._calls.some((c) => c.method === 'execute' && String(c.args[0]).includes('pg_advisory_xact_lock'));
+    expect(locked, 'the slug check must be serialised per team').toBe(true);
   });
 
   it('rejects a name differing only by case or spacing', async () => {

@@ -66,6 +66,15 @@ export interface MockQueryCall {
   args: unknown[];
 }
 
+/** Best-effort text of a Drizzle `sql` template, for assertions like "did it lock?". */
+function rawSqlText(query: unknown): string {
+  const chunks = (query as { queryChunks?: unknown[] })?.queryChunks;
+  if (!Array.isArray(chunks)) return String(query);
+  return chunks
+    .map((c) => (Array.isArray((c as { value?: unknown[] })?.value) ? (c as { value: unknown[] }).value.join('') : ''))
+    .join('');
+}
+
 type ResultSet = unknown[];
 type Yield = ResultSet | Error;
 type Responder = Yield | ((callIndex: number) => Yield);
@@ -150,9 +159,16 @@ export function createMockDb(responses: MockResponses = {}): Db & MockDb {
     async transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
       return fn(out as unknown as Db);
     },
-    // Raw SQL (e.g. the per-phase guard's `pg_advisory_xact_lock`) — a no-op in the
-    // mock; Postgres-specific locking isn't exercised without a real DB.
-    async execute(_query: unknown): Promise<unknown[]> {
+    /**
+     * Raw SQL (e.g. the per-phase guard's `pg_advisory_xact_lock`) — still a no-op, since
+     * Postgres-specific locking isn't exercised without a real DB, but RECORDED now.
+     *
+     * It used to discard the call entirely, so no test could assert that a check-then-insert
+     * took its lock first — the one thing about an advisory lock a unit test CAN check. Both
+     * `dispatchMma`'s phase guard and `createProject`'s slug guard depend on taking it.
+     */
+    async execute(query: unknown): Promise<unknown[]> {
+      calls.push({ op: 'select', method: 'execute', table: '(raw sql)', args: [rawSqlText(query)] });
       return [];
     },
     _calls: calls,

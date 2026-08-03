@@ -117,6 +117,14 @@ export type CreateProjectResult =
  * `exceptId` excludes the project being renamed, so re-casing a project's own name is a no-op
  * rather than a conflict with itself.
  */
+/** Thrown inside the create transaction when the branch slug is already taken. */
+class BranchSlugTakenError extends Error {
+  constructor(readonly slug: string) {
+    super(`Branch slug already in use: ${slug}`);
+    this.name = 'BranchSlugTakenError';
+  }
+}
+
 async function branchSlugTaken(db: Db, name: string, teamId: string, exceptId?: string): Promise<boolean> {
   const target = slugRefComponent(name);
   if (!target) return false;
@@ -162,18 +170,6 @@ export async function createProject(
     return { ok: false, error: { field: 'selectedDesignStages', message: subsetValidation.message } };
   }
 
-  // Project branches are `mma/<created-date>-<project-slug>` with no disambiguating id, so the
-  // slug must be unique or two projects would share one branch. Checked before any write.
-  if (await branchSlugTaken(deps.db ?? getDb(), name, actor.teamId)) {
-    return {
-      ok: false,
-      error: {
-        field: 'name',
-        message: `Another project in this team already uses the branch name "${slugRefComponent(name)}". Pick a distinguishable name.`,
-      },
-    };
-  }
-
   const db = deps.db ?? getDb();
   const entryStage = (selectedDesignStages[0] ?? 'exploration') as DesignStage;
 
@@ -215,6 +211,22 @@ export async function createProject(
   const cleanupPaths: string[] = [];
   try {
     projectId = await db.transaction(async (tx) => {
+      // Project branches are `mma/<created-date>-<project-slug>` with no disambiguating id,
+      // so two projects sharing a slug share a BRANCH and interleave their commits.
+      //
+      // The check used to run before the transaction, which made it a pre-check and nothing
+      // more: two creates a moment apart both read "free" and both inserted. There is no DB
+      // constraint behind it either — uniqueness is on the SLUG, and the slug rule is
+      // `slugRefComponent`, JS the database cannot evaluate.
+      //
+      // So it moves inside, behind the same per-team advisory lock `dispatchMma` uses for
+      // its own check-then-insert. Serialising project creation per team costs nothing (it
+      // is a human action) and closes the window completely, including across instances.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`project-slug:${actor.teamId}`})::bigint)`);
+      if (await branchSlugTaken(tx, name, actor.teamId)) {
+        throw new BranchSlugTakenError(slugRefComponent(name));
+      }
+
       // Base seed. buildSubsetDetails/buildInitialDetails is the ONLY stage-seeding
       // implementation — the upload proof is applied through the SAME helper below
       // (via its uploadedExplorationFile / uploadedSpec branches), never re-seeded by
@@ -312,11 +324,28 @@ export async function createProject(
 
       return row.id;
     });
-  } catch {
+  } catch (e) {
     // Rollback: clean up files and delete project row on any failure post-insert
     await Promise.all(cleanupPaths.map((path) => rm(path, { force: true }).catch(() => undefined)));
     if (projectId) {
       await db.delete(project).where(eq(project.id, projectId)).catch(() => undefined);
+    }
+    // Every failure in here used to be reported as `{ field: 'artifact' }` with "file failed
+    // to load or parse — re-upload". Two of them are not about a file at all: a repo id from
+    // another team, and a branch slug already in use. The first told a user to re-upload a
+    // file they may not have attached; the second is the one error the form can actually act
+    // on, and it named the wrong field.
+    if (e instanceof BranchSlugTakenError) {
+      return {
+        ok: false,
+        error: {
+          field: 'name',
+          message: `Another project in this team already uses the branch name "${e.slug}". Pick a distinguishable name.`,
+        },
+      };
+    }
+    if (e instanceof ProjectAccessError) {
+      return { ok: false, error: { field: 'repoIds', message: e.message } };
     }
     return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
   }

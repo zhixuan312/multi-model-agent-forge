@@ -12,6 +12,9 @@ import { LOGIN_RATELIMIT_MAX, LOGIN_RATELIMIT_WINDOW_MS } from '@/auth/config';
  * Single-instance, in-memory (no DB table — F6); the Redis-backed limiter
  * arrives with Redis in Spec 5. The window is fixed-per-key: a counter resets
  * once `LOGIN_RATELIMIT_WINDOW_MS` has elapsed since its window started.
+ *
+ * The map is BOUNDED by a sweep of expired counters (see `SWEEP_THRESHOLD`) — without
+ * one, an unauthenticated caller rotating usernames grows it indefinitely.
  */
 
 interface Counter {
@@ -39,12 +42,32 @@ function normIp(ip: string): string {
   return `ip:${ip.trim()}`;
 }
 
+/**
+ * Prune expired counters once the map passes this size. A counter was only reclaimed when
+ * ITS OWN key was looked up again, so entries for usernames and IPs never seen again
+ * stayed forever — and `/login` takes an arbitrary username from an unauthenticated
+ * caller, so rotating usernames (or a botnet rotating IPs) grew the map without bound.
+ *
+ * Comfortably above any legitimate concurrent-failure population, so the sweep is rare;
+ * it only ever removes counters whose window has already elapsed, which are exactly the
+ * ones `live()` would have discarded on next touch.
+ */
+const SWEEP_THRESHOLD = 1_000;
+
 export class LoginRateLimiter {
   private readonly counters = new Map<string, Counter>();
   private readonly now: () => number;
 
   constructor(now: () => number = Date.now) {
     this.now = now;
+  }
+
+  /** Drop every counter whose window has elapsed. O(n), run only past the threshold. */
+  private sweep(): void {
+    const cutoff = this.now() - LOGIN_RATELIMIT_WINDOW_MS;
+    for (const [key, counter] of this.counters) {
+      if (counter.windowStart <= cutoff) this.counters.delete(key);
+    }
   }
 
   /** Return (and prune) the live counter for a key, or undefined if its window
@@ -84,6 +107,7 @@ export class LoginRateLimiter {
   private bump(key: string): void {
     const c = this.live(key);
     if (!c) {
+      if (this.counters.size >= SWEEP_THRESHOLD) this.sweep();
       this.counters.set(key, { count: 1, windowStart: this.now() });
     } else {
       c.count += 1;

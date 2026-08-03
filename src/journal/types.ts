@@ -41,6 +41,12 @@ export interface JournalEdge {
 export interface JournalNode {
   id: string; // zero-padded 4-digit
   title: string;
+  /**
+   * NOT PARSED TODAY, though every real node has one. MMA writes `topic:` on 108/108
+   * nodes in the parent store (`multi-model-agent`, `multi-model-agent-forge`, …) and it
+   * is the journal's primary organising dimension in multi-repo mode — Forge's viewer
+   * drops it, so nodes cannot be shown or filtered by the repo they belong to. Surfacing
+   * it is a UI decision, recorded rather than assumed. */
   status: string; // expected ∈ STATUS_VALUES; unknown tolerated
   tags: string[]; // lowercase kebab-case
   timestamp: string; // ISO-8601 (OKF), e.g. 2026-05-24T00:00:00Z
@@ -52,7 +58,12 @@ export interface JournalNode {
   crux: string | null;
   /** The `nodes/000X-….md` filename (relative to the journal dir). */
   filename: string;
-  /** Lifecycle stage the learning came from (Exploration…Journal, or Manual). */
+  /**
+   * Lifecycle stage the node came from. OPTIONAL and frequently absent: the seed journal
+   * writes it (Exploration/Spec/Plan/Execute/Review/Journal/Manual) and the 3D graph card
+   * renders it, but MMA writes no `source` key — 0 of 108 nodes in the parent store carry
+   * one. Absent is the normal case, not a parse failure.
+   */
   source?: string;
   /** OKF node type — decision | design | behavior | process | knowledge | style.
    *  (This is MMA's OKF-required `type`; it is the same taxonomy Forge's harvest

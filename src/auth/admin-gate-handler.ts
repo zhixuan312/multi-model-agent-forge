@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
+import { unauthorized, forbidden } from '@/auth/api-responses';
 import { requireAdminMember, NotAdminError, NotAuthenticatedError } from '@/auth/require-admin';
 import type { AuthedMember } from '@/auth/auth-provider';
 
@@ -16,18 +16,10 @@ export async function resolveAdminActor(): Promise<
     const actor = await requireAdminMember();
     return { ok: true, actor };
   } catch (e) {
-    if (e instanceof NotAdminError) {
-      return {
-        ok: false,
-        response: NextResponse.json({ error: 'Admin privileges required.' }, { status: 403 }),
-      };
-    }
-    if (e instanceof NotAuthenticatedError) {
-      return {
-        ok: false,
-        response: unauthorized(),
-      };
-    }
+    // The error already carries the message — restating the literal here meant two copies
+    // of one sentence, and the shared `forbidden` exists so a refusal has one shape.
+    if (e instanceof NotAdminError) return { ok: false, response: forbidden(e.message) };
+    if (e instanceof NotAuthenticatedError) return { ok: false, response: unauthorized() };
     throw e;
   }
 }

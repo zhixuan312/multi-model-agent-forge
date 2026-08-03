@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { forbidden, CROSS_ORIGIN_REJECTED } from '@/auth/api-responses';
 
 /**
  * Same-origin (CSRF) enforcement for state-changing routes (Spec 2 F12).
@@ -18,7 +19,7 @@ export function rejectCrossOrigin(req: NextRequest): NextResponse | null {
     // 'same-origin' and 'none' (direct navigation/no referrer) are allowed;
     // 'cross-site' and 'same-site' (different subdomain) are rejected.
     if (secFetchSite === 'same-origin' || secFetchSite === 'none') return null;
-    return forbidden();
+    return forbidden(CROSS_ORIGIN_REJECTED);
   }
 
   // Fallback for clients that don't send Sec-Fetch-Site: compare Origin to Host.
@@ -31,9 +32,5 @@ export function rejectCrossOrigin(req: NextRequest): NextResponse | null {
   } catch {
     /* malformed Origin → reject */
   }
-  return forbidden();
-}
-
-function forbidden(): NextResponse {
-  return NextResponse.json({ error: 'Cross-origin request rejected.' }, { status: 403 });
+  return forbidden(CROSS_ORIGIN_REJECTED);
 }

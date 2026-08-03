@@ -23,6 +23,9 @@ export function forbidden(message: string): NextResponse {
  *  caller already knows the project exists, so there is nothing left to hide. */
 export const NOT_A_PROJECT_MEMBER = 'Forbidden';
 
+/** A state-changing request that did not come from this origin (the CSRF control). */
+export const CROSS_ORIGIN_REJECTED = 'Cross-origin request rejected.';
+
 /** The org admin owns shared infra: connections, providers, teams. */
 export const ORG_ADMIN_REQUIRED = 'Org admin privileges required.';
 /** The team admin owns their own team's config: git token, workspace, roster. */

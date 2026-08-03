@@ -34,7 +34,7 @@ import { StageNavigator } from '@/components/patterns/stage-navigator';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
-import type { LearningCategory } from '@/journal/types';
+import type { LearningCategory, CuratableLearningStatus } from '@/db/enums';
 import { CategoryChip } from '@/components/forge/journal/category-style';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
@@ -68,7 +68,9 @@ export interface JournalStageClientProps {
   lockedReason?: string;
 }
 
-type LearningStatus = 'proposed' | 'kept' | 'recorded';
+// The three the curation UI can see — `removed` is filtered out upstream. Derived, so
+// a new status is not silently absent here.
+type LearningStatus = CuratableLearningStatus;
 
 
 /* ── Main Component ────────────────────────────────────────────── */

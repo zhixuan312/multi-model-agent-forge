@@ -36,7 +36,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
-import type { ProjectPhase } from '@/db/enums';
+import type { AuditVerdict, ProjectPhase } from '@/db/enums';
 import type { PlanPhaseView } from '@/plan/plan-core';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -875,7 +875,7 @@ function ValidateStage({
   appliedPasses: Set<number>;
   applyCount: number;
   onApplyFindings: (indices: number[], passNo?: number) => void;
-  rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: Finding[]; appliedIndices: number[] }[];
+  rounds: { passNo: number; verdict: AuditVerdict; findings: Finding[]; appliedIndices: number[] }[];
   locked: boolean;
   onRunAudit: () => void;
   onLock: () => void;

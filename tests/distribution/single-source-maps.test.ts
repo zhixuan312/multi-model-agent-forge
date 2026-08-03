@@ -2,7 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LEARNING_CATEGORIES } from '@/journal/types';
+import { LEARNING_CATEGORIES } from '@/db/enums';
 import { STAGE_ORDER } from '@/db/enums';
 
 /**

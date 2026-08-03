@@ -1,18 +1,21 @@
+import type { CuratableLearningStatus, JournalLearningStatus, LearningCategory } from '@/db/enums';
 export interface ProjectJournalViewRow {
   id: string;
   heading: string;
   body: string;
-  type: 'decision' | 'design' | 'behavior' | 'process' | 'knowledge' | 'style';
+  type: LearningCategory;
   topic: string;
-  status: 'proposed' | 'kept' | 'removed' | 'recorded';
+  status: JournalLearningStatus;
   seq: number;
   recordedNodeId: string | null;
 }
 
+type ViewRow = ProjectJournalViewRow;
+
 export function buildJournalLearningView(rows: ProjectJournalViewRow[]) {
   return [...rows]
     .sort((a, b) => a.seq - b.seq)
-    .filter((row) => row.status !== 'removed')
+    .filter((row): row is ViewRow & { status: CuratableLearningStatus } => row.status !== 'removed')
     .map((row, index) => ({
       id: row.id,
       num: index + 1,
@@ -23,7 +26,7 @@ export function buildJournalLearningView(rows: ProjectJournalViewRow[]) {
       // beside the category chip. Both writers of `project_journal` are machine paths —
       // the MMA harvest handler and the legacy backfill — so nothing is user-added, and
       // the label told the user the opposite of the truth on every learning.
-      status: row.status as 'proposed' | 'kept' | 'recorded',
+      status: row.status,
       recordedNodeId: row.recordedNodeId,
     }));
 }

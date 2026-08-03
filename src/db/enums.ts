@@ -218,3 +218,29 @@ export type ActivityKind = (typeof ACTIVITY_KIND)[number];
 /** `project_activity.source` — who caused the row: a person, or an MMA worker. */
 export const ACTIVITY_SOURCE = ['user', 'mma'] as const;
 export type ActivitySource = (typeof ACTIVITY_SOURCE)[number];
+
+/**
+ * `project_journal.type` — what kind of learning a harvested row is. This is MMA's OKF node
+ * taxonomy, mirrored: the harvest handler writes these straight through to a journal node's
+ * frontmatter `type`, so the two vocabularies are one and must not drift. Forge's LEARN-group
+ * UI calls the field `category`; the values are the same six.
+ */
+export const LEARNING_CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
+export type LearningCategory = (typeof LEARNING_CATEGORIES)[number];
+
+/**
+ * `project_journal.status` — the curation lifecycle of one candidate learning.
+ * `proposed` → the user keeps or removes it → `kept` rows are written to the journal and
+ * become `recorded`. Both `recorded` and `removed` are TERMINAL and immutable
+ * (`assertMutableJournalStatus` enforces it), which is why the curation UI works in the
+ * narrower `CuratableLearningStatus` below — it only ever sees rows still in play.
+ */
+export const JOURNAL_LEARNING_STATUS = ['proposed', 'kept', 'removed', 'recorded'] as const;
+export type JournalLearningStatus = (typeof JOURNAL_LEARNING_STATUS)[number];
+
+/**
+ * What the curation UI can show. `removed` rows are filtered out before the view is built,
+ * so this is derived rather than re-listed: a new status joins it automatically, and a
+ * status that becomes terminal has to be excluded here deliberately.
+ */
+export type CuratableLearningStatus = Exclude<JournalLearningStatus, 'removed'>;

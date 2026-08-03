@@ -13,9 +13,10 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
 import { CategoryChip, categoryStyle } from '@/components/forge/journal/category-style';
 import { SearchInput } from '@/components/ui/search-input';
-import { LEARNING_CATEGORIES, type LearningCategory } from '@/journal/types';
+import { LEARNING_CATEGORIES, type LearningCategory } from '@/db/enums';
 import { cn } from '@/lib/cn';
 import { RIGHT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
+import type { AuditVerdict } from '@/db/enums';
 
 /** Static shape of the demo navigator's work-items (approval state is held in NavigatorDemo). */
 const NAV_ITEMS = [
@@ -109,7 +110,7 @@ function NavigatorDemo({ on }: { on: ReadonlySet<string> }) {
   );
 }
 
-interface Round { passNo: number; verdict: 'clean' | 'revised'; findings: Finding[] }
+interface Round { passNo: number; verdict: AuditVerdict; findings: Finding[] }
 
 /** First run surfaces a mixed-severity set (verdict `revised`); a re-run comes back clean. */
 function makeRound(passNo: number): Round {

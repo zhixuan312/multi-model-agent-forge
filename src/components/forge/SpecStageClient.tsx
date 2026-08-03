@@ -59,7 +59,7 @@ import {
   pending as pendingParticipants } from '@/collab/section-approval';
 import type { ComponentView } from '@/spec/spec-core';
 import type { MemberRef, UnitCollab, DiscussionMsg, Participant } from '@/collab/types';
-import type { ComponentKind, ProjectPhase } from '@/db/enums';
+import type { AuditVerdict, ComponentKind, ProjectPhase } from '@/db/enums';
 import { isForgeMention } from '@/spec/forge-mention';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { localId } from '@/lib/local-id';
@@ -79,7 +79,7 @@ import { responseError } from '@/lib/err';
 export interface AuditPassView {
   passNo: number;
   findingsCount: number;
-  verdict: 'clean' | 'revised';
+  verdict: AuditVerdict;
   findings?: Finding[];
   applied?: boolean;
   /** WHICH findings were applied. Marks only those rows, leaving the rest selectable so a

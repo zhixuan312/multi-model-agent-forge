@@ -56,7 +56,7 @@ export const PRINCIPLES: Principle[] = [
 // ── Read-only route criteria (exact, from core/src/skills/<route>/) ──
 
 import type { Severity } from '@/lib/severity';
-import { LEARNING_CATEGORIES, type LearningCategory } from '@/journal/types';
+import { LEARNING_CATEGORIES, type LearningCategory } from '@/db/enums';
 
 export interface Criterion {
   id: number;

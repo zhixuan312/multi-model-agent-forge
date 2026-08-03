@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn';
+import type { StageStatus } from '@/db/enums';
 
 /**
  * StageRail — a compact segmented progress bar showing position through a fixed
@@ -7,7 +8,7 @@ import { cn } from '@/lib/cn';
  * an `aria-label` text alternative. Generic: the caller maps its domain stages
  * to `{status, label}` segments.
  */
-export type StageRailStatus = 'done' | 'active' | 'pending' | 'skipped';
+export type StageRailStatus = StageStatus;
 
 export interface StageRailSegment {
   status: StageRailStatus;

@@ -18,13 +18,7 @@ import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { member } from '@/db/schema/identity';
 import { repo } from '@/db/schema/workspace';
-import {
-  STAGE_ORDER,
-  type StageKind,
-  type StageStatus,
-  type ProjectVisibility,
-  type ProjectPhase,
-} from '@/db/enums';
+import { STAGE_ORDER, type StageKind, type StageStatus, type ProjectVisibility, type ProjectPhase, PROJECT_VISIBILITY } from '@/db/enums';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { slugRefComponent } from '@/build/slug';
@@ -95,7 +89,7 @@ export interface ProjectsDeps {
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
-  visibility: z.enum(['public', 'private']),
+  visibility: z.enum(PROJECT_VISIBILITY),
   repoIds: z.array(z.string().uuid()).min(1, 'Pick at least one repository.'),
   selectedDesignStages: z.array(z.enum(['exploration', 'spec', 'plan'])).default([]),
   uploadedArtifact: z.object({

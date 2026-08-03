@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import type { JournalLearningStatus } from '@/db/enums';
 
 /**
  * Per-project event bus (Spec 5 §SSE / shared infra reused by Spec 7's build
@@ -37,7 +38,7 @@ export type ProjectEvent =
     }
   | { type: 'synthesis.updated'; artifactId: string; version: number }
   // ── Reflect journal-row events (project_journal staging table) ────────────
-  | { type: 'journal.updated'; rowId: string; status: 'proposed' | 'kept' | 'removed' | 'recorded' }
+  | { type: 'journal.updated'; rowId: string; status: JournalLearningStatus }
   // The build-monitor design once declared eleven more events here — plan.failed,
   // audit.pass, task.executing/verifying/fixing/fixed/committed, build.task_failed,
   // review.done, execute.notice, cost.tick. NOTHING published any of them, so no

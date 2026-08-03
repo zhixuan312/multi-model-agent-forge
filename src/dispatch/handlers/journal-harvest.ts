@@ -5,8 +5,9 @@ import { project } from '@/db/schema/projects';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { deriveDefaultProjectJournalTopic } from '@/journal/project-journal-topic';
 import { validateDetails } from '@/details/schema';
+import type { LearningCategory } from '@/db/enums';
 
-type ProjectJournalType = 'decision' | 'design' | 'behavior' | 'process' | 'knowledge' | 'style';
+type ProjectJournalType = LearningCategory;
 
 async function handleJournalHarvest(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const existing = await db.select({ id: projectJournal.id }).from(projectJournal).where(eq(projectJournal.projectId, ctx.projectId)).orderBy(asc(projectJournal.seq));

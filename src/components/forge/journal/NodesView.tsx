@@ -8,7 +8,7 @@ import { STATUS_VALUES } from '@/journal/types';
 import type { NodeSummary } from '@/journal/types';
 import { cn } from '@/lib/cn';
 import { CategoryChip, categoryStyle } from '@/components/forge/journal/category-style';
-import { LEARNING_CATEGORIES } from '@/journal/types';
+import { LEARNING_CATEGORIES } from '@/db/enums';
 
 
 /**

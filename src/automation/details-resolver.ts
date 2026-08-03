@@ -1,5 +1,5 @@
 import type { Details } from '@/details/schema';
-import { STAGE_ORDER } from '@/db/enums';
+import { STAGE_ORDER, JournalLearningStatus } from '@/db/enums';
 import type { StageKind } from '@/db/enums';
 import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { isParked } from '@/automation/attempt-status';
@@ -22,7 +22,7 @@ export type ActionKind = (typeof ACTION_KINDS)[number] | 'wait' | 'complete';
 /** One `project_journal` row, reduced to what the resolver decides on. */
 export interface JournalRowState {
   id: string;
-  status: 'proposed' | 'kept' | 'removed' | 'recorded';
+  status: JournalLearningStatus;
 }
 
 /**

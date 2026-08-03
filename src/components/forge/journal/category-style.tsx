@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import type { LearningCategory } from '@/journal/types';
+import type { LearningCategory } from '@/db/enums';
 
 /**
  * The tint for a learning category chip.

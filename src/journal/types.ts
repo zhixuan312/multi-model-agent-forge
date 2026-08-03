@@ -139,10 +139,7 @@ export type JournalReadOutcome =
   | { kind: 'unreadable' } // EACCES — present but unreadable
   | { kind: 'unconfigured' }; // workspace root missing / not configured
 
-// ---------------------------------------------------------------------------
-// Journal-stage (LEARN group) view types — the candidate-learnings curation UI.
-// ---------------------------------------------------------------------------
-
-/** `category` = what kind of learning it is (fixed taxonomy). */
-export const LEARNING_CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
-export type LearningCategory = (typeof LEARNING_CATEGORIES)[number];
+// The LEARN group's `category` taxonomy used to be declared here. It is
+// `project_journal.type`'s value set, so it lives in `db/enums.ts` with the other column
+// vocabularies — which is also the only file the single-source ratchet reads, and the
+// column was quietly spelling the six values out again for exactly that reason.

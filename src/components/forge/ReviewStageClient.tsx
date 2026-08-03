@@ -22,6 +22,7 @@ import { FindingsGrid, FindingsApplyBar, AuditRoundCard, appliedState, type Find
 import { SEVERITY_ORDER } from '@/lib/severity';
 import { DocumentShell } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
+import type { AuditVerdict } from '@/db/enums';
 
 const REVIEW_NOTE = `### Review — check the code changes
 
@@ -60,7 +61,7 @@ export interface ReviewPassView {
  * `someApplied`.
  */
 export function reviewPassState(findingsCount: number, appliedIndices: number[]): {
-  verdict: 'clean' | 'revised';
+  verdict: AuditVerdict;
   someApplied: boolean;
   allApplied: boolean;
   remainingIndices: number[];

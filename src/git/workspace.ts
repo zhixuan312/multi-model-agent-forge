@@ -21,6 +21,7 @@ import { mkdtempSync, writeFileSync, chmodSync, rmSync, mkdirSync, accessSync, c
 import { tmpdir } from 'node:os';
 import { resolve, join, sep } from 'node:path';
 import { safeChildEnv } from '@/build/command-runner';
+import type { RepoStatus } from '@/db/enums';
 
 export class PathEscapeError extends Error {
   constructor(name: string) {
@@ -78,13 +79,13 @@ export interface CloneArgs {
   url: string;
   name: string;
   token?: string;
-  onStatus?: (status: 'pulling' | 'cloned' | 'error') => void;
+  onStatus?: (status: RepoStatus) => void;
 }
 export interface PullArgs {
   name: string;
   pathOnDisk: string;
   token?: string;
-  onStatus?: (status: 'pulling' | 'cloned' | 'error') => void;
+  onStatus?: (status: RepoStatus) => void;
 }
 
 export interface CloneResult {

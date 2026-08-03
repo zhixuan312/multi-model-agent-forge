@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { Badge, Button } from '@/components/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SEVERITY_ORDER, compareSeverity, type Severity } from '@/lib/severity';
+import type { AuditVerdict } from '@/db/enums';
 
 export interface Finding {
   /** `lib/severity`'s type, not a second spelling of its four values. */
@@ -294,7 +295,7 @@ export function FindingsApplyBar({ selectedCount, total, applying, readOnly, onT
 
 export interface AuditRoundCardProps {
   passNo: number;
-  verdict: 'clean' | 'revised';
+  verdict: AuditVerdict;
   findings: Finding[];
   applied?: boolean;
   active?: boolean;

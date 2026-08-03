@@ -15,6 +15,30 @@
  * A copy is only a problem when someone adds a value, which is exactly when nobody is
  * looking for one. Derived from `enums.ts` itself, so this covers every enum in it —
  * including ones added later.
+ *
+ * ## Two things this checks that it once didn't
+ *
+ * **Order.** The first two versions pasted the enum's values into a regex IN ITS DECLARED
+ * ORDER, so a copy that listed the same values differently was invisible. `projects-core.ts`
+ * and `app/api/projects/[id]/route.ts` both had `z.enum(['public', 'private'])` next to a
+ * `PROJECT_VISIBILITY` declared `['private', 'public']`, and this test read them as unrelated.
+ * The union check's own comment already had the principle — "a copy is a copy whichever
+ * punctuation it uses" — and order is just more punctuation. Values are now compared as SETS.
+ *
+ * **One extra member.** Set EQUALITY alone would have been a downgrade: the union check was
+ * a substring match, which is how it caught `'all' | 'recurring' | 'manual' | 'event'` in
+ * `LoopsClient` — `LOOP_MODE` plus a UI-only sentinel. That shape is the common one (an
+ * enum plus `'all'`), and it is still a copy of the enum. So the rule is **superset within
+ * one**: flag a list that contains every value of an enum and has at most one value beyond
+ * it. A strict SUBSET is left alone — `attemptStatus` is `MMA_STATUS` minus `dispatched`,
+ * a deliberate narrowing that should keep compiling on its own.
+ *
+ * The extra-member tolerance needs THREE known values to stand on, though. `LOOP_WORKER_TIER`
+ * is `['standard', 'complex']` — the two tiers a loop may dispatch to, a deliberate 2-of-3
+ * narrowing of MMA's tiers ("`main` is the orchestrator, never a worker", says its own doc).
+ * With the tolerance applied at two, every `'main' | 'complex' | 'standard'` in the codebase
+ * came back as a copy of it, which inverts the relationship: the tier triple is the wider
+ * concept, and the enum is the subset. Two shared values are too weak a signal to call it.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,7 +66,36 @@ function enumsUnderTest(): Map<string, string[]> {
 function codeOf(file: string): string {
   return readFileSync(join(ROOT, file), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+    // Both whole-line AND trailing `//` comments. `audit-loop-policy.ts` documents the
+    // shape it accepts with a trailing `// 'clean' | 'revised' | …`, which is prose doing
+    // its job. The leading-space requirement keeps `https://` out of it.
+    .replace(/(^|\s)\/\/.*$/gm, '$1');
+}
+
+const LITERAL = `['"][^'"]*['"]`;
+
+/** Every array of 2+ string literals: `['a', 'b']`, `z.enum(['a', 'b'])`, `{ enum: [...] }`. */
+export function literalArrays(code: string): string[][] {
+  const re = new RegExp(`\\[\\s*(${LITERAL}(?:\\s*,\\s*${LITERAL})+)\\s*,?\\s*\\]`, 'g');
+  return [...code.matchAll(re)].map((m) => [...m[1]!.matchAll(/['"]([^'"]*)['"]/g)].map((v) => v[1]!));
+}
+
+/** Every union of 2+ string literals: `'a' | 'b'`, however it is wrapped or line-broken. */
+export function literalUnions(code: string): string[][] {
+  const re = new RegExp(`${LITERAL}(?:\\s*\\|\\s*${LITERAL})+`, 'g');
+  return [...code.matchAll(re)].map((m) => [...m[0].matchAll(/['"]([^'"]*)['"]/g)].map((v) => v[1]!));
+}
+
+/**
+ * Is `candidate` a copy of `values`? Order-independent, and tolerant of exactly one extra
+ * member so the `enum + 'all'` sentinel shape is still caught. Anything wider than that is
+ * some other list that happens to contain these values, and flagging it would be noise.
+ */
+export function isCopyOf(candidate: string[], values: string[]): boolean {
+  const slack = values.length >= 3 ? 1 : 0;
+  if (candidate.length < values.length || candidate.length > values.length + slack) return false;
+  const have = new Set(candidate);
+  return values.every((v) => have.has(v));
 }
 
 function sourceFiles(dir: string): string[] {
@@ -65,28 +118,46 @@ describe('db enums are single-source', () => {
   });
 
   /**
-   * Union types were a blind spot. The first version of this test matched only the ARRAY
-   * form (`['a', 'b', 'c']`), so `useState<'all' | 'recurring' | 'manual' | 'event'>` in
-   * `LoopsClient` — a re-spelling of `LOOP_MODE` with one extra member — sailed past it.
-   * A copy is a copy whichever punctuation it uses.
+   * The detector, against planted copies of the exact shapes that have slipped through —
+   * so a future rewrite of the matching cannot quietly stop catching them. Each of the
+   * first four is a real bug this file failed to see at some point.
    */
-  it('no file re-spells an enum as a type union', () => {
-    const files = ['src', 'app'].flatMap((d) => (existsSync(join(ROOT, d)) ? sourceFiles(d) : []));
-    const copies: string[] = [];
-    for (const file of files) {
-      if (file === ENUMS_FILE) continue;
-      const code = codeOf(file);
-      for (const [name, values] of enums) {
-        const union = new RegExp(
-          `'${values.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(`'\\s*\\|\\s*'`)}'`,
-        );
-        if (union.test(code)) copies.push(`${file} re-spells ${name} as a union — use its exported type`);
-      }
-    }
-    expect(copies).toEqual([]);
+  describe('the detector itself', () => {
+    const S = ['pending', 'active', 'done'];
+
+    it('catches an array copy, in any order', () => {
+      expect(literalArrays(`z.enum(['pending', 'active', 'done'])`).some((c) => isCopyOf(c, S))).toBe(true);
+      expect(literalArrays(`z.enum(['done', 'pending', 'active'])`).some((c) => isCopyOf(c, S))).toBe(true);
+      expect(literalArrays(`text('s', { enum: ['active', 'done', 'pending'] })`).some((c) => isCopyOf(c, S))).toBe(true);
+    });
+
+    it('catches a union copy, in any order and however line-broken', () => {
+      expect(literalUnions(`type X = 'pending' | 'active' | 'done';`).some((c) => isCopyOf(c, S))).toBe(true);
+      expect(literalUnions(`type X = 'done' | 'pending' | 'active';`).some((c) => isCopyOf(c, S))).toBe(true);
+      expect(literalUnions("type X =\n  | 'pending'\n  | 'active'\n  | 'done';").some((c) => isCopyOf(c, S))).toBe(true);
+    });
+
+    it('catches the enum-plus-a-sentinel shape', () => {
+      expect(literalUnions(`useState<'all' | 'pending' | 'active' | 'done'>`).some((c) => isCopyOf(c, S))).toBe(true);
+    });
+
+    it('leaves a deliberate narrowing alone', () => {
+      expect(literalArrays(`z.enum(['pending', 'active'])`).some((c) => isCopyOf(c, S))).toBe(false);
+    });
+
+    it('does not extend the sentinel tolerance to a two-value enum', () => {
+      // `['standard', 'complex']` is LOOP_WORKER_TIER; `['main', 'complex', 'standard']` is
+      // the tier triple it narrows. Two overlapping values do not make the wider set a copy.
+      expect(literalArrays(`['main', 'complex', 'standard']`).some((c) => isCopyOf(c, ['standard', 'complex']))).toBe(false);
+    });
+
+    it('leaves an unrelated long list alone even when it contains the values', () => {
+      const wide = `['pending', 'active', 'done', 'x', 'y', 'z']`;
+      expect(literalArrays(wide).some((c) => isCopyOf(c, S))).toBe(false);
+    });
   });
 
-  it('no file writes out a full enum the module already owns', () => {
+  it('no file writes out an enum the module already owns', () => {
     const files = ['src', 'app'].flatMap((d) => (existsSync(join(ROOT, d)) ? sourceFiles(d) : []));
     expect(files.length).toBeGreaterThan(100);
 
@@ -94,11 +165,17 @@ describe('db enums are single-source', () => {
     for (const file of files) {
       if (file === ENUMS_FILE) continue;
       const code = codeOf(file);
+      const candidates = [
+        ...literalArrays(code).map((c) => ({ c, how: 'writes out' })),
+        ...literalUnions(code).map((c) => ({ c, how: 're-spells' })),
+      ];
       for (const [name, values] of enums) {
-        const literal = new RegExp(
-          `['"]${values.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(`['"]\\s*,\\s*['"]`)}['"]`,
-        );
-        if (literal.test(code)) copies.push(`${file} writes out ${name} — import it instead`);
+        for (const { c, how } of candidates) {
+          if (isCopyOf(c, values)) {
+            copies.push(`${file} ${how} ${name} — import it instead`);
+            break;
+          }
+        }
       }
     }
     expect(copies).toEqual([]);

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { categoryStyle } from '@/components/forge/journal/category-style';
-import { LEARNING_CATEGORIES } from '@/journal/types';
+import { LEARNING_CATEGORIES } from '@/db/enums';
 
 describe('categoryStyle', () => {
   it('gives every category in the taxonomy a distinct tint', () => {

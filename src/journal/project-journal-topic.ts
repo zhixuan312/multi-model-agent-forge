@@ -1,3 +1,4 @@
+import type { JournalLearningStatus } from '@/db/enums';
 /**
  * Normalise a journal topic to the ENGINE's grammar: `^[a-z0-9]+(-[a-z0-9]+)*$`.
  *
@@ -21,7 +22,7 @@ export function deriveDefaultProjectJournalTopic(
   return normalizeProjectJournalTopic(primary);
 }
 
-export function assertMutableJournalStatus(status: 'proposed' | 'kept' | 'removed' | 'recorded'): void {
+export function assertMutableJournalStatus(status: JournalLearningStatus): void {
   if (status === 'recorded') throw new Error('recorded journal rows are immutable');
   if (status === 'removed') throw new Error('removed journal rows are terminal');
 }

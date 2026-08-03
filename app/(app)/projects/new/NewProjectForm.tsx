@@ -17,7 +17,7 @@ import {
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
-import { STAGE_KIND, type StageKind } from '@/db/enums';
+import { STAGE_KIND, type StageKind, PROJECT_VISIBILITY, type ProjectVisibility } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import type { DesignStageSelection } from '@/projects/create-project-subset';
 import { createProjectAction, type NewProjectState } from './actions';
@@ -308,7 +308,7 @@ function GroupLabel({ children }: { children: ReactNode }) {
 
 export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState<ProjectVisibility>('public');
   const [presetKey, setPresetKey] = useState('full');
   const [uploadReady, setUploadReady] = useState(false);
   const [state, formAction, pending] = useActionState<NewProjectState, FormData>(createProjectAction, {});
@@ -353,7 +353,7 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
                   // "public" and "private" with no state at all — the one thing a
                   // visibility control has to convey.
                   <div role="radiogroup" aria-label="Visibility" className="flex gap-2">
-                    {(['public', 'private'] as const).map((v) => (
+                    {PROJECT_VISIBILITY.map((v) => (
                       <button
                         key={v}
                         type="button"

@@ -102,7 +102,7 @@ function StageIndicator({ s }: { s: StepperStage }) {
 
 /* ── Track line ────────────────────────────────────────────────────────── */
 
-function TrackLine({ status }: { status: 'done' | 'active' | 'pending' | 'skipped' }) {
+function TrackLine({ status }: { status: StageStatus }) {
   return (
     <span
       aria-hidden="true"
@@ -117,7 +117,7 @@ function TrackLine({ status }: { status: 'done' | 'active' | 'pending' | 'skippe
   );
 }
 
-function trackLineStatus(left: StepperStage, right: StepperStage): 'done' | 'active' | 'pending' | 'skipped' {
+function trackLineStatus(left: StepperStage, right: StepperStage): StageStatus {
   // A connector touching a skipped stage never represents completed work — grey it out
   // rather than drawing the green "done" line, which would read as real progress across
   // a stage the run bypassed.

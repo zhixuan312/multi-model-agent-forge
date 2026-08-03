@@ -3,11 +3,12 @@ import type { Db } from '@/db/client';
 import { projectJournal } from '@/db/schema/project-journal';
 import { deriveDefaultProjectJournalTopic } from '@/journal/project-journal-topic';
 import { validateDetails, type Details } from '@/details/schema';
+import type { JournalLearningStatus } from '@/db/enums';
 
 type LegacyLearning = {
   heading: string;
   type: 'decision' | 'insight';
-  status: 'proposed' | 'kept' | 'removed' | 'recorded';
+  status: JournalLearningStatus;
 };
 
 export interface ProjectJournalInsertRow {
@@ -16,7 +17,7 @@ export interface ProjectJournalInsertRow {
   body: string;
   type: 'decision' | 'knowledge';
   topic: string;
-  status: 'proposed' | 'kept' | 'removed' | 'recorded';
+  status: JournalLearningStatus;
   seq: number;
   recordedNodeId: string | null;
   recordedAt: Date | null;

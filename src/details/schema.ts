@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { STAGE_STATUS, AUDIT_VERDICT, DISCOVER_TASK_KIND } from '@/db/enums';
+import { STAGE_STATUS, AUDIT_VERDICT, DISCOVER_TASK_KIND, JOURNAL_LEARNING_STATUS } from '@/db/enums';
 
 /**
  * `db/enums.ts` states the convention outright — "Zod schemas derive via `z.enum(X)`" —
@@ -21,7 +21,7 @@ const phaseStatus = z.enum(STAGE_STATUS);
 const attemptStatus = z.enum(['running', 'done', 'failed', 'cancelled']);
 const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
 const planTaskStatus = z.enum(['pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed']);
-const learningStatus = z.enum(['proposed', 'kept', 'removed', 'recorded']);
+const learningStatus = z.enum(JOURNAL_LEARNING_STATUS);
 const auditPassStatus = z.enum(AUDIT_VERDICT);
 const automationStatus = z.enum(['off', 'running']);
 

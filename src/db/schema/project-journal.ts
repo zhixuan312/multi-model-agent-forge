@@ -1,6 +1,7 @@
 import { integer, uniqueIndex, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 import { project } from '@/db/schema/projects';
+import { JOURNAL_LEARNING_STATUS, LEARNING_CATEGORIES } from '@/db/enums';
 
 export const projectJournal = forge.table(
   'project_journal',
@@ -9,9 +10,9 @@ export const projectJournal = forge.table(
     projectId: uuid('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
     heading: text('heading').notNull(),
     body: text('body').notNull(),
-    type: text('type', { enum: ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] }).notNull(),
+    type: text('type', { enum: LEARNING_CATEGORIES }).notNull(),
     topic: text('topic').notNull(),
-    status: text('status', { enum: ['proposed', 'kept', 'removed', 'recorded'] }).notNull(),
+    status: text('status', { enum: JOURNAL_LEARNING_STATUS }).notNull(),
     seq: integer('seq').notNull(),
     recordedNodeId: text('recorded_node_id'),
     recordedAt: timestamp('recorded_at', { withTimezone: true }),

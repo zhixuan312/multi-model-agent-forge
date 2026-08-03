@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { guardProjectRead } from '@/auth/guard-project-write';
+import { PROJECT_VISIBILITY } from '@/db/enums';
 import {
   archiveProject,
   changeVisibility,
@@ -16,7 +17,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const patchSchema = z
   .object({
-    visibility: z.enum(['public', 'private']).optional(),
+    visibility: z.enum(PROJECT_VISIBILITY).optional(),
     repoIds: z.array(z.string().uuid()).min(1).optional(),
     archived: z.boolean().optional(),
   })

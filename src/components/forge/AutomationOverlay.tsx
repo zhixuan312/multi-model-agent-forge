@@ -33,7 +33,7 @@ import { Stat } from '@/components/patterns/stat-row';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
-import { STAGE_KIND, STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_KIND, STAGE_ORDER, type StageKind, type ActivityKind } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { responseError } from '@/lib/err';
@@ -80,7 +80,9 @@ interface Props {
   events?: ProjectActivityEvent[];
 }
 
-type LineKind = 'action' | 'running' | 'error' | 'done';
+// The overlay's line kinds ARE `project_activity.kind` — the same four states, written
+// out again here in a different order, which is how they stayed two vocabularies.
+type LineKind = ActivityKind;
 type LogLine = { time: string; startedAt: number; text: string; actorName: string; actorTint: string; kind: LineKind; done: boolean; error?: boolean; durationMs?: number };
 
 /** The project-level event log (project_activity) IS the activity feed — the same

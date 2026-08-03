@@ -106,9 +106,18 @@ export function RepoPicker({ repos, selected, onChange }: RepoPickerProps) {
             </li>
           );
         })}
+        {/* Two different nothings. "No repositories match" tells you to widen the filter —
+            useless advice when the team has none to filter, which is a project's hard
+            prerequisite and is fixed somewhere else entirely. Both used to read the same. */}
         {shown.length === 0 ? (
           <li className="px-4 py-6 text-center">
-            <Text className="!text-sm italic text-ink-faint">No repositories match.</Text>
+            {repos.length === 0 ? (
+              <Text className="!text-sm text-ink-faint">
+                No repositories yet — an admin adds them in Team settings, then they appear here.
+              </Text>
+            ) : (
+              <Text className="!text-sm italic text-ink-faint">No repositories match.</Text>
+            )}
           </li>
         ) : null}
       </ul>

@@ -2,7 +2,7 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ComponentProps } from 'react';
+import { Children, Fragment, type ComponentProps, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
 import { MermaidDiagram } from '@/components/patterns/mermaid-diagram';
@@ -61,14 +61,45 @@ export interface ProseBlockProps {
   children: string;
   variant?: ProseVariant;
   className?: string;
+  /**
+   * Decorate plain-text runs of the rendered markdown — e.g. highlighting @-mentions.
+   *
+   * Applied to STRING children only, so it never sees markup and cannot inject any: it
+   * receives text react-markdown has already parsed out, and whatever it returns is React
+   * nodes, not HTML. Without this a caller has to choose between markdown and its own text
+   * pass, which is how `DiscussionThread` came to render the author's own messages as plain
+   * text (mentions highlighted, markdown raw) and everyone else's as markdown (markdown
+   * rendered, mentions not) — the same message shown two different ways depending on who was
+   * looking.
+   */
+  highlight?: (text: string) => ReactNode;
 }
 
-export function ProseBlock({ children, variant = 'document', className }: ProseBlockProps) {
+/** Map a component's children, passing every string run through `highlight`. */
+function decorate(children: ReactNode, highlight: (t: string) => ReactNode): ReactNode {
+  return Children.map(children, (child, i) =>
+    typeof child === 'string' ? <Fragment key={i}>{highlight(child)}</Fragment> : child,
+  );
+}
+
+export function ProseBlock({ children, variant = 'document', className, highlight }: ProseBlockProps) {
+  // Only the elements that carry prose. Headings and code are deliberately excluded: a
+  // mention inside a fenced block is text the author typed as code, not a reference.
+  const decorated = highlight
+    ? {
+        p: ({ children: c }: { children?: ReactNode }) => <p>{decorate(c, highlight)}</p>,
+        li: ({ children: c }: { children?: ReactNode }) => <li>{decorate(c, highlight)}</li>,
+        strong: ({ children: c }: { children?: ReactNode }) => <strong>{decorate(c, highlight)}</strong>,
+        em: ({ children: c }: { children?: ReactNode }) => <em>{decorate(c, highlight)}</em>,
+        td: ({ children: c }: { children?: ReactNode }) => <td>{decorate(c, highlight)}</td>,
+      }
+    : {};
+
   return (
     <div className={cn(VARIANT_CLASSES[variant], className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        components={{ code: CodeBlock as never, pre: Pre as never }}
+        components={{ code: CodeBlock as never, pre: Pre as never, ...decorated }}
       >
         {sanitizeUserVisibleMarkdown(children)}
       </ReactMarkdown>

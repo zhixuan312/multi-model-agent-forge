@@ -14,6 +14,13 @@ import { mentionSpans } from '@/collab/mentions';
  * (no divider): your turns on the right, everyone else — teammates and Forge —
  * on the left. @-mentions in a message are highlighted; a message that mentions
  * teammates went to them (the AI stays out of that turn).
+ *
+ * EVERY bubble renders the same way. It used to branch on authorship: your own messages went
+ * through a plain-text pass that highlighted mentions but left markdown raw, and everyone
+ * else's went through `ProseBlock`, which rendered markdown but highlighted nothing. So a
+ * teammate @-mentioning YOU was not highlighted — the case the feature exists for — while
+ * your own `**bold**` showed its asterisks to you and rendered bold for everyone else. The
+ * same message, two appearances, decided by who was looking at it.
  */
 export function DiscussionThread({
   messages,
@@ -59,9 +66,11 @@ export function DiscussionThread({
   );
 }
 
-/** Highlight every resolvable @-mention. Who counts as a mention is `mentionSpans`' call,
- *  shared with the composer's participant resolution so the two can't drift. */
-function renderBody(body: string, pool: MemberRef[]): React.ReactNode {
+/** Highlight every resolvable @-mention in one text run. Who counts as a mention is
+ *  `mentionSpans`' call, shared with the composer's participant resolution so the two can't
+ *  drift. Passed to `ProseBlock`, which applies it to the plain-text runs of the RENDERED
+ *  markdown — so a bubble gets both, instead of the caller having to pick one. */
+function highlightMentions(body: string, pool: MemberRef[]): React.ReactNode {
   if (pool.length === 0) return body;
   const spans = mentionSpans(body, pool);
   if (spans.length === 0) return body;
@@ -115,7 +124,7 @@ function Bubble({
             mine ? 'rounded-tr-md border-accent/20 bg-accent-tint' : 'rounded-tl-md border-line bg-surface',
           )}
         >
-          {mine ? renderBody(msg.body, mentionPool) : <ProseBlock>{msg.body}</ProseBlock>}
+          <ProseBlock highlight={(t) => highlightMentions(t, mentionPool)}>{msg.body}</ProseBlock>
         </div>
       </div>
     </div>

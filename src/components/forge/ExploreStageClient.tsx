@@ -982,6 +982,12 @@ function SummaryPane(props: {
   // The governed document with its optional pieces off: no tabs, no approvers, no footer.
   // Empty body has THREE states, not one: actively synthesizing (spinner), a failed synthesis
   // (error + Retry — never a spinner, which would imply work is ongoing), or idle.
+  //
+  // The third one was named in this comment and not written: anything that was not the error
+  // fell through to the spinner. The stage auto-fires a synthesis on entry UNLESS the viewer
+  // is read-only, so a member on a frozen stage — or anyone whose dispatch resolved without
+  // producing an artifact — sat in front of "Synthesizing exploration findings into a
+  // brief..." indefinitely, for a run that was never started.
   const emptyState =
     props.synthError && !props.synthesizing ? (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
@@ -991,10 +997,22 @@ function SummaryPane(props: {
           <Button size="sm" variant="primary" onClick={props.onRetry} leftIcon={<RefreshCw />}>Retry synthesis</Button>
         ) : null}
       </div>
-    ) : (
+    ) : props.synthesizing ? (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
         <Loader2 className="size-5 animate-spin text-accent" />
         <p className="text-sm text-ink-faint">Synthesizing exploration findings into a brief...</p>
+      </div>
+    ) : (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm font-medium text-ink">No brief yet</p>
+        <p className="text-xs text-ink-faint" style={{ maxWidth: 320 }}>
+          {props.onRetry
+            ? 'Synthesize the task findings into the exploration brief.'
+            : 'The brief has not been synthesized yet, and this stage is read-only for you.'}
+        </p>
+        {props.onRetry ? (
+          <Button size="sm" variant="primary" onClick={props.onRetry} leftIcon={<Sparkles />}>Synthesize</Button>
+        ) : null}
       </div>
     );
   return (

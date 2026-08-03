@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, chmodSync, rmSync, mkdirSync, accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, sep } from 'node:path';
+import { safeChildEnv } from '@/build/command-runner';
 
 export class PathEscapeError extends Error {
   constructor(name: string) {
@@ -154,8 +155,13 @@ export class WorkspaceService {
    * env — never in argv. Returns the env + a cleanup fn.
    */
   private askpassEnv(token: string | undefined): { env: Record<string, string>; cleanup: () => void } {
+    // SCRUBBED, not inherited wholesale. `pull` runs the repo's LOCAL hooks, and the
+    // repos Forge pulls are the same checkouts MMA workers write to — so a planted
+    // `.git/hooks/post-merge` would otherwise execute with FORGE_SECRET_KEY, DATABASE_URL
+    // and every provider key in its environment. Same boundary as the build/test runner,
+    // so it uses the same scrub; the askpass variables are added back BELOW, after it.
     const baseEnv: Record<string, string> = {
-      ...(process.env as Record<string, string>),
+      ...safeChildEnv(),
       // Never prompt interactively; fail fast on a missing/invalid credential.
       GIT_TERMINAL_PROMPT: '0',
     };

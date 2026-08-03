@@ -22,6 +22,17 @@ function routes(dir: string): string[] {
   return out;
 }
 
+function tsFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+    const rel = `${dir}/${e.name}`;
+    if (e.isDirectory()) out.push(...tsFiles(rel));
+    else if (/\.tsx?$/.test(e.name) && !e.name.includes('.test.')) out.push(rel);
+  }
+  return out;
+}
+
 describe('shared API refusals', () => {
   it('unauthorized is a 401 carrying a readable reason', async () => {
     const res = unauthorized();
@@ -47,7 +58,11 @@ describe('shared API refusals', () => {
       /error: 'Team admin privileges required\.' \}, \{ status: 403 \}/,
     ];
     const offenders: string[] = [];
-    for (const rel of [...routes('app/api'), 'src/journal/guard.ts', 'src/auth/guard-project-write.ts', 'src/auth/admin-gate-handler.ts']) {
+    // Every file that can build a response, not a hand-picked few: the first version of
+    // this listed three `src` guards by name and missed `middleware.ts`, which held a
+    // 38th copy. A scan is only as good as the set it walks.
+    for (const rel of [...routes('app/api'), ...tsFiles('src'), 'middleware.ts']) {
+      if (rel === 'src/auth/api-responses.ts') continue; // the module that DEFINES them
       const text = readFileSync(join(ROOT, rel), 'utf8');
       if (LITERALS.some((re) => re.test(text))) offenders.push(rel);
     }

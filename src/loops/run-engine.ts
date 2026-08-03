@@ -1,4 +1,6 @@
 import { readdirSync } from 'node:fs';
+import { logEvent } from '@/observability/log-event';
+import { errMessage } from '@/lib/err';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { loopRun, type LoopRow, type LoopRunRow } from '@/db/schema/loop';
@@ -256,7 +258,7 @@ export async function runLoopForRepo(
       // continues, which is the intended behaviour. Log it though — swallowed silently,
       // a persistently failing plan step is invisible and the loop just quietly runs
       // un-planned forever.
-      console.warn(JSON.stringify({ event: 'loop_plan_turn_failed', repo: repo.name, reason: (e as Error)?.message ?? String(e) }));
+      logEvent({ event: 'loop.plan_turn_failed', level: 'warn', repo: repo.name, detail: errMessage(e) });
     }
 
     // Stage 4 — recall (worker fan-out of the planned queries).
@@ -312,7 +314,7 @@ export async function runLoopForRepo(
       // Journal composition is OPTIONAL: the run's outcome is already decided, so a failed
       // turn must not fail it. Logged for the same reason as the plan turn above — a run
       // that never records what it learned should be diagnosable.
-      console.warn(JSON.stringify({ event: 'loop_journal_turn_failed', repo: repo.name, reason: (e as Error)?.message ?? String(e) }));
+      logEvent({ event: 'loop.journal_turn_failed', level: 'warn', repo: repo.name, detail: errMessage(e) });
     }
 
     // Stage 9 — record + report.

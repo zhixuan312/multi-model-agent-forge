@@ -46,3 +46,13 @@ export async function responseError(res: Response, fallback: string): Promise<st
   const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
   return body?.message ?? body?.error ?? fallback;
 }
+
+/**
+ * The message of a caught value, or its `String()` form when it is not an Error.
+ *
+ * `e instanceof Error ? e.message : String(e)` was written out seven times — five of them
+ * in the same boot file, once per deferred-startup catch.
+ */
+export function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

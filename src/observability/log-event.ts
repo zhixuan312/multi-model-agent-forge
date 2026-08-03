@@ -17,7 +17,23 @@ export type LogEventName =
   | 'member.toggle_admin'
   | 'member.reset_password'
   | 'member.delete'
-  | 'startup.fatal';
+  // Boot + background-worker events. These were emitted as raw
+  // `console.log(JSON.stringify({ event: 'snake_case', … }))` — a second structured-log
+  // shape with no `ts`, no `level` and no swappable sink, in a module whose own doc says
+  // records go out "through a single `logEvent` helper".
+  | 'startup.fatal'
+  | 'startup.export_deferred'
+  | 'startup.poll_manager_rehydrated'
+  | 'startup.poll_manager_deferred'
+  | 'startup.synthesis_reconciled'
+  | 'startup.synthesis_deferred'
+  | 'startup.loop_scheduler_started'
+  | 'startup.loop_scheduler_deferred'
+  | 'startup.automation_resumed'
+  | 'startup.automation_resume_failed'
+  | 'startup.automation_deferred'
+  | 'loop.plan_turn_failed'
+  | 'loop.journal_turn_failed';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -31,6 +47,12 @@ export interface LogRecord {
   ip?: string;
   /** Operator-facing explanation for events that need one (e.g. a config hint). */
   detail?: string;
+  /** The project a boot-resumed automation belongs to. */
+  projectId?: string;
+  /** How many items a boot sweep handled. */
+  count?: number;
+  /** The repo a loop turn was working in. */
+  repo?: string;
 }
 
 export type LogSink = (record: LogRecord) => void;
@@ -60,14 +82,14 @@ export function setLogSink(next: LogSink): () => void {
 export function logEvent(
   record: Omit<LogRecord, 'ts' | 'level'> & { ts?: string; level?: LogLevel },
 ): void {
+  // Forward whatever the caller set, dropping only `undefined` so a record stays free of
+  // empty keys. This used to name each optional field, which meant adding one to
+  // `LogRecord` typechecked cleanly and then silently discarded it at emit — a whitelist
+  // that has to be remembered is a whitelist that eventually is not.
+  const { ts, level, ...rest } = record;
   sink({
-    ts: record.ts ?? new Date().toISOString(),
-    level: record.level ?? 'info',
-    event: record.event,
-    ...(record.actorId !== undefined ? { actorId: record.actorId } : {}),
-    ...(record.targetId !== undefined ? { targetId: record.targetId } : {}),
-    ...(record.rateLimitKey !== undefined ? { rateLimitKey: record.rateLimitKey } : {}),
-    ...(record.ip !== undefined ? { ip: record.ip } : {}),
-    ...(record.detail !== undefined ? { detail: record.detail } : {}),
+    ts: ts ?? new Date().toISOString(),
+    level: level ?? 'info',
+    ...(Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) as Omit<LogRecord, 'ts' | 'level'>),
   });
 }

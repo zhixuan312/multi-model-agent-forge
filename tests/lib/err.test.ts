@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { errName, responseError } from '@/lib/err';
+import { errName, errMessage, responseError } from '@/lib/err';
 
 /**
  * `errName` was three character-for-character copies (exploration/dispatch,
@@ -69,5 +69,19 @@ describe('responseError', () => {
   it('falls back rather than throwing when the body is not JSON at all', async () => {
     const html = { json: async () => { throw new SyntaxError('Unexpected token <'); } } as unknown as Response;
     await expect(responseError(html, 'Could not save.')).resolves.toBe('Could not save.');
+  });
+});
+
+/** `e instanceof Error ? e.message : String(e)` was written out seven times. */
+describe('errMessage', () => {
+  it('reads the message off a real Error', () => {
+    expect(errMessage(new TypeError('bad input'))).toBe('bad input');
+  });
+
+  it('stringifies anything else rather than yielding undefined', () => {
+    expect(errMessage('boom')).toBe('boom');
+    expect(errMessage(42)).toBe('42');
+    expect(errMessage(null)).toBe('null');
+    expect(errMessage({ message: 'not an Error' })).toBe('[object Object]');
   });
 });

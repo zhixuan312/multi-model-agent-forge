@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { evaluateRequest, SESSION_COOKIE_NAME } from '@/auth/middleware-core';
+import { unauthorized } from '@/auth/api-responses';
 
 /**
  * Edge-runtime middleware (Spec 1 F28): a STATELESS cookie-presence pre-check
@@ -22,7 +23,7 @@ export function middleware(req: NextRequest): NextResponse {
       return NextResponse.next({ request: { headers: reqHeaders } });
     }
     case 'unauthorized':
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return unauthorized();
     case 'redirect': {
       const url = req.nextUrl.clone();
       url.pathname = decision.to;

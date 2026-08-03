@@ -192,7 +192,17 @@ export function ConversationComposer({
     const q = mentionQuery.toLowerCase();
     return mentionPool.filter((m) => m.displayName.toLowerCase().includes(q)).slice(0, 6);
   }, [mentionQuery, mentionPool]);
-  const mentionOpen = mentionMatches.length > 0;
+  /**
+   * Escape closes the list until the query changes.
+   *
+   * It used to close it by setting the caret to -1, which is not "no caret" — `value.slice(0,
+   * -1)` is the value MINUS ITS LAST CHARACTER, so the mention regex was simply re-run one
+   * character earlier and usually still matched: dismissing `@ab` re-queried `@a` and the list
+   * stayed open. It also poisoned `chooseMention`, which slices at the same caret and would
+   * have rebuilt the text around position -1.
+   */
+  const [mentionDismissed, setMentionDismissed] = useState(false);
+  const mentionOpen = !mentionDismissed && mentionMatches.length > 0;
   /** A composer only behaves as a combobox when it has somebody to suggest. */
   const hasMentions = (mentionPool?.length ?? 0) > 0;
 
@@ -254,7 +264,12 @@ export function ConversationComposer({
         <Textarea
           ref={textareaRef ?? internalRef}
           value={value}
-          onChange={(e) => { setVal(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
+          onChange={(e) => {
+            setVal(e.target.value);
+            setCaret(e.target.selectionStart ?? e.target.value.length);
+            // Typing revives the list: Escape dismisses THIS query, not the feature.
+            setMentionDismissed(false);
+          }}
           disabled={disabled || transcribing}
           placeholder={placeholder ?? 'Type your message…'}
           rows={fillHeight ? undefined : rows}
@@ -279,7 +294,7 @@ export function ConversationComposer({
               if (e.key === 'ArrowDown') { e.preventDefault(); setMentionActive((a) => (a + 1) % mentionMatches.length); return; }
               if (e.key === 'ArrowUp') { e.preventDefault(); setMentionActive((a) => (a - 1 + mentionMatches.length) % mentionMatches.length); return; }
               if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseMention(mentionMatches[mentionActive]!); return; }
-              if (e.key === 'Escape') { e.preventDefault(); setCaret(-1); return; }
+              if (e.key === 'Escape') { e.preventDefault(); setMentionDismissed(true); setMentionActive(0); return; }
             }
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
@@ -297,9 +312,15 @@ export function ConversationComposer({
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <Button size="sm" variant={recording ? 'danger' : 'ghost'} onClick={toggleRecord} disabled={disabled || transcribing || !voice} leftIcon={recording ? <MicOff /> : <Mic />} type="button">
-              {recording ? 'Stop' : 'Voice'}
-            </Button>
+            {/* Rendered only when voice is ON. `disabled={… || !voice}` put a dead "Voice"
+                button in every composer of every team without a transcription provider — a
+                control whose precondition lives in org settings and is unknowable from here.
+                An unavailable feature is absent, not greyed out. */}
+            {voice ? (
+              <Button size="sm" variant={recording ? 'danger' : 'ghost'} onClick={toggleRecord} disabled={disabled || transcribing} leftIcon={recording ? <MicOff /> : <Mic />} type="button">
+                {recording ? 'Stop' : 'Voice'}
+              </Button>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             {secondaryActions}

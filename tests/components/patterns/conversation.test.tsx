@@ -166,6 +166,39 @@ describe('ConversationComposer @-mention typeahead', () => {
     expect(document.getElementById(box.getAttribute('aria-activedescendant')!)).toHaveAttribute('aria-selected', 'true');
   });
 
+  /**
+   * Escape used to "close" the list by setting the caret to -1. That is not "no caret":
+   * `value.slice(0, -1)` is the value minus its last character, so the mention regex ran one
+   * character earlier and usually still matched — dismissing `@Bo` re-queried `@B` and the
+   * list stayed open, over a caret position that would also have mangled the text had a
+   * suggestion then been chosen.
+   */
+  it('closes on Escape, even when the query still matches a teammate', () => {
+    render(<ConversationComposer onSend={() => {}} mentionPool={pool} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: '@Bo' } });
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('reopens on the next keystroke — Escape dismisses the query, not the feature', () => {
+    render(<ConversationComposer onSend={() => {}} mentionPool={pool} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: '@Bo' } });
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+
+    // A further character of the SAME token — the mention token stops at whitespace, so
+    // "@Bo C" is not one query continued but the end of the token followed by loose text.
+    fireEvent.change(box, { target: { value: '@Bod' } });
+    expect(box).toHaveAttribute('aria-expanded', 'false'); // no teammate matches "Bod"
+    fireEvent.change(box, { target: { value: '@Bo' } });
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('names the listbox, so it is not announced as an unlabelled list', () => {
     openTypeahead();
     expect(screen.getByRole('listbox', { name: 'Mention a teammate' })).toBeInTheDocument();
@@ -176,4 +209,21 @@ it('stays a plain textbox when there is no mention pool — no phantom combobox'
   render(<ConversationComposer onSend={() => {}} />);
   expect(screen.getByRole('textbox')).toBeInTheDocument();
   expect(screen.queryByRole('combobox')).toBeNull();
+});
+
+/**
+ * `disabled={… || !voice}` rendered a dead "Voice" button in every composer of every team
+ * without a transcription provider — a control whose precondition lives in org settings and
+ * cannot be read, or changed, from the composer. An unavailable feature is absent.
+ */
+describe('ConversationComposer voice availability', () => {
+  it('offers the control when voice is on', () => {
+    render(<ConversationComposer onSend={() => {}} voice />);
+    expect(screen.getByRole('button', { name: /Voice/ })).toBeEnabled();
+  });
+
+  it('renders no voice control at all when voice is off', () => {
+    render(<ConversationComposer onSend={() => {}} />);
+    expect(screen.queryByRole('button', { name: /Voice/ })).toBeNull();
+  });
 });

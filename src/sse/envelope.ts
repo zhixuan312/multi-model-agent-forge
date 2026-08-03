@@ -1,11 +1,13 @@
 import type { ProjectEvent } from '@/sse/event-bus';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
 
 /**
  * Terminal-envelope interpretation (Spec 5). The MMA terminal envelope's `error`
  * field is an `errorSchema` object (`{code,message,...}`) on failure, and
  * `{kind:'not_applicable'}` on success. The context-block id (when present) is a
- * SINGLE top-level `envelope.contextBlockId` — never per-`results[i]` (verified
- * against MMA `lifecycle/task-executor.ts`).
+ * SINGLE top-level `envelope.contextBlockId` — never per-`results[i]`. (The citation
+ * here named the engine's `lifecycle/task-executor.ts`, a layer since deleted; the shape
+ * is the one `MmaTerminalEnvelope` in `mma/client.ts` declares.)
  *
  * Engine 5.16 added two terminal states beyond `completed`/`done_with_concerns`/
  * `failed`, BOTH of which carry a non-null `error` — so "has an error" is no longer
@@ -78,10 +80,16 @@ export function interpretTerminal(envelope: unknown): TerminalState {
   };
 }
 
-/** The synthesized timeout error used by the hard-timeout transition. */
+/**
+ * The synthesized timeout error used by the hard-timeout transition.
+ *
+ * The duration is DERIVED from `POLL_HARD_TIMEOUT_MS`. It read "within 15m" while the
+ * real ceiling had moved to an hour, so the message a user saw named a wait that never
+ * happened — and a second hardcoded duration is exactly how that drift starts.
+ */
 export const FORGE_POLL_TIMEOUT_ERROR = {
   code: 'forge_poll_timeout',
-  message: 'no terminal envelope within 15m',
+  message: `no terminal envelope within ${Math.round(POLL_HARD_TIMEOUT_MS / 60_000)}m`,
 } as const;
 
 /** Build the SSE event for a terminal batch (done vs failed vs cancelled). */

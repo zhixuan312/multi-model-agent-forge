@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -41,9 +42,9 @@ export async function guardProjectWrite(
   if (csrf) return csrf;
 
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
 
   // Membership predicate (public OR project_member). 403 on a write — the actor
   // already knows the project exists if they reached here, so there is nothing to

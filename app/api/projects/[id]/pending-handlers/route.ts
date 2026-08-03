@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
@@ -22,9 +23,9 @@ export async function GET(
   // cookie-bearing request could probe and force-fail any project's batches. Gate it like every
   // other project route.
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
 
   const db = getDb();
   try {

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { exportMd } from '@/export/service';
@@ -22,9 +23,9 @@ export async function GET(
   if (!kind) return unknownKindResponse();
 
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
 
   try {
     const { fileName, body } = await exportMd(id, kind, actor);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unauthorized, forbidden, ORG_ADMIN_REQUIRED } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
@@ -9,14 +10,14 @@ import { team } from '@/db/schema/team';
 export async function GET(): Promise<NextResponse> {
   try {
     const member = await currentMember();
-    if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!member) return unauthorized();
     assertOrgAdmin(member);
 
     const db = getDb();
     const teams = await db.select().from(team);
     return NextResponse.json(teams);
   } catch {
-    return NextResponse.json({ error: 'Org admin privileges required.' }, { status: 403 });
+    return forbidden(ORG_ADMIN_REQUIRED);
   }
 }
 
@@ -25,10 +26,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (csrf) return csrf;
   try {
     const member = await currentMember();
-    if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!member) return unauthorized();
     assertOrgAdmin(member);
   } catch {
-    return NextResponse.json({ error: 'Org admin privileges required.' }, { status: 403 });
+    return forbidden(ORG_ADMIN_REQUIRED);
   }
 
   const json = await req.json().catch(() => null);

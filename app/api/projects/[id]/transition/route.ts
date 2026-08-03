@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
@@ -25,9 +26,9 @@ export async function POST(
   if (csrf) return csrf;
 
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
   try {
     await assertProjectReadable(id, actor);
   } catch (e) {

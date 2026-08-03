@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { z } from 'zod';
 import { currentMember } from '@/auth/current-member';
@@ -29,9 +30,9 @@ export async function POST(
   if (csrf) return csrf;
   const { id } = await params;
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', message: 'The export request was malformed.' }, { status: 400 });

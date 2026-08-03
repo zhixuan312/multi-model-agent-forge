@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unauthorized, forbidden, ORG_ADMIN_REQUIRED } from '@/auth/api-responses';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
 import { listMembers } from '@/auth/members-core';
@@ -15,10 +16,10 @@ export const runtime = 'nodejs';
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   try {
     const me = await currentMember();
-    if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!me) return unauthorized();
     assertOrgAdmin(me);
   } catch {
-    return NextResponse.json({ error: 'Org admin privileges required.' }, { status: 403 });
+    return forbidden(ORG_ADMIN_REQUIRED);
   }
 
   const { id } = await params;

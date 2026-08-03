@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { z } from 'zod';
 import { currentSession } from '@/auth/current-member';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (csrf) return csrf;
   const resolved = await currentSession();
   if (!resolved) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return unauthorized();
   }
 
   const json = await req.json().catch(() => null);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unauthorized, forbidden, TEAM_ADMIN_REQUIRED } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { assertTeamAdmin } from '@/auth/team-scope';
@@ -16,14 +17,14 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
   const member = await currentMember();
-  if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!member) return unauthorized();
   if (!member.teamId) {
-    return NextResponse.json({ error: 'Team admin privileges required.' }, { status: 403 });
+    return forbidden(TEAM_ADMIN_REQUIRED);
   }
   try {
     assertTeamAdmin(member, member.teamId);
   } catch {
-    return NextResponse.json({ error: 'Team admin privileges required.' }, { status: 403 });
+    return forbidden(TEAM_ADMIN_REQUIRED);
   }
 
   const json = (await req.json().catch(() => null)) as { workspaceRootPath?: unknown } | null;

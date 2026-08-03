@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
 
   let form: FormData;
   try {

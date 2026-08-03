@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { guardProjectWrite } from '@/auth/guard-project-write';
 import { getDb } from '@/db/client';
 import { updateDetails } from '@/details/write';
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (guard instanceof NextResponse) return guard;
 
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const db = getDb();
 
   await updateDetails(db, id, (d) => {

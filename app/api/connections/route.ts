@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { getConnections, updateConnections } from '@/config/connections-core';
 import { currentMember } from '@/auth/current-member';
@@ -14,7 +15,7 @@ import { currentMember } from '@/auth/current-member';
  */
 export async function GET(): Promise<NextResponse> {
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   return NextResponse.json(await getConnections({ teamId: me.teamId ?? null }));
 }
 
@@ -22,7 +23,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
 
   const json = (await req.json().catch(() => null)) as
     | { mmaBaseUrl?: string; gitToken?: string; openaiTranscriptionKey?: string }

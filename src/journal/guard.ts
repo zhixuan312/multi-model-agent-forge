@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { rejectCrossOrigin } from '@/auth/same-origin';
 import { requireTeamScope } from '@/auth/team-scope';
 
@@ -28,6 +29,6 @@ export async function guardJournal(
     const scope = await requireTeamScope();
     return { memberId: scope.actor.id, team: scope.currentTeam };
   } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return unauthorized();
   }
 }

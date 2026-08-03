@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { collectMenu } from '@/export/collect-artifacts';
@@ -19,9 +20,9 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id } = await params;
   const me = await currentMember();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return unauthorized();
   const actor = projectActorFromMember(me);
-  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!actor) return unauthorized();
   try {
     const items = await collectMenu(id, actor);
     return NextResponse.json({ artifacts: items });

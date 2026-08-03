@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unauthorized } from '@/auth/api-responses';
 import { requireAdminMember, NotAdminError, NotAuthenticatedError } from '@/auth/require-admin';
 import type { AuthedMember } from '@/auth/auth-provider';
 
@@ -24,7 +25,7 @@ export async function resolveAdminActor(): Promise<
     if (e instanceof NotAuthenticatedError) {
       return {
         ok: false,
-        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        response: unauthorized(),
       };
     }
     throw e;

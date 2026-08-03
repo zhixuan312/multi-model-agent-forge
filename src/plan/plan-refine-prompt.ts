@@ -1,5 +1,5 @@
 /**
- * Plan task refine prompt builder — constructs the 6-part prompt for
+ * Plan task refine prompt builder — constructs the system + user prompt for
  * the MMA orchestration route when a user asks to refine a plan task.
  */
 import { parseLlmJson } from '@/lib/llm-json';

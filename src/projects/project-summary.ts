@@ -7,6 +7,7 @@ import { projectJournal } from '@/db/schema/project-journal';
 import { readSpecFile, readPlanFile } from '@/projects/project-files';
 import { validateDetails } from '@/details/schema';
 import { mapActivityRowToEvent, type ProjectActivityEvent } from '@/activity/project-activity';
+import { STAGE_ORDER } from '@/db/enums';
 
 export interface StageTiming {
   kind: string;
@@ -121,7 +122,7 @@ export async function loadProjectSummary(db: Db, projectId: string): Promise<Pro
         activeMs: active,
       };
     };
-    stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
+    stages = STAGE_ORDER.map((kind) => ({
       kind, status: d.stages[kind].status, ...timingFromEvents(kind, d.stages[kind]),
     }));
     for (const p of d.stages.spec.phases.finalize.auditPasses) {

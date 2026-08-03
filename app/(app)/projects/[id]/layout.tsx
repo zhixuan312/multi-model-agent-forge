@@ -18,7 +18,8 @@ import { getDb } from '@/db/client';
 import { projectActivity } from '@/db/schema/activity';
 import { mapActivityRowToEvent } from '@/activity/project-activity';
 import { PhaseFromRoute } from '@/components/forge/PhaseFromRoute';
-import type { StageKind } from '@/db/enums';
+import { STAGE_KIND, type StageKind } from '@/db/enums';
+import { permKeyFor } from '@/projects/stage-freeze';
 
 export default async function ProjectLayout({
   children,
@@ -58,12 +59,9 @@ export default async function ProjectLayout({
   ]);
   const events = activityRows.map(mapActivityRowToEvent);
 
-  const PERM_KEY: Record<string, keyof typeof perms> = {
-    exploration: 'explore', spec: 'spec', plan: 'plan',
-    execute: 'execute', review: 'review', journal: 'journal',
-  };
-  const lockedStages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const)
-    .filter((k) => !perms[PERM_KEY[k]].canMutate);
+  // Both halves of this used to be spelled out here: a local kind→permission-key map
+  // (`permKeyFor`) and the six stage kinds in order (`STAGE_KIND`).
+  const lockedStages = STAGE_KIND.filter((k) => !perms[permKeyFor(k)].canMutate);
 
   // Derive the current stage from details (the active stage) rather than trusting
   // the denormalized column — automation advances stages without a page visit, so
@@ -78,7 +76,7 @@ export default async function ProjectLayout({
   } | null)?.stages;
   const phaseStatusByStage: Partial<Record<StageKind, Record<string, string>>> = {};
   if (detailStages) {
-    for (const kind of ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const) {
+    for (const kind of STAGE_KIND) {
       const phases = detailStages[kind]?.phases;
       if (phases) {
         phaseStatusByStage[kind] = Object.fromEntries(
@@ -116,13 +114,9 @@ export default async function ProjectLayout({
           projectId={project.id}
           autoMode={project.autoMode}
           currentStage={activeStage ?? 'spec'}
-          automationStartedAt={(() => {
-            if (!project.details) return undefined;
-            try {
-              const d = project.details as { automation?: { startedAt?: string } };
-              return d?.automation?.startedAt ?? undefined;
-            } catch { return undefined; }
-          })()}
+          // `details` is already-parsed JSON, so reading through it cannot throw — the
+          // try/catch that used to wrap this optional chain caught nothing.
+          automationStartedAt={(project.details as { automation?: { startedAt?: string } } | null)?.automation?.startedAt}
           events={events}
         >
           {children}

@@ -25,7 +25,7 @@ import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
 import { formatActivityDuration, formatDurationHm } from '@/lib/format-duration';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
-import type { StageKind } from '@/db/enums';
+import { STAGE_ORDER, type StageKind } from '@/db/enums';
 import type { ProjectSummary } from '@/projects/project-summary';
 import { formatCost, formatTokens } from '@/usage/format';
 
@@ -35,8 +35,6 @@ function stageDuration(startedAt: string | Date | null, completedAt: string | Da
   const end = typeof completedAt === 'string' ? new Date(completedAt).getTime() : completedAt.getTime();
   return formatDurationHm(end - start);
 }
-
-const STAGE_ORDER = ['exploration', 'spec', 'plan', 'execute', 'review', 'journal'];
 
 const SUMMARY_NOTE = `### Summary — your project at a glance
 

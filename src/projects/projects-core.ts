@@ -394,7 +394,7 @@ async function listProjects(
     if (!r.details) continue;
     try {
       const d = validateDetails(r.details);
-      const stages = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => ({
+      const stages = STAGE_ORDER.map((kind) => ({
         kind,
         status: d.stages[kind].status,
       }));
@@ -490,7 +490,7 @@ export async function getProjectStages(
   if (proj?.details) {
     const d = validateDetails(proj.details);
     const { getCurrentPhase } = await import('@/details/read');
-    const stageViews = (['exploration', 'spec', 'plan', 'execute', 'review', 'journal'] as const).map((kind) => {
+    const stageViews = STAGE_ORDER.map((kind) => {
       const stg = d.stages[kind];
       const phase = getCurrentPhase(d, kind);
       return { kind, status: stg.status, lastPhase: phase };

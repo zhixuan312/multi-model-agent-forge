@@ -143,7 +143,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       const summaryRaw = output.summary;
       const text = typeof summaryRaw === 'string' ? summaryRaw
         : (summaryRaw && typeof summaryRaw === 'object') ? JSON.stringify(summaryRaw) : '';
-      return { output: text, sessionId: null };
+      return { output: text };
     },
     recall: async (_repo, query, loopRunId) => {
       const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);

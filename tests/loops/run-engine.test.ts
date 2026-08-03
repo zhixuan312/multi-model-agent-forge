@@ -39,8 +39,8 @@ function makeDeps(over: Partial<LoopRunDeps> = {}): LoopRunDeps & Record<string,
     resolveCurrentBranch: vi.fn(async () => 'main'),
     mainSession: vi.fn(async ({ prompt }: { prompt: string }) =>
       prompt.includes('planning brain')
-        ? { output: '{"recalls":[{"query":"q1","purpose":"p1"}],"verifyCommand":"npm test"}', sessionId: 'sess-1' }
-        : { output: '{"entries":[{"tag":"learned","text":"real insight"}]}', sessionId: 'sess-1' },
+        ? { output: '{"recalls":[{"query":"q1","purpose":"p1"}],"verifyCommand":"npm test"}' }
+        : { output: '{"entries":[{"tag":"learned","text":"real insight"}]}' },
     ),
     recall: vi.fn(async () => 'prior context'),
     createWorktree: vi.fn(async () => ({ path: '/wt/forge' })),

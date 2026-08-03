@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { extractJsonText } from '@/lib/llm-json';
 
 /**
- * Main-agent (orchestrator) prompts + response parsers for the loop. Two calls
- * share one MMA `main` session: PLAN (before any work) and JOURNAL (after). Each
+ * Main-agent (orchestrator) prompts + response parsers for the loop. Two INDEPENDENT
+ * calls: PLAN (before any work) and JOURNAL (after) — the engine does not return a
+ * session id to resume with, so the journal prompt restates the context it needs. Each
  * prompt uses Forge's standard six-section format (Role · Task · Context · Input ·
  * Constraints · Output format) and demands a strict JSON object.
  */

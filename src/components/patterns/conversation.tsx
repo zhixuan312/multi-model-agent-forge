@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode, useId } from 'react';
 import { Send, Mic, MicOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Textarea, Avatar } from '@/components/ui';
@@ -175,6 +175,7 @@ export function ConversationComposer({
   const isVoiceBusy = recording || transcribing;
 
   // @-mention autocomplete
+  const mentionListId = useId();
   const [caret, setCaret] = useState(0);
   const [mentionActive, setMentionActive] = useState(0);
   const mentionQuery = useMemo(() => {
@@ -189,6 +190,8 @@ export function ConversationComposer({
     return mentionPool.filter((m) => m.displayName.toLowerCase().includes(q)).slice(0, 6);
   }, [mentionQuery, mentionPool]);
   const mentionOpen = mentionMatches.length > 0;
+  /** A composer only behaves as a combobox when it has somebody to suggest. */
+  const hasMentions = (mentionPool?.length ?? 0) > 0;
 
   function syncCaret(): void {
     const el = (textareaRef as React.RefObject<HTMLTextAreaElement>)?.current ?? internalRef.current;
@@ -214,26 +217,33 @@ export function ConversationComposer({
     <div className={cn('shrink-0 border-t border-line px-5 py-3', className)}>
       <form onSubmit={submit} className={cn('relative', fillHeight && 'flex min-h-0 flex-1 flex-col')}>
         {mentionOpen ? (
+          // A listbox's children are its options — the `<li>` wrappers that used to sit
+          // between them made the structure invalid, and the options were `<button>`s,
+          // which is not how this pattern works: focus never leaves the textarea, so the
+          // active option is pointed at with `aria-activedescendant` instead of being
+          // focused. Without that wiring the arrow keys moved a highlight that no screen
+          // reader could see, and nothing announced that a suggestion list had opened.
           <ul
+            id={mentionListId}
             role="listbox"
+            aria-label="Mention a teammate"
             className="absolute bottom-full z-50 mb-1.5 max-h-56 w-64 overflow-y-auto rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--shadow-pop)]"
           >
             {mentionMatches.map((m, i) => (
-              <li key={m.id}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={i === mentionActive}
-                  onMouseEnter={() => setMentionActive(i)}
-                  onMouseDown={(e) => { e.preventDefault(); chooseMention(m); }}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-left text-sm transition-colors',
-                    i === mentionActive ? 'bg-surface-2 text-ink' : 'text-ink-soft',
-                  )}
-                >
-                  <Avatar size="sm" name={m.displayName} tint={m.avatarTint} aria-hidden />
-                  <span className="truncate">{m.displayName}</span>
-                </button>
+              <li
+                key={m.id}
+                id={`${mentionListId}-${i}`}
+                role="option"
+                aria-selected={i === mentionActive}
+                onMouseEnter={() => setMentionActive(i)}
+                onMouseDown={(e) => { e.preventDefault(); chooseMention(m); }}
+                className={cn(
+                  'flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-left text-sm transition-colors',
+                  i === mentionActive ? 'bg-surface-2 text-ink' : 'text-ink-soft',
+                )}
+              >
+                <Avatar size="sm" name={m.displayName} tint={m.avatarTint} aria-hidden />
+                <span className="truncate">{m.displayName}</span>
               </li>
             ))}
           </ul>
@@ -246,6 +256,18 @@ export function ConversationComposer({
           placeholder={placeholder ?? 'Type your message…'}
           rows={fillHeight ? undefined : rows}
           className={cn('resize-none', fillHeight && 'min-h-0 flex-1', recording && 'border-[var(--rose)] ring-1 ring-[var(--rose)]/30')}
+          // The combobox half of the pattern above: the list is announced as open, and the
+          // active option is named without focus ever leaving this textarea.
+          //
+          // Only when there IS a pool. A composer with no `mentionPool` can never open a
+          // suggestion list, and claiming `role="combobox"` there would both promise an
+          // autocomplete that does not exist and strip the plain textbox role every other
+          // composer in the app is.
+          role={hasMentions ? 'combobox' : undefined}
+          aria-expanded={hasMentions ? mentionOpen : undefined}
+          aria-controls={mentionOpen ? mentionListId : undefined}
+          aria-activedescendant={mentionOpen ? `${mentionListId}-${mentionActive}` : undefined}
+          aria-autocomplete={hasMentions ? 'list' : undefined}
           onKeyUp={syncCaret}
           onClick={syncCaret}
           onSelect={syncCaret}

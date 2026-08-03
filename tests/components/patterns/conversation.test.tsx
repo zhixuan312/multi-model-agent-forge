@@ -110,3 +110,70 @@ describe('ConversationComposer voice errors (QA F#5)', () => {
     await waitFor(() => expect(toasts.some((t) => /microphone/i.test(t.message))).toBe(true));
   });
 });
+
+/**
+ * The @-mention typeahead used to render `role="listbox"` containing `<li>` wrappers around
+ * `<button role="option">` — an invalid listbox structure — with nothing tying the textarea
+ * to the list. Arrow keys moved a highlight that only sighted users could perceive: no
+ * announcement that suggestions had opened, and no way to tell which one was active.
+ */
+describe('ConversationComposer @-mention typeahead', () => {
+  const pool = [
+    { id: 'bo', displayName: 'Bo Chen', avatarTint: '#355a74' },
+    { id: 'priya', displayName: 'Priya Nair', avatarTint: '#b23a48' },
+  ];
+
+  const openTypeahead = () => {
+    render(<ConversationComposer onSend={() => {}} mentionPool={pool} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: '@' } });
+    return box;
+  };
+
+  it('marks the textarea a combobox that reports the list closed until it opens', () => {
+    render(<ConversationComposer onSend={() => {}} mentionPool={pool} />);
+    const box = screen.getByRole('combobox');
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+    expect(box).not.toHaveAttribute('aria-activedescendant');
+  });
+
+  it('announces the list as open and points at the active option', () => {
+    const box = openTypeahead();
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+
+    const active = box.getAttribute('aria-activedescendant');
+    expect(active).toBeTruthy();
+    // The id must resolve to a real option, or the reference announces nothing.
+    const target = document.getElementById(active!);
+    expect(target).toHaveAttribute('role', 'option');
+    expect(target).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('makes the options direct children of the listbox, with exactly one selected', () => {
+    openTypeahead();
+    const listbox = screen.getByRole('listbox');
+    const options = screen.getAllByRole('option');
+    expect(options.length).toBeGreaterThan(0);
+    for (const o of options) expect(o.parentElement).toBe(listbox);
+    expect(options.filter((o) => o.getAttribute('aria-selected') === 'true')).toHaveLength(1);
+  });
+
+  it('moves the active option — and the reference to it — with ArrowDown', () => {
+    const box = openTypeahead();
+    const first = box.getAttribute('aria-activedescendant');
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    expect(box.getAttribute('aria-activedescendant')).not.toBe(first);
+    expect(document.getElementById(box.getAttribute('aria-activedescendant')!)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('names the listbox, so it is not announced as an unlabelled list', () => {
+    openTypeahead();
+    expect(screen.getByRole('listbox', { name: 'Mention a teammate' })).toBeInTheDocument();
+  });
+});
+
+it('stays a plain textbox when there is no mention pool — no phantom combobox', () => {
+  render(<ConversationComposer onSend={() => {}} />);
+  expect(screen.getByRole('textbox')).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).toBeNull();
+});

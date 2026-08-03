@@ -34,6 +34,29 @@ function written(db: ReturnType<typeof createMockDb>): Details {
 }
 
 describe('advanceStage', () => {
+  /**
+   * `skipped` is not `done`: the schema defines it as "the phase never ran", and the
+   * stepper renders it struck-through and non-navigable on that basis. `mark_complete`
+   * already preserves the distinction; advancing a stage flattened it, which would show
+   * a subset project phases it never performed as completed work.
+   */
+  it('leaves skipped phases skipped — they did not run', () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.status = 'active';
+    d.stages.exploration.phases.brief.status = 'skipped';
+    d.stages.exploration.phases.discover.status = 'skipped';
+    d.stages.exploration.phases.synthesize.status = 'active';
+    const db = dbWith(d);
+
+    return advanceStage(db, 'p1', 'spec').then(() => {
+      const out = written(db);
+      expect(out.stages.exploration.status).toBe('done');
+      expect(out.stages.exploration.phases.brief.status).toBe('skipped');
+      expect(out.stages.exploration.phases.discover.status).toBe('skipped');
+      expect(out.stages.exploration.phases.synthesize.status).toBe('done');
+    });
+  });
+
   it('completes the active stage AND all of its phases, then activates the target', () => {
     const d = buildInitialDetails();
     d.stages.exploration.status = 'active';

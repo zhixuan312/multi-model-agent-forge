@@ -103,7 +103,10 @@ export async function advanceStage(
         stg.status = 'done';
         if (!stg.completedAt) stg.completedAt = now;
         for (const ph of Object.values(stg.phases as Record<string, { status: string }>)) {
-          if (ph.status !== 'done') ph.status = 'done';
+          // `skipped` survives: it means the phase never ran (the stepper renders it
+          // struck-through and non-navigable), so flattening it to `done` would show a
+          // subset project work it never performed. Same rule as `mark_complete`.
+          if (ph.status !== 'done' && ph.status !== 'skipped') ph.status = 'done';
         }
       }
     }

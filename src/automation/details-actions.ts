@@ -759,7 +759,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       let fullSpecMd: string | undefined;
       if (isFirstCall) {
         const { getLatestSpec } = await import('@/spec/assemble');
-        const spec = await getLatestSpec(db, projectId);
+        const spec = await getLatestSpec(projectId);
         fullSpecMd = spec?.bodyMd;
       }
       const { system, user } = buildRefinePrompt({ componentLabel: tpl.label, sectionHeadings: sectionLabels, componentDraftMd, messagesSinceLastForge: delta, isFirstCall, fullSpecMd });

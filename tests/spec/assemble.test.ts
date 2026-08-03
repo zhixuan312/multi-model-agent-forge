@@ -19,7 +19,7 @@ beforeEach(() => {
 describe('getLatestSpec', () => {
   it('returns null when no spec.md exists', async () => {
     readSpecFileMock.mockResolvedValue(null);
-    const result = await getLatestSpec(null, 'proj-1');
+    const result = await getLatestSpec('proj-1');
     expect(result).toBeNull();
   });
 
@@ -29,7 +29,7 @@ describe('getLatestSpec', () => {
       updatedAt: '2026-07-01',
       bodyMd: '## Context\n\n### Background\n\nSome content',
     });
-    const result = await getLatestSpec(null, 'proj-1');
+    const result = await getLatestSpec('proj-1');
     expect(result).toEqual({
       version: 3,
       bodyMd: '## Context\n\n### Background\n\nSome content',

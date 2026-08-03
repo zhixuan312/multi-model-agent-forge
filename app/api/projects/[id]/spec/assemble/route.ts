@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const guard = await guardProjectWrite(req, id, { requireUnfrozen: true });
   if (guard instanceof NextResponse) return guard;
 
-  const spec = await getLatestSpec(null, id);
+  const spec = await getLatestSpec(id);
   if (!spec) {
     return NextResponse.json({ error: 'No spec.md found.' }, { status: 404 });
   }

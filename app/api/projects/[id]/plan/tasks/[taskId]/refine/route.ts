@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const userMessage = body.message ?? '';
   if (!userMessage.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
 
-  const spec = await getLatestSpec(db, id);
+  const spec = await getLatestSpec(id);
   const { system, user } = buildPlanRefinePrompt({
     taskTitle: task.title,
     taskBody,

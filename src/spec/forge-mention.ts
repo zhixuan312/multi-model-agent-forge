@@ -10,6 +10,9 @@
  */
 const FORGE_MENTION = /@forge\b/i;
 
+/** The same rule, globally — one source for detection AND removal. */
+const FORGE_MENTION_ALL = /@forge\b\s*/gi;
+
 /** Whether a composer message is addressed to Forge. */
 export function isForgeMention(text: string): boolean {
   return FORGE_MENTION.test(text);
@@ -24,5 +27,9 @@ export function isForgeMention(text: string): boolean {
  * one instruction, not a mention followed by a literal.
  */
 export function stripForgeMention(text: string, fallback: string): string {
-  return text.replace(/@forge\s*/gi, '').trim() || fallback;
+  // Carries the same `\b` as the detector. Without it these two spellings of one rule
+  // disagreed: "@Forgetful" is NOT a mention, yet strip would have eaten the "@Forge"
+  // out of it and sent "tful". Harmless only for as long as every caller strips solely
+  // after `isForgeMention` says yes.
+  return text.replace(FORGE_MENTION_ALL, '').trim() || fallback;
 }

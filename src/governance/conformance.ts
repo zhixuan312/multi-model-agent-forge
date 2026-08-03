@@ -134,7 +134,10 @@ export const CONFORMANCE_RULES: readonly ConformanceRule[] = [
       !isExportBuilder(p) &&
       !isGovernancePreview(p),
     violations: (f) =>
-      /<table[\s/>]/.test(f.content)
+      // A `sr-only` table is the accessible EQUIVALENT of a chart, not a data grid: it is
+      // never seen, and `DataTable` would render a visible grid with a pager beside the
+      // picture it is describing. The rule is about tabular content the user READS.
+      /<table[\s/>]/.test(f.content) && !/<table className="sr-only"/.test(f.content)
         ? [{ kind: 'extra' as const, reason: 'hand-rolls a raw <table> instead of the governed DataTable' }]
         : [],
   },

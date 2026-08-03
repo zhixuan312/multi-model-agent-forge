@@ -113,6 +113,10 @@ describe('governance conformance checker', () => {
         { path: 'src/components/ui/table.tsx', content: `export function Table(){ return <table/>; }` },
         { path: 'src/export/pdf/template.ts', content: `const html = '<table></table>'` },
         { path: 'src/components/governance/LeftPanelPreview.tsx', content: `<table/>` },
+        // A `sr-only` table is the accessible EQUIVALENT of a chart, not a data grid: it is
+        // never seen, and `DataTable` would render a visible grid with a pager beside the
+        // picture it describes. Adding one to `CostTrendChart` tripped this rule.
+        { path: 'app/(app)/usage/CostTrendChart.tsx', content: `<svg aria-hidden/><table className="sr-only"><tbody/></table>` },
       ], 'leftPanel');
       expect(v).toEqual([]);
     });
@@ -154,4 +158,5 @@ describe('governance conformance checker', () => {
     expect(appShell.violations).toHaveLength(1);
     expect(appShell.violations[0].file).toBe('app/(app)/b/page.tsx');
   });
+
 });

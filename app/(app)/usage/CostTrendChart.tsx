@@ -21,12 +21,6 @@ function niceScale(rawMax: number, targetTicks = 4): { max: number; step: number
   return { max: Math.ceil(rawMax / step) * step, step };
 }
 
-/**
- * Forge-themed daily cost + volume chart (org usage). Volume (dispatches) reads
- * as faint accent bars; spend is an ember area+line; savings a sage dashed line.
- * Hairline gridlines + a $ axis + date ticks; hover reveals a per-day tooltip.
- * Hand-drawn SVG (no chart lib) so it inherits the app's warm palette and theme.
- */
 /** One line of the hover tooltip — the three differed only in tint, label and value. */
 function TooltipRow({ tint, label, value }: { tint: string; label: string; value: ReactNode }) {
   return (
@@ -37,6 +31,12 @@ function TooltipRow({ tint, label, value }: { tint: string; label: string; value
   );
 }
 
+/**
+ * Forge-themed daily cost + volume chart (org usage). Volume (dispatches) reads
+ * as faint accent bars; spend is an ember area+line; savings a sage dashed line.
+ * Hairline gridlines + a $ axis + date ticks; hover reveals a per-day tooltip.
+ * Hand-drawn SVG (no chart lib) so it inherits the app's warm palette and theme.
+ */
 export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoint[]; height?: number }) {
   const gradId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -116,7 +116,10 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
   return (
     <div className="w-full">
       <div ref={ref} className="relative w-full" style={{ height }} onMouseLeave={() => setHover(null)} onMouseMove={onMove}>
-      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} role="img" aria-label="Daily cost and dispatch volume">
+      {/* `aria-hidden`: the picture carries no data a screen reader can reach, and the
+          tooltip that does is `onMouseMove`-only. The same numbers are below as a real
+          table, which is also the only way a keyboard user can read any of them. */}
+      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} aria-hidden>
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
@@ -195,6 +198,29 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
         </div>
       )}
       </div>
+
+      {/* The chart's data, for anyone who cannot read the picture. */}
+      <table className="sr-only">
+        <caption>Daily cost and dispatch volume</caption>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Spent</th>
+            <th scope="col">Saved</th>
+            <th scope="col">Dispatches</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.date}>
+              <th scope="row">{p.date}</th>
+              <td>{formatCost(p.costUsd)}</td>
+              <td>{formatCost(p.savedUsd || null)}</td>
+              <td>{p.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* legend */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-soft">

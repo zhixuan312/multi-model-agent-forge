@@ -19,8 +19,8 @@ describe('safeChildEnv keeps credentials out of build/test subprocesses', () => 
   ];
 
   it('drops every credential-shaped variable, not just the ones named individually', () => {
-    const env: NodeJS.ProcessEnv = Object.fromEntries(SECRETY.map((k) => [k, 'sensitive']));
-    const out = safeChildEnv(env);
+    const env = Object.fromEntries(SECRETY.map((k) => [k, 'sensitive']));
+    const out = safeChildEnv(env as NodeJS.ProcessEnv);
     expect(Object.keys(out)).toEqual([]);
   });
 

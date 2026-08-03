@@ -44,7 +44,12 @@ describe('distribution docs contract', () => {
     const scripts = (
       JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as { scripts: Record<string, string> }
     ).scripts;
-    const OPERATOR_RUN = ['db:reap', 'db:migrate-artifacts'];
+    // `db:seed-journal` is here because it is the DESTRUCTIVE one: it deletes the team
+    // journal's nodes/ before writing the demo dataset. It sat in package.json beside
+    // `db:seed-templates` — which the bootstrap section tells operators to run — and
+    // appeared in no documentation at all, so the only way to learn what it does was to
+    // read the source.
+    const OPERATOR_RUN = ['db:reap', 'db:migrate-artifacts', 'db:seed-journal'];
     for (const script of OPERATOR_RUN) {
       expect(scripts, `${script} is claimed here but not in package.json`).toHaveProperty(script);
       expect(readme, `${script} runs only when an operator runs it — say so in the README`)

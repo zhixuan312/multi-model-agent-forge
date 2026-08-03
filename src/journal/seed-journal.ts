@@ -10,9 +10,20 @@
  *
  * It is a SEED (initial demo population), so it overwrites the seed-managed files
  * (nodes/, log.md, index.md, schema.md). Re-running gives a clean dataset.
+ *
+ * ## It refuses to run over a journal that already has nodes
+ *
+ * That "clean dataset" is a DELETION: `rmSync(nodesDir, { recursive: true })` on the one
+ * team-level store every recall reads and `journal_record` appends to. A team's accumulated
+ * learnings live there and nothing else backs them up.
+ *
+ * The script sat in `package.json` beside `db:seed-templates` — which the README tells
+ * operators to run during bootstrap — and appeared in no documentation at all, so the only
+ * way to know it was destructive was to read this file. It now requires `--force` (or
+ * `{ force: true }`) once the store holds nodes, and says what it would have destroyed.
  */
 import 'dotenv/config';
-import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot } from '@/git/workspace-root';
@@ -113,11 +124,38 @@ This file's prose/tag guidance is human-editable; the status enum, edge-type set
 and id/filename rules are fixed by code and may not be overridden here.
 `;
 
-export function seedJournal(root = resolveWorkspaceRoot()): { dir: string; nodes: number; log: number } {
+/** Thrown when the target journal already holds nodes and `force` was not given. */
+export class JournalNotEmptyError extends Error {
+  constructor(readonly dir: string, readonly existingNodes: number) {
+    super(
+      `${dir} already holds ${existingNodes} journal node(s). Seeding DELETES them. ` +
+      'Re-run with --force if that is really what you want.',
+    );
+    this.name = 'JournalNotEmptyError';
+  }
+}
+
+/** How many `nodes/*.md` the store already holds (0 when the directory is absent). */
+function existingNodeCount(nodesDir: string): number {
+  try {
+    return readdirSync(nodesDir).filter((f) => f.endsWith('.md')).length;
+  } catch {
+    return 0;
+  }
+}
+
+export function seedJournal(
+  root = resolveWorkspaceRoot(),
+  opts: { force?: boolean } = {},
+): { dir: string; nodes: number; log: number } {
   const nodes = loadNodes();
   const log = loadLog();
   const dir = journalDirFor(root);
   const nodesDir = join(dir, 'nodes');
+
+  // Refuse to delete a journal someone is actually using. See the header.
+  const existing = existingNodeCount(nodesDir);
+  if (existing > 0 && !opts.force) throw new JournalNotEmptyError(dir, existing);
 
   // Fresh seed of the managed files (leave any unrelated files in the dir alone).
   rmSync(nodesDir, { recursive: true, force: true });
@@ -136,6 +174,14 @@ export function seedJournal(root = resolveWorkspaceRoot()): { dir: string; nodes
 
 // Run when invoked directly (tsx src/journal/seed-journal.ts).
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { dir, nodes, log } = seedJournal();
-  console.log(`Seeded ${nodes} nodes + ${log} log entries → ${dir}`);
+  try {
+    const { dir, nodes, log } = seedJournal(undefined, { force: process.argv.includes('--force') });
+    console.log(`Seeded ${nodes} nodes + ${log} log entries → ${dir}`);
+  } catch (err) {
+    if (err instanceof JournalNotEmptyError) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    throw err;
+  }
 }

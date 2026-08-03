@@ -155,13 +155,20 @@ ticks.
 
 ## Operating a deployment
 
-Two maintenance commands are the operator's, not the app's — nothing schedules them:
+Three maintenance commands are the operator's, not the app's — nothing schedules them:
 
 ```bash
 pnpm db:reap             # delete expired sessions; run on a cron/systemd timer
 pnpm db:migrate-artifacts # one-shot: move project artifacts under each team's own
                           # workspace root (--dry to preview). A no-op while all
                           # teams share one root; idempotent, and never overwrites.
+pnpm db:seed-journal     # DESTRUCTIVE. Replaces the team journal under
+                          # <workspaceRoot>/.mma/journal/ with the demo dataset —
+                          # it DELETES nodes/ first. That store is where every
+                          # recall reads and where MMA appends each run's
+                          # learnings, and nothing else backs it up. Intended for a
+                          # fresh install or a demo environment. It refuses to run
+                          # once the journal holds nodes; pass --force to override.
 ```
 
 Session validation rejects stale sessions regardless, so skipping the reaper is a

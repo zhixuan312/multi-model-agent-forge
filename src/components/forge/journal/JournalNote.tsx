@@ -7,21 +7,36 @@ import { RailNote } from '@/components/patterns/feature-rail';
  * sections + bullets, plain language. Shown in the 1/3 rail whenever it isn't
  * occupied by a selected node's detail.
  */
-const JOURNAL_NOTE = `### Decision graph
+/* The two notes share their sections verbatim, so the wording cannot drift between
+   tabs — only which sections each one shows differs. */
+const DECISION_GRAPH = `### Decision graph
 
 - **Each node** — one decision the team reached: its crux, the why, the consequence
-- **Edges** — link refinements and supersessions between nodes
+- **Edges** — link refinements and supersessions between nodes`;
 
-### What the status means
+const STATUS_MEANINGS = `### What the status means
 
 - **Adopted** — a live learning
 - **Superseded** — replaced by a newer node
-- **Dropped · inconclusive** — abandoned or unresolved
+- **Dropped · inconclusive** — abandoned or unresolved`;
 
-### Read-only
+const READ_ONLY = `### Read-only
 
 - **Recorded by MMA** — written at project freeze, never edited here`;
 
 export function JournalNote() {
-  return <RailNote icon={<BookText />}>{JOURNAL_NOTE}</RailNote>;
+  return (
+    <RailNote icon={<BookText />}>
+      {[DECISION_GRAPH, STATUS_MEANINGS, READ_ONLY].join('\n\n')}
+    </RailNote>
+  );
+}
+
+/**
+ * The Graph tab's note. It omits the status meanings because the Legend beside it keys
+ * every status with its colour swatch — StageShell stacks the note directly above the
+ * navigator, so passing the full note there printed the four meanings twice in one rail.
+ */
+export function GraphNote() {
+  return <RailNote icon={<BookText />}>{[DECISION_GRAPH, READ_ONLY].join('\n\n')}</RailNote>;
 }

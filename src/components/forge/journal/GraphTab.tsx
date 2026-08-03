@@ -4,6 +4,7 @@ import type { MetricCardProps } from '@/components/ui/metric-card';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { JournalGraph3D } from '@/components/forge/journal/JournalGraph3D';
+import { GraphNote } from '@/components/forge/journal/JournalNote';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
@@ -20,10 +21,10 @@ export function GraphTab({ nodes, edges, metrics }: { nodes: GraphNode[]; edges:
   return (
     <StageShell
       metrics={metrics}
-      // No JournalNote here. Its "What the status means" section listed the same four
-      // statuses the Legend keys, and its "Read-only" bullet was word-for-word the
-      // Legend's — the Graph rail stated both twice, stacked. The Legend is the one
-      // panel on this tab, and carries the note's framing below.
+      // GraphNote, not JournalNote: the full note's "What the status means" listed the
+      // same four statuses the Legend keys with swatches, and StageShell stacks the note
+      // directly above the navigator — so the rail printed them twice.
+      note={<GraphNote />}
       navigator={<GraphLegend />}
     >
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -49,8 +50,9 @@ const STATUS_MEANING: Record<string, string> = {
 
 /**
  * The Graph right-panel — the legend, as a governed Card panel (header + content),
- * the same shape as the Nodes and Recall right-panels rather than a second rail
- * note. Its bullet markers are colour swatches so it doubles as the graph's key.
+ * the same shape as the Nodes and Recall right-panels. A pure KEY: every status and
+ * edge type with its swatch. Framing and provenance live in `GraphNote` above it, so
+ * nothing in this rail is said twice.
  */
 function GraphLegend() {
   const heading = 'mb-2 text-sm font-semibold text-ink';
@@ -60,20 +62,6 @@ function GraphLegend() {
         <CardTitle>Legend</CardTitle>
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
-        <section>
-          <h3 className={heading}>Decision graph</h3>
-          <ul className="flex flex-col gap-1.5">
-            <li className="flex items-start gap-2 text-xs leading-relaxed text-ink-soft">
-              <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
-              <span><span className="font-semibold text-ink">Each node</span> — one decision the team reached: its crux, the why, the consequence</span>
-            </li>
-            <li className="flex items-start gap-2 text-xs leading-relaxed text-ink-soft">
-              <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
-              <span><span className="font-semibold text-ink">Edges</span> — link refinements and supersessions between nodes</span>
-            </li>
-          </ul>
-        </section>
-
         <section>
           <h3 className={heading}>Node status</h3>
           <ul className="flex flex-col gap-1.5">
@@ -109,16 +97,6 @@ function GraphLegend() {
                 <span className="capitalize">{type}</span>
               </li>
             ))}
-          </ul>
-        </section>
-
-        <section>
-          <h3 className={heading}>Read-only</h3>
-          <ul className="flex flex-col gap-1.5">
-            <li className="flex items-start gap-2 text-xs leading-relaxed text-ink-soft">
-              <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
-              <span><span className="font-semibold text-ink">Recorded by MMA</span> — written at project freeze, never edited here</span>
-            </li>
           </ul>
         </section>
       </CardContent>

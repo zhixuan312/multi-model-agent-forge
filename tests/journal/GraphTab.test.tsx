@@ -14,7 +14,9 @@ describe('GraphTab rail', () => {
   /**
    * `JournalNote` and `GraphLegend` were both passed to StageShell, which stacks the
    * note directly above the navigator — so the rail listed the four status meanings
-   * twice and carried two word-for-word "Recorded by MMA" lines.
+   * twice and carried two word-for-word "Recorded by MMA" lines. The tab takes
+   * `GraphNote` now: the note keeps the framing and provenance the governed rail
+   * requires, the Legend keys the statuses, and neither repeats the other.
    */
   it('states each status meaning exactly once', () => {
     render(<GraphTab nodes={nodes} edges={[]} />);
@@ -27,11 +29,11 @@ describe('GraphTab rail', () => {
     expect(screen.getAllByText(/Recorded by MMA/)).toHaveLength(1);
   });
 
-  it('keeps the framing the removed note carried', () => {
+  it('still carries the framing, in the note rather than the key', () => {
     render(<GraphTab nodes={nodes} edges={[]} />);
-    expect(screen.getByText('Decision graph')).toBeInTheDocument();
     expect(screen.getByText(/one decision the team reached/)).toBeInTheDocument();
   });
+
 
   it('still keys every status and every edge type', () => {
     render(<GraphTab nodes={nodes} edges={[]} />);

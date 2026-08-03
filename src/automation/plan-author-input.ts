@@ -7,6 +7,17 @@ interface RepoInput {
   defaultBranch: string;
 }
 
+/**
+ * Build the mma-plan request: the spec by path, plus the linked-repo list that Phase A
+ * needs, with every repo path resolved and checked to be a real directory.
+ *
+ * It deliberately does NOT re-check containment. Repo paths are not caller-supplied —
+ * `resolveCloneTarget` (src/git/workspace.ts) is the single place a repo's `pathOnDisk`
+ * is minted, and it throws `PathEscapeError` unless the path is a direct child of the
+ * workspace root. An "allowlist" check used to live here that was built from the same
+ * `input.repos` it then validated, so it could never fail: it read as a boundary while
+ * enforcing nothing.
+ */
 export async function buildPlanAuthoringRequest(input: {
   repos: RepoInput[];
   specPath: string;
@@ -17,24 +28,11 @@ export async function buildPlanAuthoringRequest(input: {
     throw new Error('Plan authoring requires at least one linked repository.');
   }
 
-  const allowlist = new Set(
-    await Promise.all(
-      input.repos.map(async (repo) => {
-        const raw = repo.pathOnDisk.trim();
-        if (!raw) throw new Error(`Linked repository "${repo.name}" must have a non-empty pathOnDisk.`);
-        return realpath(raw);
-      }),
-    ),
-  );
-
   const lines: string[] = [];
   for (const repo of input.repos) {
     const raw = repo.pathOnDisk.trim();
     if (!raw) throw new Error(`Linked repository "${repo.name}" must have a non-empty pathOnDisk.`);
     const normalized = await realpath(raw);
-    if (!allowlist.has(normalized)) {
-      throw new Error(`Linked repository "${repo.name}" at ${raw} is outside the linked-repository allowlist.`);
-    }
     const st = await stat(normalized);
     if (!st.isDirectory()) {
       throw new Error(`Linked repository "${repo.name}" at ${normalized} is not a directory.`);

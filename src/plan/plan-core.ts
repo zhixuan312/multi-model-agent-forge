@@ -1,4 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
+import { sectionTitle } from '@/lib/markdown-outline';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { qaMessage } from '@/db/schema/spec';
@@ -125,7 +126,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     const metaByTitle = new Map(dbRows.map((r) => [r.title, r]));
 
     tasks = sections.map((s, i) => {
-      const title = s.heading.replace(/^###\s*/, '').trim();
+      const title = sectionTitle(s.heading);
       const meta = metaByTitle.get(title);
       return {
         id: meta?.id ?? `file-task-${i}`,

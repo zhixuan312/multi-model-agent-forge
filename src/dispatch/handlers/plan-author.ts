@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { sectionTitle } from '@/lib/markdown-outline';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -31,7 +32,7 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
   await updateDetails(db, ctx.projectId, (d) => {
     d.stages.plan.phases.refine.tasks = sections.map((s) => {
       const id = randomUUID();
-      const title = s.heading.replace(/^###\s*/, '').trim();
+      const title = sectionTitle(s.heading);
       tasks.push({ id, title });
       return { id, title, status: 'pending' as const, approvals: [], attempts: [], reviewPolicy: 'reviewed' as const };
     });

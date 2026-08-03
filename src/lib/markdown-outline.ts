@@ -101,3 +101,14 @@ export function parseMarkdownOutline(md: string, opts: OutlineOptions): OutlineS
 
   return sections;
 }
+
+/**
+ * A section's title: its heading line with the `###` marker removed.
+ *
+ * Seven call sites stripped the marker with their own inline regex-replace-and-trim, four
+ * of them following it with `.toLowerCase()` to match a label. The parser produces the
+ * heading, so it owns the rule for reading one back.
+ */
+export function sectionTitle(heading: string): string {
+  return heading.replace(/^###\s*/, '').trim();
+}

@@ -1,4 +1,5 @@
 import type { Db } from '@/db/client';
+import { sectionTitle } from '@/lib/markdown-outline';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
@@ -17,7 +18,7 @@ async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown
     for (let i = 0; i < tasks.length; i++) {
       const section = sections[i];
       if (!section) continue;
-      const fileTitle = section.heading.replace(/^###\s*/, '').trim();
+      const fileTitle = sectionTitle(section.heading);
       if (fileTitle !== tasks[i].title) {
         tasks[i].title = fileTitle;
       }

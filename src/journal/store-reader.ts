@@ -17,6 +17,7 @@
  * dir (EACCES) → `unreadable`.
  */
 import { realpathSync, promises as fsp } from 'node:fs';
+import { isNodeId } from '@/journal/node-id';
 import { join, resolve, sep } from 'node:path';
 import type {
   IndexRow,
@@ -265,7 +266,7 @@ export function parseIndexRow(line: string): IndexRow | null {
   if (/^-+$/.test(cells[0]!)) return null; // separator
   // OKF columns: id | timestamp | type | status | title | tags
   const [id, timestamp, type, status, title, tagsCell] = cells;
-  if (!/^\d{4}$/.test(id!)) return null;
+  if (!isNodeId(id!)) return null;
   const tags = (tagsCell ?? '')
     .split(',')
     .map((s) => s.trim())
@@ -503,9 +504,9 @@ export type ReadNodeResult =
   | { ok: true; node: JournalNode }
   | { ok: false; error: NodeParseError };
 
-/** Lazily read a single node BODY by id. Confined; id MUST be `^\d{4}$`. */
+/** Lazily read a single node BODY by id. Confined; id MUST satisfy `isNodeId`. */
 export async function readNode(root: string, id: string): Promise<ReadNodeResult> {
-  if (!/^\d{4}$/.test(id)) {
+  if (!isNodeId(id)) {
     return { ok: false, error: { id: null, filename: id, reason: 'invalid node id' } };
   }
   const dir = journalDirFor(root);

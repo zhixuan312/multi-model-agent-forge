@@ -5,7 +5,7 @@
  */
 
 import { readSpecFile } from '@/projects/project-files';
-import { parseMarkdownOutline } from '@/lib/markdown-outline';
+import { parseMarkdownOutline, sectionTitle } from '@/lib/markdown-outline';
 
 /** Any `###` line opens a section — a spec author is not constrained in how they title one. */
 const SECTION_HEADING_RE = /^### .+/;
@@ -47,6 +47,6 @@ export async function readComponentSections(
   const sections = parseSpecSections(file.bodyMd);
   const labelSet = new Set(sectionLabels.map((l) => l.toLowerCase()));
   return sections
-    .filter((s) => labelSet.has(s.heading.replace(/^###\s*/, '').trim().toLowerCase()))
+    .filter((s) => labelSet.has(sectionTitle(s.heading).toLowerCase()))
     .map((s) => ({ heading: s.heading, body: s.body }));
 }

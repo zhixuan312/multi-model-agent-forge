@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { isNodeId } from '@/journal/node-id';
 import { guardJournal } from '@/journal/guard';
 import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { readNode, readNodeFrontmatters, computeInbound } from '@/journal/store-reader';
@@ -6,7 +7,7 @@ import { readNode, readNodeFrontmatters, computeInbound } from '@/journal/store-
 /**
  * `GET /api/journal/nodes/[id]` — lazy single-node body load. Auth-gated.
  *
- * Defence-in-depth id guard: the route rejects any id that isn't `^\d{4}$`
+ * Defence-in-depth id guard: the route rejects any id failing `isNodeId`
  * (400) BEFORE invoking the reader, so a crafted `../etc` / `12` / `abc` never
  * reaches the filesystem layer (the reader's confinement assert is the backstop).
  *
@@ -24,7 +25,7 @@ export async function GET(
   if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
-  if (!/^\d{4}$/.test(id)) {
+  if (!isNodeId(id)) {
     return NextResponse.json({ error: 'Invalid node id.' }, { status: 400 });
   }
 

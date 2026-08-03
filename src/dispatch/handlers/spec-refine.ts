@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { sectionTitle } from '@/lib/markdown-outline';
 import type { Db } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
@@ -41,7 +42,7 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
       // Build a replacement map from the MMA response
       const replacements = new Map<string, string>();
       for (const chunk of chunks) {
-        const label = chunk.heading.replace(/^###\s*/, '').trim().toLowerCase();
+        const label = sectionTitle(chunk.heading).toLowerCase();
         replacements.set(label, chunk.body);
       }
 
@@ -52,10 +53,10 @@ async function handleSpecRefine(db: Db, ctx: MmaBatchCtx, envelope: unknown): Pr
         const lines = file.bodyMd.split('\n');
         // Apply replacements from last to first to preserve line numbers
         const sorted = allSections
-          .filter((s) => replacements.has(s.heading.replace(/^###\s*/, '').trim().toLowerCase()))
+          .filter((s) => replacements.has(sectionTitle(s.heading).toLowerCase()))
           .sort((a, b) => b.startLine - a.startLine);
         for (const sec of sorted) {
-          const label = sec.heading.replace(/^###\s*/, '').trim().toLowerCase();
+          const label = sectionTitle(sec.heading).toLowerCase();
           const newBody = replacements.get(label)!;
           const replacement = [sec.heading, '', newBody.trim(), ''];
           lines.splice(sec.startLine, sec.endLine - sec.startLine + 1, ...replacement);

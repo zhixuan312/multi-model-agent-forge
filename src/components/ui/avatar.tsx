@@ -7,6 +7,17 @@ import { cn } from '@/lib/cn';
  * explicit `initials` string. `tint` is a hex used to mix a soft background +
  * matching foreground via `color-mix`, so any team color drops in without new
  * tokens. Defaults to the ember accent tint.
+ *
+ * NAMING IS THE CALLER'S JOB. This renders a `<span>`, which maps to the
+ * `generic` role, and ARIA prohibits naming a generic element — so an
+ * `aria-label` here is silently discarded by every browser. It used to set one
+ * from `name`, which read as "accessibility handled" while reaching no screen
+ * reader; every call site had already worked around it. Supply the name one of
+ * three ways, all of which are in use:
+ *
+ *   - adjacent text + `aria-hidden` on the avatar (the common case)
+ *   - a `title` attribute, which IS a valid name source on a span
+ *   - a Tooltip wrapper that names the trigger
  */
 const avatarVariants = cva(
   'inline-flex shrink-0 select-none items-center justify-center rounded-full font-medium uppercase leading-none',
@@ -49,7 +60,6 @@ export function Avatar({ className, size, name, initials, tint, style, ...rest }
         color: `color-mix(in oklab, ${seed} 72%, var(--ink))`,
         ...style,
       }}
-      aria-label={name ?? undefined}
       {...rest}
     >
       {text}

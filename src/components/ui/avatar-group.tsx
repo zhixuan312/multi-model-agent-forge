@@ -39,7 +39,11 @@ export function AvatarGroup({
         />
       ))}
       {extra > 0 ? (
+        // Hidden like the avatars it follows. Every avatar in this stack is decorative, so
+        // announcing a bare "+2" in the middle of the card's meta line ("Ada Lovelace, +2,
+        // private, 3 repos") is a fragment with nothing to attach to.
         <span
+          aria-hidden
           className="inline-grid size-6 place-items-center rounded-full bg-surface-2 text-[0.625rem] font-semibold text-ink-soft ring-2 ring-surface"
           style={{ marginLeft: -7 }}
         >

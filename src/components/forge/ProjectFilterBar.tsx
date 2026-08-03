@@ -39,10 +39,10 @@ export interface FilterableProject {
   summary: string | null;
   isMember: boolean;
   awaitingHuman: number;
-  openAuditIssues: number;
+  auditsNeedingFix: number;
 }
 
-const needsAction = (p: FilterableProject) => p.awaitingHuman > 0 || p.openAuditIssues > 0;
+const needsAction = (p: FilterableProject) => p.awaitingHuman > 0 || p.auditsNeedingFix > 0;
 
 /** Pure filter — exported for unit tests. */
 export function filterProjects<T extends FilterableProject>(

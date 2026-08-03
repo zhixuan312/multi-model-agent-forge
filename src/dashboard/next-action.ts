@@ -15,10 +15,10 @@ export interface NextAction {
 export interface NextActionInput {
   phase: ProjectPhase;
   currentStage: StageKind | null;
-  /** Spec sections where the AI gate is satisfied but the human gate is not. */
+  /** Spec components with no approval yet. (There is no AI-gate flag in details to read.) */
   awaitingHuman: number;
-  /** Open findings on the latest audit pass (verdict = revised). */
-  openAuditIssues: number;
+  /** Audited stages whose LATEST pass came back `revised` — 0, 1 or 2. Not a finding count. */
+  auditsNeedingFix: number;
 }
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -26,10 +26,16 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 export function deriveNextAction(i: NextActionInput): NextAction {
   // Blockers first — a decision the human owes the flow.
   if (i.awaitingHuman > 0) {
-    return { label: `Review — ${plural(i.awaitingHuman, 'section')} need you`, tone: 'attention' };
+    // `need`/`needs` agrees with the count — one section "need you" was the copy that
+    // shipped, and its test asserted the broken string.
+    const verb = i.awaitingHuman === 1 ? 'needs' : 'need';
+    return { label: `Review — ${plural(i.awaitingHuman, 'section')} ${verb} you`, tone: 'attention' };
   }
-  if (i.openAuditIssues > 0) {
-    return { label: `Resolve ${plural(i.openAuditIssues, 'audit finding')}`, tone: 'attention' };
+  if (i.auditsNeedingFix > 0) {
+    // Not `${n} audit findings`: this counts STAGES, capped at two, so a spec pass with
+    // twelve findings read "Resolve 1 audit finding". Details stores no finding count,
+    // so the honest label carries no number at all.
+    return { label: 'Resolve audit findings', tone: 'attention' };
   }
   // Otherwise, the stage-driven next step.
   switch (i.phase) {

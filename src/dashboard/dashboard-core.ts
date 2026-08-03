@@ -21,7 +21,7 @@ import {
   type ProjectsDeps,
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
-import { readExplorationSummary, readSpecFile, readPlanFile } from '@/projects/project-files';
+import { readExplorationFile, readSpecFile, readPlanFile } from '@/projects/project-files';
 import { validateDetails } from '@/details/schema';
 
 export interface DashboardCollaborator {
@@ -31,10 +31,21 @@ export interface DashboardCollaborator {
 }
 
 export interface DashboardProject extends ProjectListItem {
-  /** Spec sections where the AI gate passed but the human gate hasn't (the keystone signal). */
+  /**
+   * Spec components the human has not approved yet (`approvals` is empty).
+   *
+   * This said "the AI gate passed but the human gate hasn't". `componentSchema` carries
+   * `approvals` and nothing else — there is no AI-gate flag in details to read — so that
+   * was never what this counted, and a project showed "N sections need you" from the
+   * moment its components existed.
+   */
   awaitingHuman: number;
-  /** Open findings on the latest audit pass per scope. */
-  openAuditIssues: number;
+  /**
+   * How many of the two audited stages (spec, plan) have a latest audit pass of
+   * `revised` — so 0, 1 or 2. NOT a finding count: `auditPassSchema` stores `passNo`,
+   * `status` and attempts, never the findings themselves.
+   */
+  auditsNeedingFix: number;
   /** Live agent work — running mma batches + running exploration tasks. */
   agentsRunning: number;
   /** The furthest-along artifact, for the status chip. */
@@ -79,7 +90,7 @@ export async function dashboardProjects(
     } catch { /* skip invalid */ }
   }
 
-  // Open audit issues: from details audit passes
+  // Audits needing a fix pass: per stage, whether its LATEST pass came back `revised`.
   const auditByP = new Map<string, number>();
   for (const r of detailsRows) {
     if (!r.details) continue;
@@ -113,16 +124,17 @@ export async function dashboardProjects(
     } catch { /* skip */ }
   }
 
-  // Latest artifact: furthest-along kind — all checked via file existence.
+  // Latest artifact: furthest-along kind, with its REAL version. Each of these readers
+  // returns `{ version, bodyMd }` and the version used to be discarded for a literal `1`,
+  // so `ProjectCard` printed "Spec v1" for a spec on its fourteenth revision.
   const artByP = new Map<string, { kind: ArtifactKind; version: number }>();
   for (const pid of ids) {
-    if (await readPlanFile(pid)) {
-      artByP.set(pid, { kind: 'plan', version: 1 });
-    } else if (await readSpecFile(pid)) {
-      artByP.set(pid, { kind: 'spec', version: 1 });
-    } else if (await readExplorationSummary(pid)) {
-      artByP.set(pid, { kind: 'exploration', version: 1 });
-    }
+    const plan = await readPlanFile(pid);
+    if (plan) { artByP.set(pid, { kind: 'plan', version: plan.version }); continue; }
+    const spec = await readSpecFile(pid);
+    if (spec) { artByP.set(pid, { kind: 'spec', version: spec.version }); continue; }
+    const exploration = await readExplorationFile(pid);
+    if (exploration) artByP.set(pid, { kind: 'exploration', version: exploration.version });
   }
 
   // Collaborators: the members who ACTUALLY participated — details tracks participant
@@ -173,11 +185,11 @@ export async function dashboardProjects(
   return base.map((p) => {
     const inDesign = DESIGN_STAGES.has(p.currentStage ?? '');
     const awaitingHuman = inDesign ? (awaitingByP.get(p.id) ?? 0) : 0;
-    const openAuditIssues = inDesign ? (auditByP.get(p.id) ?? 0) : 0;
+    const auditsNeedingFix = inDesign ? (auditByP.get(p.id) ?? 0) : 0;
     return {
       ...p,
       awaitingHuman,
-      openAuditIssues,
+      auditsNeedingFix,
       agentsRunning: agentsByP.get(p.id) ?? 0,
       latestArtifact: artByP.get(p.id) ?? null,
       collaborators: collabByP.get(p.id) ?? [],
@@ -185,7 +197,7 @@ export async function dashboardProjects(
         phase: p.phase,
         currentStage: p.currentStage,
         awaitingHuman,
-        openAuditIssues,
+        auditsNeedingFix,
       }),
     };
   });
@@ -207,7 +219,7 @@ export async function dashboardArchivedProjects(
   return rows.map((p) => ({
     ...p,
     awaitingHuman: 0,
-    openAuditIssues: 0,
+    auditsNeedingFix: 0,
     agentsRunning: 0,
     latestArtifact: null,
     collaborators: [],
@@ -215,7 +227,7 @@ export async function dashboardArchivedProjects(
       phase: p.phase,
       currentStage: p.currentStage,
       awaitingHuman: 0,
-      openAuditIssues: 0,
+      auditsNeedingFix: 0,
     }),
   }));
 }
@@ -223,10 +235,12 @@ export async function dashboardArchivedProjects(
 /** The five flow-health metrics — reduced from the enriched list (no extra round-trips). */
 export function dashboardMetrics(projects: DashboardProject[]): DashboardMetrics {
   return {
-    active: projects.filter((p) => p.phase !== 'learn').length,
+    // `!== 'learn'` alone counted COMPLETED projects as active — `details/write.ts` sets
+    // `phase: 'completed'` at the end of the journal stage, and the store has such rows.
+    active: projects.filter((p) => p.phase !== 'learn' && p.phase !== 'completed').length,
     awaitingHuman: projects.filter((p) => p.awaitingHuman > 0).length,
     agentsRunning: projects.filter((p) => p.agentsRunning > 0).length,
     inBuild: projects.filter((p) => p.phase === 'build').length,
-    auditIssues: projects.filter((p) => p.openAuditIssues > 0).length,
+    auditIssues: projects.filter((p) => p.auditsNeedingFix > 0).length,
   };
 }

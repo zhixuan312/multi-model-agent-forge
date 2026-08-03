@@ -38,27 +38,17 @@ export type ProjectEvent =
   | { type: 'synthesis.updated'; artifactId: string; version: number }
   // ── Reflect journal-row events (project_journal staging table) ────────────
   | { type: 'journal.updated'; rowId: string; status: 'proposed' | 'kept' | 'removed' | 'recorded' }
-  // ── Spec 7 build-monitor events (all project-scoped) ──────────────────────
+  // The build-monitor design once declared eleven more events here — plan.failed,
+  // audit.pass, task.executing/verifying/fixing/fixed/committed, build.task_failed,
+  // review.done, execute.notice, cost.tick. NOTHING published any of them, so no
+  // component could have rendered one however it subscribed. Removed rather than left as
+  // a menu of signals that do not exist. (`plan.authored` stays: it IS published, and any
+  // component can pick it up through `useMmaDispatch`'s `events` map.)
   | {
       type: 'plan.authored';
       tasks: Array<{ id: string; title: string; repo: string; reviewPolicy: string }>;
       writeTargets: string[];
       readOnly: string[];
-    }
-  | { type: 'plan.failed'; reason: string }
-  | { type: 'audit.pass'; repo: string; pass: number; findingsCount: number; verdict: 'revised' | 'clean' }
-  | { type: 'task.executing'; taskId: string; repo: string; branch: string; title: string }
-  | { type: 'task.verifying'; taskId: string }
-  | { type: 'task.fixing'; taskId: string; note: string }
-  | { type: 'task.fixed'; taskId: string; note: string }
-  | { type: 'task.committed'; taskId: string; commitSha: string }
-  | { type: 'build.task_failed'; taskId: string; reason: string }
-  | { type: 'review.done'; repo: string; verdict: 'approved' | 'changes_required' | 'error'; findingsCount: number }
-  | { type: 'execute.notice'; memberId: string; repo: string }
-  | {
-      type: 'cost.tick';
-      runCostUsd: number;
-      byRoute: { audit: number; executePlan: number; review: number };
     }
   | { type: 'heartbeat'; t: number }
   // ── Universal dispatch events (handler-based, all routes) ────────────────
@@ -82,7 +72,6 @@ export type ProjectEvent =
       targetId: string;
       message: { id: string; sender?: 'forge' | 'member'; authorId: string; authorName: string; bodyMd: string };
     }
-  | { type: 'chat.typing'; componentId: string; typing: boolean }
   // ── Automation events ────────────────────────────────────────────
   | { type: 'automation.progress'; note: string; stage?: string; phase?: string; kind?: 'action' | 'error' | 'done'; durationMs?: number }
   | { type: 'automation.step_done'; step: string; stage?: string; phase?: string; stepIndex?: number }

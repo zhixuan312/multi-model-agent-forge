@@ -247,9 +247,6 @@ export function SpecStageClient(props: SpecStageClientProps) {
       'spec.updated': () => void refreshComponents(),
       'chat.message': (data) => {
         window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
-      },
-      'chat.typing': (data) => {
-        window.dispatchEvent(new CustomEvent('chat:typing', { detail: data }));
       } } });
 
   const needsAutoDraft = components.length > 0 && components.some(
@@ -911,21 +908,13 @@ function CraftStage({
         setRefiningComponents((prev) => { const next = new Set(prev); next.delete(cid); return next; });
       }
     };
-    const typingHandler = (e: Event) => {
-      const { componentId: cid, typing } = (e as CustomEvent).detail as { componentId: string; typing: boolean };
-      setRefiningComponents((prev) => {
-        const next = new Set(prev);
-        if (typing) next.add(cid); else next.delete(cid);
-        return next;
-      });
-      // eslint-disable-next-line react-hooks/immutability -- setCraftView is a stable useCallback declared below; captured here via closure inside a one-time listener
-      if (cid === activeIdRef.current && typing) setCraftView('conversation');
-    };
+    // There was a `chat:typing` listener here that toggled `refiningComponents` and
+    // switched the craft view to the conversation. NOTHING ever published `chat.typing`,
+    // so neither effect could fire — a per-component "Forge is typing" state the server
+    // had no way to enter. Removed with the event.
     window.addEventListener('chat:message', handler);
-    window.addEventListener('chat:typing', typingHandler);
     return () => {
       window.removeEventListener('chat:message', handler);
-      window.removeEventListener('chat:typing', typingHandler);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: attach window listeners once on mount; referenced values are read via refs/stable callbacks
   }, []);
@@ -967,7 +956,6 @@ function CraftStage({
   // `if (!active)` early return below, or hook order changes between renders
   // (rules of hooks). Their inputs are computed defensively for the null case.
   const [craftViewOverride, setCraftViewOverride] = useState<Record<string, 'spec' | 'conversation'>>({});
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- reads activeIdRef.current (a ref) inside a stable callback; empty deps are intentional
   const setCraftView = useCallback((v: 'spec' | 'conversation') => {
     setCraftViewOverride((prev) => ({ ...prev, [activeIdRef.current!]: v }));
   }, []);

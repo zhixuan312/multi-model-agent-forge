@@ -5,8 +5,9 @@
  */
 
 import { readSpecFile } from '@/projects/project-files';
+import { parseMarkdownOutline } from '@/lib/markdown-outline';
 
-const COMPONENT_HEADING_RE = /^## .+/;
+/** Any `###` line opens a section — a spec author is not constrained in how they title one. */
 const SECTION_HEADING_RE = /^### .+/;
 
 export interface SpecSection {
@@ -17,57 +18,23 @@ export interface SpecSection {
   endLine: number;
 }
 
-/** Parse spec.md into sections by splitting on ### headings under ## components. */
+/**
+ * Parse spec.md into sections by splitting on `###` headings under `##` components.
+ *
+ * `implicitSection` is on: a component written as one unheaded block still yields a
+ * section, titled after the component.
+ */
 export function parseSpecSections(specMd: string): SpecSection[] {
-  const lines = specMd.split('\n');
-  const sections: SpecSection[] = [];
-  let currentComponent: string | undefined;
-  let current: { component: string; heading: string; startLine: number; bodyLines: string[] } | null = null;
-  let inCodeFence = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('```')) { inCodeFence = !inCodeFence; if (current) current.bodyLines.push(lines[i]); continue; }
-    if (inCodeFence) { if (current) current.bodyLines.push(lines[i]); continue; }
-
-    if (COMPONENT_HEADING_RE.test(lines[i]) && !SECTION_HEADING_RE.test(lines[i])) {
-      if (current) {
-        sections.push({
-          component: current.component,
-          heading: current.heading,
-          body: current.bodyLines.join('\n').trim(),
-          startLine: current.startLine,
-          endLine: i - 1,
-        });
-        current = null;
-      }
-      currentComponent = lines[i].replace(/^##\s*/, '').trim();
-    } else if (SECTION_HEADING_RE.test(lines[i])) {
-      if (current) {
-        sections.push({
-          component: current.component,
-          heading: current.heading,
-          body: current.bodyLines.join('\n').trim(),
-          startLine: current.startLine,
-          endLine: i - 1,
-        });
-      }
-      current = { component: currentComponent ?? '', heading: lines[i], startLine: i, bodyLines: [] };
-    } else if (!current && currentComponent && lines[i].trim() && !lines[i].startsWith('#')) {
-      current = { component: currentComponent, heading: `### ${currentComponent}`, startLine: i, bodyLines: [lines[i]] };
-    } else if (current) {
-      current.bodyLines.push(lines[i]);
-    }
-  }
-  if (current) {
-    sections.push({
-      component: current.component,
-      heading: current.heading,
-      body: current.bodyLines.join('\n').trim(),
-      startLine: current.startLine,
-      endLine: lines.length - 1,
-    });
-  }
-  return sections;
+  return parseMarkdownOutline(specMd, {
+    itemHeading: SECTION_HEADING_RE,
+    implicitSection: true,
+  }).map(({ container, heading, body, startLine, endLine }) => ({
+    component: container,
+    heading,
+    body,
+    startLine,
+    endLine,
+  }));
 }
 
 /** Read all sections for a component from spec.md, matched by section labels. */

@@ -5,6 +5,7 @@
  */
 
 import { backupArtifact, readPlanFile, writePlan } from '@/projects/project-files';
+import { parseMarkdownOutline } from '@/lib/markdown-outline';
 
 const writeLocks = new Map<string, Promise<unknown>>();
 async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -16,8 +17,11 @@ async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise
   }
 }
 
+/**
+ * A task heading, not just any `###`. Plan bodies contain their own `###` subheadings
+ * (`### Notes`), and treating those as tasks would split one task into several.
+ */
 const TASK_HEADING_RE = /^### (?:Task |[A-Z0-9]+[\s\.\:\—\-]).+/;
-const PHASE_HEADING_RE = /^## .+/;
 
 export interface PlanTaskSection {
   heading: string;
@@ -29,52 +33,16 @@ export interface PlanTaskSection {
 
 /** Parse plan.md into task sections by splitting on ### headings, with ## headings as phase markers. */
 export function parsePlanSections(planMd: string): PlanTaskSection[] {
-  const lines = planMd.split('\n');
-  const sections: PlanTaskSection[] = [];
-  let currentPhase: string | undefined;
-  let current: { heading: string; phase?: string; startLine: number; bodyLines: string[] } | null = null;
-  let inCodeFence = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('```')) { inCodeFence = !inCodeFence; if (current) current.bodyLines.push(lines[i]); continue; }
-    if (inCodeFence) { if (current) current.bodyLines.push(lines[i]); continue; }
-    if (PHASE_HEADING_RE.test(lines[i]) && !TASK_HEADING_RE.test(lines[i])) {
-      if (current) {
-        sections.push({
-          heading: current.heading,
-          body: current.bodyLines.join('\n').trim(),
-          phase: current.phase,
-          startLine: current.startLine,
-          endLine: i - 1,
-        });
-        current = null;
-      }
-      currentPhase = lines[i].replace(/^##\s*/, '').trim();
-    } else if (TASK_HEADING_RE.test(lines[i])) {
-      if (current) {
-        sections.push({
-          heading: current.heading,
-          body: current.bodyLines.join('\n').trim(),
-          phase: current.phase,
-          startLine: current.startLine,
-          endLine: i - 1,
-        });
-      }
-      current = { heading: lines[i], phase: currentPhase, startLine: i, bodyLines: [] };
-    } else if (current) {
-      current.bodyLines.push(lines[i]);
-    }
-  }
-  if (current) {
-    sections.push({
-      heading: current.heading,
-      body: current.bodyLines.join('\n').trim(),
-      phase: current.phase,
-      startLine: current.startLine,
-      endLine: lines.length - 1,
-    });
-  }
-  return sections;
+  return parseMarkdownOutline(planMd, { itemHeading: TASK_HEADING_RE }).map(
+    ({ container, heading, body, startLine, endLine }) => ({
+      heading,
+      body,
+      // No `##` seen yet leaves the task unphased, which is `undefined`, not `''`.
+      phase: container || undefined,
+      startLine,
+      endLine,
+    }),
+  );
 }
 
 /** Read a specific task section from plan.md by matching its title. */

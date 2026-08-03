@@ -13,7 +13,7 @@ import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { team } from '@/db/schema/team';
 import { type SecretStore } from '@/secrets/secret-store';
-import { WorkspaceService, PathEscapeError, WorkspaceRootError } from '@/git/workspace';
+import { WorkspaceService, PathEscapeError } from '@/git/workspace';
 import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { isUniqueViolation } from '@/db/errors';
 import { resolveSecrets } from '@/secrets/resolve-secrets';
@@ -187,12 +187,14 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
     return { kind: 'cloned', repo: toView(updated) };
   } catch (e) {
     const [errored] = await db.update(repo).set({ status: 'error' }).where(eq(repo.id, rowId)).returning();
+    // Only the path-escape case gets a rewritten message — its raw form names internals
+    // the operator cannot act on. Everything else, WorkspaceRootError included, already
+    // carries an operator-facing message. (The WorkspaceRootError branch used to be
+    // spelled out separately and produced exactly the same value as the default.)
     const message =
       e instanceof PathEscapeError
         ? 'The repo name is not allowed (it escapes the workspace).'
-        : e instanceof WorkspaceRootError
-          ? (e as Error).message
-          : (e as Error).message;
+        : (e as Error).message;
     return { kind: 'error', message, repo: errored ? toView(errored) : undefined };
   }
 }

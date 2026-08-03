@@ -36,6 +36,30 @@ describe('input schemas', () => {
 });
 
 describe('createMember', () => {
+  /**
+   * `isAdmin` on CREATE had no test. The Add-member form sends it from its Role picker,
+   * and `createMember` maps it to `role: 'team_admin'` — but the route's own header
+   * documented the body as `{ displayName, username, password }` and the response as
+   * `isAdmin:false`, which reads as "you cannot create an admin here". Nothing would have
+   * caught someone deleting the field the UI depends on.
+   */
+  it('creates a team_admin when isAdmin is true, and a member otherwise', async () => {
+    for (const [isAdmin, role] of [[true, 'team_admin'], [false, 'member'], [undefined, 'member']] as const) {
+      const db = createMockDb({
+        'select:team_member': [],
+        'insert:team_member': [createBaseMember({ id: 'm1', username: 'ada', role, teamId: 'team-1' })],
+      });
+      const res = await createMember(
+        { displayName: 'Ada', username: 'ada', password: STRONG, ...(isAdmin === undefined ? {} : { isAdmin }) },
+        'team-1',
+        { db },
+      );
+      expect(res.kind).toBe('created');
+      const values = db._callsFor('team_member').find((c) => c.method === 'values');
+      expect(JSON.stringify(values?.args), `isAdmin=${isAdmin}`).toContain(`"role":"${role}"`);
+    }
+  });
+
   it('inserts member + one local identity with teamId; hashes the password (never stores plaintext)', async () => {
     const created = createBaseMember({ id: 'm1', username: 'ada', role: 'member', teamId: 'team-1' });
     const db = createMockDb({ 'select:team_member': [], 'insert:team_member': [created] });

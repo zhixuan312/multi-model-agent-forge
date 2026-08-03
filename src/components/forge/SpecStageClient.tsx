@@ -74,7 +74,7 @@ import { responseError } from '@/lib/err';
 
 /**
  * One row in the audit-pass timeline ("pass 1: 2 findings → revised") — the CLIENT
- * narrowing of `spec/audit-loop`'s row (which also carries `createdAt`, unused here).
+ * narrowing of `spec/audit-loop`'s row.
  * Findings use the canonical `Finding` contract, so no field-by-field remap is needed.
  */
 export interface AuditPassView {

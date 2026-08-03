@@ -10,8 +10,8 @@ import { SEVERITY_ORDER, isBlockingSeverity, type Severity } from '@/lib/severit
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
- * + `nextPassNo` are used by both handlers. `auditPassHistory` + `latestAuditPass`
- * serve the UI. Dispatch is async via `dispatchMma`.
+ * + `nextPassNo` are used by both handlers; `auditPassHistory` serves the UI.
+ * Dispatch is async via `dispatchMma`.
  */
 
 /** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */
@@ -124,7 +124,6 @@ export interface AuditPassView {
   passNo: number;
   findingsCount: number;
   verdict: AuditVerdict;
-  createdAt: Date;
   findings: ParsedFinding[];
   /** Any fix attempt was recorded for this pass. Kept for the rail's "applied" chip. */
   applied: boolean;
@@ -190,7 +189,6 @@ export async function auditPassHistory(db: Db, projectId: string, scope: 'spec' 
       passNo: p.passNo,
       findingsCount: findings.length,
       verdict: p.status as AuditVerdict,
-      createdAt: new Date(),
       findings,
       applied: !!p.fix?.attempts?.length,
       appliedIndices: [...(appliedByPass.get(p.passNo) ?? [])].sort((a, b) => a - b),

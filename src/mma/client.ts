@@ -137,7 +137,15 @@ export class MmaClient {
     this.timeoutMs = resolveFetchTimeout(opts.timeoutMs);
     this.pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.waitTimeoutMs = opts.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
-    this.client = opts.client ?? process.env.MMA_CLIENT?.trim() ?? 'claude-code';
+    // `claude-code` is DELIBERATE, not a copy-paste: the engine allowlists
+    // claude-code|cursor|codex-cli|gemini-cli and answers `400 client_required` on every
+    // tool route for anything else — including 'forge'. Sending our real name would take
+    // every dispatch down until the engine's allowlist gains a Forge value. Do not
+    // "correct" this without that landing first.
+    //
+    // `||`, not `??`: `MMA_CLIENT=` (set but blank) would otherwise send an empty header,
+    // which the engine reads as unknown → 400 on every dispatch.
+    this.client = opts.client || process.env.MMA_CLIENT?.trim() || 'claude-code';
   }
 
   private url(path: string): string {

@@ -47,3 +47,26 @@ describe('DOC_TEMPLATES', () => {
     }
   });
 });
+
+/**
+ * "Full Specification" means every component kind. Written out as a literal, a kind added
+ * to COMPONENT_KIND and forgotten here would leave the preset quietly not full — the same
+ * fail-quiet direction as a completion guard that stops checking a stage.
+ */
+describe('the Full Specification preset covers every kind', () => {
+  it('matches COMPONENT_KIND exactly, whatever it holds', async () => {
+    const { COMPONENT_KIND } = await import('@/db/enums');
+    const full = DOC_TEMPLATES.find((t) => t.id === 'full_spec');
+    expect(full, 'the full_spec preset is gone').toBeDefined();
+    expect([...full!.kinds].sort()).toEqual([...COMPONENT_KIND].sort());
+  });
+
+  it('every preset names only real kinds', async () => {
+    const { COMPONENT_KIND } = await import('@/db/enums');
+    for (const t of DOC_TEMPLATES) {
+      for (const k of t.kinds) {
+        expect(COMPONENT_KIND, `${t.id} names an unknown kind "${k}"`).toContain(k);
+      }
+    }
+  });
+});

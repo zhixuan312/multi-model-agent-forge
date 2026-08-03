@@ -1,4 +1,4 @@
-import type { ComponentKind } from '@/db/enums';
+import { COMPONENT_KIND, type ComponentKind } from '@/db/enums';
 
 /**
  * Spec component templates — the canonical component + section structure. Each
@@ -138,7 +138,10 @@ export const DOC_TEMPLATES: readonly DocTemplate[] = [
     id: 'full_spec',
     label: 'Full Specification',
     description: 'Complete spec — context through tasks',
-    kinds: ['context', 'problem', 'goals_requirements', 'alternatives', 'technical_design', 'testing_plan', 'risks', 'stories_tasks'],
+    // DERIVED: "Full" means every kind. Written out, a kind added to COMPONENT_KIND and
+    // forgotten here would leave the Full Specification preset quietly not full. The other
+    // presets below are curated subsets and stay explicit.
+    kinds: [...COMPONENT_KIND],
   },
   {
     id: 'rfc',

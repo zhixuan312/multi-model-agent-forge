@@ -24,7 +24,7 @@ import { projectWorktreePath } from '@/build/project-worktree';
 import { cancelInFlightBatches } from '@/dispatch/cancel-inflight';
 import { parseAuditEnvelope } from '@/spec/audit-loop';
 import { extractReviewFindings, buildReviewFixPrompt, type RawReviewFinding } from '@/review/review-findings';
-import type { AutoAction } from '@/automation/details-resolver';
+import type { ActionKind, AutoAction } from '@/automation/details-resolver';
 import { member } from '@/db/schema/identity';
 import { recordActivity } from '@/activity/project-activity';
 import { buildJournalRecordChunks } from '@/journal/journal-record-request';
@@ -39,7 +39,7 @@ export type ActionResult = 'ok' | 'inflight';
  * The DB is the single source of truth for "is one already in flight?" — every
  * such action is checked against it BEFORE dispatch (see the guard below).
  */
-const MMA_HANDLER_FOR: Record<string, (a: AutoAction) => string> = {
+const MMA_HANDLER_FOR: Partial<Record<ActionKind, (a: AutoAction) => string>> = {
   dispatch_audit: (a) => `${a.stage === 'spec' ? 'spec' : 'plan'}-audit`,
   apply_findings: (a) => `${a.stage === 'spec' ? 'spec' : 'plan'}-audit-apply`,
   dispatch_plan_author: () => 'plan-author',
@@ -62,7 +62,7 @@ const MMA_HANDLER_FOR: Record<string, (a: AutoAction) => string> = {
 /** Whether an action dispatches an MMA batch (→ its running timeline line is
  * resolved by the batch terminal) vs. a synchronous approval/advance (→ the driver
  * resolves its own line immediately). Single source: the handler map above. */
-export function isBatchBackedAction(kind: string): boolean {
+export function isBatchBackedAction(kind: ActionKind): boolean {
   return kind in MMA_HANDLER_FOR;
 }
 
@@ -153,7 +153,12 @@ async function loadActivityActor(db: Db, actorId: string) {
   };
 }
 
-// keep the existing switch logic, and add this helper call to the three frozen seams:
+/**
+ * Timeline line for the three transitions that have no MMA batch to speak for them
+ * (`approve_task`, `advance_phase`, `advance_stage`). Attributed to the human when the
+ * action carries an `actorId`, to Forge otherwise; the `eventKey` makes each one
+ * idempotent, so a retried transition doesn't double-post.
+ */
 async function recordTransitionActivity(
   db: Db,
   projectId: string,
@@ -398,12 +403,12 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         body: { prompt: `Review the plan task "${taskTitle}" for completeness, accuracy, and test coverage. Flag any gaps.`, reviewPolicy: 'none' },
         actorId: FORGE_MEMBER_ID, meta: { taskId }, await: true,
       });
-      await db.insert(qaMessage).values({
-        targetId: taskId, projectId, targetKind: 'plan_task',
-        seq: sql<number>`(select coalesce(max(${qaMessage.seq}), -1) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${taskId})`,
-        authorId: FORGE_MEMBER_ID,
-        bodyMd: 'Task reviewed — no critical issues found.',
-      });
+      // The VERDICT is posted by the `plan-refine` terminal handler, which reads the
+      // reviewer's actual reply off the envelope. Nothing is written here: this action
+      // used to append a hardcoded "Task reviewed — no critical issues found."
+      // unconditionally, so a task the reviewer had just flagged still showed the user a
+      // clean bill of health from Forge, one message below the real findings.
+      //
       // Record the validation attempt so the resolver advances to approve_task
       // instead of re-validating this same task forever.
       await updateDetails(db, projectId, (d) => recordTaskValidation(d, taskId, batchRowId, new Date().toISOString()));

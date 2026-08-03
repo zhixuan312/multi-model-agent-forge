@@ -3,6 +3,9 @@ import { STAGE_ORDER } from '@/db/enums';
 import type { StageKind } from '@/db/enums';
 import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { isParked } from '@/automation/attempt-status';
+// The one display-name map. This module kept a private copy that said 'Journal' where the
+// canonical one says 'Reflect' — the name every other surface shows for that stage.
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { ACTION_KINDS } from '@/automation/action-schema';
 
 /**
@@ -44,10 +47,6 @@ export interface AutoAction {
 
 const WAIT: AutoAction = { kind: 'wait', note: '', stage: '', phase: '' };
 const COMPLETE: AutoAction = { kind: 'complete', note: 'Project complete', stage: '', phase: '' };
-
-const STAGE_LABEL: Record<StageKind, string> = {
-  exploration: 'Explore', spec: 'Spec', plan: 'Plan', execute: 'Execute', review: 'Review', journal: 'Journal',
-};
 
 const isSkipped = (d: Details, stage: StageKind) => d.stages[stage].status === 'skipped';
 

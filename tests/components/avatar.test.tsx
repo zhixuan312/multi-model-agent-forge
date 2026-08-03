@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { Avatar } from '@/components/ui/avatar';
+import { Avatar, deriveInitials } from '@/components/ui/avatar';
 import { AvatarGroup } from '@/components/ui/avatar-group';
 
 describe('Avatar', () => {
@@ -51,5 +51,26 @@ describe('AvatarGroup', () => {
     const { container } = render(<AvatarGroup members={members} max={2} />);
     const visible = [...container.querySelectorAll('span')].filter((el) => !el.closest('[aria-hidden="true"]'));
     expect(visible).toHaveLength(0);
+  });
+});
+
+describe('deriveInitials', () => {
+  it('is the one implementation — Avatar renders exactly what it returns', () => {
+    // `components/forge/avatar.ts` held a second copy purely because this one was private.
+    render(<Avatar name="Maya Adeyemi" data-testid="a" />);
+    expect(screen.getByTestId('a')).toHaveTextContent(deriveInitials('Maya Adeyemi'));
+  });
+
+  it('uppercases regardless of how the name was typed', () => {
+    expect(deriveInitials('maya adeyemi')).toBe('MA');
+    expect(deriveInitials('maya')).toBe('MA');
+  });
+
+  it('uses first + last, ignoring middle names and extra whitespace', () => {
+    expect(deriveInitials('  Ada   Byron   Lovelace  ')).toBe('AL');
+  });
+
+  it('falls back to ? for a name with no letters at all', () => {
+    expect(deriveInitials('   ')).toBe('?');
   });
 });

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
-import {
+import { deriveInitials,
   Field,
   FieldGrid,
   Input,
@@ -15,10 +15,9 @@ import { showToast } from '@/components/ui/toast';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
-import { initials } from '@/components/forge/avatar';
+
 import { PASSWORD_MIN_LENGTH } from '@/auth/config';
 import type { AuthedMember } from '@/auth/auth-provider';
-
 
 const PROFILE_NOTE = `### Your account
 
@@ -133,7 +132,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         <FormPanel
           ariaLabel="Account"
           heading="Account"
-          leading={<Avatar initials={initials(member.displayName)} tint={member.avatarTint} aria-hidden />}
+          leading={<Avatar initials={deriveInitials(member.displayName)} tint={member.avatarTint} aria-hidden />}
           disclosure={{
             open: accountOpen,
             summary: `${member.displayName} · @${member.username}`,
@@ -152,7 +151,7 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
           }}
           onSubmit={saveAccount}
         >
-          <AvatarPicker initials={initials(displayName || member.displayName)} value={tint} onChange={setTint} />
+          <AvatarPicker initials={deriveInitials(displayName || member.displayName)} value={tint} onChange={setTint} />
 
               <FieldGrid cols={2}>
                 <Field label="Display name">

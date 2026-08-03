@@ -33,11 +33,18 @@ const avatarVariants = cva(
   },
 );
 
-function deriveInitials(name: string): string {
+/**
+ * Two-letter initials from a display name ("Maya Adeyemi" → "MA").
+ *
+ * Exported because callers that pass `initials` directly — the profile form feeding
+ * `AvatarPicker`, which has no `name` prop — need the same rule. It previously lived a
+ * second time in `components/forge/avatar.ts` purely because this one was private.
+ */
+export function deriveInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 2);
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).slice(0, 2);
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).slice(0, 2).toUpperCase();
 }
 
 export interface AvatarProps

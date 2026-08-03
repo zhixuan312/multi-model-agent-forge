@@ -1,7 +1,8 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import type { Phase } from '@/components/forge/PhaseTheme';
+/** The two palette worlds the app swaps between via `data-phase` (see globals.css). */
+export type Phase = 'design' | 'build';
 
 /**
  * Broadcasts the ACTIVE project's phase (design ⇄ build) to the whole app shell.

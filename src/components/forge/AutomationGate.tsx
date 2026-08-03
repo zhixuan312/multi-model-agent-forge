@@ -62,18 +62,14 @@ export function useAutomationRunning(serverAuto: boolean): boolean {
 
 interface Props {
   projectId: string;
-  projectName: string;
   autoMode: boolean;
-  autoNote: string;
   currentStage: string;
-  phase: string;
-  stagePhase?: string;
   automationStartedAt?: string;
   events?: ProjectActivityEvent[];
   children: ReactNode;
 }
 
-export function AutomationGate({ projectId, projectName, autoMode, autoNote, currentStage, phase, stagePhase, automationStartedAt, events, children }: Props) {
+export function AutomationGate({ projectId, autoMode, currentStage, automationStartedAt, events, children }: Props) {
   const running = useAutomationRunning(autoMode);
   const viewing = useSyncExternalStore(automationOverlayStore.subscribe, automationOverlayStore.isViewOpen, () => false);
   const showOverlay = running || viewing;
@@ -96,12 +92,8 @@ export function AutomationGate({ projectId, projectName, autoMode, autoNote, cur
   return showOverlay ? (
     <AutomationOverlay
       projectId={projectId}
-      projectName={projectName}
       autoMode={autoMode}
-      autoNote={autoNote}
       currentStage={currentStage}
-      phase={phase}
-      stagePhase={stagePhase}
       automationStartedAt={automationStartedAt}
       events={events}
     />

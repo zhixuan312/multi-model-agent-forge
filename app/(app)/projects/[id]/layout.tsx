@@ -115,12 +115,8 @@ export default async function ProjectLayout({
       <ShellBody width="full" fill>
         <AutomationGate
           projectId={project.id}
-          projectName={project.name}
           autoMode={project.autoMode}
-          autoNote={project.autoNote ?? ''}
           currentStage={activeStage ?? 'spec'}
-          phase={project.phase}
-          stagePhase={stages.find(s => s.kind === activeStage)?.lastPhase ?? undefined}
           automationStartedAt={(() => {
             if (!project.details) return undefined;
             try {

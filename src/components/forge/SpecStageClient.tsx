@@ -1462,16 +1462,16 @@ function DocumentScreen({
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
 
-  // Assemble runs as a plain fetch (not a react-query mutation): the auto-assemble
-  // below fires from an effect, and an effect-triggered mutation gets its observer
-  // torn down during next-dev Strict-Mode remounts — leaving isPending stuck true.
-  // A useState flag has a stable setter, so it always settles.
-  const [, setAssembling] = useState(false);
+  // Assemble runs as a plain fetch, not a react-query mutation: the auto-assemble below
+  // fires from an effect, and an effect-triggered mutation gets its observer torn down
+  // during next-dev Strict-Mode remounts, leaving `isPending` stuck true. A ref cannot get
+  // stuck that way, and it is only ever read by the re-entrancy guards below — never during
+  // render — so it needs no companion state. There was one: a `useState` whose value was
+  // discarded at the destructure, re-rendering on every assemble for a flag nothing showed.
   const assemblingRef = useRef(false);
   async function runAssemble(): Promise<void> {
     if (assemblingRef.current) return;
     assemblingRef.current = true;
-    setAssembling(true);
     try {
       const data = await postJson<{ artifact: { version: number; body_md: string } }>(
         `/api/projects/${projectId}/spec/assemble`,
@@ -1484,7 +1484,6 @@ function DocumentScreen({
       onError(e instanceof Error ? e.message : 'Assemble failed.');
     } finally {
       assemblingRef.current = false;
-      setAssembling(false);
     }
   }
 

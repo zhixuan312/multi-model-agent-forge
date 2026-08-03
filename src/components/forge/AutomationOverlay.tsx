@@ -65,14 +65,16 @@ function Stat({ label, value, icon }: { label: string; value: string; icon?: Rea
   );
 }
 
+/**
+ * `projectName`, `autoNote`, `phase` and `stagePhase` used to be here too. None reached
+ * anything: the first two were never destructured, and the last two existed only to seed a
+ * `livePhase` state whose value was discarded at the destructure. Four props threaded from
+ * the project layout through AutomationGate to be dropped on arrival.
+ */
 interface Props {
   projectId: string;
-  projectName: string;
   autoMode: boolean;
-  autoNote: string;
   currentStage: string;
-  phase: string;
-  stagePhase?: string;
   automationStartedAt?: string;
   events?: ProjectActivityEvent[];
 }
@@ -99,7 +101,7 @@ function seedLogs(events: ProjectActivityEvent[]): LogLine[] {
   }));
 }
 
-export function AutomationOverlay({ projectId, autoMode, currentStage, phase, stagePhase, automationStartedAt, events }: Props) {
+export function AutomationOverlay({ projectId, autoMode, currentStage, automationStartedAt, events }: Props) {
   const router = useRouter();
   const optimistic = useOptimisticAction();
   // Subscribe to the project SSE stream while driving (the layout doesn't mount
@@ -117,7 +119,6 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
   // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest countdown into a ref so long-lived SSE handlers read it without re-subscribing
   countdownRef.current = countdown;
   const [liveStage, setLiveStage] = useState(currentStage);
-  const [, setLivePhase] = useState(stagePhase ?? phase);
   // The project-level event log IS the feed — seeding from it makes a refresh
   // lossless (elapsed is seeded from automationStartedAt below, so the timer
   // doesn't reset either). Live SSE lines carry the same records and stream on top.
@@ -211,7 +212,6 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
       const d = (e as CustomEvent).detail as { note?: string; stage?: string; phase?: string; kind?: LineKind; durationMs?: number };
       if (d?.note) { addLog(d.note, d.kind ?? 'action', d.durationMs); }
       if (d?.stage) setLiveStage(d.stage);
-      if (d?.phase) setLivePhase(d.phase);
     }
     function onStepDone(e: Event) {
       // A server-side action completed — sync stage/phase and re-pull server state
@@ -220,7 +220,6 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
       // doesn't jump while Forge is already advancing behind "Getting ready".
       const d = (e as CustomEvent).detail as { step?: string; stage?: string; phase?: string };
       if (d?.stage) setLiveStage(d.stage);
-      if (d?.phase) setLivePhase(d.phase);
       if (countdownRef.current <= 0) router.refresh();
     }
     function onError(_e: Event) {

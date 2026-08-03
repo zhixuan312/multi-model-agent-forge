@@ -69,12 +69,8 @@ describe('project activity rendering', () => {
     wrap(
       <AutomationOverlay
         projectId="proj-1"
-        projectName="Demo"
         autoMode
-        autoNote=""
         currentStage="spec"
-        phase="active"
-        stagePhase="craft"
         events={events}
       />,
     );
@@ -92,12 +88,8 @@ describe('project activity rendering', () => {
     wrap(
       <AutomationOverlay
         projectId="proj-1"
-        projectName="Demo"
         autoMode
-        autoNote=""
         currentStage="spec"
-        phase="active"
-        stagePhase="craft"
         events={events}
       />,
     );

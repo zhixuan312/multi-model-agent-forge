@@ -7,7 +7,8 @@ import { repo } from '@/db/schema/workspace';
 import { loopRun } from '@/db/schema/loop';
 import { listLoops } from '@/loops/loops-core';
 import { latestRunPerLoop } from '@/loops/runs-query';
-import { nextRuns, LOOP_TIMEZONE } from '@/loops/cron';
+import { nextRuns } from '@/loops/cron';
+import { formatDateTime } from '@/lib/format-date';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -59,9 +60,10 @@ export default async function LoopsPage() {
   const nextRun = enabled
     .flatMap((l) => (l.cron ? nextRuns(l.cron, 1) : [])) // one-time jobs have no next run
     .sort((a, b) => a.getTime() - b.getTime())[0];
-  const nextRunLabel = nextRun
-    ? nextRun.toLocaleString('en-GB', { timeZone: LOOP_TIMEZONE, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-    : '—';
+  // Through `format-date`, which is the product's single date renderer and already
+  // formats in the same zone cron fires in. This was a second, inline Intl call with its
+  // own field set — the one place a date was formatted outside that module.
+  const nextRunLabel = nextRun ? formatDateTime(nextRun) : '—';
   const lastRun = Object.values(latestByLoop).sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
 
   return (

@@ -5,7 +5,14 @@
  * All functions accept Date | string | number and handle invalid input gracefully.
  */
 
-const TZ = 'Asia/Singapore';
+/**
+ * The product's display timezone. Exported so `LOOP_TIMEZONE` — the zone cron actually
+ * fires in — can be pinned against it: the Loops page labels its "Next run" metric
+ * "Singapore time", which is only true while the two agree.
+ */
+export const DISPLAY_TIMEZONE = 'Asia/Singapore';
+
+const TZ = DISPLAY_TIMEZONE;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

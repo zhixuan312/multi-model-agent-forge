@@ -6,7 +6,9 @@ import {
   formatIsoDate,
   formatBranchTime,
   formatTimestamp,
+  DISPLAY_TIMEZONE,
 } from '@/lib/format-date';
+import { LOOP_TIMEZONE } from '@/loops/cron';
 
 const NOW = new Date('2026-06-09T12:00:00Z');
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
@@ -161,5 +163,16 @@ describe('formatRelative — exact bucket boundaries', () => {
 
   it('does not print a negative age for a clock-skewed future instant', () => {
     expect(formatRelative(new Date(NOW.getTime() + 5 * S), NOW)).toBe('just now');
+  });
+});
+
+/**
+ * The Loops page labels its "Next run" metric "Singapore time" and renders it through
+ * `formatDateTime`, while cron actually fires in `LOOP_TIMEZONE`. That label is only
+ * true while the two agree, and they were declared independently in two modules.
+ */
+describe('display timezone vs the zone cron fires in', () => {
+  it('are the same zone', () => {
+    expect(LOOP_TIMEZONE).toBe(DISPLAY_TIMEZONE);
   });
 });

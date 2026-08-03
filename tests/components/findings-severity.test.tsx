@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { FindingsGrid, FindingsApplyBar, appliedState, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 
 const f = (severity: string, claim: string): Finding =>
   ({ severity, category: 'gap', claim } as Finding);
@@ -93,5 +93,39 @@ describe('appliedState — a partial apply leaves the remainder actionable', () 
 
   it('tolerates duplicate or out-of-range indices without losing a remaining finding', () => {
     expect(appliedState(3, [1, 1])).toMatchObject({ allApplied: false, remainingIndices: [0, 2] });
+  });
+});
+
+/**
+ * `audit_pass.verdict` answers the GATE's question — "were there any critical/high?" — and
+ * spec and plan pass it straight to this badge. So a pass carrying three medium findings was
+ * labelled `clean` while the severity chips directly below it counted them. Review had
+ * already diverged locally to fix its half (`reviewPassState` calls a pass clean only with
+ * zero findings), which left the same badge meaning two different things depending on which
+ * stage rendered it.
+ */
+describe('AuditRoundCard distinguishes clean from no-blockers', () => {
+  it('says "clean" only when the pass found nothing at all', () => {
+    render(<AuditRoundCard passNo={1} verdict="clean" findings={[]} />);
+    expect(screen.getByText('clean')).toBeInTheDocument();
+  });
+
+  it('says "no blockers" when medium/low findings survived the gate', () => {
+    render(<AuditRoundCard passNo={2} verdict="clean" findings={[f('medium', 'M'), f('low', 'L')]} />);
+    expect(screen.queryByText('clean')).toBeNull();
+    expect(screen.getByText('no blockers')).toBeInTheDocument();
+    // The findings themselves are still counted beside it — the badge was the only thing wrong.
+    expect(screen.getByText('1 medium')).toBeInTheDocument();
+  });
+
+  it('badges neither on a revised pass', () => {
+    render(<AuditRoundCard passNo={3} verdict="revised" findings={[f('critical', 'C')]} />);
+    expect(screen.queryByText('clean')).toBeNull();
+    expect(screen.queryByText('no blockers')).toBeNull();
+  });
+
+  it('counts one finding in the singular', () => {
+    render(<AuditRoundCard passNo={4} verdict="revised" findings={[f('high', 'H')]} />);
+    expect(screen.getByText('1 finding')).toBeInTheDocument();
   });
 });

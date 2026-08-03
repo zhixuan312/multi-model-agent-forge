@@ -311,7 +311,15 @@ export function AuditRoundCard({ passNo, verdict, findings, applied, active, onC
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink">Pass {passNo}</span>
-          {verdict === 'clean' ? <Badge variant="sage" size="sm">clean</Badge> : null}
+          {/* "clean" only when there is genuinely nothing. `audit_pass.verdict` means
+              "had no critical/high" (see AUDIT_VERDICT), which is the GATE's question, and
+              spec + plan pass it straight through — so a pass with three medium findings
+              was badged `clean` while the severity chips below it counted them. Review had
+              already diverged to fix its half of this locally; naming the two things
+              differently settles it for all three without touching either gate. */}
+          {verdict === 'clean' ? (
+            <Badge variant="sage" size="sm">{findings.length === 0 ? 'clean' : 'no blockers'}</Badge>
+          ) : null}
           {applied ? <Badge variant="sage" size="sm">applied</Badge> : null}
         </div>
         {counts.length > 0 ? (

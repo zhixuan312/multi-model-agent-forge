@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
@@ -227,5 +227,36 @@ describe('Spec · Outline — why Continue is disabled', () => {
     renderOutline('We are building a payments API.');
     expect(screen.getByTestId('outline-continue')).toBeEnabled();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+describe('Spec · Craft — Revoke returns you to editing', () => {
+  const approvedComponent: ComponentView[] = [
+    {
+      id: 'c1', kind: 'context', label: 'Context', primaryRoles: ['PM'],
+      status: 'approved', aiSatisfied: true, humanSatisfied: true,
+      approvedBy: ['me'], participantIds: [], orderIndex: 0,
+      sections: [{ id: 's1', key: 'background', label: 'Background', draftMd: 'The demo uses PostgreSQL...', orderIndex: 0 }],
+    } as unknown as ComponentView,
+  ];
+
+  /**
+   * `backToEdit` deleted the component's entry from `constructedDrafts` to reveal the
+   * composer. That map is a CACHE DERIVED from `components`, rebuilt by an effect on every
+   * `components` change — and the optimistic `onPatch` in the same function changes
+   * `components` in the same tick. The deletion was undone immediately: the draft reappeared,
+   * the composer stayed hidden, and Revoke did the one thing its name is not about and none
+   * of what it is. It now sets the view override, which is the mechanism the Spec/Discussion
+   * tabs already use.
+   */
+  it('shows the composer again after revoking', async () => {
+    renderSpec({ initialPhase: 'craft', initialComponents: approvedComponent });
+
+    fireEvent.click(screen.getByRole('button', { name: /Revoke/ }));
+
+    // The composer is what "back to edit" means here — it only renders when the spec draft
+    // is not the active view. Queried as an element: it carries `role="combobox"` whenever
+    // its mention pool is non-empty, which in Craft it always is (Forge is in it).
+    await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull());
   });
 });

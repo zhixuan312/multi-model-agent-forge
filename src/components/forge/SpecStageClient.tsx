@@ -1201,7 +1201,17 @@ function CraftStage({
         error: 'Couldn’t revoke — reverted.',
         retryable: true });
     }
-    setConstructedDrafts((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
+    // Switch the VIEW back to the conversation — the composer only renders when the spec
+    // draft is not showing, so this is what "back to edit" means here.
+    //
+    // It used to delete the entry from `constructedDrafts`, which is a CACHE DERIVED from
+    // `components`: the effect above rebuilds it on every `components` change, and the
+    // `onPatch` in the revoke above changes `components` in the same tick. So the deletion
+    // was undone immediately, the draft reappeared, the composer stayed hidden, and Revoke
+    // did the one thing its name is not about (dropping the approval) and none of what it is.
+    // `craftViewOverride` is the mechanism for this — the same one the Spec/Discussion tabs
+    // set, so the user can switch straight back.
+    setCraftView('conversation');
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 

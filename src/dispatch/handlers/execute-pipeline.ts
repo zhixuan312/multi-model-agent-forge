@@ -100,6 +100,24 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
         tasks,
       },
     );
+    // A PR that could not be opened for a fixable reason (no team Git token, no readable
+    // remote, a GitHub error) must reach the user. It used to go to the server console
+    // only, so execute finished, no PR appeared, and Forge said nothing.
+    if (pr && 'error' in pr) {
+      const { recordActivity } = await import('@/activity/project-activity');
+      const { FORGE_ACTOR } = await import('@/automation/forge-member');
+      await recordActivity({
+        db,
+        projectId: ctx.projectId,
+        stage: 'execute',
+        phase: 'implement',
+        label: `${repoMeta.name}: ${pr.error}`,
+        kind: 'error',
+        actor: FORGE_ACTOR,
+        source: 'mma',
+        eventKey: `pr-failed:${ctx.batchRowId}:${repoId}`,
+      });
+    }
     if (pr && 'url' in pr) {
       await db
         .insert(buildPr)

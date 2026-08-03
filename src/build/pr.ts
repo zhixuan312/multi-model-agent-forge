@@ -13,6 +13,13 @@ export interface BuildPrArgs {
   tasks: Array<{ title: string; commitSha: string | null }>;
 }
 
+/**
+ * `null` means there was legitimately nothing to open — the branch carries no changes.
+ * Every OTHER reason returns `{ error }` so the caller can tell the user.
+ *
+ * All three used to be `null`, so a team that had simply never configured a Git token saw
+ * execute finish, no PR appear, and no explanation anywhere.
+ */
 export type BuildPrResult = { url: string } | { error: string } | null;
 
 export async function createBuildPr(deps: BuildPrDeps, args: BuildPrArgs): Promise<BuildPrResult> {
@@ -20,10 +27,10 @@ export async function createBuildPr(deps: BuildPrDeps, args: BuildPrArgs): Promi
   if (!hasChanges) return null;
 
   const token = await deps.readGitToken();
-  if (!token) return null;
+  if (!token) return { error: 'No Git token is configured for this team — the branch was pushed but no PR was opened.' };
 
   const remote = deps.parseRemote(args.repoPath);
-  if (!remote) return null;
+  if (!remote) return { error: 'The repository has no readable GitHub remote — the branch was pushed but no PR was opened.' };
 
   const title = args.tasks.length <= 1
     ? `build(${args.projectName}): ${args.tasks[0]?.title ?? 'execute plan'}`

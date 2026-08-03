@@ -51,22 +51,23 @@ describe('createBuildPr', () => {
     expect(deps.fetch).not.toHaveBeenCalled();
   });
 
-  it('returns null when no git token', async () => {
+  it('reports the missing git token rather than returning a bare null', async () => {
     const deps = mockDeps({ readGitToken: vi.fn().mockResolvedValue(null) });
     const result = await createBuildPr(deps, {
       projectName: 'P', branch: 'b', targetBranch: 'main', repoPath: '/r',
       tasks: [{ title: 'T', commitSha: 'a' }],
     });
-    expect(result).toBeNull();
+    // null is reserved for "nothing to open"; a missing token is something the user can fix.
+    expect(result).toMatchObject({ error: expect.stringMatching(/git token/i) });
   });
 
-  it('returns null when remote is not GitHub', async () => {
+  it('reports an unreadable remote rather than returning a bare null', async () => {
     const deps = mockDeps({ parseRemote: vi.fn().mockReturnValue(null) });
     const result = await createBuildPr(deps, {
       projectName: 'P', branch: 'b', targetBranch: 'main', repoPath: '/r',
       tasks: [{ title: 'T', commitSha: 'a' }],
     });
-    expect(result).toBeNull();
+    expect(result).toMatchObject({ error: expect.stringMatching(/remote/i) });
   });
 
   it('returns error when GitHub API fails', async () => {

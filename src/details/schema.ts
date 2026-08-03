@@ -86,8 +86,16 @@ const planTaskSchema = z.object({
   status: planTaskStatus,
   approvals: z.array(z.string()).default([]),
   attempts: z.array(attemptSchema).default([]),
+  /**
+   * NOT WRITTEN TODAY. `plan-author` creates every task without one, and the engine's
+   * plan format has no per-task repo field — a plan is scoped to ONE repository by
+   * construction, while Forge authors one plan for N linked repos. Readers must keep
+   * treating "absent" as "this project's only/first repo"; a filter over this field
+   * matches every task. Assigning tasks to repos is a plan-format decision.
+   */
   targetRepoId: z.string().optional(),
   orderIndex: z.number().optional(),
+  /** NOT WRITTEN TODAY — no producer sets task dependencies. See `targetRepoId`. */
   dependsOn: z.array(z.string()).optional(),
   reviewPolicy: z.enum(['reviewed', 'none']).default('reviewed'),
   phase: z.string().optional(),

@@ -46,17 +46,25 @@ const runWith = async (repoIds: string[]) => {
   return dispatchMma.mock.calls.map((c) => (c[0] as { body: { tasks: string[] } }).body.tasks);
 };
 
-describe('execute dispatch scopes tasks to the repo it runs in', () => {
-  it('sends only that repo\'s task headings when the project has several repos', async () => {
-    const sent = await runWith(['repo-a', 'repo-b']);
-    expect(sent).toHaveLength(2);
-    expect(sent[0]).toEqual(['Task 1: A']);
-    expect(sent[1]).toEqual(['Task 2: B']);
+describe('execute dispatch sends an empty task selector', () => {
+  /**
+   * Empty means "run the whole plan", and it is the only honest value today — including
+   * for multi-repo projects. Scoping to one repo's tasks needs tasks to CARRY a repo, and
+   * nothing populates `planTask.targetRepoId`: plan-author creates every task without it,
+   * and the engine's plan format has no per-task repo field (a plan is scoped to one
+   * repository by construction, while Forge authors one plan for N linked repos).
+   *
+   * So a filter over that field matches everything, and sending the full title list would
+   * swap "run the whole plan" for "run these N headings" — no scoping gained, and a
+   * heading the engine's matcher doesn't recognise would silently drop work.
+   */
+  it('sends [] for a single-repo project', async () => {
+    const sent = await runWith(['repo-a']);
+    expect(sent).toEqual([[]]);
   });
 
-  it('runs the whole plan for a single-repo project — an empty selector means all', async () => {
-    const sent = await runWith(['repo-a']);
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toEqual([]);
+  it('sends [] for a multi-repo project too, since no task carries a repo', async () => {
+    const sent = await runWith(['repo-a', 'repo-b']);
+    expect(sent).toEqual([[], []]);
   });
 });

@@ -12,7 +12,7 @@ vi.mock('@/projects/project-files', () => ({
 vi.mock('@/spec/audit-loop', () => ({ auditPassHistory: async () => [] }));
 
 import { loadPlanView } from '@/plan/plan-core';
-import { buildInitialDetails } from '@/details/schema';
+import { buildInitialDetails, type Details } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 
 /**
@@ -60,5 +60,47 @@ describe('a plan task view carries its own metadata', () => {
     const tasks = view.phases.flatMap((p) => p.tasks);
     expect(tasks.find((t) => t.title === 'Task 2: Wire the handler')!.dependsOn).toEqual(['t1']);
     expect(tasks.find((t) => t.title === 'Task 1: Add the widget')!.dependsOn).toEqual([]);
+  });
+});
+
+/**
+ * `targetRepoId` and `dependsOn` are declared on the task schema and read by the view and
+ * by execute-pipeline's PR-body filter — but the PRODUCER sets neither. Pinned against
+ * `plan-author` itself rather than a source scan, so the day it starts assigning repos
+ * this fails and the "absent means first repo" fallbacks get revisited deliberately.
+ */
+describe('plan-author does not assign tasks to repos or dependencies', () => {
+  it('writes tasks with neither targetRepoId nor dependsOn', async () => {
+    vi.resetModules();
+    const captured: Array<Record<string, unknown>> = [];
+    vi.doMock('@/details/write', () => ({
+      updateDetails: async (_db: unknown, _id: string, fn: (d: Details) => Details) => {
+        const d = buildInitialDetails();
+        d.repos = [{ id: 'r1', name: 'engine', pathOnDisk: '/w/e', defaultBranch: 'main' }];
+        captured.push(...(fn(d).stages.plan.phases.refine.tasks as unknown as Array<Record<string, unknown>>));
+      },
+    }));
+    vi.doMock('@/projects/project-files', () => ({
+      readPlanFile: async () => ({ version: 1, updatedAt: '', bodyMd: '# Plan\n\n### Task 1: A\n\nDo it.\n' }),
+    }));
+    vi.doMock('@/sse/event-bus', () => ({ projectEventBus: { publish: () => {} } }));
+
+    const { getHandler, ensureHandlersRegistered } = await import('@/dispatch/handler-registry');
+    await ensureHandlersRegistered();
+    const handler = getHandler('plan-author')!;
+    const details = buildInitialDetails();
+    details.repos = [{ id: 'r1', name: 'engine', pathOnDisk: '/w/e', defaultBranch: 'main' }];
+    await handler(
+      createMockDb({ 'select:project': [{ details }] }),
+      { batchRowId: 'b1', projectId: 'p1', handler: 'plan-author', request: {}, actorId: null },
+      {},
+    );
+
+    expect(captured.length).toBeGreaterThan(0);
+    for (const task of captured) {
+      expect(task, 'a producer appeared — revisit the "absent means first repo" fallbacks')
+        .not.toHaveProperty('targetRepoId');
+      expect(task).not.toHaveProperty('dependsOn');
+    }
   });
 });

@@ -94,24 +94,23 @@ export async function startExecuteRun(
     try {
       // `tasks[]` is a heading selector and EMPTY means "run the whole plan".
       //
-      // That is right for a single-repo project — auto-authored plans don't tag tasks with
-      // a target repo, and every task is for that one repo. On a MULTI-repo project each
-      // repo gets its own dispatch in its own worktree, so an empty selector told MMA to
-      // execute the other repos' tasks there too, creating their files in the wrong
-      // checkout. Scope it there, and only there, so the common single-repo path keeps
-      // running the plan exactly as before.
-      const isMultiRepo = repos.length > 1;
-      const taskTitles = isMultiRepo
-        ? d.stages.plan.phases.refine.tasks
-            .filter((t) => !t.targetRepoId || t.targetRepoId === repoId)
-            .map((t) => t.title)
-        : [];
+      // Empty is the only honest value today, INCLUDING for multi-repo projects. Scoping a
+      // dispatch to one repo's tasks needs tasks to carry a repo, and nothing populates
+      // `planTask.targetRepoId`: `plan-author` creates every task without it, and the
+      // engine's plan format has no per-task repo field — a plan is scoped to ONE
+      // repository by construction, while Forge authors one plan for N linked repos.
+      //
+      // A filter over that field therefore matches every task, so sending the full title
+      // list would only swap "run the whole plan" for "run these N headings" — no scoping
+      // gained, and a heading the engine's matcher doesn't recognise would silently drop
+      // work. See the audit note on per-task repo assignment; it is a plan-format decision,
+      // not something to infer here.
       const { batchRowId } = await dispatchMma({
         db, mma, projectId, route: 'execute_plan', handler: 'execute-pipeline', cwd: worktree,
-        body: { type: 'execute_plan', target: { paths: [planPath] }, tasks: taskTitles, reviewPolicy: 'reviewed' },
+        body: { type: 'execute_plan', target: { paths: [planPath] }, tasks: [], reviewPolicy: 'reviewed' },
         actorId,
-        // No `tasks` here: it rode in meta as dead payload — the execute-pipeline handler
-        // declares the field and never reads it, recomputing the list from details instead.
+        // No `tasks` in meta either: it rode there as dead payload — the execute-pipeline
+        // handler declares the field and never reads it, recomputing from details instead.
         meta: { forgeBranch, targetBranch, repoId, actorId },
       });
       await updateDetails(db, projectId, (det) => {

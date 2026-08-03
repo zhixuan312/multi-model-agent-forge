@@ -7,12 +7,12 @@ import { Repeat, Play, Pencil } from 'lucide-react';
 import {
   Button,
   Badge,
-  Title,
   TextStrong,
   Mono,
   Micro,
   EmptyState,
   DataTable,
+  DataTableHeader,
   Card,
   Select,
   SelectTrigger,
@@ -211,11 +211,10 @@ export function LoopsClient({
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <div className="flex items-center justify-between gap-3">
-          <Title className="!text-lg">Loops</Title>
-          <Button size="sm" leftIcon={<Repeat />} onClick={openAdd}>New loop</Button>
-        </div>
+      <DataTableHeader
+        title="Loops"
+        action={<Button size="sm" leftIcon={<Repeat />} onClick={openAdd}>New loop</Button>}
+      >
         <Toolbar>
           <SearchInput label="loops" value={search} onChange={setSearch} />
           <Select value={trigger} onValueChange={(v) => setTrigger(v as 'all' | 'recurring' | 'manual' | 'event')}>
@@ -228,7 +227,7 @@ export function LoopsClient({
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
 
       <DataTable
         fill

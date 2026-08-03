@@ -13,7 +13,7 @@ import {
 import { ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Micro } from '@/components/ui/typography';
+import { Micro, Title } from '@/components/ui/typography';
 
 /**
  * DataTable — the Forge data grid, driven by TanStack Table. Standard shadcn
@@ -25,6 +25,46 @@ import { Micro } from '@/components/ui/typography';
  * filling the parent's height instead of paginating. Use inside a flex/`fill`
  * page so the table reaches the page bottom (like the Journal tabs).
  */
+/**
+ * The header shell above a `DataTable` inside its panel: a title row (with an optional
+ * primary action on the right) and, below it, the toolbar of search + filters.
+ *
+ * This was written out verbatim in SEVEN places — Members, Workspace, Loops and the four
+ * Usage tables — each spelling the same
+ * `flex shrink-0 flex-col gap-4 border-b border-line p-5` shell and the same
+ * title/action row. The governance catalog already names this pattern's affordances
+ * (`header`, `primaryAction`, `toolbar`); now they are props rather than a convention
+ * seven files were each expected to remember.
+ *
+ * `action` is optional because three of those tables have no primary action, and passing
+ * none must not leave an empty flex row that shifts the title.
+ */
+export function DataTableHeader({
+  title,
+  action,
+  children,
+}: {
+  title: ReactNode;
+  /** Primary action, right-aligned on the title row. */
+  action?: ReactNode;
+  /** The `Toolbar` of search + filter controls. */
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
+      {action ? (
+        <div className="flex items-center justify-between gap-3">
+          <Title className="!text-lg">{title}</Title>
+          {action}
+        </div>
+      ) : (
+        <Title className="!text-lg">{title}</Title>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];

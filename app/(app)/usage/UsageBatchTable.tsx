@@ -12,9 +12,9 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-  Title,
   EmptyState,
   DataTable,
+  DataTableHeader,
   Toolbar,
   SearchInput,
   toolbarControlWidth,
@@ -116,8 +116,7 @@ export function UsageBatchTable({
 
   return (
     <Card className="flex flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <Title className="!text-lg">Activity breakdown</Title>
+      <DataTableHeader title="Activity breakdown">
         <Toolbar>
           <SearchInput label="activity" value={search} onChange={setSearch} />
           <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
@@ -130,7 +129,7 @@ export function UsageBatchTable({
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
       <DataTable
         columns={columns}
         data={filtered}

@@ -16,11 +16,11 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-  Title,
   Mono,
   Micro,
   EmptyState,
   DataTable,
+  DataTableHeader,
   type BadgeProps,
   Toolbar,
   SearchInput,
@@ -181,15 +181,18 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <div className="flex items-center justify-between gap-3">
-          <Title className="!text-lg">Repositories</Title>
-          {isAdmin ? (
+      {/* A non-admin gets no action, and `DataTableHeader` then drops the title ROW too —
+          the old markup left an empty justify-between row behind. */}
+      <DataTableHeader
+        title="Repositories"
+        action={
+          isAdmin ? (
             <Button size="sm" leftIcon={<Plus />} onClick={() => { setEditingId(null); setAdding((a) => !a); }}>
               New repo
             </Button>
-          ) : null}
-        </div>
+          ) : null
+        }
+      >
         <Toolbar>
           <SearchInput label="repos" value={search} onChange={setSearch} />
           <Select value={tag || '__all'} onValueChange={(v) => setTag(v === '__all' ? '' : v)}>
@@ -206,7 +209,7 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
 
       <DataTable
         fill

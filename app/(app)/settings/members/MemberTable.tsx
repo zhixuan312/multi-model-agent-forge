@@ -18,12 +18,12 @@ import {
   Field,
   FieldGrid,
   Label,
-  Title,
   TextStrong,
   Mono,
   Micro,
   EmptyState,
   DataTable,
+  DataTableHeader,
   Toolbar,
   SearchInput,
   toolbarControlWidth,
@@ -229,13 +229,14 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <div className="flex items-center justify-between gap-3">
-          <Title className="!text-lg">Team members</Title>
+      <DataTableHeader
+        title="Team members"
+        action={
           <Button size="sm" leftIcon={<UserPlus />} onClick={openAdd}>
             Add member
           </Button>
-        </div>
+        }
+      >
         <Toolbar>
           <SearchInput label="members" value={search} onChange={setSearch} />
           <Select value={role} onValueChange={(v) => setRole(v as RoleFilter)}>
@@ -249,7 +250,7 @@ export function MemberTable({ members }: { members: MemberRowData[] }) {
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
 
       <DataTable
         fill

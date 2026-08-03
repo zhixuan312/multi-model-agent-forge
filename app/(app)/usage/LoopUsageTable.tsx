@@ -7,9 +7,9 @@ import { Repeat, ChevronRight } from 'lucide-react';
 import {
   Card,
   Button,
-  Title,
   EmptyState,
   DataTable,
+  DataTableHeader,
   Toolbar,
   SearchInput,
   toolbarControlWidth,
@@ -119,8 +119,7 @@ export function LoopUsageTable({
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <Title className="!text-lg">Loop costs</Title>
+      <DataTableHeader title="Loop costs">
         <Toolbar>
           <SearchInput label="loops" value={search} onChange={setSearch} />
           <Select value={kind} onValueChange={setKind}>
@@ -133,7 +132,7 @@ export function LoopUsageTable({
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
       <DataTable
         columns={columns}
         data={filtered}

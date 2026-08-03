@@ -13,9 +13,9 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-  Title,
   EmptyState,
   DataTable,
+  DataTableHeader,
   Toolbar,
   SearchInput,
   toolbarControlWidth,
@@ -105,8 +105,7 @@ export function ProjectUsageTable({
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
-        <Title className="!text-lg">Project costs</Title>
+      <DataTableHeader title="Project costs">
         <Toolbar>
           <SearchInput label="projects" value={search} onChange={setSearch} />
           <Select value={phase} onValueChange={(v) => setPhase(v as PhaseFilter)}>
@@ -119,7 +118,7 @@ export function ProjectUsageTable({
             </SelectContent>
           </Select>
         </Toolbar>
-      </div>
+      </DataTableHeader>
       <DataTable
         columns={columns}
         data={filtered}

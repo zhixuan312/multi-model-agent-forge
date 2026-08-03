@@ -26,15 +26,23 @@ import type { MemberRef, Participant } from '@/collab/types';
  * shown for visibility (never a hard block).
  */
 
-/** One avatar with an approval check (approved) or dimmed ring (pending). */
+/**
+ * One avatar. With `showApproval` (the default) it carries the approval state — a check
+ * badge when approved, a dimmed ring when not. Set it false where the surface has NO
+ * per-member approval concept: the plan tracks approval per TASK, so every plan
+ * participant is permanently `approved: false`, and the approval styling there rendered
+ * a roster of people all dimmed and tooltipped "not yet approved" forever.
+ */
 export function ParticipantAvatar({
   p,
   size = 'sm',
+  showApproval = true,
 }: {
   p: Participant;
   size?: 'sm' | 'md';
+  showApproval?: boolean;
 }) {
-  const approved = p.approvedAt !== null;
+  const approved = showApproval && p.approved;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -43,7 +51,7 @@ export function ParticipantAvatar({
             size={size}
             name={p.member.displayName}
             tint={p.member.avatarTint}
-            className={cn('ring-2 ring-surface', !approved && 'opacity-55')}
+            className={cn('ring-2 ring-surface', showApproval && !approved && 'opacity-55')}
           />
           {approved ? (
             <span className="absolute -bottom-0.5 -right-0.5 grid size-3 place-items-center rounded-full bg-[var(--sage)] ring-2 ring-surface">
@@ -53,7 +61,9 @@ export function ParticipantAvatar({
         </span>
       </TooltipTrigger>
       <TooltipContent>
-        {p.member.displayName} — {approved ? 'approved' : 'not yet approved'}
+        {showApproval
+          ? `${p.member.displayName} — ${approved ? 'approved' : 'not yet approved'}`
+          : p.member.displayName}
       </TooltipContent>
     </Tooltip>
   );
@@ -104,27 +114,32 @@ export function ParticipantStrip({
   pool,
   onAdd,
   disabled,
+  label = 'Approvers',
+  showApproval = true,
 }: {
   participants: Participant[];
   pool: MemberRef[];
   onAdd: (m: MemberRef) => void;
   disabled?: boolean;
+  /** Heading over the strip. Say what the people ARE on this surface. */
+  label?: string;
+  /** See `ParticipantAvatar` — false where the surface has no per-member approval. */
+  showApproval?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-        Approvers
+        {label}
       </span>
       {participants.length > 0 ? (
         <div className="flex items-center gap-1.5">
           {participants.map((p) => (
-            <ParticipantAvatar key={p.member.id} p={p} />
+            <ParticipantAvatar key={p.member.id} p={p} showApproval={showApproval} />
           ))}
         </div>
       ) : (
         <span className="text-xs text-ink-faint">Just you — invite teammates to co-approve.</span>
       )}
-      {null}
       <span className="flex-1" />
       <InviteMenu pool={pool} participants={participants} onAdd={onAdd} disabled={disabled} />
     </div>
@@ -154,7 +169,6 @@ export function ApproverCluster({ participants }: { participants: Participant[] 
           </span>
         ) : null}
       </span>
-      {null}
     </span>
   );
 }

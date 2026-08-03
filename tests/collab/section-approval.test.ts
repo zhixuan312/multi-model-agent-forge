@@ -12,13 +12,13 @@ const me: MemberRef = { id: 'me', displayName: 'admin', avatarTint: '#c4521e' };
 
 function parts(): Participant[] {
   return [
-    { member: bo, approvedAt: '2026-06-13T09:40:00.000Z' },
-    { member: priya, approvedAt: null },
+    { member: bo, approved: true },
+    { member: priya, approved: false },
   ];
 }
 
 describe('section-approval gate logic', () => {
-  it('pending lists exactly those with no approvedAt', () => {
+  it('pending lists exactly those who have not approved', () => {
     expect(pending(parts()).map((p) => p.member.id)).toEqual(['priya']);
   });
 
@@ -31,7 +31,7 @@ describe('section-approval gate logic', () => {
 describe('addParticipant', () => {
   it('adds a new member as pending', () => {
     const next = addParticipant([], bo);
-    expect(next).toEqual([{ member: bo, approvedAt: null }]);
+    expect(next).toEqual([{ member: bo, approved: false }]);
   });
 
   it('is idempotent — mentioning an existing participant does not duplicate', () => {
@@ -42,21 +42,29 @@ describe('addParticipant', () => {
   });
 });
 
+/**
+ * Approval is a boolean, never a timestamp. The server persists only `approvedBy`
+ * (member ids), so nothing can rehydrate WHEN someone nodded — the old
+ * `approvedAt: string | null` was re-seeded with a fabricated `new Date()` at five
+ * sites, and no consumer ever read the value.
+ */
 describe('recordApproval', () => {
-  it('marks an existing participant approved at the given time', () => {
-    const start: Participant[] = [{ member: priya, approvedAt: null }];
-    const next = recordApproval(start, priya, '2026-06-13T10:00:00.000Z');
-    expect(next[0]!.approvedAt).toBe('2026-06-13T10:00:00.000Z');
+  it('marks an existing participant approved', () => {
+    const start: Participant[] = [{ member: priya, approved: false }];
+    expect(recordApproval(start, priya)[0]!.approved).toBe(true);
   });
 
   it('self-joins a non-participant who approves', () => {
-    const next = recordApproval([], me, '2026-06-13T10:00:00.000Z');
-    expect(next).toEqual([{ member: me, approvedAt: '2026-06-13T10:00:00.000Z' }]);
+    expect(recordApproval([], me)).toEqual([{ member: me, approved: true }]);
   });
 
-  it('is a no-op if the member already approved (keeps original timestamp)', () => {
-    const start: Participant[] = [{ member: bo, approvedAt: '2026-06-13T09:00:00.000Z' }];
-    const next = recordApproval(start, bo, '2026-06-13T11:00:00.000Z');
-    expect(next[0]!.approvedAt).toBe('2026-06-13T09:00:00.000Z');
+  it('leaves an already-approved member approved', () => {
+    const start: Participant[] = [{ member: bo, approved: true }];
+    expect(recordApproval(start, bo)).toEqual([{ member: bo, approved: true }]);
+  });
+
+  it('touches only the approving member', () => {
+    const next = recordApproval(parts(), priya);
+    expect(next.map((p) => [p.member.id, p.approved])).toEqual([['bo', true], ['priya', true]]);
   });
 });

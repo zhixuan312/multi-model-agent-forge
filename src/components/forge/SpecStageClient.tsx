@@ -511,18 +511,27 @@ function OutlineStage({
           <div className="shrink-0 border-b border-line px-5 py-3">
             <SearchInput label="templates" value={tplQuery} onChange={setTplQuery} className="min-w-0" />
           </div>
+          {/* A radiogroup, not a row of toggles: exactly one template is active at a time.
+              `aria-pressed` announced each row as an independent on/off button, so a screen
+              reader never conveyed "1 of N". Matches how `Segmented` and `AvatarPicker`
+              already model a single choice. */}
           <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
-            {shownTemplates.map((t) => (
-              <TemplateRow
-                key={t.id}
-                label={t.label}
-                description={t.description}
-                count={t.kinds.length}
-                selected={active === t.id}
-                disabled={readOnly}
-                onClick={() => onPick(new Set(t.kinds))}
-              />
-            ))}
+            {/* Scoped to the options only. The "Custom" row below is a STATUS indicator —
+                it has no onClick; you reach custom by toggling components — so it is not one
+                of the group's choices. */}
+            <div role="radiogroup" aria-label="Spec template" className="space-y-2">
+              {shownTemplates.map((t) => (
+                <TemplateRow
+                  key={t.id}
+                  label={t.label}
+                  description={t.description}
+                  count={t.kinds.length}
+                  selected={active === t.id}
+                  disabled={readOnly}
+                  onClick={() => onPick(new Set(t.kinds))}
+                />
+              ))}
+            </div>
 
             {/* Custom — active when the selection matches no template */}
             <div
@@ -675,11 +684,12 @@ function TemplateRow({
   return (
     <button
       type="button"
+      role="radio"
       disabled={disabled}
-      aria-pressed={selected}
+      aria-checked={selected}
       onClick={onClick}
       className={cn(
-        'flex w-full flex-col gap-1 rounded-[var(--r-md)] border px-3 py-2.5 text-left transition-colors',
+        'focus-ring flex w-full flex-col gap-1 rounded-[var(--r-md)] border px-3 py-2.5 text-left transition-colors',
         selected ? 'border-accent bg-accent-tint/25' : 'border-line bg-surface hover:border-line-strong',
         disabled && 'cursor-default',
       )}
@@ -804,19 +814,19 @@ function CraftStage({
         authorId: m.sender === 'forge' ? 'forge' : (m.authorId ?? 'unknown'),
         body: m.bodyMd }));
       const approvers = c.approvedBy as string[];
-      const meApprovedAt = approvers.includes(currentMember.id) ? new Date().toISOString() : null;
+      const meApproved = approvers.includes(currentMember.id);
       const participants: Participant[] = [
-        { member: currentMember, approvedAt: meApprovedAt },
+        { member: currentMember, approved: meApproved },
       ];
       for (const pid of (c.participantIds ?? []) as string[]) {
         if (pid === currentMember.id) continue;
         const m = allPool.find((p) => p.id === pid);
-        if (m) participants.push({ member: m, approvedAt: approvers.includes(pid) ? new Date().toISOString() : null });
+        if (m) participants.push({ member: m, approved: approvers.includes(pid) });
       }
       for (const aid of approvers) {
         if (!participants.some((p) => p.member.id === aid)) {
           const approver = allPool.find((m) => m.id === aid);
-          if (approver) participants.push({ member: approver, approvedAt: new Date().toISOString() });
+          if (approver) participants.push({ member: approver, approved: true });
         }
       }
       out[c.id] = { participants, discussion: dbDiscussion };
@@ -834,19 +844,19 @@ function CraftStage({
       const next = { ...prev };
       for (const c of components) {
         const approverList = c.approvedBy as string[];
-        const meApproved = approverList.includes(currentMember.id) ? new Date().toISOString() : null;
+        const meApproved = approverList.includes(currentMember.id);
         const participants: Participant[] = [
-          { member: currentMember, approvedAt: meApproved },
+          { member: currentMember, approved: meApproved },
         ];
         for (const pid of (c.participantIds ?? []) as string[]) {
           if (pid === currentMember.id) continue;
           const m = allPool.find((p) => p.id === pid);
-          if (m) participants.push({ member: m, approvedAt: approverList.includes(pid) ? new Date().toISOString() : null });
+          if (m) participants.push({ member: m, approved: approverList.includes(pid) });
         }
         for (const aid of approverList) {
           if (!participants.some((p) => p.member.id === aid)) {
             const approver = allPool.find((m) => m.id === aid);
-            if (approver) participants.push({ member: approver, approvedAt: new Date().toISOString() });
+            if (approver) participants.push({ member: approver, approved: true });
           }
         }
         const old = prev[c.id];
@@ -1105,7 +1115,7 @@ function CraftStage({
       apply: () => {
         patchCollab((u) => ({
           ...u,
-          participants: recordApproval(u.participants, currentMember, new Date().toISOString()) }));
+          participants: recordApproval(u.participants, currentMember) }));
         // Patch approvedBy too, not just status: the re-seed effect rebuilds
         // participants from approvedBy on any `components` change, so without this the
         // optimistic approval is wiped on the very next render — which is why it looked
@@ -1136,12 +1146,12 @@ function CraftStage({
           // Revoke removes ONLY my approval (matches the server route). Patch
           // approvedBy so the re-seed keeps other approvers intact; status stays
           // 'approved' if anyone else still approves, else back to 'drafted'. Clear
-          // only my own approvedAt, not everyone's.
+          // only my own flag, not everyone's.
           const nextApprovedBy = prevApprovedBy.filter((id) => id !== currentMember.id);
           onPatch(compId, { status: nextApprovedBy.length > 0 ? 'approved' : 'drafted', approvedBy: nextApprovedBy });
           patchCollab((u) => ({
             ...u,
-            participants: u.participants.map((p) => (p.member.id === currentMember.id ? { ...p, approvedAt: null } : p)) }));
+            participants: u.participants.map((p) => (p.member.id === currentMember.id ? { ...p, approved: false } : p)) }));
         },
         commit: async () => {
           const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
@@ -1641,7 +1651,7 @@ function DocumentScreen({
               .filter(Boolean)
               .map((m) => ({
                 member: m!,
-                approvedAt: specApprovers.includes(m!.id) ? new Date().toISOString() : null }));
+                approved: specApprovers.includes(m!.id) }));
             return (
               <div className="shrink-0 border-b border-line px-5 py-2.5">
                 <ParticipantStrip

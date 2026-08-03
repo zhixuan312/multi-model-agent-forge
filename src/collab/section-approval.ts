@@ -14,12 +14,12 @@ import type { MemberRef, Participant } from './types';
 
 /** Participants still expected but not yet approved (drives the panel + nudge). */
 export function pending(ps: Participant[]): Participant[] {
-  return ps.filter((p) => p.approvedAt === null);
+  return ps.filter((p) => !p.approved);
 }
 
 /** Has this specific member already approved? */
 export function hasApproved(ps: Participant[], memberId: string): boolean {
-  return ps.some((p) => p.member.id === memberId && p.approvedAt !== null);
+  return ps.some((p) => p.member.id === memberId && p.approved);
 }
 
 /**
@@ -32,22 +32,19 @@ export function addParticipant(
   member: MemberRef,
 ): Participant[] {
   if (ps.some((p) => p.member.id === member.id)) return ps;
-  return [...ps, { member, approvedAt: null }];
+  return [...ps, { member, approved: false }];
 }
 
 /**
- * Record `member`'s approval at `at`. Self-joins them as a participant if they
- * weren't one (an ad-hoc approver is still tracked). No-op if already approved.
+ * Record `member`'s approval. Self-joins them as a participant if they weren't one
+ * (an ad-hoc approver is still tracked). No-op if already approved.
  */
 export function recordApproval(
   ps: Participant[],
   member: MemberRef,
-  at: string,
 ): Participant[] {
   const base = ps.some((p) => p.member.id === member.id)
     ? ps
-    : [...ps, { member, approvedAt: null }];
-  return base.map((p) =>
-    p.member.id === member.id && p.approvedAt === null ? { ...p, approvedAt: at } : p,
-  );
+    : [...ps, { member, approved: false }];
+  return base.map((p) => (p.member.id === member.id ? { ...p, approved: true } : p));
 }

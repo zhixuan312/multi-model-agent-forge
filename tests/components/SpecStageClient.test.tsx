@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
@@ -168,6 +168,35 @@ describe('SpecStageClient', () => {
         initialPhase: 'finalize',
       });
       expect(screen.getByText('Auditing…')).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Exactly one template is active at a time, so the picker is a radiogroup. It used to
+   * render each row with `aria-pressed`, which announces an independent on/off button and
+   * never conveys "1 of N" — the same single-choice model `Segmented` and `AvatarPicker`
+   * already get right.
+   */
+  describe('template picker is single-select', () => {
+    it('exposes a named radiogroup of radios, not toggle buttons', () => {
+      renderSpec({ initialPhase: 'outline' });
+      const group = screen.getByRole('radiogroup', { name: 'Spec template' });
+      expect(group).toBeInTheDocument();
+      expect(within(group).getAllByRole('radio').length).toBeGreaterThan(0);
+      // Scoped to the group: the multi-select component tiles elsewhere on this phase use
+      // `aria-pressed` correctly, so a page-wide assertion would fail on a non-defect.
+      expect(within(group).queryAllByRole('button')).toHaveLength(0);
+    });
+
+    it('marks at most one option checked', () => {
+      renderSpec({ initialPhase: 'outline' });
+      const checked = screen.getAllByRole('radio').filter((r) => r.getAttribute('aria-checked') === 'true');
+      expect(checked.length).toBeLessThanOrEqual(1);
+    });
+
+    it('keeps the passive Custom indicator out of the group — it has no onClick, so it is not a choice', () => {
+      renderSpec({ initialPhase: 'outline' });
+      expect(screen.getByRole('radiogroup', { name: 'Spec template' })).not.toHaveTextContent('Custom');
     });
   });
 });

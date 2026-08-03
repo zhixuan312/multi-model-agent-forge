@@ -14,14 +14,19 @@ export interface MemberRef {
 }
 
 /**
- * A person attached to a unit for collaborative approval. `approvedAt !== null`
- * means they have nodded. The responsible set for a unit is its participant
- * list (author + everyone @-mentioned in).
+ * A person attached to a unit for collaborative approval. The responsible set for
+ * a unit is its participant list (author + everyone @-mentioned in).
+ *
+ * Approval is a BOOLEAN, not a timestamp. The server persists only `approvedBy`
+ * (a member-id array) — there is no approval time to rehydrate — so a nullable
+ * `approvedAt` could only ever be re-seeded with a fabricated wall-clock "now",
+ * which is what it used to do at five sites. Nothing rendered or compared the
+ * value; every consumer asked "did they nod?".
  */
 export interface Participant {
   member: MemberRef;
-  /** ISO timestamp of their approval, or null when still pending. */
-  approvedAt: string | null;
+  /** True once they have nodded. */
+  approved: boolean;
 }
 
 /**

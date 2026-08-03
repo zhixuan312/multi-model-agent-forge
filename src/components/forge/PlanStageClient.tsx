@@ -470,11 +470,11 @@ function DetailStage({
     return participantIds
       .map((pid) => memberById.get(pid))
       .filter((m): m is NonNullable<typeof m> => !!m)
-      .map((member) => ({ member, approvedAt: null }));
+      .map((member) => ({ member, approved: false }));
   });
   const optimistic = useOptimisticAction();
   const meParticipant: Participant | null = currentMember
-    ? { member: currentMember, approvedAt: null }
+    ? { member: currentMember, approved: false }
     : null;
   const allParticipants: Participant[] = meParticipant
     ? [meParticipant, ...planParticipants.filter((p) => p.member.id !== meParticipant.member.id)]
@@ -720,12 +720,16 @@ function DetailStage({
         approvers={
           <div className="shrink-0 border-b border-line px-5 py-2.5">
             <ParticipantStrip
+              // The plan approves per TASK, not per member — nobody here is ever
+              // `approved: true`, so approval styling would dim the whole roster forever.
+              label="Reviewers"
+              showApproval={false}
               participants={allParticipants}
               pool={projectMembers.map((m) => ({ ...m, avatarTint: m.avatarTint }))}
               onAdd={(m) => {
                 if (planParticipants.some((p) => p.member.id === m.id)) return;
                 void optimistic.run({
-                  apply: () => setPlanParticipants((prev) => [...prev, { member: m, approvedAt: null }]),
+                  apply: () => setPlanParticipants((prev) => [...prev, { member: m, approved: false }]),
                   commit: async () => {
                     // ONE invite — plan participants are plan-level, persisted once. Fanning out
                     // to every task spammed the invitee with N duplicate notifications.

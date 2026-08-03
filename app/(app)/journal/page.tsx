@@ -14,7 +14,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { PageFrame } from '@/components/ui';
-import { JournalTabsNav, type JournalView } from '@/components/forge/journal/JournalTabsNav';
+import { JournalTabsNav, parseJournalView, type JournalView } from '@/components/forge/journal/JournalTabsNav';
 import { JournalState } from '@/components/forge/journal/journal-shell';
 import { RecallTab } from '@/components/forge/journal/RecallTab';
 import { NodesTab } from '@/components/forge/journal/NodesTab';
@@ -51,10 +51,6 @@ import type { MetricCardProps } from '@/components/ui/metric-card';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function normalizeView(v: string | undefined): JournalView {
-  return v === 'nodes' || v === 'graph' || v === 'log' ? v : 'recall';
-}
-
 export default async function JournalPage({
   searchParams,
 }: {
@@ -63,7 +59,7 @@ export default async function JournalPage({
   // The journal is a team's decision graph; the team-less org admin has none.
   const member = await requireTeamPage();
   const { view: rawView, node } = await searchParams;
-  const view = normalizeView(rawView);
+  const view = parseJournalView(rawView);
   const root = await resolveTeamWorkspaceRootById(member.teamId);
 
   let read: JournalReadOutcome;

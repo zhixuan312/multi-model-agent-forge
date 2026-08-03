@@ -34,7 +34,7 @@ import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-subs
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { showToast } from '@/components/ui/toast';
-import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
@@ -1517,6 +1517,16 @@ function DocumentScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
+  /**
+   * How much of the viewed pass is already applied — the SHARED helper, which Plan and Review
+   * both use and Spec never adopted. Select-all and Apply here acted on the whole set, so
+   * after applying 2 of 5, "Select all" re-selected the 2 already-fixed findings, the count
+   * read 5, and Apply re-dispatched them: a second agent pass revising sections that were
+   * already revised, billed again. Review filters the applied indices out before dispatch and
+   * Plan targets the remainder; `patterns/findings.tsx` exists so the three cannot disagree,
+   * and on this one they did.
+   */
+  const activeState = appliedState(activeRound?.findings.length ?? 0, activeRound?.appliedIndices ?? []);
   const iApprovedSpec = specApprovers.includes(currentMember.id);
 
   // Assemble runs as a plain fetch, not a react-query mutation: the auto-assemble below
@@ -1805,13 +1815,16 @@ function DocumentScreen({
               // vanishing, matching the governed AuditView so the three stages can't drift.
               <FindingsApplyBar
                 selectedCount={selectedFindings.length}
-                total={activeRound.findings.length}
+                // What REMAINS, not the whole set — matching Plan and Review.
+                total={activeState.remainingIndices.length}
                 applying={applying}
                 // Locked only when EVERY finding has been applied. It used to lock on the
                 // first apply of any subset, stranding the remaining findings.
-                readOnly={readOnly || activeRound.appliedIndices.length >= activeRound.findings.length}
-                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
-                onApply={() => apply(activeRound.passNo, selectedFindings)}
+                readOnly={readOnly || activeState.allApplied}
+                onToggleAll={() => setSelectedFindings(
+                  selectedFindings.length === activeState.remainingIndices.length ? [] : activeState.remainingIndices,
+                )}
+                onApply={() => apply(activeRound.passNo, selectedFindings.filter((i) => !activeRound.appliedIndices.includes(i)))}
               />
             ) : null}
             {!mmaReady ? (

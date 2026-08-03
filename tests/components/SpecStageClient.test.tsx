@@ -285,3 +285,51 @@ describe('Spec · Outline — a confirmed outline is locked', () => {
     expect(tiles.some((t) => !(t as HTMLButtonElement).disabled)).toBe(true);
   });
 });
+
+describe('Spec · Finalize — applying a subset of findings', () => {
+  const withPass = () =>
+    renderSpec({
+      initialPhase: 'finalize',
+      initialComponents: draftedComponents,
+      initialSpec: { version: 1, bodyMd: '# Spec' },
+      initialAuditHistory: [{
+        passNo: 1,
+        verdict: 'revised',
+        findingsCount: 3,
+        applied: false,
+        appliedIndices: [0, 1],
+        findings: [
+          { severity: 'high', category: 'gap', claim: 'Already fixed A' },
+          { severity: 'high', category: 'gap', claim: 'Already fixed B' },
+          { severity: 'medium', category: 'gap', claim: 'Still open C' },
+        ],
+      }] as unknown as React.ComponentProps<typeof SpecStageClient>['initialAuditHistory'],
+    });
+
+  /**
+   * Select-all and Apply acted on the WHOLE set. After applying 2 of 3, "Select all"
+   * re-selected the two already-fixed findings and Apply re-dispatched them — a second agent
+   * pass revising sections that were already revised, billed again. Plan and Review both use
+   * `appliedState` from the shared pattern; Spec never adopted it.
+   */
+  it('counts and selects only what remains', () => {
+    withPass();
+    // The pane opens on the assembled spec; the findings live behind the Audit tab.
+    fireEvent.click(screen.getByRole('tab', { name: 'Audit' }));
+    fireEvent.click(screen.getByRole('button', { name: /Select all/ }));
+    // One finding remains, so that is what the button offers to apply.
+    expect(screen.getByRole('button', { name: 'Apply (1)' })).toBeInTheDocument();
+  });
+
+  it('dispatches only the un-applied indices', () => {
+    withPass();
+    fireEvent.click(screen.getByRole('tab', { name: 'Audit' }));
+    fireEvent.click(screen.getByRole('button', { name: /Select all/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Apply/ }));
+
+    expect(transition).toHaveBeenCalledWith(
+      'apply_findings',
+      expect.objectContaining({ findingIndices: [2], passNo: 1 }),
+    );
+  });
+});

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, TriangleAlert } from 'lucide-react';
-import { Button, Card, CardContent, Switch, TabBar } from '@/components/ui';
+import { Badge, Button, Card, CardContent, Switch, TabBar } from '@/components/ui';
 import { Governed } from '@/components/governance/governed';
 import { GOVERNANCE_SLOT_NAV, type GovernanceSlotView } from '@/components/governance/registry';
 import type { LayerConformance } from '@/governance/conformance';
@@ -86,14 +86,16 @@ export function SlotEditor({ slot, variantId, conformance }: { slot: GovernanceS
                 <p className="text-sm font-medium text-ink">Conformance</p>
                 <p className="text-xs text-ink-faint">{conformance.convention}</p>
               </div>
+              {/* The governed Badge — its `sage` and `rose` variants are the same tints these
+                  pills spelled by hand, on the page whose whole subject is conformance. */}
               {conformance.violations.length === 0 ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sage-tint px-2.5 py-1 text-xs font-medium text-[var(--sage-deep)]">
-                  <Check className="size-3.5" /> {conformance.checked} checked · all conform
-                </span>
+                <Badge variant="sage" icon={<Check />} className="shrink-0">
+                  {conformance.checked} checked · all conform
+                </Badge>
               ) : (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-tint px-2.5 py-1 text-xs font-medium text-rose">
-                  <TriangleAlert className="size-3.5" /> {conformance.violations.length} of {conformance.checked} off-convention
-                </span>
+                <Badge variant="rose" icon={<TriangleAlert />} className="shrink-0">
+                  {conformance.violations.length} of {conformance.checked} off-convention
+                </Badge>
               )}
             </div>
             {conformance.violations.length > 0 ? (

@@ -6,8 +6,8 @@
  *
  * Visibility: `visibleProjects` and `assertProjectReadable` gate WORK ARTIFACTS
  * (Q&A, drafts, plan, history) — NOT code/repos (those are team-public, Spec 2).
- * Every project-scoped artifact/stage/qa read routes through the guard; code
- * reads (`readProjectRepos`) intentionally do not.
+ * Every project-scoped artifact/stage/qa read routes through the guard; reads of
+ * the repos themselves intentionally do not.
  */
 import { rm } from 'node:fs/promises';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
@@ -77,7 +77,7 @@ export interface ProjectListItem {
   updatedAt: Date;
   /** Whether the actor owns or collaborates on this project (Mine filter). */
   isMember: boolean;
-  /** The five stage rows, in STAGE_ORDER. */
+  /** One row per stage, in STAGE_ORDER. */
   stages: StageView[];
   /** Count of RESOLVABLE repos only (dangling/missing rows excluded). */
   repoCount: number;
@@ -134,7 +134,7 @@ async function branchSlugTaken(db: Db, name: string, teamId: string, exceptId?: 
 }
 
 /**
- * Create a project + seed the five-stage skeleton + repo subset + owner row +
+ * Create a project + seed the stage skeleton (one per STAGE_ORDER entry) + repo subset + owner row +
  * the create_project audit row — ALL in one transaction (a partial failure
  * rolls everything back). `exploration` is seeded `active`, the rest `pending`;
  * `phase='design'`, `current_stage='exploration'`, `summary`/`intent_md` NULL.
@@ -390,6 +390,7 @@ async function listProjects(
   const derivedByProject = new Map<string, { currentStage: StageKind | null; phase: ProjectPhase }>();
 
   const { deriveStageAndPhase } = await import('@/details/write');
+  const repoIdsByProject = new Map<string, string[]>();
   for (const r of rows) {
     if (!r.details) continue;
     try {
@@ -399,11 +400,34 @@ async function listProjects(
         status: d.stages[kind].status,
       }));
       stagesByProject.set(r.id, stages);
-      repoCountByProject.set(r.id, d.repos.length);
+      repoIdsByProject.set(r.id, d.repos.map((x) => x.id));
       derivedByProject.set(r.id, deriveStageAndPhase(d));
     } catch {
       // ignore invalid details rows; preserve current behavior
     }
+  }
+
+  // A project's `details.repos` is a SNAPSHOT taken when the repo was linked; the repo row
+  // can since have been deleted or gone to `status: 'error'`. Resolve them against the live
+  // table so the card can say so — `unavailableRepoCount` was previously never written, so
+  // it was always 0 and the "repo unavailable" chip could not appear however broken the
+  // project was; `repoCount` counted the snapshot, dangling entries included, despite
+  // documenting itself as resolvable-only. One batched query for every project on the page.
+  const allRepoIds = [...new Set([...repoIdsByProject.values()].flat())];
+  const healthyRepoIds = new Set<string>();
+  if (allRepoIds.length > 0) {
+    const repoRows = await db
+      .select({ id: repo.id, status: repo.status })
+      .from(repo)
+      .where(and(inArray(repo.id, allRepoIds), eq(repo.teamId, actor.teamId)));
+    for (const rr of repoRows) {
+      if (rr.status !== 'error') healthyRepoIds.add(rr.id);
+    }
+  }
+  for (const [projectId, ids] of repoIdsByProject) {
+    const healthy = ids.filter((id) => healthyRepoIds.has(id)).length;
+    repoCountByProject.set(projectId, healthy);
+    unavailableByProject.set(projectId, ids.length - healthy);
   }
 
   return rows.map((r) => {
@@ -498,20 +522,6 @@ export async function getProjectStages(
     return orderStages(stageViews);
   }
   return orderStages([]);
-}
-
-/**
- * Load a single project's repo subset with resolvable/unavailable flags. LEFT
- * JOINs `repo` — a dangling row (null join) or a `status='error'` row is
- * UNAVAILABLE; everything else resolves.
- */
-export interface ProjectRepoView {
-  repoId: string;
-  name: string | null;
-  tags: string[] | null;
-  status: 'cloned' | 'pulling' | 'error' | null;
-  /** False ⟺ dangling join OR status='error'. */
-  available: boolean;
 }
 
 /* ── Mutations ──────────────────────────────────────────────────────────── */

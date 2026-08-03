@@ -134,6 +134,63 @@ describe('createProject — seeding + validation', () => {
   });
 });
 
+/**
+ * The list card shows a "repo unavailable" chip, and ProjectCard is tested for it — with a
+ * hand-supplied prop. The producer never populated the field: `unavailableByProject` was
+ * declared and read, never written, so `unavailableRepoCount` was ALWAYS 0 and the chip
+ * could not appear in production however broken a project's repos were. A user whose repo
+ * row had been deleted or had gone to `status: 'error'` saw a confident "3 repos" and
+ * found out only when a dispatch failed.
+ *
+ * `repoCount` had the mirror problem: documented as resolvable-only, counted straight off
+ * the details snapshot, so it included the dangling ones.
+ */
+describe('repo availability on the list card', () => {
+  const detailsWithRepos = (ids: string[]) => {
+    const d = buildInitialDetails();
+    d.repos = ids.map((id) => ({ id, name: id, pathOnDisk: `/w/${id}`, defaultBranch: 'main' }));
+    return d;
+  };
+  const row = (details: ReturnType<typeof detailsWithRepos>) => ({
+    id: 'proj-r', name: 'R', summary: null, visibility: 'public' as const,
+    phase: 'design' as const, currentStage: 'exploration' as const,
+    ownerId: 'owner-r', updatedAt: new Date(), details, archived: false,
+  });
+
+  it('counts an errored repo as unavailable, not as a working one', async () => {
+    const mockDb = createMockDb({
+      'select:project': [row(detailsWithRepos(['r1', 'r2']))],
+      'select:member': [{ id: 'owner-r', displayName: 'O', avatarTint: '#000000' }],
+      'select:workspace_repo': [{ id: 'r1', status: 'cloned' }, { id: 'r2', status: 'error' }],
+    });
+    const [item] = await visibleProjects({ id: 'owner-r', teamId: 'team-1' }, { db: mockDb });
+    expect(item.unavailableRepoCount).toBe(1);
+    expect(item.repoCount).toBe(1);
+  });
+
+  it('counts a repo whose row is gone as unavailable', async () => {
+    const mockDb = createMockDb({
+      'select:project': [row(detailsWithRepos(['r1', 'gone']))],
+      'select:member': [{ id: 'owner-r', displayName: 'O', avatarTint: '#000000' }],
+      'select:workspace_repo': [{ id: 'r1', status: 'cloned' }],
+    });
+    const [item] = await visibleProjects({ id: 'owner-r', teamId: 'team-1' }, { db: mockDb });
+    expect(item.unavailableRepoCount).toBe(1);
+    expect(item.repoCount).toBe(1);
+  });
+
+  it('reports none unavailable when every repo resolves', async () => {
+    const mockDb = createMockDb({
+      'select:project': [row(detailsWithRepos(['r1', 'r2']))],
+      'select:member': [{ id: 'owner-r', displayName: 'O', avatarTint: '#000000' }],
+      'select:workspace_repo': [{ id: 'r1', status: 'cloned' }, { id: 'r2', status: 'pulling' }],
+    });
+    const [item] = await visibleProjects({ id: 'owner-r', teamId: 'team-1' }, { db: mockDb });
+    expect(item.unavailableRepoCount).toBe(0);
+    expect(item.repoCount).toBe(2);
+  });
+});
+
 describe('visibility — visibleProjects + assertProjectReadable', () => {
   it('a public project is visible to a non-member', async () => {
     const projectId = 'proj-6';

@@ -16,7 +16,9 @@ import { isAdminRole } from '@/db/enums';
  *
  * Verb → action contract (from the spec's Key flows table):
  *   POST   /api/members              → createMember
- *   PATCH  /api/members/[id]         → setMemberAdmin (toggle is_admin)
+ *   PATCH  /api/members/[id]         → setMemberAdmin (an `isAdmin` boolean on the WIRE,
+ *                                      stored as `role`: team_admin | member — there is
+ *                                      no `is_admin` column)
  *   DELETE /api/members/[id]         → deleteMember (hard delete)
  *   POST   /api/members/[id]/password → resetMemberPassword
  *
@@ -126,9 +128,10 @@ export type SetAdminResult =
   | { kind: 'last_admin' };
 
 /**
- * Set a member's `is_admin`. Demoting (`isAdmin=false`) is rejected when the
- * member is currently the only admin (last-admin invariant → 409). Promoting is
- * always allowed; setting a value it already holds is a no-op success.
+ * Set a member's admin status. The wire takes a boolean; storage is `role`
+ * (`team_admin` | `member`). Demoting is rejected when the member is currently the only
+ * admin (last-admin invariant → 409). Promoting is always allowed; setting a value it
+ * already holds is a no-op success.
  */
 export async function setMemberAdmin(
   memberId: string,

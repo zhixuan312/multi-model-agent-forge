@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { STAGE_KIND } from '@/db/enums';
 import { ProjectCard } from '@/components/forge/ProjectCard';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 
@@ -52,14 +53,27 @@ describe('ProjectCard', () => {
     expect(screen.getByText(/No summary yet/i)).toBeInTheDocument();
   });
 
-  it('stage rail exposes a per-segment text alternative (status not colour-alone)', () => {
+  /**
+   * The segment label is the segment's ACCESSIBLE NAME, so it must be the name a person is
+   * shown. Two kinds differ: `exploration` is Explore and `journal` is Reflect — and there is
+   * also a team-level /journal, so the key reads as a different feature entirely.
+   *
+   * This test asserted `'exploration: done'`, pinning the raw key it was passing through.
+   */
+  it('stage rail names each stage as the user sees it, not by its enum key', () => {
     const { container } = render(<ProjectCard project={item()} />);
     const rail = container.querySelector('[aria-label="Stage progress"]')!;
     const segs = within(rail as HTMLElement).getAllByRole('listitem');
     expect(segs).toHaveLength(5);
-    expect(segs[0]).toHaveAttribute('aria-label', 'exploration: done');
-    expect(segs[2]).toHaveAttribute('aria-label', 'plan: active');
-    expect(segs[3]).toHaveAttribute('aria-label', 'execute: pending');
+    expect(segs[0]).toHaveAttribute('aria-label', 'Explore: done');
+    expect(segs[2]).toHaveAttribute('aria-label', 'Plan: active');
+    expect(segs[3]).toHaveAttribute('aria-label', 'Execute: pending');
+
+    // And nothing in the rail announces a stage by its enum key.
+    const names = segs.map((s) => s.getAttribute('aria-label') ?? '');
+    for (const key of STAGE_KIND) {
+      expect(names.some((n) => n.startsWith(`${key}:`)), `"${key}" is announced by its key`).toBe(false);
+    }
   });
 
   it('shows the repo-unavailable chip when there are unavailable repos', () => {

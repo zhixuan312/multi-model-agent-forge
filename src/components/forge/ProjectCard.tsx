@@ -12,6 +12,7 @@ import {
   AvatarGroup,
 } from '@/components/ui';
 import { PhaseBadge } from '@/components/forge/PhaseBadge';
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { formatRelative } from '@/lib/format-date';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 import type { ArtifactKind } from '@/db/enums';
@@ -56,7 +57,13 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
           <div className="flex items-center gap-2.5">
             <StageRail
               className="flex-1"
-              segments={project.stages.map((s) => ({ status: s.status, label: s.kind }))}
+              // `STAGE_LABEL`, not the raw `kind`: the segment label is the segment's
+              // ACCESSIBLE NAME, and two kinds differ from what a person is shown —
+              // `exploration` is Explore and `journal` is Reflect. A screen-reader user was
+              // hearing "journal: done" for a stage the app calls Reflect everywhere it can
+              // be seen, and there is also a team-level /journal, which reads as a different
+              // feature entirely. Fourth surface found naming a stage by its key.
+              segments={project.stages.map((s) => ({ status: s.status, label: STAGE_LABEL[s.kind] }))}
             />
             {project.latestArtifact ? (
               <Mono className="!text-[11px] shrink-0 text-ink-faint">

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -48,47 +48,51 @@ describe('distribution docs contract', () => {
   });
 
   it('documents every env var Forge actually reads at runtime', () => {
+    // Derived, not listed. The previous version asserted a hand-maintained array, so its
+    // name was a claim the test could not check: a newly-read variable stayed invisible
+    // until someone remembered to add it here. Now a var read anywhere in the shipped
+    // code must appear in .env.example or this fails.
     const envExample = readFileSync(join(process.cwd(), '.env.example'), 'utf8');
+    const documented = new Set(
+      [...envExample.matchAll(/^#?\s*([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]!),
+    );
 
-    for (const key of [
-      'ANTHROPIC_API_KEY',
-      'ARGON2_ITERATIONS',
-      'ARGON2_MEMORY_KIB',
-      'ARGON2_PARALLELISM',
-      'DATABASE_URL',
-      'FORGE_BUILD_BUILT_AT',
-      'FORGE_BUILD_GIT_SHA',
-      'FORGE_COOKIE_SECURE',
-      'FORGE_DB_POOL_MAX',
-      'FORGE_EXPORT_ROOT',
-      'FORGE_PDF_LAUNCH_TIMEOUT_MS',
-      'FORGE_PDF_MAX_QUEUE',
-      'FORGE_PDF_MAX_SOURCE_BYTES',
-      'FORGE_PDF_NO_SANDBOX',
-      'FORGE_PDF_TIMEOUT_MS',
-      'FORGE_PDF_WORKER_PATH',
-      'FORGE_SECRET_KEY',
-      'FORGE_TRUST_PROXY',
-      'FORGE_WORKSPACE_BASE',
-      'FORGE_WORKSPACE_ROOT',
-      'LOGIN_RATELIMIT_MAX',
-      'LOGIN_RATELIMIT_WINDOW',
-      'MMA_AUTH_TOKEN',
-      'MMA_BASE_URL',
-      'MMA_CLIENT',
-      'MMA_CONFIG_PATH',
-      'MMA_FETCH_TIMEOUT',
-      'MMA_HOME',
-      'NODE_ENV',
-      'OPENAI_API_KEY',
-      'PASSWORD_MIN_LENGTH',
-      'PROVIDER',
-      'PUPPETEER_EXECUTABLE_PATH',
-      'SESSION_ABSOLUTE_TTL',
-      'SESSION_IDLE_TTL',
-    ]) {
-      expect(envExample).toContain(`${key}=`);
+    // Provided by the runtime, not by the operator — nothing to document.
+    const FRAMEWORK_PROVIDED = new Set(['NEXT_RUNTIME']);
+
+    const roots = ['src', 'app', 'scripts'];
+    const walk = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) out.push(...walk(full));
+        else if (/\.(ts|tsx|mjs)$/.test(e.name) && !e.name.includes('.test.')) out.push(full);
+      }
+      return out;
+    };
+    const files = [
+      ...roots.flatMap((r) => (existsSync(join(process.cwd(), r)) ? walk(join(process.cwd(), r)) : [])),
+      join(process.cwd(), 'instrumentation.ts'),
+      join(process.cwd(), 'middleware.ts'),
+    ];
+
+    const read = new Map<string, string>();
+    for (const f of files) {
+      if (!existsSync(f)) continue;
+      const text = readFileSync(f, 'utf8');
+      for (const m of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)|process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/g)) {
+        const key = (m[1] ?? m[2])!;
+        if (!read.has(key)) read.set(key, f.replace(process.cwd() + '/', ''));
+      }
     }
+
+    // Sanity: the scan found real code, so an empty result cannot pass vacuously.
+    expect(read.size).toBeGreaterThan(20);
+
+    const undocumented = [...read.entries()]
+      .filter(([k]) => !documented.has(k) && !FRAMEWORK_PROVIDED.has(k))
+      .map(([k, f]) => `${k} (read in ${f})`);
+    expect(undocumented, 'env vars read in code but absent from .env.example').toEqual([]);
   });
 });
 

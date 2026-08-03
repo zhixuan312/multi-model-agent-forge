@@ -139,6 +139,20 @@ pnpm dev              # http://localhost:3000
 
 The MMA engine runs separately (`mma serve` on port 7337). Forge calls its `POST /task` endpoint to dispatch work.
 
+Useful during development:
+
+```bash
+pnpm typecheck        # tsc --noEmit
+pnpm lint             # eslint, incl. the governed-components rule
+pnpm test             # vitest (no database required — tests/setup.ts unsets DATABASE_URL)
+pnpm governance:check # every page/component conforms to its governed layer
+```
+
+Loops need no extra process: the scheduler that fires `recurring` (cron) loops ticks inside
+the Forge server. `pnpm loop-worker` runs that same scheduler standalone if you would rather
+keep it out of the web process — set `FORGE_DISABLE_LOOP_SCHEDULER=true` so only one of them
+ticks.
+
 ## Container bootstrap notes
 
 - The image is **all-in-one**: `scripts/container-supervisor.mjs` (under `tini`) starts the bundled MMA engine on loopback, health-gates it, runs the DB bootstrap, then starts Forge. Both processes share one lifecycle — if either dies the container exits for a clean restart.

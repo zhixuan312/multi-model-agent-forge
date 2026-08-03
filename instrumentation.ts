@@ -52,6 +52,31 @@ export async function register(): Promise<void> {
     );
   }
 
+  // Tick the Loops scheduler in-process, so `recurring` loops actually fire.
+  //
+  // They previously did not: `startLoopWorker` is reachable only through
+  // `pnpm loop-worker`, and nothing starts that — not the Dockerfile, not
+  // `container-supervisor.mjs` (which spawns exactly `mma serve` and the Forge
+  // server). `event` loops were unaffected because they arrive over HTTP at
+  // /api/loops/[id]/events, so the gap was invisible except to the cron ones:
+  // an admin could create an enabled loop with a valid cron expression and it
+  // would sit there forever.
+  //
+  // In-process is consistent with how this file already resumes automation, and
+  // with the image's one-Forge-process model. Set FORGE_DISABLE_LOOP_SCHEDULER=true
+  // when running `pnpm loop-worker` as a separate process, so the two don't both tick.
+  if (process.env.FORGE_DISABLE_LOOP_SCHEDULER !== 'true') {
+    try {
+      const { startLoopWorker } = await import('@/loops/scheduler');
+      startLoopWorker();
+      console.log(JSON.stringify({ event: 'loop_scheduler_started' }));
+    } catch (e) {
+      console.warn(
+        JSON.stringify({ event: 'loop_scheduler_start_deferred', reason: e instanceof Error ? e.message : String(e) }),
+      );
+    }
+  }
+
   // Resume server-side automation for projects with auto_mode = true (legacy)
   // OR details.automation.status = 'running' (details-ready path)
   try {

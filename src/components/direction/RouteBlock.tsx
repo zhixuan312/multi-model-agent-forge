@@ -6,12 +6,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { READ_ROUTES, type RouteSubtype } from '@/content/direction-reference';
 
-/** Severity → `Badge` variant. The ladder rides the design system's status tints
- *  (rose = worst, amber = significant) rather than a bespoke colour scale. */
+/**
+ * Severity → `Badge` variant. The ladder rides the design system's status tints rather
+ * than a bespoke colour scale, and must read the same as the product's own findings
+ * ladder (`SEVERITY_STYLE` in patterns/findings.tsx): rose · amber · frost-steel ·
+ * neutral. `medium` was `neutral` here, so the manual drew medium and low identically
+ * while the app distinguishes them — the reference describing severity disagreed with
+ * the surface applying it.
+ */
 const SEVERITY_VARIANT: Record<string, BadgeProps['variant']> = {
   critical: 'rose',
   high: 'amber',
-  medium: 'neutral',
+  medium: 'steel',
   low: 'neutral',
 };
 

@@ -61,8 +61,13 @@ export function Banner({
 }: BannerProps) {
   const v = variant ?? 'info';
   const Icon = iconFor[v];
+  // A danger banner is assertive, everything else polite — the same split `Toast` makes.
+  // `status` for all four meant an error appearing mid-task waited behind whatever the
+  // screen reader was already saying, which for the variant that means "this failed" is
+  // the wrong queue.
+  const role = v === 'danger' ? 'alert' : 'status';
   return (
-    <div role="status" className={cn(bannerVariants({ variant }), className)}>
+    <div role={role} className={cn(bannerVariants({ variant }), className)}>
       <Icon className={cn('mt-0.5 size-[18px] shrink-0', iconTone[v])} aria-hidden />
       <div className="min-w-0 flex-1">
         <TextStrong className="t-sm font-semibold !text-ink">{title}</TextStrong>

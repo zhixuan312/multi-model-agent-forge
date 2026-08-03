@@ -49,6 +49,24 @@ describe('ParticipantStrip', () => {
     expect(container.querySelector('.bg-\\[var\\(--sage\\)\\]')).not.toBeNull();
   });
 
+  /**
+   * Finalize passed `onAdd={() => {}}`, so the picker opened, listed candidates, and
+   * silently dropped the click. A surface that cannot invite must not offer to.
+   */
+  it('renders no Invite picker when the surface has no onAdd', () => {
+    render(
+      <TooltipProvider>
+        <ParticipantStrip participants={parts} pool={[bo, priya]} />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /Invite/ })).not.toBeInTheDocument();
+  });
+
+  it('renders the Invite picker when the surface can invite', () => {
+    strip({ pool: [{ id: 'x', displayName: 'Xu Wei', avatarTint: '#333' }] });
+    expect(screen.getByRole('button', { name: /Invite/ })).toBeInTheDocument();
+  });
+
   it('lists every participant either way', () => {
     const { container } = strip({ showApproval: false });
     const avatars = within(container).getAllByText(/^(BC|PN)$/);

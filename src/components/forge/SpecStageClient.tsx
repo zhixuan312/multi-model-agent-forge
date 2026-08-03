@@ -1093,7 +1093,7 @@ function CraftStage({
             ...u,
             discussion: [
               ...u.discussion,
-              { id: `f-${compId}-${(u.discussion?.length ?? 0)}`, authorId: 'forge', body: 'Something went wrong — please try again.' },
+              { id: localId('forge-err'), authorId: 'forge', body: 'Something went wrong — please try again.' },
             ] }));
         });
     } else if (forgeTagged && !drafted) {
@@ -1168,18 +1168,16 @@ function CraftStage({
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
-  /** UNIQUE teammates still pending on at least one section — drives the soft nudge.
-   * Count people, not section×person instances (summing double-counted the same few
-   * approvers across all 8 sections, e.g. "15" for only 2 pending teammates). */
-  const pendingTotal = (() => {
-    const ids = new Set<string>();
-    for (const c of components) {
-      for (const p of pendingParticipants(collab[c.id]?.participants ?? [])) ids.add(p.member.id);
-    }
-    return ids.size;
-  })();
+  /** Is anyone still pending on at least one section? Drives the soft nudge.
+   * A boolean, deliberately: this used to build a Set of unique member ids because the
+   * COUNT was rendered (and section×person double-counting showed "15" for 2 people).
+   * The copy no longer names a number, so the Set was an O(sections x people)
+   * allocation to answer a yes/no. */
+  const anyPending = components.some(
+    (c) => pendingParticipants(collab[c.id]?.participants ?? []).length > 0,
+  );
   function consolidate(): void {
-    if (pendingTotal > 0 && !nudge) {
+    if (anyPending && !nudge) {
       setNudge(true);
       return;
     }
@@ -1228,7 +1226,7 @@ function CraftStage({
             </button>
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {nudge && pendingTotal > 0 ? (
+            {nudge && anyPending ? (
               <div className="rounded-[var(--r-md)] border border-amber-tint bg-amber-tint/40 px-3 py-2 text-xs leading-relaxed text-ink-soft">
                 Not all invited approvers have responded yet. One nod per section is
                 enough — you can proceed anyway.
@@ -1391,7 +1389,7 @@ function ComponentRow({
           </span>
         </div>
       </div>
-      {participants.length > 0 ? <ApproverCluster participants={participants} /> : null}
+      <ApproverCluster participants={participants} />
     </button>
   );
 }
@@ -1654,10 +1652,11 @@ function DocumentScreen({
                 approved: specApprovers.includes(m!.id) }));
             return (
               <div className="shrink-0 border-b border-line px-5 py-2.5">
+                {/* No `onAdd`: invites are per-component and happen in Craft. Passing a
+                    no-op handler here rendered a live "Invite" picker that did nothing. */}
                 <ParticipantStrip
                   participants={involved}
                   pool={projectMembers}
-                  onAdd={() => {}}
                   disabled={readOnly}
                 />
               </div>

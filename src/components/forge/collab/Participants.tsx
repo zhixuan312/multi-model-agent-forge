@@ -119,7 +119,10 @@ export function ParticipantStrip({
 }: {
   participants: Participant[];
   pool: MemberRef[];
-  onAdd: (m: MemberRef) => void;
+  /** Omit where the surface cannot invite. The picker is then not rendered at all —
+   *  it used to be handed a `() => {}` on the Finalize strip, so "Invite" opened,
+   *  listed candidates, and silently did nothing when you picked one. */
+  onAdd?: (m: MemberRef) => void;
   disabled?: boolean;
   /** Heading over the strip. Say what the people ARE on this surface. */
   label?: string;
@@ -141,7 +144,9 @@ export function ParticipantStrip({
         <span className="text-xs text-ink-faint">Just you — invite teammates to co-approve.</span>
       )}
       <span className="flex-1" />
-      <InviteMenu pool={pool} participants={participants} onAdd={onAdd} disabled={disabled} />
+      {onAdd ? (
+        <InviteMenu pool={pool} participants={participants} onAdd={onAdd} disabled={disabled} />
+      ) : null}
     </div>
   );
 }

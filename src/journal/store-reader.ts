@@ -336,46 +336,47 @@ function isEacces(e: unknown): boolean {
   return code === 'EACCES' || code === 'EPERM';
 }
 
-/** Read `index.md` rows. Missing file → []. */
-export async function readIndex(root: string): Promise<IndexRow[]> {
+/**
+ * Read one line-oriented store file and parse each line, dropping the ones the parser
+ * rejects (headers, separators, blanks). ONE confinement assert, ONE error policy —
+ * `index.md` and `log.md` had a copy each, so the two could drift on which errors are
+ * survivable while both claim to be "graceful".
+ *
+ * Missing file → `[]`. Unreadable (EACCES/EPERM) → THROWS, so callers render the
+ * "unreadable" diagnostic instead of an empty journal.
+ */
+async function readParsedLines<T>(
+  root: string,
+  filename: string,
+  parse: (line: string) => T | null,
+): Promise<T[]> {
   const dir = journalDirFor(root);
-  const file = join(dir, 'index.md');
+  const file = join(dir, filename);
   assertInsideJournalDir(dir, file);
   let text: string;
   try {
     text = await fsp.readFile(file, 'utf8');
   } catch (e) {
-    if (isEnoent(e)) return [];
     if (isEacces(e)) throw e;
+    if (isEnoent(e)) return [];
     return [];
   }
-  const rows: IndexRow[] = [];
+  const out: T[] = [];
   for (const line of text.split('\n')) {
-    const r = parseIndexRow(line);
-    if (r) rows.push(r);
+    const parsed = parse(line);
+    if (parsed !== null) out.push(parsed);
   }
-  return rows;
+  return out;
+}
+
+/** Read `index.md` rows. Missing file → []. */
+export async function readIndex(root: string): Promise<IndexRow[]> {
+  return readParsedLines(root, 'index.md', parseIndexRow);
 }
 
 /** Read `log.md` entries in file (append, chronological) order. Missing → []. */
 export async function readLog(root: string): Promise<LogEntry[]> {
-  const dir = journalDirFor(root);
-  const file = join(dir, 'log.md');
-  assertInsideJournalDir(dir, file);
-  let text: string;
-  try {
-    text = await fsp.readFile(file, 'utf8');
-  } catch (e) {
-    if (isEnoent(e)) return [];
-    if (isEacces(e)) throw e;
-    return [];
-  }
-  const out: LogEntry[] = [];
-  for (const line of text.split('\n')) {
-    const e = parseLogLine(line);
-    if (e) out.push(e);
-  }
-  return out;
+  return readParsedLines(root, 'log.md', parseLogLine);
 }
 
 async function listNodeFiles(dir: string): Promise<string[]> {

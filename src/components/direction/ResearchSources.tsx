@@ -32,7 +32,8 @@ export function ResearchSources() {
                     <TextSm className="!text-xs">{s.covers}</TextSm>
                   </TableCell>
                   <TableCell className="align-top">
-                    <TextSm className={cn('!text-xs', s.auth === '—' && '!text-ink-faint')}>{s.auth}</TextSm>
+                    {/* The dash is this view's placeholder for "open"; the data says null. */}
+                    <TextSm className={cn('!text-xs', s.auth === null && '!text-ink-faint')}>{s.auth ?? '—'}</TextSm>
                   </TableCell>
                 </TableRow>
               ))}

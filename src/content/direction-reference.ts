@@ -401,8 +401,10 @@ export const WRITE_STAGES: ExecStage[] = [
 export interface ResearchSource {
   name: string;
   covers: string;
-  /** Authentication required to enable the source, or '—' if open. */
-  auth: string;
+  /** Authentication required to enable the source; `null` when the source is open.
+   *  NOT a dash — the placeholder glyph is the view's choice, and `ResearchSources`
+   *  used to compare against a literal '—' declared over here. */
+  auth: string | null;
 }
 
 /** The external sources the `research` route fans out across. Web search is
@@ -411,9 +413,9 @@ export const RESEARCH_SOURCES: ResearchSource[] = [
   { name: 'brave', covers: 'General web search — the web-search backend (supports `site:` filters).', auth: 'Brave API key' },
   { name: 'semantic_scholar', covers: 'Academic search and citation graph.', auth: 'API key' },
   { name: 'github_search', covers: 'GitHub repository and code search.', auth: 'GitHub token (PAT)' },
-  { name: 'arxiv', covers: 'Pre-print academic papers.', auth: '—' },
-  { name: 'rss', covers: 'RSS / Atom feeds you configure.', auth: '—' },
-  { name: 'web_fetch', covers: 'Fetch a specific URL directly.', auth: '—' },
+  { name: 'arxiv', covers: 'Pre-print academic papers.', auth: null },
+  { name: 'rss', covers: 'RSS / Atom feeds you configure.', auth: null },
+  { name: 'web_fetch', covers: 'Fetch a specific URL directly.', auth: null },
 ];
 
 // ── Journal mechanism (from the mma-journal design spec, 2026-05-23) ──

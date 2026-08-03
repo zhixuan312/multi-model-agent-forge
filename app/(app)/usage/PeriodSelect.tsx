@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
 
 const PERIODS = [
   { value: 'week', label: 'This week' },
@@ -10,6 +11,14 @@ const PERIODS = [
   { value: 'all', label: 'All time' },
 ] as const;
 
+/**
+ * Usage period filter. State lives in the URL (shareable, RSC-friendly), like the Loops
+ * activity filters.
+ *
+ * The governed `Select`, not a native `<select>`: this was the one dropdown in the app
+ * that rendered the OS control, with its own hand-written border and focus ring, sitting
+ * beside toolbars built from Radix triggers.
+ */
 export function PeriodSelect() {
   const router = useRouter();
   const pathname = usePathname();
@@ -17,21 +26,24 @@ export function PeriodSelect() {
   const current = searchParams.get('period') ?? 'month';
 
   return (
-    <select
-      aria-label="Period"
+    <Select
       value={current}
-      onChange={(e) => {
+      onValueChange={(v) => {
         const params = new URLSearchParams(searchParams.toString());
-        params.set('period', e.target.value);
+        params.set('period', v);
         router.push(`${pathname}?${params.toString()}`);
       }}
-      className="rounded-[var(--r)] border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink-soft focus:outline-none focus:ring-1 focus:ring-accent"
     >
-      {PERIODS.map((p) => (
-        <option key={p.value} value={p.value}>
-          {p.label}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger aria-label="Period" className="w-[10.5rem]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {PERIODS.map((p) => (
+          <SelectItem key={p.value} value={p.value}>
+            {p.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

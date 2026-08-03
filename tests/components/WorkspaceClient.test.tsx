@@ -39,11 +39,23 @@ describe('WorkspaceClient filter island (Flow E)', () => {
     expect(screen.queryByText('core-docs')).toBeNull();
   });
 
-  it('status chips carry a text label + aria-label, not colour alone (a11y F6)', () => {
+  it('status chips carry a TEXT label, not colour alone (a11y F6)', () => {
     render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
-    expect(within(row('core-api')).getByRole('status')).toHaveAccessibleName(/Cloned/i);
-    expect(within(row('web')).getByRole('status')).toHaveAccessibleName(/Pulling/i);
-    expect(within(row('core-docs')).getByRole('status')).toHaveAccessibleName(/Error/i);
+    expect(within(row('core-api')).getByText('Cloned')).toBeInTheDocument();
+    expect(within(row('web')).getByText('Pulling…')).toBeInTheDocument();
+    expect(within(row('core-docs')).getByText('Error')).toBeInTheDocument();
+  });
+
+  /**
+   * The chip is a table CELL, so `role="status"` made every repo row its own polite live
+   * region. The `aria-label` that came with it was prohibited too — `Badge` renders a
+   * `<span>`, and a label is not allowed on the implicit `generic` role — and it
+   * overrode the visible text with a near-copy of it. The "Status" column header already
+   * supplies the context it was spelling out.
+   */
+  it('does not turn every repo row into a live region', () => {
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin={false} />);
+    expect(screen.queryAllByRole('status')).toHaveLength(0);
   });
 
   it('hides the New-repo button + row actions for non-admins', () => {

@@ -47,11 +47,19 @@ const STATUS_META: Record<
   error: { label: 'Error', variant: 'rose', icon: <AlertTriangle /> },
 };
 
-/** Status chip — text label + icon + aria-label, never colour alone (a11y F6). */
+/**
+ * Status chip — text label + icon, never colour alone (a11y F6).
+ *
+ * No `role="status"`: that is a LIVE REGION, and this is a table CELL, so every repo row
+ * became its own polite announcer. No `aria-label` either — `Badge` renders a `<span>`,
+ * where a label is prohibited on the implicit `generic` role, and it was overriding the
+ * visible text with a near-copy of it. The "Status" column header supplies the context
+ * the label was spelling out.
+ */
 function RepoStatusChip({ status }: { status: RepoCardData['status'] }) {
   const m = STATUS_META[status];
   return (
-    <Badge variant={m.variant} icon={m.icon} role="status" aria-label={`Repository status: ${m.label}`}>
+    <Badge variant={m.variant} icon={m.icon}>
       {m.label}
     </Badge>
   );

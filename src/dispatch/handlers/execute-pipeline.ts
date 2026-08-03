@@ -15,7 +15,6 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
     forgeBranch: string;
     targetBranch: string;
     repoId: string;
-    tasks: string[];
     actorId?: string;
   };
   const { forgeBranch, targetBranch, repoId } = request;

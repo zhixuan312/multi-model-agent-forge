@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DISCOVER_TASK_KIND } from '@/db/enums';
 
 /**
  * Structured-output schemas for exploration MMA calls. `ProposalSchema`
@@ -22,7 +23,7 @@ export const PROMPT_FLOORS = { investigate: 1, research: 20, journal: 10 } as co
  * the propose layer, not here (the model may still emit a wrong shape).
  */
 const RawProposedTaskSchema = z.object({
-  kind: z.enum(['investigate', 'research', 'journal']),
+  kind: z.enum(DISCOVER_TASK_KIND),
   title: z.string().optional(),
   targetRepoId: z.string().nullable().optional(),
   target_repo_id: z.string().nullable().optional(),

@@ -1,3 +1,4 @@
+import { DISCOVER_TASK_KIND } from '@/db/enums';
 import { NextResponse, type NextRequest } from 'next/server';
 import { guardProjectRead } from '@/auth/guard-project-write';
 import { z } from 'zod';
@@ -18,7 +19,7 @@ export async function GET(
 }
 
 const addSchema = z.object({
-  kind: z.enum(['investigate', 'research', 'journal']),
+  kind: z.enum(DISCOVER_TASK_KIND),
   targetRepoId: z.string().uuid().nullable().optional(),
   prompt: z.string(),
 });

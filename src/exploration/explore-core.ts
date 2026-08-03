@@ -10,6 +10,7 @@ import { getBriefText, getRepos } from '@/details/read';
 import { validateDetails } from '@/details/schema';
 import type { RailTask } from '@/hooks/useProjectEvents';
 import { compareSeverity } from '@/lib/severity';
+import type { DiscoverTaskKind } from '@/db/enums';
 import { interpretTerminal } from '@/sse/envelope';
 
 /**
@@ -154,7 +155,7 @@ export async function readProjectRepoOptions(
 }
 
 /** Per-route prompt floor (re-exported for the editor guard). */
-export const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
+export const promptFloor = (kind: DiscoverTaskKind): number => PROMPT_FLOORS[kind];
 
 /**
  * Thrown when a mutation targets a non-`draft` (running/recorded) task.
@@ -193,7 +194,7 @@ export class PromptTooShortError extends Error {
 /** Add a manual draft task via details. */
 export async function addTask(
   projectId: string,
-  input: { kind: 'investigate' | 'research' | 'journal'; targetRepoId?: string | null; prompt: string },
+  input: { kind: DiscoverTaskKind; targetRepoId?: string | null; prompt: string },
   db: Db = getDb(),
 ): Promise<{ id: string }> {
   const prompt = input.prompt.trim();

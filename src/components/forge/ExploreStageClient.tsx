@@ -25,6 +25,7 @@ import { StageShell } from '@/components/patterns/stage-shell';
 import { StageNavigator, type NavGroup, type NavItem } from '@/components/patterns/stage-navigator';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { StageAdvance } from '@/components/forge/StageAdvance';
+import type { DiscoverTaskKind } from '@/db/enums';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import {
   Button,
@@ -313,23 +314,24 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   }, [selectedTaskId, tasks]);
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
-  const KIND_ORDER: Record<string, number> = { investigate: 0, research: 1, journal: 2 };
   // Grouped by kind — the rail's three clusters, as a two-column row:
   //   col 1  the check tile
   //   col 2  row 1 = the prompt (which task this is), row 2 = its status
   // The kind is the section header, stated once instead of repeated on every row. The status
   // chip sits INLINE in the meta row; it read as noise before only because it was rendered
   // full-width on a line of its own.
-  const KIND_LABEL: Record<string, string> = {
-    investigate: 'Investigate',
-    research: 'Research',
-    journal: 'Journal recall',
-  };
+  //
+  // Driven by `GROUPS` — the same per-kind descriptor the fan-out editor renders, which
+  // already carries the order and the label. This was a local `KIND_ORDER` map iterated to
+  // build the groups plus a local `KIND_LABEL` beside it: two more copies of the three kinds,
+  // and the iterated one silently decided what the user could see. A task whose kind was not
+  // a key of that object rendered NOWHERE — dispatched, paid for, completed, and absent from
+  // the stage with no empty state to explain it.
   const liveTasks = tasks.filter((t) => t.status !== 'draft');
-  const taskGroups: NavGroup[] = (Object.keys(KIND_ORDER) as (keyof typeof KIND_ORDER)[])
-    .map((kind) => ({
-      id: String(kind),
-      label: KIND_LABEL[String(kind)] ?? String(kind),
+  const taskGroups: NavGroup[] = GROUPS
+    .map(({ kind, label }) => ({
+      id: kind,
+      label,
       items: liveTasks
         .filter((t) => t.kind === kind)
         .map((t, i): NavItem => {
@@ -501,7 +503,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
         >
           <DocumentShell
             className="flex min-h-0 flex-1 flex-col"
-            title={selectedTask ? (KIND_LABEL[selectedTask.kind] ?? selectedTask.kind) : 'Select a task'}
+            title={selectedTask ? kindLabel(selectedTask.kind) : 'Select a task'}
             approvers={
               // The governed `prompt` row: this document is an ANSWER to a question, so the
               // row under the header carries the prompt rather than approvers.
@@ -646,7 +648,7 @@ function ExplorationNote({ phase }: { phase: string }) {
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */
 
 interface GroupDef {
-  kind: 'investigate' | 'research' | 'journal';
+  kind: DiscoverTaskKind;
   label: string;
   desc: string;
   Icon: LucideIcon;
@@ -655,7 +657,7 @@ interface GroupDef {
   source: string | null;
 }
 
-const GROUPS: GroupDef[] = [
+export const GROUPS: GroupDef[] = [
   {
     kind: 'investigate',
     label: 'Investigation',
@@ -681,6 +683,15 @@ const GROUPS: GroupDef[] = [
     source: 'Team journal',
   },
 ];
+
+/**
+ * The human name for a kind. Falls back to the raw key only for a value `GROUPS` does not
+ * cover, which `tests/components/explore-kind-groups.test.ts` forbids — the fallback is the
+ * behaviour, not the contract.
+ */
+function kindLabel(kind: string): string {
+  return GROUPS.find((g) => g.kind === kind)?.label ?? kind;
+}
 
 const KIND_TINT: Record<GroupDef['tint'], string> = {
   accent: 'bg-accent-tint text-accent',

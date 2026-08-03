@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { STAGE_STATUS, AUDIT_VERDICT } from '@/db/enums';
+import { STAGE_STATUS, AUDIT_VERDICT, DISCOVER_TASK_KIND } from '@/db/enums';
 
 /**
  * `db/enums.ts` states the convention outright — "Zod schemas derive via `z.enum(X)`" —
@@ -66,7 +66,7 @@ const automationSchema = z.object({
 });
 
 const discoverTaskSchema = z.object({
-  kind: z.enum(['investigate', 'research', 'journal']),
+  kind: z.enum(DISCOVER_TASK_KIND),
   title: z.string().optional(),
   prompt: z.string(),
   status: discoverTaskStatus,

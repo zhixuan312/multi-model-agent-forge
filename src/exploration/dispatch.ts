@@ -13,7 +13,7 @@ import { updateDetails } from '@/details/write';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { logPoll } from '@/observability/poll-log';
-import type { MmaRoute } from '@/db/enums';
+import type { DiscoverTaskKind, MmaRoute } from '@/db/enums';
 import { errName } from '@/lib/err';
 
 /**
@@ -31,7 +31,7 @@ import { errName } from '@/lib/err';
  * stays `draft`.
  */
 
-const ROUTE_BY_KIND: Record<'investigate' | 'research' | 'journal', MmaRoute> = {
+const ROUTE_BY_KIND: Record<DiscoverTaskKind, MmaRoute> = {
   investigate: 'investigate',
   research: 'research',
   journal: 'journal_recall',
@@ -47,7 +47,7 @@ function discoverTaskSetHash(tasks: Array<{ kind: string; prompt: string; repoId
     .slice(0, 16);
 }
 
-function rollupLabel(tasks: Array<{ kind: 'investigate' | 'research' | 'journal' }>): string {
+function rollupLabel(tasks: Array<{ kind: DiscoverTaskKind }>): string {
   const counts = {
     investigate: tasks.filter((t) => t.kind === 'investigate').length,
     research: tasks.filter((t) => t.kind === 'research').length,
@@ -85,7 +85,7 @@ async function defaultStat(p: string): Promise<void> {
 async function buildBody(
   db: Db,
   projectId: string,
-  task: { kind: 'investigate' | 'research' | 'journal'; prompt: string },
+  task: { kind: DiscoverTaskKind; prompt: string },
 ): Promise<Record<string, unknown>> {
   if (task.kind === 'investigate') return { prompt: task.prompt };
   if (task.kind === 'journal') return { prompt: task.prompt };
@@ -111,7 +111,7 @@ async function buildBody(
 async function resolveCwd(
   db: Db,
   workspaceRoot: string,
-  task: { kind: 'investigate' | 'research' | 'journal'; targetRepoId: string | null },
+  task: { kind: DiscoverTaskKind; targetRepoId: string | null },
   allowedRepoIds: Set<string>,
   teamId: string,
 ): Promise<string | null> {
@@ -151,7 +151,7 @@ export async function dispatchTasks(
   const projectTeamId = pRow.teamId;
   const allTasks = d.stages.exploration.phases.discover.tasks;
   const drafts = allTasks
-    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as 'investigate' | 'research' | 'journal', title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
+    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as DiscoverTaskKind, title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
     .filter((t) => allTasks[t.index].status === 'draft');
 
   const outcomes: TaskDispatchOutcome[] = [];

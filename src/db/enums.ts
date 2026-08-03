@@ -170,3 +170,24 @@ export type LoopTrigger = (typeof LOOP_TRIGGER)[number];
  */
 export const LOOP_RUN_STATUS = ['running', 'changed', 'no_changes', 'failed'] as const;
 export type LoopRunStatus = (typeof LOOP_RUN_STATUS)[number];
+
+/* ── Values inside JSONB, not columns ───────────────────────────────────── */
+
+/**
+ * `details.stages.exploration.phases.discover.tasks[].kind` — the three lenses a discovery
+ * task can take: `investigate` looks inward at a repo, `research` outward at prior art,
+ * `journal` backward at the team's own learnings.
+ *
+ * Not a column (it lives inside the `details` JSONB), which is why it sat outside this file
+ * and got written out EIGHT times: the details schema, the propose payload schema, the API
+ * route schema, the propose handler's guard AND its sort map, two signatures in
+ * `explore-core`, four in `exploration/dispatch.ts`, and two maps in `ExploreStageClient`.
+ *
+ * One of those copies decided what the user could see. The exploration rail built its groups
+ * by iterating a local `KIND_ORDER` map, so a task whose kind was not in THAT object rendered
+ * nowhere — dispatched work, paid for and completed, missing from the stage with no empty
+ * state to explain it. The value set belongs where the ratchet in
+ * `tests/db/enum-single-source.test.ts` can see it.
+ */
+export const DISCOVER_TASK_KIND = ['investigate', 'research', 'journal'] as const;
+export type DiscoverTaskKind = (typeof DISCOVER_TASK_KIND)[number];

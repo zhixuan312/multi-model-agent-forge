@@ -378,7 +378,15 @@ export function PlanStageClient(props: PlanStageClientProps) {
             setLocked(true);
             try {
               await mma.transition('approve_stage'); // plan → execute (signs Forge + advances)
-            } catch { setLocked(false); return; } // rejected → stay on Plan
+            } catch {
+              // Say so. This reset the button and returned in silence — every other failure
+              // path in this stage toasts, and `StageAdvance`'s own inline error only covers
+              // its `href` form, not the `onClick` one this uses. The user pressed "Continue
+              // to Execute", nothing moved, and nothing said why.
+              showToast({ type: 'error', message: 'Couldn’t lock the plan — try again.' });
+              setLocked(false);
+              return; // rejected → stay on Plan
+            }
             router.push(`/projects/${props.projectId}/execute`);
             router.refresh();
           }}
@@ -957,6 +965,19 @@ function ValidateStage({
           <>
             {docView === 'document' && planMd ? (
               <ProseBlock>{planMd}</ProseBlock>
+            ) : docView === 'document' ? (
+              // The Document tab's OWN empty state. With no plan file this fell through to
+              // the audit branches below and rendered "Ready for audit" — an answer to a
+              // different question — under a tab the user had selected to read the plan.
+              <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
+                <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">
+                  <ListTree className="size-7 text-[var(--steel)]" />
+                </span>
+                <p className="mt-5 text-sm font-semibold text-ink">No plan document yet</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                  The plan file is written when Forge authors the plan from the locked spec.
+                </p>
+              </div>
             ) : !activeRound ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
                 <span className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--frost)]">

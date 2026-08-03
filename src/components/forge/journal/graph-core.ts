@@ -298,8 +298,14 @@ export function relationBreakdown(edges: GraphEdge[], id: string): { type: strin
 
 /**
  * Greedy word wrap against a caller-supplied measurer (the canvas 2D context in the app,
- * a stub in tests — this file stays pure). Overflow past `maxLines` is ellipsised, and a
- * single word too long for the line is cut rather than allowed to run off the box.
+ * a stub in tests — this file stays pure). Overflow past `maxLines` is ellipsised.
+ *
+ * A single word wider than the line is kept WHOLE and allowed to overflow — the first word
+ * of a line is accepted unmeasured, which is what stops an unbreakable word from looping
+ * forever against a width it can never satisfy. `graph-core.test.ts` locks that ("keeps an
+ * over-long single word rather than looping forever"). This comment used to claim the
+ * opposite — that such a word "is cut rather than allowed to run off the box" — describing a
+ * behaviour the test beneath it forbids.
  */
 export function wrapLines(
   text: string,

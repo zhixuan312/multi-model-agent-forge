@@ -33,8 +33,10 @@ export function categoryStyle(category: string | null | undefined): string {
 
 /**
  * The category pill. The MAP was extracted here after existing three times; the MARKUP
- * that renders it stayed duplicated in `NodeDetail` and `JournalStageClient` — the same
- * five utilities written out twice, either of which could have drifted.
+ * that renders it stayed duplicated across four call sites — and had already drifted:
+ * `NodeDetail`, `NodesView` and the JournalStageClient header all set `uppercase
+ * tracking-wide`, while JournalStageClient's list rows did not. Uppercase wins on the
+ * majority, and now there is one place to decide it.
  */
 export function CategoryChip({
   category,
@@ -50,7 +52,8 @@ export function CategoryChip({
     <span
       className={cn(
         'rounded-full font-semibold',
-        size === 'sm' ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px] uppercase tracking-wide',
+        'uppercase tracking-wide',
+        size === 'sm' ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]',
         categoryStyle(typeof category === 'string' ? category : null),
         className,
       )}

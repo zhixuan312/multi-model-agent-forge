@@ -3,10 +3,11 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
+import { SearchInput } from '@/components/ui/search-input';
 import { STATUS_VALUES } from '@/journal/types';
 import type { NodeSummary } from '@/journal/types';
 import { cn } from '@/lib/cn';
-import { categoryStyle } from '@/components/forge/journal/category-style';
+import { CategoryChip, categoryStyle } from '@/components/forge/journal/category-style';
 import { LEARNING_CATEGORIES } from '@/journal/types';
 
 
@@ -52,25 +53,18 @@ export function NodesView({
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3">
       <div className="flex shrink-0 flex-col gap-2">
-        <label className="sr-only" htmlFor="journal-search">
-          Search nodes
-        </label>
-        <input
-          id="journal-search"
-          aria-label="Search nodes"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search title or tags…"
-          className="w-full rounded-[var(--r-sm)] border border-line bg-surface-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        />
+        {/* The governed search control. This was a hand-rolled input with its own
+            border, padding and focus treatment — the convention SearchInput exists to own. */}
+        <SearchInput label="title or tags" value={search} onChange={setSearch} className="min-w-0 flex-none" />
         {/* Category — the primary filter axis, always visible. */}
-        <div className="flex flex-wrap items-center gap-1">
+        <div role="radiogroup" aria-label="Filter by category" className="flex flex-wrap items-center gap-1">
           {(['All', ...LEARNING_CATEGORIES] as const).map((c) => (
             <button
               key={c}
               type="button"
+              role="radio"
               onClick={() => setCategoryFilter(c)}
-              aria-pressed={categoryFilter === c}
+              aria-checked={categoryFilter === c}
               className={cn(
                 'rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px] capitalize',
                 categoryFilter === c
@@ -108,13 +102,14 @@ export function NodesView({
           </button>
         </div>
         {showStatus ? (
-          <div className="flex flex-wrap items-center gap-1">
+          <div role="radiogroup" aria-label="Filter by status" className="flex flex-wrap items-center gap-1">
             {['All', ...STATUS_VALUES].map((s) => (
               <button
                 key={s}
                 type="button"
+                role="radio"
                 onClick={() => setStatusFilter(s)}
-                aria-pressed={statusFilter === s}
+                aria-checked={statusFilter === s}
                 className={cn(
                   'rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px]',
                   statusFilter === s
@@ -151,11 +146,7 @@ export function NodesView({
             >
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-[11px] text-ink-faint">{n.id}</span>
-                {n.type ? (
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', categoryStyle(n.type))}>
-                    {n.type}
-                  </span>
-                ) : null}
+                {n.type ? <CategoryChip category={n.type} size="sm" /> : null}
                 <StatusBadge status={n.status} />
                 {n.fileMissing ? (
                   // `store-reader` lists index rows whose node file is gone and sets this

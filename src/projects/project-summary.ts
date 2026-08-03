@@ -7,11 +7,14 @@ import { projectJournal } from '@/db/schema/project-journal';
 import { readSpecFile, readPlanFile } from '@/projects/project-files';
 import { validateDetails } from '@/details/schema';
 import { mapActivityRowToEvent, type ProjectActivityEvent } from '@/activity/project-activity';
-import { STAGE_ORDER } from '@/db/enums';
+import { STAGE_ORDER, type StageKind, type StageStatus } from '@/db/enums';
 
 export interface StageTiming {
-  kind: string;
-  status: string;
+  /** Typed, because there is one producer and it maps `STAGE_ORDER`. As `string` the only
+   *  consumer had to cast it back and keep an unreachable `?? s.kind` fallback beside the
+   *  label lookup — a fallback that would have printed the enum key to the user. */
+  kind: StageKind;
+  status: StageStatus;
   startedAt: string | null;
   completedAt: string | null;
   /** Active work time — the stage's event span minus long idle pauses (a project left

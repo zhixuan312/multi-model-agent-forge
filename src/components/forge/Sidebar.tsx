@@ -12,6 +12,12 @@ import { GUIDE_NAV_SECTIONS, GUIDE_PARTS } from '@/content/guide-nav';
 import { TEAM_SETTINGS_HREFS, ORG_SETTINGS_HREFS } from '@/components/forge/settings-routes';
 import type { AuthedMember } from '@/auth/auth-provider';
 
+/**
+ * These two hrefs are load-bearing twice over: they name a nav item AND they are what the
+ * render loop below tests to decide whether that item expands into its sub-page list. Written
+ * as literals in `SECTIONS` as well, a change to one would leave the other silently
+ * unmatched — the item would still link correctly and simply never open its sub-nav.
+ */
 const COMPONENTS_HREF = '/settings/components';
 const GUIDE_HREF = '/settings/guide';
 // A page is a stack of layers in flow order (background → app shell → content shell →
@@ -56,8 +62,8 @@ const SECTIONS: NavSection[] = [
       { href: '/usage', label: 'Usage', icon: BarChart3 },
       // The product manual is universal — every authenticated role reads the same
       // Guide, so it carries neither `teamScoped` nor `adminOnly`.
-      { href: '/settings/guide', label: 'Guide', icon: BookOpen },
-      { href: '/settings/components', label: 'Components', icon: Boxes, adminOnly: 'org_admin' },
+      { href: GUIDE_HREF, label: 'Guide', icon: BookOpen },
+      { href: COMPONENTS_HREF, label: 'Components', icon: Boxes, adminOnly: 'org_admin' },
       { href: '/settings/org', label: 'Org settings', icon: Settings, adminOnly: 'org_admin', owns: ORG_SETTINGS_HREFS },
       { href: '/settings/team', label: 'Team settings', icon: Settings, adminOnly: 'team_admin', owns: TEAM_SETTINGS_HREFS },
     ],

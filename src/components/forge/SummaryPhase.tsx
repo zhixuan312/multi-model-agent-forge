@@ -25,7 +25,7 @@ import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format-date';
 import { formatActivityDuration, formatDurationHm } from '@/lib/format-duration';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
-import { STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_ORDER } from '@/db/enums';
 import type { ProjectSummary } from '@/projects/project-summary';
 import { formatCost, formatTokens } from '@/usage/format';
 
@@ -129,7 +129,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
           title="Timeline"
           rows={[
             ...orderedStages.map((s) => ({
-              label: STAGE_LABEL[s.kind as StageKind] ?? s.kind,
+              label: STAGE_LABEL[s.kind],
               value: s.activeMs > 0 ? formatDurationHm(s.activeMs) : stageDuration(s.startedAt, s.completedAt),
             })),
           ]}

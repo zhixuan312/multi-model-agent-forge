@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { isAdminRole } from '@/auth/require-admin';
 import { usePathname } from 'next/navigation';
 import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, BookOpen, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -73,7 +74,7 @@ export function Sidebar({
   function visibleTo(i: NavItem): boolean {
     if (i.teamScoped && member.role === 'org_admin') return false;
     if (!i.adminOnly) return true;
-    if (i.adminOnly === true) return member.role === 'org_admin' || member.role === 'team_admin';
+    if (i.adminOnly === true) return isAdminRole(member.role);
     return member.role === i.adminOnly;
   }
 

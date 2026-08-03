@@ -27,12 +27,21 @@ export class NotAuthenticatedError extends Error {
 }
 
 /**
+ * "Counts as an admin" — either admin role. ONE definition: the gate, the page redirect
+ * and the sidebar's adminOnly filter each spelled it out, so a third admin role would
+ * have to be remembered in three places to be honoured in all of them.
+ */
+export function isAdminRole(role: AuthedMember['role']): boolean {
+  return role === 'org_admin' || role === 'team_admin';
+}
+
+/**
  * Pure predicate — the testable core of the gate. Asserts the member is present
  * and has org_admin or team_admin role. Throws `NotAuthenticatedError` / `NotAdminError` otherwise.
  */
 export function assertAdmin(member: AuthedMember | null): AuthedMember {
   if (!member) throw new NotAuthenticatedError();
-  if (member.role !== 'org_admin' && member.role !== 'team_admin') throw new NotAdminError();
+  if (!isAdminRole(member.role)) throw new NotAdminError();
   return member;
 }
 
@@ -47,7 +56,7 @@ export async function requireAdminMember(): Promise<AuthedMember> {
 export async function requireAdminPage(): Promise<AuthedMember> {
   const member = await currentMember();
   if (!member) redirect('/login');
-  if (member.role !== 'org_admin' && member.role !== 'team_admin') redirect('/');
+  if (!isAdminRole(member.role)) redirect('/');
   return member;
 }
 

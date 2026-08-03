@@ -16,6 +16,23 @@ import { ACTION_KINDS } from '@/automation/action-schema';
  */
 export type ActionKind = (typeof ACTION_KINDS)[number] | 'wait' | 'complete';
 
+/** One `project_journal` row, reduced to what the resolver decides on. */
+export interface JournalRowState {
+  id: string;
+  status: 'proposed' | 'kept' | 'removed' | 'recorded';
+}
+
+/**
+ * State the resolver needs that does NOT live in `details`. Required, not defaulted:
+ * journal learnings moved from a details array to the `project_journal` table, and
+ * because the resolver kept reading the (now permanently empty) array it concluded
+ * "nothing to approve, nothing to record" and completed projects without ever recording
+ * their learnings. An absent input must be a compile error, never an empty list.
+ */
+export interface ResolveContext {
+  journalRows: JournalRowState[];
+}
+
 export interface AutoAction {
   kind: ActionKind;
   note: string;
@@ -80,7 +97,7 @@ export function firstUnderdoneStage(d: Details): StageKind | null {
   return null;
 }
 
-export function resolveNextActionFromDetails(details: Details): AutoAction {
+export function resolveNextActionFromDetails(details: Details, ctx: ResolveContext): AutoAction {
   const spec = details.stages.spec;
   const plan = details.stages.plan;
   const execute = details.stages.execute;
@@ -200,17 +217,19 @@ export function resolveNextActionFromDetails(details: Details): AutoAction {
       return { kind: 'dispatch_harvest', note: 'Harvesting learnings...', stage: 'journal', phase: 'journal' };
     }
 
-    const learnings = journal.phases.journal.learnings;
-    const unapproved = learnings.findIndex((l) => l.status === 'proposed');
+    const rows = ctx.journalRows;
+    const unapproved = rows.findIndex((r) => r.status === 'proposed');
     if (unapproved >= 0) {
-      return { kind: 'approve_learning', note: `Approving learning ${unapproved + 1}/${learnings.length}...`, stage: 'journal', phase: 'journal', data: { learningIndex: unapproved } };
+      // The effect addresses the row by id — an index into a details array could not
+      // name it, which is why this branch never worked against the old shape.
+      return { kind: 'approve_learning', note: `Approving learning ${unapproved + 1}/${rows.length}...`, stage: 'journal', phase: 'journal', data: { rowId: rows[unapproved].id } };
     }
 
     // A learning is "settled" once recorded OR removed (a human can `remove` one
     // mid-run; dispatch_record only flips kept→recorded, so requiring EVERY learning
     // to be `recorded` would deadlock on a removed one). Record only when a kept
     // learning still awaits recording.
-    const needsRecord = learnings.some((l) => l.status === 'kept');
+    const needsRecord = rows.some((r) => r.status === 'kept');
     if (needsRecord) {
       const recordAttempts = journal.phases.summary.attempts;
       const lastRecord = recordAttempts[recordAttempts.length - 1];

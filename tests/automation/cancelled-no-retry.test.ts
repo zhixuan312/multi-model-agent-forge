@@ -3,6 +3,13 @@ import { vi } from 'vitest';
 import { buildInitialDetails, type Details } from '@/details/schema';
 import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 import { auditLoopStep, auditInFlight, type AuditPassLike } from '@/automation/audit-loop-policy';
+/**
+ * The Journal stage is driven by `project_journal` rows, which are supplied to the
+ * resolver rather than read from `details`. These cases exercise other stages, so they
+ * pass an empty set; the Journal-stage cases live in journal-rows-drive-resolver.test.ts.
+ */
+const NO_ROWS = { journalRows: [] };
+
 
 /**
  * The engine's `cancelled` terminal is DELIBERATE — someone stopped the work. Automation
@@ -37,25 +44,25 @@ describe('automation: a cancelled attempt parks; a failed attempt retries', () =
   it('plan author — failed re-dispatches', () => {
     const d = planRefineActive();
     d.stages.plan.phases.refine.attempts = [{ batchId: 'b1', status: 'failed', at }];
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_plan_author');
   });
 
   it('plan author — cancelled does NOT re-dispatch (parks on wait)', () => {
     const d = planRefineActive();
     d.stages.plan.phases.refine.attempts = [{ batchId: 'b1', status: 'cancelled', at }];
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('execute — failed re-dispatches (no committed code yet)', () => {
     const d = executeActive();
     d.stages.execute.phases.implement.repos = [{ repoId: 'r1', attempts: [{ batchId: 'e1', status: 'failed', at }] }];
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_execute');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_execute');
   });
 
   it('execute — cancelled does NOT re-dispatch, and does NOT advance past a stage with no committed code', () => {
     const d = executeActive();
     d.stages.execute.phases.implement.repos = [{ repoId: 'r1', attempts: [{ batchId: 'e1', status: 'cancelled', at }] }];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('wait');
     expect(action.kind).not.toBe('advance_stage');
   });
@@ -68,10 +75,10 @@ describe('automation: a cancelled attempt parks; a failed attempt retries', () =
     d.stages.plan.phases.refine.tasks = [
       { id: 't1', title: 'T1', status: 'pending', approvals: [], attempts: [{ batchId: 'v1', status: 'cancelled', at }], reviewPolicy: 'reviewed' },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
 
     d.stages.plan.phases.refine.tasks[0].attempts = [{ batchId: 'v1', status: 'done', at }];
-    expect(resolveNextActionFromDetails(d).kind).toBe('approve_task');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('approve_task');
   });
 
   it('journal harvest — failed re-dispatches, cancelled parks', () => {
@@ -84,11 +91,11 @@ describe('automation: a cancelled attempt parks; a failed attempt retries', () =
     };
     const failed = base();
     failed.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'failed', at }];
-    expect(resolveNextActionFromDetails(failed).kind).toBe('dispatch_harvest');
+    expect(resolveNextActionFromDetails(failed, NO_ROWS).kind).toBe('dispatch_harvest');
 
     const cancelled = base();
     cancelled.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'cancelled', at }];
-    expect(resolveNextActionFromDetails(cancelled).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(cancelled, NO_ROWS).kind).toBe('wait');
   });
 });
 
@@ -164,13 +171,13 @@ describe('reconcileStuckAttempts: flips a stuck attempt to its batch terminal st
     // And the timeline says cancelled — NOT "failed — retrying", which would be a lie.
     expect(activity[0]?.label).toBe('Plan author cancelled');
     // Proof the parked attempt does not re-dispatch.
-    expect(resolveNextActionFromDetails(written!).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(written!, NO_ROWS).kind).toBe('wait');
   });
 
   it('a failed batch still flips to `failed` and announces the retry', async () => {
     const { written, activity } = await runReconcile('failed');
     expect(written?.stages.plan.phases.refine.attempts[0].status).toBe('failed');
     expect(activity[0]?.label).toBe('Plan author failed — retrying');
-    expect(resolveNextActionFromDetails(written!).kind).toBe('dispatch_plan_author');
+    expect(resolveNextActionFromDetails(written!, NO_ROWS).kind).toBe('dispatch_plan_author');
   });
 });

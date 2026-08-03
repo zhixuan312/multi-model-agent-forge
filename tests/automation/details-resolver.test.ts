@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { buildInitialDetails, buildSubsetDetails, type Details } from '@/details/schema';
 import { firstUnderdoneStage, resolveNextActionFromDetails } from '@/automation/details-resolver';
 import { STAGE_ORDER } from '@/db/enums';
+/**
+ * The Journal stage is driven by `project_journal` rows, which are supplied to the
+ * resolver rather than read from `details`. These cases exercise other stages, so they
+ * pass an empty set; the Journal-stage cases live in journal-rows-drive-resolver.test.ts.
+ */
+const NO_ROWS = { journalRows: [] };
+
 
 /** Populate the DEFINING work record of every stage — the proof each ran. Without
  * these, the completion invariant treats a status-only "done" as a skipped stage. */
@@ -25,7 +32,7 @@ describe('resolveNextActionFromDetails', () => {
         ph.status = 'done';
       }
     }
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('complete');
   });
 
@@ -36,7 +43,7 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.spec.phases.outline.status = 'done';
     d.stages.spec.phases.craft.status = 'done';
     d.stages.spec.phases.finalize.status = 'active';
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('dispatch_audit');
     expect(action.stage).toBe('spec');
   });
@@ -51,7 +58,7 @@ describe('resolveNextActionFromDetails', () => {
       status: 'revised',
       audit: { attempts: [{ batchId: 'a1', status: 'done', at: '2026-07-01T00:00:00Z' }] },
     }];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('apply_findings');
   });
 
@@ -63,7 +70,7 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.spec.phases.finalize.auditPasses = [
       { passNo: 1, status: 'clean', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('approve_stage');
   });
 
@@ -74,7 +81,7 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
     d.repos = [{ id: 'r1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('dispatch_plan_author');
   });
 
@@ -85,7 +92,7 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.plan.status = 'active';
     d.stages.plan.phases.refine.status = 'active';
     d.repos = []; // no linked repo → plan authoring would hard-fail
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('validates first unapproved task', () => {
@@ -99,7 +106,7 @@ describe('resolveNextActionFromDetails', () => {
       { id: 't1', title: 'Task 1', status: 'pending', approvals: [], attempts: [], reviewPolicy: 'reviewed' },
       { id: 't2', title: 'Task 2', status: 'pending', approvals: [], attempts: [], reviewPolicy: 'reviewed' },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('validate_task');
     expect(action.data?.taskId).toBe('t1');
   });
@@ -115,7 +122,7 @@ describe('resolveNextActionFromDetails', () => {
       { id: 't1', title: 'Task 1', status: 'pending', approvals: [],
         attempts: [{ batchId: 'r1', status: 'done', at: '' }], reviewPolicy: 'reviewed' },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('approve_task');
   });
 
@@ -126,7 +133,7 @@ describe('resolveNextActionFromDetails', () => {
     }
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('dispatch_harvest');
   });
 
@@ -138,13 +145,15 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
     d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
-    d.stages.journal.phases.journal.learnings = [
-      { heading: 'L1', type: 'decision', status: 'proposed' },
-      { heading: 'L2', type: 'insight', status: 'proposed' },
-    ];
-    const action = resolveNextActionFromDetails(d);
+    // Learnings are `project_journal` rows, supplied to the resolver. This case used to
+    // populate `details…learnings` — an array nothing writes — and assert on a
+    // `learningIndex` that no effect could act on, so it passed while the real Journal
+    // stage did nothing at all.
+    const action = resolveNextActionFromDetails(d, {
+      journalRows: [{ id: 'r1', status: 'proposed' }, { id: 'r2', status: 'proposed' }],
+    });
     expect(action.kind).toBe('approve_learning');
-    expect(action.data?.learningIndex).toBe(0);
+    expect(action.data?.rowId).toBe('r1');
   });
 
   it('marks complete after all learnings recorded (all stages did real work)', () => {
@@ -158,7 +167,7 @@ describe('resolveNextActionFromDetails', () => {
       { heading: 'L1', type: 'decision', status: 'recorded' },
     ];
     d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('mark_complete');
   });
 
@@ -177,7 +186,7 @@ describe('resolveNextActionFromDetails', () => {
     it('reopens Execute when it was marked done but committed nothing', () => {
       const d = atCompletionBoundary();
       d.stages.execute.phases.implement.repos = []; // the skip: no execute work
-      const action = resolveNextActionFromDetails(d);
+      const action = resolveNextActionFromDetails(d, NO_ROWS);
       expect(action.kind).toBe('reopen_stage');
       expect(action.stage).toBe('execute');
     });
@@ -185,7 +194,7 @@ describe('resolveNextActionFromDetails', () => {
     it('reopens Review when it was marked done but ran no pass', () => {
       const d = atCompletionBoundary();
       d.stages.review.phases.review.repos = []; // the skip: no review work
-      const action = resolveNextActionFromDetails(d);
+      const action = resolveNextActionFromDetails(d, NO_ROWS);
       expect(action.kind).toBe('reopen_stage');
       expect(action.stage).toBe('review');
     });
@@ -194,7 +203,7 @@ describe('resolveNextActionFromDetails', () => {
       const d = atCompletionBoundary();
       d.stages.plan.phases.validate.auditPasses = []; // plan skipped (earlier than execute/review)
       d.stages.execute.phases.implement.repos = [];
-      const action = resolveNextActionFromDetails(d);
+      const action = resolveNextActionFromDetails(d, NO_ROWS);
       expect(action.kind).toBe('reopen_stage');
       expect(action.stage).toBe('plan');
     });
@@ -206,7 +215,7 @@ describe('resolveNextActionFromDetails', () => {
         for (const ph of Object.values(stg.phases as Record<string, { status: string }>)) ph.status = 'done';
       }
       // synthesize "done" but no other work → earliest skip is spec (not approved)
-      const action = resolveNextActionFromDetails(d);
+      const action = resolveNextActionFromDetails(d, NO_ROWS);
       expect(action.kind).toBe('reopen_stage');
       expect(action.stage).toBe('spec');
     });
@@ -216,7 +225,7 @@ describe('resolveNextActionFromDetails', () => {
       // fallthrough returned reopen_stage → reopenStageInPlace wipes all stages →
       // infinite loop + data loss. It must WAIT instead.
       const d = buildInitialDetails(); // exploration active, nothing else done
-      expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+      expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
     });
 
     it('WAITs when spec craft is active (Design stage, not auto-driven)', () => {
@@ -225,7 +234,7 @@ describe('resolveNextActionFromDetails', () => {
       d.stages.spec.status = 'active';
       d.stages.spec.phases.outline.status = 'done';
       d.stages.spec.phases.craft.status = 'active'; // craft is manual — no resolver branch
-      expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+      expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
     });
   });
 
@@ -239,7 +248,7 @@ describe('resolveNextActionFromDetails', () => {
       status: 'revised',
       audit: { attempts: [{ batchId: 'a1', status: 'running', at: '' }] },
     }];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('wait');
   });
 });
@@ -268,7 +277,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.plan.phases.refine.tasks = [
       { id: 't1', title: 'T1', status: 'approved', approvals: ['m1'], attempts: [{ batchId: 'r', status: 'done', at: '' }], reviewPolicy: 'reviewed' },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('advance_phase');
     expect(action.stage).toBe('plan');
     expect(action.phase).toBe('validate');
@@ -278,7 +287,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     const d = planActive();
     d.stages.plan.phases.refine.status = 'done';
     d.stages.plan.phases.validate.status = 'active';
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('dispatch_audit');
     expect(action.stage).toBe('plan');
   });
@@ -290,7 +299,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.plan.phases.validate.auditPasses = [
       { passNo: 1, status: 'revised', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('apply_findings');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('apply_findings');
   });
 
   it('approves plan (→ execute) after a clean plan audit', () => {
@@ -300,7 +309,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.plan.phases.validate.auditPasses = [
       { passNo: 1, status: 'clean', audit: { attempts: [{ batchId: 'a1', status: 'done', at: '' }] } },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('approve_stage');
     expect(action.stage).toBe('plan');
   });
@@ -315,7 +324,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
 
   it('dispatches execution when no repo has an implement attempt', () => {
     const d = executeActive();
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_execute');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_execute');
   });
 
   it('waits while an execute attempt is running', () => {
@@ -323,7 +332,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.execute.phases.implement.repos = [
       { repoId: 'r1', attempts: [{ batchId: 'e1', status: 'running', at: '' }] },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('advances execute → review once the implement attempt is done', () => {
@@ -331,7 +340,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.execute.phases.implement.repos = [
       { repoId: 'r1', attempts: [{ batchId: 'e1', status: 'done', at: '' }] },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('advance_stage');
     expect(action.stage).toBe('review');
   });
@@ -346,7 +355,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
 
   it('dispatches code review when no repo has a review pass', () => {
     const d = reviewActive();
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_review');
   });
 
   it('waits while a review pass is running', () => {
@@ -354,7 +363,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.review.phases.review.repos = [
       { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'running', at: '' }] } }] },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('applies review findings after a revised pass with no fix yet', () => {
@@ -362,7 +371,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.review.phases.review.repos = [
       { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('apply_review_findings');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('apply_review_findings');
   });
 
   it('runs another review pass after the fix is applied (< 5 passes)', () => {
@@ -370,7 +379,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.review.phases.review.repos = [
       { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] }, fix: { attempts: [{ batchId: 'f1', status: 'done', at: '' }] } }] },
     ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_review');
   });
 
   it('advances review → journal once a repo review is clean', () => {
@@ -378,7 +387,7 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.review.phases.review.repos = [
       { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] },
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('advance_stage');
     expect(action.stage).toBe('journal');
   });
@@ -389,10 +398,9 @@ describe('resolveNextActionFromDetails — full pipeline', () => {
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
     d.stages.journal.phases.journal.attempts = [{ batchId: 'h1', status: 'done', at: '' }];
-    d.stages.journal.phases.journal.learnings = [
-      { heading: 'L1', type: 'decision', status: 'kept' },
-    ];
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_record');
+    expect(resolveNextActionFromDetails(d, {
+      journalRows: [{ id: 'r1', status: 'kept' }],
+    }).kind).toBe('dispatch_record');
   });
 });
 
@@ -416,10 +424,10 @@ describe('resolver edge-case fixes', () => {
     d.repos = [{ id: 'r1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
     // 4 failed → still re-dispatches
     d.stages.plan.phases.refine.attempts = Array.from({ length: 4 }, (_, i) => ({ batchId: `b${i}`, status: 'failed' as const, at: '' }));
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_plan_author');
     // 5 failed → capped → WAIT (no more burn)
     d.stages.plan.phases.refine.attempts.push({ batchId: 'b5', status: 'failed', at: '' });
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('LOW7: journal completes when a learning is `removed` (no dispatch_record deadlock)', () => {
@@ -435,7 +443,7 @@ describe('resolver edge-case fixes', () => {
     ];
     d.stages.journal.phases.summary.attempts = [{ batchId: 'r1', status: 'done', at: '' }];
     // NOT dispatch_record (would loop forever on the removed one) → mark_complete
-    expect(resolveNextActionFromDetails(d).kind).toBe('mark_complete');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('mark_complete');
   });
 
   it('MED4: multi-repo review acts on the BLOCKING repo at index>0, not just repos[0]', () => {
@@ -446,7 +454,7 @@ describe('resolver edge-case fixes', () => {
       { repoId: 'r0', reviewPasses: [{ passNo: 1, status: 'clean', review: { attempts: [{ batchId: 'v0', status: 'done', at: '' }] } }] },
       { repoId: 'r1', reviewPasses: [{ passNo: 1, status: 'revised', review: { attempts: [{ batchId: 'v1', status: 'done', at: '' }] } }] }, // blocking
     ];
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('apply_review_findings'); // NOT advance_stage
     expect(action.data?.repoId).toBe('r1');
   });
@@ -523,7 +531,7 @@ describe('firstUnderdoneStage', () => {
 describe('resolveNextActionFromDetails', () => {
   it('marks a subset project complete once all in-scope stages are done and execute/review are skipped', () => {
     const d = withSubsetJournalBoundary();
-    expect(resolveNextActionFromDetails(d).kind).toBe('mark_complete');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('mark_complete');
   });
 
   it('advances from review to journal only through the next non-skipped stage', () => {
@@ -535,6 +543,6 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.review.status = 'skipped';
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_harvest');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_harvest');
   });
 });

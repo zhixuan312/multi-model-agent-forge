@@ -1,6 +1,13 @@
 import { allowedActions } from '@/automation/allowed-actions';
 import { resolveNextActionFromDetails } from '@/automation/details-resolver';
 import { buildInitialDetails } from '@/details/schema';
+/**
+ * The Journal stage is driven by `project_journal` rows, which are supplied to the
+ * resolver rather than read from `details`. These cases exercise other stages, so they
+ * pass an empty set; the Journal-stage cases live in journal-rows-drive-resolver.test.ts.
+ */
+const NO_ROWS = { journalRows: [] };
+
 
 function stateFinalizeFresh() {
   const d = buildInitialDetails();
@@ -26,14 +33,14 @@ function stateFinalizeOnePassRevised() {
 describe('allowedActions — auto parity + determinism', () => {
   it('auto[0] equals the legacy resolver (finalize fresh → dispatch_audit)', () => {
     const d = stateFinalizeFresh();
-    const auto = allowedActions(d, 'auto');
-    expect(auto[0].kind).toBe(resolveNextActionFromDetails(d).kind);
+    const auto = allowedActions(d, 'auto', NO_ROWS);
+    expect(auto[0].kind).toBe(resolveNextActionFromDetails(d, NO_ROWS).kind);
     expect(auto[0].kind).toBe('dispatch_audit');
   });
   it('is deterministic (same input → same ordered kinds) [AC15]', () => {
     const d = stateFinalizeFresh();
-    const a = allowedActions(d, 'auto').map((x) => x.kind);
-    const b = allowedActions(d, 'auto').map((x) => x.kind);
+    const a = allowedActions(d, 'auto', NO_ROWS).map((x) => x.kind);
+    const b = allowedActions(d, 'auto', NO_ROWS).map((x) => x.kind);
     expect(a).toEqual(b);
   });
 });
@@ -47,10 +54,10 @@ describe('allowedActions — exploration (Design phase, manual-only) [Task 8b-1]
     d.stages.exploration.phases.synthesize.status = phase === 'synthesize' ? 'active' : 'pending';
     return d;
   }
-  const kinds = (d: ReturnType<typeof exploring>, m: 'auto' | 'manual') => allowedActions(d, m).map((a) => a.kind);
+  const kinds = (d: ReturnType<typeof exploring>, m: 'auto' | 'manual') => allowedActions(d, m, NO_ROWS).map((a) => a.kind);
 
   it('auto never drives exploration (empty set)', () => {
-    expect(allowedActions(exploring('brief'), 'auto')).toEqual([]);
+    expect(allowedActions(exploring('brief'), 'auto', NO_ROWS)).toEqual([]);
   });
   it('brief → set_brief + propose_discover_tasks; +task → also advance_phase', () => {
     const d = exploring('brief');
@@ -91,17 +98,17 @@ describe('allowedActions — spec Design phases (Task 8b-2)', () => {
   it('outline with ≥1 selected → advance_phase to craft', () => {
     const d = specPhase('outline');
     d.stages.spec.phases.outline.selectedTemplateIds = ['t1'];
-    expect(allowedActions(d, 'manual').map((a) => a.kind)).toContain('advance_phase');
+    expect(allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind)).toContain('advance_phase');
   });
   it('craft with an unapproved component → approve_component', () => {
     const d = specPhase('craft');
     d.stages.spec.phases.craft.components = [{ id: 'c1', templateId: 't1', approvals: [] }] as never;
-    expect(allowedActions(d, 'manual').map((a) => a.kind)).toContain('approve_component');
+    expect(allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind)).toContain('approve_component');
   });
   it('craft with all approved → advance_phase to finalize', () => {
     const d = specPhase('craft');
     d.stages.spec.phases.craft.components = [{ id: 'c1', templateId: 't1', approvals: ['m1'] }] as never;
-    const acts = allowedActions(d, 'manual');
+    const acts = allowedActions(d, 'manual', NO_ROWS);
     expect(acts.find((a) => a.kind === 'advance_phase')?.phase).toBe('finalize');
   });
 });
@@ -117,10 +124,10 @@ describe('allowedActions — plan refine (manual direct approval)', () => {
     return d;
   }
   it('unapproved task → manual may approve_task directly (no prior validate)', () => {
-    expect(allowedActions(planRefine([]), 'manual').map((a) => a.kind)).toContain('approve_task');
+    expect(allowedActions(planRefine([]), 'manual', NO_ROWS).map((a) => a.kind)).toContain('approve_task');
   });
   it('all tasks approved → no approve_task offered', () => {
-    expect(allowedActions(planRefine(['m1']), 'manual').map((a) => a.kind)).not.toContain('approve_task');
+    expect(allowedActions(planRefine(['m1']), 'manual', NO_ROWS).map((a) => a.kind)).not.toContain('approve_task');
   });
 });
 
@@ -134,10 +141,10 @@ describe('allowedActions — auto toggle (Task 8b-3)', () => {
     return d;
   }
   it('manual while auto is running → ONLY take_over', () => {
-    expect(allowedActions(atFinalize('running'), 'manual').map((a) => a.kind)).toEqual(['take_over']);
+    expect(allowedActions(atFinalize('running'), 'manual', NO_ROWS).map((a) => a.kind)).toEqual(['take_over']);
   });
   it('manual off at spec/finalize → includes start_auto', () => {
-    expect(allowedActions(atFinalize('off'), 'manual').map((a) => a.kind)).toContain('start_auto');
+    expect(allowedActions(atFinalize('off'), 'manual', NO_ROWS).map((a) => a.kind)).toContain('start_auto');
   });
   it('manual off BEFORE spec/finalize (craft) → no start_auto (canAutoStart false)', () => {
     const d = buildInitialDetails();
@@ -145,10 +152,10 @@ describe('allowedActions — auto toggle (Task 8b-3)', () => {
     d.stages.spec.status = 'active';
     d.stages.spec.phases.craft.status = 'active';
     d.automation.status = 'off';
-    expect(allowedActions(d, 'manual').map((a) => a.kind)).not.toContain('start_auto');
+    expect(allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind)).not.toContain('start_auto');
   });
   it('auto mode never offers start_auto/take_over', () => {
-    const auto = allowedActions(atFinalize('running'), 'auto').map((a) => a.kind);
+    const auto = allowedActions(atFinalize('running'), 'auto', NO_ROWS).map((a) => a.kind);
     expect(auto).not.toContain('take_over');
     expect(auto).not.toContain('start_auto');
   });
@@ -157,16 +164,16 @@ describe('allowedActions — auto toggle (Task 8b-3)', () => {
 describe('allowedActions — manual audit-loop early exit', () => {
   it('manual set includes advance after ≥1 pass; auto does not', () => {
     const d = stateFinalizeOnePassRevised();
-    const manual = allowedActions(d, 'manual').map((a) => a.kind);
-    const auto = allowedActions(d, 'auto').map((a) => a.kind);
+    const manual = allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind);
+    const auto = allowedActions(d, 'auto', NO_ROWS).map((a) => a.kind);
     expect(manual).toContain('approve_stage');
     expect(auto).not.toContain('approve_stage');
   });
   it('an in-flight audit → auto empty; manual has no early advance (button disabled)', () => {
     const d = stateFinalizeOnePassRevised();
     (d.stages.spec.phases.finalize.auditPasses[0] as { audit: { attempts: { status: string }[] } }).audit.attempts.push({ status: 'running' });
-    expect(allowedActions(d, 'auto')).toEqual([]);
-    expect(allowedActions(d, 'manual').every((a) => a.kind !== 'approve_stage')).toBe(true);
+    expect(allowedActions(d, 'auto', NO_ROWS)).toEqual([]);
+    expect(allowedActions(d, 'manual', NO_ROWS).every((a) => a.kind !== 'approve_stage')).toBe(true);
   });
 });
 
@@ -205,8 +212,8 @@ describe('allowedActions — manual in-place refinement (refine forever)', () =>
 
   it('spec finalize clean pass → manual can apply_findings AND re-run dispatch_audit; auto cannot', () => {
     const d = stateFinalizeOneCleanPass();
-    const manual = allowedActions(d, 'manual').map((a) => a.kind);
-    const auto = allowedActions(d, 'auto').map((a) => a.kind);
+    const manual = allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind);
+    const auto = allowedActions(d, 'auto', NO_ROWS).map((a) => a.kind);
     expect(manual).toContain('apply_findings');
     expect(manual).toContain('dispatch_audit');
     expect(manual).toContain('approve_stage'); // advancing still permitted
@@ -215,13 +222,13 @@ describe('allowedActions — manual in-place refinement (refine forever)', () =>
   });
 
   it('plan validate clean pass → manual can apply_findings AND re-audit', () => {
-    const manual = allowedActions(statePlanValidateOneCleanPass(), 'manual').map((a) => a.kind);
+    const manual = allowedActions(statePlanValidateOneCleanPass(), 'manual', NO_ROWS).map((a) => a.kind);
     expect(manual).toContain('apply_findings');
     expect(manual).toContain('dispatch_audit');
   });
 
   it('review clean pass → manual can apply_review_findings AND re-run dispatch_review (per repo)', () => {
-    const acts = allowedActions(stateReviewOneCleanPass(), 'manual');
+    const acts = allowedActions(stateReviewOneCleanPass(), 'manual', NO_ROWS);
     const kinds = acts.map((a) => a.kind);
     expect(kinds).toContain('apply_review_findings');
     expect(kinds).toContain('dispatch_review');
@@ -231,14 +238,14 @@ describe('allowedActions — manual in-place refinement (refine forever)', () =>
   it('an in-flight pass suppresses BOTH apply and re-audit (nothing while a batch runs)', () => {
     const d = stateFinalizeOneCleanPass();
     (d.stages.spec.phases.finalize.auditPasses[0] as { audit: { attempts: { status: string }[] } }).audit.attempts.push({ status: 'running' });
-    const manual = allowedActions(d, 'manual').map((a) => a.kind);
+    const manual = allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind);
     expect(manual).not.toContain('apply_findings');
     expect(manual).not.toContain('dispatch_audit');
   });
 
   it('no duplicates when auto already offers dispatch_audit (fresh finalize, 0 passes)', () => {
     const d = stateFinalizeFresh();
-    const manual = allowedActions(d, 'manual').map((a) => a.kind);
+    const manual = allowedActions(d, 'manual', NO_ROWS).map((a) => a.kind);
     expect(manual.filter((k) => k === 'dispatch_audit')).toHaveLength(1);
     // 0 passes → nothing to apply yet
     expect(manual).not.toContain('apply_findings');

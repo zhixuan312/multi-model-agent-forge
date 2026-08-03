@@ -6,6 +6,7 @@ import { projectEventBus } from '@/sse/event-bus';
 import { isBatchBackedAction } from '@/automation/details-actions';
 import { performTransition, TransitionRejected } from '@/automation/perform-transition';
 import { allowedActions } from '@/automation/allowed-actions';
+import { loadJournalRowStates } from '@/journal/journal-row-states';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_ACTOR } from '@/automation/forge-member';
 import { acquireDriverLease, startLeaseHeartbeat, releaseDriverLease } from '@/automation/driver-lease';
@@ -102,7 +103,10 @@ export async function driveProject(projectId: string): Promise<void> {
       const details = validateDetails(proj2?.details ?? proj.details);
       // The unified engine: the driver takes the single best-practice action from the
       // permitted set. An empty set = WAIT (nothing allowed now, e.g. MMA in flight).
-      const [action] = allowedActions(details, 'auto');
+      // Journal learnings live in `project_journal`, not in `details` — load them so the
+      // resolver can see the stage it is driving.
+      const journalRows = await loadJournalRowStates(db, projectId);
+      const [action] = allowedActions(details, 'auto', { journalRows });
       if (!action) { await sleep(5000); continue; }
 
       if (action.kind === 'complete') {

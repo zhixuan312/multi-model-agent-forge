@@ -1,5 +1,5 @@
 import type { Details } from '@/details/schema';
-import { resolveNextActionFromDetails, type AutoAction } from '@/automation/details-resolver';
+import { resolveNextActionFromDetails, type AutoAction, type ResolveContext } from '@/automation/details-resolver';
 import { auditInFlight, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { canAutoStart } from '@/automation/policy';
 
@@ -14,14 +14,14 @@ export type Action = AutoAction; // { kind, note, stage, phase, data? }
  * Auto = [legacy resolver action] (behaviour-neutral). Manual adds the audit-loop
  * early-exit (advance after ≥1 pass) and, later, take_over + content actions.
  */
-export function allowedActions(details: Details, mode: Mode): Action[] {
+export function allowedActions(details: Details, mode: Mode, ctx: ResolveContext): Action[] {
   // While auto drives, the ONLY thing a human may do is take over (gate criterion 4).
   if (mode === 'manual' && details.automation.status === 'running') {
     return [{ kind: 'take_over', note: 'Stop & take over', stage: '', phase: '' }];
   }
-  const best = resolveNextActionFromDetails(details);
+  const best = resolveNextActionFromDetails(details, ctx);
   const set: Action[] = best.kind === 'wait' ? [] : [best];
-  if (mode === 'manual') addManualExtras(details, set);
+  if (mode === 'manual') addManualExtras(details, ctx, set);
   return set;
 }
 
@@ -31,8 +31,20 @@ export function allowedActions(details: Details, mode: Mode): Action[] {
  * findings still open. (Auto keeps iterating until clean-or-5+fixes.) `take_over` and
  * content actions are layered in later tasks.
  */
-function addManualExtras(details: Details, set: Action[]): void {
+function addManualExtras(details: Details, ctx: ResolveContext, set: Action[]): void {
   const { stages } = details;
+
+  // ── Journal rows: a human may curate any harvested row — edit its text or drop it —
+  //    independently of the approve-then-record sequence auto walks. The gate only
+  //    permits what is in this set, so without these the Journal UI's own buttons came
+  //    back "not allowed now".
+  if (stages.journal.status === 'active' && ctx.journalRows.length > 0) {
+    const mutable = ctx.journalRows.filter((r) => r.status === 'proposed' || r.status === 'kept');
+    if (mutable.length > 0) {
+      set.push({ kind: 'edit_learning', note: 'Edit learning', stage: 'journal', phase: 'journal' });
+      set.push({ kind: 'remove_learning', note: 'Remove learning', stage: 'journal', phase: 'journal' });
+    }
+  }
 
   // ── Exploration (Design phase — manual-only; auto never drives it, so the auto
   //    set here is empty and this builds the manual set). Transitions reuse the

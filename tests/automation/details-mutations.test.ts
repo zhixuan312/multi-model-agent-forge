@@ -7,6 +7,13 @@ import {
   recordAuditPass, recordReviewPass, recordReviewFix, recordHarvestAttempt,
   reopenStageInPlace,
 } from '@/automation/details-mutations';
+/**
+ * The Journal stage is driven by `project_journal` rows, which are supplied to the
+ * resolver rather than read from `details`. These cases exercise other stages, so they
+ * pass an empty set; the Journal-stage cases live in journal-rows-drive-resolver.test.ts.
+ */
+const NO_ROWS = { journalRows: [] };
+
 
 const AT = '2026-07-04T00:00:00.000Z';
 
@@ -36,7 +43,7 @@ describe('details-mutations — record the resolver gating state', () => {
     recordAuthorAttempt(d, 'b1', AT);
     expect(d.stages.plan.phases.refine.attempts).toEqual([{ batchId: 'b1', status: 'running', at: AT }]);
     expect(validateDetails(d)).toBeTruthy();
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('a flipped (failed) plan-author attempt → resolver re-dispatches', () => {
@@ -49,7 +56,7 @@ describe('details-mutations — record the resolver gating state', () => {
     recordAuthorAttempt(d, 'b1', AT);
     // the centralized reconcile flips a stuck running attempt to failed
     d.stages.plan.phases.refine.attempts.at(-1)!.status = 'failed';
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_plan_author');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_plan_author');
   });
 
   it('recordTaskValidation → done task attempt → resolver approves the task', () => {
@@ -59,7 +66,7 @@ describe('details-mutations — record the resolver gating state', () => {
     ];
     recordTaskValidation(d, 't1', 'r1', AT);
     expect(d.stages.plan.phases.refine.tasks[0].attempts).toEqual([{ batchId: 'r1', status: 'done', at: AT }]);
-    expect(resolveNextActionFromDetails(d).kind).toBe('approve_task');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('approve_task');
   });
 
   function executeActive() {
@@ -78,7 +85,7 @@ describe('details-mutations — record the resolver gating state', () => {
     expect(d.stages.execute.phases.implement.repos).toEqual([
       { repoId: 'repo-1', attempts: [{ batchId: 'e1', status: 'running', at: AT }] },
     ]);
-    expect(resolveNextActionFromDetails(d).kind).toBe('wait');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
   });
 
   it('recordImplementAttempt FLIPS the running attempt to done (no 2nd attempt) → advance to Review', () => {
@@ -89,7 +96,7 @@ describe('details-mutations — record the resolver gating state', () => {
       { batchId: 'e1', status: 'done', at: AT },
     ]);
     expect(d.stages.plan.phases.refine.tasks[0].status).toBe('committed');
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('advance_stage');
     expect(action.stage).toBe('review');
   });
@@ -99,7 +106,7 @@ describe('details-mutations — record the resolver gating state', () => {
     recordExecuteAttempt(d, 'repo-1', 'e1', AT);
     // the centralized reconcile flips a stuck running attempt to failed
     d.stages.execute.phases.implement.repos[0].attempts.at(-1)!.status = 'failed';
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_execute');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_execute');
   });
 
   it('openRunningAttempts (central reconcile source) reports every open async attempt', () => {
@@ -135,7 +142,7 @@ describe('details-mutations — record the resolver gating state', () => {
     expect(d.stages.execute.phases.implement.repos[0].attempts).toEqual([
       { batchId: 'e1', status: 'done', at: AT },
     ]);
-    expect(resolveNextActionFromDetails(d).kind).toBe('advance_stage');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('advance_stage');
   });
 
   it('recordReviewPass(clean) → resolver advances to Journal', () => {
@@ -146,7 +153,7 @@ describe('details-mutations — record the resolver gating state', () => {
     const pass = d.stages.review.phases.review.repos[0].reviewPasses[0];
     expect(pass).toMatchObject({ passNo: 1, status: 'clean' });
     expect(pass.review!.attempts).toEqual([{ batchId: 'v1', status: 'done', at: AT, contextBlockId: null }]);
-    const action = resolveNextActionFromDetails(d);
+    const action = resolveNextActionFromDetails(d, NO_ROWS);
     expect(action.kind).toBe('advance_stage');
     expect(action.stage).toBe('journal');
   });
@@ -157,7 +164,7 @@ describe('details-mutations — record the resolver gating state', () => {
     d.stages.review.status = 'active';
     recordReviewPass(d, 'repo-1', 'v1', true, AT, null);
     expect(d.stages.review.phases.review.repos[0].reviewPasses[0].status).toBe('revised');
-    expect(resolveNextActionFromDetails(d).kind).toBe('apply_review_findings');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('apply_review_findings');
   });
 
   it('recordReviewFix → next review pass; passNo increments across passes', () => {
@@ -167,7 +174,7 @@ describe('details-mutations — record the resolver gating state', () => {
     recordReviewPass(d, 'repo-1', 'v1', true, AT, null);
     recordReviewFix(d, 'repo-1', 'f1', AT);
     expect(d.stages.review.phases.review.repos[0].reviewPasses[0].fix!.attempts).toEqual([{ batchId: 'f1', status: 'done', at: AT }]);
-    expect(resolveNextActionFromDetails(d).kind).toBe('dispatch_review');
+    expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_review');
     recordReviewPass(d, 'repo-1', 'v2', false, AT, null);
     expect(d.stages.review.phases.review.repos[0].reviewPasses.map((p) => p.passNo)).toEqual([1, 2]);
   });
@@ -177,10 +184,12 @@ describe('details-mutations — record the resolver gating state', () => {
     for (const k of ['exploration', 'spec', 'plan', 'execute', 'review'] as const) d.stages[k].status = 'done';
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
-    d.stages.journal.phases.journal.learnings = [{ heading: 'L1', type: 'insight', status: 'proposed' }];
     recordHarvestAttempt(d, 'h1', AT);
     expect(d.stages.journal.phases.journal.attempts).toEqual([{ batchId: 'h1', status: 'done', at: AT }]);
-    expect(resolveNextActionFromDetails(d).kind).toBe('approve_learning');
+    // The harvested learnings are `project_journal` rows, handed to the resolver.
+    expect(resolveNextActionFromDetails(d, {
+      journalRows: [{ id: 'r1', status: 'proposed' }],
+    }).kind).toBe('approve_learning');
   });
 });
 

@@ -3,6 +3,7 @@ import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
 import { allowedActions, type Action, type Mode } from '@/automation/allowed-actions';
+import { loadJournalRowStates } from '@/journal/journal-row-states';
 import { repairActiveStage } from '@/automation/stage-repair';
 import { executeDetailsAction } from '@/automation/details-actions';
 import { deriveCurrentStage, updateDetails } from '@/details/write';
@@ -102,7 +103,10 @@ export async function performTransition(db: Db, projectId: string, input: Action
 
   // GATE 2 — allowed by the state machine. Resolve the FULL action from the permitted
   // set by kind (the single resolver), merging the caller's payload.
-  const allowed = allowedActions(details, trigger.mode);
+  // Journal learnings live in `project_journal`, not in `details` — the same load the
+  // driver does, so manual and auto are gated on identical state.
+  const journalRows = await loadJournalRowStates(db, projectId);
+  const allowed = allowedActions(details, trigger.mode, { journalRows });
   const match = allowed.find((a) => a.kind === input.kind);
   if (!match) {
     // Idempotent advance: a "Continue to X" button is advancing/approving a stage that is

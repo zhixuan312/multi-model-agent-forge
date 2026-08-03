@@ -99,6 +99,16 @@ const planTaskSchema = z.object({
   meta: planTaskMetaSchema,
 });
 
+/**
+ * LEGACY, READ-ONLY. Harvested learnings live in the `project_journal` table — rows with
+ * ids, which is what `approve_learning` / `edit_learning` / `remove_learning` address.
+ * This array survives only so `backfillProjectJournalIfNeeded` can migrate projects
+ * created before that table existed; nothing writes it.
+ *
+ * Do not read it to make decisions. The resolver did, long after the harvest handler had
+ * moved to inserting rows, so it saw a permanently empty list and completed projects
+ * without ever approving or recording their learnings.
+ */
 const learningSchema = z.object({
   heading: z.string(),
   type: z.enum(['decision', 'insight']),

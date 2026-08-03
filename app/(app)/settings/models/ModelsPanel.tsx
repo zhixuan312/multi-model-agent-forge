@@ -304,6 +304,10 @@ function ResultLadder({ result }: { result: ConfigureResponse }) {
     >
       <Micro className="block !text-ink-soft">{result.reason}</Micro>
       <div className="mt-1 flex flex-col gap-1">
+        {/* The verdict was carried by the icon ALONE — a tick, a cross, or an empty ring,
+            every one of them `aria-hidden`. A screen reader heard "reachable" and nothing
+            about whether it was. Same rule the status chips follow (a11y F6): never icon
+            or colour alone. */}
         {rows.map((r) => (
           <div key={r.label} className="flex items-center gap-2">
             {r.ok === null ? (
@@ -313,7 +317,10 @@ function ResultLadder({ result }: { result: ConfigureResponse }) {
             ) : (
               <X className="size-3.5 text-rose" aria-hidden />
             )}
-            <Micro className={cn(r.ok === null && 'text-ink-faint')}>{r.label}</Micro>
+            <Micro className={cn(r.ok === null && 'text-ink-faint')}>
+              {r.label}
+              <span className="sr-only">{r.ok === null ? ' — not checked' : r.ok ? ' — passed' : ' — failed'}</span>
+            </Micro>
           </div>
         ))}
       </div>

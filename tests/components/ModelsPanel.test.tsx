@@ -84,4 +84,34 @@ describe('ModelsPanel', () => {
     expect(body.dryRun).toBe(false);
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
+
+  /**
+   * The verify ladder carried its verdict in the ICON alone — a tick, a cross, or an empty
+   * ring, every one of them `aria-hidden`. A screen reader heard "reachable" and nothing
+   * about whether it was. Same rule the status chips follow: never icon or colour alone.
+   */
+  it('announces each check\u2019s verdict in text, not by icon alone', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ...verifyResponse, probe: { reachable: true, modelListed: false, detail: 'x' } }), { status: 200 }),
+    );
+    render(<ModelsPanel tiers={tiers} suggestions={suggestions} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /Edit/ })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+
+    await waitFor(() => expect(screen.getByText(/reachable/)).toBeInTheDocument());
+    expect(screen.getByText(/reachable/).textContent).toContain('passed');
+    expect(screen.getByText(/model listed/).textContent).toContain('failed');
+  });
+
+  it('says "not checked" for a rung the probe never reached', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ...verifyResponse, probe: undefined }), { status: 200 }),
+    );
+    render(<ModelsPanel tiers={tiers} suggestions={suggestions} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /Edit/ })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+
+    await waitFor(() => expect(screen.getByText(/reachable/)).toBeInTheDocument());
+    expect(screen.getByText(/reachable/).textContent).toContain('not checked');
+  });
 });

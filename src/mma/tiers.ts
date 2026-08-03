@@ -15,7 +15,18 @@
  * Anything a client component needs from the tier vocabulary belongs here. The reader keeps
  * what it alone can do: read the file.
  */
-export type TierKey = 'main' | 'complex' | 'standard';
+/**
+ * The tiers, in display order — one list, one order, for the reader, the panel, the
+ * configure-provider request and its API route alike.
+ *
+ * The array is the source and the type derives from it (the `db/enums.ts` pattern), so a
+ * Zod schema can be `z.enum(TIERS)` rather than a fourth hand-written spelling. There were
+ * three: this, `configure-provider.ts`'s `AgentTier`, and the route's inline
+ * `z.enum(['main', 'complex', 'standard'])`.
+ */
+export const TIERS = ['main', 'complex', 'standard'] as const;
+
+export type TierKey = (typeof TIERS)[number];
 
 export interface TierConfig {
   dialect: string;
@@ -26,8 +37,6 @@ export interface TierConfig {
 
 export type MmaTiers = Record<TierKey, TierConfig | null>;
 
-/** The tiers, in display order — one list, one order, for the reader and the panel alike. */
-export const TIERS: readonly TierKey[] = ['main', 'complex', 'standard'];
 
 /**
  * The model used when the `main` tier carries no explicit model. MMA requires

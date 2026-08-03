@@ -11,9 +11,8 @@
  * the loopback default (F17 — NOT a DB column default).
  */
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import type { MmaClientConfig } from '@/mma/client';
+import { mmaHomePath } from '@/mma/mma-home';
 
 export const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';
 
@@ -37,9 +36,8 @@ export interface ResolveMmaClientConfigArgs {
 export function readMmaBearer(): string | null {
   const fromEnv = process.env.MMA_AUTH_TOKEN?.trim();
   if (fromEnv) return fromEnv;
-  const home = process.env.MMA_HOME?.trim() || homedir();
   try {
-    const raw = readFileSync(join(home, '.mma', 'auth-token'), 'utf8');
+    const raw = readFileSync(mmaHomePath('auth-token'), 'utf8');
     const tok = raw.trim();
     return tok === '' ? null : tok;
   } catch {

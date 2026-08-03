@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { buildMmaClient } from '@/mma/server-client';
 import type { ConfigureProviderRequest } from '@/mma/configure-provider';
+import { TIERS } from '@/mma/tiers';
 
 /**
  * Admin proxy for mma's `POST /configure-provider` (Spec: combined Models
@@ -20,7 +21,7 @@ const authSchema = z.discriminatedUnion('mode', [
 ]);
 
 const requestSchema = z.object({
-  tier: z.enum(['main', 'complex', 'standard']),
+  tier: z.enum(TIERS),
   provider: z.enum(['claude', 'codex']),
   model: z.string().trim().min(1),
   auth: authSchema,

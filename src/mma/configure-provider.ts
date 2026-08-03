@@ -4,15 +4,16 @@
  * (Validate = dryRun:true, Apply = dryRun:false). Shapes mirror the current
  * contract (response field `verified`) — see src/mma/COMPATIBILITY.md.
  */
+import type { TierKey } from '@/mma/tiers';
+
 export type Dialect = 'claude' | 'codex';
-export type AgentTier = 'main' | 'complex' | 'standard';
 
 export type ConfigureAuth =
   | { mode: 'oauth' }
   | { mode: 'api-key'; apiKey: string; baseUrl?: string };
 
 export interface ConfigureProviderRequest {
-  tier: AgentTier;
+  tier: TierKey;
   provider: Dialect;
   model: string;
   auth: ConfigureAuth;

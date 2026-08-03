@@ -3,8 +3,9 @@
  *
  * There is NO HTTP endpoint for the catalog — it is the bundled JSON file
  * `dist/model-profiles.json` from the co-located MMA core install. We resolve it
- * from a small set of candidate paths (explicit `MMA_HOME` → homebrew/npm global
- * installs) and flatten the provider-group shape into a flat suggestion list.
+ * from a small set of candidate paths (`MMA_HOME` as an install root, then homebrew/npm
+ * global installs, then `<MMA_HOME|$HOME>/.mma/`) and flatten the provider-group shape into
+ * a flat suggestion list.
  *
  * Graceful fallback: any miss (file absent / unreadable / malformed JSON) yields
  * `{ available:false, profiles:[] }`; the roster combobox then degrades to
@@ -16,8 +17,8 @@
  * model id — the UI must present it as a suggestion, never a closed select.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { mmaHomePath } from '@/mma/mma-home';
 
 /** One profile entry inside a provider group (only the fields we read). */
 export interface ProfileEntry {
@@ -71,9 +72,15 @@ export function flattenProfiles(groups: ProfileGroup[]): FlatProfile[] {
 const CORE_REL = join('dist', 'model-profiles.json');
 
 /**
- * Candidate absolute paths to the bundled catalog, in priority order. An
- * explicit `MMA_HOME` (treated as the MMA install root) wins; then the common
- * homebrew/npm-global install layouts.
+ * Candidate absolute paths to the bundled catalog, in priority order.
+ *
+ * `MMA_HOME` is tried BOTH ways, because it is genuinely used both ways and this module
+ * used to assume only one. Its primary meaning across the product — the Dockerfile, the
+ * bearer reader, the config reader, `.env.example` — is the directory CONTAINING `.mma/`;
+ * a `.mma/model-profiles.json` under it is therefore a real candidate, and the old code
+ * looked for that file under `homedir()` instead, which is a different directory in exactly
+ * the deployments that set the variable. A monorepo checkout or a package directory is the
+ * other thing an operator points it at, so those layouts stay.
  */
 export function defaultCandidatePaths(): string[] {
   const candidates: string[] = [];
@@ -91,8 +98,8 @@ export function defaultCandidatePaths(): string[] {
       join(root, '@zhixuan92', 'multi-model-agent', 'node_modules', '@zhixuan92', 'multi-model-agent-core', CORE_REL),
     );
   }
-  // Last resort: a `.mma` co-located copy under HOME (rare).
-  candidates.push(join(homedir(), '.mma', 'model-profiles.json'));
+  // Last resort: a copy inside the MMA home itself — `<MMA_HOME|$HOME>/.mma/`.
+  candidates.push(mmaHomePath('model-profiles.json'));
   return candidates;
 }
 

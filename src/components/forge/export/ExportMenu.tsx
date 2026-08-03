@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Download, ChevronDown, Search, FileText, ClipboardList, Boxes, type LucideIcon } from 'lucide-react';
+import { Download, ChevronDown, Search, FileText, ClipboardList, Boxes, Loader2, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
@@ -54,9 +54,18 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   const panelId = useId();
   const [artifacts, setArtifacts] = useState<ExportMenuArtifact[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // A single in-flight export at a time — PDF/bundle are multi-second (server Puppeteer), so
-  // without this the buttons stayed enabled and a re-click fired a duplicate export job.
-  const [busy, setBusy] = useState(false);
+  /**
+   * WHICH export is in flight, or null. A single one at a time — PDF and bundle are
+   * multi-second (server Puppeteer), so without this the buttons stayed enabled and a
+   * re-click fired a duplicate job.
+   *
+   * It was a bare boolean, which disabled every button and said nothing. The user pressed
+   * PDF, the whole panel greyed out, and for several seconds there was no sign that anything
+   * was happening — the same "in progress with no indicator" the stage clients kept having,
+   * inverted: work really was running and only the absence of it showed.
+   */
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const busy = busyKey !== null;
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside, or on Escape.
@@ -100,33 +109,33 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   const onMd = async (kind: ExportKind) => {
     if (busy) return;
     setError(null);
-    setBusy(true);
+    setBusyKey(`md:${kind}`);
     try {
       await downloadGet(`/api/projects/${projectId}/export/md?artifact=${kind}`, `${kind}.md`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Export failed.');
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   };
 
   const onPdf = async (kind: ExportKind) => {
     if (busy) return;
     setError(null);
-    setBusy(true);
+    setBusyKey(`pdf:${kind}`);
     try {
       await downloadPost(`/api/projects/${projectId}/export/pdf`, { artifact: kind, mermaidAsDiagram: true }, `${kind}.pdf`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'PDF export failed.');
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   };
 
   const onBundle = async () => {
     if (busy) return;
     setError(null);
-    setBusy(true);
+    setBusyKey('bundle');
     try {
       const { included } = await downloadPost(`/api/projects/${projectId}/export/bundle`, {}, 'bundle.zip');
       // `spec` is the only kind whose file name differs from its key; the server's
@@ -136,7 +145,7 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Bundle failed.');
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   };
 
@@ -186,6 +195,14 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
             <TextSm className="!font-semibold !text-ink">Export</TextSm>
           </div>
           <div className="p-2">
+            {/* Nothing to export yet: a project can reach the topbar before any artifact
+                exists. The rows simply vanished, leaving a divider above an "Export
+                everything" button with nothing to put in it. */}
+            {artifacts.length === 0 && !error ? (
+              <TextSm className="block px-3 py-4 text-center !text-xs !text-ink-faint">
+                Nothing to export yet — an exploration, spec or plan appears here once written.
+              </TextSm>
+            ) : null}
             {artifacts.map((a) => {
               const Icon = ICON[a.kind];
               return (
@@ -210,8 +227,9 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                   disabled={!a.ready || busy}
                   aria-disabled={!a.ready || busy}
                   onClick={() => void onMd(a.kind)}
-                  className="rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent disabled:opacity-50"
                 >
+                  {busyKey === `md:${a.kind}` ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
                   .md
                 </button>
                 <button
@@ -219,8 +237,9 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                   disabled={!a.ready || busy}
                   aria-disabled={!a.ready || busy}
                   onClick={() => void onPdf(a.kind)}
-                  className="rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent-deep disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-accent-deep disabled:opacity-50"
                 >
+                  {busyKey === `pdf:${a.kind}` ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
                   PDF
                 </button>
               </div>
@@ -244,8 +263,20 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
                 <TextSm className="!font-semibold !text-ink">Export everything</TextSm>
                 <Micro>.zip — all .md + one combined PDF</Micro>
               </div>
-              <span className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">Bundle</span>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">
+                {busyKey === 'bundle' ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
+                Bundle
+              </span>
             </button>
+            {/* Says WHAT is running, not just that everything is disabled. A PDF or a bundle
+                takes several seconds server-side; without this the panel simply went grey. */}
+            {busyKey ? (
+              <TextSm role="status" className="block px-3 pt-2 !text-xs !text-ink-soft">
+                {busyKey === 'bundle'
+                  ? 'Building the bundle — this takes a few seconds.'
+                  : `Preparing the ${busyKey.startsWith('pdf:') ? 'PDF' : 'Markdown'} export…`}
+              </TextSm>
+            ) : null}
           </div>
           {error ? <TextSm role="alert" className="block px-4 pb-3 !text-xs !text-rose">{error}</TextSm> : null}
         </div>

@@ -120,6 +120,36 @@ describe('ExportMenu (test 12, F10)', () => {
     expect(downloadPost).toHaveBeenCalledTimes(1);
     resolve({ included: ['spec'] });
   });
+
+  /**
+   * `busy` was a bare boolean: every button went disabled and nothing said why or that
+   * anything was running. A PDF or bundle takes several seconds server-side (Puppeteer), so
+   * the panel simply greyed out and sat there. It now names what is in flight.
+   */
+  it('says which export is running, not just that everything is disabled', async () => {
+    let resolve!: (v: { included: string[] }) => void;
+    downloadPost.mockImplementationOnce(() => new Promise((r) => { resolve = r as never; }));
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => screen.getByTestId('export-bundle'));
+
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(screen.getByTestId('export-bundle'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/bundle/i));
+
+    resolve({ included: ['spec'] });
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  });
+
+  /**
+   * A project reaches the topbar before it has written anything. The rows simply vanished,
+   * leaving a divider above an "Export everything" button with nothing to put in it.
+   */
+  it('says so when there is nothing to export', async () => {
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => []} />);
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    expect(await screen.findByText(/Nothing to export yet/)).toBeInTheDocument();
+  });
 });
 
 /**

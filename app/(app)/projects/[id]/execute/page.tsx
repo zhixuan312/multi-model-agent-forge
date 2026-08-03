@@ -9,6 +9,7 @@ import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
 import { ExecuteStageClient, type RepoTerminalResult } from '@/components/forge/ExecuteStageClient';
 import { validateDetails } from '@/details/schema';
 import { parseStagePhase } from '@/projects/stage-phases';
+import { interpretTerminal } from '@/sse/envelope';
 
 export default async function ExecuteStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -85,6 +86,10 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
       durationMs: typeof metrics.totalDurationMs === 'number' ? metrics.totalDurationMs : (b.durationMs ?? null),
       costUsd: typeof metrics.totalCostUsd === 'number' ? metrics.totalCostUsd : (b.costUsd ? Number(b.costUsd) : null),
       filesChanged,
+      // The engine says WHY. The client rendered a constant 'Execution failed' for every
+      // failure — a provider 401, a sandbox denial and a build error all read identically,
+      // and the envelope carrying the real message was already in `b.result`.
+      error: interpretTerminal(env)?.error?.message ?? null,
     };
   }
 

@@ -73,6 +73,8 @@ export interface RepoTerminalResult {
   durationMs: number | null;
   costUsd: number | null;
   filesChanged: string[];
+  /** The engine's own failure message, when it failed. */
+  error: string | null;
 }
 
 export interface ExecuteStageClientProps {
@@ -162,7 +164,7 @@ export function ExecuteStageClient(props: ExecuteStageClientProps & { initialPha
             status: 'failed' as const,
             elapsedMs: tr.durationMs ?? undefined,
             costUsd: tr.costUsd ?? undefined,
-            error: 'Execution failed',
+            error: tr.error ?? 'Execution failed',
           }];
         }
         // committed WITH a branch = execution completed; committed without = plan-approved only
@@ -560,7 +562,17 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
             <ArrowRight className="size-2.5 text-line-strong" />
             <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ Reviewed</span>
             <ArrowRight className="size-2.5 text-line-strong" />
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ PR</span>
+            {/* Only when there IS one. A green "✓ PR" rendered unconditionally on a done
+                repo, including the case the summary line below already handles by omission
+                — a repo with no writable remote finishes with no pull request, and this
+                told the user one had been opened. */}
+            {pr ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-tint)] px-2 py-0.5 text-[10px] font-semibold text-[var(--sage-deep)]">✓ PR</span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-ink-faint">
+                <Circle className="size-2.5" /> No PR
+              </span>
+            )}
           </div>
         )}
 

@@ -86,3 +86,34 @@ describe('gapMarker', () => {
     expect(gapMarker('journal_recall', null)).toContain('journal-recall');
   });
 });
+
+/**
+ * The prompt was assembled as one flat array joined through `.filter(Boolean)`. That
+ * filter existed to omit the failures section, which used `''` to mean "leave this out" —
+ * but `''` was also the blank-line separator between every other section, so all of them
+ * were dropped and the synthesizer received its headings glued to the text beneath them.
+ */
+describe('the synthesize prompt keeps its sections apart', () => {
+  const dbWith = (details: ReturnType<typeof buildInitialDetails>) => createMockDb({
+    'select:project': [{ details, detailsReady: true }],
+    'select:ops_mma_batch': [{ id: 'b1', route: 'investigate', status: 'done', result: { output: { summary: { answer: 'Redis with a 5-min TTL.' } } } }],
+    'select:workspace_repo': [{ id: 'r1', name: 'api-service' }],
+  });
+
+  it('separates the heading from the body with a blank line', async () => {
+    const d = makeDetails([{ kind: 'investigate', prompt: 'q', status: 'recorded', repoId: 'r1', batchId: 'b1' }]);
+    const result = await buildSynthesizeRequest('proj-1', { db: dbWith(d) });
+    if ('error' in result) throw new Error('expected a prompt');
+    expect(result.user.split('\n')[1]).toBe('');
+    expect(result.user).toMatch(/tasks completed, \d+ failed\.\n\n/);
+  });
+
+  it('omits the failures section entirely when nothing failed', async () => {
+    const d = makeDetails([{ kind: 'investigate', prompt: 'q', status: 'recorded', repoId: 'r1', batchId: 'b1' }]);
+    const result = await buildSynthesizeRequest('proj-1', { db: dbWith(d) });
+    if ('error' in result) throw new Error('expected a prompt');
+    expect(result.user).not.toContain('# Failed tasks');
+    // No dangling separator where the omitted section would have been.
+    expect(result.user.endsWith('\n')).toBe(false);
+  });
+});

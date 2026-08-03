@@ -116,15 +116,21 @@ async function loadRecordsAndBuildPrompt(db: Db, projectId: string): Promise<{ s
 
   return {
     system: SYNTH_SYSTEM,
+    // Sections as blocks. Flat, this joined through `.filter(Boolean)`: the filter was
+    // there to omit the failures section, which used `''` to mean "leave this out" — but
+    // `''` was also the separator between every other section, so all of them were
+    // dropped and the synthesizer got its headings glued to the text beneath them.
     user: [
-      '# Input: Exploration task results',
-      '',
-      `${successes.length} tasks completed, ${failures.length} failed.`,
-      '',
-      recordsBlock || '(no successful records)',
-      '',
-      failures.length > 0 ? `# Failed tasks (mention each gap in Current state)\n${failureMarkers.join('\n')}` : '',
-    ].filter(Boolean).join('\n'),
+      ['# Input: Exploration task results'],
+      [`${successes.length} tasks completed, ${failures.length} failed.`],
+      [recordsBlock || '(no successful records)'],
+      failures.length > 0
+        ? ['# Failed tasks (mention each gap in Current state)', ...failureMarkers]
+        : null,
+    ]
+      .filter((block): block is string[] => block !== null)
+      .map((block) => block.join('\n'))
+      .join('\n\n'),
     failureMarkers,
   };
 }

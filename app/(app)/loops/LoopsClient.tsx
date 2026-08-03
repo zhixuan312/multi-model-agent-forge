@@ -27,7 +27,7 @@ import { showToast } from '@/components/ui/toast';
 import type { LoopRow } from '@/db/schema/loop';
 import { describeCron } from '@/loops/cron';
 import { LoopForm, type RepoOption } from './LoopForm';
-import { RUN_STATUS_VARIANT, statusLabel, fmtRunTime } from './run-format';
+import { statusLabel, statusVariant, fmtRunTime } from './run-format';
 import { responseError } from '@/lib/err';
 
 export interface LastRun {
@@ -181,7 +181,7 @@ export function LoopsClient({
           return (
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="block whitespace-nowrap text-sm text-ink">{fmtRunTime(last.at)}</span>
-              <Badge size="sm" variant={RUN_STATUS_VARIANT[last.status] ?? 'neutral'} dot={last.status === 'running'}>{statusLabel(last.status)}</Badge>
+              <Badge size="sm" variant={statusVariant(last.status)} dot={last.status === 'running'}>{statusLabel(last.status)}</Badge>
             </div>
           );
         },

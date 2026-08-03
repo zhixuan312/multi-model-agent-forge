@@ -10,7 +10,7 @@ import type { StatusDashboardProps } from '@/components/patterns/status-dashboar
 import type { LoopRunRow } from '@/db/schema/loop';
 import { ActivityFilters } from './ActivityFilters';
 import { RunDetail } from './RunDetail';
-import { RUN_STATUS_VARIANT, statusLabel, fmtRunTime, fmtDuration, shortId } from './run-format';
+import { statusLabel, statusVariant, fmtRunTime, fmtDuration, shortId } from './run-format';
 
 /**
  * Run history (page 2) — journal-style master/detail. The 2/3 canvas shows the
@@ -81,7 +81,7 @@ export function RunHistoryView({
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <Badge size="sm" variant={RUN_STATUS_VARIANT[r.status] ?? 'neutral'} dot={r.status === 'running'}>{statusLabel(r.status)}</Badge>
+                          <Badge size="sm" variant={statusVariant(r.status)} dot={r.status === 'running'}>{statusLabel(r.status)}</Badge>
                           <Mono className="!text-[0.6875rem] text-ink-faint">{shortId(r.runId)}</Mono>
                         </div>
                         <span className="truncate text-sm text-ink">{loopNames[r.loopId] ?? shortId(r.loopId)}</span>

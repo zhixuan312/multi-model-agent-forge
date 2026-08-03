@@ -16,11 +16,23 @@
  * | `formatActivityDuration`  | `0.4s`, `2m 3s`    | one finished activity row       |
  * | `formatDurationHm`        | `20m`, `1h 35m`    | a whole stage or project total  |
  *
- * NOT here: `usage/format.ts :: formatDuration`. It is a fourth contract, not a
- * duplicate — it accepts `null` (rendering the `—` the usage tables use for a missing
- * value) and compresses hours to a single decimal (`1.6h`) because those tables are
- * dense and column width matters more than the exact minute. It stays with the other
- * `usage/format` helpers its callers import alongside it.
+ * NOT here, and both deliberately so — this list is the point, so a new duration format
+ * that is not named here is the thing to be suspicious of:
+ *
+ * | function                              | example        | why it is separate                |
+ * |---------------------------------------|----------------|-----------------------------------|
+ * | `usage/format.ts :: formatDuration`   | `1.6h`, `—`    | accepts `null`, compresses hours  |
+ * |                                       |                | to one decimal — the usage tables |
+ * |                                       |                | are dense and column width beats  |
+ * |                                       |                | the exact minute                  |
+ * | `app/(app)/loops/run-format.ts`       | `2m 3s`,       | spans BOTH — minutes-and-seconds  |
+ * | `:: fmtDuration`                      | `1h 35m`       | under the hour, hours-and-minutes |
+ * |                                       |                | above; takes two timestamps, not  |
+ * |                                       |                | a duration, and returns `—` for a |
+ * |                                       |                | run that has not finished         |
+ *
+ * Each stays beside the callers that import it alongside its siblings. The loops one was
+ * absent from this list, which is exactly how a sixth would arrive unnoticed.
  */
 
 /**

@@ -2,10 +2,16 @@
 
 import { useRouter } from 'next/navigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Label } from '@/components/ui';
+import { LOOP_RUN_STATUS } from '@/db/enums';
 import { statusLabel } from './run-format';
 
 const ALL = '__all';
-const STATUSES = ['running', 'changed', 'no_changes', 'failed'];
+/**
+ * From the enum, not a copy of it. This was a hand-written
+ * `['running', 'changed', 'no_changes', 'failed']` — add a fifth run status and the filter
+ * would silently omit it, leaving those runs unfilterable with no error anywhere.
+ */
+const STATUSES = LOOP_RUN_STATUS;
 
 /** Loop + status filters for the Activity log. State lives in the URL (shareable, RSC-friendly). */
 export function ActivityFilters({

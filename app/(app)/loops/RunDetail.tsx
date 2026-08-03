@@ -1,7 +1,7 @@
 import { ArrowUpRight, GitBranch, FileText, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react';
 import { Section, SectionTitle, Badge, Mono, Micro, Text, TextStrong, Separator } from '@/components/ui';
 import type { LoopRunRow, RunVerification } from '@/db/schema/loop';
-import { RUN_STATUS_VARIANT, statusLabel, cap, fmtRunTime, fmtDuration, cleanChange, shortId } from './run-format';
+import { statusLabel, statusVariant, cap, fmtRunTime, fmtDuration, cleanChange, shortId } from './run-format';
 import { RunLivePoll } from './RunLivePoll';
 
 /** A labeled meta item in the header strip. */
@@ -62,7 +62,7 @@ export function RunDetail({ run, repoName }: { run: LoopRunRow; repoName?: strin
       {/* Header — identity + timing (no nested card; the canvas is the surface) */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant={RUN_STATUS_VARIANT[run.status] ?? 'neutral'} dot={run.status === 'running'}>{statusLabel(run.status)}</Badge>
+          <Badge variant={statusVariant(run.status)} dot={run.status === 'running'}>{statusLabel(run.status)}</Badge>
           <Mono className="!text-sm font-medium text-ink" title={run.runId}>{shortId(run.runId)}</Mono>
           {run.branch ? (
             <span className="inline-flex min-w-0 items-center gap-1 text-ink-faint">

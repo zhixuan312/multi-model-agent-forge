@@ -8,6 +8,7 @@
 
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
 export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
+export type RepoStatus = (typeof REPO_STATUS)[number];
 
 export const TEAM_ROLE = ['org_admin', 'team_admin', 'member'] as const;
 export type TeamRole = (typeof TEAM_ROLE)[number];
@@ -149,6 +150,7 @@ export type LoopKind = (typeof LOOP_KIND)[number];
 
 /** loop.worker_tier — which MMA worker the loop dispatches (maps to agentType). `main` is the orchestrator, never a worker. */
 export const LOOP_WORKER_TIER = ['standard', 'complex'] as const;
+export type LoopWorkerTier = (typeof LOOP_WORKER_TIER)[number];
 
 /** loop.mode — recurring scheduler, manual run-now, or machine-driven event trigger. */
 export const LOOP_MODE = ['recurring', 'manual', 'event'] as const;
@@ -158,5 +160,13 @@ export type LoopMode = (typeof LOOP_MODE)[number];
 export const LOOP_TRIGGER = ['schedule', 'manual', 'event'] as const;
 export type LoopTrigger = (typeof LOOP_TRIGGER)[number];
 
-/** loop_run.status — per-repo outcome of a fire. A failed run never opens a PR. */
+/**
+ * loop_run.status — per-repo outcome of a fire. A failed run never opens a PR.
+ *
+ * Three of the eighteen enum arrays here (REPO_STATUS, LOOP_WORKER_TIER, LOOP_RUN_STATUS)
+ * had no companion type, so their consumers fell back to `string` — which is how
+ * `RUN_STATUS_LABEL` came to be a `Record<string, string>` that a new status could slip
+ * through, showing the user a raw `no_changes`. Every enum here now exports its type.
+ */
 export const LOOP_RUN_STATUS = ['running', 'changed', 'no_changes', 'failed'] as const;
+export type LoopRunStatus = (typeof LOOP_RUN_STATUS)[number];

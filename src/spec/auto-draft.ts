@@ -40,11 +40,16 @@ export async function buildSpecAuthoringRequest(
 
   const templates = await db.select().from(teamSpecTemplate);
   const templateById = new Map(templates.map((t) => [t.id, t]));
-  const selectedLabels = components.flatMap((component) => {
-    const tpl = templateById.get(component.templateId);
-    if (!tpl) return [];
-    return [templateForKind(tpl.kind as ComponentKind).label];
-  });
+  // A component whose template row is gone must NOT be quietly left out of the request:
+  // MMA would then never draft it and the user would wait for a section that cannot
+  // arrive. The all-missing case was already refused; a PARTIAL miss slipped through.
+  const orphaned = components.filter((c) => !templateById.has(c.templateId));
+  if (orphaned.length > 0) {
+    return { error: `Spec templates are missing for ${orphaned.length} selected component(s) — run \`pnpm db:seed-templates\`.` };
+  }
+  const selectedLabels = components.map(
+    (component) => templateForKind(templateById.get(component.templateId)!.kind as ComponentKind).label,
+  );
   if (selectedLabels.length === 0) return { error: 'No sections to draft.' };
 
   // Intent (DB-sourced, never a file) rides in the prompt alongside the feature

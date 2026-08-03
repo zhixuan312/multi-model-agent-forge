@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { buildSpecAuthoringRequest } from '@/spec/auto-draft';
 import { readExplorationSummary } from '@/projects/project-files';
 import { createMockDb } from '../test-utils/mock-db';
+import { buildInitialDetails } from '@/details/schema';
 
 vi.mock('@/projects/project-files', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/projects/project-files')>();
@@ -61,4 +62,24 @@ describe('buildSpecAuthoringRequest', () => {
       expect(result.prompt).toContain('# Captured intent');
     }
   });
+});
+
+/**
+ * A component whose template row has gone missing used to be dropped from the request, so
+ * MMA never drafted it and the user waited for a section that could not arrive. The
+ * all-missing case was already refused; a PARTIAL miss slipped through.
+ */
+it('refuses to draft a partial selection when a template row is missing', async () => {
+  const d = buildInitialDetails();
+  d.stages.spec.phases.craft.components = [
+    { id: 'c1', templateId: 'tpl-context', approvals: [] },
+    { id: 'c2', templateId: 'tpl-gone', approvals: [] },
+  ];
+  const db = createMockDb({
+    'select:project': [{ name: 'P', details: d, intentMd: 'Build the thing.' }],
+    'select:team_spec_template': [{ id: 'tpl-context', kind: 'context', label: 'Context', orderIndex: 0, sections: [] }],
+  });
+  const result = await buildSpecAuthoringRequest({ db, projectId: 'p1', outputPath: 'spec.md', explorationPath: 'exploration.md' });
+  expect(result).toHaveProperty('error');
+  expect((result as { error: string }).error).toMatch(/templates are missing/i);
 });

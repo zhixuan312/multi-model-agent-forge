@@ -88,12 +88,23 @@ const PLAN_PHASE_NOTES: Record<string, string> = {
 - Gaps between spec requirements and plan tasks` };
 
 type PlanPhase = 'refine' | 'validate';
-type TaskStatus = 'proposed' | 'detailed' | 'approved';
 
-type Msg =
-  | { id: string; role: 'forge' | 'user'; text: string }
-  | { id: string; role: 'audit'; passNo: number; verdict: 'clean' | 'revised'; findings: Finding[] }
-  | { id: string; role: 'draft'; md: string; version: number };
+/**
+ * A task is either approved or it is not. `'detailed'` was a third member that nothing
+ * assigned and nothing tested for: `serverStatus` maps every task to `approved | proposed`,
+ * and the only writer sets `approved`. It was the sole occurrence of the string in the
+ * codebase.
+ */
+type TaskStatus = 'proposed' | 'approved';
+
+/**
+ * A message in a task's discussion. This union also carried an `audit` variant (passNo,
+ * verdict, findings) and a `draft` variant (md, version), neither of which was ever
+ * constructed — threads are seeded from `initialMessages` (sender `forge | member`) and
+ * appended by `send()`. Audit rounds are their own state (`rounds`) rendered by their own
+ * component; they were never messages.
+ */
+type Msg = { id: string; role: 'forge' | 'user'; text: string };
 
 export interface PlanStageClientProps {
   projectId: string;
@@ -611,7 +622,9 @@ function DetailStage({
   const discussion: DiscussionMsg[] = msgs.map((m) => ({
     id: m.id,
     authorId: m.role === 'user' ? (currentMember?.id ?? 'me') : 'forge',
-    body: (m as { text: string }).text }));
+    // No cast: `text` is now on every member of `Msg`. It was reachable only because the
+    // union carried two variants that had no `text` — and no constructor either.
+    body: m.text }));
 
   /** Resolve a member id for attribution (you · project pool). */
   function memberById(id: string): MemberRef | undefined {

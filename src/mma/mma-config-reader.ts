@@ -1,14 +1,14 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-
 /**
- * Reads the CURRENT per-tier config from mma's `config.json` for the Models
+ * @file Reads the CURRENT per-tier config from mma's `config.json` for the Models
  * page to display. mma owns + auto-persists this file when a tier is
  * configured via `/configure-provider`, so it is the source of truth — Forge
  * never writes it. Auth is shown as `api-key` when the agent carries an
  * `apiKeyEnv`, else `oauth` (the subscription/default path).
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 /**
  * The model used when the `main` tier carries no explicit model. MMA requires
  * `X-MMA-Main-Model` on every route (400 `main_model_required` otherwise), so a dispatch

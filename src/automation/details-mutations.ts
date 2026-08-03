@@ -119,23 +119,6 @@ export function recordExecuteAttempt(d: Details, repoId: string, batchId: string
   return d;
 }
 
-/** The plan was executed for a repo → FLIP the open `running` implement attempt to
- * `done` (the resolver then advances to Review; tasks marked committed). Falls back
- * to appending a `done` attempt if no running one exists (defensive). */
-export function recordImplementAttempt(d: Details, repoId: string, batchId: string, at: string): Details {
-  const repos = d.stages.execute.phases.implement.repos;
-  let entry = repos.find((x) => x.repoId === repoId);
-  if (!entry) { entry = { repoId, attempts: [] }; repos.push(entry); }
-  const running = entry.attempts.find((a) => a.status === 'running');
-  if (running) { running.status = 'done'; running.at = at; }
-  else entry.attempts.push({ batchId, status: 'done', at });
-  for (const t of d.stages.plan.phases.refine.tasks) t.status = 'committed';
-  return d;
-}
-
-/** A code-review pass completed for a repo → append the pass (`revised` when it
- * carried critical/high findings, else `clean`) so the resolver either applies
- * findings or advances. */
 /** Record one audit round as a new pass on the spec-finalize or plan-validate
  * audit loop, carrying the read-route result's context block id (or null) so the
  * NEXT round can be dispatched as a delta. Single writer for both spec & plan. */
@@ -159,6 +142,23 @@ export function recordAuditPass(
   return d;
 }
 
+/** The plan was executed for a repo → FLIP the open `running` implement attempt to
+ * `done` (the resolver then advances to Review; tasks marked committed). Falls back
+ * to appending a `done` attempt if no running one exists (defensive). */
+export function recordImplementAttempt(d: Details, repoId: string, batchId: string, at: string): Details {
+  const repos = d.stages.execute.phases.implement.repos;
+  let entry = repos.find((x) => x.repoId === repoId);
+  if (!entry) { entry = { repoId, attempts: [] }; repos.push(entry); }
+  const running = entry.attempts.find((a) => a.status === 'running');
+  if (running) { running.status = 'done'; running.at = at; }
+  else entry.attempts.push({ batchId, status: 'done', at });
+  for (const t of d.stages.plan.phases.refine.tasks) t.status = 'committed';
+  return d;
+}
+
+/** A code-review pass completed for a repo → append the pass (`revised` when it
+ * carried critical/high findings, else `clean`) so the resolver either applies
+ * findings or advances. */
 export function recordReviewPass(d: Details, repoId: string, batchId: string, blocking: boolean, at: string, contextBlockId: string | null): Details {
   const repos = d.stages.review.phases.review.repos;
   let entry = repos.find((x) => x.repoId === repoId);

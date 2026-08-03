@@ -14,6 +14,26 @@ export interface FormPanelValidate {
 }
 
 /**
+ * The set / not-set indicator for a stored credential — the value itself is never sent
+ * to the browser, so this is all a card can honestly show.
+ *
+ * Written out four times (org Connections ×2, team Git token, team Workspace path, and
+ * the Teams table's git column). `FormPanel` takes it as its `indicator` prop, so it
+ * belongs beside it.
+ */
+export function SetIndicator({ set, ...rest }: { set: boolean } & Omit<BadgeProps, 'variant' | 'size' | 'dot' | 'children'>) {
+  return set ? (
+    <Badge variant="sage" dot size="sm" {...rest}>
+      set
+    </Badge>
+  ) : (
+    <Badge size="sm" {...rest}>
+      not set
+    </Badge>
+  );
+}
+
+/**
  * FormPanel — the one form shell in Forge. Every form is the same three parts: an optional
  * header, the fields, and a footer of actions. What used to look like three different
  * components was only ever two switches on top of that:
@@ -36,26 +56,6 @@ export interface FormPanelValidate {
  *     <FieldGrid>…</FieldGrid>
  *   </FormPanel>
  */
-/**
- * The set / not-set indicator for a stored credential — the value itself is never sent
- * to the browser, so this is all a card can honestly show.
- *
- * Written out four times (org Connections ×2, team Git token, team Workspace path, and
- * the Teams table's git column). `FormPanel` takes it as its `indicator` prop, so it
- * belongs beside it.
- */
-export function SetIndicator({ set, ...rest }: { set: boolean } & Omit<BadgeProps, 'variant' | 'size' | 'dot' | 'children'>) {
-  return set ? (
-    <Badge variant="sage" dot size="sm" {...rest}>
-      set
-    </Badge>
-  ) : (
-    <Badge size="sm" {...rest}>
-      not set
-    </Badge>
-  );
-}
-
 export function FormPanel({
   ariaLabel,
   onSubmit,

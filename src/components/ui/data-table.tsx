@@ -16,16 +16,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Micro, Title } from '@/components/ui/typography';
 
 /**
- * DataTable — the Forge data grid, driven by TanStack Table. Standard shadcn
- * pattern: a fixed `pageSize`, consistent row heights, and a pager — no internal
- * scroll and no viewport math. Pass `ColumnDef`s with `size` for fixed widths;
- * leave a column's `size` unset to let it flex.
- *
- * `fill` mode (opt-in): show ALL rows and scroll internally with a sticky header,
- * filling the parent's height instead of paginating. Use inside a flex/`fill`
- * page so the table reaches the page bottom (like the Journal tabs).
- */
-/**
  * The header shell above a `DataTable` inside its panel: a title row (with an optional
  * primary action on the right) and, below it, the toolbar of search + filters.
  *
@@ -88,6 +78,16 @@ export interface DataTableProps<TData, TValue> {
   className?: string;
 }
 
+/**
+ * DataTable — the Forge data grid, driven by TanStack Table. Standard shadcn
+ * pattern: a fixed `pageSize`, consistent row heights, and a pager — no internal
+ * scroll and no viewport math. Pass `ColumnDef`s with `size` for fixed widths;
+ * leave a column's `size` unset to let it flex.
+ *
+ * `fill` mode (opt-in): show ALL rows and scroll internally with a sticky header,
+ * filling the parent's height instead of paginating. Use inside a flex/`fill`
+ * page so the table reaches the page bottom (like the Journal tabs).
+ */
 export function DataTable<TData, TValue>({
   columns,
   data,

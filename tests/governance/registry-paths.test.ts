@@ -108,18 +108,7 @@ describe('governance registry references real files', () => {
     expect(variantPaths().length).toBeGreaterThan(10);
   });
 });
-/**
- * A path that exists is not the same as a path that still holds what the catalog says.
- * Three entries went stale in exactly that way — `search` → "input" in NodesView.tsx and
- * `categoryChips` → "chip row" in NodesView.tsx (both moved to governed components), and
- * the Badge slot's two journal deviations after they became one. The file kept existing,
- * so the existence walk stayed green.
- *
- * Precise, unlike a consumer-side check: only entries whose `canonicalComponent` starts
- * with a PascalCase identifier are examined, and only against a repo file. Prose
- * canonicals ("chip row", "lucide icon") and external packages ("lucide-react") are
- * skipped rather than guessed at.
- */
+
 /**
  * (canonicalComponent, canonicalFilePath) pairs worth checking: a leading PascalCase
  * identifier and a path inside this repo. Prose canonicals and npm packages are skipped.
@@ -165,6 +154,18 @@ function canonicalPairs(): Array<{ ident: string; path: string; where: string }>
   return out;
 }
 
+/**
+ * A path that exists is not the same as a path that still holds what the catalog says.
+ * Three entries went stale in exactly that way — `search` → "input" in NodesView.tsx and
+ * `categoryChips` → "chip row" in NodesView.tsx (both moved to governed components), and
+ * the Badge slot's two journal deviations after they became one. The file kept existing,
+ * so the existence walk stayed green.
+ *
+ * Precise, unlike a consumer-side check: only entries whose `canonicalComponent` starts
+ * with a PascalCase identifier are examined, and only against a repo file. Prose
+ * canonicals ("chip row", "lucide icon") and external packages ("lucide-react") are
+ * skipped rather than guessed at.
+ */
 describe('canonical components live where the catalog says', () => {
   const pairs = canonicalPairs();
 

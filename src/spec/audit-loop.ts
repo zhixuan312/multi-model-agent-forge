@@ -17,7 +17,6 @@ import { SEVERITY_ORDER, isBlockingSeverity, type Severity } from '@/lib/severit
 /** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */
 export type FindingSeverity = Severity;
 
-/** A single parsed finding (the two fields Forge relies on + display fields). */
 /**
  * A finding parsed out of an audit envelope: the canonical render contract with
  * `evidence`/`suggestion` GUARANTEED present (the parser defaults them to ''). Extending

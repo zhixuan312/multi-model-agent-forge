@@ -7,6 +7,21 @@ import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { READ_ROUTES, type RouteSubtype } from '@/content/direction-reference';
 import { SEVERITY_ORDER } from '@/lib/severity';
 
+/** Pure pass over the criteria: the group label to print ABOVE row `i`, or
+ *  `undefined` when row `i` continues the previous cluster. Computed outside the
+ *  render tree so no state is carried across the row map. */
+function groupHeaders(criteria: RouteSubtype['criteria']): (string | undefined)[] {
+  const grouped = criteria.some((c) => c.group);
+  if (!grouped) return criteria.map(() => undefined);
+  const headers: (string | undefined)[] = [];
+  let lastGroup = '';
+  for (const c of criteria) {
+    headers.push(c.group && c.group !== lastGroup ? c.group : undefined);
+    if (c.group) lastGroup = c.group;
+  }
+  return headers;
+}
+
 /**
  * Severity → `Badge` variant. The ladder rides the design system's status tints rather
  * than a bespoke colour scale, and must read the same as the product's own findings
@@ -35,21 +50,6 @@ function SeverityRow({ tier, text }: { tier: string; text: string }) {
 
 /** The criteria table for one subtype. Grouped subtypes (audit `plan`) get a
  *  spanning group row above each cluster, exactly as the criteria source orders them. */
-/** Pure pass over the criteria: the group label to print ABOVE row `i`, or
- *  `undefined` when row `i` continues the previous cluster. Computed outside the
- *  render tree so no state is carried across the row map. */
-function groupHeaders(criteria: RouteSubtype['criteria']): (string | undefined)[] {
-  const grouped = criteria.some((c) => c.group);
-  if (!grouped) return criteria.map(() => undefined);
-  const headers: (string | undefined)[] = [];
-  let lastGroup = '';
-  for (const c of criteria) {
-    headers.push(c.group && c.group !== lastGroup ? c.group : undefined);
-    if (c.group) lastGroup = c.group;
-  }
-  return headers;
-}
-
 function CriteriaTable({ subtype }: { subtype: RouteSubtype }) {
   const headers = groupHeaders(subtype.criteria);
   return (

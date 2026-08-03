@@ -50,8 +50,8 @@ export default async function ExploreStagePage({
   const { getStagePermissions } = await import('@/projects/stage-gate');
   const perms = await getStagePermissions(db, id);
 
-  const { getLastPhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getLastPhase(db, id, 'exploration') as 'brief' | 'discover' | 'synthesize' | null;
+  const { getActivePhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getActivePhase(db, id, 'exploration') as 'brief' | 'discover' | 'synthesize' | null;
   const validPhases = ['brief', 'discover', 'synthesize'] as const;
   const dbFurthestIdx = lastPhase ? validPhases.indexOf(lastPhase) : 0;
   const urlPhaseIdx = phaseParam && (validPhases as readonly string[]).includes(phaseParam)

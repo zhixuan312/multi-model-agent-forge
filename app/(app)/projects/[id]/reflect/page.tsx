@@ -40,8 +40,8 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const { loadProjectSummary } = await import('@/projects/project-summary');
   const summary = allRecorded ? await loadProjectSummary(db, id) : undefined;
 
-  const { getLastPhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getLastPhase(db, id, 'journal') as 'journal' | 'summary' | null;
+  const { getActivePhase } = await import('@/projects/phase-tracker');
+  const lastPhase = await getActivePhase(db, id, 'journal') as 'journal' | 'summary' | null;
   const phaseParam = (await searchParams).learning ? undefined : (await searchParams).phase as 'journal' | 'summary' | undefined;
   const initialPhase = phaseParam ?? lastPhase ?? undefined;
 

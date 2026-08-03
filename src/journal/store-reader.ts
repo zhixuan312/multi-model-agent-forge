@@ -439,7 +439,6 @@ export async function readAllNodes(root: string): Promise<JournalReadOutcome> {
     if (isEacces(e)) return { kind: 'unreadable' };
     index = [];
   }
-  const indexById = new Map(index.map((r) => [r.id, r]));
 
   const summaries: NodeSummary[] = [];
   const seen = new Set<string>();
@@ -497,8 +496,6 @@ export async function readAllNodes(root: string): Promise<JournalReadOutcome> {
     if (isEacces(e)) throw e;
     return [] as LogEntry[];
   });
-  // Merge index metadata is already folded; expose skippedCount.
-  void indexById;
   return { kind: 'ok', nodes: summaries, log, skippedCount: skipped };
 }
 

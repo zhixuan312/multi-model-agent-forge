@@ -43,7 +43,7 @@ export async function loginAction(
   const hdrs = await headers();
   const ip = resolveClientIp({
     forwardedFor: hdrs.get('x-forwarded-for'),
-    socketAddr: hdrs.get('x-real-ip'),
+    realIp: hdrs.get('x-real-ip'),
   });
 
   const result = await attemptLogin({ username: parsed.data.username, password: parsed.data.password, ip });

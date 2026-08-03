@@ -52,6 +52,21 @@ returns the build identity once ready.
 Put a TLS-terminating reverse proxy (Caddy, nginx, Traefik) in front of `:3000` for any
 real deployment — Forge itself serves plain HTTP.
 
+> **Set `X-Real-IP` on the proxy.** With `FORGE_TRUST_PROXY` on (the production default)
+> Forge keys the per-IP login rate-limit on `X-Real-IP`, falling back to the left-most
+> `X-Forwarded-For` hop. nginx's usual `proxy_set_header X-Forwarded-For
+> $proxy_add_x_forwarded_for` **appends** to whatever the client sent, so that left-most
+> hop is attacker-chosen — a client rotating the header gets a fresh rate-limit bucket per
+> request. Add:
+>
+> ```nginx
+> proxy_set_header X-Real-IP $remote_addr;
+> ```
+>
+> Caddy and Traefik set `X-Real-IP` by default. The per-USERNAME counter applies either
+> way, so a single account is throttled regardless; this is what stops one password being
+> sprayed across many usernames from one host.
+
 > **If you serve Forge over plain HTTP, set `-e FORGE_COOKIE_SECURE=false`.** In
 > production Forge marks the session cookie `Secure`, and a browser on `http://` silently
 > **discards** it: the login POST succeeds server-side, the session never sticks, and the

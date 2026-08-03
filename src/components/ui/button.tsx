@@ -56,6 +56,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       disabled={disabled || loading}
+      // `loading` was carried by a spinner glyph and nothing else: the glyph is `aria-hidden`
+      // (correctly — it is decoration), so a screen reader heard only that the button had
+      // become disabled, with no indication that work was under way rather than the action
+      // being unavailable. Every stage in the app puts a caller in that state for seconds at
+      // a time.
+      aria-busy={loading || undefined}
       className={cn(buttonVariants({ variant, size, fullWidth }), className)}
       {...rest}
     >

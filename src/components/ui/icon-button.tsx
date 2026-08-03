@@ -25,6 +25,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     <button
       ref={ref}
       disabled={disabled || loading}
+      // See `Button`: the spinner is decoration, so without this a busy icon button is
+      // indistinguishable from an unavailable one — and an icon button has no label text to
+      // soften that.
+      aria-busy={loading || undefined}
       className={cn(buttonVariants({ variant, size: 'icon' }), className)}
       {...rest}
     >

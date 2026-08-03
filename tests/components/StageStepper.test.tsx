@@ -88,10 +88,22 @@ describe('StageStepper (4-state track)', () => {
     expect(spec).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('a11y: accessible names include visual state', () => {
+  it('a11y: a reachable stage is a link named with its visual state', () => {
     renderFresh();
-    expect(screen.getByLabelText('Explore — ongoing')).toBeInTheDocument();
-    expect(screen.getByLabelText('Spec — not started')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Explore — ongoing' })).toBeInTheDocument();
+  });
+
+  it('a11y: an UNREACHABLE stage carries its state as text, not a discarded aria-label', () => {
+    // This assertion used to be `getByLabelText('Spec — not started')`, and it passed —
+    // testing-library reads the attribute directly. The browser does not: an unreachable
+    // stage renders a bare <span>, which maps to role `generic`, where ARIA prohibits
+    // naming. So the label was discarded and the stage announced nothing, while the test
+    // reported it as named. Querying by TEXT is what a screen reader would actually get.
+    renderFresh();
+    const spec = document.querySelector('[data-stage="spec"]')!;
+    expect(spec).toHaveAttribute('data-reachable', 'false');
+    expect(spec).toHaveTextContent('Spec');
+    expect(spec).toHaveTextContent('not started');
   });
 
   it('sub-phases: all show done (green) when viewing a done stage and clicking back to first phase', () => {

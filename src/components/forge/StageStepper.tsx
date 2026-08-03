@@ -30,6 +30,8 @@ export interface StageStepperProps {
 interface StepperStage extends ComputedStageView {
   href: string;
   accessibleName: string;
+  /** The state half of `accessibleName`, for announcing it beside a visible label. */
+  stateWord: string;
 }
 
 function toStepperStages(
@@ -46,7 +48,7 @@ function toStepperStages(
     const lp = lastPhaseByKind.get(s.kind) ?? STAGE_LAST_FALLBACK[s.kind];
     const href = lp ? `${base}?phase=${lp}` : base;
     const stateWord = s.visual === 'not_started' ? 'not started' : s.visual;
-    return { ...s, href, accessibleName: `${s.label} — ${stateWord}` };
+    return { ...s, href, stateWord, accessibleName: `${s.label} — ${stateWord}` };
   });
 }
 
@@ -128,10 +130,17 @@ function StageNode({ s, condensed }: { s: StepperStage; condensed: boolean }) {
     !s.isCurrent && s.visual === 'skipped' && 'text-ink-faint line-through',
   );
 
+  // A reachable stage is a link and takes its name from `aria-label`. An unreachable one is
+  // a bare <span>, where ARIA discards that — and under `condensed` it renders no label
+  // either, so a locked or not-started stage announced nothing at all: the indicator is a
+  // shape, and shapes have no text. Give the span its name as real text.
+  const srText = s.reachable ? null : showLabel ? ` — ${s.stateWord}` : s.accessibleName;
+
   const inner = (
     <span className={cn('flex flex-col items-center', s.reachable && 'cursor-pointer')}>
       <StageIndicator s={s} />
       {showLabel ? <span className={labelCls}>{s.label}</span> : null}
+      {srText ? <span className="sr-only">{srText}</span> : null}
     </span>
   );
 
@@ -139,13 +148,15 @@ function StageNode({ s, condensed }: { s: StepperStage; condensed: boolean }) {
     'data-stage': s.kind,
     'data-state': s.visual,
     'data-reachable': s.reachable ? 'true' : 'false',
-    'aria-label': s.accessibleName,
     'aria-current': s.isCurrent ? ('step' as const) : undefined,
   };
 
   if (s.reachable) {
+    // `aria-label` belongs on the link and only the link. It used to be in `shared` and so
+    // was spread onto the span below too, where ARIA discards it — an attribute that reads
+    // as "named" while naming nothing. The span carries its name as text instead.
     return (
-      <Link href={s.href} {...shared} className="group">
+      <Link href={s.href} {...shared} aria-label={s.accessibleName} className="group">
         {inner}
       </Link>
     );

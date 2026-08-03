@@ -23,31 +23,28 @@ export interface StatusStyle {
   label: string;
   cls: string;
   dot: string;
-  known: boolean;
 }
 
 /** Resolve a status value to its chip style (neutral for unknown). */
 export function statusStyle(status: string): StatusStyle {
-  if (isStatus(status)) {
-    const t = STATUS_TOKEN[status]!;
-    return { ...t, known: true };
-  }
-  return { label: status || 'unknown', cls: NEUTRAL.cls, dot: NEUTRAL.dot, known: false };
+  if (isStatus(status)) return { ...STATUS_TOKEN[status]! };
+  return { label: status || 'unknown', cls: NEUTRAL.cls, dot: NEUTRAL.dot };
 }
 
 /** Write-log op → colour class (create=sage, refine=ember, supersede=amber,
- *  merge=steel; unknown=neutral grey). Always paired with the op text. */
-export function opStyle(op: string): { cls: string; known: boolean } {
+ *  merge=steel; unknown=neutral grey). Always paired with the op text.
+ *  Both resolvers used to also return a `known: boolean` that no caller ever read. */
+export function opStyle(op: string): { cls: string } {
   switch (op) {
     case 'create':
-      return { cls: 'bg-sage-tint text-sage-deep border-sage', known: true };
+      return { cls: 'bg-sage-tint text-sage-deep border-sage' };
     case 'refine':
-      return { cls: 'bg-ember-tint text-ember-deep border-ember', known: true };
+      return { cls: 'bg-ember-tint text-ember-deep border-ember' };
     case 'supersede':
-      return { cls: 'bg-amber-tint text-amber border-amber', known: true };
+      return { cls: 'bg-amber-tint text-amber border-amber' };
     case 'merge':
-      return { cls: 'bg-surface-2 text-steel-deep border-steel', known: true };
+      return { cls: 'bg-surface-2 text-steel-deep border-steel' };
     default:
-      return { cls: NEUTRAL.cls, known: false };
+      return { cls: NEUTRAL.cls };
   }
 }

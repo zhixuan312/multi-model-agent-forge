@@ -2,10 +2,10 @@ import { BookText } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
 
 /**
- * JournalNote — the rail note for the Journal page. Uses the shared
- * `SettingsAccessNote` (same box + house style as the Team Settings + Workspace
- * notes): titled `###` sections + bullets, plain language. Shown in the 1/3 rail
- * whenever it isn't occupied by a selected node's detail.
+ * JournalNote — the rail note for the Journal page. Uses the shared `RailNote`
+ * (same box + house style as the Team Settings + Workspace notes): titled `###`
+ * sections + bullets, plain language. Shown in the 1/3 rail whenever it isn't
+ * occupied by a selected node's detail.
  */
 const JOURNAL_NOTE = `### Decision graph
 

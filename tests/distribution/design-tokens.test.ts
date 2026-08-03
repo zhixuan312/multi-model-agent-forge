@@ -122,6 +122,41 @@ describe('design tokens', () => {
     expect([...new Set(offenders)], 'add the token to @theme, or use an existing one').toEqual([]);
   });
 
+  it('the canvas hex mirror still matches the stylesheet it claims to mirror', () => {
+    // `graph-palette.ts` mirrors token values as literals because a canvas cannot read CSS
+    // vars, and its header asks a human to "keep in sync with app/globals.css". A comment
+    // that requests synchronisation does not produce it. Each entry already names its token
+    // in a trailing comment (`'#4e7350', // sage`), so that comment IS the assertion.
+    const src = readFileSync(join(ROOT, 'src/components/forge/journal/graph-palette.ts'), 'utf8');
+    // First declaration wins: the semantic tokens are defined once on `:root` (the warm
+    // default the graph mirrors) and redefined under `[data-phase="build"]`. Values are
+    // resolved through `var()` indirection — `--ink-soft: var(--warm-ink-soft)` is a hex,
+    // just not a literal one.
+    const decl = new Map<string, string>();
+    for (const m of css.matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*([^;]+);/gm)) {
+      if (!decl.has(m[1]!)) decl.set(m[1]!, m[2]!.trim());
+    }
+    const resolve = (token: string): string | undefined => {
+      let v = decl.get(token);
+      for (let hop = 0; hop < 5 && v?.startsWith('var('); hop++) {
+        v = decl.get(v.slice(4, v.indexOf(')')).trim());
+      }
+      return v && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v.toLowerCase() : undefined;
+    };
+    const pairs = [...src.matchAll(/'(#[0-9a-fA-F]{3,8})',\s*\/\/\s*([a-z-]+)/g)];
+    expect(pairs.length, 'no annotated hex entries found — the mirror or its comments moved').toBeGreaterThan(8);
+
+    const drift: string[] = [];
+    for (const m of pairs) {
+      const [, hex, name] = m;
+      const token = `--${name}`;
+      const declared = resolve(token);
+      if (declared === undefined) drift.push(`${token} does not resolve to a hex in globals.css`);
+      else if (declared !== hex!.toLowerCase()) drift.push(`${token}: mirror has ${hex}, stylesheet has ${declared}`);
+    }
+    expect(drift, 'graph-palette.ts has drifted from globals.css').toEqual([]);
+  });
+
   it('no component hardcodes a fallback hex behind a token', () => {
     // `var(--danger,#c0492f)` is worse than a missing token: it renders, so nothing looks
     // broken, while quietly opting that element out of the theme.

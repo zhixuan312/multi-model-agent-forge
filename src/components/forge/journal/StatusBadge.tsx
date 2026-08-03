@@ -17,12 +17,15 @@ export function StatusBadge({ status, className }: { status: string; className?:
   );
 }
 
-/** A small status DOT that conveys status non-visually via an aria-label. */
+/** A small status DOT that conveys status non-visually via an aria-label.
+ *  `role="img"`, not `role="status"`: `status` is a LIVE REGION, and Recall renders one
+ *  dot per result row, so a search turned every row into its own polite announcer. This
+ *  is a graphic that carries meaning — exactly what `img` + a label is for. */
 export function StatusDot({ status }: { status: string }) {
   const s = statusStyle(status);
   return (
     <span
-      role="status"
+      role="img"
       aria-label={`status: ${s.label}`}
       title={s.label}
       className={cn('inline-block size-2 rounded-full', s.dot)}

@@ -132,10 +132,16 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       const ref = r.stdout.trim();
       return ref && ref !== 'HEAD' ? ref : null; // 'HEAD' = detached → unresolvable
     },
-    mainSession: async ({ cwd, prompt, outputFormat, loopRunId }) => {
+    mainSession: async ({ cwd, prompt, outputFormat, sessionId, loopRunId }) => {
       const mma = await buildMmaClient({ db });
       const body: Record<string, unknown> = { prompt, reviewPolicy: 'none' };
       if (outputFormat) body.outputFormat = outputFormat;
+      // Resume the caller's session when it has one. The engine takes the id under
+      // `sessionIds.implementer` and returns the one it used on the terminal envelope
+      // (`execution.sessions.implementer`) — this adapter used to send neither and
+      // hardcode `sessionId: null`, so the journal turn always started cold despite the
+      // engine supporting both halves of the exchange.
+      if (sessionId) body.sessionIds = { implementer: sessionId };
       const { envelope: env } = await dispatchMma({
         db, mma, projectId: null, route: 'orchestrate', handler: null, label: 'loop-plan',
         cwd, body, actorId: null, loopRunId, await: true,
@@ -145,7 +151,9 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       const summaryRaw = output.summary;
       const text = typeof summaryRaw === 'string' ? summaryRaw
         : (summaryRaw && typeof summaryRaw === 'object') ? JSON.stringify(summaryRaw) : '';
-      return { output: text };
+      const execution = (e.execution ?? {}) as { sessions?: { implementer?: unknown } };
+      const nextSession = execution.sessions?.implementer;
+      return { output: text, sessionId: typeof nextSession === 'string' && nextSession ? nextSession : null };
     },
     recall: async (repo, query, loopRunId) => {
       const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);

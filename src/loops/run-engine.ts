@@ -16,11 +16,11 @@ import {
 
 /**
  * Loop run engine. Ten stages per (repo, fire); the MMA main agent is consulted
- * at exactly two of them (two INDEPENDENT turns — see `MainTurn`), everything else is
+ * at exactly two of them (one resumed session — see `MainTurn`), everything else is
  * deterministic:
- *   1 preconditions (det) → 2 worktree (det) → 3 PLAN (main #1) →
+ *   1 preconditions (det) → 2 worktree (det) → 3 PLAN (main #1, opens the session) →
  *   4 recall (worker fan-out) → 5 work (worker) → 6 verify (det run of the planned
- *   command) → 7 disposition/commit+PR (det) → 8 JOURNAL (main #2) →
+ *   command) → 7 disposition/commit+PR (det) → 8 JOURNAL (main, resumes it) →
  *   9 record + report (det) → 10 cleanup (det, finally).
  * All IO is injected (`LoopRunDeps`) so the orchestration — every failure branch,
  * the never-PR-on-failed invariant, main-call fallbacks, and worktree cleanup on
@@ -69,16 +69,14 @@ export interface RunContext {
 /**
  * One turn against the MMA main agent (orchestrator).
  *
- * The two turns are INDEPENDENT. This carried a `sessionId` for the journal turn to
- * resume the plan turn's conversation, and the engine does accept `sessionIds` on input —
- * but it never returns the id it used, so Forge has nothing to resume with and the real
- * adapter always produced `null`. Only the test double ever supplied one, which made the
- * resume path look exercised while production could not reach it. If the engine starts
- * returning a session id, thread it back here and the journal prompt can lose the context
- * it currently has to restate.
+ * `sessionId` is the engine's implementer session for that turn — `execution.sessions.
+ * implementer` on the terminal envelope, null when the provider cannot resume. Passing it
+ * back on the next call resumes the same conversation, which is what lets the JOURNAL
+ * turn reason about the PLAN it wrote rather than starting cold.
  */
 export interface MainTurn {
   output: string;
+  sessionId: string | null;
 }
 
 export interface LoopRunDeps {
@@ -90,7 +88,7 @@ export interface LoopRunDeps {
   /** The branch the repo is currently checked out on (the base when no targetBranch is set); null if detached/unresolvable. */
   resolveCurrentBranch: (repo: LoopRepoTarget) => Promise<string | null>;
   /** One main-agent (orchestrator) turn; pass `sessionId` to resume the same conversation. */
-  mainSession: (args: { cwd: string; prompt: string; outputFormat?: string; loopRunId?: string }) => Promise<MainTurn>;
+  mainSession: (args: { cwd: string; prompt: string; outputFormat?: string; sessionId?: string; loopRunId?: string }) => Promise<MainTurn>;
   /** Journal lookup for a query (empty string if the journal is absent). */
   recall: (repo: LoopRepoTarget, query: string, loopRunId?: string) => Promise<string>;
   /** Create an isolated worktree on `branch`, forked from the (freshly fetched) remote `baseBranch`. */
@@ -256,8 +254,10 @@ export async function runLoopForRepo(
     // Pre-compute repo structure so the planner doesn't have to guess.
     const repoContext = await buildRepoContext(worktree);
     let plan: LoopPlan = { recalls: [{ query: goalMd }], verifyCommand: null };
+    let sessionId: string | null = null;
     try {
       const planTurn = await deps.mainSession({ cwd: worktree, prompt: planPrompt(goalMd, repoContext), outputFormat: PLAN_OUTPUT_FORMAT, loopRunId: runRowId });
+      sessionId = planTurn.sessionId;
       const parsed = parsePlan(planTurn.output);
       if (parsed) plan = parsed.recalls.length || parsed.verifyCommand ? parsed : plan;
     } catch (e) {
@@ -312,6 +312,8 @@ export async function runLoopForRepo(
         cwd: worktree,
         prompt: journalPrompt({ goalMd, workerSummary: keyChanges[0] ?? '', filesChanged: out.filesChanged, verify }),
         outputFormat: JOURNAL_OUTPUT_FORMAT,
+        // Resume the PLAN turn so the journal reasons about the plan it wrote.
+        sessionId: sessionId ?? undefined,
         loopRunId: runRowId,
       });
       const parsed = parseJournal(jTurn.output);

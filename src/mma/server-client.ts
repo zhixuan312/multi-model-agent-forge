@@ -1,7 +1,10 @@
 /**
  * Server-side MmaClient factory: reads the singleton `settings_connection` base
  * URL + the `main`-tier model, resolves the local mma bearer, and constructs
- * an `MmaClient`. Used by the mma-health / rod routes.
+ * an `MmaClient`. This is the ONE place a server-side client is constructed — every
+ * dispatch path goes through it (the automation effects, the loop adapters, exploration,
+ * and the API routes), so a change to base-url or main-model resolution lands everywhere
+ * at once. The doc here used to name only two routes; there are around thirty callers.
  *
  * Falls back to the app-layer loopback default when no `settings_connection` row
  * exists yet (F17), so the health badge works pre-first-save. The main-tier model

@@ -39,8 +39,8 @@ function makeDeps(over: Partial<LoopRunDeps> = {}): LoopRunDeps & Record<string,
     resolveCurrentBranch: vi.fn(async () => 'main'),
     mainSession: vi.fn(async ({ prompt }: { prompt: string }) =>
       prompt.includes('planning brain')
-        ? { output: '{"recalls":[{"query":"q1","purpose":"p1"}],"verifyCommand":"npm test"}' }
-        : { output: '{"entries":[{"tag":"learned","text":"real insight"}]}' },
+        ? { output: '{"recalls":[{"query":"q1","purpose":"p1"}],"verifyCommand":"npm test"}', sessionId: 'sess-1' }
+        : { output: '{"entries":[{"tag":"learned","text":"real insight"}]}', sessionId: 'sess-1' },
     ),
     recall: vi.fn(async () => 'prior context'),
     createWorktree: vi.fn(async () => ({ path: '/wt/forge' })),
@@ -178,5 +178,36 @@ describe('a failed run is logged, not only journalled', () => {
     } finally {
       restore();
     }
+  });
+});
+
+/**
+ * The journal turn RESUMES the plan turn's session, so it can reason about the plan it
+ * wrote. The adapter used to hardcode `sessionId: null` and send no `sessionIds`, so the
+ * journal always started cold — even though the engine both accepts the id on input
+ * (`sessionIds.implementer`) and returns it on the envelope
+ * (`execution.sessions.implementer`).
+ */
+describe('the journal turn resumes the plan session', () => {
+  it("passes the plan turn's session id to the journal turn", async () => {
+    const d = makeDeps();
+    await runLoopForRepo(loop, repo, ctx, d);
+    const calls = vi.mocked(d.mainSession).mock.calls.map((c) => c[0]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].sessionId, 'the plan turn opens the session').toBeUndefined();
+    expect(calls[1].sessionId, 'the journal turn must resume it').toBe('sess-1');
+  });
+
+  it('still runs the journal turn when the plan yielded no session', async () => {
+    const d = makeDeps({
+      mainSession: vi.fn(async ({ prompt }: { prompt: string }) =>
+        prompt.includes('planning brain')
+          ? { output: '{"recalls":[],"verifyCommand":null}', sessionId: null }
+          : { output: '{"entries":[{"tag":"learned","text":"x"}]}', sessionId: null }),
+    });
+    await runLoopForRepo(loop, repo, ctx, d);
+    const calls = vi.mocked(d.mainSession).mock.calls.map((c) => c[0]);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].sessionId).toBeUndefined();
   });
 });

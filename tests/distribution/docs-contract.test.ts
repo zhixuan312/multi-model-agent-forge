@@ -118,6 +118,83 @@ describe('distribution docs contract', () => {
   });
 });
 
+/**
+ * The release runbook asks an operator to eyeball per-tier provider parity across
+ * `.env.example`, `docker-compose.yml` and the bootstrap with an `rg -c`. Nothing enforced
+ * it, and the README had already regressed to the old single-`PROVIDER`, Anthropic-only
+ * framing — contradicting a paragraph three sections above it in the same file. Derive the
+ * knobs from the script that READS them, so a new tier variable cannot ship undocumented.
+ */
+/**
+ * Every image tag an OPERATOR is told to run must be the version this repo ships.
+ * DEPLOYMENT.md sat on `0.1.1` for three releases while the README moved to `0.1.4`, so the
+ * two front-door documents told an operator to run different images. CHANGELOG entries are
+ * exempt on purpose — a historical entry naming its own release is the point.
+ */
+describe('docs <-> the version this repo ships', () => {
+  it('pins every runnable image tag to package.json#version', () => {
+    const version = (
+      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as { version: string }
+    ).version;
+
+    const stale: string[] = [];
+    for (const file of ['README.md', 'DEPLOYMENT.md', 'docker-compose.yml']) {
+      const text = readFileSync(join(process.cwd(), file), 'utf8');
+      for (const m of text.matchAll(/ghcr\.io\/zhixuan312\/forge:(\d+\.\d+\.\d+)/g)) {
+        if (m[1] !== version) stale.push(`${file} runs forge:${m[1]}, but this repo is ${version}`);
+      }
+      for (const m of text.matchAll(/FORGE_IMAGE_TAG=(\d+\.\d+\.\d+)/g)) {
+        if (m[1] !== version) stale.push(`${file} sets FORGE_IMAGE_TAG=${m[1]}, but this repo is ${version}`);
+      }
+    }
+    expect(stale).toEqual([]);
+  });
+});
+
+describe('per-tier provider contract <-> the docs that describe it', () => {
+  it('documents every per-tier env knob the container bootstrap reads', () => {
+    const bootstrap = readFileSync(join(process.cwd(), 'scripts/container-bootstrap.mjs'), 'utf8');
+
+    // `PROVIDER_${tier.toUpperCase()}` / `API_KEY_ENV_${T}` etc. — collect the PREFIXES the
+    // script builds tier names onto, then expand them over the three real tiers.
+    const prefixes = [...new Set(
+      [...bootstrap.matchAll(/([A-Z][A-Z0-9_]*_)\$\{(?:tier\.toUpperCase\(\)|T)\}/g)].map((m) => m[1]!),
+    )];
+    expect(prefixes.length, 'no per-tier env prefixes found — did the bootstrap change shape?')
+      .toBeGreaterThanOrEqual(4);
+
+    const TIERS = ['STANDARD', 'COMPLEX', 'MAIN'];
+    const envExample = readFileSync(join(process.cwd(), '.env.example'), 'utf8');
+    const compose = readFileSync(join(process.cwd(), 'docker-compose.yml'), 'utf8');
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+
+    const missing: string[] = [];
+    for (const prefix of prefixes) {
+      // `.env.example` and compose list every tier explicitly; the README describes the
+      // family once, as `PREFIX<TIER>`.
+      for (const tier of TIERS) {
+        const name = `${prefix}${tier}`;
+        if (!envExample.includes(name)) missing.push(`${name} absent from .env.example`);
+        if (!compose.includes(name)) missing.push(`${name} absent from docker-compose.yml`);
+      }
+      if (!readme.includes(`${prefix}<TIER>`)) {
+        missing.push(`${prefix}<TIER> absent from README.md`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('does not reduce the provider contract to one vendor', () => {
+    // `PROVIDER` names a wire PROTOCOL and is only the default for tiers with no override.
+    // Both files below once told operators to set `PROVIDER=anthropic` and stop there.
+    for (const file of ['README.md', '.env.example']) {
+      const text = readFileSync(join(process.cwd(), file), 'utf8');
+      expect(text, `${file} should not present PROVIDER as an all-tier vendor switch`)
+        .not.toMatch(/one strict config for all three tiers/);
+    }
+  });
+});
+
 describe('GUIDELINES <-> in-app guide', () => {
   /**
    * GUIDELINES.md's "mirror note" names the `forge`-group section ids by hand. It used to
@@ -140,6 +217,29 @@ describe('GUIDELINES <-> in-app guide', () => {
     // and does not advertise a forge section that no longer exists
     const cited = [...guidelines.matchAll(/`(forge-[a-z-]+)`/g)].map((m) => m[1]);
     expect([...new Set(cited)].sort()).toEqual([...forgeIds].sort());
+  });
+
+  /**
+   * The mirror note states, as a number, how many `##` headings this document has versus
+   * how many sections the guide group carries — the reason it tells you to treat the two
+   * as a coverage obligation rather than a diff. Both counts are hand-written, so both can
+   * quietly stop being true; derive them.
+   */
+  it('states heading counts that are actually true', async () => {
+    const { GUIDE_NAV_SECTIONS } = await import('@/content/guide-nav');
+    const guidelines = readFileSync(join(process.cwd(), 'GUIDELINES.md'), 'utf8');
+
+    const headings = [...guidelines.matchAll(/^## .+$/gm)].length;
+    const forgeSections = GUIDE_NAV_SECTIONS.filter((s) => s.part === 'forge').length;
+
+    // The claim is a wrapped prose sentence, so match against a whitespace-collapsed copy —
+    // otherwise a reflow of the paragraph silently disarms the check.
+    const flat = guidelines.replace(/\s+/g, ' ');
+    const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+    expect(flat, `GUIDELINES.md has ${headings} '##' headings`)
+      .toContain(`this document has ${WORDS[headings] ?? headings} \`##\` headings`);
+    expect(flat, `the forge guide group has ${forgeSections} sections`)
+      .toContain(`the group has ${WORDS[forgeSections] ?? forgeSections}`);
   });
 
   it('does not point at the checklist file that never existed', () => {

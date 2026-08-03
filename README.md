@@ -15,7 +15,7 @@ The lifecycle is six stages — the labels below are exactly what the stepper sh
 - **Explore** — business user describes the problem in their own language; investigation, research and journal recall fan out in parallel, then synthesize a grounded brief
 - **Spec** — components are drafted and approved per section, then audited to a clean pass
 - **Plan** — engineer reviews the technical plan; architecture and risk decisions stay with human judgment
-- **Execute** — MMA workers implement the approved tasks autonomously, each in the project's own worktree
+- **Execute** — Forge checks the project's branch out in a worktree of its own, then MMA workers implement the approved tasks in place there; the engine cuts no branch and no worktree itself
 - **Review** — code review runs per repo; quality gates require both AI and human satisfaction before approval
 - **Reflect** — learnings are harvested from the run and recorded into the team journal
 
@@ -172,7 +172,13 @@ storage problem rather than a security one — but nothing else bounds the table
 - The image is **all-in-one**: `scripts/container-supervisor.mjs` (under `tini`) starts the bundled MMA engine on loopback, health-gates it, runs the DB bootstrap, then starts Forge. Both processes share one lifecycle — if either dies the container exits for a clean restart.
 - The bundled MMA is pinned at `package.json#matchedMmaVersion` and installed at build time. To move it, bump that field and cut a new Forge release — the image never pulls `@latest`.
 - Mount `~/.mma/config.json` (to `/home/node/.mma/config.json`) when you want a mixed-tier or pre-existing MMA config to win untouched.
-- Otherwise set `PROVIDER=anthropic` or `PROVIDER=openai` and optionally provide `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; the supervisor generates one strict config for all three tiers.
+- Otherwise the supervisor generates a config from the env. `PROVIDER` names the WIRE
+  PROTOCOL (`claude` = Anthropic-compatible, `codex` = OpenAI-compatible; `anthropic` and
+  `openai` are accepted aliases) and is only the DEFAULT for tiers with no override —
+  `PROVIDER_<TIER>`, `MODEL_<TIER>`, `BASE_URL_<TIER>` and `API_KEY_ENV_<TIER>` set each
+  tier independently, so mixed layouts are first-class. (This bullet previously described
+  `PROVIDER` as a single vendor switch applied to every tier, contradicting the Models
+  paragraph above it in this same file.)
 - OAuth mode is supported by mounting `~/.claude` and/or `~/.codex` (to `/home/node/...`) and leaving the generated tiers keyless.
 
 ## Project structure

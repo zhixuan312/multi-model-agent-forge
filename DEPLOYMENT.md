@@ -33,13 +33,13 @@ docker run -d --name forge -p 3000:3000 \
   -e FORGE_SECRET_KEY="$(openssl rand -base64 48)" \
   -v forge-workspace:/workspace \
   -v forge-mma-config:/home/node/.mma \
-  ghcr.io/zhixuan312/forge:0.1.1
+  ghcr.io/zhixuan312/forge:0.1.4
 ```
 
 Or with compose (includes an optional local Postgres):
 
 ```bash
-# .env: DATABASE_URL, FORGE_SECRET_KEY, FORGE_IMAGE_TAG=0.1.1
+# .env: DATABASE_URL, FORGE_SECRET_KEY, FORGE_IMAGE_TAG=0.1.4
 docker compose --profile postgres up -d
 # (drop --profile postgres if you point DATABASE_URL at your own database)
 ```

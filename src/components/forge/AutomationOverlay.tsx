@@ -29,6 +29,7 @@ import {
 } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { Stat } from '@/components/patterns/stat-row';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
@@ -52,18 +53,6 @@ const AUTOMATION_NOTE = `### What is this?
  * type and the route guard all say `implement`. Nothing caught it because nothing read it.
  */
 type StageKey = StageKind;
-
-function Stat({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between border-b border-line pb-2 last:border-0">
-      <span className="flex items-center gap-1.5 text-xs text-ink-faint">
-        {icon}
-        {label}
-      </span>
-      <span className="text-sm font-semibold text-ink">{value}</span>
-    </div>
-  );
-}
 
 /**
  * `projectName`, `autoNote`, `phase` and `stagePhase` used to be here too. None reached

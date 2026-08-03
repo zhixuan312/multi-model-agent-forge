@@ -38,6 +38,7 @@ import type { ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
+import { Stat } from '@/components/patterns/stat-row';
 import { formatElapsed } from '@/lib/format-duration';
 
 const CONFIGURE_NOTE = `### Configure — set up for execution
@@ -89,7 +90,6 @@ type RepoJobStatus = 'queued' | 'implementing' | 'done' | 'failed';
 interface RepoJobState {
   status: RepoJobStatus;
   elapsedMs?: number;
-  totalTasks?: number;
   costUsd?: number;
   filesChanged?: string[];
   prUrl?: string | null;
@@ -581,20 +581,10 @@ function RepoJobCard({ group, job, pr }: { group: RepoGroup; job: RepoJobState; 
 
         {/* Info line */}
         {isRunning && (
-          <div className="text-[11px] text-ink-faint">{job.totalTasks ?? group.tasks.length} tasks · target: {group.targetBranch}</div>
+          <div className="text-[11px] text-ink-faint">{group.tasks.length} tasks · target: {group.targetBranch}</div>
         )}
       </div>
     </div>
   );
 }
 
-/* ── Shared ───────────────────────────────────────────────────────────── */
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-line pb-2 last:border-0">
-      <span className="text-xs text-ink-faint">{label}</span>
-      <span className="text-sm font-semibold text-ink">{value}</span>
-    </div>
-  );
-}

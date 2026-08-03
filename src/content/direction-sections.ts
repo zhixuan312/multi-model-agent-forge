@@ -134,7 +134,13 @@ Providers go deep. We connect wide — and we keep widening.`,
     part: 'engine',
     subgroup: 'Routing',
     title: 'Routing & the three layers',
-    body: `The engine is the **shared labor layer both modes run on** — the individual calls it directly from whatever agent client they use; Forge calls the *same routes* over HTTP. The routing model, the three layers, and the read / write / orchestration route taxonomy on the following pages are global to the product: they don't change between the direct and the team path.
+    // "read / write / orchestration ROUTE taxonomy" was the phrasing, and the Orchestration
+    // pages that follow are not routes — they are the context-block, retry and poll
+    // MECHANISMS. A reader following that sentence for the third route family finds three
+    // endpoints instead. (The engine does have an `orchestrate` task type, with its own
+    // skill; the Guide has no page for it — a gap, not a mislabelling, and one for whoever
+    // owns the manual's scope to fill.)
+    body: `The engine is the **shared labor layer both modes run on** — the individual calls it directly from whatever agent client they use; Forge calls the *same routes* over HTTP. The routing model, the three layers, the read / write route taxonomy, and the orchestration mechanisms on the following pages are global to the product: they don't change between the direct and the team path.
 
 The work runs across **three layers**. Your own agent (or Forge, on a team's behalf) stays on top and keeps the judgment; beneath it sit the **two labor slots you configure** — \`complex\` and \`standard\`. These are labor *categories*, not intelligence tiers: you decide what each one means for your workflow and budget, and a cheaper model can fill a slot as your fleet changes.`,
     component: 'layers',
@@ -349,7 +355,12 @@ Forge owns the SDLC chain and its gates; the engine executes each stateless per-
     id: 'forge-automation',
     part: 'forge',
     title: 'Automation gates at design',
-    body: `Forge's **automated mode** can drive the post-design stages — but never the design phases (exploration and early spec are hand-authored), and **it never auto-merges**. Output always lands as a **PR for human review**.
+    // The boundary is the HAND-AUTHORED work, not the design phase. This said "never the
+    // design phases", and Plan is a design phase: the resolver authors the plan, audits it,
+    // approves its tasks, and approves the spec at its finalize gate. Telling a reader that
+    // automation will not touch their design work while it approves their spec is the kind
+    // of doc drift that costs trust — check `resolveNextActionFromDetails` before editing.
+    body: `Forge's **automated mode** picks up at the spec's audit gate and can drive the pipeline from there — auditing and approving the spec, authoring and validating the plan, executing, reviewing, and harvesting. What it never drives is the **hand-authored** work: exploration, and the spec's outline and drafting, stay with the team. And **it never auto-merges** — output always lands as a **PR for human review**.
 
 This is Forge's expression of the global principle *No autonomy theater*: the team keeps the judgment at the two places it matters most — **what to build**, and **what to merge**.`,
   },

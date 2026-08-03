@@ -247,12 +247,18 @@ export function resolveNextActionFromDetails(details: Details, ctx: ResolveConte
     return { kind: 'mark_complete', note: 'Marking project complete...', stage: 'journal', phase: 'summary' };
   }
 
-  // Bottom fallthrough — reached only when NO stage branch above matched. If a
-  // stage is `active` that this resolver does NOT drive (exploration, or spec
-  // outline/craft — the MANUAL Design stages), WAIT: auto-mode never drives Design,
-  // and reopening here would wipe all downstream work in an infinite loop (a stage
-  // reopen re-activates that same undriveable stage). The completion invariant only
-  // applies once EVERY stage claims `done` (the corrupted-complete case).
+  // Bottom fallthrough — reached only when NO stage branch above matched. If a stage is
+  // `active` that this resolver does NOT drive — exploration, or spec outline/craft, the
+  // HAND-AUTHORED design work — WAIT: reopening here would wipe all downstream work in an
+  // infinite loop (a stage reopen re-activates that same undriveable stage).
+  //
+  // "auto-mode never drives Design" is what this said, and it is not true: the branches
+  // above drive spec FINALIZE (audit → apply → approve_stage) and the whole PLAN stage,
+  // both of which are design-phase work (`STAGE_PHASE`). The line that matters is
+  // hand-authored vs driven, not design vs build. The manual said the same wrong thing.
+  //
+  // The completion invariant only applies once EVERY stage claims `done` (the
+  // corrupted-complete case).
   const anyActive = Object.values(details.stages).some((s) => s.status === 'active');
   if (anyActive) return WAIT;
   const underdone = firstUnderdoneStage(details);

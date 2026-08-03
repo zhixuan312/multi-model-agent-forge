@@ -221,14 +221,15 @@ describe('resolveNextActionFromDetails', () => {
     });
 
     it('WAITs (never reopens/wipes) when an UNDRIVEABLE stage is active — exploration', () => {
-      // auto-mode does not drive Design (exploration / spec craft). The old bottom
+      // auto-mode does not drive the HAND-AUTHORED design work (exploration, spec
+      // outline/craft). It DOES drive spec finalize and all of plan. The old bottom
       // fallthrough returned reopen_stage → reopenStageInPlace wipes all stages →
       // infinite loop + data loss. It must WAIT instead.
       const d = buildInitialDetails(); // exploration active, nothing else done
       expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('wait');
     });
 
-    it('WAITs when spec craft is active (Design stage, not auto-driven)', () => {
+    it('WAITs when spec craft is active — hand-authored, so not auto-driven', () => {
       const d = buildInitialDetails();
       d.stages.exploration.status = 'done';
       d.stages.spec.status = 'active';
@@ -544,5 +545,57 @@ describe('resolveNextActionFromDetails', () => {
     d.stages.journal.status = 'active';
     d.stages.journal.phases.journal.status = 'active';
     expect(resolveNextActionFromDetails(d, NO_ROWS).kind).toBe('dispatch_harvest');
+  });
+});
+
+/**
+ * The manual's `forge-automation` section tells the reader where automation stops. It said
+ * "never the design phases (exploration and early spec are hand-authored)", and Plan IS a
+ * design phase — the resolver authors the plan, audits it, approves its tasks, and approves
+ * the spec at its finalize gate. The resolver's own bottom-fallthrough comment said the same
+ * wrong thing, and so did a test name here.
+ *
+ * The real line is hand-authored vs driven. This pins both sides of it, so a change to the
+ * resolver that moves the boundary fails next to the sentence that describes it.
+ */
+describe('where automation stops (the boundary the manual states)', () => {
+  const at = (mutate: (d: ReturnType<typeof buildInitialDetails>) => void) => {
+    const d = buildInitialDetails();
+    mutate(d);
+    return resolveNextActionFromDetails(d, NO_ROWS).kind;
+  };
+
+  it('does not drive the hand-authored work — exploration, spec outline, spec craft', () => {
+    expect(at(() => {})).toBe('wait'); // exploration active out of the box
+    expect(at((d) => {
+      d.stages.exploration.status = 'done';
+      d.stages.spec.status = 'active';
+      d.stages.spec.phases.outline.status = 'active';
+    })).toBe('wait');
+    expect(at((d) => {
+      d.stages.exploration.status = 'done';
+      d.stages.spec.status = 'active';
+      d.stages.spec.phases.outline.status = 'done';
+      d.stages.spec.phases.craft.status = 'active';
+    })).toBe('wait');
+  });
+
+  it('DOES drive the spec from its audit gate — a design phase, whatever the manual used to say', () => {
+    expect(at((d) => {
+      d.stages.exploration.status = 'done';
+      d.stages.spec.status = 'active';
+      d.stages.spec.phases.outline.status = 'done';
+      d.stages.spec.phases.craft.status = 'done';
+      d.stages.spec.phases.finalize.status = 'active';
+    })).toBe('dispatch_audit');
+  });
+
+  it('and the manual says exactly that', async () => {
+    const { DIRECTION_SECTIONS } = await import('@/content/direction-sections');
+    const body = DIRECTION_SECTIONS.find((s) => s.id === 'forge-automation')!.body;
+    expect(body).toMatch(/hand-authored/i);
+    expect(body).toMatch(/never auto-merge/i);
+    // The claim that was wrong. It must not come back.
+    expect(body).not.toMatch(/never the design phase/i);
   });
 });

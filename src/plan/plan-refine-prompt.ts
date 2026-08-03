@@ -2,6 +2,7 @@
  * Plan task refine prompt builder — constructs the 6-part prompt for
  * the MMA orchestration route when a user asks to refine a plan task.
  */
+import { parseLlmJson } from '@/lib/llm-json';
 
 export interface PlanRefinePromptInput {
   taskTitle: string;
@@ -46,20 +47,15 @@ Return a JSON object with exactly two fields:
 }
 
 export function parsePlanRefineResponse(raw: string): PlanRefineResult {
-  let cleaned = raw.trim();
-  const codeBlockMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
-
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (typeof parsed === 'object' && parsed !== null) {
-      const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
-      const updatedTaskBody = (parsed.updatedTaskBody ?? parsed.updated_task_body ?? parsed.taskBody ?? null) as string | null;
-      if (chatReply) {
-        return { chatReply, updatedTaskBody };
-      }
+  // No JSON, or JSON without a chatReply, means Forge answered in prose — show it as-is.
+  const parsed = parseLlmJson<Record<string, unknown>>(raw);
+  if (parsed && typeof parsed === 'object') {
+    const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
+    const updatedTaskBody = (parsed.updatedTaskBody ?? parsed.updated_task_body ?? parsed.taskBody ?? null) as string | null;
+    if (chatReply) {
+      return { chatReply, updatedTaskBody };
     }
-  } catch { /* not JSON — fall through */ }
+  }
 
   return { chatReply: raw.trim(), updatedTaskBody: null };
 }

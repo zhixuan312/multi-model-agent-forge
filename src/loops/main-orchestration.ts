@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extractJsonText } from '@/lib/llm-json';
 
 /**
  * Main-agent (orchestrator) prompts + response parsers for the loop. Two calls
@@ -105,19 +106,8 @@ Respond with ONLY a single JSON object — no prose, no markdown, no commentary:
 
 // ── shared JSON extraction ──────────────────────────────────────────────────────
 
-/** Pull the JSON object out of a main-agent reply (tolerates a ```json fence + surrounding prose). */
-function extractJsonObject(raw: string): string | null {
-  if (!raw) return null;
-  const fence = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/i);
-  const body = fence ? fence[1] : raw;
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) return null;
-  return body.slice(start, end + 1);
-}
-
 function parseWith<T>(schema: z.ZodType<T>, raw: string): T | null {
-  const json = extractJsonObject(raw);
+  const json = extractJsonText(raw);
   if (!json) return null;
   try {
     const parsed = schema.safeParse(JSON.parse(json));

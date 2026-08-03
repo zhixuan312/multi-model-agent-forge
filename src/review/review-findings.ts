@@ -14,6 +14,7 @@
  * those shapes is kept because it is free, but it is tolerance, not the contract.
  */
 import { isBlockingSeverity } from '@/lib/severity';
+import { parseLlmJson } from '@/lib/llm-json';
 
 export interface RawReviewFinding {
   weight: string;
@@ -35,7 +36,7 @@ export function extractReviewFindings(envelope: unknown): RawReviewFinding[] {
   const output = (env?.output ?? {}) as Record<string, unknown>;
   let summary: unknown = output.summary;
   if (typeof summary === 'string') {
-    try { summary = JSON.parse(summary.replace(/^```json\n?/, '').replace(/\n?```\s*$/, '')); } catch { summary = {}; }
+    summary = parseLlmJson(summary) ?? {};
   }
   const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
   const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];

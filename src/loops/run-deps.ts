@@ -1,4 +1,5 @@
 import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { parseLlmJson } from '@/lib/llm-json';
 import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
@@ -74,21 +75,12 @@ interface ReportFinding {
  */
 function unwrapReport(text: string | undefined): { summary: string; findings: ReportFinding[] } | null {
   if (!text) return null;
-  // Tolerate a ```json fence and/or surrounding prose: pull out the {…} object.
-  const fence = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/i);
-  const body = (fence ? fence[1] : text).trim();
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) return null;
-  try {
-    const parsed = JSON.parse(body.slice(start, end + 1)) as { summary?: unknown; findings?: unknown };
-    const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
-    const findings = Array.isArray(parsed.findings) ? (parsed.findings as ReportFinding[]) : [];
-    if (!summary && findings.length === 0) return null; // not a report shape
-    return { summary, findings };
-  } catch {
-    return null;
-  }
+  const parsed = parseLlmJson<{ summary?: unknown; findings?: unknown }>(text);
+  if (!parsed) return null;
+  const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
+  const findings = Array.isArray(parsed.findings) ? (parsed.findings as ReportFinding[]) : [];
+  if (!summary && findings.length === 0) return null; // not a report shape
+  return { summary, findings };
 }
 
 /** Summarize a delegate envelope into changes + touched files. */

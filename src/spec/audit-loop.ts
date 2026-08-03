@@ -1,4 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
+import { parseLlmJson } from '@/lib/llm-json';
 import type { Db } from '@/db/client';
 import type { AuditVerdict } from '@/db/enums';
 import type { Finding } from '@/components/patterns/findings';
@@ -61,11 +62,8 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
   if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
     report = summary as Record<string, unknown>;
   } else if (typeof summary === 'string') {
-    try {
-      const cleaned = summary.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      const parsed = JSON.parse(cleaned);
-      if (parsed && typeof parsed === 'object') report = parsed as Record<string, unknown>;
-    } catch { /* not parseable */ }
+    const parsed = parseLlmJson(summary);
+    if (parsed && typeof parsed === 'object') report = parsed as Record<string, unknown>;
   }
 
   if (!report) {
@@ -79,11 +77,8 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
   if (Array.isArray(report.findings)) {
     rawFindings = report.findings;
   } else if (typeof report.summary === 'string') {
-    try {
-      const cleaned = (report.summary as string).replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed?.findings)) rawFindings = parsed.findings;
-    } catch { /* not parseable */ }
+    const parsed = parseLlmJson<{ findings?: unknown }>(report.summary as string);
+    if (Array.isArray(parsed?.findings)) rawFindings = parsed.findings;
   }
 
   if (!rawFindings) {

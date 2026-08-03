@@ -146,3 +146,34 @@ describe('auditPassHistory', () => {
     });
   });
 });
+
+/**
+ * Regression: the audit gate used to strip ONLY a ```json-tagged fence, so a model that
+ * emitted a bare ``` fence (or left whitespace after the closing one) produced no findings
+ * — and `parseAuditEnvelope` reports "no findings" the same way whether the audit was clean
+ * or the response was unreadable. A parse failure could therefore pass a stage.
+ *
+ * Both now route through `parseLlmJson`, so every fence shape yields the same findings.
+ */
+describe('parseAuditEnvelope — fence shapes must not change the verdict', () => {
+  const report = { verdict: 'revised', findings: [{ weight: 'critical', category: 'gap', claim: 'Missing error path', evidence: 'e', suggestion: 's' }] };
+  const body = JSON.stringify(report);
+
+  const shapes: Array<[string, string]> = [
+    ['no fence', body],
+    ['```json fence', '```json\n' + body + '\n```'],
+    ['BARE ``` fence', '```\n' + body + '\n```'],
+    ['fence with trailing whitespace', '```json\n' + body + '\n```   \n'],
+    ['prose before the fence', "Here's the audit:\n```json\n" + body + '\n```'],
+  ];
+
+  for (const [label, summary] of shapes) {
+    it(`extracts the finding from: ${label}`, () => {
+      const res = parseAuditEnvelope({ output: { summary } });
+      expect(res.kind, `${label} produced ${res.kind}`).toBe('report');
+      if (res.kind !== 'report') return;
+      expect(res.findings).toHaveLength(1);
+      expect(res.hasCriticalOrHigh).toBe(true);
+    });
+  }
+});

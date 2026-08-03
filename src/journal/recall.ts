@@ -19,6 +19,7 @@
  * parses CLIENT-SIDE.
  */
 import { extractNodeIdFromCitationFile } from '@/journal/citations';
+import { parseLlmJson } from '@/lib/llm-json';
 import type { PinnedFinding } from '@/journal/recall-content';
 
 /**
@@ -42,27 +43,13 @@ function str(v: unknown): string {
 }
 
 /**
- * Pull the answer JSON object out of the worker's raw text. Prefers a fenced
- * ```json … ``` block; falls back to the outermost `{ … }` span. Returns null
- * when nothing parses.
+ * Pull the answer OBJECT out of the worker's raw text. `parseLlmJson` handles finding it
+ * (fenced or not, prose either side); the only thing specific to recall is that a bare
+ * array is not an answer — the shape is `{ results, summary }`.
  */
 function extractAnswerObject(raw: string): Record<string, unknown> | null {
-  if (!raw) return null;
-  const candidates: string[] = [];
-  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence?.[1]) candidates.push(fence[1]);
-  const first = raw.indexOf('{');
-  const last = raw.lastIndexOf('}');
-  if (first !== -1 && last > first) candidates.push(raw.slice(first, last + 1));
-  for (const c of candidates) {
-    try {
-      const obj = JSON.parse(c.trim());
-      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
-    } catch {
-      /* try the next candidate */
-    }
-  }
-  return null;
+  const obj = parseLlmJson(raw);
+  return obj && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, unknown>) : null;
 }
 
 /** Normalize a worker `nodeId` (bare id or `nodes/000X-….md` path) to a 4-digit id. */

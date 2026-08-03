@@ -1,4 +1,5 @@
 import { formatDateTime } from '@/lib/format-date';
+import { parseLlmJson } from '@/lib/llm-json';
 
 /** Badge tint per run status. */
 export const RUN_STATUS_VARIANT: Record<string, 'sage' | 'rose' | 'steel' | 'neutral'> = {
@@ -41,17 +42,8 @@ export function fmtDuration(start: string | Date | null, end: string | Date | nu
 
 /** Unwrap a change line stored as a raw worker JSON report (bare or ```json-fenced) to its prose summary. */
 export function cleanChange(c: string): string {
-  const fence = c.match(/```(?:json)?\s*\n?([\s\S]*?)```/i);
-  const body = (fence ? fence[1] : c).trim();
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) return c;
-  try {
-    const p = JSON.parse(body.slice(start, end + 1)) as { summary?: unknown };
-    return typeof p.summary === 'string' && p.summary.trim() ? p.summary : c;
-  } catch {
-    return c;
-  }
+  const p = parseLlmJson<{ summary?: unknown }>(c);
+  return p && typeof p.summary === 'string' && p.summary.trim() ? p.summary : c;
 }
 
 export const shortId = (id: string): string => id.slice(0, 8);

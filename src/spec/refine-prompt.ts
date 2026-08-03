@@ -7,6 +7,7 @@
  * - Continuation: section draft only + messages since last Forge reply
  * - Forge returns: { chatReply, updatedSectionMd }
  */
+import { parseLlmJson } from '@/lib/llm-json';
 
 export interface RefinePromptInput {
   componentLabel: string;
@@ -100,24 +101,18 @@ ${userMessages}`;
  * Handles JSON, markdown-wrapped JSON, and plain text fallback.
  */
 export function parseRefineResponse(raw: string): RefineResult {
-  // Strip markdown code block wrapper if present
-  let cleaned = raw.trim();
-  const codeBlockMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
-
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (typeof parsed === 'object' && parsed !== null) {
-      const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
-      const updatedSectionMd = (parsed.updatedSectionMd ?? parsed.updated_section_md ?? parsed.sectionMd ?? parsed.section_md ?? null) as string | null;
-      const questions = Array.isArray(parsed.questions)
-        ? parsed.questions.filter((q: unknown): q is string => typeof q === 'string' && q.trim() !== '')
-        : [];
-      if (chatReply) {
-        return { chatReply, updatedSectionMd, questions };
-      }
+  // No JSON, or JSON without a chatReply, means Forge answered in prose — show it as-is.
+  const parsed = parseLlmJson<Record<string, unknown>>(raw);
+  if (parsed && typeof parsed === 'object') {
+    const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
+    const updatedSectionMd = (parsed.updatedSectionMd ?? parsed.updated_section_md ?? parsed.sectionMd ?? parsed.section_md ?? null) as string | null;
+    const questions = Array.isArray(parsed.questions)
+      ? parsed.questions.filter((q: unknown): q is string => typeof q === 'string' && q.trim() !== '')
+      : [];
+    if (chatReply) {
+      return { chatReply, updatedSectionMd, questions };
     }
-  } catch { /* not JSON — fall through */ }
+  }
 
   return { chatReply: raw.trim(), updatedSectionMd: null, questions: [] };
 }

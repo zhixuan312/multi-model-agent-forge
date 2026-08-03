@@ -160,7 +160,11 @@ export function JournalGraph3D({
     const pos = layoutNodes(nodes, edges);
     const { radius } = centerPositions(pos);
     const births = scaleBirths(birthOrder(nodes, edges, deg));
-    const maxDeg = Math.max(1, ...[...deg.values()]);
+    // A loop, not a spread: `deg` holds one entry per journal node, and spreading a
+    // large one into an argument list is a RangeError. Same guard as `scaleBirths`, which
+    // walks the very same collection.
+    let maxDeg = 1;
+    for (const d of deg.values()) if (d > maxDeg) maxDeg = d;
     const jrnd = mulberry32(777);
     const stars: Star[] = nodes.map((n) => {
       const p = pos.get(n.id) ?? { x: 0, y: 0, z: 0 };
@@ -377,7 +381,6 @@ export function JournalGraph3D({
       const hot = new Set<string>();
       if (focus) { hot.add(focus.node.id); nbr.get(focus.node.id)?.forEach((id) => hot.add(id)); }
 
-      // constellation names — fade in below the silence threshold, recede as stars take over
       // threads — drawn as they are born, light gathering at each end
       ctx.lineCap = 'round';
       for (const l of links) {
@@ -498,19 +501,21 @@ export function JournalGraph3D({
         // The star names itself and nothing more — the side card carries the prose and the
         // network shape, so nothing is ever printed twice. Neighbours get a bare title.
         const TITLE = isFocus ? 17 : 13;
-        const META = 8.5, SUB = 11;
+        const META = 8.5;
         const pad = isFocus ? 11 : 7;
         const maxW = isFocus ? 340 : 190;
         const titleFont = `400 ${TITLE}px "Newsreader", Georgia, serif`;
         const metaFont = '500 8.5px ui-monospace, SFMono-Regular, Consolas, monospace';
-        const subFont = `italic 400 ${SUB}px "Newsreader", Georgia, serif`;
 
         ctx.font = titleFont;
         const title = wrapLines(s.node.title, maxW, isFocus ? 3 : 1, (t) => ctx.measureText(t).width);
         if (!title.length) continue;
 
+        // Title + (on the focused star) an id/category line. There were also a `sub`
+        // array and a `hint` string here, both hardcoded empty — so two width terms, two
+        // height terms and two render blocks below could never contribute anything, on
+        // every star of every frame.
         const meta = isFocus ? `${s.node.id} · ${(s.node.type ?? '').toUpperCase()}` : '';
-        const hint = '', sub: string[] = [];
 
         const widthOf = (lines: string[], font: string) => {
           if (!lines.length) return 0;
@@ -520,15 +525,10 @@ export function JournalGraph3D({
         const inner = Math.max(
           widthOf(title, titleFont),
           widthOf(meta ? [meta] : [], metaFont),
-          widthOf(hint ? [hint] : [], metaFont),
-          widthOf(sub, subFont),
         );
-        const lh = TITLE * 1.3, subLh = SUB * 1.38;
+        const lh = TITLE * 1.3;
         const w = inner + pad * 2;
-        const h = pad * 2 + title.length * lh
-          + (meta ? META + 7 : 0)
-          + (sub.length ? sub.length * subLh + 8 : 0)
-          + (hint ? META + 9 : 0);
+        const h = pad * 2 + title.length * lh + (meta ? META + 7 : 0);
 
         const box = ([
           { x: s.px - w / 2, y: s.py - s.r - 13 - h, w, h },
@@ -575,19 +575,7 @@ export function JournalGraph3D({
         if (meta) {
           ctx.font = metaFont;
           ctx.fillStyle = 'rgba(154,61,20,.92)';
-          ctx.fillText(meta, cx, y); y += META + 7;
-        }
-        if (sub.length) {
-          y += 8;
-          ctx.font = subFont;
-          ctx.fillStyle = 'rgba(178,186,196,.92)';
-          for (const line of sub) { ctx.fillText(line, cx, y); y += subLh; }
-          y -= 8;
-        }
-        if (hint) {
-          ctx.font = metaFont;
-          ctx.fillStyle = 'rgba(142,150,159,.8)';
-          ctx.fillText(hint, cx, y + 2);
+          ctx.fillText(meta, cx, y);
         }
       }
 

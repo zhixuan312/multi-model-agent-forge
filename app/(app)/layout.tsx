@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         topRight={
           <>
             <NotificationBell items={notifications} />
-            <AccountMenu member={member} variant="bar" />
+            <AccountMenu member={member} />
           </>
         }
       >

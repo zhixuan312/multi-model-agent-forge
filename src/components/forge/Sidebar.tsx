@@ -252,7 +252,6 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="flex-1" />
     </aside>
   );
 }

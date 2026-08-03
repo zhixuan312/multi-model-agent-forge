@@ -7,7 +7,9 @@ import type { AuthedMember } from '@/auth/auth-provider';
 const pathname = { current: '/projects' };
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname.current,
-  // Sidebar now renders AccountMenu (footer), which uses useRouter for sign-out.
+  // Kept because Next's navigation module is mocked wholesale: any component in the tree
+  // that reaches for useRouter would otherwise get undefined. The sidebar itself no longer
+  // renders AccountMenu — that moved to the top bar.
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 

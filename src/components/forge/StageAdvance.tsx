@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { StageKind } from '@/db/enums';
+import { responseError } from '@/lib/err';
 
 // The stage-to-stage advance is a unified transition: spec/plan sign off via
 // approve_stage (Forge is added to the stage's approvals then the stage advances);
@@ -63,8 +64,7 @@ export function StageAdvance({
           body: JSON.stringify({ action: FROM_ACTION[from], from }),
         });
         if (!res.ok) {
-          const d = (await res.json().catch(() => ({}))) as { error?: string };
-          setErr(d.error ?? 'Cannot advance yet.');
+          setErr(await responseError(res, 'Cannot advance yet.'));
           setBusyLocal(false);
           return;
         }

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
+import { responseError } from '@/lib/err';
 import {
   Card,
   Title,
@@ -75,8 +76,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? 'Could not create the team.');
+        setError(await responseError(res, 'Could not create the team.'));
         return;
       }
       reset();
@@ -131,8 +131,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       if (!res.ok) {
         // Surface the failure — a silent revert to "Make admin" reads as "nothing happened",
         // so the admin retries a request the server already refused.
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setAssignError(body.error ?? 'Could not assign the team admin.');
+        setAssignError(await responseError(res, 'Could not assign the team admin.'));
         return;
       }
       await loadRoster(teamId);
@@ -169,8 +168,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
         body: JSON.stringify({ slug: editSlug, workspaceRootPath: editWorkspace }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setEditError(body.error ?? 'Could not update the team.');
+        setEditError(await responseError(res, 'Could not update the team.'));
         return;
       }
       setEditingId(null);

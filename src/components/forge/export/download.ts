@@ -3,6 +3,7 @@
  * response into a Blob, and trigger a save. Kept separate so the components stay
  * presentational + testable.
  */
+import { responseError } from '@/lib/err';
 
 /** Trigger a browser "save as" for a Blob with a filename. */
 export function saveBlob(blob: Blob, fileName: string): void {
@@ -56,6 +57,5 @@ export async function downloadPost(
 }
 
 async function routeError(res: Response): Promise<Error> {
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return new Error(data.error ?? `Request failed (${res.status}).`);
+  return new Error(await responseError(res, `Request failed (${res.status}).`));
 }

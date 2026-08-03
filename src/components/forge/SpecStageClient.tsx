@@ -64,6 +64,7 @@ import type { ComponentKind, ProjectPhase } from '@/db/enums';
 import { isForgeMention } from '@/spec/forge-mention';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { localId } from '@/lib/local-id';
+import { responseError } from '@/lib/err';
 
 /**
  * `SpecStageClient` — the spec stage client island. Three phases:
@@ -164,8 +165,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? {}) });
   if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? `Request failed (${res.status}).`);
+    throw new Error(await responseError(res, `Request failed (${res.status}).`));
   }
   return res.json() as Promise<T>;
 }

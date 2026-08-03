@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { responseError } from '@/lib/err';
 
 /**
  * useMmaDispatch — centralised hook for ALL MMA dispatch calls.
@@ -164,8 +165,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         body: JSON.stringify(body ?? {}),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? `Request failed (${res.status}).`);
+        throw new Error(await responseError(res, `Request failed (${res.status}).`));
       }
     } catch (e) {
       clearBusy(handler);
@@ -189,8 +189,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         body: JSON.stringify({ action, data }),
       });
       if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? `Request failed (${res.status}).`);
+        throw new Error(await responseError(res, `Request failed (${res.status}).`));
       }
     } catch (e) {
       if (handler) clearBusy(handler);

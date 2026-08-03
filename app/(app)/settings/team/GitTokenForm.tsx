@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Field, Input, Badge } from '@/components/ui';
 import { FormPanel } from '@/components/patterns';
+import { responseError } from '@/lib/err';
 
 /**
  * Team settings → git token (FR-6/FR-9). Sets/rotates the team's git credential
@@ -35,8 +36,7 @@ export function GitTokenForm({ tokenSet }: { tokenSet: boolean }) {
         body: JSON.stringify({ gitToken: token }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? 'Could not save the git token.');
+        setError(await responseError(res, 'Could not save the git token.'));
         return;
       }
       setToken('');

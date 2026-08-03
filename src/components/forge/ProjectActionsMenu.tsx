@@ -11,6 +11,7 @@ import {
 } from '@/components/ui';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { responseError } from '@/lib/err';
 
 /**
  * `ProjectActionsMenu` — the project header overflow (`⋯`) menu. Secondary,
@@ -61,8 +62,7 @@ export function ProjectActionsMenu({
           body: JSON.stringify({ archived: !archived }),
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: 'Could not update archive state.' }));
-          throw new Error(body.error ?? 'Could not update archive state.');
+          throw new Error(await responseError(res, 'Could not update archive state.'));
         }
       },
       rollback: () => {},

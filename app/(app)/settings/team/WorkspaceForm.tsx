@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Field, Input, Badge } from '@/components/ui';
 import { FormPanel } from '@/components/patterns';
+import { responseError } from '@/lib/err';
 
 /**
  * Team settings → workspace path (FR-8/FR-9). Sets `team.workspace_root_path`
@@ -34,8 +35,7 @@ export function WorkspaceForm({ current }: { current: string }) {
         body: JSON.stringify({ workspaceRootPath: value }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? 'Could not save the workspace path.');
+        setError(await responseError(res, 'Could not save the workspace path.'));
         return;
       }
       setOpen(false);

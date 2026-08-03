@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Check, GitBranch, Loader2, PencilLine, RotateCcw, Search, Shield } from 'lucide-react';
+import { ArrowRight, Check, GitBranch, Loader2, RotateCcw, Search, Shield } from 'lucide-react';
 import {
   Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Label, Micro, Mono,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -300,7 +300,6 @@ function NodeListDemo({ on }: { on: ReadonlySet<string> }) {
         header={
           <>
             <CardTitle>Nodes</CardTitle>
-            {on.has('recordAction') ? <Button size="sm" leftIcon={<PencilLine />}>Record a learning</Button> : null}
           </>
         }
         toolbar={

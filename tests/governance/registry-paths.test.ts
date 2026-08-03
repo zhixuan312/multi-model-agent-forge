@@ -19,6 +19,12 @@ import {
  * entries were found by hand during the audit (a deleted `forge/PageHeader.tsx` deviation
  * and two `BuildMonitor.tsx` references). This closes that hole: the catalog now fails the
  * suite the moment it goes stale, instead of quietly drifting.
+ *
+ * The walk originally skipped ONE shape — `affordances[].canonicalFilePath` — and both
+ * entries that later turned out to be stale were affordances: `VerifyResultBox` (moved to
+ * patterns/) and `RecordLearningButton.tsx`, which had never existed at all, advertising a
+ * `defaultOn` "Record a learning" button the Journal does not have. A catalog checker that
+ * skips a shape is exactly as blind as no checker, for that shape.
  */
 const ROOT = process.cwd();
 const at = (p: string) => join(ROOT, p);
@@ -50,24 +56,49 @@ function variantPaths(): Array<{ path: string; where: string }> {
       if (v.canonicalFilePath) out.push({ path: v.canonicalFilePath, where: `${label}/${v.id}.canonicalFilePath` });
       for (const c of v.consumers ?? []) out.push({ path: c.filePath, where: `${label}/${v.id}.consumers[${c.id}]` });
       for (const d of v.deviations ?? []) out.push({ path: d.filePath, where: `${label}/${v.id}.deviations[${d.id}]` });
+      // Affordances carry a canonical path of their own, and were the ONE shape this
+      // walk skipped — so both stale entries it later turned out to have were affordances.
+      for (const a of v.affordances ?? []) out.push({ path: a.canonicalFilePath, where: `${label}/${v.id}.affordances[${a.id}]` });
       for (const t of v.tabs ?? []) {
         for (const c of t.consumers ?? []) out.push({ path: c.filePath, where: `${label}/${v.id}/${t.id}.consumers[${c.id}]` });
         for (const d of t.deviations ?? []) out.push({ path: d.filePath, where: `${label}/${v.id}/${t.id}.deviations[${d.id}]` });
+        for (const a of t.affordances ?? []) out.push({ path: a.canonicalFilePath, where: `${label}/${v.id}/${t.id}.affordances[${a.id}]` });
       }
     }
   }
   return out;
 }
 
+/**
+ * Some canonical components are a LIBRARY, not a file in this repo — an icon affordance's
+ * canonical component is `lucide-react`. A repo path always contains a slash, so that is
+ * the discriminator; bare specifiers are checked separately below rather than skipped
+ * silently, so a typo that happens to lose its slash cannot slip through as "a package".
+ */
+const isRepoPath = (p: string) => p.includes('/');
+
 describe('governance registry references real files', () => {
   it('every registry filePath exists on disk', () => {
-    const missing = registryPaths().filter((p) => !existsSync(at(p.path)));
+    const missing = registryPaths().filter((p) => isRepoPath(p.path) && !existsSync(at(p.path)));
     expect(missing.map((m) => `${m.where} → ${m.path}`)).toEqual([]);
   });
 
   it('every variant-meta filePath exists on disk', () => {
-    const missing = variantPaths().filter((p) => !existsSync(at(p.path)));
+    const missing = variantPaths().filter((p) => isRepoPath(p.path) && !existsSync(at(p.path)));
     expect(missing.map((m) => `${m.where} → ${m.path}`)).toEqual([]);
+  });
+
+  it('every non-repo reference is a resolvable package, not a mangled path', () => {
+    const bare = [...registryPaths(), ...variantPaths()].filter((p) => !isRepoPath(p.path));
+    const unresolvable = bare.filter((p) => {
+      try {
+        require.resolve(p.path, { paths: [ROOT] });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    expect(unresolvable.map((m) => `${m.where} → ${m.path}`)).toEqual([]);
   });
 
   it('the catalog is non-trivial — a broken accessor must not vacuously pass', () => {

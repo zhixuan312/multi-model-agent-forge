@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Field, Input, Button, Badge, Micro, Label, TextStrong, Mono, Segmented } from '@/components/ui';
-import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
+import { VerifyResultBox } from '@/components/patterns/verify-result-box';
 import type { MmaTiers, TierKey, TierConfig } from '@/mma/mma-config-reader';
 import type { FlatProfile } from '@/mma/model-profiles';
 

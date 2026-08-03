@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/cn';
 import { sanitizeUserVisibleMarkdown } from '@/lib/safe-markdown';
-import { MermaidDiagram } from '@/components/forge/MermaidDiagram';
+import { MermaidDiagram } from '@/components/patterns/mermaid-diagram';
 
 const VARIANT_CLASSES = {
   document:

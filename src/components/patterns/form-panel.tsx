@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Button, TextStrong, Micro, Mono } from '@/components/ui';
-import { VerifyResultBox } from '@/components/forge/VerifyResultBox';
+import { VerifyResultBox } from '@/components/patterns/verify-result-box';
 import { showToast } from '@/components/ui/toast';
 
 export interface FormPanelValidate {

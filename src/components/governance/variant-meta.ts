@@ -246,7 +246,6 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalComponent: 'RecordList + RecordCard',
     canonicalFilePath: 'src/components/patterns/record-list.tsx',
     affordances: [
-      { id: 'recordAction', label: 'Record-learning action', canonicalComponent: 'RecordLearningButton', canonicalFilePath: 'src/components/forge/journal/RecordLearningButton.tsx', defaultOn: true },
       { id: 'search', label: 'Search box', canonicalComponent: 'input', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
       { id: 'categoryChips', label: 'Category chips', canonicalComponent: 'chip row', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
       { id: 'statusSort', label: 'Status filter + sort', canonicalComponent: 'toggle + sort', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
@@ -323,7 +322,7 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
       { id: 'indicator', label: 'Status indicator', canonicalComponent: 'Badge', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: false },
       { id: 'twoColumn', label: 'Two-column layout', canonicalComponent: 'FieldGrid', canonicalFilePath: 'src/components/ui/field-grid.tsx', defaultOn: true },
       { id: 'avatar', label: 'Avatar colour picker', canonicalComponent: 'AvatarPicker', canonicalFilePath: 'src/components/ui/avatar-picker.tsx', defaultOn: false },
-      { id: 'validate', label: 'Validate connection', canonicalComponent: 'VerifyResultBox', canonicalFilePath: 'src/components/forge/VerifyResultBox.tsx', defaultOn: false },
+      { id: 'validate', label: 'Validate connection', canonicalComponent: 'VerifyResultBox', canonicalFilePath: 'src/components/patterns/verify-result-box.tsx', defaultOn: false },
     ],
     consumers: [
       { id: 'connections-mma', label: 'Org settings › Connections › MMA', filePath: 'app/(app)/settings/connections/ConnectionsForm.tsx' },

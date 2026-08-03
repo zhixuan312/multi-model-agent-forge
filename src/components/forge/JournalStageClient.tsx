@@ -457,14 +457,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
               rightIcon={<ArrowRight />}
               disabled={approvedCount === 0 || readOnly}
               onClick={() => {
-                if (!allRecorded && approvedCount > 0) {
-                  setRecordingLocal(true);
-                  void mma.transition('dispatch_record')
-                    .then(() => refresh())
-                    .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
-                    .finally(() => setRecordingLocal(false));
-                }
-                setPhase('summary');
+                // Advance ONLY once the record lands. This fired the dispatch and switched
+                // to the summary view in the same tick, so a failed record left the user on
+                // "Recording learnings and computing the summary…" — a spinner for work that
+                // had already errored, with no summary coming and no way back but the
+                // stepper. The button's own `loading` state is the honest indicator, and it
+                // was near-pointless while the view navigated away from it immediately.
+                if (allRecorded || approvedCount === 0) { setPhase('summary'); return; }
+                setRecordingLocal(true);
+                void mma.transition('dispatch_record')
+                  .then(() => { refresh(); setPhase('summary'); })
+                  .catch(() => { showToast({ type: 'error', message: 'Couldn’t record to the journal — try again.' }); })
+                  .finally(() => setRecordingLocal(false));
               }}
             >
               {recording ? 'Recording…' : 'Continue to Summary'}

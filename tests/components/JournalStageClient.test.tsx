@@ -154,3 +154,40 @@ describe('JournalStageClient — the auto-harvest', () => {
     expect(transition).not.toHaveBeenCalled();
   });
 });
+
+describe('JournalStageClient — recording to the journal', () => {
+  beforeEach(() => { transition.mockClear(); });
+
+  const approved = () => [learning({ status: 'kept' })];
+
+  /**
+   * This dispatched `dispatch_record` and called `setPhase('summary')` in the same tick, so a
+   * failed record landed the user on "Recording learnings and computing the summary…" — a
+   * spinner for work that had already errored, with no summary coming and no way back but
+   * the stepper.
+   */
+  it('stays on the learnings list when the record fails', async () => {
+    transition.mockRejectedValueOnce(new Error('mma down'));
+    render(
+      <JournalStageClient projectId="p1" learnings={approved()} harvesting={false} recording={false} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Summary/ }));
+    expect(transition).toHaveBeenCalledWith('dispatch_record');
+
+    await screen.findByRole('button', { name: /Continue to Summary/ });
+    expect(screen.queryByText(/Recording learnings and computing the summary/)).toBeNull();
+  });
+
+  it('moves to the summary once the record lands', async () => {
+    render(
+      <JournalStageClient projectId="p1" learnings={approved()} harvesting={false} recording={false} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Summary/ }));
+    // No summary has arrived from the server yet, so the computing state is correct here —
+    // it now means "the record succeeded and the summary is on its way", not "something
+    // failed silently".
+    expect(await screen.findByText(/Recording learnings and computing the summary/)).toBeInTheDocument();
+  });
+});

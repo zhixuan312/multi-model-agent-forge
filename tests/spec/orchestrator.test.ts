@@ -5,7 +5,7 @@ import {
   confirmComponents,
   allComponentsApproved,
 } from '@/spec/orchestrator';
-import { buildInitialDetails } from '@/details/schema';
+import { buildInitialDetails, type Details } from '@/details/schema';
 import { createMockDb, seq, type MockResponses } from '../test-utils/mock-db';
 
 function createOrchestratorDb(responses: MockResponses = {}) {
@@ -16,14 +16,29 @@ const projectId = 'stage-1';
 const componentId = 'comp-1';
 
 describe('confirmComponents', () => {
+  /**
+   * These cases used to stub no template rows at all, so every kind resolved to nothing
+   * and `confirmComponents` wrote an EMPTY component list — while the tests asserted only
+   * that *an* update happened. They were green over the silent truncation this now guards
+   * against. The written details are asserted here instead.
+   */
+  const writtenDetails = (db: ReturnType<typeof createOrchestratorDb>) => {
+    const set = db._callsFor('project').find((c) => c.method === 'set');
+    return (set!.args[0] as { details: Details }).details;
+  };
+
   it('creates one component + one section per template section (gathering)', async () => {
     const d = buildInitialDetails();
     const mockDb = createOrchestratorDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
+      'select:team_spec_template': [{ id: 'tpl-context', kind: 'context' }],
       'update:project': [{ id: projectId }],
     });
     await confirmComponents(mockDb, projectId, ['context']);
     expect(mockDb._wasCalled('project', 'update')).toBe(true);
+    const out = writtenDetails(mockDb);
+    expect(out.stages.spec.phases.craft.components.map((c) => c.templateId)).toEqual(['tpl-context']);
+    expect(out.stages.spec.phases.outline.selectedTemplateIds).toEqual(['tpl-context']);
   });
 
   it('is additive on re-open — no duplicate components', async () => {
@@ -33,10 +48,15 @@ describe('confirmComponents', () => {
     ];
     const mockDb = createOrchestratorDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
+      'select:team_spec_template': [{ id: 'context', kind: 'context' }, { id: 'tpl-problem', kind: 'problem' }],
       'update:project': [{ id: projectId }],
     });
     await confirmComponents(mockDb, projectId, ['context', 'problem']);
     expect(mockDb._wasCalled('project', 'update')).toBe(true);
+    // The approved 'context' component survives as-is; only the new one is appended.
+    const comps = writtenDetails(mockDb).stages.spec.phases.craft.components;
+    expect(comps.map((c) => c.templateId)).toEqual(['context', 'tpl-problem']);
+    expect(comps.find((c) => c.templateId === 'context')!.id).toBe(componentId);
   });
 });
 
@@ -133,5 +153,25 @@ describe('spec orchestrator activity rows', () => {
     await onHumanSatisfied({ db }, 'proj-1', 'comp-1', 'member-1');
     const valuesCall = db._callsFor('project_activity').find((c) => c.method === 'values');
     expect(valuesCall?.args[0]).toMatchObject({ eventKey: 'approve_component:proj-1:comp-1' });
+  });
+});
+
+/**
+ * A kind with no template row used to be dropped by `.filter(Boolean)`: the user checked
+ * five components and got four, with nothing to tell them. Callers validate the kinds, so
+ * reaching that state means the template table is missing a seeded row.
+ */
+describe('confirmComponents refuses to truncate a selection silently', () => {
+  it('throws naming the unseeded kinds instead of writing a partial selection', async () => {
+    const { confirmComponents } = await import('@/spec/orchestrator');
+    const db = createMockDb({
+      'select:team_spec_template': [{ id: 'tpl-context', kind: 'context' }],
+      'select:project': [{ details: buildInitialDetails(), detailsVersion: 0 }],
+      'update:project': [{ id: 'p1' }],
+    });
+    await expect(
+      confirmComponents(db, 'p1', ['context', 'problem'] as never, { actorId: 'm1' }),
+    ).rejects.toThrow(/problem/);
+    expect(db._wasCalled('project', 'update')).toBe(false);
   });
 });

@@ -101,10 +101,11 @@ export async function onHumanSatisfied(deps: OrchestratorDeps, projectId: string
 /**
  * Store the selected component kinds in details with generated UUIDs. Additive:
  * already-approved components are kept; unapproved ones are replaced.
- * `opts` is optional so the existing auto-mode caller in details-actions.ts (which
- * invokes the 3-arg form) keeps compiling. When no actorId is supplied the action is
- * automation-triggered, so it attributes to Forge with source='mma'; a human confirming
- * in manual mode passes their id and gets source='user'. Same shared-seam rule as the
+ * `opts.actorId` is optional because its ABSENCE is meaningful, not for compatibility:
+ * no actorId means the action was automation-triggered, so it attributes to Forge with
+ * source='mma'; a human confirming in manual mode passes their id and gets source='user'.
+ * (The doc here used to claim the option existed to keep a 3-arg caller compiling — the
+ * sole caller passes four.) Same shared-seam rule as the
  * transition seams in FR-7.
  */
 export async function confirmComponents(
@@ -116,7 +117,15 @@ export async function confirmComponents(
   const tplRows = await db.select({ id: teamSpecTemplate.id, kind: teamSpecTemplate.kind })
     .from(teamSpecTemplate).where(inArray(teamSpecTemplate.kind, kinds));
   const kindToId = new Map(tplRows.map((r) => [r.kind, r.id]));
-  const selectedIds = kinds.map((k) => kindToId.get(k)).filter(Boolean) as string[];
+  // Fail loudly on a kind with no template row rather than dropping it. `.filter(Boolean)`
+  // alone silently truncated the user's selection — they checked five components, got
+  // four, and nothing said so. Callers validate the kinds, so reaching here means the
+  // template table is missing a seeded row: a server fault, not bad input.
+  const missing = kinds.filter((k) => !kindToId.has(k));
+  if (missing.length > 0) {
+    throw new Error(`No spec template seeded for: ${missing.join(', ')} — run \`pnpm db:seed-templates\`.`);
+  }
+  const selectedIds = kinds.map((k) => kindToId.get(k)!);
 
   await updateDetails(db, projectId, (d) => {
     const existing = d.stages.spec.phases.craft.components;

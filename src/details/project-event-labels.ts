@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
-import type { StageKind } from '@/db/enums';
+import type { StageKind, TerminalAttemptStatus } from '@/db/enums';
 import { FORGE_ACTOR } from '@/automation/forge-member';
 import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
@@ -142,7 +142,7 @@ export async function appendBatchTerminalEvent(
   projectId: string | null | undefined,
   handler: string | null | undefined,
   batchRowId: string,
-  status: 'done' | 'failed' | 'cancelled',
+  status: TerminalAttemptStatus,
   durationMs?: number,
 ): Promise<void> {
   if (!projectId || !handler) return;

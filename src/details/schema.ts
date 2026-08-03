@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { STAGE_STATUS, AUDIT_VERDICT, DISCOVER_TASK_KIND, JOURNAL_LEARNING_STATUS } from '@/db/enums';
+import { DESIGN_STAGES, type DesignStage } from '@/projects/design-stages';
+import { ATTEMPT_STATUS, AUDIT_VERDICT, AUTOMATION_STATUS, DISCOVER_TASK_KIND, DISCOVER_TASK_STATUS, JOURNAL_LEARNING_STATUS, PLAN_TASK_STATUS, STAGE_STATUS } from '@/db/enums';
 
 /**
  * `db/enums.ts` states the convention outright — "Zod schemas derive via `z.enum(X)`" —
@@ -15,15 +16,12 @@ const stageStatus = z.enum(STAGE_STATUS);
 // Same value set as a stage's today, and derived from it rather than copied. Give phases
 // their own enum in `db/enums.ts` if the two ever need to differ — do not fork it here.
 const phaseStatus = z.enum(STAGE_STATUS);
-// `cancelled` (engine 5.16) is terminal-and-INTENTIONAL: a human stopped this attempt.
-// Unlike `failed` it must never trigger a re-dispatch — the stage stays parked until a
-// human acts (see `resolveNextActionFromDetails` / `reconcileStuckAttempts`).
-const attemptStatus = z.enum(['running', 'done', 'failed', 'cancelled']);
-const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
-const planTaskStatus = z.enum(['pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed']);
+const attemptStatus = z.enum(ATTEMPT_STATUS);
+const discoverTaskStatus = z.enum(DISCOVER_TASK_STATUS);
+const planTaskStatus = z.enum(PLAN_TASK_STATUS);
 const learningStatus = z.enum(JOURNAL_LEARNING_STATUS);
 const auditPassStatus = z.enum(AUDIT_VERDICT);
-const automationStatus = z.enum(['off', 'running']);
+const automationStatus = z.enum(AUTOMATION_STATUS);
 
 const attemptSchema = z.object({
   batchId: z.string(),
@@ -345,7 +343,7 @@ export interface UploadedSpecProof {
 }
 
 export interface BuildSubsetDetailsArgs {
-  selectedDesignStages: Array<'exploration' | 'spec' | 'plan'>;
+  selectedDesignStages: DesignStage[];
   uploadedExplorationFile?: string;
   uploadedSpec?: UploadedSpecProof;
   forgeApprovalMemberId?: string;
@@ -358,7 +356,7 @@ export function buildSubsetDetails(args: BuildSubsetDetailsArgs): Details {
   const entry = args.selectedDesignStages[0] ?? 'exploration';
 
   // Design stages: active (the entry) / pending (in-scope, later) / skipped (out of scope).
-  for (const stage of ['exploration', 'spec', 'plan'] as const) {
+  for (const stage of DESIGN_STAGES) {
     d.stages[stage].status = selected.has(stage)
       ? (stage === entry ? 'active' : 'pending')
       : 'skipped';

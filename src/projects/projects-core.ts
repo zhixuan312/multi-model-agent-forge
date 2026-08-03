@@ -9,6 +9,7 @@
  * Every project-scoped artifact/stage/qa read routes through the guard; reads of
  * the repos themselves intentionally do not.
  */
+import { DESIGN_STAGES, type DesignStage } from '@/projects/design-stages';
 import { rm } from 'node:fs/promises';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -29,7 +30,6 @@ import {
   parseSpecUpload,
   stripFrontmatter,
   validateSubsetSelection,
-  type DesignStageSelection,
 } from '@/projects/create-project-subset';
 import { buildInitialDetails, buildSubsetDetails, type UploadedSpecProof } from '@/details/schema';
 import { writeExplorationSummary, writeSpec } from '@/projects/project-files';
@@ -91,7 +91,7 @@ const createProjectSchema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
   visibility: z.enum(PROJECT_VISIBILITY),
   repoIds: z.array(z.string().uuid()).min(1, 'Pick at least one repository.'),
-  selectedDesignStages: z.array(z.enum(['exploration', 'spec', 'plan'])).default([]),
+  selectedDesignStages: z.array(z.enum(DESIGN_STAGES)).default([]),
   uploadedArtifact: z.object({
     kind: z.enum(['exploration', 'spec']),
     filename: z.string(),
@@ -101,7 +101,7 @@ const createProjectSchema = z.object({
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
 export type CreateProjectResult =
-  | { ok: true; id: string; entryStage: 'exploration' | 'spec' | 'plan' }
+  | { ok: true; id: string; entryStage: DesignStage }
   | { ok: false; error: { field?: 'name' | 'repoIds' | 'visibility' | 'selectedDesignStages' | 'artifact'; message: string } };
 
 /**
@@ -157,7 +157,7 @@ export async function createProject(
   }
 
   const { name, visibility, repoIds, selectedDesignStages, uploadedArtifact } = parsed.data;
-  const subsetValidation = validateSubsetSelection(selectedDesignStages as DesignStageSelection[]);
+  const subsetValidation = validateSubsetSelection(selectedDesignStages as DesignStage[]);
   if (!subsetValidation.ok) {
     return { ok: false, error: { field: 'selectedDesignStages', message: subsetValidation.message } };
   }
@@ -175,7 +175,7 @@ export async function createProject(
   }
 
   const db = deps.db ?? getDb();
-  const entryStage = (selectedDesignStages[0] ?? 'exploration') as 'exploration' | 'spec' | 'plan';
+  const entryStage = (selectedDesignStages[0] ?? 'exploration') as DesignStage;
 
   // Entry-stage upload prerequisite (FR-3/FR-4): a subset that starts below Exploration
   // must supply the upstream artifact — spec-start needs an exploration file, plan-start
@@ -223,7 +223,7 @@ export async function createProject(
         selectedDesignStages.length === 0
           ? buildInitialDetails()
           : buildSubsetDetails({
-              selectedDesignStages: selectedDesignStages as DesignStageSelection[],
+              selectedDesignStages: selectedDesignStages as DesignStage[],
               uploadedExplorationFile: uploadedExploration,
               uploadedSpec,
               forgeApprovalMemberId: FORGE_MEMBER_ID,

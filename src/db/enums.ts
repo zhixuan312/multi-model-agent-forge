@@ -1,9 +1,17 @@
 /**
- * In-code enum modules — the canonical value source for fixed-value-set columns.
+ * In-code enum modules — the canonical value source for every fixed value set.
  *
  * Enums live in code, never in Postgres (no `pgEnum`). Columns reference these
  * arrays via Drizzle `text({ enum: X })`; Zod schemas derive via `z.enum(X)`.
  * Adding/removing a value is a code change, not an `ALTER TYPE` migration.
+ *
+ * COLUMNS were the original scope, and that was too narrow to be useful. The value sets
+ * inside the `details` JSONB document are fixed in exactly the same way, and
+ * `tests/db/enum-single-source.test.ts` — the only thing that finds a re-spelling — reads
+ * this file and nothing else. Three separate duplications survived purely because their set
+ * was declared somewhere the checker does not look (`project_activity.kind`,
+ * `DISCOVER_TASK_KIND`, `LEARNING_CATEGORIES`). A fixed value set belongs here whether a
+ * column, a JSONB field, or a wire field carries it.
  */
 
 /** repo.status value set (schema.md §2). Workspace clone/pull lifecycle. */
@@ -244,3 +252,45 @@ export type JournalLearningStatus = (typeof JOURNAL_LEARNING_STATUS)[number];
  * status that becomes terminal has to be excluded here deliberately.
  */
 export type CuratableLearningStatus = Exclude<JournalLearningStatus, 'removed'>;
+
+// ---------------------------------------------------------------------------
+// `project.details` JSONB vocabularies. Not columns — but fixed value sets, and the
+// single-source ratchet reads only this file (see the header).
+// ---------------------------------------------------------------------------
+
+/**
+ * `details.…attempts[].status` — one dispatch attempt's lifecycle.
+ *
+ * `cancelled` (engine 5.16) is terminal-and-INTENTIONAL: a human stopped this attempt.
+ * Unlike `failed` it must never trigger a re-dispatch — the stage stays parked until a
+ * human acts (see `resolveNextActionFromDetails` / `reconcileStuckAttempts`).
+ *
+ * This is `MMA_STATUS` minus `dispatched`, deliberately: an attempt is only recorded once
+ * it is running, so there is no pre-run state to represent.
+ */
+export const ATTEMPT_STATUS = ['running', 'done', 'failed', 'cancelled'] as const;
+export type AttemptStatus = (typeof ATTEMPT_STATUS)[number];
+
+/**
+ * Every state a dispatch can END in — `ATTEMPT_STATUS` without the in-flight one.
+ *
+ * Derived rather than listed. It was written out as `'done' | 'failed' | 'cancelled'` in
+ * `sse/envelope.ts` and `details/project-event-labels.ts`, which is a subset and so
+ * invisible to the single-source ratchet in both places. A new attempt status now has to
+ * be classified as terminal or not, instead of being silently absent here.
+ */
+export type TerminalAttemptStatus = Exclude<AttemptStatus, 'running'>;
+
+/** `details.stages.exploration.phases.discover.tasks[].status`. */
+export const DISCOVER_TASK_STATUS = ['draft', 'running', 'recorded', 'failed'] as const;
+export type DiscoverTaskStatus = (typeof DISCOVER_TASK_STATUS)[number];
+
+/** `details.stages.plan.phases.refine.tasks[].status` — plan-approval through execution. */
+export const PLAN_TASK_STATUS = [
+  'pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed',
+] as const;
+export type PlanTaskStatus = (typeof PLAN_TASK_STATUS)[number];
+
+/** `details.automation.status` — whether the auto driver is running for this project. */
+export const AUTOMATION_STATUS = ['off', 'running'] as const;
+export type AutomationStatus = (typeof AUTOMATION_STATUS)[number];

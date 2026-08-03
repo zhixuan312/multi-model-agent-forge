@@ -3,7 +3,7 @@ import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
 import { reopenStageInPlace, STAGE_FIRST_PHASE } from '@/automation/details-mutations';
-import { STAGE_ORDER, type StageKind, type ProjectPhase } from '@/db/enums';
+import { STAGE_ORDER, type StageKind, type ProjectPhase, type AutomationStatus } from '@/db/enums';
 
 export class DetailsVersionConflict extends Error {
   constructor(projectId: string, retries: number) {
@@ -165,7 +165,7 @@ export async function reopenStage(
 }
 
 export async function setAutomationStatus(
-  db: Db, projectId: string, status: 'off' | 'running',
+  db: Db, projectId: string, status: AutomationStatus,
 ): Promise<Details> {
   return updateDetails(db, projectId, (d) => {
     d.automation.status = status;

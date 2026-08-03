@@ -1,5 +1,6 @@
 import type { ProjectEvent } from '@/sse/event-bus';
 import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
+import type { TerminalAttemptStatus } from '@/db/enums';
 
 /**
  * Terminal-envelope interpretation (Spec 5). The MMA terminal envelope's `error`
@@ -23,7 +24,7 @@ import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
  */
 
 export interface TerminalState {
-  status: 'done' | 'failed' | 'cancelled';
+  status: TerminalAttemptStatus;
   error: { code: string; message: string } | null;
   contextBlockId: string | null;
 }

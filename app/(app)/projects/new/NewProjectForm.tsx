@@ -19,12 +19,11 @@ import { showToast } from '@/components/ui/toast';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
 import { STAGE_KIND, type StageKind, PROJECT_VISIBILITY, type ProjectVisibility } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
-import type { DesignStageSelection } from '@/projects/create-project-subset';
+import { DESIGN_STAGES, type DesignStage } from '@/projects/design-stages';
 import { createProjectAction, type NewProjectState } from './actions';
 
 // The server's union, not a second spelling of it — `validateSubsetSelection` is what
 // ultimately accepts or rejects what these presets submit.
-type DesignStage = DesignStageSelection;
 type UploadKind = 'exploration' | 'spec';
 
 /**
@@ -48,7 +47,7 @@ export const PRESETS: Preset[] = [
   { key: 'full', title: 'Full SDLC', stages: [], produces: 'Every stage — from idea to merged code.' },
   { key: 'exploration', title: 'Exploration', stages: ['exploration'], produces: 'An exploration doc, then reflect.' },
   { key: 'exploration-spec', title: 'Exploration → Spec', stages: ['exploration', 'spec'], produces: 'Exploration and spec, then reflect.' },
-  { key: 'design', title: 'Full design', stages: ['exploration', 'spec', 'plan'], produces: 'Exploration, spec, and plan, then reflect.' },
+  { key: 'design', title: 'Full design', stages: [...DESIGN_STAGES], produces: 'Exploration, spec, and plan, then reflect.' },
   { key: 'spec', title: 'Spec', stages: ['spec'], requires: 'exploration', produces: 'A spec built from your exploration, then reflect.' },
   { key: 'spec-plan', title: 'Spec → Plan', stages: ['spec', 'plan'], requires: 'exploration', produces: 'A spec and plan built from your exploration, then reflect.' },
   { key: 'plan', title: 'Plan', stages: ['plan'], requires: 'spec', produces: 'A plan built from your spec, then reflect.' },
@@ -69,7 +68,7 @@ type StepState = 'entry' | 'run' | 'skip';
 /** Map a preset onto the six pipeline stages: where it starts, what runs, what skips. */
 function stepStates(preset: Preset): StepState[] {
   const isFull = preset.stages.length === 0;
-  const design: DesignStage[] = isFull ? ['exploration', 'spec', 'plan'] : preset.stages;
+  const design: DesignStage[] = isFull ? [...DESIGN_STAGES] : preset.stages;
   const entry = design[0];
   return PIPELINE.map(({ kind }) => {
     if (kind === 'journal') return 'run'; // Reflect always runs — the universal terminal.

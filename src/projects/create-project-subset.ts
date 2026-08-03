@@ -4,6 +4,7 @@ import { teamSpecTemplate } from '@/db/schema/team';
 import { SPEC_TEMPLATE_SEEDS } from '@/db/seed/team-spec-template';
 import { parseSpecSections } from '@/spec/spec-file-ops';
 import type { UploadedSpecProof } from '@/details/schema';
+import type { DesignStage } from '@/projects/design-stages';
 
 export const CREATE_PROJECT_FILE_ERROR = 'file failed to load or parse — re-upload';
 export const MAX_UPLOAD_BYTES = 300_000;
@@ -16,9 +17,8 @@ export const VALID_SUBSET_RUNS = [
   ['exploration', 'spec', 'plan'],
 ] as const;
 
-export type DesignStageSelection = 'exploration' | 'spec' | 'plan';
 
-export function validateSubsetSelection(selected: readonly DesignStageSelection[]) {
+export function validateSubsetSelection(selected: readonly DesignStage[]) {
   if (selected.length === 0) return { ok: true } as const;
   const signature = selected.join(',');
   const valid = VALID_SUBSET_RUNS.some((run) => run.join(',') === signature);

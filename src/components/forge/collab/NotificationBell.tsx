@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
 } from '@/components/ui';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import type { NotificationRow } from '@/db/schema/ops';
@@ -112,15 +113,18 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
             </button>
           ) : null}
         </div>
-        <ul className="max-h-[22rem] overflow-y-auto py-1">
+        {/* Not a <ul>: this sits inside Radix's role="menu" content, whose children are
+            menu items. It was a list of <li><div onClick>, so marking a notification read
+            was unreachable by keyboard and the menu announced itself as holding a list. */}
+        <div className="max-h-[22rem] overflow-y-auto py-1">
           {visible.length === 0 ? (
-            <li className="px-3 py-6 text-center text-xs text-ink-faint">You&rsquo;re all caught up.</li>
+            <p className="px-3 py-6 text-center text-xs text-ink-faint">You&rsquo;re all caught up.</p>
           ) : (
             visible.map((n) => (
               <NotificationRow key={n.id} n={n} isUnread={!readIds.has(n.id)} onRead={markRead} />
             ))
           )}
-        </ul>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -138,35 +142,33 @@ function NotificationRow({
   const isFail = n.kind === 'dispatch_failed';
 
   return (
-    <li>
-      <div
-        className={cn(
-          'flex gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-2 cursor-pointer',
-          isUnread && (isFail ? 'bg-rose-tint/30' : 'bg-accent-tint/30'),
-        )}
-        onClick={() => onRead(n.id)}
-      >
-        <span className="relative mt-0.5 shrink-0">
-          {isFail ? (
-            <span className="grid size-7 place-items-center rounded-full bg-[var(--rose)]/10">
-              <AlertTriangle className="size-3.5 text-[var(--rose)]" />
-            </span>
-          ) : (
-            <span className="grid size-7 place-items-center rounded-full bg-accent-tint">
-              {n.kind === 'section_mention'
-                ? <AtSign className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />
-                : <Check className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />}
-            </span>
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium leading-snug text-ink">{n.title}</span>
-          <span className="mt-0.5 block truncate text-[11px] text-ink-faint">
-            {n.subtitle ? `${n.subtitle} · ` : ''}{shortTime(n.createdAt)}
+    <DropdownMenuItem
+      onSelect={() => onRead(n.id)}
+      className={cn(
+        'items-start gap-2.5 px-3 py-2.5',
+        isUnread && (isFail ? 'bg-rose-tint/30' : 'bg-accent-tint/30'),
+      )}
+    >
+      <span className="relative mt-0.5 shrink-0">
+        {isFail ? (
+          <span className="grid size-7 place-items-center rounded-full bg-[var(--rose)]/10">
+            <AlertTriangle className="size-3.5 text-[var(--rose)]" />
           </span>
+        ) : (
+          <span className="grid size-7 place-items-center rounded-full bg-accent-tint">
+            {n.kind === 'section_mention'
+              ? <AtSign className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />
+              : <Check className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />}
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-medium leading-snug text-ink">{n.title}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-ink-faint">
+          {n.subtitle ? `${n.subtitle} · ` : ''}{shortTime(n.createdAt)}
         </span>
-        {isUnread ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" aria-hidden /> : null}
-      </div>
-    </li>
+      </span>
+      {isUnread ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" aria-hidden /> : null}
+    </DropdownMenuItem>
   );
 }

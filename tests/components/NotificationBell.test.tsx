@@ -64,3 +64,28 @@ it('mark-all fails → unread count reverts and an error toast is raised', async
   await waitFor(() => expect(toasts.some((t) => t.type === 'error')).toBe(true));
   await waitFor(() => expect(screen.getByText('2')).toBeInTheDocument()); // reverted
 });
+
+// The rows used to be `<li><div onClick>` inside Radix's role="menu" content: marking one
+// read was unreachable by keyboard, and the menu announced itself as holding a list.
+it('renders each notification as a menu item, not a list row', async () => {
+  const user = userEvent.setup({ pointerEventsCheck: 0 });
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+  render(<NotificationBell items={[row({ id: 'a' }), row({ id: 'b' })]} />);
+  await openBell(user);
+  expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+  expect(screen.queryByRole('list')).toBeNull();
+});
+
+it('marks a notification read from the keyboard', async () => {
+  const user = userEvent.setup({ pointerEventsCheck: 0 });
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+  render(<NotificationBell items={[row({ id: 'a' })]} />);
+  await openBell(user);
+
+  // Enter on the focused menu item. A <div onClick> could not be focused OR activated.
+  await user.keyboard('{ArrowDown}{Enter}');
+  await waitFor(() => {
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some((c) => String(c[0]).includes('/api/notifications/a/read'))).toBe(true);
+  });
+});

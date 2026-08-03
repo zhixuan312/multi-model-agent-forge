@@ -10,7 +10,6 @@ import {
   Loader2,
   Check,
   AlertTriangle,
-  BookOpen,
   FileText,
   ListTree,
   Rocket,
@@ -33,6 +32,8 @@ import { StageShell } from '@/components/patterns/stage-shell';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
+import { STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 
 const AUTOMATION_NOTE = `### What is this?
 
@@ -41,36 +42,16 @@ const AUTOMATION_NOTE = `### What is this?
 - Each plan task gets self-validation before approval
 - You can stop anytime and take over manually`;
 
-const STAGES = [
-  { key: 'exploration', label: 'Explore', icon: BookOpen, phases: [
-    { key: 'brief', label: 'Brief' },
-    { key: 'discover', label: 'Discover' },
-    { key: 'synthesize', label: 'Synthesize' },
-  ]},
-  { key: 'spec', label: 'Spec', icon: FileText, phases: [
-    { key: 'outline', label: 'Outline' },
-    { key: 'craft', label: 'Craft' },
-    { key: 'finalize', label: 'Finalize' },
-  ]},
-  { key: 'plan', label: 'Plan', icon: ListTree, phases: [
-    { key: 'refine', label: 'Refine' },
-    { key: 'validate', label: 'Validate' },
-  ]},
-  { key: 'execute', label: 'Execute', icon: Rocket, phases: [
-    { key: 'configure', label: 'Configure' },
-    { key: 'monitor', label: 'Monitor' },
-  ]},
-  { key: 'review', label: 'Review', icon: ScanSearch, phases: [
-    { key: 'review', label: 'Review' },
-  ]},
-  { key: 'journal', label: 'Reflect', icon: NotebookPen, phases: [
-    { key: 'journal', label: 'Journal' },
-    { key: 'summary', label: 'Summary' },
-  ]},
-] as const;
-
-const STAGE_ORDER = STAGES.map((s) => s.key);
-type StageKey = typeof STAGE_ORDER[number];
+/**
+ * Stage identity comes from the shared definitions, not a local copy.
+ *
+ * There used to be a `STAGES` const here carrying key + label + icon + a phases[] list for
+ * each stage. Only key and label were ever read: the icons and the phase lists were never
+ * touched. And the dormant phase list had gone WRONG — it named execute's second phase
+ * `monitor`, where the details schema, the resolver, the event labels, the `ExecutePhase`
+ * type and the route guard all say `implement`. Nothing caught it because nothing read it.
+ */
+type StageKey = StageKind;
 
 function Stat({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -318,7 +299,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
             </CardHeader>
             <CardContent className="space-y-2.5 !py-4">
               {/* Progress */}
-              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGES.find((s) => s.key === liveStage)?.label ?? liveStage} icon={<Bot className="size-3" />} />
+              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGE_LABEL[liveStage as StageKind] ?? liveStage} icon={<Bot className="size-3" />} />
               <Stat label="Stage" value={stats.stageOfTotal} icon={<Rocket className="size-3" />} />
               {/* Elapsed is a live run clock — meaningless for a historical view. */}
               {!viewOnly && <Stat label="Time elapsed" value={formatElapsed(elapsed)} icon={<Clock className="size-3" />} />}

@@ -8,9 +8,19 @@ import { requireProjectAccess } from '@/projects/require-project-access';
 import { ReviewStageClient, type ReviewPassView } from '@/components/forge/ReviewStageClient';
 import { extractReviewFindings } from '@/review/review-findings';
 
-export default async function ReviewStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
+/**
+ * No `searchParams`. The stepper appends `?phase=…` to every project URL, but Review has
+ * exactly ONE phase (`stage-substeps.ts` → `review: [{ key: 'review' }]`), so there is
+ * nothing for the page to select between and `ReviewStageClient` takes no `initialPhase`.
+ *
+ * This declared `searchParams: Promise<{ phase?: string }>` and then ran a bare
+ * `await searchParams;` whose value was discarded — a prop type promising a choice the
+ * stage does not have. It was not load-bearing for dynamic rendering either:
+ * `requireProjectAccess` reads cookies, which is what opts this route out of static
+ * rendering (the same reason its sibling pages need no `export const dynamic`).
+ */
+export default async function ReviewStagePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await searchParams;
   await requireProjectAccess(id);
 
   const proj = await getProject(id);

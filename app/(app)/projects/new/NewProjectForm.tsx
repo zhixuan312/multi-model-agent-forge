@@ -169,7 +169,9 @@ function ArtifactUpload({
   const [dragOver, setDragOver] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  //  is exactly these two values, so the ternary this replaced was a no-op.
+  // `UploadKind` is exactly 'exploration' | 'spec', so the word shown to the user IS
+  // the prop — the ternary this replaced mapped each value to itself. (The subject of
+  // this sentence had been deleted, leaving "// is exactly these two values".)
   const noun = requires;
   const error = localError ?? serverError ?? null;
 

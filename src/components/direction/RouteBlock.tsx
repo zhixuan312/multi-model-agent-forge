@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { READ_ROUTES, type RouteSubtype } from '@/content/direction-reference';
+import { SEVERITY_ORDER } from '@/lib/severity';
 
 /**
  * Severity → `Badge` variant. The ladder rides the design system's status tints rather
@@ -130,7 +131,6 @@ export function RouteBlock({ routeKey }: { routeKey: string }) {
 
       {r.subtypes.map((st) => {
         const sev = st.severity ?? r.severity;
-        const finding = st.findingMeaning ?? r.findingMeaning;
         return (
           <Card key={st.key}>
             <CardHeader>
@@ -148,18 +148,22 @@ export function RouteBlock({ routeKey }: { routeKey: string }) {
               <CriteriaTable subtype={st} />
             </div>
             <div className="divide-y divide-line border-t border-line bg-surface-2/50">
+              {/* Subtype OVERRIDE only — the route-level meaning is already in the summary
+                  card above, so there is nothing to fall back to here. `?? r.findingMeaning`
+                  used to sit on this value, unreachable behind this very guard. */}
               {st.findingMeaning && (
                 <div className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-baseline sm:gap-3">
                   <Eyebrow as="span" className="shrink-0 sm:w-20">
                     Finding
                   </Eyebrow>
-                  <TextSm className="min-w-0 flex-1 !text-xs">{finding}</TextSm>
+                  <TextSm className="min-w-0 flex-1 !text-xs">{st.findingMeaning}</TextSm>
                 </div>
               )}
-              <SeverityRow tier="critical" text={sev.critical} />
-              <SeverityRow tier="high" text={sev.high} />
-              <SeverityRow tier="medium" text={sev.medium} />
-              <SeverityRow tier="low" text={sev.low} />
+              {/* Driven by SEVERITY_ORDER so the ladder cannot fall out of step with the
+                  one the product sorts and styles by. */}
+              {SEVERITY_ORDER.map((tier) => (
+                <SeverityRow key={tier} tier={tier} text={sev[tier]} />
+              ))}
             </div>
           </Card>
         );

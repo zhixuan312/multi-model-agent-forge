@@ -42,4 +42,12 @@ describe('severity ladders agree', () => {
     expect(SEVERITY_STYLE.medium).toContain('steel');
     expect(SEVERITY_STYLE.low).toContain('surface-2');
   });
+
+  it('the manual renders one row per tier, driven by SEVERITY_ORDER', () => {
+    const src = readFileSync(join(ROOT, 'src/components/direction/RouteBlock.tsx'), 'utf8');
+    // Four hand-written <SeverityRow tier="…"> lines would drift the moment a tier is
+    // added; the ladder is mapped from SEVERITY_ORDER instead.
+    expect(src).toContain('SEVERITY_ORDER.map');
+    expect(src).not.toMatch(/<SeverityRow tier="(critical|high|medium|low)"/);
+  });
 });

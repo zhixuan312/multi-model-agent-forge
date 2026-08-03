@@ -6,11 +6,24 @@ import type { StageKind, StageStatus } from '@/db/enums';
 import { STAGE_ORDER } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
 import { computeAllStages, type ComputedStageView } from '@/projects/stage-lifecycle';
+import { stagePhaseKeys } from '@/projects/stage-phases';
 
+/**
+ * Where to land on a stage whose active phase we do not know — its LAST phase, taken from
+ * `STAGE_PHASES` rather than spelled out. The values were written here by hand ('synthesize',
+ * 'finalize', 'validate'), a fourth copy of phase names the stage pages and the stepper's own
+ * sub-phase track already read from one place.
+ *
+ * PARTIAL on purpose, and only for the three design stages. Their final phase is the document
+ * you would want to see, so linking there is right. The build stages are not: `execute`'s last
+ * phase is `implement` and `journal`'s is `summary`, and landing an unvisited Reflect on
+ * `?phase=summary` shows "Recording learnings and computing the summary…" — a view that means
+ * work is in flight. Those three carry no `?phase=` and let the page derive it.
+ */
 const STAGE_LAST_FALLBACK: Partial<Record<StageKind, string>> = {
-  exploration: 'synthesize',
-  spec: 'finalize',
-  plan: 'validate',
+  exploration: stagePhaseKeys('exploration').at(-1),
+  spec: stagePhaseKeys('spec').at(-1),
+  plan: stagePhaseKeys('plan').at(-1),
 };
 
 export interface StageStepperProps {

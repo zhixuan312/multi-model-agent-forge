@@ -40,14 +40,14 @@ const loopRow = (o: Record<string, unknown> = {}) => ({
 
 describe('createLoop', () => {
   it('creates a recurring loop when cron is valid', async () => {
-    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'recurring', cron: '0 3 * * *' })] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'recurring', cron: '0 3 * * *' })] });
     const res = await createLoop(VALID, { db, actorId: 'admin-1', teamId: 'team-1' });
     expect(res.kind).toBe('created');
     if (res.kind === 'created') expect(res.eventToken).toBeNull();
   });
 
   it('creates an event loop with a generated token and only stores the hash', async () => {
-    const db = createMockDb({ 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-1' })] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [], 'insert:loop_def': [loopRow({ mode: 'event', eventTokenHash: 'hash-1' })] });
     const res = await createLoop({ ...VALID, mode: 'event', cron: null }, { db, actorId: 'admin-1', teamId: 'team-1' });
     expect(res.kind).toBe('created');
     if (res.kind !== 'created') throw new Error('expected created');
@@ -59,7 +59,7 @@ describe('createLoop', () => {
   });
 
   it('rejects invalid mode/cron combinations without writing', async () => {
-    const db = createMockDb({ 'select:loop_def': [] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [] });
     expect((await createLoop({ ...VALID, mode: 'event', cron: '0 3 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect((await createLoop({ ...VALID, mode: 'recurring', cron: null }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect(db._wasCalled('loop_def', 'insert')).toBe(false);
@@ -88,7 +88,7 @@ describe('updateLoop', () => {
   });
 
   it('rejects bad mode transitions before writing', async () => {
-    const db = createMockDb({ 'select:loop_def': [loopRow({ mode: 'manual', cron: null })] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [loopRow({ mode: 'manual', cron: null })] });
     expect((await updateLoop('loop-1', { mode: 'event', cron: '0 4 * * *' }, { db, teamId: 'team-1' })).kind).toBe('invalid_mode');
     expect(db._wasCalled('loop_def', 'update')).toBe(false);
   });
@@ -106,16 +106,16 @@ describe('rotateLoopEventToken', () => {
   });
 
   it('rejects non-event loops for rotation', async () => {
-    const db = createMockDb({ 'select:loop_def': [loopRow({ mode: 'manual' })] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [loopRow({ mode: 'manual' })] });
     expect((await rotateLoopEventToken('loop-1', { db, teamId: 'team-1' })).kind).toBe('wrong_mode');
   });
 });
 
 describe('reads + toggles', () => {
   it('listLoops returns rows; getLoop returns a row or null', async () => {
-    expect(await listLoops({ db: createMockDb({ 'select:loop_def': [loopRow(), loopRow({ id: 'l2' })] }), teamId: 'team-1' })).toHaveLength(2);
-    expect(await getLoop('loop-1', { db: createMockDb({ 'select:loop_def': [loopRow()] }), teamId: 'team-1' })).not.toBeNull();
-    expect(await getLoop('x', { db: createMockDb({ 'select:loop_def': [] }), teamId: 'team-1' })).toBeNull();
+    expect(await listLoops({ db: createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [loopRow(), loopRow({ id: 'l2' })] }), teamId: 'team-1' })).toHaveLength(2);
+    expect(await getLoop('loop-1', { db: createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [loopRow()] }), teamId: 'team-1' })).not.toBeNull();
+    expect(await getLoop('x', { db: createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [] }), teamId: 'team-1' })).toBeNull();
   });
 
   it('deleteLoop reports deleted vs not_found', async () => {
@@ -124,14 +124,14 @@ describe('reads + toggles', () => {
   });
 
   it('updateLoop toggles enabled — the one write path the PATCH route uses', async () => {
-    const db = createMockDb({ 'select:loop_def': [loopRow()], 'update:loop_def': [{ id: 'loop-1' }] });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [loopRow()], 'update:loop_def': [{ id: 'loop-1' }] });
     expect((await updateLoop('loop-1', { enabled: false }, { db, teamId: 'team-1' })).kind).toBe('updated');
-    const miss = createMockDb({ 'select:loop_def': [], 'update:loop_def': [] });
+    const miss = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': [], 'update:loop_def': [] });
     expect((await updateLoop('x', { enabled: false }, { db: miss, teamId: 'team-1' })).kind).toBe('not_found');
   });
 
   it('rejects duplicate names case-insensitively on rename', async () => {
-    const db = createMockDb({ 'select:loop_def': seq([loopRow()], [{ id: 'other' }]) });
+    const db = createMockDb({ 'select:workspace_repo': [{ id: RID }], 'select:loop_def': seq([loopRow()], [{ id: 'other' }]) });
     expect((await updateLoop('loop-1', { name: 'Taken' }, { db, teamId: 'team-1' })).kind).toBe('duplicate_name');
   });
 

@@ -1,7 +1,8 @@
-import { eq, sql, and, ne } from 'drizzle-orm';
+import { eq, sql, and, ne, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
 import { loop, type LoopRow } from '@/db/schema/loop';
+import { repo } from '@/db/schema/workspace';
 import { LOOP_KIND, LOOP_MODE, LOOP_WORKER_TIER, type LoopMode } from '@/db/enums';
 import { parseLoopConfig } from '@/loops/kind-registry';
 import { isValidCron } from '@/loops/cron';
@@ -57,6 +58,24 @@ async function nameTaken(db: Db, name: string, teamId: string, exceptId?: string
   return !!row;
 }
 
+/**
+ * Do all of these repo ids belong to this team?
+ *
+ * A loop's `repoIds` decide which checkouts its worker edits and commits to, and they were
+ * accepted as any well-formed UUIDs — so a team admin could name ANOTHER team's repo and
+ * the loop would run against that repository's on-disk path. `createProject` documents
+ * closing the identical hole on its own repo subset.
+ */
+async function reposBelongToTeam(db: Db, repoIds: string[], teamId: string): Promise<boolean> {
+  const unique = [...new Set(repoIds)];
+  if (unique.length === 0) return true;
+  const rows = await db
+    .select({ id: repo.id })
+    .from(repo)
+    .where(and(inArray(repo.id, unique), eq(repo.teamId, teamId)));
+  return rows.length === unique.length;
+}
+
 function deriveMode(mode: LoopMode | undefined, cron: string | null | undefined): LoopMode {
   if (mode) return mode;
   return cron ? 'recurring' : 'manual';
@@ -88,6 +107,7 @@ export async function createLoop(input: unknown, deps: LoopsDeps = {}): Promise<
   const modeCheck = validateMode(mode, cron ?? null);
   if (modeCheck === 'invalid_mode') return { kind: 'invalid_mode' };
   if (modeCheck === 'invalid_cron') return { kind: 'invalid_cron' };
+  if (!(await reposBelongToTeam(db, repoIds, deps.teamId))) return { kind: 'invalid' };
   if (await nameTaken(db, name, deps.teamId)) return { kind: 'duplicate_name' };
 
   let eventToken: string | null = null;
@@ -144,6 +164,10 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
     parsedConfig = result.data; // persist what the schema produced, not the raw body
   }
   if (d.name !== undefined && (await nameTaken(db, d.name, deps.teamId, id))) return { kind: 'duplicate_name' };
+
+  if (d.repoIds !== undefined && !(await reposBelongToTeam(db, d.repoIds, deps.teamId))) {
+    return { kind: 'invalid' };
+  }
 
   const nextMode = deriveMode(d.mode, d.cron !== undefined ? d.cron : existing.cron);
   const nextCron = d.cron !== undefined ? d.cron : existing.cron;

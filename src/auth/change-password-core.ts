@@ -28,7 +28,11 @@ export interface ChangePasswordDeps {
 }
 
 export async function changeOwnPassword(
-  input: { memberId: string; currentPassword: string; newPassword: string; currentSessionId?: string },
+  // No `currentSessionId`: the caller used to thread one and this function ignored it,
+  // which read as "keep this session" when the mechanism is the opposite — the password
+  // bump invalidates EVERY existing session, so the caller's is REPLACED by a fresh one
+  // (created after the bump) and all others are dropped.
+  input: { memberId: string; currentPassword: string; newPassword: string },
   deps: ChangePasswordDeps = {},
 ): Promise<ChangePasswordResult> {
   const db = deps.db ?? getDb();

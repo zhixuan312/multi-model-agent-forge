@@ -36,7 +36,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     memberId: resolved.member.id,
     currentPassword: parsed.data.currentPassword,
     newPassword: parsed.data.newPassword,
-    currentSessionId: resolved.session.id,
   });
 
   switch (result.kind) {

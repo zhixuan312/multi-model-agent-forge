@@ -36,6 +36,9 @@ import { formatDate } from '@/lib/format-date';
 import type { JournalReadOutcome } from '@/journal/types';
 import type { IndexLookupRow } from '@/journal/citations';
 import type { PinnedView, FaqView } from '@/journal/recall-content';
+// The metric shape belongs to the card that renders it: this file used to declare a
+// local copy whose tint union had already drifted narrower than `ICON_TINT`.
+import type { MetricCardProps } from '@/components/ui/metric-card';
 
 /**
  * `/journal` — the team decision-graph viewer (Spec 6), on the Team-Settings
@@ -47,15 +50,6 @@ import type { PinnedView, FaqView } from '@/journal/recall-content';
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-type Metric = {
-  label: string;
-  value: ReactNode;
-  sublabel: string;
-  icon: ReactNode;
-  iconTint: 'rose' | 'accent' | 'sage' | 'steel' | 'amber';
-  muted?: boolean;
-};
 
 function normalizeView(v: string | undefined): JournalView {
   return v === 'nodes' || v === 'graph' || v === 'log' ? v : 'recall';
@@ -178,7 +172,7 @@ function statusFor(
   view: JournalView,
   read: Ok,
   extra: { pinned: PinnedView[]; faqs: FaqView[]; graphNodes: GraphNode[]; graphEdgeCount: number },
-): Metric[] {
+): MetricCardProps[] {
   const total = read.nodes.length;
   const adopted = read.nodes.filter((n) => n.status === 'adopted').length;
   const superseded = read.nodes.filter((n) => n.status === 'superseded').length;

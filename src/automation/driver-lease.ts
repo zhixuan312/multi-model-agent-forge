@@ -24,8 +24,15 @@ export const DRIVER_LEASE_STALE_MS = 60_000;
  */
 export const DRIVER_HEARTBEAT_INTERVAL_MS = 20_000;
 
+/**
+ * DERIVED from `DRIVER_LEASE_STALE_MS`, never restated. This decides whether a lease may
+ * be STOLEN; `isForeignLeaseFresh` decides whether it still BLOCKS a transition. A second
+ * hardcoded `interval '60 seconds'` here meant raising the constant would leave a lease
+ * simultaneously fresh to the gate and stale to the acquirer — two concurrent drivers on
+ * one project, the precise race this lease exists to prevent.
+ */
 const staleCond = () =>
-  sql`(${project.details}->'automation'->>'driverHeartbeatAt')::timestamptz < now() - interval '60 seconds'`;
+  sql`(${project.details}->'automation'->>'driverHeartbeatAt')::timestamptz < now() - make_interval(secs => ${DRIVER_LEASE_STALE_MS / 1000})`;
 
 /**
  * Atomically claim the lease. Returns true iff this `driverId` now holds it — when

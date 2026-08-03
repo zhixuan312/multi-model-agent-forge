@@ -43,16 +43,17 @@ export type CreateLoopResult =
   | { kind: 'created'; loop: LoopRow; eventToken: string | null }
   | Exclude<BaseCreateUpdateResult, { kind: 'not_found' }>;
 
-async function nameTaken(db: Db, name: string, teamId?: string, exceptId?: string): Promise<boolean> {
-  let where = exceptId
-    ? and(sql`lower(${loop.name}) = lower(${name})`, ne(loop.id, exceptId))
-    : sql`lower(${loop.name}) = lower(${name})`;
-  if (teamId) {
-    where = exceptId
-      ? and(eq(loop.teamId, teamId), sql`lower(${loop.name}) = lower(${name})`, ne(loop.id, exceptId))
-      : and(eq(loop.teamId, teamId), sql`lower(${loop.name}) = lower(${name})`);
-  }
-  const [row] = await db.select({ id: loop.id }).from(loop).where(where).limit(1);
+/**
+ * Is another loop in this TEAM already using this name (case-insensitively)?
+ *
+ * `teamId` is required: a name check without it is a check across every team, which would
+ * stop two teams from both having a loop called "Nightly". It was optional, and composed
+ * by rebuilding the whole predicate in each of four branches.
+ */
+async function nameTaken(db: Db, name: string, teamId: string, exceptId?: string): Promise<boolean> {
+  const conditions = [eq(loop.teamId, teamId), sql`lower(${loop.name}) = lower(${name})`];
+  if (exceptId) conditions.push(ne(loop.id, exceptId));
+  const [row] = await db.select({ id: loop.id }).from(loop).where(and(...conditions)).limit(1);
   return !!row;
 }
 
@@ -122,8 +123,13 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
   if (!parsed.success) return { kind: 'invalid' };
   const d = parsed.data;
 
-  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
-  const [existing] = await db.select().from(loop).where(where).limit(1);
+  // A mutation without a team scope would match ANY team's loop. Every caller passes one
+  // from the auth gate, so this is unreachable today — but it is a cross-team write one
+  // new caller away, and `createLoop` already refuses rather than offering the fallback.
+  // `not_found` matches the read-path refusal policy (never confirm another team's row).
+  if (!deps.teamId) return { kind: 'not_found' };
+  const [existing] = await db
+    .select().from(loop).where(and(eq(loop.id, id), eq(loop.teamId, deps.teamId))).limit(1);
   if (!existing) return { kind: 'not_found' };
 
   const kind = d.kind ?? existing.kind;
@@ -170,8 +176,13 @@ export type RotateLoopEventTokenResult =
 
 export async function rotateLoopEventToken(id: string, deps: LoopsDeps = {}): Promise<RotateLoopEventTokenResult> {
   const db = deps.db ?? getDb();
-  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
-  const [existing] = await db.select().from(loop).where(where).limit(1);
+  // A mutation without a team scope would match ANY team's loop. Every caller passes one
+  // from the auth gate, so this is unreachable today — but it is a cross-team write one
+  // new caller away, and `createLoop` already refuses rather than offering the fallback.
+  // `not_found` matches the read-path refusal policy (never confirm another team's row).
+  if (!deps.teamId) return { kind: 'not_found' };
+  const [existing] = await db
+    .select().from(loop).where(and(eq(loop.id, id), eq(loop.teamId, deps.teamId))).limit(1);
   if (!existing) return { kind: 'not_found' };
   if (existing.mode !== 'event') return { kind: 'wrong_mode' };
 
@@ -192,6 +203,10 @@ export async function listLoops(deps: LoopsDeps = {}): Promise<LoopRow[]> {
   return query.orderBy(loop.createdAt);
 }
 
+/**
+ * Unlike the mutations, this KEEPS its unscoped read: the scheduler resolves loops across
+ * every team and has no single teamId to pass. Callers that have one must supply it.
+ */
 export async function getLoop(id: string, deps: LoopsDeps = {}): Promise<LoopRow | null> {
   const db = deps.db ?? getDb();
   const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
@@ -213,7 +228,12 @@ export function toPublicLoop(row: LoopRow): PublicLoop {
 
 export async function deleteLoop(id: string, deps: LoopsDeps = {}): Promise<{ kind: 'deleted' | 'not_found' }> {
   const db = deps.db ?? getDb();
-  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
-  const deleted = await db.delete(loop).where(where).returning({ id: loop.id });
+  // A mutation without a team scope would match ANY team's loop. Every caller passes one
+  // from the auth gate, so this is unreachable today — but it is a cross-team write one
+  // new caller away, and `createLoop` already refuses rather than offering the fallback.
+  // `not_found` matches the read-path refusal policy (never confirm another team's row).
+  if (!deps.teamId) return { kind: 'not_found' };
+  const deleted = await db
+    .delete(loop).where(and(eq(loop.id, id), eq(loop.teamId, deps.teamId))).returning({ id: loop.id });
   return { kind: deleted.length > 0 ? 'deleted' : 'not_found' };
 }

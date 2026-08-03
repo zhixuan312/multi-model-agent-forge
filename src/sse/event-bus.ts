@@ -43,14 +43,13 @@ export type ProjectEvent =
   // audit.pass, task.executing/verifying/fixing/fixed/committed, build.task_failed,
   // review.done, execute.notice, cost.tick. NOTHING published any of them, so no
   // component could have rendered one however it subscribed. Removed rather than left as
-  // a menu of signals that do not exist. (`plan.authored` stays: it IS published, and any
-  // component can pick it up through `useMmaDispatch`'s `events` map.)
-  | {
-      type: 'plan.authored';
-      tasks: Array<{ id: string; title: string; repo: string; reviewPolicy: string }>;
-      writeTargets: string[];
-      readOnly: string[];
-    }
+  // a menu of signals that do not exist.
+  //
+  // `plan.authored` was kept on the argument that it IS published and "any component can
+  // pick it up" — the same argument this comment rejects for the other eleven. Nothing ever
+  // did, and meanwhile `plan-author` was the only plan handler NOT publishing the signal the
+  // Plan rail subscribes to, so an auto-authored plan left it stale. It publishes
+  // `plan.stage_updated` now, like its siblings, and the richer event is gone.
   | { type: 'heartbeat'; t: number }
   // ── Universal dispatch events (handler-based, all routes) ────────────────
   | { type: 'dispatch.progress'; batchId: string; handler: string; phase: string; elapsedMs: number; totalTasks?: number; repoId?: string }

@@ -25,7 +25,7 @@ Body 2
 }));
 
 describe('plan-author handler', () => {
-  it('enrolls parsed tasks, sets refine.file, closes the running attempt, and publishes plan.authored', async () => {
+  it('enrolls parsed tasks, sets refine.file, closes the running attempt, and publishes plan.stage_updated', async () => {
     const { buildInitialDetails } = await import('@/details/schema');
     const details = buildInitialDetails();
     details.repos = [{ id: 'repo-1', name: 'forge', pathOnDisk: '/tmp/forge', defaultBranch: 'main' }];
@@ -48,9 +48,8 @@ describe('plan-author handler', () => {
       actorId: 'member-1',
     }, {});
 
-    expect(publish).toHaveBeenCalledWith('proj-1', expect.objectContaining({
-      type: 'plan.authored',
-      writeTargets: ['forge'],
-    }));
+    // The signal `PlanStageClient` actually subscribes to. `plan.authored` — richer, and
+    // subscribed to by nothing — meant an auto-authored plan never refreshed the rail.
+    expect(publish).toHaveBeenCalledWith('proj-1', { type: 'plan.stage_updated' });
   });
 });

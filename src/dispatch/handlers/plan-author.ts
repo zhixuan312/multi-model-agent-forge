@@ -45,17 +45,13 @@ async function handlePlanAuthor(db: Db, ctx: MmaBatchCtx, _envelope: unknown): P
     return d;
   });
 
-  projectEventBus.publish(ctx.projectId, {
-    type: 'plan.authored',
-    tasks: tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      repo: repos[0].name,
-      reviewPolicy: 'reviewed',
-    })),
-    writeTargets: repos.map((r) => r.name),
-    readOnly: [],
-  });
+  // `plan.stage_updated` — the SAME signal `plan-audit` and `plan-audit-apply` publish, and
+  // the one `PlanStageClient` subscribes to. This published `plan.authored` instead, with a
+  // rich payload (tasks, writeTargets, readOnly, a hardcoded reviewPolicy) that no component
+  // has ever subscribed to. Auto-driven work never reaches the client's `onDone`, so a plan
+  // authored by the driver left the rail stale until something else refreshed it — the exact
+  // failure the `plan.stage_updated` comment in `PlanStageClient` describes for its siblings.
+  projectEventBus.publish(ctx.projectId, { type: 'plan.stage_updated' });
 }
 
 registerHandler('plan-author', handlePlanAuthor);

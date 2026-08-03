@@ -45,3 +45,55 @@ describe('every declared SSE event can actually be emitted', () => {
     expect(orphans, 'declared but nothing publishes them — remove, or wire the publisher').toEqual([]);
   });
 });
+
+/**
+ * An event in the union with no publisher, or a publisher with no subscriber, is a signal
+ * that does not exist. This file's own history is the argument: eleven were declared and
+ * never published, and `plan.authored` was published and never subscribed to — which is how
+ * `plan-author` ended up as the only plan handler NOT emitting the signal the Plan rail
+ * listens for, leaving an auto-authored plan stale on screen.
+ *
+ * `dispatch.progress` is the one deliberate exception and it is named here rather than
+ * quietly skipped: it carries the "cancelling…" acknowledgement for handler-backed batches,
+ * the task-backed twin of which the exploration rail does render. Nothing renders this one —
+ * pressing Stop closes the overlay while the engine keeps working. Wiring it needs a
+ * decision about where that state belongs, so it stays until someone makes it.
+ */
+describe('every declared event is published and consumed', () => {
+  const UNCONSUMED_BY_DESIGN = new Set(['dispatch.progress', 'heartbeat']);
+
+  const read = (p: string) => readFileSync(p, 'utf8');
+  const walk = (dir: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.next')) continue;
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.tsx?$/.test(e.name) && !e.name.includes('.test.')) out.push(p);
+    }
+    return out;
+  };
+
+  const BUS = 'src/sse/event-bus.ts';
+  const files = [...walk('src'), ...walk('app')].filter((f) => f !== BUS);
+  const declared = [...new Set([...read(BUS).matchAll(/type: '([a-z._]+)'/g)].map((m) => m[1]!))];
+
+  it('found the union and the source tree', () => {
+    expect(declared.length).toBeGreaterThan(15);
+    expect(declared).toContain('plan.stage_updated');
+    expect(files.length).toBeGreaterThan(200);
+  });
+
+  it('has a publisher for every declared event', () => {
+    const orphans = declared.filter((t) => !files.some((f) => read(f).includes(`type: '${t}'`)));
+    expect(orphans, 'declared in the union, published by nobody').toEqual([]);
+  });
+
+  it('has a consumer for every published event', () => {
+    const unread = declared.filter((t) => {
+      if (UNCONSUMED_BY_DESIGN.has(t)) return false;
+      const publishers = files.filter((f) => read(f).includes(`type: '${t}'`));
+      return !files.some((f) => !publishers.includes(f) && read(f).includes(`'${t}'`));
+    });
+    expect(unread, 'published into the void — wire it or delete it').toEqual([]);
+  });
+});

@@ -71,14 +71,29 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
       >
         {onSelect ? (
           <TableCell className="w-10 px-0 py-3 pl-4 pr-1">
-            <span className={cn(
-              'grid size-5 place-items-center rounded-[5px] border text-[10px] font-semibold transition-colors',
-              applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white'
-                : selected ? 'border-accent bg-accent text-white'
-                : 'border-line-strong text-ink-faint',
-            )}>
+            {/* A real checkbox, not a decorated <span>. Picking a subset of findings to
+                apply was pointer-only: the box carried no role, no checked state and no
+                name, and the only handler was `onClick` on the <tr> — which is not
+                focusable and answers no key. A screen reader heard a row of text with no
+                indication that any of it was selectable, let alone what was selected.
+                `stopPropagation` so the row's own click doesn't toggle it straight back. */}
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={applied ? true : Boolean(selected)}
+              aria-label={`Select: ${finding.claim}`}
+              disabled={disabled}
+              onClick={(e) => { e.stopPropagation(); onSelect(); }}
+              className={cn(
+                'focus-ring grid size-5 place-items-center rounded-[5px] border text-[10px] font-semibold transition-colors',
+                applied ? 'border-[var(--sage-deep)] bg-[var(--sage-deep)] text-white'
+                  : selected ? 'border-accent bg-accent text-white'
+                  : 'border-line-strong text-ink-faint',
+                disabled && 'cursor-not-allowed',
+              )}
+            >
               {applied || selected ? <Check className="size-3" /> : (index + 1)}
-            </span>
+            </button>
           </TableCell>
         ) : null}
         <TableCell className="w-20 px-2 py-3">

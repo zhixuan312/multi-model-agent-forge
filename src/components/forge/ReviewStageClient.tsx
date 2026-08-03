@@ -112,6 +112,14 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
   const mma = useMmaDispatch(props.projectId);
   const [reviewingLocal, setReviewingLocal] = useState(false);
   const [applyingLocal, setApplyingLocal] = useState(false);
+  /**
+   * How many findings the in-flight apply actually covers. The progress line reported
+   * `pass.findings.length` — the whole pass — so selecting 2 of 9 and applying announced
+   * "Applying 9 findings", contradicting both the selection and the apply bar that
+   * dispatched it. Null on the auto path, where the server applies everything remaining
+   * and there is no local selection to read.
+   */
+  const [applyingCount, setApplyingCount] = useState<number | null>(null);
 
   const reviewing = props.reviewRunning || reviewingLocal;
   const applying = props.applyRunning || applyingLocal;
@@ -159,10 +167,11 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
     // subset (or all) as findingIndices; the server enumerates exactly those findings in
     // the fix prompt and records them so the pass reflects what was applied.
     setApplyingLocal(true);
+    setApplyingCount(indices.length);
     void mma.transition('apply_review_findings', { findingIndices: indices, passNo })
       .then(() => refresh())
       .catch(() => { showToast({ type: 'error', message: 'Couldn’t apply review findings — try again.' }); })
-      .finally(() => setApplyingLocal(false));
+      .finally(() => { setApplyingLocal(false); setApplyingCount(null); });
   }
 
   return (
@@ -234,7 +243,10 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
                     <div className="mt-1.5 flex items-center gap-2 rounded-[var(--r-md)] border border-accent/30 bg-accent-tint/30 px-3 py-1.5">
                       <Loader2 className="size-3.5 animate-spin text-accent" />
                       <span className="text-xs font-medium text-accent-deep">
-                        Applying {p.findings.length} finding{p.findings.length !== 1 ? 's' : ''}...
+                        {(() => {
+                          const n = applyingCount ?? p.findings.length;
+                          return `Applying ${n} finding${n !== 1 ? 's' : ''}...`;
+                        })()}
                       </span>
                     </div>
                   ) : null}

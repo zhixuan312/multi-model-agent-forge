@@ -152,22 +152,20 @@ function prBody(goal: string, verify: VerifyOutcome, keyChanges: string[], refer
     verify.command === null
       ? 'Verification: not configured.'
       : `Verification (\`${verify.command}\`): ${verify.passed ? 'PASS' : 'FAIL'} — ${verify.detail}`;
-  return [
-    '_Opened by a Forge maintenance loop. Review before merging — never auto-merged._',
-    '',
-    reference ? `Reference: ${reference}` : null,
-    '',
-    '## Goal',
-    goal,
-    '',
-    context ? '## Context' : null,
-    context ?? null,
-    '',
-    '## Key changes',
-    ...keyChanges.map((c) => `- ${c}`),
-    '',
-    verifyLine,
-  ].filter(Boolean).join('\n');
+  // Sections, each a block of lines. Built as blocks rather than one flat array because
+  // the flat version joined with `.filter(Boolean)`, which drops `''` as readily as
+  // `null` — so every blank-line separator vanished and the body arrived as one unbroken
+  // wall of text, the goal running straight into the next heading. Blocks make "omit this
+  // section" and "separate the sections" two different decisions.
+  const blocks: (string[] | null)[] = [
+    ['_Opened by a Forge maintenance loop. Review before merging — never auto-merged._'],
+    reference ? [`Reference: ${reference}`] : null,
+    ['## Goal', goal],
+    context ? ['## Context', context] : null,
+    ['## Key changes', ...keyChanges.map((c) => `- ${c}`)],
+    [verifyLine],
+  ];
+  return blocks.filter((b): b is string[] => b !== null).map((b) => b.join('\n')).join('\n\n');
 }
 
 /**

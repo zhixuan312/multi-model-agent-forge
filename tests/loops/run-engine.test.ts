@@ -130,3 +130,31 @@ describe('the loop branch uses the shared git-ref slug rule', () => {
     expect(buildBranch('!!!', new Date('2026-06-15T03:04:05.678Z'))).toMatch(/-loop$/);
   });
 });
+
+/**
+ * The PR body is assembled from an array of lines and `.filter(Boolean)`, which was meant
+ * to drop the OPTIONAL sections (`null` when there is no reference or context). Empty
+ * strings are falsy too, so it dropped every blank-line separator as well and the body
+ * arrived as one unbroken block — the goal text running straight into the next heading.
+ */
+describe('the PR body keeps its paragraph structure', () => {
+  it('separates each section with a blank line', async () => {
+    const d = makeDeps();
+    await runLoopForRepo(loop, repo, ctx, d);
+    const body = (vi.mocked(d.openPr).mock.calls[0][0] as { body: string }).body;
+    expect(body).toMatch(/\n\n## Goal\n/);
+    expect(body).toMatch(/\n\n## Key changes\n/);
+    // The banner is its own paragraph, not glued to what follows.
+    expect(body.split('\n')[1]).toBe('');
+  });
+
+  it('still omits the optional sections when they are absent', async () => {
+    const d = makeDeps();
+    await runLoopForRepo(loop, repo, { ...ctx, reference: null, context: null }, d);
+    const body = (vi.mocked(d.openPr).mock.calls[0][0] as { body: string }).body;
+    expect(body).not.toContain('Reference:');
+    expect(body).not.toContain('## Context');
+    // No run of three newlines where an omitted section used to sit.
+    expect(body).not.toMatch(/\n{3}/);
+  });
+});

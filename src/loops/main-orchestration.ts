@@ -10,10 +10,22 @@ import { extractJsonText } from '@/lib/llm-json';
 
 // ── PLAN ──────────────────────────────────────────────────────────────────────
 
+/**
+ * How many recall queries the prompt ASKS for, and how many the schema ACCEPTS.
+ *
+ * They differ on purpose: asking for a small number keeps the plan focused, while
+ * tolerating a few more means a slightly over-eager model does not fail `safeParse` and
+ * lose the whole plan — including its `verifyCommand` — over one extra query. Both are
+ * named so the two numbers cannot drift apart unnoticed; the prompt below interpolates
+ * `RECALLS_REQUESTED` rather than restating it.
+ */
+export const RECALLS_REQUESTED = 5;
+export const RECALLS_ACCEPTED = 8;
+
 export const planSchema = z.object({
   recalls: z
     .array(z.object({ query: z.string().trim().min(1), purpose: z.string().trim().optional() }))
-    .max(8)
+    .max(RECALLS_ACCEPTED)
     .default([]),
   verifyCommand: z.string().trim().min(1).nullable().default(null),
 });
@@ -45,7 +57,7 @@ Constraints:
 - For monorepos, the verify command must cd into the right directory first (e.g. "cd backend && npm test")
 - verifyCommand must be the EXACT command that validates the repo — only use commands that actually exist in the config files you read
 - If no test/build system is found, set verifyCommand to null — never invent a command that doesn't exist
-- recalls: 0-5 journal queries for prior learnings relevant to this goal — fewer is better, only ask for what helps
+- recalls: 0-${RECALLS_REQUESTED} journal queries for prior learnings relevant to this goal — fewer is better, only ask for what helps
 
 Output format:
 Respond with ONLY a single JSON object — no prose, no markdown, no commentary:

@@ -136,17 +136,24 @@ export async function listRepos(deps: ReposDeps = {}): Promise<RepoView[]> {
  */
 export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Promise<CloneRepoResult> {
   const db = deps.db ?? getDb();
+  // A team is REQUIRED here, and saying so first is the point. The check used to sit inside
+  // the insert's try/catch, several queries in — so the unscoped duplicate-name lookup, the
+  // team-less workspace root and the token resolution above it were all code that could
+  // only ever run on its way to that throw. `resolveAdminTeam` converts the missing-team
+  // case to a 400 before this is called; reaching here without one is a programming error.
+  const { teamId } = deps;
+  if (!teamId) throw new Error('Team required for repo registration.');
+
   const parsed = cloneRepoSchema.safeParse(input);
   if (!parsed.success) return { kind: 'invalid', message: parsed.error.issues[0]?.message };
   const { name, url, tags } = parsed.data;
 
-  // Duplicate-name guard (scoped by team when teamId is provided).
-  const where = deps.teamId ? and(eq(repo.teamId, deps.teamId), eq(repo.name, name)) : eq(repo.name, name);
+  const where = and(eq(repo.teamId, teamId), eq(repo.name, name));
   const [existing] = await db.select({ id: repo.id }).from(repo).where(where).limit(1);
   if (existing) return { kind: 'duplicate_name' };
 
   const secrets = await resolveSecrets(deps);
-  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  const currentTeam = await resolveTeamRow(db, teamId);
   const workspace = resolveWorkspace(deps, currentTeam);
   const token = await gitToken(secrets, currentTeam);
 
@@ -155,9 +162,8 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   // we set status='error').
   let rowId: string;
   try {
-    if (!deps.teamId) throw new Error('Team required for repo registration.');
     const values: typeof repo.$inferInsert = {
-      teamId: deps.teamId,
+      teamId,
       name,
       pathOnDisk: name,
       defaultBranch: 'unknown',
@@ -289,17 +295,25 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
   const { execFileSync } = await import('node:child_process');
   const { join } = await import('node:path');
 
+  // Stated once, at the top. It used to be a throw inside the per-directory insert, so an
+  // unscoped sync silently half-worked — it flagged rows and returned normally right up
+  // until it met an unregistered directory, then threw. The workspace page carries a
+  // comment warning about exactly that; the requirement belongs here, not in a warning.
+  const { teamId } = deps;
+  if (!teamId) throw new Error('Team required for workspace sync.');
+
   const db = deps.db ?? getDb();
-  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  const currentTeam = await resolveTeamRow(db, teamId);
   const root = currentTeam ? resolveTeamWorkspaceRoot(currentTeam) : resolveWorkspaceRoot();
   const added: string[] = [];
   const flagged: string[] = [];
 
   if (!existsSync(root)) return { added, flagged };
 
-  const dbRows = await (deps.teamId
-    ? db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo).where(eq(repo.teamId, deps.teamId))
-    : db.select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status }).from(repo));
+  const dbRows = await db
+    .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk, status: repo.status })
+    .from(repo)
+    .where(eq(repo.teamId, teamId));
   const dbByName = new Map(dbRows.map((r) => [r.name, r]));
 
   const entries = readdirSync(root, { withFileTypes: true });
@@ -311,7 +325,6 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
     const gitDir = join(dirPath, '.git');
     if (!existsSync(gitDir)) continue;
 
-
     if (!dbByName.has(entry.name)) {
       let defaultBranch = 'main';
       let headSha: string | null = null;
@@ -322,9 +335,8 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
       } catch { /* use defaults */ }
 
       try {
-        if (!deps.teamId) throw new Error('Team required for workspace sync registration.');
         const values: typeof repo.$inferInsert = {
-          teamId: deps.teamId,
+          teamId,
           name: entry.name,
           pathOnDisk: dirPath,
           defaultBranch,
@@ -340,7 +352,12 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
   }
 
   for (const row of dbRows) {
-    if (row.status === 'error') continue;
+    // Only a repo that CLAIMS to be cloned can be contradicted by a missing directory.
+    // This skipped `error` alone, so a row still at `pulling` was fair game — and a clone
+    // in flight holds a placeholder `pathOnDisk` that is the bare repo NAME, not a path.
+    // `existsSync('myrepo')` resolves against the process cwd, finds nothing, and a
+    // workspace page loaded while a clone is running marked that clone failed.
+    if (row.status !== 'cloned') continue;
     const onDisk = existsSync(row.pathOnDisk) && statSync(row.pathOnDisk).isDirectory();
     if (!onDisk) {
       await db.update(repo).set({ status: 'error' }).where(eq(repo.id, row.id));

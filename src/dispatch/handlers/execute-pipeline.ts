@@ -4,6 +4,7 @@ import type { Db } from '@/db/client';
 import { project, buildPr } from '@/db/schema/projects';
 import { team } from '@/db/schema/team';
 import { createBuildPr } from '@/build/pr';
+import { parseRemote } from '@/git/remote-provider';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
@@ -88,11 +89,17 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
           const secrets = await PostgresSecretStore.create({ db });
           return secrets.get(row.ref);
         },
+        // `@/git/remote-provider`'s parser, not a second one. The inline copy that used to
+        // sit here matched the repo name as `[^/.]+`, which stops at a dot: a repository
+        // called `foo.bar` parsed as `foo`, and the PR went to `/repos/owner/foo/pulls` —
+        // a 404 reported to the user as a GitHub failure. It also knew nothing about
+        // GitLab, which the shared parser does; `createBuildPr` posts to api.github.com, so
+        // a GitLab remote is still `null` here — but it is null for the right reason.
         parseRemote: (path) => {
           try {
             const url = execFileSync('git', ['-C', path, 'remote', 'get-url', 'origin'], { encoding: 'utf8', env: safeChildEnv() as NodeJS.ProcessEnv }).trim();
-            const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-            return m ? { owner: m[1], repo: m[2] } : null;
+            const info = parseRemote(url);
+            return info?.provider === 'github' ? { owner: info.owner, repo: info.repo } : null;
           } catch { return null; }
         },
         branchHasChanges: async () => true,

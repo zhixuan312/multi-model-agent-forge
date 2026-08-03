@@ -34,3 +34,23 @@ describe('authPushUrl — provider-specific authenticated push URL', () => {
       .toBe('https://oauth2:TKN@sgts.gitlab-dedicated.com/g/s/p.git');
   });
 });
+
+/**
+ * `execute-pipeline` used to carry its own inline `github\.com[:/]([^/]+)\/([^/.]+)` for
+ * exactly this job. `[^/.]+` stops at a dot, so a repository named `foo.bar` parsed as
+ * `foo` and the PR was posted to `/repos/owner/foo/pulls` — a 404 shown to the user as a
+ * GitHub failure. It knew nothing about GitLab either.
+ */
+describe('a repository name containing a dot', () => {
+  it('keeps the whole name, ssh and https alike', () => {
+    expect(parseRemote('git@github.com:org/foo.bar.git')).toEqual({
+      provider: 'github', host: 'github.com', owner: 'org', repo: 'foo.bar',
+    });
+    expect(parseRemote('https://github.com/org/foo.bar')).toMatchObject({ repo: 'foo.bar' });
+    expect(parseRemote('https://github.com/org/foo.bar.git')).toMatchObject({ repo: 'foo.bar' });
+  });
+
+  it('still strips only the trailing .git', () => {
+    expect(parseRemote('git@github.com:org/plain.git')).toMatchObject({ repo: 'plain' });
+  });
+});

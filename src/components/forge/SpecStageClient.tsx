@@ -1448,6 +1448,7 @@ function DocumentScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
+  const iApprovedSpec = specApprovers.includes(currentMember.id);
 
   // Assemble runs as a plain fetch, not a react-query mutation: the auto-assemble below
   // fires from an effect, and an effect-triggered mutation gets its observer torn down
@@ -1703,11 +1704,10 @@ function DocumentScreen({
                 <Button
                   size="sm"
                   onClick={() => {
-                    const isApproved = specApprovers.includes(currentMember.id);
-                    const action = isApproved ? 'revoke' : 'approve';
+                    const action = iApprovedSpec ? 'revoke' : 'approve';
                     const prev = specApprovers;
                     void optimistic.run({
-                      apply: () => setSpecApprovers(isApproved
+                      apply: () => setSpecApprovers(iApprovedSpec
                         ? specApprovers.filter((a: string) => a !== currentMember.id)
                         : [...specApprovers, currentMember.id]),
                       commit: async () => {
@@ -1718,14 +1718,14 @@ function DocumentScreen({
                         if (!r.ok) throw new Error(`Request failed (${r.status}).`);
                       },
                       rollback: () => setSpecApprovers(prev),
-                      error: isApproved ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
+                      error: iApprovedSpec ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',
                       retryable: true });
                   }}
-                  variant={specApprovers.includes(currentMember.id) ? 'secondary' : 'primary'}
-                  leftIcon={specApprovers.includes(currentMember.id) ? <RotateCcw /> : <Check />}
+                  variant={iApprovedSpec ? 'secondary' : 'primary'}
+                  leftIcon={iApprovedSpec ? <RotateCcw /> : <Check />}
                   disabled={readOnly}
                 >
-                  {specApprovers.includes(currentMember.id) ? 'Revoke' : 'Approve'}
+                  {iApprovedSpec ? 'Revoke' : 'Approve'}
                 </Button>
           ) : null
         }
@@ -1762,5 +1762,3 @@ function DocumentScreen({
     </StageShell>
   );
 }
-
-

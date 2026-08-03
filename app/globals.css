@@ -33,6 +33,15 @@
   --color-amber-tint: var(--amber-tint);
   --color-rose: var(--rose);
   --color-rose-tint: var(--rose-tint);
+  /* steel + ember were fully declared as raw variables but never exposed here, so the
+     journal palette's `text-steel-deep border-steel` (inconclusive status, merge op) and
+     `bg-ember-tint text-ember-deep` (refine op) emitted NO CSS — the refine chip had
+     neither background nor text colour. */
+  --color-steel: var(--steel);
+  --color-steel-deep: var(--steel-deep);
+  --color-ember: var(--ember);
+  --color-ember-deep: var(--ember-deep);
+  --color-ember-tint: var(--ember-tint);
 
   --radius-sm: var(--r-sm);
   --radius: var(--r);

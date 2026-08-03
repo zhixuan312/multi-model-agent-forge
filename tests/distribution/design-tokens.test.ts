@@ -26,13 +26,19 @@ const RUNTIME_PROVIDED = [
   /^--aside-w$/,      // Split sets it inline via `style`
 ];
 
-function tsxFiles(dir: string): string[] {
+/**
+ * `.ts` as well as `.tsx`: class strings are not confined to components. The journal's
+ * `palette.ts` maps a status to `text-steel-deep border-steel` and a write-log op to
+ * `bg-ember-tint text-ember-deep`, and a .tsx-only sweep never looked at it — four of
+ * those utilities emitted no CSS at all.
+ */
+function sourceFiles(dir: string): string[] {
   const out: string[] = [];
   for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
     if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
     const rel = `${dir}/${e.name}`;
-    if (e.isDirectory()) out.push(...tsxFiles(rel));
-    else if (/\.tsx$/.test(e.name) && !e.name.includes('.test.')) out.push(rel);
+    if (e.isDirectory()) out.push(...sourceFiles(rel));
+    else if (/\.tsx?$/.test(e.name) && !e.name.includes('.test.')) out.push(rel);
   }
   return out;
 }
@@ -40,11 +46,12 @@ function tsxFiles(dir: string): string[] {
 describe('design tokens', () => {
   const css = readFileSync(join(ROOT, 'app/globals.css'), 'utf8');
   const declared = new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]!));
-  const files = [...tsxFiles('src'), ...tsxFiles('app')];
+  const files = [...sourceFiles('src'), ...sourceFiles('app')];
 
   it('read the stylesheet and the components — neither check can pass vacuously', () => {
     expect(declared.size).toBeGreaterThan(30);
     expect(files.length).toBeGreaterThan(100);
+    expect(files.some((f) => f.endsWith('.ts')), '.ts files must be in scope too').toBe(true);
   });
 
   it('every var(--token) referenced by a component is declared', () => {
@@ -86,7 +93,21 @@ describe('design tokens', () => {
     // `text-sage-deep` (the raw `--sage-deep` existed but was never exposed), plus
     // `text-amber-deep` and `bg-surface-3`, which had no backing variable at all.
     const themed = new Set([...css.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]!));
-    const FAMILIES = ['bg', 'surface', 'ink', 'line', 'accent', 'sage', 'amber', 'rose'].join('|');
+    // DERIVED, not hand-listed. The hand-list held 8 families and silently omitted `steel`
+    // and `ember` — both fully declared as raw variables, neither exposed to `@theme`, so
+    // every `text-steel-deep` / `bg-ember-tint` in the codebase went unscanned. Any family
+    // the stylesheet names is a family this check must cover.
+    const NON_COLOUR = new Set(['color', 'ease', 'font', 'r', 'radius', 'ring', 'shadow', 'tw', 'rail']);
+    const families = [
+      ...new Set(
+        [...css.matchAll(/^\s*--([a-z0-9]+)(?:-[a-z0-9-]+)?\s*:/gm)]
+          .map((m) => m[1]!)
+          .filter((f) => !NON_COLOUR.has(f)),
+      ),
+    ];
+    expect(families).toContain('steel');
+    expect(families).toContain('ember');
+    const FAMILIES = families.join('|');
     const utility = new RegExp(
       `(?<![\\w-])(?:bg|text|border|ring|fill|stroke|from|to|via|decoration|divide|outline|caret)-((?:${FAMILIES})(?:-[a-z0-9]+)*)(?![\\w[-])`,
       'g',

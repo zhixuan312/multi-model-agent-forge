@@ -6,6 +6,7 @@ import { hashPassword, passwordSchema } from '@/auth/password';
 import { sessionStore, type SessionStore } from '@/auth/session-store';
 import type { MemberRef } from '@/collab/types';
 import { isUniqueViolation } from '@/db/errors';
+import { isAdminRole } from '@/db/enums';
 
 /**
  * Members CRUD core (Spec 1 §Members CRUD API). Dependency-injected and pure of
@@ -150,7 +151,7 @@ export async function setMemberAdmin(
   if (!target) return { kind: 'not_found' };
 
   // Last-admin guard: demoting the only remaining admin would lock out the team.
-  if (isAdminRole(target) && !nextIsAdmin) {
+  if (isAdminRole(target.role) && !nextIsAdmin) {
     const others = await countOtherAdmins(db, memberId, deps.teamId);
     if (others === 0) return { kind: 'last_admin' };
   }
@@ -243,7 +244,7 @@ export async function deleteMember(
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
-  if (isAdminRole(target)) {
+  if (isAdminRole(target.role)) {
     const others = await countOtherAdmins(db, memberId, deps.teamId);
     if (others === 0) return { kind: 'last_admin' };
   }
@@ -339,7 +340,3 @@ async function countOtherAdmins(db: Db, exceptMemberId: string, teamId?: string)
   return count;
 }
 
-function isAdminRole(row: { role?: string; isAdmin?: boolean }): boolean {
-  if (typeof row.isAdmin === 'boolean') return row.isAdmin;
-  return row.role === 'team_admin' || row.role === 'org_admin';
-}

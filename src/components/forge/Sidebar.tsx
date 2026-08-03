@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { isAdminRole } from '@/auth/require-admin';
+import { isAdminRole } from '@/db/enums';
 import { usePathname } from 'next/navigation';
 import { FolderKanban, LayoutDashboard, NotebookPen, Settings, Repeat, BarChart3, Boxes, BookOpen, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';

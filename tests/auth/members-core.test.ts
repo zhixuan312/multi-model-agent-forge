@@ -78,19 +78,19 @@ describe('setMemberAdmin (last-admin invariant)', () => {
   });
 
   it('refuses to demote the only admin (last_admin)', async () => {
-    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
+    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', role: 'team_admin' }], [{ count: 0 }]) });
     expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('last_admin');
     expect(db._wasCalled('team_member', 'update')).toBe(false);
   });
 
   it('demotes when other admins remain', async () => {
-    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 2 }]) });
+    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', role: 'team_admin' }], [{ count: 2 }]) });
     expect((await setMemberAdmin('m1', { isAdmin: false }, { db })).kind).toBe('updated');
     expect(db._wasCalled('team_member', 'update')).toBe(true);
   });
 
   it('promotes without a guard check', async () => {
-    const db = createMockDb({ 'select:team_member': [{ id: 'm1', isAdmin: false }] });
+    const db = createMockDb({ 'select:team_member': [{ id: 'm1', role: 'member' }] });
     expect((await setMemberAdmin('m1', { isAdmin: true }, { db })).kind).toBe('updated');
   });
 });
@@ -150,13 +150,13 @@ describe('deleteMember (last-admin invariant)', () => {
   });
 
   it('refuses to delete the only admin', async () => {
-    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', isAdmin: true }], [{ count: 0 }]) });
+    const db = createMockDb({ 'select:team_member': seq([{ id: 'm1', role: 'team_admin' }], [{ count: 0 }]) });
     expect((await deleteMember('m1', { db })).kind).toBe('last_admin');
     expect(db._wasCalled('team_member', 'delete')).toBe(false);
   });
 
   it('deletes a non-admin', async () => {
-    const db = createMockDb({ 'select:team_member': [{ id: 'm1', isAdmin: false }] });
+    const db = createMockDb({ 'select:team_member': [{ id: 'm1', role: 'member' }] });
     expect((await deleteMember('m1', { db })).kind).toBe('deleted');
     expect(db._wasCalled('team_member', 'delete')).toBe(true);
   });

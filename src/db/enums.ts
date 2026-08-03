@@ -12,6 +12,18 @@ export const REPO_STATUS = ['cloned', 'pulling', 'error'] as const;
 export const TEAM_ROLE = ['org_admin', 'team_admin', 'member'] as const;
 export type TeamRole = (typeof TEAM_ROLE)[number];
 
+/**
+ * "Counts as an admin" — either admin role.
+ *
+ * Lives beside the enum so every layer can reach it: the page gate, the sidebar's
+ * adminOnly filter and the members core each spelled the pair out, and members-core's
+ * copy also accepted a legacy `isAdmin` boolean for a column the schema no longer has.
+ * A third admin role would have had to be remembered in three places.
+ */
+export function isAdminRole(role: string | null | undefined): boolean {
+  return role === 'org_admin' || role === 'team_admin';
+}
+
 /* ── Spec 3: Projects ───────────────────────────────────────────────────── */
 
 /** project.visibility (schema.md §3). private = artifact-gated; public = all members. */

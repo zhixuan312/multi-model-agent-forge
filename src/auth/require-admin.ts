@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { currentMember } from '@/auth/current-member';
 import type { AuthedMember } from '@/auth/auth-provider';
+import { isAdminRole } from '@/db/enums';
 
 /**
  * The authoritative `is_admin` gate (Node runtime). Edge middleware only path-
@@ -24,15 +25,6 @@ export class NotAuthenticatedError extends Error {
     super('Authentication required.');
     this.name = 'NotAuthenticatedError';
   }
-}
-
-/**
- * "Counts as an admin" — either admin role. ONE definition: the gate, the page redirect
- * and the sidebar's adminOnly filter each spelled it out, so a third admin role would
- * have to be remembered in three places to be honoured in all of them.
- */
-export function isAdminRole(role: AuthedMember['role']): boolean {
-  return role === 'org_admin' || role === 'team_admin';
 }
 
 /**

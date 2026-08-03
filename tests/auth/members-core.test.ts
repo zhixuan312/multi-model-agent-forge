@@ -193,3 +193,43 @@ describe('listMembers', () => {
     expect(await listMembers({ db })).toHaveLength(2);
   });
 });
+
+/**
+ * `setMemberAdmin` takes a BOOLEAN and writes one of two roles. There are three:
+ * `org_admin`, `team_admin`, `member`. `listMembers` reports an org_admin as
+ * `isAdmin: true` (via `isAdminRole`), so a `{ isAdmin: true }` PATCH against one asked for
+ * a state they already hold — and the write rewrote them to `team_admin`, stripping
+ * org-level privileges under the label "make admin". The function's own docstring says
+ * "setting a value it already holds is a no-op success"; it wasn't.
+ */
+describe('setMemberAdmin — a value the member already holds', () => {
+  const dbWith = (role: string) =>
+    createMockDb({ 'select:team_member': [{ id: 'm1', role }], 'update:team_member': [{ id: 'm1' }] });
+
+  it('does not rewrite an org_admin when asked to make them an admin', async () => {
+    const db = dbWith('org_admin');
+    const res = await setMemberAdmin('m1', { isAdmin: true }, { db: db as never });
+
+    expect(res).toEqual({ kind: 'updated', id: 'm1', isAdmin: true });
+    expect(db._wasCalled('team_member', 'update'), 'an org_admin must not be written down to team_admin').toBe(false);
+  });
+
+  it('does not write when a team_admin is asked to be an admin', async () => {
+    const db = dbWith('team_admin');
+    await setMemberAdmin('m1', { isAdmin: true }, { db: db as never });
+    expect(db._wasCalled('team_member', 'update')).toBe(false);
+  });
+
+  it('does not write when a plain member is asked to be a non-admin', async () => {
+    const db = dbWith('member');
+    await setMemberAdmin('m1', { isAdmin: false }, { db: db as never });
+    expect(db._wasCalled('team_member', 'update')).toBe(false);
+  });
+
+  it('still promotes a plain member', async () => {
+    const db = dbWith('member');
+    const res = await setMemberAdmin('m1', { isAdmin: true }, { db: db as never });
+    expect(res).toMatchObject({ kind: 'updated', isAdmin: true });
+    expect(db._wasCalled('team_member', 'update')).toBe(true);
+  });
+});

@@ -153,6 +153,15 @@ export async function setMemberAdmin(
     .limit(1);
   if (!target) return { kind: 'not_found' };
 
+  // Already in the requested state → a genuine no-op, as the docstring says. It used to
+  // fall through to the write, and the write only knows two roles: `{ isAdmin: true }` on
+  // an ORG_ADMIN — who `listMembers` already reports as `isAdmin: true` — rewrote them to
+  // `team_admin`. A call that changes nothing by its own contract silently stripped
+  // org-level privileges, under the label "make admin".
+  if (isAdminRole(target.role) === nextIsAdmin) {
+    return { kind: 'updated', id: memberId, isAdmin: nextIsAdmin };
+  }
+
   // Last-admin guard: demoting the only remaining admin would lock out the team.
   if (isAdminRole(target.role) && !nextIsAdmin) {
     const others = await countOtherAdmins(db, memberId, deps.teamId);

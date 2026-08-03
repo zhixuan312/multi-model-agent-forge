@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { FindingsGrid, FindingsApplyBar, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, appliedState, type Finding } from '@/components/patterns/findings';
 
 const f = (severity: string, claim: string): Finding =>
   ({ severity, category: 'gap', claim } as Finding);
@@ -68,5 +68,30 @@ describe('FindingsApplyBar label matches what the button will do', () => {
     unmount();
     bar(3, 3);
     expect(screen.getByRole('button', { name: 'Unselect all' })).toBeInTheDocument();
+  });
+});
+
+describe('appliedState — a partial apply leaves the remainder actionable', () => {
+  it('reports nothing applied for an untouched pass', () => {
+    expect(appliedState(3, [])).toEqual({ someApplied: false, allApplied: false, remainingIndices: [0, 1, 2] });
+  });
+
+  it('reports a SUBSET as some-but-not-all, naming what is left', () => {
+    // This is the case the Plan stage could not represent: it locked the whole pass, so the
+    // un-applied findings became unreachable.
+    expect(appliedState(3, [1])).toEqual({ someApplied: true, allApplied: false, remainingIndices: [0, 2] });
+  });
+
+  it('reports a fully-applied pass, which is what locks it', () => {
+    expect(appliedState(3, [0, 1, 2])).toEqual({ someApplied: true, allApplied: true, remainingIndices: [] });
+  });
+
+  it('never claims allApplied for a pass with no findings', () => {
+    // A clean pass has nothing to apply; calling it "applied" would lock an empty grid.
+    expect(appliedState(0, [])).toEqual({ someApplied: false, allApplied: false, remainingIndices: [] });
+  });
+
+  it('tolerates duplicate or out-of-range indices without losing a remaining finding', () => {
+    expect(appliedState(3, [1, 1])).toMatchObject({ allApplied: false, remainingIndices: [0, 2] });
   });
 });

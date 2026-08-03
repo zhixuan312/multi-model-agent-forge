@@ -146,6 +146,27 @@ export function FindingCard({ finding, index, selected, applied, disabled, onSel
   );
 }
 
+/**
+ * How much of a pass has been applied.
+ *
+ * Applying a SUBSET must leave the remainder actionable — `allApplied` is what locks a pass,
+ * not `someApplied`. The Review stage had this logic; the Plan stage computed its
+ * `appliedIndices` and then dropped them on the floor, so a partial apply there marked no
+ * rows and locked the whole pass. One definition, so the two cannot disagree again.
+ */
+export function appliedState(findingsCount: number, appliedIndices: readonly number[]): {
+  someApplied: boolean;
+  allApplied: boolean;
+  remainingIndices: number[];
+} {
+  const applied = new Set(appliedIndices);
+  return {
+    someApplied: appliedIndices.length > 0,
+    allApplied: findingsCount > 0 && appliedIndices.length >= findingsCount,
+    remainingIndices: Array.from({ length: findingsCount }, (_, i) => i).filter((i) => !applied.has(i)),
+  };
+}
+
 export interface FindingsGridProps {
   findings: Finding[];
   /** Render a leading checkbox column so the user can pick a subset. Selection is

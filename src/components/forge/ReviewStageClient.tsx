@@ -18,7 +18,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
-import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { SEVERITY_ORDER } from '@/lib/severity';
 import { DocumentShell } from '@/components/patterns';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -66,13 +66,9 @@ export function reviewPassState(findingsCount: number, appliedIndices: number[])
   allApplied: boolean;
   remainingIndices: number[];
 } {
-  const appliedSet = new Set(appliedIndices);
-  return {
-    verdict: findingsCount === 0 ? 'clean' : 'revised',
-    someApplied: appliedIndices.length > 0,
-    allApplied: findingsCount > 0 && appliedIndices.length >= findingsCount,
-    remainingIndices: Array.from({ length: findingsCount }, (_, i) => i).filter((i) => !appliedSet.has(i)),
-  };
+  // The verdict rule is Review's own (any finding at all → revised); the applied-state
+  // maths is shared, because Plan needs exactly the same answer.
+  return { verdict: findingsCount === 0 ? 'clean' : 'revised', ...appliedState(findingsCount, appliedIndices) };
 }
 
 export interface ReviewStageClientProps {

@@ -38,7 +38,7 @@ import { ConversationComposer } from '@/components/patterns/conversation';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { ProjectPhase } from '@/db/enums';
 import type { PlanPhaseSeed } from '@/build/plan-types';
-import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, AuditRoundCard as PatternAuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { ParticipantStrip } from '@/components/forge/collab/Participants';
 import type { Participant } from '@/collab/types';
@@ -836,7 +836,7 @@ function ValidateStage({
   appliedPasses: Set<number>;
   applyCount: number;
   onApplyFindings: (indices: number[], passNo?: number) => void;
-  rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: Finding[] }[];
+  rounds: { passNo: number; verdict: 'clean' | 'revised'; findings: Finding[]; appliedIndices: number[] }[];
   locked: boolean;
   onRunAudit: () => void;
   onLock: () => void;
@@ -844,6 +844,7 @@ function ValidateStage({
   const [docView, setDocView] = useState<'document' | 'audit'>(planMd ? 'document' : 'audit');
   const [selectedPass, setSelectedPass] = useState<number | null>(rounds.length > 0 ? rounds[rounds.length - 1].passNo : null);
   const activeRound = selectedPass !== null ? rounds.find((r) => r.passNo === selectedPass) : null;
+  const activeState = appliedState(activeRound?.findings.length ?? 0, activeRound?.appliedIndices ?? []);
   // Manual subset selection — indices into the active round's findings array.
   const [selectedFindings, setSelectedFindings] = useState<number[]>([]);
   const toggleFinding = (i: number) => setSelectedFindings((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
@@ -965,7 +966,11 @@ function ValidateStage({
                 selectedIndices={selectedFindings}
                 onToggle={toggleFinding}
                 applying={applying}
-                applied={activeRound ? appliedPasses.has(activeRound.passNo) : false}
+                // Mark only the applied rows, so an un-applied finding stays selectable and a
+                // partial apply can be finished. `appliedIndices` was already computed for
+                // every round and then dropped, which is why a subset apply used to lock the
+                // whole pass here while the identical Review grid did not.
+                appliedIndices={activeRound.appliedIndices}
                 readOnly={readOnly}
               />
             )}
@@ -979,11 +984,14 @@ function ValidateStage({
               // vanishing, matching the governed AuditView so the three stages can't drift.
               <FindingsApplyBar
                 selectedCount={selectedFindings.length}
-                total={activeRound.findings.length}
+                // Select-all and apply act on what REMAINS, not the whole set.
+                total={activeState.remainingIndices.length}
                 applying={applying}
-                readOnly={readOnly || appliedPasses.has(activeRound.passNo)}
-                onToggleAll={() => setSelectedFindings(selectedFindings.length === activeRound.findings.length ? [] : activeRound.findings.map((_, i) => i))}
-                onApply={() => apply(activeRound.passNo, selectedFindings)}
+                readOnly={readOnly || activeState.allApplied}
+                onToggleAll={() => setSelectedFindings(
+                  selectedFindings.length === activeState.remainingIndices.length ? [] : activeState.remainingIndices,
+                )}
+                onApply={() => apply(activeRound.passNo, selectedFindings.filter((i) => !activeRound.appliedIndices.includes(i)))}
               />
             ) : null}
             {!mmaReady ? (

@@ -7,6 +7,9 @@
 import { eq, or, isNull, desc, and } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { notification, type NotificationRow } from '@/db/schema/ops';
+import { HANDLER_EVENT } from '@/details/project-event-labels';
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
+import type { StageKind } from '@/db/enums';
 
 // ── Handler metadata (dispatch failure context) ────────────────────
 
@@ -16,26 +19,47 @@ interface HandlerMeta {
   activity: string;
 }
 
-const HANDLER_META: Record<string, HandlerMeta> = {
-  'explore-propose': { stage: 'Explore', phase: 'Discover', activity: 'Analysis failed' },
-  'explore-synthesize': { stage: 'Explore', phase: 'Synthesize', activity: 'Synthesis failed' },
-  'spec-auto-draft': { stage: 'Spec', phase: 'Craft', activity: 'Auto-draft failed' },
-  'spec-refine': { stage: 'Spec', phase: 'Craft', activity: 'Refinement failed' },
-  'spec-audit': { stage: 'Spec', phase: 'Finalize', activity: 'Audit failed' },
-  'spec-audit-apply': { stage: 'Spec', phase: 'Finalize', activity: 'Revision failed' },
-  'plan-author': { stage: 'Plan', phase: 'Refine', activity: 'Plan authoring failed' },
-  'plan-audit': { stage: 'Plan', phase: 'Validate', activity: 'Plan audit failed' },
-  'plan-audit-apply': { stage: 'Plan', phase: 'Validate', activity: 'Plan revision failed' },
-  'execute-pipeline': { stage: 'Execute', phase: 'Monitor', activity: 'Execution failed' },
-  'code-review': { stage: 'Review', phase: 'Review', activity: 'Code review failed' },
-  'review-apply': { stage: 'Review', phase: 'Review', activity: 'Review fixes failed' },
-  'journal-harvest': { stage: 'Journal', phase: 'Journal', activity: 'Harvest failed' },
-  'journal-record': { stage: 'Journal', phase: 'Journal', activity: 'Record failed' },
+/**
+ * Per-handler failure phrasing + the PHASE label. The STAGE is NOT stored here — it is
+ * derived from `HANDLER_EVENT` (the one handler→stage map) through `STAGE_LABEL` (the one
+ * stage→display-name map), because a hand-written stage name drifts: this table said
+ * "Journal" where every other surface says "Reflect", so a failed harvest notified the
+ * user about a stage that appears nowhere in the UI.
+ *
+ * Phases stay per-handler: they are not the stage's phase keys (execute/implement shows as
+ * "Monitor"), so there is nothing to derive them from. `plan-refine` was missing entirely,
+ * so a failed task refinement notified with stage "?" and phase "?".
+ */
+const HANDLER_PHASE: Record<string, { phase: string; activity: string }> = {
+  'explore-propose': { phase: 'Discover', activity: 'Analysis failed' },
+  'explore-synthesize': { phase: 'Synthesize', activity: 'Synthesis failed' },
+  'spec-auto-draft': { phase: 'Craft', activity: 'Auto-draft failed' },
+  'spec-refine': { phase: 'Craft', activity: 'Refinement failed' },
+  'spec-audit': { phase: 'Finalize', activity: 'Audit failed' },
+  'spec-audit-apply': { phase: 'Finalize', activity: 'Revision failed' },
+  'plan-author': { phase: 'Refine', activity: 'Plan authoring failed' },
+  'plan-refine': { phase: 'Refine', activity: 'Task refinement failed' },
+  'plan-audit': { phase: 'Validate', activity: 'Plan audit failed' },
+  'plan-audit-apply': { phase: 'Validate', activity: 'Plan revision failed' },
+  'execute-pipeline': { phase: 'Monitor', activity: 'Execution failed' },
+  'code-review': { phase: 'Review', activity: 'Code review failed' },
+  'review-apply': { phase: 'Review', activity: 'Review fixes failed' },
+  'journal-harvest': { phase: 'Journal', activity: 'Harvest failed' },
+  'journal-record': { phase: 'Journal', activity: 'Record failed' },
 };
 
 function handlerMeta(handler: string): HandlerMeta {
-  return HANDLER_META[handler] ?? { stage: '?', phase: '?', activity: `${handler} failed` };
+  const kind = HANDLER_EVENT[handler]?.stage as StageKind | undefined;
+  const local = HANDLER_PHASE[handler];
+  return {
+    stage: kind ? STAGE_LABEL[kind] : '?',
+    phase: local?.phase ?? '?',
+    activity: local?.activity ?? `${handler} failed`,
+  };
 }
+
+/** Test seam: the resolved (stage, phase, activity) a failure notification would render. */
+export const notificationMetaForTest = handlerMeta;
 
 // ── Queries ────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
-import { groupTasksByRepo, buildForgeBranch, inferExecutePhase } from '@/build/execute-core';
+import { groupTasksByRepo, buildForgeBranch } from '@/build/execute-core';
+import { inferExecutePhase } from '@/build/execute-types';
 
 describe('groupTasksByRepo', () => {
   it('groups tasks by targetRepoId and preserves order', () => {

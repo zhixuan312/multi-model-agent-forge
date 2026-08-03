@@ -2,11 +2,12 @@ import { execFile } from 'node:child_process';
 import { slugRefComponent } from '@/build/slug';
 import { formatIsoDate } from '@/lib/format-date';
 
-// Re-export types + inferExecutePhase for server-side consumers
-export { type TaskForGrouping, type RepoGroup, type ExecutePhase, inferExecutePhase } from '@/build/execute-types';
 export { groupTasksByRepo, buildForgeBranch, listRemoteBranches };
 
-// Import types for use in this file
+// This module used to also re-export `execute-types`' four members "for server-side
+// consumers". No production code imported them from here — only a test did — so the
+// re-export was a second path to one definition, which the project rules forbid. Import
+// them from `@/build/execute-types` directly.
 import type { TaskForGrouping, RepoGroup } from '@/build/execute-types';
 
 function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, projectCreatedAt: Date): RepoGroup[] {

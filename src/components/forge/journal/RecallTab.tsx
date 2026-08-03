@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { Card, CardContent, Eyebrow, Spinner, EmptyState } from '@/components/ui';
+import { Button, Card, CardContent, Eyebrow, Spinner, EmptyState, Textarea } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { JournalNote } from '@/components/forge/journal/JournalNote';
@@ -309,7 +309,7 @@ export function RecallTab({
         id: `recent-${r.id}`,
         primary: r.question,
         defaultOpen: r.batchId != null && r.batchId === justAskedKey,
-        body: <RecentBody recall={r} index={index} onNavigate={onNavigate} onRefresh={() => void refreshRecent(r)} onPin={() => pinRecent(r)} />,
+        body: <RecentBody recall={r} index={index} onNavigate={onNavigate} onRefresh={() => refreshRecent(r)} onPin={() => pinRecent(r)} />,
       })),
     });
   }
@@ -388,7 +388,8 @@ export function RecallTab({
   // Unpin is a reversible inline action → optimistic: the row disappears on click and is
   // re-inserted (at its original position) if the DELETE fails, with an error toast.
   function unpin(p: PinnedView) {
-    const index = pins.findIndex((x) => x.id === p.id);
+    // `at`, not `index`: the component's `index` prop is the node lookup table.
+    const at = pins.findIndex((x) => x.id === p.id);
     void optimistic.run({
       apply: () => setPins((prev) => prev.filter((x) => x.id !== p.id)),
       commit: async () => {
@@ -400,7 +401,7 @@ export function RecallTab({
         setPins((prev) => {
           if (prev.some((x) => x.id === p.id)) return prev;
           const next = [...prev];
-          next.splice(Math.min(index < 0 ? next.length : index, next.length), 0, p);
+          next.splice(Math.min(at < 0 ? next.length : at, next.length), 0, p);
           return next;
         }),
       error: 'Could not unpin — restored.',
@@ -475,27 +476,21 @@ function RecallComposer({
           }}
           className="mt-2 flex min-h-0 flex-1 flex-col gap-2"
         >
-          <label className="sr-only" htmlFor="recall-query">
-            Recall query
-          </label>
-          <textarea
+          {/* The governed field, not a hand-rolled one: this restated the border, focus
+              ring and field look that `Textarea` owns. */}
+          <Textarea
             id="recall-query"
             aria-label="Recall query"
             value={query}
             onChange={(e) => onChange(e.target.value)}
             placeholder="e.g. how should new settings tabs be structured?"
-            className="min-h-[8rem] w-full flex-1 resize-none rounded-[var(--r-md)] border border-line bg-surface-2 p-3 text-sm text-ink outline-none focus:border-accent"
+            className="min-h-[8rem] flex-1 resize-none"
           />
           <div className="flex shrink-0 items-center justify-between gap-2">
             <span className="text-xs text-ink-faint">{length}/4000</span>
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-[var(--r-md)] bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            >
+            <Button type="submit" size="sm" disabled={!canSubmit} loading={running} rightIcon={running ? undefined : <ArrowRight />}>
               {running ? 'Recalling…' : 'Recall'}
-              {!running ? <ArrowRight className="size-4" /> : null}
-            </button>
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -544,11 +539,13 @@ function RecentBody({
   recall: RecentRecall;
   index: IndexLookupRow[];
   onNavigate: (id: string) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   onPin: () => Promise<boolean>;
 }) {
   const [refreshing, setRefreshing] = useState(false);
-  const [pinning, setPinning] = useState(false);
+  // Three states, not two: "Pinned" is a CLAIM, and a boolean made the button claim it
+  // while the request was still in flight.
+  const [pin, setPin] = useState<PinState>('idle');
   if (!recall.answerMd) return null;
   return (
     <>
@@ -558,8 +555,25 @@ function RecentBody({
         onNavigate={onNavigate}
       />
       <div className="mt-3 flex items-center gap-2">
-        <RowAction icon={<RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />} label={refreshing ? 'Refreshing…' : 'Refresh'} onClick={() => { setRefreshing(true); onRefresh(); }} disabled={refreshing} tone="accent" />
-        <RowAction icon={<Pin className="size-3.5" />} label={pinning ? 'Pinned' : 'Pin'} onClick={async () => { setPinning(true); if (!(await onPin())) setPinning(false); }} disabled={pinning} tone="accent" />
+        {/* `finally`, like FaqBody's refresh: this fired `onRefresh()` without awaiting
+            it, so the row kept its spinner and stayed disabled forever. */}
+        <RowAction
+          icon={<RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />}
+          label={refreshing ? 'Refreshing…' : 'Refresh'}
+          onClick={async () => {
+            setRefreshing(true);
+            try { await onRefresh(); } finally { setRefreshing(false); }
+          }}
+          disabled={refreshing}
+          tone="accent"
+        />
+        <RowAction
+          icon={<Pin className="size-3.5" />}
+          label={PIN_LABEL[pin]}
+          onClick={async () => { setPin('busy'); setPin((await onPin()) ? 'done' : 'idle'); }}
+          disabled={pin !== 'idle'}
+          tone="accent"
+        />
       </div>
     </>
   );
@@ -586,7 +600,7 @@ function FaqBody({
     : null;
   const [answer, setAnswer] = useState<ParsedRecall | null>(stored);
   const [refreshing, setRefreshing] = useState(false);
-  const [pinning, setPinning] = useState(false);
+  const [pin, setPin] = useState<PinState>('idle');
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
@@ -625,15 +639,21 @@ function FaqBody({
         />
         <RowAction
           icon={<Pin className="size-3.5" />}
-          label={pinning ? 'Pinned' : 'Pin'}
-          onClick={async () => { if (!answer) return; setPinning(true); if (!(await onPin(faq.question, answer))) setPinning(false); }}
-          disabled={pinning || !answer}
+          label={PIN_LABEL[pin]}
+          onClick={async () => { if (!answer) return; setPin('busy'); setPin((await onPin(faq.question, answer)) ? 'done' : 'idle'); }}
+          disabled={pin !== 'idle' || !answer}
           tone="accent"
         />
       </div>
     </>
   );
 }
+
+/** Pin is a three-state control: idle, in flight, saved. A boolean labelled the button
+ *  "Pinned" the moment it was clicked — a claim the server had not yet honoured, and one
+ *  that was wrong outright when the POST failed. */
+type PinState = 'idle' | 'busy' | 'done';
+const PIN_LABEL: Record<PinState, string> = { idle: 'Pin', busy: 'Pinning…', done: 'Pinned' };
 
 /** The shared inline row action (Refresh / Unpin / Pin) used inside every expanded body. */
 function RowAction({

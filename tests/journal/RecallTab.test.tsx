@@ -210,4 +210,51 @@ describe('RecallTab — polling stops when the tab unmounts', () => {
       vi.useRealTimers();
     }
   });
+
+  /**
+   * `RecentBody`'s Refresh fired `onRefresh()` without awaiting it and never cleared
+   * `refreshing`, so the row kept its spinner and stayed disabled for good. `FaqBody`
+   * had always done it right, in a `finally`.
+   */
+  it('re-enables Refresh on a recent row after a FAILED re-run', async () => {
+    // The success path replaces the row (the fresh answer lands as a new Recent entry and
+    // dedupes the old one away), so it remounts and hides the bug. On failure the SAME row
+    // survives — and it kept its spinner and stayed disabled for good, because the handler
+    // fired `onRefresh()` without awaiting it. `FaqBody` had always used a `finally`.
+    vi.useFakeTimers();
+    installFetch({ 'POST /api/journal/recall': () => new Response('{}', { status: 503 }) });
+    const recentRecalls: RecentRecall[] = [
+      { id: 'r1', question: 'q one two three', status: 'done', batchId: 'b1', answerMd: 'Old answer.', findings: [], citationIds: [] },
+    ];
+    render(<RecallTab index={INDEX} pinned={[]} faqs={[]} recentRecalls={recentRecalls} />);
+    fireEvent.click(screen.getByRole('button', { name: /q one two three/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /^Refresh$/ }));
+    await act(async () => { await vi.runAllTimersAsync(); });
+
+    expect(screen.queryByRole('button', { name: 'Refreshing…' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Refresh$/ })).toBeEnabled();
+  });
+
+  /** "Pinned" is a claim; a boolean made the button assert it the moment it was clicked. */
+  it('does not claim Pinned until the server has accepted the pin', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    installFetch({
+      'POST /api/journal/pins': (() =>
+        gate.then(() => new Response(JSON.stringify(pin({ id: 'new' })), { status: 201 }))) as unknown as () => Response,
+    });
+    const recentRecalls: RecentRecall[] = [
+      { id: 'r1', question: 'q one two three', status: 'done', batchId: 'b1', answerMd: 'A.', findings: [], citationIds: [] },
+    ];
+    render(<RecallTab index={INDEX} pinned={[]} faqs={[]} recentRecalls={recentRecalls} />);
+    fireEvent.click(screen.getByRole('button', { name: /q one two three/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pinning…' })).toBeInTheDocument());
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
+
+    release();
+    await waitFor(() => expect(screen.getByText('Pinned')).toBeInTheDocument());
+  });
 });

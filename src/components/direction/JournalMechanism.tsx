@@ -73,7 +73,9 @@ function Store() {
 export function JournalRecordMechanism() {
   return (
     <div className="flex flex-col gap-4">
-      <Flow label="The six types" route="one `type` per node · OKF" steps={JOURNAL_TYPES} />
+      {/* The COUNT is derived: "The six types" was a number written into a label above a
+          list, and the two would have parted company the moment a category was added. */}
+      <Flow label={`The ${JOURNAL_TYPES.length} types`} route="one `type` per node · OKF" steps={JOURNAL_TYPES} />
       <Flow label="Record" route="POST /journal-record · write route" steps={JOURNAL_RECORD} />
       <Store />
     </div>

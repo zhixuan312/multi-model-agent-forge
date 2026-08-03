@@ -41,14 +41,21 @@ describe('single-source taxonomy styling', () => {
   });
 
   it('no file but the owner maps the learning categories to styles', () => {
-    // Three distinct categories as adjacent object keys is the signature of a rival map;
-    // prose or a single mention is not.
+    /**
+     * Three distinct categories as adjacent object keys MAPPING TO A CLASS LIST is the
+     * signature of a rival style map. The value test matters: the repo legitimately holds
+     * category-keyed maps to other things — `direction-reference.ts` keys the manual's prose
+     * by category so a new one cannot go undocumented — and those are a different
+     * relationship, not a copy of this one. A check that flagged them would be turned off,
+     * which is worse than one that is narrow. (Its sibling above, the STAGE_LABEL check,
+     * tests its values the same way and says so.)
+     */
     const offenders: string[] = [];
     for (const rel of files) {
       if (rel === OWNER) continue;
       const text = readFileSync(join(ROOT, rel), 'utf8');
       const hits = LEARNING_CATEGORIES.filter((c) =>
-        new RegExp(`^\\s*['"]?${c}['"]?\\s*:`, 'im').test(text),
+        new RegExp(`^\\s*['"]?${c}['"]?\\s*:\\s*['"\`][^'"\`]*\\b(?:bg|text|border|ring)-`, 'im').test(text),
       );
       if (hits.length >= 3) offenders.push(`${rel} (keys: ${hits.join(', ')})`);
     }

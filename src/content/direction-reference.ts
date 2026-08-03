@@ -56,6 +56,7 @@ export const PRINCIPLES: Principle[] = [
 // ── Read-only route criteria (exact, from core/src/skills/<route>/) ──
 
 import type { Severity } from '@/lib/severity';
+import { LEARNING_CATEGORIES, type LearningCategory } from '@/journal/types';
 
 export interface Criterion {
   id: number;
@@ -445,15 +446,29 @@ export interface FlowStep {
   detail: string;
 }
 
-/** The six OKF `type`s every learning is classified into (from journal_record/implement.md). */
-export const JOURNAL_TYPES: FlowStep[] = [
-  { name: 'decision', detail: 'What was tried and what happened — and what to do instead, and when it applies.' },
-  { name: 'design', detail: 'Why the system is structured this way — the constraints it creates, what breaks if violated.' },
-  { name: 'behavior', detail: 'How the user works — the preferences and patterns worth honoring next time.' },
-  { name: 'process', detail: 'What works in the SDLC — a repeatable way of running the work itself.' },
-  { name: 'knowledge', detail: 'A research finding or ecosystem fact — established once, reused instead of re-derived.' },
-  { name: 'style', detail: 'A documentation or code convention the project follows.' },
-];
+/**
+ * What each OKF `type` means (from journal_record/implement.md).
+ *
+ * The TYPES come from `LEARNING_CATEGORIES` — the taxonomy the product classifies with — and
+ * this file supplies the prose for each. It used to restate the six names as well, so the
+ * manual held its own copy of the taxonomy it describes: a seventh category would have gone
+ * undocumented in silence, and a renamed one would have left the manual describing a type
+ * that no longer exists. The record is TOTAL, so a new category cannot be added without
+ * writing the line that explains it.
+ */
+const JOURNAL_TYPE_DETAIL: Record<LearningCategory, string> = {
+  decision: 'What was tried and what happened — and what to do instead, and when it applies.',
+  design: 'Why the system is structured this way — the constraints it creates, what breaks if violated.',
+  behavior: 'How the user works — the preferences and patterns worth honoring next time.',
+  process: 'What works in the SDLC — a repeatable way of running the work itself.',
+  knowledge: 'A research finding or ecosystem fact — established once, reused instead of re-derived.',
+  style: 'A documentation or code convention the project follows.',
+};
+
+export const JOURNAL_TYPES: FlowStep[] = LEARNING_CATEGORIES.map((name) => ({
+  name,
+  detail: JOURNAL_TYPE_DETAIL[name],
+}));
 
 /** Record flow — POST /journal-record, the write route. */
 export const JOURNAL_RECORD: FlowStep[] = [

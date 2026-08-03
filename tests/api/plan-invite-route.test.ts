@@ -35,6 +35,19 @@ describe('plan invite — plan-level participant persisted, single notification 
     expect(insertNotification).not.toHaveBeenCalled();
   });
 
+  /**
+   * The team filter read `me.teamId ?? ''`. An empty string against a uuid column is not
+   * "matches nothing" — Postgres rejects the literal outright — so the one caller shape
+   * that could reach it would 500. The guard already refuses a teamless actor; the route
+   * now says so instead of substituting a value that cannot work.
+   */
+  it('403s a teamless caller rather than comparing an empty string to a uuid', async () => {
+    guardResult = { memberId: 'me', member: { ...actor('me'), teamId: null } };
+    const res = await POST(req({ memberId: 'bob' }) as never, ctx);
+    expect(res.status).toBe(403);
+    expect(insertNotification).not.toHaveBeenCalled();
+  });
+
   it('400 when memberId is missing', async () => {
     guardResult = { memberId: 'me', member: actor('me') };
     expect((await POST(req({}) as never, ctx)).status).toBe(400);

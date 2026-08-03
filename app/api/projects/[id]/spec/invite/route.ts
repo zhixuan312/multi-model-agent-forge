@@ -25,6 +25,13 @@ export async function POST(
   const memberId = typeof body.memberId === 'string' ? body.memberId : '';
   const componentId = typeof body.componentId === 'string' ? body.componentId : '';
   if (!memberId || !componentId) return NextResponse.json({ error: 'memberId and componentId are required' }, { status: 400 });
+  // `guardProjectWrite` resolves a `ProjectActor`, which `projectActorFromMember`
+  // refuses to build without a team — so a teamless caller is already 401 by here. This
+  // read `me.teamId ?? ''`, which is not a harmless fallback: an empty string compared
+  // against a uuid column makes Postgres error out, so the one path that could reach it
+  // would 500 rather than match nothing. Say the invariant instead of faking a value.
+  const callerTeamId = me.teamId;
+  if (!callerTeamId) return NextResponse.json({ error: 'A team is required.' }, { status: 403 });
   const db = getDb();
 
   // The invitee must be a real member of the caller's team — otherwise this is a notification
@@ -32,7 +39,7 @@ export async function POST(
   const [invitee] = await db
     .select({ id: member.id })
     .from(member)
-    .where(and(eq(member.id, memberId), eq(member.teamId, me.teamId ?? '')))
+    .where(and(eq(member.id, memberId), eq(member.teamId, callerTeamId)))
     .limit(1);
   if (!invitee) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 

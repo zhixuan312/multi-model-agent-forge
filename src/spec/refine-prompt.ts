@@ -1,5 +1,5 @@
 /**
- * Spec section refine prompt builder — constructs the 6-part prompt for
+ * Spec section refine prompt builder — constructs the system + user prompt for
  * the MMA main orchestration route when a user @Forge's in a discussion.
  *
  * Session lifecycle:
@@ -42,7 +42,7 @@ export function getMessagesSinceLastForge(
 }
 
 /**
- * Build the 6-part structured prompt for the refine call.
+ * Build the refine call's system + user prompt.
  */
 export function buildRefinePrompt(input: RefinePromptInput): { system: string; user: string } {
   const headingList = input.sectionHeadings.map((h) => `  - ### ${h}`).join('\n');

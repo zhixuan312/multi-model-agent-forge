@@ -3,15 +3,19 @@ import { COMPONENT_KIND, type ComponentKind } from '@/db/enums';
 /**
  * Spec component templates — the canonical component + section structure. Each
  * template drives the Outline picker, the Craft auto-draft prompt, and the
- * assembled-document heading structure (`draftHeading`). All 8 components are
+ * assembled-document heading structure (`draftHeading`). Every component is
  * default-checked; the user can toggle them off in the Outline phase.
+ *
+ * These are in-memory template data. The per-team rows live as jsonb on
+ * `team_spec_template.sections` — the `component_section` table and `primary_roles`
+ * column these fields used to be documented as persisting to are both long gone.
  */
 
 /** One sub-section of a component: drives Q&A and the drafted heading. */
 export interface SectionTemplate {
-  /** Stable section key (persisted on `component_section.key`). */
+  /** Stable section key. */
   key: string;
-  /** Display label (persisted on `component_section.label`; the nav label). */
+  /** Display label — also the nav label. */
   label: string;
   /** Seeds Q&A question generation and labels the drafted section. */
   prompt: string;
@@ -23,7 +27,7 @@ export interface SectionTemplate {
 export interface ComponentTemplate {
   kind: ComponentKind;
   label: string;
-  /** Advisory discipline hints (rendered as `RoleChip`s; persisted on `primary_roles`). */
+  /** Advisory discipline hints, rendered as `RoleChip`s. */
   primaryRoles: string[];
   /** Pre-checked at `/spec/outline` when true. */
   default: boolean;

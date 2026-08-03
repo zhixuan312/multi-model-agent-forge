@@ -22,6 +22,7 @@ import {
 import { formatCost, formatDuration } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
 import type { RouteAggRow } from '@/usage/usage-core';
+import { USAGE_SOURCES, SOURCE_FILTER_LABEL, type UsageSource } from '@/usage/source';
 
 export interface BatchRowData {
   source: string;
@@ -34,7 +35,7 @@ export interface BatchRowData {
   taskCount: number;
 }
 
-type SourceFilter = 'all' | 'projects' | 'loops' | 'standalone';
+type SourceFilter = 'all' | UsageSource;
 
 export function UsageBatchTable({
   data,
@@ -133,9 +134,11 @@ export function UsageBatchTable({
             <SelectTrigger aria-label="Filter by source" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All sources</SelectItem>
-              <SelectItem value="projects">Projects</SelectItem>
-              <SelectItem value="loops">Loops</SelectItem>
-              <SelectItem value="standalone">Standalone</SelectItem>
+              {USAGE_SOURCES.map((src) => (
+                <SelectItem key={src} value={src}>
+                  {SOURCE_FILTER_LABEL[src]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Toolbar>

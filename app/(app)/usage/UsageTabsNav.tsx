@@ -1,8 +1,9 @@
+import type { UsageSource } from '@/usage/source';
 import { BarChart3, FolderKanban, Repeat, Zap } from 'lucide-react';
 import type { ForgeRole } from '@/auth/auth-provider';
 import { NavTabs } from '@/components/ui/nav-tabs';
 
-export type UsageView = 'overview' | 'projects' | 'loops' | 'standalone';
+export type UsageView = 'overview' | UsageSource;
 
 const TABS: ReadonlyArray<{ key: UsageView; label: string; href: string; glyph: React.ReactNode }> = [
   { key: 'overview', label: 'Overview', href: '/usage', glyph: <BarChart3 className="size-4" /> },

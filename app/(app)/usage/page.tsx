@@ -7,6 +7,7 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { usageOverview, routeAggForSource, type RouteAggRow } from '@/usage/usage-core';
 import { parsePeriod } from '@/usage/period';
+import { SOURCE_ROW_LABEL } from '@/usage/source';
 import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/format';
 import { UsageTabsNav } from './UsageTabsNav';
 import { PeriodSelect } from './PeriodSelect';
@@ -76,12 +77,7 @@ export default async function UsagePage({
   const tableRows: BatchRowData[] = data.bySources.map((source) => ({
     source: source.source,
     route: source.source,
-    routeLabel:
-      source.source === 'projects'
-        ? 'Projects (SDLC)'
-        : source.source === 'loops'
-          ? 'Loops (scheduled)'
-          : 'Standalone (ad-hoc)',
+    routeLabel: SOURCE_ROW_LABEL[source.source],
     costUsd: source.costUsd,
     savedUsd: source.savedUsd,
     avgCostUsd: source.taskCount > 0 ? source.costUsd / source.taskCount : 0,

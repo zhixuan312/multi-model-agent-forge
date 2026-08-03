@@ -11,6 +11,7 @@ import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 
 import type { Period } from '@/usage/period';
+import type { UsageSource } from '@/usage/source';
 
 const TIMEZONE = 'Asia/Singapore';
 
@@ -85,7 +86,7 @@ export interface OverviewMetrics {
 }
 
 export interface SourceRow {
-  source: 'projects' | 'loops' | 'standalone';
+  source: UsageSource;
   taskCount: number;
   costUsd: number;
   savedUsd: number;
@@ -755,7 +756,7 @@ async function routeAggQuery(
 }
 
 export async function routeAggForSource(
-  source: 'projects' | 'loops' | 'standalone',
+  source: UsageSource,
   period: Period,
   deps: UsageDeps = {},
 ): Promise<RouteAggRow[]> {

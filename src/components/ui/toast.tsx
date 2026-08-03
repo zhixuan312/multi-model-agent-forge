@@ -66,7 +66,16 @@ export function showToast(toast: Omit<ToastItem, 'id'>): void {
   }
 }
 
-export function dismissToast(id: string): void {
+/**
+ * Not exported: every dismissal originates inside this module — the auto-dismiss timer, the
+ * card's X, and the Retry button. It was public API with no caller anywhere in `src`, `app`
+ * or the tests, which is a promise the module was making to nobody.
+ *
+ * (`durationMs` on the other hand STAYS, though no production call site passes one either:
+ * it is documented API on `showToast`, one field wide, and a toast primitive without a
+ * duration override is the unusual thing. Recorded rather than removed on purpose.)
+ */
+function dismissToast(id: string): void {
   const t = timers.get(id);
   // Cancel the auto-dismiss: without this a manually-closed toast still woke its timer later
   // to filter a list it was no longer in, and re-rendered every toast on screen to do it.

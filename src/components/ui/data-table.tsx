@@ -58,6 +58,34 @@ export function DataTableHeader({
   );
 }
 
+/**
+ * Which page buttons to draw: first, last, the current page and its neighbours, with a gap
+ * marker where numbers are skipped.
+ *
+ * The pager used to render `Array.from({ length: pageCount })` — ONE BUTTON PER PAGE. No
+ * caller passes `pageSize`, so every paginated table in the app runs at the default 10: a
+ * usage table with 500 rows drew 50 buttons across the footer, 2,000 rows drew 200. The
+ * control degraded exactly as the data it exists to navigate grew.
+ *
+ * Pure and exported so the windowing is tested directly rather than through the DOM.
+ */
+export type PageSlot = number | 'gap';
+
+export function pageWindow(pageIndex: number, pageCount: number): PageSlot[] {
+  // Up to 7 pages every number fits, and a gap marker would be longer than what it hides.
+  if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i);
+  const first = 0;
+  const last = pageCount - 1;
+  const from = Math.max(first + 1, pageIndex - 1);
+  const to = Math.min(last - 1, pageIndex + 1);
+  const out: PageSlot[] = [first];
+  if (from > first + 1) out.push('gap');
+  for (let i = from; i <= to; i++) out.push(i);
+  if (to < last - 1) out.push('gap');
+  out.push(last);
+  return out;
+}
+
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -227,8 +255,10 @@ export function DataTable<TData, TValue>({
       )}
 
       <div className="mt-auto flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-3">
+        {/* Nothing to count is not "Showing 0–0 of 0" — the empty state above already says
+            there is nothing, and a range of zeroes reads like a broken filter. */}
         <Micro>
-          Showing {total === 0 ? 0 : start + 1}–{Math.min(start + ps, total)} of {total}
+          {total === 0 ? 'No rows' : `Showing ${start + 1}–${Math.min(start + ps, total)} of ${total}`}
         </Micro>
         {pageCount > 1 ? (
           <nav className="flex items-center gap-1" aria-label="Pagination">
@@ -239,20 +269,27 @@ export function DataTable<TData, TValue>({
             >
               <ChevronLeft aria-hidden />
             </PagerButton>
-            {Array.from({ length: pageCount }, (_, i) => i).map((i) => (
-              <button
-                key={i}
-                type="button"
-                aria-current={i === pageIndex ? 'page' : undefined}
-                onClick={() => table.setPageIndex(i)}
-                className={cn(
-                  'focus-ring grid size-7 place-items-center rounded-[var(--r-sm)] border text-xs font-medium transition-colors',
-                  i === pageIndex ? 'border-accent text-accent' : 'border-line text-ink-soft hover:border-line-strong',
-                )}
-              >
-                {i + 1}
-              </button>
-            ))}
+            {pageWindow(pageIndex, pageCount).map((slot, at) =>
+              slot === 'gap' ? (
+                <span key={`gap-${at}`} aria-hidden className="px-1 text-xs text-ink-faint">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={slot}
+                  type="button"
+                  aria-current={slot === pageIndex ? 'page' : undefined}
+                  aria-label={`Page ${slot + 1}`}
+                  onClick={() => table.setPageIndex(slot)}
+                  className={cn(
+                    'focus-ring grid size-7 place-items-center rounded-[var(--r-sm)] border text-xs font-medium transition-colors',
+                    slot === pageIndex ? 'border-accent text-accent' : 'border-line text-ink-soft hover:border-line-strong',
+                  )}
+                >
+                  {slot + 1}
+                </button>
+              ),
+            )}
             <PagerButton
               label="Next page"
               disabled={!table.getCanNextPage()}

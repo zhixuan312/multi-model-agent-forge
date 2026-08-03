@@ -191,3 +191,19 @@ export type LoopRunStatus = (typeof LOOP_RUN_STATUS)[number];
  */
 export const DISCOVER_TASK_KIND = ['investigate', 'research', 'journal'] as const;
 export type DiscoverTaskKind = (typeof DISCOVER_TASK_KIND)[number];
+
+/**
+ * `ops_notification.kind` — what a user-facing alert is about.
+ *
+ * The column stays plain `text` on purpose: rows are historical and a kind retired from this
+ * list must still render. READERS therefore have to tolerate a value outside it. WRITERS do
+ * not — `CreateNotification.kind` is this type, so a typo at a call site fails to compile.
+ *
+ * That mattered. `NotificationBell` branched on `'section_mention'`, which nothing has ever
+ * written (both invite routes write `section_invite`, and the schema comment says so), so the
+ * @-glyph that distinguishes an invite was unreachable — and the component's own test fixture
+ * used the same non-existent kind, so it was asserting against a value production cannot
+ * produce.
+ */
+export const NOTIFICATION_KIND = ['dispatch_failed', 'section_invite'] as const;
+export type NotificationKind = (typeof NOTIFICATION_KIND)[number];

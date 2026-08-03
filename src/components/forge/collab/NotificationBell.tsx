@@ -14,8 +14,7 @@ import type { NotificationRow } from '@/db/schema/ops';
 
 import { formatTime } from '@/lib/format-date';
 import { responseError } from '@/lib/err';
-
-const shortTime = formatTime;
+import type { NotificationKind } from '@/db/enums';
 
 export function NotificationBell({ items: serverItems }: { items: NotificationRow[] }) {
   const [liveItems, setLiveItems] = useState<NotificationRow[] | null>(null);
@@ -131,6 +130,23 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
   );
 }
 
+/**
+ * The glyph per kind. TOTAL over `NotificationKind`, so a new kind must choose one here
+ * rather than inheriting whatever the last `else` happened to be.
+ *
+ * The invite branch tested `'section_mention'`, which nothing writes — both invite routes
+ * write `section_invite`, and `ops_notification`'s own schema comment says so. Every invite
+ * therefore fell through to the generic tick, and the @-glyph that exists to distinguish one
+ * was unreachable. The test fixture used the same non-existent kind, so it agreed.
+ */
+const KIND_GLYPH: Record<NotificationKind, { Icon: typeof AtSign; tone: 'fail' | 'normal' }> = {
+  dispatch_failed: { Icon: AlertTriangle, tone: 'fail' },
+  section_invite: { Icon: AtSign, tone: 'normal' },
+};
+
+/** The column is plain `text` — a row written by an older build can carry a retired kind. */
+const UNKNOWN_GLYPH = { Icon: Check, tone: 'normal' } as const;
+
 function NotificationRow({
   n,
   isUnread,
@@ -140,7 +156,8 @@ function NotificationRow({
   isUnread: boolean;
   onRead: (id: string) => void;
 }) {
-  const isFail = n.kind === 'dispatch_failed';
+  const { Icon, tone } = KIND_GLYPH[n.kind as NotificationKind] ?? UNKNOWN_GLYPH;
+  const isFail = tone === 'fail';
 
   return (
     <DropdownMenuItem
@@ -151,22 +168,28 @@ function NotificationRow({
       )}
     >
       <span className="relative mt-0.5 shrink-0">
-        {isFail ? (
-          <span className="grid size-7 place-items-center rounded-full bg-[var(--rose)]/10">
-            <AlertTriangle className="size-3.5 text-[var(--rose)]" />
-          </span>
-        ) : (
-          <span className="grid size-7 place-items-center rounded-full bg-accent-tint">
-            {n.kind === 'section_mention'
-              ? <AtSign className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />
-              : <Check className="size-3.5 text-accent" strokeWidth={2.5} aria-hidden />}
-          </span>
-        )}
+        <span
+          className={cn(
+            'grid size-7 place-items-center rounded-full',
+            isFail ? 'bg-[var(--rose)]/10' : 'bg-accent-tint',
+          )}
+        >
+          <Icon
+            className={cn('size-3.5', isFail ? 'text-[var(--rose)]' : 'text-accent')}
+            strokeWidth={isFail ? undefined : 2.5}
+            aria-hidden
+          />
+        </span>
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium leading-snug text-ink">{n.title}</span>
+        <span className="block text-xs font-medium leading-snug text-ink">
+          {n.title}
+          {/* Unread is otherwise a background tint and an aria-hidden dot — neither reaches a
+              screen reader. Same fix `StageNavigator` uses for its done rows. */}
+          {isUnread ? <span className="sr-only">, unread</span> : null}
+        </span>
         <span className="mt-0.5 block truncate text-[11px] text-ink-faint">
-          {n.subtitle ? `${n.subtitle} · ` : ''}{shortTime(n.createdAt)}
+          {n.subtitle ? `${n.subtitle} · ` : ''}{formatTime(n.createdAt)}
         </span>
       </span>
       {isUnread ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" aria-hidden /> : null}

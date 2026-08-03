@@ -6,6 +6,7 @@
 
 import { eq, or, isNull, desc, and } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
+import type { NotificationKind } from '@/db/enums';
 import { notification, type NotificationRow } from '@/db/schema/ops';
 import { HANDLER_EVENT } from '@/details/project-event-labels';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
@@ -108,7 +109,8 @@ export async function markAllRead(memberId: string | null, db?: Db): Promise<voi
 
 export interface CreateNotification {
   memberId?: string | null;
-  kind: string;
+  /** Typed, so a call site cannot invent a kind no reader knows about. */
+  kind: NotificationKind;
   title: string;
   subtitle?: string;
   sourceId?: string;

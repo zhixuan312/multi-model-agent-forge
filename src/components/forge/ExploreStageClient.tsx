@@ -120,13 +120,11 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
   const readOnly = props.readOnly ?? false;
   const lockedReason = props.lockedReason;
 
-  // Seed the live caches from RSC first paint.
-  if (qc.getQueryData(explorationKeys.tasks(props.projectId)) === undefined) {
-    qc.setQueryData(explorationKeys.tasks(props.projectId), props.initialTasks);
-  }
-  if (props.initialArtifact && qc.getQueryData(explorationKeys.artifact(props.projectId)) === undefined) {
-    qc.setQueryData(explorationKeys.artifact(props.projectId), props.initialArtifact);
-  }
+  // The live caches are seeded from the RSC first paint by `initialData` on each query
+  // below. There used to be a pair of `qc.setQueryData(...)` calls here doing the same
+  // thing — a write to an external store during render, which React does not allow and
+  // which a concurrent or Strict-Mode re-render runs more than once. Two mechanisms for
+  // one job, and the redundant one was the improper one.
 
   const { data: tasks = props.initialTasks } = useQuery<RailTask[]>({
     queryKey: explorationKeys.tasks(props.projectId),

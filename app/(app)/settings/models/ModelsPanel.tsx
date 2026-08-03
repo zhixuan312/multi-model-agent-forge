@@ -6,27 +6,31 @@ import { Check, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Card, CardContent, Field, Input, Button, Badge, Micro, Label, TextStrong, Mono, Segmented } from '@/components/ui';
 import { VerifyResultBox } from '@/components/patterns/verify-result-box';
-import type { MmaTiers, TierKey, TierConfig } from '@/mma/mma-config-reader';
+import { TIERS, type MmaTiers, type TierKey, type TierConfig } from '@/mma/mma-config-reader';
+import type { ConfigureProviderResponse, Dialect as ProviderDialect } from '@/mma/configure-provider';
 import type { FlatProfile } from '@/mma/model-profiles';
 
-type Dialect = 'claude' | 'codex';
-type AuthMode = 'oauth' | 'api-key';
+/**
+ * Every type here comes from the module that owns it.
+ *
+ * This file used to declare `type Dialect`, `type AuthMode`, and an
+ * `interface ConfigureResponse` that was CHARACTER-FOR-CHARACTER identical to
+ * `ConfigureProviderResponse` — a second copy of the same wire contract, in the file that
+ * consumes it. The request side of that contract already drifted once in this audit (it
+ * was reaching the client through an `as` cast); a duplicated response type is the same
+ * exposure with no compiler between the copies at all.
+ */
+type Dialect = ProviderDialect;
+type AuthMode = TierConfig['authMode'];
+type ConfigureResponse = ConfigureProviderResponse;
 
-interface ConfigureResponse {
-  verified: boolean;
-  reason: string;
-  applied: boolean;
-  tier: string;
-  provider: string;
-  model: { id: string; family: string; tier: string; recognized: boolean };
-  probe?: { reachable: boolean; modelListed: boolean | null; detail: string };
-}
-
-const TIER_META: { key: TierKey; title: string }[] = [
-  { key: 'main', title: 'Main' },
-  { key: 'complex', title: 'Complex' },
-  { key: 'standard', title: 'Standard' },
-];
+/** Title per tier. Total over `TierKey`, ordered by the module that owns the tiers. */
+const TIER_TITLE: Record<TierKey, string> = {
+  main: 'Main',
+  complex: 'Complex',
+  standard: 'Standard',
+};
+const TIER_META = TIERS.map((key) => ({ key, title: TIER_TITLE[key] }));
 
 /**
  * The Primary (2/3) panel of the Models tab — one bordered "spotlight" panel

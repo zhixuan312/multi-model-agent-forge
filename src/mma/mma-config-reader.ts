@@ -27,7 +27,11 @@ export interface TierConfig {
 
 export type MmaTiers = Record<TierKey, TierConfig | null>;
 
-const TIERS: TierKey[] = ['main', 'complex', 'standard'];
+/**
+ * The tiers, in display order. Exported because the Models panel needs the same order and
+ * was keeping its own copy — one list, one order.
+ */
+export const TIERS: readonly TierKey[] = ['main', 'complex', 'standard'];
 
 /** Pure: map a parsed config object → the three tier views. */
 export function parseMmaTiers(json: unknown): MmaTiers {

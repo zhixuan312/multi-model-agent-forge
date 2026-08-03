@@ -149,7 +149,21 @@ export function UsageBatchTable({
         getRowId={(r) => `${r.source}-${r.route}`}
         expandedId={expandedId}
         renderExpanded={(row) => <RouteBreakdown routes={detailBySource[row.source] ?? []} />}
-        emptyState={<EmptyState icon={<BarChart3 />} title="No usage data" description="No activity matches your filter in this period." />}
+        emptyState={
+          /*
+           * A filter miss is the ONLY way this table empties. `data` is the three
+           * per-source aggregate rows (`bySources` in usage/page.tsx), which are always
+           * present — a period with no activity renders three zero rows, not an empty
+           * table. So the three sibling usage tables' empty-vs-filtered split does not
+           * apply here; what applies is that the title must not claim "No usage data"
+           * when the data is there and the filter hid it.
+           */
+          <EmptyState
+            icon={<BarChart3 />}
+            title="No activity matches"
+            description="Adjust the search or source filter above."
+          />
+        }
       />
     </Card>
   );

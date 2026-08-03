@@ -1,6 +1,6 @@
 /**
  * Stateless cookie-presence pre-check logic for the Edge middleware (F28). NO
- * DB, NO is_admin — middleware can't open a Postgres connection on the Edge
+ * DB, NO role check — middleware can't open a Postgres connection on the Edge
  * runtime and can't read a DB fact. Full validation lives in `current-member.ts`
  * (Node runtime); admin enforcement in `require-admin.ts`.
  *

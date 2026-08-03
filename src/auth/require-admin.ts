@@ -4,8 +4,8 @@ import type { AuthedMember } from '@/auth/auth-provider';
 import { isAdminRole } from '@/db/enums';
 
 /**
- * The authoritative `is_admin` gate (Node runtime). Edge middleware only path-
- * gates by authentication — it cannot read `member.is_admin` (a DB fact). Every
+ * The authoritative admin gate (Node runtime), over `member.role`. Edge middleware only
+ * path-gates by authentication — it cannot read the role (a DB fact). Every
  * admin RSC page + handler calls this; non-admins get 403 (API) / redirect (page).
  */
 

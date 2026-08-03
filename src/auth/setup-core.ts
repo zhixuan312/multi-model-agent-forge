@@ -13,7 +13,7 @@ import { logEvent } from '@/observability/log-event';
  *
  * The `/setup` page is a ONE-TIME registration screen: it is available only
  * while the team has zero members, and its single output is the first admin
- * (`is_admin = true`). Once any member exists the gate is permanently closed —
+ * (role `org_admin`). Once any member exists the gate is permanently closed —
  * the page redirects to `/login` and `registerFirstAdmin` refuses
  * (`already_setup`). This is the only way the first admin is ever created;
  * there is no env-var bootstrap.

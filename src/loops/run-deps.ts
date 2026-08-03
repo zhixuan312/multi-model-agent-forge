@@ -1,5 +1,7 @@
 import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { parseLlmJson } from '@/lib/llm-json';
+import { logEvent } from '@/observability/log-event';
+import { errMessage } from '@/lib/err';
 import { join, dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
@@ -145,7 +147,7 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
         : (summaryRaw && typeof summaryRaw === 'object') ? JSON.stringify(summaryRaw) : '';
       return { output: text };
     },
-    recall: async (_repo, query, loopRunId) => {
+    recall: async (repo, query, loopRunId) => {
       const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);
       if (!existsSync(join(workspaceRoot, '.mma', 'journal'))) return '';
       try {
@@ -159,7 +161,11 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
         const recallOutput = ((e.output ?? {}) as Record<string, unknown>);
         const recallSummary = recallOutput.summary;
         return typeof recallSummary === 'string' ? recallSummary : '';
-      } catch {
+      } catch (e) {
+        // Recall is best-effort — a missing journal must not fail the run. Logged because
+        // silently returning '' degrades the worker's context invisibly: the run proceeds
+        // without the prior learnings it was supposed to have.
+        logEvent({ event: 'loop.recall_failed', level: 'warn', repo: repo.name, loopRunId, detail: errMessage(e) });
         return '';
       }
     },
@@ -293,10 +299,14 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
       const json = (await res.json()) as { html_url: string };
       return { prUrl: json.html_url };
     },
-    record: async (_repo, entries, loopRunId) => {
+    record: async (repo, entries, loopRunId) => {
       try {
         const mma = await buildMmaClient({ db });
         const workspaceRoot = resolveTeamWorkspaceRoot(currentTeam);
+        // Recorded UNSCOPED on purpose, even though `repo` is in hand: `recall` above is
+        // unscoped too, so a repo-scoped topic here would write entries that the loop's
+        // own recall could never find. Scoping both is a deliberate change to make
+        // together, not a default to drift into one side at a time.
         const body = {
           type: 'journal_record' as const,
           records: entries.map((entry) => ({ prompt: entry.text, topic: 'unscoped' })),
@@ -306,16 +316,25 @@ export async function buildLoopRunDeps(currentTeam: CurrentTeam, deps: { db?: Db
           cwd: workspaceRoot, body,
           actorId: null, loopRunId, await: true,
         });
-      } catch {
-        /* journal record is best-effort; a failure must not fail the run */
+      } catch (e) {
+        // Best-effort: a failure must not fail the run. But it means the run's learnings
+        // are LOST, which is the whole point of the journal stage — so it is logged rather
+        // than discarded in silence.
+        logEvent({ event: 'loop.journal_record_failed', level: 'warn', repo: repo.name, loopRunId, detail: errMessage(e) });
       }
     },
     removeWorktree: async (cwd) => {
       // `cwd` is the worktree path; remove it from whichever repo owns it. Serialized
       // per repo (shares the createWorktree queue) so it can't race another run's add.
-      await withRepoGitLock(cwd, () =>
-        nodeGitRunner(cwd, ['worktree', 'remove', '--force', cwd]).catch(() => ({ code: 1, stdout: '', stderr: '' })),
+      const result = await withRepoGitLock(cwd, () =>
+        nodeGitRunner(cwd, ['worktree', 'remove', '--force', cwd]).catch((e: unknown) => ({
+          code: 1, stdout: '', stderr: errMessage(e),
+        })),
       );
+      // A leaked worktree costs disk on every run and nothing else notices; say so.
+      if (result.code !== 0) {
+        logEvent({ event: 'loop.worktree_remove_failed', level: 'warn', detail: `${cwd}: ${result.stderr.trim() || 'git worktree remove failed'}` });
+      }
     },
   };
 }

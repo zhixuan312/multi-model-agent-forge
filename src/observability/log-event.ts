@@ -34,7 +34,10 @@ export type LogEventName =
   | 'startup.automation_deferred'
   | 'loop.plan_turn_failed'
   | 'loop.journal_turn_failed'
-  | 'loop.run_failed';
+  | 'loop.run_failed'
+  | 'loop.recall_failed'
+  | 'loop.journal_record_failed'
+  | 'loop.worktree_remove_failed';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 

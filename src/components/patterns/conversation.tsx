@@ -7,6 +7,7 @@ import { Button, Textarea, Avatar } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import type { MemberRef } from '@/collab/types';
+import { responseError } from '@/lib/err';
 
 export interface ConversationMessage {
   id: string;
@@ -151,7 +152,9 @@ export function ConversationComposer({
         form.append('durationMs', String(Date.now() - recStartRef.current));
         try {
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-          if (!res.ok) throw new Error('Transcription failed.');
+          // The route relays the provider's own message (`{ error: err.message }`) — a
+          // rejected key, a rate limit. A flat "Transcription failed." hid all of it.
+          if (!res.ok) throw new Error(await responseError(res, 'Transcription failed.'));
           const { text } = (await res.json()) as { text: string };
           // Append to the LATEST value (preserves anything typed during recording), not the
           // stale closure value.

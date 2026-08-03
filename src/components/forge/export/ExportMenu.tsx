@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
 import { downloadGet, downloadPost } from '@/components/forge/export/download';
 import type { ExportKind } from '@/export/types';
+import { responseError } from '@/lib/err';
 
 /**
  * `ExportMenu` (Spec 8 §In-scope #2, Key flow A, F4/F10). The topbar `Export ▾`
@@ -42,7 +43,7 @@ async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtif
   const res = await fetch(`/api/projects/${projectId}/export/artifacts`);
   // Throw (don't silently return []) so a load failure surfaces a message instead of an
   // unexplained empty menu (e.g. a 403 on a project you can view but can't collaborate on).
-  if (!res.ok) throw new Error('Couldn’t load exportable artifacts.');
+  if (!res.ok) throw new Error(await responseError(res, 'Couldn’t load exportable artifacts.'));
   const data = (await res.json()) as { artifacts: ExportMenuArtifact[] };
   return data.artifacts;
 }

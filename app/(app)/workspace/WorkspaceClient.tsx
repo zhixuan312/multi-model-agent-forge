@@ -298,11 +298,16 @@ function RepoEditForm({ repo: r, onDone }: { repo: RepoCardData; onDone: () => v
     setBusy(true);
     try {
       const res = await fetch(`/api/repos/${r.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Request failed (${res.status}).`);
+      // 204 on success; 404 carries "Repo not found." — which means the row is stale, so
+      // "try again" was the wrong advice there too. Same fix as the pull above.
+      if (!res.ok) {
+        showToast({ type: 'error', message: await responseError(res, 'Couldn’t delete the repo — try again.') });
+        return;
+      }
       onDone();
       router.refresh();
     } catch {
-      showToast({ type: 'error', message: 'Couldn’t delete the repo — try again.' });
+      showToast({ type: 'error', message: 'Network error — couldn’t delete the repo.' });
     } finally {
       setBusy(false);
     }

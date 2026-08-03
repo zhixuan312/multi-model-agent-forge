@@ -8,6 +8,7 @@ import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
 import type { LoopRow } from '@/db/schema/loop';
+import { responseError } from '@/lib/err';
 
 export interface RepoOption {
   id: string;
@@ -115,11 +116,14 @@ export function LoopForm({
     setBusy(true);
     try {
       const res = await fetch(`/api/loops/${loop.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Request failed (${res.status}).`);
+      if (!res.ok) {
+        showToast({ type: 'error', message: await responseError(res, 'Couldn’t delete the loop — try again.') });
+        return;
+      }
       onDone();
       router.refresh();
     } catch {
-      showToast({ type: 'error', message: 'Couldn’t delete the loop — try again.' });
+      showToast({ type: 'error', message: 'Network error — couldn’t delete the loop.' });
     } finally {
       setBusy(false);
     }

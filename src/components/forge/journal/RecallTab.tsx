@@ -425,7 +425,7 @@ export function RecallTab({
         setPins((prev) => prev.filter((x) => x.id !== p.id));
         return;
       }
-      if (!res.ok) throw new Error('Could not refresh this pin.');
+      if (!res.ok) throw new Error(await responseError(res, 'Could not refresh this pin.'));
       const updated = (await res.json()) as PinnedView;
       setPins((prev) => prev.map((x) => (x.id === p.id ? { ...updated, _busy: undefined } : x)));
       addRecent(p.question, parsed, batchId);

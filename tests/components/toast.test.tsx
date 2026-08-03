@@ -94,3 +94,39 @@ describe('Toast — retry (T-3) & roles (T-5)', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
+
+/**
+ * The container is a fixed column in the corner, so an unbounded list grows past the top of
+ * the viewport — and the code that raises toasts is per-item error handling: a reconnect loop,
+ * or one toast per row of a bulk action, puts as many on screen as there are failures.
+ */
+describe('Toast — the stack is bounded', () => {
+  it('keeps only the newest few when many arrive at once', () => {
+    renderToaster();
+    act(() => {
+      for (let i = 1; i <= 10; i += 1) showToast({ type: 'error', message: `failure ${i}` });
+    });
+
+    const shown = screen.getAllByRole('alert');
+    expect(shown.length).toBeLessThanOrEqual(4);
+    // The newest is what describes what just happened; the oldest is what goes.
+    expect(screen.getByText('failure 10')).toBeInTheDocument();
+    expect(screen.queryByText('failure 1')).toBeNull();
+  });
+
+  /**
+   * A manually-closed toast used to leave its auto-dismiss timer running, so it woke later to
+   * filter a list it was no longer in and re-rendered every toast on screen to do it.
+   */
+  it('cancels the auto-dismiss timer when dismissed by hand', () => {
+    renderToaster();
+    act(() => { showToast({ type: 'error', message: 'closes early' }); });
+    act(() => { screen.getByRole('button', { name: 'Dismiss' }).click(); });
+    expect(screen.queryByText('closes early')).toBeNull();
+
+    // Advancing past the original 5s must not disturb anything that came after it.
+    act(() => { showToast({ type: 'error', message: 'still here' }); });
+    act(() => { vi.advanceTimersByTime(4_000); });
+    expect(screen.getByText('still here')).toBeInTheDocument();
+  });
+});

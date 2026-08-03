@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { CheckCircle2, XCircle, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -33,6 +33,17 @@ function resolveDurationMs(t: Pick<ToastItem, 'type' | 'durationMs'>): number {
 let nextId = 0;
 const listeners = new Set<() => void>();
 let items: ToastItem[] = [];
+/** Live auto-dismiss timers, so a manual dismiss can cancel its own. */
+const timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * How many toasts may stack at once. The container is a fixed column in the corner, so an
+ * unbounded list simply grows past the top of the viewport — and the code that produces them
+ * is per-item error handling: a failing SSE reconnect, or one toast per row of a bulk action,
+ * puts as many on screen as there are failures. The OLDEST go, because the newest is the one
+ * describing what just happened.
+ */
+const MAX_VISIBLE = 4;
 
 function emit() {
   for (const l of listeners) l();
@@ -40,27 +51,45 @@ function emit() {
 
 export function showToast(toast: Omit<ToastItem, 'id'>): void {
   const id = `toast-${++nextId}`;
-  items = [...items, { ...toast, id }];
+  const next = [...items, { ...toast, id }];
+  // Drop the overflow AND its pending timer — a timer for a toast nobody can see would fire
+  // later and re-render the stack for nothing.
+  for (const dropped of next.slice(0, Math.max(0, next.length - MAX_VISIBLE))) {
+    const t = timers.get(dropped.id);
+    if (t) { clearTimeout(t); timers.delete(dropped.id); }
+  }
+  items = next.slice(-MAX_VISIBLE);
   emit();
   const ms = resolveDurationMs(toast);
   if (ms > 0) {
-    setTimeout(() => dismissToast(id), ms);
+    timers.set(id, setTimeout(() => dismissToast(id), ms));
   }
 }
 
 export function dismissToast(id: string): void {
-  items = items.filter((t) => t.id !== id);
+  const t = timers.get(id);
+  // Cancel the auto-dismiss: without this a manually-closed toast still woke its timer later
+  // to filter a list it was no longer in, and re-rendered every toast on screen to do it.
+  if (t) { clearTimeout(t); timers.delete(id); }
+  items = items.filter((t2) => t2.id !== id);
   emit();
 }
 
+const subscribe = (l: () => void): (() => void) => {
+  listeners.add(l);
+  return () => { listeners.delete(l); };
+};
+/** Stable empty snapshot for SSR — a new array each call would loop the store. */
+const NO_TOASTS: ToastItem[] = [];
+
+/**
+ * `useSyncExternalStore`, the same primitive `app-phase` and `stage-substeps` subscribe with.
+ * This was a `useState` counter incremented from a listener to force a re-render — a second
+ * way of doing the one job, and the one React does not guarantee against tearing under
+ * concurrent rendering.
+ */
 function useToasts(): ToastItem[] {
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    const listener = () => forceUpdate((n) => n + 1);
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
-  }, []);
-  return items;
+  return useSyncExternalStore(subscribe, () => items, () => NO_TOASTS);
 }
 
 export function Toaster() {

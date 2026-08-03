@@ -107,7 +107,6 @@ interface SpecStageClientProps {
   initialMessages?: Record<string, Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string; authorId?: string | null }>>;
   /** Whether OpenAI transcription key is configured — enables voice input. */
   voiceEnabled?: boolean;
-  /** In-flight audit batch ID (from DB on page load). */
   /** In-flight auto-draft batch ID (from DB on page load). */
   pendingAutoDraft?: string | null;
   /** In-flight audit-apply batch ID (from DB on page load). */
@@ -185,8 +184,10 @@ export function SpecStageClient(props: SpecStageClientProps) {
   const [messages] = useServerState(props.initialMessages ?? {});
   const [specApprovers, setSpecApprovers] = useServerState(props.specApprovers ?? []);
   const [error, setError] = useState<string | null>(null);
-  // Intent carried forward from the Exploration brief (no longer hand-typed here).
-  const [intent] = useState(props.intentMd ?? '');
+  // Intent carried forward from the Exploration brief (no longer hand-typed here). Plain
+  // derivation, not `useState`: nothing sets it, and holding it in state only froze the
+  // mount-time value so a refreshed intent would never reach the outline.
+  const intent = props.intentMd ?? '';
   const [picked, setPicked] = useState<Set<ComponentKind>>(
     () => new Set(components.length > 0 ? components.map((c) => c.kind) : props.defaultKinds),
   );

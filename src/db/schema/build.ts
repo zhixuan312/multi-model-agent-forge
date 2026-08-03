@@ -3,13 +3,13 @@ import { forge } from '@/db/schema/_schema';
 import { project } from '@/db/schema/projects';
 
 /**
- * `export` (begin) (schema.md §6 / Spec 7) — created now; only the `md` path is
- * exercised (the per-stage raw-markdown download). `pdf`/`bundle` are reserved
- * for Spec 8. For the streamed `md` download `file_path` is a LOGICAL served
- * attachment filename `<kind>-v<version>.md` (no on-disk file is written here).
+ * `project_export` (schema.md §6) — one row per export. All three formats are live: `md`
+ * streams the per-stage raw markdown, `pdf` renders through `export/pdf`, `bundle` zips a
+ * set. For the streamed `md` download `file_path` is a LOGICAL served attachment filename
+ * `<kind>-v<version>.md` (no on-disk file is written for that path).
  *
- * Drizzle reserves no identifier here, but `export` is a JS keyword — the table
- * variable is `exportRecord` while the DB table name stays `export`.
+ * The variable is `exportRecord` because `export` is a JS keyword; the table is
+ * `project_export` (the doc used to say the table was named `export`).
  */
 export const exportRecord = forge.table(
   'project_export',

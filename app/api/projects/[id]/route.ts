@@ -1,15 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
 import { z } from 'zod';
-import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
+import { guardProjectRead } from '@/auth/guard-project-write';
 import {
   archiveProject,
   changeVisibility,
   changeRepos,
   getProject,
-  assertProjectReadable,
   ProjectAccessError,
   unarchiveProject,
 } from '@/projects/projects-core';
@@ -31,12 +29,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
 
-  const me = await currentMember();
-  if (!me) return unauthorized();
-  const actor = projectActorFromMember(me);
-  if (!actor) return unauthorized();
-
   const { id } = await ctx.params;
+  // The GATE: auth + membership, 404 for a project this caller cannot see. The second
+  // `ProjectAccessError` catch below is a different thing — the mutations enforce their
+  // own ownership rules (only the owner may archive) and 403 with the specific reason,
+  // which is correct: by then the caller has already proved they can see the project.
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
+  const actor = projectActorFromMember(gate.member)!;
   const body = await req.json().catch(() => null);
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
@@ -44,15 +44,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       { error: parsed.error.issues[0]?.message ?? 'Invalid request body.' },
       { status: 400 },
     );
-  }
-
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) {
-      return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
-    }
-    throw e;
   }
 
   try {

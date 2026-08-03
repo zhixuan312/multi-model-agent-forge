@@ -23,3 +23,11 @@ export function forbidden(message: string): NextResponse {
 export const ORG_ADMIN_REQUIRED = 'Org admin privileges required.';
 /** The team admin owns their own team's config: git token, workspace, roster. */
 export const TEAM_ADMIN_REQUIRED = 'Team admin privileges required.';
+
+/**
+ * Anti-enumeration refusal for a READ: an unreadable resource must be indistinguishable
+ * from a missing one, so a caller probing ids learns nothing.
+ */
+export function notFound(): NextResponse {
+  return NextResponse.json({ error: 'Not found' }, { status: 404 });
+}

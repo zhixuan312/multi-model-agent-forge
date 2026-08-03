@@ -1,10 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
 import { and, eq } from 'drizzle-orm';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
 import { rejectCrossOrigin } from '@/auth/same-origin';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { guardProjectRead } from '@/auth/guard-project-write';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { getPollManager } from '@/sse/poll-manager';
@@ -34,18 +31,12 @@ export async function POST(
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
 
-  const me = await currentMember();
-  if (!me) return unauthorized();
-  const actor = projectActorFromMember(me);
-  if (!actor) return unauthorized();
+  // `guardProjectRead`, not the write guard: this route 404s deliberately, matching the
+  // foreign-batch 404 below — a caller learns nothing about ids they cannot reach.
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
 
   const db = getDb();
-  try {
-    await assertProjectReadable(id, actor, { db });
-  } catch (e) {
-    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    throw e;
-  }
 
   // The batch must be THIS project's (anti-enumeration: a foreign batch is a 404, not a 403).
   const [row] = await db

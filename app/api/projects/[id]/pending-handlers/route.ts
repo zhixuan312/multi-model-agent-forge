@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
+import { NextResponse, type NextRequest } from 'next/server';
+import { guardProjectRead } from '@/auth/guard-project-write';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
@@ -8,32 +9,28 @@ import { getPollManager } from '@/sse/poll-manager';
 import { buildMmaClient } from '@/mma/server-client';
 import { projectEventBus } from '@/sse/event-bus';
 import { pushDispatchFailure } from '@/collab/notification-store';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
 
   // Auth + tenant scope FIRST (before any DB access). This handler mutates state (fails stale
   // batches, pushes notifications, publishes to the project bus), yet had NO auth — any
-  // cookie-bearing request could probe and force-fail any project's batches. Gate it like every
-  // other project route.
-  const me = await currentMember();
-  if (!me) return unauthorized();
-  const actor = projectActorFromMember(me);
-  if (!actor) return unauthorized();
+  // cookie-bearing request could probe and force-fail any project's batches.
+  //
+  // `guardProjectRead`, so an unreadable project answers 404 like every sibling GET. This
+  // alone returned 403, which told an authenticated cross-team probe that the id exists —
+  // exactly what the others' anti-enumeration 404 is there to hide.
+  //
+  // A GET that MUTATES, so it takes the write guard's CSRF step explicitly.
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
 
   const db = getDb();
-  try {
-    await assertProjectReadable(id, actor, { db });
-  } catch (e) {
-    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    throw e;
-  }
 
   const rows = await db
     .select({ id: mmaBatch.id, batchId: mmaBatch.batchId, handler: mmaBatch.handler, createdAt: mmaBatch.createdAt })

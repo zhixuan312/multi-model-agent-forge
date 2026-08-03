@@ -1,6 +1,4 @@
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { guardProjectRead } from '@/auth/guard-project-write';
 import { projectEventBus, type ProjectEvent } from '@/sse/event-bus';
 
 /**
@@ -26,16 +24,8 @@ export async function GET(
   const { id } = await params;
 
   // Auth (session) + private-project visibility are checked ONCE at stream open.
-  const me = await currentMember();
-  if (!me) return new Response('Unauthorized', { status: 401 });
-  const actor = projectActorFromMember(me);
-  if (!actor) return new Response('Unauthorized', { status: 401 });
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) return new Response('Not found', { status: 404 });
-    throw e;
-  }
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
 
   const enc = new TextEncoder();
   let unsub: (() => void) | null = null;

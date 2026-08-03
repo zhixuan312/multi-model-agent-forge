@@ -94,7 +94,9 @@ describe('POST /api/projects/[id]/batches/[batchId]/cancel', () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ batchId: 'row-1', state: 'requested', cancellationRequested: true });
     expect(requestCancel).toHaveBeenCalledWith('row-1');
-    expect(readable).toHaveBeenCalledWith('proj-1', { id: 'm1', teamId: 'team-1' }, expect.anything());
+    // Two args, not three: the shared `guardProjectRead` calls this without threading a
+    // `db` — same as `guardProjectWrite` — and both resolve the same connection.
+    expect(readable).toHaveBeenCalledWith('proj-1', { id: 'm1', teamId: 'team-1' });
   });
 
   it('is idempotent — a repeat request is still 202, not an error', async () => {

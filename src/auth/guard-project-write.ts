@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
+import { unauthorized, notFound } from '@/auth/api-responses';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -70,5 +70,37 @@ export async function guardProjectWrite(
     }
   }
 
+  return { memberId: me.id, member: me };
+}
+
+/**
+ * The READ twin of `guardProjectWrite`: auth → membership, answering an unreadable
+ * project with **404**, not 403.
+ *
+ * That 404 is anti-enumeration and it is the whole difference between the two guards. A
+ * write caller already knows the project exists — they are trying to change it — so 403
+ * tells them nothing new. A read caller may be probing ids, so an unreadable project must
+ * be indistinguishable from a missing one.
+ *
+ * Six routes spelled this out identically, and a seventh (`pending-handlers`) returned
+ * 403 instead — leaking to an authenticated cross-team probe exactly what its six
+ * siblings were careful to hide.
+ *
+ * No CSRF check: a GET is never a state change. `pending-handlers` is the exception that
+ * proves it — it mutates on a GET, so it takes the write guard's CSRF step by calling
+ * `rejectCrossOrigin` itself.
+ */
+export async function guardProjectRead(projectId: string): Promise<NextResponse | GuardedActor> {
+  const me = await currentMember();
+  if (!me) return unauthorized();
+  const actor = projectActorFromMember(me);
+  if (!actor) return unauthorized();
+
+  try {
+    await assertProjectReadable(projectId, actor);
+  } catch (e) {
+    if (e instanceof ProjectAccessError) return notFound();
+    throw e;
+  }
   return { memberId: me.id, member: me };
 }

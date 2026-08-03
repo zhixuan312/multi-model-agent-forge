@@ -1,9 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
+import { guardProjectRead } from '@/auth/guard-project-write';
 import { rejectCrossOrigin } from '@/auth/same-origin';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { getDb } from '@/db/client';
 import { performTransition, TransitionRejected } from '@/automation/perform-transition';
 import { transitionSchema } from '@/automation/action-schema';
@@ -25,16 +22,8 @@ export async function POST(
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
 
-  const me = await currentMember();
-  if (!me) return unauthorized();
-  const actor = projectActorFromMember(me);
-  if (!actor) return unauthorized();
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    throw e;
-  }
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
 
   const json = await req.json().catch(() => null);
   const parsed = transitionSchema.safeParse(json);
@@ -47,7 +36,7 @@ export async function POST(
       getDb(),
       id,
       { kind: parsed.data.action, data: parsed.data.data, from: parsed.data.from },
-      { mode: 'manual', actorId: me.id },
+      { mode: 'manual', actorId: gate.memberId },
     );
     return NextResponse.json({ ok: true });
   } catch (e) {

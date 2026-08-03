@@ -1,9 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized } from '@/auth/api-responses';
+import { guardProjectRead } from '@/auth/guard-project-write';
 import { z } from 'zod';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
 import { guardProjectWrite } from '@/auth/guard-project-write';
 import { addTask, readRailTasks, TaskLockedError } from '@/exploration/explore-core';
 
@@ -15,16 +12,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  const me = await currentMember();
-  if (!me) return unauthorized();
-  const actor = projectActorFromMember(me);
-  if (!actor) return unauthorized();
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    throw e;
-  }
+  const gate = await guardProjectRead(id);
+  if (gate instanceof Response) return gate;
   return NextResponse.json(await readRailTasks(id));
 }
 

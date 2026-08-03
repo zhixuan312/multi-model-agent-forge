@@ -2,8 +2,15 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { member, memberIdentity } from '@/db/schema/identity';
 import { verifyPassword, DUMMY_ARGON2_HASH } from '@/auth/password';
+import type { TeamRole } from '@/db/enums';
 
-export type ForgeRole = 'org_admin' | 'team_admin' | 'member';
+/**
+ * The role set, ALIASED not restated. `TEAM_ROLE` in `db/enums` is the source (it is what
+ * the column is typed against); writing the three names out again here meant a role added
+ * to the enum would silently not be an auth role, surfacing as a type error somewhere far
+ * from the cause.
+ */
+export type ForgeRole = TeamRole;
 
 /** A resolved authenticated member (no credentials). */
 export interface AuthedMember {

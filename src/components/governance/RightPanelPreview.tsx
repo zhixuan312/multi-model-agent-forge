@@ -200,7 +200,13 @@ function CardListDemo({ on }: { on: ReadonlySet<string> }) {
         </CardContent>
         {on.has('advance') ? (
           <CardFooter className="flex-col !items-stretch gap-2">
-            <StageAdvance onClick={() => {}} label="Continue to Execute" disabled={!canAdvance} irreversible={!canAdvance} />
+            {/* `irreversible` unconditionally, as the real Plan rail passes it. It was
+                `irreversible={!canAdvance}`, so the padlock appeared while the advance was
+                blocked and VANISHED once it became available — teaching the modifier as
+                "currently locked" when it means "this commits something that cannot be taken
+                back". Whether the action is permitted is `disabled`; they are different
+                questions and the catalogue is where that distinction is learned. */}
+            <StageAdvance onClick={() => {}} label="Continue to Execute" disabled={!canAdvance} irreversible />
           </CardFooter>
         ) : null}
       </Card>

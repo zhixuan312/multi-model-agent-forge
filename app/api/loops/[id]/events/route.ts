@@ -19,14 +19,14 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     case 'accepted':
       return NextResponse.json({ runId: result.runId }, { status: 202 });
     case 'invalid_request':
-      return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_request', message: 'The request was malformed.' }, { status: 400 });
     case 'unauthorized':
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'unauthorized', message: 'You are not allowed to do that.' }, { status: 401 });
     case 'wrong_mode':
-      return NextResponse.json({ error: 'wrong_mode' }, { status: 403 });
+      return NextResponse.json({ error: 'wrong_mode', message: 'This loop is not in event mode.' }, { status: 403 });
     case 'not_found':
-      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+      return NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
     case 'internal_error':
-      return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+      return NextResponse.json({ error: 'internal_error', message: 'The event could not be processed.' }, { status: 500 });
   }
 }

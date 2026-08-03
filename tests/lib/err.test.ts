@@ -47,6 +47,20 @@ describe('responseError', () => {
     expect(await responseError(res({ error: 'Username taken.' }), 'fallback')).toBe('Username taken.');
   });
 
+  /**
+   * The API has two error envelopes. Most routes put the sentence in `error`; four
+   * (configure-provider, connections/validate, loops ×2) put a machine CODE there and the
+   * sentence in `message`. Reading `error` alone showed users "forbidden" and "not_found".
+   */
+  it('reads message first, so a machine code in `error` never reaches the user', async () => {
+    expect(await responseError(res({ error: 'forbidden', message: 'Only an org admin can configure providers.' }), 'fallback'))
+      .toBe('Only an org admin can configure providers.');
+  });
+
+  it('still uses `error` for the routes that put the sentence there', async () => {
+    expect(await responseError(res({ error: 'Repo not found.' }), 'fallback')).toBe('Repo not found.');
+  });
+
   it('falls back when the body carries no error field', async () => {
     expect(await responseError(res({}), 'Could not add the member.')).toBe('Could not add the member.');
     expect(await responseError(res(null), 'fallback')).toBe('fallback');

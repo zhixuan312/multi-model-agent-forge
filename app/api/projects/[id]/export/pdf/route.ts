@@ -31,7 +31,7 @@ export async function POST(
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'invalid_body', message: 'The export request was malformed.' }, { status: 400 });
 
   const kind = parseExportKind(parsed.data.artifact);
   if (!kind) return unknownKindResponse();

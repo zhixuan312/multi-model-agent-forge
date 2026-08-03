@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const loop = await getLoop(id, { teamId: gate.teamId });
-  return loop ? NextResponse.json(toPublicLoop(loop)) : NextResponse.json({ error: 'not_found' }, { status: 404 });
+  return loop ? NextResponse.json(toPublicLoop(loop)) : NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       case 'wrong_mode':
         return NextResponse.json({ error: 'wrong_mode', message: 'Only event-mode loops can rotate an event token.' }, { status: 409 });
       case 'not_found':
-        return NextResponse.json({ error: 'not_found' }, { status: 404 });
+        return NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
     }
   }
 
@@ -39,17 +39,17 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     case 'updated':
       return NextResponse.json({ loop: toPublicLoop(result.loop), eventToken: result.eventToken });
     case 'not_found':
-      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+      return NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
     case 'duplicate_name':
       return NextResponse.json({ error: 'duplicate_name', message: 'A loop with that name already exists.' }, { status: 409 });
     case 'invalid_config':
-      return NextResponse.json({ error: 'invalid_config' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_config', message: 'The loop configuration is not valid.' }, { status: 400 });
     case 'invalid_cron':
-      return NextResponse.json({ error: 'invalid_cron' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_cron', message: 'That schedule is not a valid cron expression.' }, { status: 400 });
     case 'invalid_mode':
-      return NextResponse.json({ error: 'invalid_mode' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_mode', message: 'That trigger mode is not valid for this loop.' }, { status: 400 });
     case 'invalid':
-      return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_request', message: 'The request was malformed.' }, { status: 400 });
   }
 }
 
@@ -60,5 +60,5 @@ export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse>
   const result = await deleteLoop(id, { teamId: gate.teamId });
   return result.kind === 'deleted'
     ? new NextResponse(null, { status: 204 })
-    : NextResponse.json({ error: 'not_found' }, { status: 404 });
+    : NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
 }

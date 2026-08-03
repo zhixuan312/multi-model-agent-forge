@@ -24,16 +24,25 @@ export function errName(err: unknown): string {
 }
 
 /**
- * The `error` field of a failed JSON response, or `fallback` when the body is missing,
- * unparseable, or carries no message.
+ * The human-readable reason a request failed, or `fallback` when the body is missing,
+ * unparseable, or carries neither field.
  *
  * Every failing `fetch` in the app hand-wrote the same three lines —
  * `const b = (await res.json().catch(() => null)) as { error?: string } | null;` then
- * `b?.error ?? '…'` — ten times across five files. The `.catch(() => null)` is the part
- * that matters and the part easiest to leave out: a 500 that returns an HTML error page
- * makes `res.json()` THROW, and a handler without it reports nothing at all.
+ * `b?.error ?? '…'`. The `.catch(() => null)` is the part that matters and the part
+ * easiest to leave out: a 500 that returns an HTML error page makes `res.json()` THROW,
+ * and a handler without it reports nothing at all.
+ *
+ * `message` is read FIRST because the API has two error envelopes, and only one of them
+ * puts prose in `error`:
+ *   - most routes: `{ error: 'Repo not found.' }`      → `error` IS the sentence
+ *   - configure-provider, connections/validate, loops: `{ error: 'forbidden', message: … }`
+ *                                                       → `error` is a machine CODE
+ * Reading `error` alone showed users the code ("forbidden", "not_found"). Reading
+ * `message` first is correct for both shapes, since the routes that put prose in `error`
+ * have no `message` at all.
  */
 export async function responseError(res: Response, fallback: string): Promise<string> {
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? fallback;
+  const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+  return body?.message ?? body?.error ?? fallback;
 }

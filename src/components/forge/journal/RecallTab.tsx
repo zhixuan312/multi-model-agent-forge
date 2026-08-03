@@ -292,7 +292,7 @@ export function RecallTab({
         id: `pin-${p.id}`,
         primary: p.question,
         trailing: p.stale ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-deep">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-sm)] border border-amber bg-amber-tint/50 px-1.5 py-0.5 text-[10px] font-medium text-[var(--amber)]">
             Journal updated since
           </span>
         ) : undefined,

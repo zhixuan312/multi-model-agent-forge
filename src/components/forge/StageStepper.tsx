@@ -238,7 +238,7 @@ function SubPhaseTrack({
                 isDone && isFocused && 'bg-[var(--sage)]/10',
                 isSkipped && 'text-ink-faint line-through opacity-70',
                 !isOngoing && !isDone && !isSkipped && !isCurrentPlain && 'text-ink-faint',
-                canClick && 'hover:text-ink-soft hover:bg-surface-3 cursor-pointer',
+                canClick && 'hover:text-ink-soft hover:bg-surface-2 cursor-pointer',
               )}
             >
               <span

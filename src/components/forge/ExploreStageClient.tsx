@@ -537,7 +537,7 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
             ) : selectedTask.outputMd ? (
               <>
                 {selectedTask.error ? (
-                  <div className="mb-3 rounded-[var(--r-md)] border border-amber bg-amber-tint/40 px-3 py-2 text-xs text-amber-deep">
+                  <div className="mb-3 rounded-[var(--r-md)] border border-amber bg-amber-tint/40 px-3 py-2 text-xs text-[var(--amber)]">
                     {selectedTask.error.message}
                   </div>
                 ) : null}

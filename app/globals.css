@@ -25,6 +25,9 @@
   --color-accent-deep: var(--accent-deep);
   --color-accent-tint: var(--accent-tint);
   --color-sage: var(--sage);
+  /* Exposed because components were already writing `text-sage-deep`, which emitted no
+     CSS without this mapping — the element silently kept its inherited colour. */
+  --color-sage-deep: var(--sage-deep);
   --color-sage-tint: var(--sage-tint);
   --color-amber: var(--amber);
   --color-amber-tint: var(--amber-tint);

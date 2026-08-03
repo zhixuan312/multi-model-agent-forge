@@ -79,6 +79,28 @@ describe('design tokens', () => {
     expect(offenders, 'use a design token instead of a raw hex').toEqual([]);
   });
 
+  it('every Forge colour utility resolves to a token in the @theme block', () => {
+    // A Tailwind utility like `text-sage-deep` needs `--color-sage-deep` in `@theme`. Without
+    // it the class emits NO CSS and the element silently keeps whatever it inherited — the
+    // same failure mode as an undeclared `var()`, and just as invisible. Three had rotted:
+    // `text-sage-deep` (the raw `--sage-deep` existed but was never exposed), plus
+    // `text-amber-deep` and `bg-surface-3`, which had no backing variable at all.
+    const themed = new Set([...css.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]!));
+    const FAMILIES = ['bg', 'surface', 'ink', 'line', 'accent', 'sage', 'amber', 'rose'].join('|');
+    const utility = new RegExp(
+      `(?<![\\w-])(?:bg|text|border|ring|fill|stroke|from|to|via|decoration|divide|outline|caret)-((?:${FAMILIES})(?:-[a-z0-9]+)*)(?![\\w[-])`,
+      'g',
+    );
+    const offenders: string[] = [];
+    for (const rel of files) {
+      const text = readFileSync(join(ROOT, rel), 'utf8');
+      for (const m of text.matchAll(utility)) {
+        if (!themed.has(m[1]!)) offenders.push(`${m[0]} (in ${rel})`);
+      }
+    }
+    expect([...new Set(offenders)], 'add the token to @theme, or use an existing one').toEqual([]);
+  });
+
   it('no component hardcodes a fallback hex behind a token', () => {
     // `var(--danger,#c0492f)` is worse than a missing token: it renders, so nothing looks
     // broken, while quietly opting that element out of the theme.

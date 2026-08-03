@@ -95,15 +95,11 @@ export function validateTeamWorkspacePath(
       : resolve(process.cwd(), opts.base)
     : resolveWorkspaceBase();
 
-  const realpath =
-    opts.realpath ??
-    ((p: string): string => {
-      try {
-        return realpathSync(p);
-      } catch {
-        return p;
-      }
-    });
+  // The default THROWS on a missing path so the ancestor fallback below can run. It used
+  // to swallow and return the path unchanged, which meant that fallback never fired: under
+  // a symlinked base — /tmp on macOS, or any mounted workspace — a not-yet-created team
+  // root compared an uncanonicalised parent against the canonical base and was rejected.
+  const realpath = opts.realpath ?? realpathSync;
 
   // A bare/relative segment resolves under the base; an absolute path stays put.
   const abs = isAbsolute(trimmed) ? resolve(trimmed) : resolve(base, trimmed);
@@ -116,7 +112,18 @@ export function validateTeamWorkspacePath(
   try {
     realAbs = realpath(abs);
   } catch {
-    realAbs = join(realpath(dirname(abs)), basename(abs));
+    // The leaf does not exist yet — canonicalise its PARENT and re-append, so a new team
+    // root still validates. If the parent is missing too, nothing above it can be
+    // canonicalised and the lexical path is the best available answer; the direct-child
+    // check below then rejects it, which is the right outcome for a path whose parent is
+    // not the base.
+    let realParent: string;
+    try {
+      realParent = realpath(dirname(abs));
+    } catch {
+      realParent = dirname(abs);
+    }
+    realAbs = join(realParent, basename(abs));
   }
 
   if (realAbs === realBase) {

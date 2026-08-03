@@ -80,8 +80,26 @@ describe('combined-html (F9/F20/F28/F32)', () => {
 });
 
 describe('zip-builder (F2)', () => {
+  /**
+   * Read the names back out of the ARCHIVE, not out of a list the builder assembled
+   * beside its `append` calls. That list was the previous assertion target, and it
+   * would have reported an entry whose append never happened.
+   */
+  async function entriesOf(stream: Parameters<typeof streamToBuffer>[0]): Promise<string[]> {
+    const buf = await streamToBuffer(stream);
+    expect(buf.subarray(0, 2).toString()).toBe('PK');
+    // Central-directory headers (PK\x01\x02): 46-byte fixed part, then the name.
+    const names: string[] = [];
+    for (let i = 0; i + 46 <= buf.length; i++) {
+      if (buf.readUInt32LE(i) !== 0x02014b50) continue;
+      const nameLen = buf.readUInt16LE(i + 28);
+      names.push(buf.subarray(i + 46, i + 46 + nameLen).toString('utf8'));
+    }
+    return names;
+  }
+
   it('archive contains the ready .md entries + combined PDF, with expected names', async () => {
-    const { stream, entryNames, fileName } = buildBundleZip({
+    const { stream, fileName } = buildBundleZip({
       md: [
         { kind: 'exploration', body: 'explo' },
         { kind: 'spec', body: 'spec body' },
@@ -90,35 +108,32 @@ describe('zip-builder (F2)', () => {
       projectName: 'My Project',
     });
     expect(fileName).toBe('my-project.zip');
-    expect(entryNames).toEqual(['exploration.md', 'specification.md', 'my-project.pdf']);
-
-    const buf = await streamToBuffer(stream);
-    // ZIP local-file-header magic + entry names appear in the central directory.
-    expect(buf.subarray(0, 2).toString()).toBe('PK');
-    const text = buf.toString('latin1');
-    expect(text).toContain('exploration.md');
-    expect(text).toContain('specification.md');
-    expect(text).toContain('my-project.pdf');
+    expect(await entriesOf(stream)).toEqual([
+      'exploration.md',
+      'specification.md',
+      'my-project.pdf',
+    ]);
   });
 
   it('a bundle with only exploration ready still contains the combined PDF', async () => {
-    const { entryNames } = buildBundleZip({
+    const { stream } = buildBundleZip({
       md: [{ kind: 'exploration', body: 'x' }],
       combinedPdf: Buffer.from('%PDF-fake'),
       projectName: 'P',
     });
-    expect(entryNames).toContain('p.pdf');
-    expect(entryNames.filter((n) => n.endsWith('.md'))).toEqual(['exploration.md']);
+    const names = await entriesOf(stream);
+    expect(names).toContain('p.pdf');
+    expect(names.filter((n) => n.endsWith('.md'))).toEqual(['exploration.md']);
   });
 
   it('pending artifacts are absent (only the provided md entries appear)', async () => {
-    const { entryNames } = buildBundleZip({
+    const { stream } = buildBundleZip({
       md: [{ kind: 'spec', body: 'x' }],
       combinedPdf: Buffer.from('%PDF'),
       projectName: 'P',
     });
-    expect(entryNames).not.toContain('plan.md');
-    expect(entryNames).not.toContain('review.md');
+    const names = await entriesOf(stream);
+    expect(names).toEqual(['specification.md', 'p.pdf']);
   });
 
   it('the bundle stream is a Readable (not a pre-built Buffer)', () => {

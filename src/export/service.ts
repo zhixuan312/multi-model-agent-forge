@@ -139,7 +139,6 @@ export async function exportPdf(
 export interface BundleResult {
   fileName: string;
   zip: Buffer;
-  entryNames: string[];
   /** Included artifact kinds (for the toast). */
   includedKinds: ExportKind[];
   exportId: string;
@@ -159,13 +158,16 @@ export async function exportBundle(
 
   const combinedPdf = await renderer.render(buildCombinedJob(ready, name, opts.mermaidAsDiagram));
 
-  const { stream, entryNames, fileName, done } = buildBundleZip({
+  const { stream, fileName, done } = buildBundleZip({
     md: ready.map((a) => ({ kind: a.kind, body: a.bodyMd })),
     combinedPdf,
     projectName: name,
   });
   const zip = await streamToBuffer(stream);
-  await done.catch(() => {});
+  // NOT `.catch(() => {})`. An archiver error leaves the PassThrough ending normally
+  // with whatever bytes made it through, so swallowing this handed the user a 200 and
+  // a truncated .zip. Rethrowing turns a corrupt download into a 500 they can retry.
+  await done;
 
   const { exportId } = await recordExport({
     projectId,
@@ -180,7 +182,6 @@ export async function exportBundle(
   return {
     fileName,
     zip,
-    entryNames,
     includedKinds: ready.map((a) => a.kind),
     exportId,
   };

@@ -65,8 +65,12 @@ describe('sections — non-spec split (F5)', () => {
     expect(secs).toHaveLength(1);
   });
 
+  // This used to pass 'journal', a kind the export surface rejects by name
+  // (`parseExportKind`) and no caller can produce — the parser's own kind union was
+  // one member wider than `ExportKind`, so the test proved a capability the product
+  // had removed. 'plan' is the real non-spec kind.
   it('does not require the NN grammar for non-spec', () => {
-    expect(() => parseArtifactSections('## Anything goes\n\nbody', 'journal')).not.toThrow();
+    expect(() => parseArtifactSections('## Anything goes\n\nbody', 'plan')).not.toThrow();
   });
 });
 

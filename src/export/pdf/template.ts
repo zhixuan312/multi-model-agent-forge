@@ -126,11 +126,14 @@ function renderSection(
   const titleText = s.title || '';
   const continuedLabel = titleText ? `${titleText} (continued)` : '(continued)';
 
-  // Strip the leading <h2> from the body if it matches the section title
-  // (the template renders its own <h2>, so the markdown-generated one would double up)
+  // Drop a LEADING <h2> from the body — `bodyMd` keeps the section heading for
+  // re-render fidelity, and this template renders its own <h2>, so it would double
+  // up. Any leading h2 goes, not only one whose text matches `titleText`: the two are
+  // the same heading by construction (the splitters take the title from it), and
+  // comparing rendered text to the raw title would miss anything with inline markup.
   let body = applyMermaidMode(s.html, mermaidAsDiagram);
   if (titleText) {
-    body = body.replace(new RegExp(`^\\s*<h2>[^<]*</h2>\\s*`, 'i'), '');
+    body = body.replace(/^\s*<h2>[^<]*<\/h2>\s*/i, '');
   }
 
   return `<table class="section" data-section="${esc(s.nn)}">

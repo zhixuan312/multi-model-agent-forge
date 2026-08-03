@@ -29,7 +29,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 
-export type ParseArtifactKind = 'exploration' | 'spec' | 'plan' | 'journal';
+import type { ExportKind } from '@/export/types';
 
 /** A mermaid fenced block extracted from a section (the raw diagram source). */
 export interface MermaidBlock {
@@ -154,7 +154,7 @@ function splitGeneric(bodyMd: string): RawSection[] {
  */
 export function parseArtifactSections(
   bodyMd: string,
-  kind: ParseArtifactKind,
+  kind: ExportKind,
 ): ParsedSection[] {
   const raw = kind === 'spec' ? (splitSpec(bodyMd) ?? splitGeneric(bodyMd)) : splitGeneric(bodyMd);
 

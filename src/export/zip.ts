@@ -29,8 +29,6 @@ export interface BuildZipInput {
 export interface ZipResult {
   /** The Node Readable to pipe into the route response (streamed, not buffered). */
   stream: Readable;
-  /** The included entry names (for the toast + audit meta). */
-  entryNames: string[];
   /** The .zip filename (`<project-slug>.zip`). */
   fileName: string;
   /** Resolves when the archive has fully flushed (for on-disk persistence). */
@@ -55,18 +53,19 @@ export function buildBundleZip(input: BuildZipInput): ZipResult {
   });
   archive.pipe(out);
 
-  const entryNames: string[] = [];
   for (const m of input.md) {
-    const name = mdFileName(m.kind);
-    archive.append(Buffer.from(m.body, 'utf-8'), { name });
-    entryNames.push(name);
+    archive.append(Buffer.from(m.body, 'utf-8'), { name: mdFileName(m.kind) });
   }
   archive.append(input.combinedPdf, { name: pdfName });
-  entryNames.push(pdfName);
 
   void archive.finalize();
 
-  return { stream: out, entryNames, fileName: zipName, done };
+  // No `entryNames` here. It used to be returned and threaded all the way up through
+  // `BundleResult`, where nothing read it — the route's `x-bundle-included` header is
+  // built from the artifact KINDS. It only ever fed tests, and as a list assembled
+  // beside the appends rather than read back from them, it would have kept reporting
+  // an entry that failed to append. The tests read the archive instead.
+  return { stream: out, fileName: zipName, done };
 }
 
 /** Collect a Readable into a Buffer (for on-disk persistence / tests). */

@@ -91,3 +91,73 @@ describe('createBuildPr', () => {
     expect(url).not.toContain('/merge');
   });
 });
+
+/**
+ * Both of these are ORDINARY outcomes of running execute twice, and both used to surface as
+ * "GitHub PR creation failed: 422 {raw json}" — an error the user cannot act on, about a
+ * situation that is not a failure.
+ */
+describe('createBuildPr — the two 422s a re-run produces', () => {
+  const args = {
+    projectName: 'P', branch: 'mma/2026-07-01-p', targetBranch: 'main', repoPath: '/r',
+    tasks: [{ title: 'A', commitSha: 'a' }],
+  };
+  const respond = (r: { ok: boolean; status?: number; body?: unknown; text?: string }) => ({
+    ok: r.ok,
+    status: r.status ?? 200,
+    json: async () => r.body,
+    text: async () => r.text ?? '',
+  });
+
+  /**
+   * `buildForgeBranch` uses the project's CREATION date precisely so retries reuse the
+   * branch. So the second execute run on every project opens a PR for a head that already
+   * has one. That is success — and the URL of the existing PR is the answer the caller needs.
+   */
+  it('returns the EXISTING pull request rather than an error', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(respond({ ok: false, status: 422, text: '{"errors":[{"message":"A pull request already exists for org:mma/2026-07-01-p."}]}' }))
+      .mockResolvedValueOnce(respond({ ok: true, body: [{ html_url: 'https://github.com/org/r/pull/7' }] }));
+    const deps = mockDeps({ fetch: fetch as unknown as typeof globalThis.fetch });
+
+    expect(await createBuildPr(deps, args)).toEqual({ url: 'https://github.com/org/r/pull/7' });
+
+    const lookup = fetch.mock.calls[1]![0] as string;
+    expect(lookup).toContain('state=open');
+    expect(lookup).toContain(encodeURIComponent('org:mma/2026-07-01-p'));
+  });
+
+  it('falls back to the error when the existing PR cannot be found', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(respond({ ok: false, status: 422, text: 'A pull request already exists' }))
+      .mockResolvedValueOnce(respond({ ok: true, body: [] }));
+    const result = await createBuildPr(mockDeps({ fetch: fetch as unknown as typeof globalThis.fetch }), args);
+    expect(result).toMatchObject({ error: expect.stringContaining('422') });
+  });
+
+  /**
+   * An execute run that committed nothing. `null` — "there was legitimately nothing to
+   * open" — is this function's own documented third state, and no caller could reach it:
+   * `execute-pipeline` passes `branchHasChanges: async () => true`. GitHub is authoritative
+   * about it regardless.
+   */
+  it('reports an empty branch as nothing-to-open, not as a failure', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      respond({ ok: false, status: 422, text: '{"message":"Validation Failed","errors":[{"message":"No commits between main and mma/2026-07-01-p"}]}' }),
+    );
+    expect(await createBuildPr(mockDeps({ fetch: fetch as unknown as typeof globalThis.fetch }), args)).toBeNull();
+  });
+
+  it('still reports a 422 it does not recognise', async () => {
+    const fetch = vi.fn().mockResolvedValue(respond({ ok: false, status: 422, text: '{"message":"Validation Failed","errors":[{"field":"base"}]}' }));
+    const result = await createBuildPr(mockDeps({ fetch: fetch as unknown as typeof globalThis.fetch }), args);
+    expect(result).toMatchObject({ error: expect.stringContaining('422') });
+  });
+
+  it('does not go looking for an existing PR on a non-422', async () => {
+    const fetch = vi.fn().mockResolvedValue(respond({ ok: false, status: 401, text: 'Bad credentials' }));
+    const result = await createBuildPr(mockDeps({ fetch: fetch as unknown as typeof globalThis.fetch }), args);
+    expect(result).toMatchObject({ error: expect.stringContaining('401') });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});

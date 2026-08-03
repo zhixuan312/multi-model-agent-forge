@@ -79,7 +79,11 @@ export async function createLoop(input: unknown, deps: LoopsDeps = {}): Promise<
   const { name, kind, config, workerTier, cron, targetBranch, repoIds, enabled } = parsed.data;
   if (!deps.teamId) return { kind: 'invalid' };
 
-  if (!parseLoopConfig(kind, config).ok) return { kind: 'invalid_config' };
+  // Keep the PARSED value — the kind's schema is what a config means (it trims the goal
+  // and drops keys the kind does not define). Validating and then persisting the raw body
+  // computes that value and throws it away.
+  const parsedConfig = parseLoopConfig(kind, config);
+  if (!parsedConfig.ok) return { kind: 'invalid_config' };
   const mode = deriveMode(parsed.data.mode, cron);
   const modeCheck = validateMode(mode, cron ?? null);
   if (modeCheck === 'invalid_mode') return { kind: 'invalid_mode' };
@@ -99,7 +103,7 @@ export async function createLoop(input: unknown, deps: LoopsDeps = {}): Promise<
       teamId: deps.teamId,
       name,
       kind,
-      config: parseLoopConfig(kind, config).ok ? (config as object) : {},
+      config: parsedConfig.data as object,
       workerTier: workerTier ?? 'complex',
       mode,
       cron: mode === 'recurring' ? (cron ?? null) : null,
@@ -133,7 +137,12 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
   if (!existing) return { kind: 'not_found' };
 
   const kind = d.kind ?? existing.kind;
-  if (d.config !== undefined && !parseLoopConfig(kind, d.config).ok) return { kind: 'invalid_config' };
+  let parsedConfig: unknown;
+  if (d.config !== undefined) {
+    const result = parseLoopConfig(kind, d.config);
+    if (!result.ok) return { kind: 'invalid_config' };
+    parsedConfig = result.data; // persist what the schema produced, not the raw body
+  }
   if (d.name !== undefined && (await nameTaken(db, d.name, deps.teamId, id))) return { kind: 'duplicate_name' };
 
   const nextMode = deriveMode(d.mode, d.cron !== undefined ? d.cron : existing.cron);
@@ -159,7 +168,7 @@ export async function updateLoop(id: string, input: unknown, deps: LoopsDeps = {
   };
   if (d.name !== undefined) patch.name = d.name;
   if (d.kind !== undefined) patch.kind = d.kind;
-  if (d.config !== undefined) patch.config = d.config;
+  if (d.config !== undefined) patch.config = parsedConfig;
   if (d.workerTier !== undefined) patch.workerTier = d.workerTier;
   if (d.targetBranch !== undefined) patch.targetBranch = d.targetBranch;
   if (d.repoIds !== undefined) patch.repoIds = d.repoIds;

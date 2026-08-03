@@ -56,6 +56,7 @@ import { PROMPT_FLOORS } from '@/exploration/schemas';
 import { cn } from '@/lib/cn';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { showToast } from '@/components/ui/toast';
+import { Stat } from '@/components/patterns/stat-row';
 
 /** Brain-dump ⋅ Tasks. These panels are NOT documents — they are plain Content-Shell panels;
  *  they share the governed TabBar only so the toggle looks identical everywhere. */
@@ -385,9 +386,9 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               </CardHeader>
               <CardContent className="min-h-0 flex-1 !py-4">
                 <div className="space-y-0">
-                  <StatRow label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
-                  <StatRow label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
-                  <StatRow label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
+                  <Stat label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
+                  <Stat label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
+                  <Stat label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
                 </div>
               </CardContent>
               <CardFooter className="flex-col !items-stretch gap-2">
@@ -568,8 +569,8 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
               </CardHeader>
               <CardContent className="min-h-0 flex-1 !py-4">
                 <div className="space-y-0">
-                  <StatRow label="Tasks completed" value={`${recorded}/${dispatched}`} />
-                  <StatRow label="Brief" value={bodyMd ? `v${version}` : 'Not yet'} />
+                  <Stat label="Tasks completed" value={`${recorded}/${dispatched}`} />
+                  <Stat label="Brief" value={bodyMd ? `v${version}` : 'Not yet'} />
                 </div>
               </CardContent>
               <CardFooter className="flex-col !items-stretch gap-2">
@@ -640,15 +641,6 @@ const PHASE_NOTES: Record<string, string> = {
 function ExplorationNote({ phase }: { phase: string }) {
   const key = phase === 'idle' ? 'brief' : phase === 'fanout' ? 'brief' : phase === 'run' ? 'discover' : 'synthesize';
   return <RailNote icon={<Lightbulb />}>{PHASE_NOTES[key]}</RailNote>;
-}
-
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-line py-2.5 last:border-b-0">
-      <span className="text-sm text-ink-soft">{label}</span>
-      <span className="text-sm font-semibold text-ink">{value}</span>
-    </div>
-  );
 }
 
 /* ── Fan-out editor ───────────────────────────────────────────────────────── */

@@ -76,6 +76,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const result = type === 'git' ? await probeGit(value) : await probeOpenai(value, null);
+  const result = type === 'git' ? await probeGit(value) : await probeOpenai(value);
   return NextResponse.json(result);
 }

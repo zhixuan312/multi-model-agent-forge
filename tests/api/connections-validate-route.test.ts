@@ -81,6 +81,6 @@ describe('POST /api/connections/validate', () => {
     mockCaller = asAdmin();
     const body = await (await POST(req({ type: 'openai', token: 'sk_x' }) as never)).json();
     expect(body).toEqual({ ok: true, detail: 'OpenAI key valid.' });
-    expect(probeOpenai).toHaveBeenCalledWith('sk_x', null);
+    expect(probeOpenai).toHaveBeenCalledWith('sk_x');
   });
 });

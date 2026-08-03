@@ -132,20 +132,6 @@ export type JournalReadOutcome =
 // Journal-stage (LEARN group) view types — the candidate-learnings curation UI.
 // ---------------------------------------------------------------------------
 
-/** `source` = which lifecycle stage the learning came out of (Manual = user-added). */
-export const LEARNING_SOURCES = ['Exploration', 'Spec', 'Plan', 'Execute', 'Review', 'Journal', 'Manual'] as const;
-export type LearningSource = (typeof LEARNING_SOURCES)[number];
-
 /** `category` = what kind of learning it is (fixed taxonomy). */
 export const LEARNING_CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
 export type LearningCategory = (typeof LEARNING_CATEGORIES)[number];
-
-/** One-line description of each category (shown in the journal summary). */
-export interface Learning {
-  id: string;
-  num: number;
-  text: string;
-  tags: string[];
-  source: LearningSource;
-  category: LearningCategory;
-}

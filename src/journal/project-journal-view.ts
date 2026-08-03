@@ -19,7 +19,10 @@ export function buildJournalLearningView(rows: ProjectJournalViewRow[]) {
       title: row.heading,
       body: row.body,
       category: row.type,
-      source: 'Manual' as const,
+      // No `source`: it was the literal 'Manual' on every row, and the list rendered it
+      // beside the category chip. Both writers of `project_journal` are machine paths —
+      // the MMA harvest handler and the legacy backfill — so nothing is user-added, and
+      // the label told the user the opposite of the truth on every learning.
       status: row.status as 'proposed' | 'kept' | 'recorded',
       recordedNodeId: row.recordedNodeId,
     }));

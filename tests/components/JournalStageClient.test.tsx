@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
 
 const learning = (over: Partial<JournalLearningView> = {}): JournalLearningView => ({
   id: 'l1', num: 1, title: 'Ship behind a flag', body: 'Body text.',
-  category: 'decision', source: 'Spec', status: 'proposed', ...over,
+  category: 'decision', status: 'proposed', ...over,
 });
 
 const renderStage = (learnings: JournalLearningView[]) =>

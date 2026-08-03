@@ -34,7 +34,7 @@ import { StageNavigator } from '@/components/patterns/stage-navigator';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
-import type { LearningCategory, LearningSource } from '@/journal/types';
+import type { LearningCategory } from '@/journal/types';
 import { CategoryChip } from '@/components/forge/journal/category-style';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
@@ -51,7 +51,6 @@ export interface JournalLearningView {
   title: string;
   body: string;
   category: LearningCategory;
-  source: LearningSource;
   status: 'proposed' | 'kept' | 'recorded';
   recordedNodeId?: string | null;
 }
@@ -419,7 +418,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
               meta: (
                 <span className="flex items-center gap-2">
                   <CategoryChip category={l.category} size="sm" />
-                  <span>{l.source}</span>
                 </span>
               ),
               index: l.num,

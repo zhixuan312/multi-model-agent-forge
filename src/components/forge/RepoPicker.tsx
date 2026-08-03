@@ -1,5 +1,6 @@
 'use client';
 
+import { type RepoStatus } from '@/db/enums';
 import { useMemo, useState } from 'react';
 import { Field, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Checkbox, Badge, Text, Mono } from '@/components/ui';
 import { filterRepos } from '@/git/repo-filter';
@@ -16,7 +17,7 @@ export interface RepoPickerRepo {
   id: string;
   name: string;
   tags: string[];
-  status: 'cloned' | 'pulling' | 'error';
+  status: RepoStatus;
 }
 
 export interface RepoPickerProps {

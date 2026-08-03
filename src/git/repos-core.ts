@@ -7,6 +7,7 @@
  * git runner. The git token is resolved from `settings_connection.git_token_ref`
  * and passed to the service, never returned to callers, never logged.
  */
+import { type RepoStatus } from '@/db/enums';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
@@ -34,7 +35,7 @@ export interface RepoView {
   defaultBranch: string;
   tags: string[];
   headSha: string | null;
-  status: 'cloned' | 'pulling' | 'error';
+  status: RepoStatus;
   createdAt: Date;
 }
 

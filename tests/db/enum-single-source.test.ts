@@ -64,6 +64,28 @@ describe('db enums are single-source', () => {
     expect(enums.get('STAGE_STATUS')).toEqual(['pending', 'active', 'done', 'skipped']);
   });
 
+  /**
+   * Union types were a blind spot. The first version of this test matched only the ARRAY
+   * form (`['a', 'b', 'c']`), so `useState<'all' | 'recurring' | 'manual' | 'event'>` in
+   * `LoopsClient` — a re-spelling of `LOOP_MODE` with one extra member — sailed past it.
+   * A copy is a copy whichever punctuation it uses.
+   */
+  it('no file re-spells an enum as a type union', () => {
+    const files = ['src', 'app'].flatMap((d) => (existsSync(join(ROOT, d)) ? sourceFiles(d) : []));
+    const copies: string[] = [];
+    for (const file of files) {
+      if (file === ENUMS_FILE) continue;
+      const code = codeOf(file);
+      for (const [name, values] of enums) {
+        const union = new RegExp(
+          `'${values.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(`'\\s*\\|\\s*'`)}'`,
+        );
+        if (union.test(code)) copies.push(`${file} re-spells ${name} as a union — use its exported type`);
+      }
+    }
+    expect(copies).toEqual([]);
+  });
+
   it('no file writes out a full enum the module already owns', () => {
     const files = ['src', 'app'].flatMap((d) => (existsSync(join(ROOT, d)) ? sourceFiles(d) : []));
     expect(files.length).toBeGreaterThan(100);

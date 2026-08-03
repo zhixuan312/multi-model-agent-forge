@@ -7,6 +7,7 @@ import { Button, Checkbox, Input, Field, Textarea, Label, Micro, Segmented } fro
 import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
+import { type LoopMode, type LoopWorkerTier } from '@/db/enums';
 import type { LoopRow } from '@/db/schema/loop';
 import { responseError } from '@/lib/err';
 
@@ -15,9 +16,10 @@ export interface RepoOption {
   name: string;
 }
 
-/** How a loop is triggered. Recurring runs on `cron`; manual is Run-now only; event is
- *  driven by an external POST to the loop's event endpoint. */
-type LoopMode = 'recurring' | 'manual' | 'event';
+// How a loop is triggered. Recurring runs on `cron`; manual is Run-now only; event is
+// driven by an external POST to the loop's event endpoint. The TYPE comes from the enum —
+// this used to re-spell it as a local union, so a new mode would have compiled here while
+// the form silently offered three.
 
 /** The inline notice strip this form uses for the token affordances — written out twice,
  *  once for the rotate prompt and once for the revealed token. */
@@ -43,7 +45,7 @@ export function LoopForm({
   const router = useRouter();
   const [name, setName] = useState(loop?.name ?? '');
   const [goalMd, setGoalMd] = useState((loop?.config as { goalMd?: string } | null)?.goalMd ?? '');
-  const [workerTier, setWorkerTier] = useState<'standard' | 'complex'>(loop?.workerTier ?? 'complex');
+  const [workerTier, setWorkerTier] = useState<LoopWorkerTier>(loop?.workerTier ?? 'complex');
   const [loopMode, setLoopMode] = useState((loop?.mode as LoopMode | undefined) ?? 'recurring');
   const [cron, setCron] = useState(loop?.cron ?? '0 3 * * *');
   const [targetBranch, setTargetBranch] = useState(loop?.targetBranch ?? '');
@@ -151,7 +153,7 @@ export function LoopForm({
       <div className="flex flex-wrap gap-6">
         <div className="flex flex-col gap-1.5">
           <Label as="span">Worker tier</Label>
-          <Segmented label="Worker tier" value={workerTier} onChange={(v) => setWorkerTier(v as 'standard' | 'complex')} options={[{ value: 'standard', label: 'standard' }, { value: 'complex', label: 'complex' }]} />
+          <Segmented label="Worker tier" value={workerTier} onChange={(v) => setWorkerTier(v as LoopWorkerTier)} options={[{ value: 'standard', label: 'standard' }, { value: 'complex', label: 'complex' }]} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label as="span">Mode</Label>

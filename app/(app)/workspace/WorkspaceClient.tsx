@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { type RepoStatus } from '@/db/enums';
 import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Check, RefreshCw, AlertTriangle, GitBranch, Plus, Trash2, Pencil } from 'lucide-react';
@@ -35,7 +36,7 @@ export interface RepoCardData {
   name: string;
   tags: string[];
   defaultBranch: string;
-  status: 'cloned' | 'pulling' | 'error';
+  status: RepoStatus;
   headSha: string | null;
 }
 

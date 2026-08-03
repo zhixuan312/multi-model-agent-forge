@@ -24,11 +24,19 @@ import {
   toolbarControlWidth,
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
+import { LOOP_MODE, type LoopMode } from '@/db/enums';
 import type { LoopRow } from '@/db/schema/loop';
 import { describeCron } from '@/loops/cron';
 import { LoopForm, type RepoOption } from './LoopForm';
 import { statusLabel, statusVariant, fmtRunTime } from './run-format';
 import { responseError } from '@/lib/err';
+
+/** Display name per trigger mode. Total over `LoopMode`, so a new mode fails the build. */
+const LOOP_MODE_LABEL: Record<LoopMode, string> = {
+  recurring: 'Recurring',
+  manual: 'Manual',
+  event: 'Event',
+};
 
 export interface LastRun {
   status: string;
@@ -54,7 +62,9 @@ export function LoopsClient({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [trigger, setTrigger] = useState<'all' | 'recurring' | 'manual' | 'event'>('all');
+  // `LoopMode | 'all'`, not a re-spelled union. Written out, a new mode would be missing
+  // from the filter type AND from the option list below it.
+  const [trigger, setTrigger] = useState<LoopMode | 'all'>('all');
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -163,7 +173,11 @@ export function LoopsClient({
         header: 'Status',
         size: 100,
         cell: ({ row }) =>
-          row.original.mode !== 'recurring' ? (
+          // `—` only for MANUAL, whose sole trigger is an admin clicking Run now. Recurring
+          // AND event loops both fire on their own and both honour `enabled`, so both have a
+          // status worth showing. This read `mode !== 'recurring'`, so an event loop an
+          // admin had paused still displayed `—` — the table disagreeing with the form.
+          row.original.mode === 'manual' ? (
             <Micro className="text-ink-faint">—</Micro>
           ) : (
             <Badge size="sm" variant={row.original.enabled ? 'sage' : 'neutral'} dot={row.original.enabled}>
@@ -223,13 +237,13 @@ export function LoopsClient({
       >
         <Toolbar>
           <SearchInput label="loops" value={search} onChange={setSearch} />
-          <Select value={trigger} onValueChange={(v) => setTrigger(v as 'all' | 'recurring' | 'manual' | 'event')}>
+          <Select value={trigger} onValueChange={(v) => setTrigger(v as LoopMode | 'all')}>
             <SelectTrigger aria-label="Filter by trigger" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All modes</SelectItem>
-              <SelectItem value="recurring">Recurring</SelectItem>
-              <SelectItem value="manual">Manual</SelectItem>
-              <SelectItem value="event">Event</SelectItem>
+              {LOOP_MODE.map((m) => (
+                <SelectItem key={m} value={m}>{LOOP_MODE_LABEL[m]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Toolbar>

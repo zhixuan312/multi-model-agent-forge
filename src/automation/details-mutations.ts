@@ -1,5 +1,5 @@
 import { buildInitialDetails, type Details, type Attempt } from '@/details/schema';
-import { STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_ORDER, type StageKind, type AuditVerdict } from '@/db/enums';
 
 /**
  * The CENTRAL registry of async-dispatched attempts that can get stuck `running`
@@ -126,7 +126,7 @@ export function recordAuditPass(
   d: Details,
   scope: 'spec' | 'plan',
   passNo: number,
-  verdict: 'revised' | 'clean',
+  verdict: AuditVerdict,
   batchId: string,
   at: string,
   contextBlockId: string | null,

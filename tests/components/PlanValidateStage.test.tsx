@@ -85,3 +85,32 @@ describe('Plan · Validate — the Document tab', () => {
     expect(screen.queryByText('No plan document yet')).toBeNull();
   });
 });
+
+describe('Plan · Validate — which tab opens', () => {
+  const withRounds = (planMd: string) =>
+    render(
+      <PlanStageClient
+        {...({
+          projectId: 'p1', projectName: 'Payments', mmaReady: true,
+          phases: phases(), planMd, initialPhase: 'validate',
+          auditRounds: [[{ severity: 'medium', category: 'gap', claim: 'A finding' }]],
+        } as unknown as PlanStageClientProps)}
+      />,
+    );
+
+  /**
+   * The jump-to-newest-pass effect was keyed `rounds.length > 0`, and an effect keyed on a
+   * value runs on MOUNT — so it fired immediately and overrode the initializer's
+   * `planMd ? 'document'`. Someone returning to a validated plan to READ it landed on the
+   * findings grid every time. Two mechanisms for one decision, the later one winning.
+   */
+  it('opens on the plan when there is one, even with audit history', () => {
+    withRounds('# The plan');
+    expect(screen.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('opens on the audit when there is no plan document to show', () => {
+    withRounds('');
+    expect(screen.getByRole('tab', { name: 'Audit' })).toHaveAttribute('aria-selected', 'true');
+  });
+});

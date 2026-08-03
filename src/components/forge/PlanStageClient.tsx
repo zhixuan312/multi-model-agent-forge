@@ -867,9 +867,22 @@ function ValidateStage({
   // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the manual finding selection when the viewed pass changes
   useEffect(() => { setSelectedFindings([]); }, [selectedPass]);
 
+  /**
+   * Jump to the newest pass when rounds GROW — not merely when there are some.
+   *
+   * The condition was `rounds.length > 0`, and an effect keyed on a value runs on mount too,
+   * so this fired immediately and overrode the initializer above: a plan with any audit
+   * history opened on the Audit tab even when `planMd ? 'document'` had just chosen the plan.
+   * Two mechanisms for one decision, the later one silently winning. Someone returning to a
+   * validated plan to READ it landed on the findings grid every time.
+   */
+  const prevRoundCount = useRef(rounds.length);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- jump to the newest audit pass when rounds grow
-    if (rounds.length > 0) { setSelectedPass(rounds[rounds.length - 1].passNo); setDocView('audit'); }
+    if (rounds.length > prevRoundCount.current) {
+      setSelectedPass(rounds[rounds.length - 1].passNo);
+      setDocView('audit');
+    }
+    prevRoundCount.current = rounds.length;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keys off rounds.length; reading full rounds only to index the latest, not to retrigger
   }, [rounds.length]);
 

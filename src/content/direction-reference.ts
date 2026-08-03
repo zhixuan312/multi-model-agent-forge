@@ -1,7 +1,15 @@
-// Structured reference data for the /direction mechanism explainer.
-// Verbatim from multi-model-agent/DIRECTION.md (principles) and the actual
-// criteria source (core/src/tools/<route>/*-criteria.ts), so an evaluator
-// reads exactly what the harness applies — not a paraphrase.
+// Structured reference data for the in-app Guide's mechanism explainer.
+//
+// Sourced from `multi-model-agent/DIRECTION.md` (principles) and from the engine's own
+// skill files — `packages/core/src/skills/<type>/implement.md` — so an evaluator reads
+// what the harness applies, not a paraphrase. The citation used to name
+// `core/src/tools/<route>/*-criteria.ts`, a directory the engine replaced with `skills/`;
+// following it led nowhere.
+//
+// NOTHING CHECKS THIS AUTOMATICALLY. The engine is a sibling repo, not a dependency Forge
+// can import in a test, so these constants can only be verified by reading the engine
+// beside them — which is how `WRITE_STAGES` came to describe a stage machine that had been
+// deleted. Re-read the engine when touching this file; a green suite says nothing here.
 
 export interface Principle {
   n: number;
@@ -384,16 +392,22 @@ export interface ExecStage {
   what: string;
 }
 
-/** The ordered lifecycle every write route (delegate / execute_plan) runs each
- *  task through. (`register-block` is skipped for write routes; `compose` +
- *  `terminal` assemble and finalize the response.) */
+/**
+ * What a write route (delegate / execute_plan) actually runs, in order.
+ *
+ * This listed a SIX-stage machine — prepare · implement · review · rework · commit ·
+ * annotate — plus `register-block`, `compose` and `terminal`. That was the engine's
+ * `lifecycle/` layer, which has been deleted: write routes now run
+ * `runTwoPhasePipeline` (implementer, then refiner), the caller owns the branch, and
+ * `rework`/`annotate` survive only as stage NAMES in the telemetry wire format. The
+ * neighbouring comment in this file already noted the lifecycle layer was gone; this
+ * list had not caught up, and it is rendered in the in-app Guide.
+ */
 export const WRITE_STAGES: ExecStage[] = [
-  { name: 'prepare', what: 'Seed the task — resolve the review policy, set up diff tracking and the worker context.' },
-  { name: 'implement', what: 'The worker does the work: full tool access, cost-ceiling enforcement, sandbox confinement, progress heartbeats streaming.' },
-  { name: 'review', what: 'The *other* agent reviews — spec conformance first, then code quality (safe / correct / maintainable).' },
-  { name: 'rework', what: 'The worker addresses review findings; loops until approved, findings plateau, or the safety limit is hit.' },
-  { name: 'commit', what: 'Commit the produced diff when a commit is configured; returns the commit SHA.' },
-  { name: 'annotate', what: 'A standard-tier judge summarizes the result into the quotable headline and the findings list.' },
+  { name: 'baseline', what: 'Record HEAD before any worker starts, on the branch the CALLER already checked out — the engine cuts no branch and no worktree.' },
+  { name: 'implement', what: 'The worker does the work directly in the submitted cwd: full tool access, sandbox confinement, wall-clock deadline and cost ceiling, progress streaming. Git is denied to the worker.' },
+  { name: 'refine', what: 'The second agent reviews and re-emits the answer in the same format — spec conformance first, then code quality. Skipped entirely when the caller sends `reviewPolicy: "none"`.' },
+  { name: 'commit', what: 'The engine commits, from outside every sandbox, after checking the worker did not move HEAD or switch branch. A cancelled run deliberately commits nothing and leaves its edits in the tree.' },
 ];
 
 // ── Research sources (from `packages/core/src/research/` + config) ──

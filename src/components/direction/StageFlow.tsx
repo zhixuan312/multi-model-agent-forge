@@ -3,11 +3,9 @@ import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { WRITE_STAGES } from '@/content/direction-reference';
 
 /**
- * The write-route execution lifecycle — the full set of stages a delegate /
- * execute_plan task runs through, with what each does. One `Card` carrying a
- * divided ordered list: the order is the sequence, so no connectors are drawn.
- * (register-block is skipped for write routes; compose + terminal assemble the
- * response.)
+ * The write-route execution sequence — what a delegate / execute_plan task runs
+ * through, with what each step does. One `Card` carrying a divided ordered list: the
+ * order is the sequence, so no connectors are drawn.
  */
 export function StageFlow() {
   return (
@@ -28,9 +26,8 @@ export function StageFlow() {
         </ol>
       </Card>
       <TextSm className="!text-xs !text-ink-faint">
-        <Mono className="!text-xs">register-block</Mono> is skipped for write routes;{' '}
-        <Mono className="!text-xs">compose</Mono> and <Mono className="!text-xs">terminal</Mono> assemble and finalize
-        the response.
+        Read routes stop after <Mono className="!text-xs">refine</Mono> — they produce findings, not a
+        diff, so nothing is committed.
       </TextSm>
     </div>
   );

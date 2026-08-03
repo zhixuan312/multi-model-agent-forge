@@ -4,6 +4,8 @@ import {
   summarizeConformance,
   hasConformanceRule,
   CONFORMANCE_RULES,
+  RAIL_NOTE_SIGNATURE,
+  SIGNATURE_SOURCES,
   type SourceFile,
 } from '@/governance/conformance';
 
@@ -140,7 +142,10 @@ describe('governance conformance checker', () => {
   });
 
   describe('right panel (aside)', () => {
-    const RAIL_NOTE = 'rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40';
+    // The rule's OWN constant, not a copy of it. A local copy makes the fixture and the rule
+    // agree with each other while both drift away from the component — see the liveness
+    // block at the bottom of this file.
+    const RAIL_NOTE = RAIL_NOTE_SIGNATURE;
 
     it('flags a hand-rolled rail note (extra)', () => {
       const v = forSlot([{ path: 'src/components/forge/Foo.tsx', content: `<div className="flex items-start gap-3 ${RAIL_NOTE} px-4 py-4" />` }], 'rightPanel');
@@ -162,6 +167,30 @@ describe('governance conformance checker', () => {
     it('passes a StageShell that supplies a note', () => {
       const v = forSlot([{ path: 'app/(app)/loops/page.tsx', content: `<StageShell note={<RailNote/>}>{body}</StageShell>` }], 'rightPanel');
       expect(v).toEqual([]);
+    });
+  });
+
+  /**
+   * A signature rule dies QUIETLY. If `RailNote` restyles, or the dashboard grid picks up a
+   * utility, the rule's constant stops matching anything: every scan comes back clean, the
+   * baseline test passes, `checked` stays high — and a page hand-rolling the real thing goes
+   * straight through. It reads exactly like convergence.
+   *
+   * `DASHBOARD_GRID_RE` really did spend time pinned to a `lg:items-stretch` that
+   * `status-dashboard.tsx` had already dropped, matching nothing in the repo. That was found
+   * by eye. This finds the next one.
+   */
+  describe('every signature still matches the component it was written from', () => {
+    it.each(SIGNATURE_SOURCES)('$what is still in $file', ({ signature, file, what }) => {
+      const src = readFileSync(join(process.cwd(), file), 'utf8');
+      const found = typeof signature === 'string' ? src.includes(signature) : signature.test(src);
+      expect(found, `${what} no longer appears in ${file} — the rule using it now matches nothing and its layer will report clean forever`).toBe(true);
+    });
+
+    it('anchors every signature-based rule, so a new one cannot skip this check', () => {
+      // Every rule whose detector is a literal signature needs an entry above. The two
+      // structural rules (appShell's PageFrame, leftPanel's <table>) are anchored too.
+      expect(SIGNATURE_SOURCES.length).toBeGreaterThanOrEqual(CONFORMANCE_RULES.length);
     });
   });
 

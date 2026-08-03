@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import type { GovernanceSlotId } from '@/components/governance/registry';
 import {
   summarizeConformance,
   hasConformanceRule,
-  type GovernanceSlotId,
   type LayerConformance,
   type SourceFile,
 } from '@/governance/conformance';

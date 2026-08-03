@@ -1,7 +1,5 @@
 import type { GovernanceSlotId } from '@/components/governance/registry';
 
-export type { GovernanceSlotId } from '@/components/governance/registry';
-
 /**
  * Application-level conformance checker (pure, fs-free — the runner in `conformance-scan.ts`
  * feeds it the repo's files). It walks the LAYER STACK — background → app shell → content
@@ -64,9 +62,31 @@ const isExportBuilder = (p: string) => p.includes('src/export/');
  * flagged a page hand-rolling the CURRENT grid. Pinned to the utilities that make it
  * that grid, not to the whole list, so a cosmetic tweak cannot switch the rule off again.
  */
-const DASHBOARD_GRID_RE = /grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3/;
-/** RailNote's exact tinted-note signature (r-lg + /40 tint) — a tinted menu row won't match. */
-const RAIL_NOTE_SIGNATURE = 'rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40';
+export const DASHBOARD_GRID_RE = /grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3/;
+/**
+ * RailNote's exact tinted-note signature (r-lg + /40 tint) — a tinted menu row won't match.
+ *
+ * Exported, with the grid regex above, so the tests can assert these still MATCH the
+ * components they were copied from. A signature rule dies silently: the constant and the
+ * test fixture go on agreeing about a string that exists nowhere in the repo, the layer
+ * reports permanently clean, and a real violation walks past. That is not hypothetical —
+ * `DASHBOARD_GRID_RE` spent time pinned to a `lg:items-stretch` the component had dropped.
+ */
+export const RAIL_NOTE_SIGNATURE = 'rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40';
+
+/**
+ * Where each signature came from: rule constant → the canonical component that must still
+ * contain it. Checked by `conformance.test.ts`; kept beside the constants so adding a
+ * signature rule without a liveness anchor is a visible omission.
+ */
+export const SIGNATURE_SOURCES: readonly { signature: string | RegExp; file: string; what: string }[] = [
+  { signature: RAIL_NOTE_SIGNATURE, file: 'src/components/patterns/feature-rail.tsx', what: 'RailNote\'s tinted-note classes' },
+  { signature: DASHBOARD_GRID_RE, file: 'src/components/patterns/status-dashboard.tsx', what: 'the dashboard grid' },
+  { signature: 'app-bg', file: 'src/components/ui/shell.tsx', what: 'the canonical background class' },
+  { signature: '<StageStepper', file: 'src/components/forge/LiveStageStepper.tsx', what: 'the sanctioned stepper wrapper' },
+  { signature: '<table', file: 'src/components/ui/table.tsx', what: 'the governed table primitive' },
+  { signature: 'PageFrame', file: 'src/components/ui/shell.tsx', what: 'the page frame' },
+];
 
 const SHELL = 'src/components/ui/shell.tsx';
 const isAuthedPage = (p: string) => /^app\/\(app\)\/(?:.*\/)?page\.tsx$/.test(p);

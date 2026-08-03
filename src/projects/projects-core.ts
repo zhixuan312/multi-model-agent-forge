@@ -514,27 +514,6 @@ export interface ProjectRepoView {
   available: boolean;
 }
 
-export async function getProjectRepos(
-  projectId: string,
-  deps: ProjectsDeps = {},
-): Promise<ProjectRepoView[]> {
-  const db = deps.db ?? getDb();
-  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
-  if (!row?.details) return [];
-  const d = validateDetails(row.details);
-  const repoIds = d.repos.map((r) => r.id);
-  if (repoIds.length === 0) return [];
-  const repoRows = await db.select({ id: repo.id, name: repo.name, tags: repo.tags, status: repo.status })
-    .from(repo).where(inArray(repo.id, repoIds));
-  return repoRows.map((r) => ({
-    repoId: r.id,
-    name: r.name,
-    tags: r.tags,
-    status: r.status,
-    available: r.status !== null && r.status !== 'error',
-  }));
-}
-
 /* ── Mutations ──────────────────────────────────────────────────────────── */
 
 /**

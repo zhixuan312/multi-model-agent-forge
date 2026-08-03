@@ -217,18 +217,3 @@ export async function deleteLoop(id: string, deps: LoopsDeps = {}): Promise<{ ki
   const deleted = await db.delete(loop).where(where).returning({ id: loop.id });
   return { kind: deleted.length > 0 ? 'deleted' : 'not_found' };
 }
-
-export async function setLoopEnabled(
-  id: string,
-  enabled: boolean,
-  deps: LoopsDeps = {},
-): Promise<{ kind: 'updated' | 'not_found' }> {
-  const db = deps.db ?? getDb();
-  const where = deps.teamId ? and(eq(loop.id, id), eq(loop.teamId, deps.teamId)) : eq(loop.id, id);
-  const updated = await db
-    .update(loop)
-    .set({ enabled, updatedAt: new Date() })
-    .where(where)
-    .returning({ id: loop.id });
-  return { kind: updated.length > 0 ? 'updated' : 'not_found' };
-}

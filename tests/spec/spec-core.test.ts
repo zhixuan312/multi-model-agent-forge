@@ -3,7 +3,6 @@ import {
   ensureSpecStage,
   captureIntent,
   loadOutline,
-  loadComponentMessages,
   loadAllMessages,
 } from '@/spec/spec-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
@@ -70,27 +69,6 @@ describe('captureIntent activity row', () => {
       eventKey: 'capture_intent:proj-1',
       actorName: 'Avery',
     });
-  });
-});
-
-describe('section + project_qa_message persistence (DB integration)', () => {
-  it('an answer persists a member project_qa_message, and loadComponentMessages returns them in seq order', async () => {
-    const sectionId = 'sec-1';
-    const ownerId = 'owner-4';
-    const FORGE_ID = '00000000-0000-0000-0000-000000000000';
-    const mockDb = createMockDb({
-      'select:project_qa_message': [
-        { id: 'msg-1', sectionId, bodyMd: 'What is the goal?', seq: 1, authorId: FORGE_ID },
-        { id: 'msg-2', sectionId, bodyMd: 'Speed up checkout.', seq: 2, authorId: ownerId },
-        { id: 'msg-3', sectionId, bodyMd: 'And the constraint?', seq: 3, authorId: FORGE_ID },
-      ],
-      'select:project_component_section': [{ id: sectionId, status: 'gathering', aiSatisfied: false }],
-    });
-
-    const msgs = await loadComponentMessages(mockDb, sectionId);
-    expect(msgs.map((m) => m.sender)).toEqual(['forge', 'member', 'forge']);
-    const memberMsg = msgs.find((m) => m.sender === 'member');
-    expect(memberMsg?.bodyMd).toBe('Speed up checkout.');
   });
 });
 

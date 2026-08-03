@@ -1,7 +1,7 @@
 import { and, eq, lt, ne } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { session } from '@/db/schema/identity';
-import { hashToken } from '@/auth/cookie';
+import { hashToken, mintSessionToken } from '@/auth/cookie';
 import { SESSION_ABSOLUTE_TTL_MS } from '@/auth/config';
 
 /**
@@ -50,12 +50,6 @@ export interface SessionStore {
   revokeAllForMember(memberId: string): Promise<void>;
 }
 
-import { randomBytes } from 'node:crypto';
-
-function defaultToken(): string {
-  return randomBytes(32).toString('base64url');
-}
-
 export class PostgresSessionStore implements SessionStore {
   private _db?: Db;
   // Resolve the connection LAZILY (on first query), not at construction — so the
@@ -69,7 +63,7 @@ export class PostgresSessionStore implements SessionStore {
   }
 
   async create(memberId: string, opts?: { token?: string }): Promise<CreatedSession> {
-    const token = opts?.token ?? defaultToken();
+    const token = opts?.token ?? mintSessionToken();
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + SESSION_ABSOLUTE_TTL_MS);
     const [row] = await this.db

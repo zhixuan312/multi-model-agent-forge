@@ -1,25 +1,20 @@
 /**
- * Pure participant/approval logic for a co-approved unit. No React, no DB — the
- * reusable core the Spec-craft UI (and later stages) drive. The governing rule:
- * a unit's human gate is satisfied when AT LEAST ONE participant has approved
- * (§"≥1 is good to go"); everyone else who's pending is shown for visibility,
- * not as a hard block.
+ * Pure participant-list logic for a co-approved unit. No React, no DB — the reusable
+ * core the Spec-craft UI drives when it edits a section's participants.
+ *
+ * The governing rule — a unit's human gate is satisfied when AT LEAST ONE participant
+ * has approved (§"≥1 is good to go"), everyone else pending being shown for visibility
+ * rather than as a hard block — is NOT decided here. The client never gets to vote on
+ * its own gate: the server derives `humanSatisfied` from `details.…components[].approvals`
+ * in `loadOutline` (spec-core.ts) and ships the answer. This module previously carried an
+ * `isHumanApproved` that restated the rule over the client's `Participant[]` and that
+ * nothing called — two places to change one rule, one of them unreachable.
  */
 import type { MemberRef, Participant } from './types';
-
-/** Participants who have nodded. */
-export function approvers(ps: Participant[]): Participant[] {
-  return ps.filter((p) => p.approvedAt !== null);
-}
 
 /** Participants still expected but not yet approved (drives the panel + nudge). */
 export function pending(ps: Participant[]): Participant[] {
   return ps.filter((p) => p.approvedAt === null);
-}
-
-/** Human gate: true once any one participant has approved. */
-export function isHumanApproved(ps: Participant[]): boolean {
-  return approvers(ps).length > 0;
 }
 
 /** Has this specific member already approved? */

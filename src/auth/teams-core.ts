@@ -22,30 +22,6 @@ export function nameFromSlug(slug: string): string {
     .join(' ');
 }
 
-const createTeamSchema = z.object({
-  name: z.string().trim().min(1),
-  slug: z.string().trim().min(1),
-  workspaceRootPath: z.string().trim().min(1),
-});
-
-export type CreateTeamResult = { kind: 'created'; team: { id: string; name: string; slug: string; workspaceRootPath: string; gitTokenRef: string | null } } | { kind: 'invalid' };
-
-export async function createTeam(
-  input: unknown,
-  deps: TeamsDeps = {},
-): Promise<CreateTeamResult> {
-  const parsed = createTeamSchema.safeParse(input);
-  if (!parsed.success) return { kind: 'invalid' };
-  const db = deps.db ?? getDb();
-  const [created] = await db
-    .insert(team)
-    // Store the base-relative leaf, never an absolute host path — see
-    // `toStoredWorkspacePath`. Keeps a DB dump portable across hosts.
-    .values({ ...parsed.data, workspaceRootPath: toStoredWorkspacePath(parsed.data.workspaceRootPath) })
-    .returning();
-  return { kind: 'created', team: created };
-}
-
 // A team has no members until its admin exists, and the org admin can never join
 // a team — so a team and its first team_admin are provisioned together (FR-9).
 // The slug is the single identifier; the display name is derived from it.

@@ -1,4 +1,4 @@
-import type { StageKind, ProjectPhase } from '@/db/enums';
+import type { StageKind } from '@/db/enums';
 
 /**
  * `stage_kind` → URL-segment map. The SINGLE source of truth — the `[id]` redirect
@@ -24,14 +24,3 @@ export const STAGE_ROUTE: Record<StageKind, string> = {
 export function stageRoute(kind: StageKind, projectId: string): string {
   return `/projects/${projectId}/${STAGE_ROUTE[kind]}`;
 }
-
-/**
- * `project.phase` → `data-phase` CSS token. Three stepper groups map to two
- * visual worlds: design (warm) and build/learn (cool).
- */
-export const DATA_PHASE: Record<ProjectPhase, 'design' | 'build'> = {
-  design: 'design',
-  build: 'build',
-  learn: 'build',
-  completed: 'build',
-} as const;

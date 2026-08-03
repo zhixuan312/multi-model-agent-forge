@@ -3,7 +3,6 @@ import {
   parseArtifactSections,
   markdownToSafeHtml,
   extractMermaid,
-  hasMermaid,
 } from '@/export/sections';
 
 const SPEC_BODY = [
@@ -79,10 +78,9 @@ describe('sections — mermaid extraction', () => {
     expect(tech.mermaid[0].source).toContain('flowchart LR');
   });
 
-  it('hasMermaid / extractMermaid helpers', () => {
-    expect(hasMermaid('```mermaid\nflowchart\n```')).toBe(true);
-    expect(hasMermaid('no diagrams')).toBe(false);
+  it('extractMermaid finds a fenced mermaid block, and nothing in plain prose', () => {
     expect(extractMermaid('```mermaid\ngraph TD\n```')).toHaveLength(1);
+    expect(extractMermaid('no diagrams')).toHaveLength(0);
   });
 });
 

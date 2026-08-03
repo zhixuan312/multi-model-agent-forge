@@ -225,7 +225,6 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
   return views;
 }
 
-
 /** Load all qa_messages for every component in a project, keyed by componentId. */
 export async function loadAllMessages(
   db: Db,
@@ -246,21 +245,4 @@ export async function loadAllMessages(
     result[r.targetId] = list;
   }
   return result;
-}
-
-export async function loadComponentMessages(
-  db: Db,
-  componentId: string,
-): Promise<Array<{ id: string; sender: 'forge' | 'member'; bodyMd: string }>> {
-  const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
-  const rows = await db
-    .select({ id: qaMessage.id, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
-    .from(qaMessage)
-    .where(eq(qaMessage.targetId, componentId))
-    .orderBy(asc(qaMessage.seq));
-  return rows.map((r) => ({
-    id: r.id,
-    sender: (r.authorId === FORGE_MEMBER_ID ? 'forge' : 'member') as 'forge' | 'member',
-    bodyMd: r.bodyMd,
-  }));
 }

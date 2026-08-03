@@ -1,5 +1,5 @@
-import { STAGE_ROUTE, stageRoute, DATA_PHASE } from '@/projects/stage-route';
-import { STAGE_KIND, PROJECT_PHASE } from '@/db/enums';
+import { STAGE_ROUTE, stageRoute } from '@/projects/stage-route';
+import { STAGE_KIND } from '@/db/enums';
 
 describe('stage-route', () => {
   // Two kinds diverge from their enum name in the URL: `exploration` reads as
@@ -33,14 +33,5 @@ describe('stage-route', () => {
   it('stageRoute(journal, id) → /projects/<id>/reflect (never /journal)', () => {
     expect(stageRoute('journal', 'abc')).toBe('/projects/abc/reflect');
     expect(stageRoute('journal', 'abc')).not.toContain('journal');
-  });
-
-  it('DATA_PHASE maps each project phase to design or build (two CSS worlds)', () => {
-    expect(DATA_PHASE.design).toBe('design');
-    expect(DATA_PHASE.build).toBe('build');
-    expect(DATA_PHASE.learn).toBe('build');
-    for (const phase of PROJECT_PHASE) {
-      expect(['design', 'build']).toContain(DATA_PHASE[phase]);
-    }
   });
 });

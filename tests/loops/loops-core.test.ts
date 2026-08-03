@@ -5,7 +5,6 @@ import {
   listLoops,
   getLoop,
   deleteLoop,
-  setLoopEnabled,
   rotateLoopEventToken,
   toPublicLoop,
 } from '@/loops/loops-core';
@@ -119,11 +118,16 @@ describe('reads + toggles', () => {
     expect(await getLoop('x', { db: createMockDb({ 'select:loop_def': [] }), teamId: 'team-1' })).toBeNull();
   });
 
-  it('deleteLoop / setLoopEnabled report deleted|updated vs not_found', async () => {
+  it('deleteLoop reports deleted vs not_found', async () => {
     expect((await deleteLoop('loop-1', { db: createMockDb({ 'delete:loop_def': [{ id: 'loop-1' }] }), teamId: 'team-1' })).kind).toBe('deleted');
     expect((await deleteLoop('x', { db: createMockDb({ 'delete:loop_def': [] }), teamId: 'team-1' })).kind).toBe('not_found');
-    expect((await setLoopEnabled('loop-1', false, { db: createMockDb({ 'update:loop_def': [{ id: 'loop-1' }] }), teamId: 'team-1' })).kind).toBe('updated');
-    expect((await setLoopEnabled('x', false, { db: createMockDb({ 'update:loop_def': [] }), teamId: 'team-1' })).kind).toBe('not_found');
+  });
+
+  it('updateLoop toggles enabled — the one write path the PATCH route uses', async () => {
+    const db = createMockDb({ 'select:loop_def': [loopRow()], 'update:loop_def': [{ id: 'loop-1' }] });
+    expect((await updateLoop('loop-1', { enabled: false }, { db, teamId: 'team-1' })).kind).toBe('updated');
+    const miss = createMockDb({ 'select:loop_def': [], 'update:loop_def': [] });
+    expect((await updateLoop('x', { enabled: false }, { db: miss, teamId: 'team-1' })).kind).toBe('not_found');
   });
 
   it('rejects duplicate names case-insensitively on rename', async () => {

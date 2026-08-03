@@ -1,7 +1,5 @@
 import {
-  approvers,
   pending,
-  isHumanApproved,
   hasApproved,
   addParticipant,
   recordApproval
@@ -20,15 +18,8 @@ function parts(): Participant[] {
 }
 
 describe('section-approval gate logic', () => {
-  it('approvers / pending partition the list by approvedAt', () => {
-    expect(approvers(parts()).map((p) => p.member.id)).toEqual(['bo']);
+  it('pending lists exactly those with no approvedAt', () => {
     expect(pending(parts()).map((p) => p.member.id)).toEqual(['priya']);
-  });
-
-  it('isHumanApproved is true once any one participant has approved (≥1 is enough)', () => {
-    expect(isHumanApproved(parts())).toBe(true);
-    expect(isHumanApproved([{ member: priya, approvedAt: null }])).toBe(false);
-    expect(isHumanApproved([])).toBe(false);
   });
 
   it('hasApproved is per-member', () => {

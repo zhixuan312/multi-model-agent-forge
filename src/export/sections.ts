@@ -83,12 +83,6 @@ export function extractMermaid(md: string): MermaidBlock[] {
   return out;
 }
 
-/** True ⟺ the markdown contains at least one mermaid fence. */
-export function hasMermaid(md: string): boolean {
-  MERMAID_FENCE_RE.lastIndex = 0;
-  return MERMAID_FENCE_RE.test(md);
-}
-
 interface RawSection {
   nn: string;
   title: string;

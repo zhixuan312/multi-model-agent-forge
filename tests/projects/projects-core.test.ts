@@ -5,7 +5,6 @@ import {
   assertProjectReadable,
   changeVisibility,
   changeRepos,
-  getProjectRepos,
   ProjectAccessError,
 } from '@/projects/projects-core';
 import { createMockDb, seq } from '../test-utils/mock-db';
@@ -260,31 +259,6 @@ describe('mutation authorization', () => {
       changeRepos(projectId, ['mine', 'foreign-team-repo'], { id: ownerId, teamId: 'team-1' }, { db: mockDb }),
     ).rejects.toThrow(/do not belong to your team/i);
     expect(mockDb._wasCalled('project', 'update')).toBe(false);
-  });
-});
-
-describe('getProjectRepos — reads from details', () => {
-  it('returns repos from details', async () => {
-    const projectId = 'proj-10';
-    const d = buildInitialDetails();
-    d.repos = [
-      { id: 'good-repo', name: 'Good', pathOnDisk: '/tmp/good', defaultBranch: 'main' },
-      { id: 'bad-repo', name: 'Bad', pathOnDisk: '/tmp/bad', defaultBranch: 'main' },
-    ];
-    const mockDb = createMockDb({
-      'select:project': [{ details: d }],
-      'select:workspace_repo': [
-        { id: 'good-repo', name: 'Good', tags: [], status: 'cloned' },
-        { id: 'bad-repo', name: 'Bad', tags: [], status: 'error' },
-      ],
-    });
-
-    const views = await getProjectRepos(projectId, { db: mockDb });
-    expect(views).toHaveLength(2);
-    const goodView = views.find((v) => v.repoId === 'good-repo');
-    const badView = views.find((v) => v.repoId === 'bad-repo');
-    expect(goodView?.available).toBe(true);
-    expect(badView?.available).toBe(false);
   });
 });
 

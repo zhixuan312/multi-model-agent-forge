@@ -52,6 +52,19 @@ describe('POST /transition — error mapping', () => {
     expect(res.status).toBe(409);
   });
 
+  /**
+   * A bad PAYLOAD is the caller's error, not a server fault. Before this mapping the
+   * effect threw a plain Error, Next turned it into a bare 500, and the user saw a
+   * generic failure instead of what was actually wrong with their input.
+   */
+  it('400 with the reason when the payload is invalid (InvalidActionInput)', async () => {
+    const { InvalidActionInput } = await import('@/automation/action-errors');
+    performTransition.mockRejectedValueOnce(new InvalidActionInput('Unknown spec component kind: nope'));
+    const res = await POST(req({ action: 'select_components', data: { kinds: ['nope'] } }) as never, ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'Unknown spec component kind: nope' });
+  });
+
   it('200 on success, passing {kind,data} to the sole gate', async () => {
     performTransition.mockResolvedValueOnce(undefined);
     const res = await POST(req({ action: 'set_brief', data: { text: 'hi' } }) as never, ctx);

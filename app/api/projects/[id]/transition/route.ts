@@ -4,6 +4,7 @@ import { rejectCrossOrigin } from '@/auth/same-origin';
 import { getDb } from '@/db/client';
 import { performTransition, TransitionRejected } from '@/automation/perform-transition';
 import { transitionSchema } from '@/automation/action-schema';
+import { InvalidActionInput } from '@/automation/action-errors';
 import '@/dispatch/handler-registry';
 
 export const runtime = 'nodejs';
@@ -12,7 +13,8 @@ export const runtime = 'nodejs';
  * The SINGLE lifecycle-mutation endpoint (spec §4.5). It validates {action, data} at
  * the boundary and hands off to `performTransition` — it does NOT pre-gate (never
  * calls `allowedActions` itself), so there is exactly one gate + resolver site.
- * `TransitionRejected` (gate refused: not-allowed / busy / mode) → 409.
+ * `TransitionRejected` (gate refused: not-allowed / busy / mode) → 409;
+ * `InvalidActionInput` (the kind is fine, its `data` is not) → 400.
  */
 export async function POST(
   req: NextRequest,
@@ -42,6 +44,11 @@ export async function POST(
   } catch (e) {
     if (e instanceof TransitionRejected) {
       return NextResponse.json({ error: e.reason }, { status: 409 });
+    }
+    // A bad payload is the caller's error: answer 400 with what was wrong, rather than
+    // letting it surface as a bare 500 the user can't act on.
+    if (e instanceof InvalidActionInput) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
     }
     throw e;
   }

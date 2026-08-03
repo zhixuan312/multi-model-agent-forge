@@ -13,7 +13,8 @@ import { projectEventBus } from '@/sse/event-bus';
 import { FORGE_MEMBER_ID, FORGE_ACTOR } from '@/automation/forge-member';
 import { updateDetails, advanceStage, advancePhase, reopenStage, setAutomationStatus } from '@/details/write';
 import { releaseDriverLease } from '@/automation/driver-lease';
-import type { StageKind } from '@/db/enums';
+import { InvalidActionInput } from '@/automation/action-errors';
+import { COMPONENT_KIND, type ComponentKind, type StageKind } from '@/db/enums';
 import { validateDetails } from '@/details/schema';
 import { lastReadBlockId } from '@/details/read';
 import {
@@ -690,7 +691,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       // straight into a `text` column and into `intentMd`. `briefSchema` declared the
       // 100k ceiling all along; nothing applied it.
       const parsed = briefSchema.safeParse({ text: action.data.text });
-      if (!parsed.success) throw new Error('Brief must be text of at most 100,000 characters.');
+      if (!parsed.success) throw new InvalidActionInput('Brief must be text of at most 100,000 characters.');
       const text = parsed.data.text;
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const { deriveSummary } = await import('@/spec/summary');
@@ -705,8 +706,18 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
     }
 
     case 'select_components': {
-      const kinds = action.data?.kinds as string[] | undefined;
-      if (!kinds || kinds.length === 0) break;
+      const rawKinds = action.data?.kinds;
+      if (!Array.isArray(rawKinds) || rawKinds.length === 0) break;
+      // Validate rather than cast (same lesson as `set_brief` above). This was
+      // `kinds as never`, so anything the wire sent reached `confirmComponents`, which
+      // resolves kinds against the template table and drops what doesn't match: a
+      // typo'd kind returned 200 while that component silently went missing, and an
+      // all-invalid list wiped the unapproved selection without a word.
+      const unknown = rawKinds.filter((k) => typeof k !== 'string' || !COMPONENT_KIND.includes(k as ComponentKind));
+      if (unknown.length > 0) {
+        throw new InvalidActionInput(`Unknown spec component ${unknown.length > 1 ? 'kinds' : 'kind'}: ${unknown.map(String).join(', ')}`);
+      }
+      const kinds = rawKinds as ComponentKind[];
       const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const intentMd = action.data?.intentMd as string | undefined;
       // Outline confirm: re-capture the (possibly edited) intent into the details
@@ -716,7 +727,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const { confirmComponents } = await import('@/spec/orchestrator');
       await ensureSpecStage(db, projectId);
       if (intentMd) await captureIntent(db, projectId, intentMd, actorId);
-      await confirmComponents(db, projectId, kinds as never, { actorId });
+      await confirmComponents(db, projectId, kinds, { actorId });
       break;
     }
 

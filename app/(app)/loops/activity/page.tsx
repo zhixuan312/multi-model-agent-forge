@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { History, GitPullRequest, CircleAlert, Loader } from 'lucide-react';
 import { requireAdminPage } from '@/auth/require-admin';
+import { LOOP_RUN_STATUS } from '@/db/enums';
 import { getDb } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { listLoops } from '@/loops/loops-core';
@@ -15,7 +16,12 @@ import { RunHistoryView } from '../RunHistoryView';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const STATUSES = new Set(['running', 'changed', 'no_changes', 'failed']);
+/**
+ * From the enum. Hardcoded, this validator and the filter dropdown could disagree: the
+ * dropdown derives from `LOOP_RUN_STATUS`, so a new status would appear there, be
+ * rejected here, and silently return unfiltered results.
+ */
+const STATUSES = new Set<string>(LOOP_RUN_STATUS);
 
 const HISTORY_NOTE = `### Reading a run
 

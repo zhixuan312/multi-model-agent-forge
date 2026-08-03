@@ -1,4 +1,5 @@
 import { uuid, text, integer, timestamp, index } from 'drizzle-orm/pg-core';
+import { EXPORT_FORMAT } from '@/db/enums';
 import { forge } from '@/db/schema/_schema';
 import { project } from '@/db/schema/projects';
 
@@ -20,7 +21,7 @@ export const exportRecord = forge.table(
       .references(() => project.id, { onDelete: 'cascade' }),
     artifactKind: text('artifact_kind').notNull(),
     artifactVersion: integer('artifact_version'),
-    format: text('format', { enum: ['md', 'pdf', 'bundle'] }).notNull(),
+    format: text('format', { enum: EXPORT_FORMAT }).notNull(),
     filePath: text('file_path').notNull(),
     createdBy: uuid('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

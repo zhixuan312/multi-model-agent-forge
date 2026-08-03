@@ -1,11 +1,20 @@
 import { z } from 'zod';
+import { STAGE_STATUS, AUDIT_VERDICT } from '@/db/enums';
 
-const stageStatus = z.enum(['pending', 'active', 'done', 'skipped']);
+/**
+ * `db/enums.ts` states the convention outright — "Zod schemas derive via `z.enum(X)`" —
+ * and these three did not: `stageStatus`, `phaseStatus` and `auditPassStatus` each wrote
+ * out a set that already had a canonical home, so `STAGE_STATUS` existed in THREE places
+ * and `AUDIT_VERDICT` in two.
+ */
+const stageStatus = z.enum(STAGE_STATUS);
 // `skipped` phases exist for subset runs: a phase that was never performed (an
 // intermediate phase of a stage satisfied by an uploaded artifact, or any phase of a
 // skipped stage). It is distinct from `done` (the phase produced output) — the stepper
 // renders it struck-through and non-navigable.
-const phaseStatus = z.enum(['pending', 'active', 'done', 'skipped']);
+// Same value set as a stage's today, and derived from it rather than copied. Give phases
+// their own enum in `db/enums.ts` if the two ever need to differ — do not fork it here.
+const phaseStatus = z.enum(STAGE_STATUS);
 // `cancelled` (engine 5.16) is terminal-and-INTENTIONAL: a human stopped this attempt.
 // Unlike `failed` it must never trigger a re-dispatch — the stage stays parked until a
 // human acts (see `resolveNextActionFromDetails` / `reconcileStuckAttempts`).
@@ -13,7 +22,7 @@ const attemptStatus = z.enum(['running', 'done', 'failed', 'cancelled']);
 const discoverTaskStatus = z.enum(['draft', 'running', 'recorded', 'failed']);
 const planTaskStatus = z.enum(['pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed']);
 const learningStatus = z.enum(['proposed', 'kept', 'removed', 'recorded']);
-const auditPassStatus = z.enum(['revised', 'clean']);
+const auditPassStatus = z.enum(AUDIT_VERDICT);
 const automationStatus = z.enum(['off', 'running']);
 
 const attemptSchema = z.object({

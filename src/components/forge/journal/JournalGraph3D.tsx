@@ -673,7 +673,29 @@ export function JournalGraph3D({
       data-testid="journal-graph"
       className="relative h-full min-h-[420px] w-full overflow-hidden rounded-[var(--r-md)] bg-[#01040a]"
     >
-      <canvas ref={canvasRef} className="block size-full cursor-grab" aria-label="Journal knowledge graph" />
+      {/*
+        Selecting a star is pointer-only — every listener below is a pointer/wheel event, the
+        canvas takes no focus and answers no key. That is a real limit of drawing a graph on a
+        canvas, and not one a `tabIndex` fixes: there is no DOM node per star to move focus
+        between.
+        What the name must NOT do is leave someone stranded on it. The Nodes tab is the
+        accessible equivalent and it is not a lesser one — the same learnings, the same detail
+        pane, searchable, filterable and keyboard-navigable — so the label says the graph is a
+        visual view, says how big it is, and says where the same knowledge is reachable.
+        It read "Journal knowledge graph": a name for an interactive surface that gave no hint
+        it could not be operated.
+      */}
+      <canvas
+        ref={canvasRef}
+        className="block size-full cursor-grab"
+        role="img"
+        aria-label={
+          `Journal knowledge graph: ${nodes.length} learning${nodes.length === 1 ? '' : 's'} and `
+          + `${edges.length} relationship${edges.length === 1 ? '' : 's'}, drawn as a night sky. `
+          + 'This view is explored with a pointer. The Nodes tab lists the same learnings with '
+          + 'their full detail, searchable and keyboard-navigable.'
+        }
+      />
 
       {/* atmosphere — cool/warm wash, film grain, then a vignette to seat the sky */}
       <div

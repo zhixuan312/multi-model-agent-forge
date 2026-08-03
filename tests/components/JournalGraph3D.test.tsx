@@ -62,7 +62,7 @@ function panelSubject() {
  * so this is deterministic — we just don't want the test hard-coding projected pixels.
  */
 async function clickAStar() {
-  const canvas = screen.getByLabelText('Journal knowledge graph');
+  const canvas = screen.getByLabelText(/^Journal knowledge graph:/);
   for (let y = 20; y < 600; y += 20) {
     for (let x = 20; x < 900; x += 20) {
       await act(async () => { fireEvent.click(canvas, { clientX: x, clientY: y }); });
@@ -80,9 +80,23 @@ beforeEach(() => {
 });
 
 describe('JournalGraph3D', () => {
+  /**
+   * The name carries the graph's SIZE and its accessible equivalent, not just its title:
+   * selecting a star is pointer-only (there is no DOM node per star to focus), so the label
+   * has to say the graph is a visual view and where the same learnings are reachable —
+   * otherwise it announces an interactive surface with no hint it cannot be operated.
+   */
+  it('names the sky, its size, and the keyboard-navigable equivalent', () => {
+    render(<JournalGraph3D nodes={nodes} edges={edges} onOpen={vi.fn()} />);
+    const label = screen.getByLabelText(/^Journal knowledge graph:/).getAttribute('aria-label')!;
+    expect(label).toMatch(/\d+ learnings/);
+    expect(label).toMatch(/\d+ relationships/);
+    expect(label).toMatch(/Nodes tab/);
+  });
+
   it('renders a canvas for the sky', () => {
     render(<JournalGraph3D nodes={nodes} edges={edges} onOpen={vi.fn()} />);
-    expect(screen.getByLabelText('Journal knowledge graph')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Journal knowledge graph:/)).toBeInTheDocument();
   });
 
   it('offers a full-screen control', () => {
@@ -130,7 +144,7 @@ describe('JournalGraph3D', () => {
     it('stays closed while the graph is inline, however a star is selected', async () => {
       render(<JournalGraph3D nodes={nodes} edges={edges} onOpen={vi.fn()} />);
       await act(async () => { await new Promise((r) => setTimeout(r, 40)); });
-      const canvas = screen.getByLabelText('Journal knowledge graph');
+      const canvas = screen.getByLabelText(/^Journal knowledge graph:/);
       for (let y = 20; y < 600; y += 40)
         for (let x = 20; x < 900; x += 40)
           await act(async () => { fireEvent.click(canvas, { clientX: x, clientY: y }); });

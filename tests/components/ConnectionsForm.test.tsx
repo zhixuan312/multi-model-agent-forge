@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import {
   ConnectionsForm,
   type ConnectionsData,
@@ -60,5 +60,29 @@ describe('ConnectionsForm', () => {
     expect(body.mmaBaseUrl).toBe('http://127.0.0.1:7337');
     expect('mmaToken' in body).toBe(false);
     expect('gitToken' in body).toBe(false);
+  });
+
+  /**
+   * The save error was rendered by this file, below BOTH panels, in markup identical to
+   * what `FormPanel` already renders from its own `error` prop — the two panels' errors
+   * appeared in the same place regardless of which one failed. It also carried an
+   * `id="connections-error"` for an `aria-describedby` that was never written.
+   */
+  it('shows a save failure inside the panel that failed', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Base URL must be http(s).' }), { status: 400 }),
+    );
+    render(<ConnectionsForm initial={empty} mmaBearer="tok" />);
+    openCard('MMA');
+    fireEvent.submit(screen.getByRole('form', { name: 'MMA connection' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Base URL must be http(s).');
+    expect(within(screen.getByRole('form', { name: 'MMA connection' })).getByRole('alert')).toBe(alert);
+  });
+
+  it('leaves no stray error id behind for an association nothing makes', () => {
+    const { container } = render(<ConnectionsForm initial={empty} mmaBearer="tok" />);
+    expect(container.querySelector('#connections-error')).toBeNull();
   });
 });

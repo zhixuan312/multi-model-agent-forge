@@ -6,7 +6,6 @@ import {
   Field,
   Input,
   Badge,
-  Micro,
 } from '@/components/ui';
 import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -143,7 +142,6 @@ export function ConnectionsForm({
     }
   }
 
-  const errId = 'connections-error';
   return (
     <StageShell
       scroll="outer"
@@ -163,6 +161,7 @@ export function ConnectionsForm({
             onEdit: () => edit('mma'),
           }}
           busy={busy === 'mma'}
+          error={open === 'mma' ? error : null}
           validate={{
             validating: validating === 'mma',
             result: open === 'mma' ? validateResult : null,
@@ -211,6 +210,7 @@ export function ConnectionsForm({
             onEdit: () => edit('openai'),
           }}
           busy={busy === 'openai'}
+          error={open === 'openai' ? error : null}
           validate={{
             validating: validating === 'openai',
             result: open === 'openai' ? validateResult : null,
@@ -242,11 +242,6 @@ export function ConnectionsForm({
           </Field>
         </FormPanel>
 
-        {error ? (
-          <Micro id={errId} role="alert" className="block text-rose">
-            {error}
-          </Micro>
-        ) : null}
       </div>
     </StageShell>
   );

@@ -21,6 +21,7 @@
  */
 
 import type { ConfigureProviderRequest, ConfigureProviderResponse } from '@/mma/configure-provider';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 
 export interface MmaClientConfig {
   baseUrl: string;
@@ -119,10 +120,11 @@ export interface TokenUsage {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
-// 1 hour — matches PollManager's POLL_HARD_TIMEOUT_MS so a synchronously-awaited
-// task has the same lifetime ceiling as an async-tracked one. A task still
-// running before this is alive, not failed; don't declare it dead early.
-const DEFAULT_WAIT_TIMEOUT_MS = 60 * 60_000;
+// The SAME ceiling as the async poll path, so a synchronously-awaited task has the same
+// lifetime as a tracked one. A task still running before this is alive, not failed; don't
+// declare it dead early. This was `60 * 60_000` under a comment saying it "matches
+// PollManager's POLL_HARD_TIMEOUT_MS" — a claim, kept true by hand.
+const DEFAULT_WAIT_TIMEOUT_MS = POLL_HARD_TIMEOUT_MS;
 
 function resolveFetchTimeout(opt?: number): number {
   if (typeof opt === 'number') return opt;

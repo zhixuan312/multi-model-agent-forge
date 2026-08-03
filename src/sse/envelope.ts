@@ -1,5 +1,5 @@
 import type { ProjectEvent } from '@/sse/event-bus';
-import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 
 /**
  * Terminal-envelope interpretation (Spec 5). The MMA terminal envelope's `error`

@@ -6,7 +6,8 @@ import { project } from '@/db/schema/projects';
 import { loopRun } from '@/db/schema/loop';
 import type { MmaClient } from '@/mma/client';
 import type { MmaRoute } from '@/db/enums';
-import { getPollManager, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
+import { getPollManager } from '@/sse/poll-manager';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import {
   appendBatchTerminalEvent,

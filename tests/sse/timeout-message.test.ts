@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { FORGE_POLL_TIMEOUT_ERROR } from '@/sse/envelope';
-import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 
 /**
  * The message a user sees when a task is force-failed must name the wait that actually

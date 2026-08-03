@@ -10,6 +10,7 @@ import {
   FORGE_POLL_TIMEOUT_ERROR,
   type TerminalState,
 } from '@/sse/envelope';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 import { logPoll } from '@/observability/poll-log';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
@@ -41,7 +42,7 @@ export const CANCELLING_HEADLINE = 'cancelling';
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;
-export const POLL_HARD_TIMEOUT_MS = 60 * 60_000;
+
 const JITTER = 0.2;
 
 /** Pure backoff for a transient-error attempt (0-indexed): min(2s·2^n, 30s)±20%. */

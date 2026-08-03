@@ -8,7 +8,8 @@ const { recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
 vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningActivity }));
 
 import { MmaClient, type MmaClientConfig } from '@/mma/client';
-import { PollManager, backoffMs, POLL_HARD_TIMEOUT_MS } from '@/sse/poll-manager';
+import { PollManager, backoffMs } from '@/sse/poll-manager';
+import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
 import { setPollLogSink, type PollLogRecord } from '@/observability/poll-log';
 import { createMockDb, seq } from '../test-utils/mock-db';

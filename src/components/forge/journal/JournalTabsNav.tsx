@@ -1,9 +1,8 @@
-import Link from 'next/link';
 import { BookOpen, Hexagon, Share2, History } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import { NavTabs } from '@/components/ui/nav-tabs';
 
 /**
- * The Journal tab bar — lives in the PageFrame header sub-nav (like the settings tab bars),
+ * The Journal tab bar — the PageFrame header sub-nav, rendered by the shared `NavTabs`,
  * Link-based so each view is a real navigation. Server component; the active tab
  * is passed in. Order: Recall · Nodes · Graph · Log.
  */
@@ -17,28 +16,6 @@ const TABS: ReadonlyArray<{ key: JournalView; label: string; glyph: React.ReactN
 ];
 
 export function JournalTabsNav({ active }: { active: JournalView }) {
-  return (
-    <div role="tablist" aria-label="Journal views" className="flex gap-1 border-b border-line">
-      {TABS.map((tab) => (
-        <Link
-          key={tab.key}
-          href={`/journal?view=${tab.key}`}
-          role="tab"
-          aria-selected={active === tab.key}
-          aria-current={active === tab.key ? 'page' : undefined}
-          className={cn(
-            'focus-ring -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm transition-colors',
-            active === tab.key
-              ? 'border-accent font-medium text-ink'
-              : 'border-transparent text-ink-soft hover:text-ink',
-          )}
-        >
-          <span aria-hidden className="inline-flex">
-            {tab.glyph}
-          </span>
-          {tab.label}
-        </Link>
-      ))}
-    </div>
-  );
+  const tabs = TABS.map((t) => ({ ...t, href: `/journal?view=${t.key}` }));
+  return <NavTabs tabs={tabs} active={active} label="Journal views" />;
 }

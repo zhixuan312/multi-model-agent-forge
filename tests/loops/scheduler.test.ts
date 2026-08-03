@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { vi } from 'vitest';
-import { isDue, tickScheduler } from '@/loops/scheduler';
+import { isDue, tickScheduler, STALE_RUN_MS } from '@/loops/scheduler';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 const at = (iso: string) => new Date(iso);
@@ -40,5 +40,54 @@ describe('tickScheduler', () => {
     expect(res.fired).toEqual(['A']);
     expect(starter).toHaveBeenCalledTimes(1);
     expect(starter).toHaveBeenCalledWith('A', 'schedule', { db });
+  });
+});
+
+/**
+ * A `loop_run` row is written `running` before the work starts and only leaves that state
+ * from inside the engine's own `finish()`. Kill the process mid-run — a restart, a deploy,
+ * an OOM — and it stays `running` forever, and the in-flight check below skips that loop on
+ * every subsequent tick. No error, no alert: a maintenance loop just stops firing, and its
+ * history shows a run still going months later.
+ *
+ * `ops_mma_batch` has had this reaper for a while (`findInflight`'s `dispatch_orphaned`
+ * path). Loop runs had none.
+ */
+describe('an abandoned run does not wedge its loop forever', () => {
+  const CRON = '*/5 * * * *';
+  const now = new Date('2026-07-01T04:00:00Z');
+  const loopRow = { id: 'l1', enabled: true, mode: 'recurring', cron: CRON, teamId: 't1' };
+
+  const dbWith = (startedAt: Date, status = 'running') =>
+    createMockDb({
+      'select:loop_def': [loopRow],
+      'select:loop_run': [{ id: 'run-1', startedAt, status }],
+      'update:loop_run': [{ id: 'run-1' }],
+    });
+
+  it('still skips a run that started recently', async () => {
+    const db = dbWith(new Date(now.getTime() - 60_000));
+    const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
+    const { fired } = await tickScheduler({ db: db as never, now: () => now, starter });
+
+    expect(fired).toEqual([]);
+    expect(db._wasCalled('loop_run', 'update'), 'a live run must not be failed').toBe(false);
+    expect(starter).not.toHaveBeenCalled();
+  });
+
+  it('fails a run older than the threshold and lets the loop fire again', async () => {
+    const db = dbWith(new Date(now.getTime() - STALE_RUN_MS - 1));
+    const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
+    const { fired } = await tickScheduler({ db: db as never, now: () => now, starter });
+
+    expect(db._wasCalled('loop_run', 'update'), 'the abandoned row should be failed').toBe(true);
+    expect(fired).toEqual(['l1']);
+  });
+
+  it('honours an injected threshold', async () => {
+    const db = dbWith(new Date(now.getTime() - 10_000));
+    const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r' }));
+    const { fired } = await tickScheduler({ db: db as never, now: () => now, starter, staleRunMs: 5_000 });
+    expect(fired).toEqual(['l1']);
   });
 });

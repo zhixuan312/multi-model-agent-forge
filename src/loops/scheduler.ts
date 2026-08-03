@@ -8,11 +8,30 @@ import { startLoopRun } from '@/loops/run-now';
  * Loops scheduler (spec §5). The `loop-worker` ticks ~once/minute and fires due,
  * enabled loops. `isDue` is the pure core; `tickScheduler` is the per-tick pass.
  * Missed occurrences (machine off) are SKIPPED, not back-filled (no stampede),
- * and a loop with a run already in flight is skipped (one in-flight per loop).
+ * and a loop with a run already in flight is skipped (one in-flight per loop) — unless
+ * that run is old enough to be provably abandoned, which is failed rather than believed
+ * (see `STALE_RUN_MS`).
  */
 
 /** Default catch-up window: a scheduled occurrence older than this is treated as missed. */
 export const DUE_WINDOW_MS = 90_000;
+
+/**
+ * How long a `running` loop_run row may sit before the scheduler stops believing it.
+ *
+ * A run row is written `running` before the work starts and only ever leaves that state
+ * from inside `runLoopForRepo`'s own `finish()`. Kill the process mid-run — a container
+ * restart, a deploy, an OOM — and the row stays `running` forever. The in-flight check
+ * below skips a loop whose latest run is `running`, so that loop never fires again. No
+ * error, no alert: a maintenance loop simply stops, and the run history shows it as still
+ * going months later.
+ *
+ * `ops_mma_batch` already has this exact reaper (`findInflight`'s `dispatch_orphaned`
+ * path); loop runs had none. Six hours is far past any real maintenance run — the engine's
+ * own poll ceiling for a single batch is one hour — while being long enough that a genuinely
+ * slow multi-repo fire is never cut short.
+ */
+export const STALE_RUN_MS = 6 * 60 * 60_000;
 
 /**
  * True iff the loop's most recent scheduled occurrence (≤ now) is recent (within
@@ -38,6 +57,8 @@ export interface TickDeps {
   db?: Db;
   now?: () => Date;
   windowMs?: number;
+  /** Override the abandoned-run threshold (tests). */
+  staleRunMs?: number;
   starter?: typeof startLoopRun;
 }
 
@@ -55,12 +76,25 @@ export async function tickScheduler(deps: TickDeps = {}): Promise<{ fired: strin
     if (l.mode !== 'recurring') continue;
     if (!l.cron) continue;
     const [latest] = await db
-      .select({ startedAt: loopRun.startedAt, status: loopRun.status })
+      .select({ id: loopRun.id, startedAt: loopRun.startedAt, status: loopRun.status })
       .from(loopRun)
       .where(eq(loopRun.loopId, l.id))
       .orderBy(desc(loopRun.startedAt))
       .limit(1);
-    if (latest?.status === 'running') continue;
+    if (latest?.status === 'running') {
+      const age = now.getTime() - latest.startedAt.getTime();
+      if (age < (deps.staleRunMs ?? STALE_RUN_MS)) continue;
+      // Provably dead: no run reaches this age with a live process behind it. Fail it so
+      // the row stops lying in the history AND stops wedging the schedule.
+      await db
+        .update(loopRun)
+        .set({
+          status: 'failed',
+          finishedAt: now,
+          journalEntries: [{ tag: 'missed', text: 'run_abandoned: no process finished this run — the server likely restarted mid-run' }],
+        })
+        .where(eq(loopRun.id, latest.id));
+    }
     if (isDue(l.cron, latest?.startedAt ?? null, now, deps.windowMs)) {
       await starter(l.id, 'schedule', { db });
       fired.push(l.id);

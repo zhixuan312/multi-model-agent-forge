@@ -437,7 +437,10 @@ export const LEFT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalComponent: 'SelectableTile',
     canonicalFilePath: 'src/components/patterns/cards.tsx',
     affordances: [
-      { id: 'toolbar', label: 'Search & filter', canonicalComponent: 'Input (search) + role chips', canonicalFilePath: 'src/components/ui/input.tsx', defaultOn: true },
+      // The same strip the Table declares — one toolbar, one canonical. This used to name
+      // a raw `Input` "+ role chips": the wrong control (search is `SearchInput`) and a
+      // control the preview does not render (it is a `Select`).
+      { id: 'toolbar', label: 'Search & filter', canonicalComponent: 'Toolbar (+ SearchInput · Select)', canonicalFilePath: 'src/components/ui/toolbar.tsx', defaultOn: true },
       { id: 'icon', label: 'Tile icon (flips to check)', canonicalComponent: 'lucide icon', canonicalFilePath: 'lucide-react', defaultOn: true },
       { id: 'meta', label: 'Meta row', canonicalComponent: 'Badge / chips', canonicalFilePath: 'src/components/ui/badge.tsx', defaultOn: true },
     ],

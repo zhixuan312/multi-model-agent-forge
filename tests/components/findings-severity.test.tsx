@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { FindingsGrid, type Finding } from '@/components/patterns/findings';
+import { FindingsGrid, FindingsApplyBar, type Finding } from '@/components/patterns/findings';
 
 const f = (severity: string, claim: string): Finding =>
   ({ severity, category: 'gap', claim } as Finding);
@@ -33,5 +33,40 @@ describe('FindingsGrid tolerates a severity outside the set', () => {
   it('renders the empty state rather than a bare table when there are no findings', () => {
     render(<FindingsGrid findings={[]} />);
     expect(screen.getByText('No findings.')).toBeInTheDocument();
+  });
+});
+
+describe('FindingsApplyBar label matches what the button will do', () => {
+  const bar = (selectedCount: number, total = 3) =>
+    render(
+      <FindingsApplyBar
+        selectedCount={selectedCount}
+        total={total}
+        onToggleAll={() => {}}
+        onApply={() => {}}
+      />,
+    );
+
+  it('is disabled with an empty selection, and does not claim it will apply "all"', () => {
+    bar(0);
+    const apply = screen.getByRole('button', { name: /^Apply/ });
+    expect(apply).toBeDisabled();
+    // It used to read "Apply (all)" while refusing to do anything.
+    expect(apply).toHaveTextContent('Apply');
+    expect(apply).not.toHaveTextContent('all');
+  });
+
+  it('names the number it will apply once something is selected', () => {
+    bar(2);
+    const apply = screen.getByRole('button', { name: 'Apply (2)' });
+    expect(apply).toBeEnabled();
+  });
+
+  it('offers Select all until everything is selected, then Unselect all', () => {
+    const { unmount } = bar(1, 3);
+    expect(screen.getByRole('button', { name: 'Select all' })).toBeInTheDocument();
+    unmount();
+    bar(3, 3);
+    expect(screen.getByRole('button', { name: 'Unselect all' })).toBeInTheDocument();
   });
 });

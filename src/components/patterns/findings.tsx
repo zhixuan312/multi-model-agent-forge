@@ -235,8 +235,11 @@ export function FindingsApplyBar({ selectedCount, total, applying, readOnly, onT
       <Button size="sm" variant="secondary" onClick={onToggleAll} disabled={readOnly || applying}>
         {allSelected ? 'Unselect all' : 'Select all'}
       </Button>
+      {/* The count, or nothing — never the word "all". With an empty selection the button is
+          disabled, so labelling it "Apply (all)" promised an action it refused: the label
+          described a behaviour from before Select-all became the way to apply everything. */}
       <Button size="sm" onClick={onApply} disabled={readOnly || applying || selectedCount === 0} loading={applying}>
-        Apply ({selectedCount || 'all'})
+        {selectedCount > 0 ? `Apply (${selectedCount})` : 'Apply'}
       </Button>
     </div>
   );

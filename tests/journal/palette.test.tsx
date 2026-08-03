@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { statusStyle, opStyle } from '@/components/forge/journal/palette';
+import { resolveCitations, UNKNOWN_NODE_TITLE } from '@/journal/citations';
 import { StatusBadge, StatusDot } from '@/components/forge/journal/StatusBadge';
 
 describe('journal palette', () => {
@@ -28,6 +29,23 @@ describe('journal palette', () => {
   it('styles inconclusive and refine with the families that were missing', () => {
     expect(statusStyle('inconclusive').cls).toContain('text-steel-deep');
     expect(opStyle('refine').cls).toContain('bg-ember-tint');
+  });
+});
+
+/**
+ * `resolveCitations` produced `'(unknown node)'` and `RecallView` compared against that
+ * literal to italicise the row — two modules, one string, nothing keeping them in step.
+ */
+describe('unknown-citation sentinel', () => {
+  it('is the same value the resolver emits and the view tests for', () => {
+    const rows = resolveCitations(['9999'], [{ id: '0001', title: 'Known', status: 'adopted' }]);
+    expect(rows[0]!.title).toBe(UNKNOWN_NODE_TITLE);
+    expect(rows[0]!.status).toBeNull();
+  });
+
+  it('leaves a resolvable citation alone', () => {
+    const rows = resolveCitations(['0001'], [{ id: '0001', title: 'Known', status: 'adopted' }]);
+    expect(rows[0]).toEqual({ id: '0001', title: 'Known', status: 'adopted' });
   });
 });
 

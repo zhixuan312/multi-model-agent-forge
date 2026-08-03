@@ -6,7 +6,8 @@ import {
 } from '@/components/ui';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { StatusDot } from '@/components/forge/journal/StatusBadge';
-import { resolveCitations, type IndexLookupRow } from '@/journal/citations';
+import { CHIP } from '@/components/forge/journal/palette';
+import { resolveCitations, UNKNOWN_NODE_TITLE, type IndexLookupRow } from '@/journal/citations';
 import type { ParsedRecall } from '@/journal/recall';
 import { cn } from '@/lib/cn';
 
@@ -31,7 +32,7 @@ export function RecallAnswer({
   return (
     <div className="rounded-[var(--r-md)] border border-line bg-surface-2/40 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded-[var(--r-sm)] border border-accent bg-accent-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-deep">
+        <span className={cn(CHIP, 'border-accent bg-accent-tint text-accent-deep')}>
           mma-journal-recall
         </span>
       </div>
@@ -47,7 +48,7 @@ export function RecallAnswer({
                   <button
                     type="button"
                     onClick={() => onNavigate(f.nodeId)}
-                    className="shrink-0 rounded-[var(--r-sm)] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink-soft hover:underline"
+                    className="focus-ring shrink-0 rounded-[var(--r-sm)] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink-soft hover:underline"
                   >
                     {f.nodeId}
                   </button>
@@ -86,13 +87,13 @@ export function RecallSources({
           <li key={r.id} className="flex items-center gap-2 text-sm">
             <Mono className="!text-[11px] text-ink-faint">{r.id}</Mono>
             {r.status ? <StatusDot status={r.status} /> : null}
-            <span className={cn(r.title === '(unknown node)' ? 'italic text-ink-faint' : 'text-ink')}>
+            <span className={cn(r.title === UNKNOWN_NODE_TITLE ? 'italic text-ink-faint' : 'text-ink')}>
               {r.title}
             </span>
             <button
               type="button"
               onClick={() => onNavigate(r.id)}
-              className="ml-auto text-xs text-accent hover:underline"
+              className="focus-ring ml-auto rounded-[var(--r-sm)] px-1 text-xs text-accent hover:underline"
               aria-label={`Open node ${r.id}`}
             >
               →

@@ -25,6 +25,13 @@ export interface IndexLookupRow {
   status: string;
 }
 
+/**
+ * Placeholder title for a cited id that is not in the index. Exported because
+ * `RecallView` styles those rows in italics and had to compare against the literal —
+ * two modules, one string, nothing keeping them in step.
+ */
+export const UNKNOWN_NODE_TITLE = '(unknown node)';
+
 /** A resolved Sources row. `title`/`status` are null-ish when the id is unknown. */
 export interface SourceRow {
   id: string;
@@ -61,7 +68,7 @@ export function resolveCitations(ids: string[], index: IndexLookupRow[]): Source
     out.push(
       row
         ? { id, title: row.title, status: row.status }
-        : { id, title: '(unknown node)', status: null },
+        : { id, title: UNKNOWN_NODE_TITLE, status: null },
     );
   }
   return out;

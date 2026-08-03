@@ -6,6 +6,13 @@
  */
 import { isStatus } from '@/journal/types';
 
+/**
+ * The journal chip shape — status chip, write-log op chip and the recall marker all
+ * use it. It was spelled out in each of the three files.
+ */
+export const CHIP =
+  'inline-flex items-center rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px] font-medium';
+
 /** status → semantic token (background-tint + text class). */
 const STATUS_TOKEN: Record<string, { label: string; cls: string; dot: string }> = {
   adopted: { label: 'adopted', cls: 'bg-sage-tint text-sage-deep border-sage', dot: 'bg-sage' },

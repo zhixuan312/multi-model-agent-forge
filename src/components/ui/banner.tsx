@@ -9,8 +9,9 @@ import { TextStrong, TextSm } from '@/components/ui/typography';
  * colored left accent rule, a leading status icon, a title and optional
  * description. Optionally dismissible and/or carries a trailing action slot.
  *
- * `info` uses the cool-world steel vars (no `--color-steel*` theme utility —
- * see token gaps); the rest use their semantic `*-tint` tokens.
+ * `info` is the cool-world steel tone. `--frost` has no `@theme` utility, so the
+ * background stays an arbitrary value; the foreground uses `text-steel-deep`, which
+ * the theme does expose. The rest use their semantic `*-tint` tokens.
  */
 const bannerVariants = cva(
   'relative flex gap-3 overflow-hidden rounded-[var(--r-md)] border-l-2 py-3 pl-4 pr-3',
@@ -35,7 +36,7 @@ const iconFor = {
 } as const;
 
 const iconTone: Record<NonNullable<VariantProps<typeof bannerVariants>['variant']>, string> = {
-  info: 'text-[var(--steel-deep)]',
+  info: 'text-steel-deep',
   success: 'text-[var(--sage-deep)]',
   warning: 'text-[var(--amber)]',
   danger: 'text-[var(--rose)]',

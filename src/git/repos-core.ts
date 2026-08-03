@@ -301,7 +301,6 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
   const dbByName = new Map(dbRows.map((r) => [r.name, r]));
 
   const entries = readdirSync(root, { withFileTypes: true });
-  const diskRepoNames = new Set<string>();
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -310,7 +309,6 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
     const gitDir = join(dirPath, '.git');
     if (!existsSync(gitDir)) continue;
 
-    diskRepoNames.add(entry.name);
 
     if (!dbByName.has(entry.name)) {
       let defaultBranch = 'main';

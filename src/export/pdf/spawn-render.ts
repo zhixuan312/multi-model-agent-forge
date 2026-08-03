@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { loadExportConfig } from '@/export/config';
+import { safeChildEnv } from '@/build/command-runner';
 
 /**
  * Render HTML → PDF by spawning a subprocess. Bypasses Turbopack's module
@@ -41,6 +42,11 @@ export async function spawnPdfRender(
   return new Promise<Buffer>((resolve, reject) => {
     const proc = spawn('node', [workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      // Scrubbed: this subprocess launches Chromium over HTML derived from user content,
+      // and it reads NO environment of its own — every setting arrives on stdin. There is
+      // no reason for FORGE_SECRET_KEY or DATABASE_URL to be in a browser's environment.
+      // PATH and HOME survive, which is what Chromium needs for its profile and cache.
+      env: safeChildEnv() as NodeJS.ProcessEnv,
       // The subprocess pays a Chromium cold start BEFORE it renders, so its wall
       // clock must cover launch + render, not render alone.
       timeout: cfg.pdfLaunchTimeoutMs + cfg.pdfTimeoutMs + 5000,

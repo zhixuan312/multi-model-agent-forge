@@ -8,8 +8,9 @@ import type { JournalNode, InboundEdge, NodeParseError } from '@/journal/types';
 
 /**
  * Shared building blocks for the journal tab views: the lazy node-body loader
- * and the non-ok read states. Each tab composes the canonical `StatusDashboard`
- * (patterns/status-dashboard.tsx) for its 2/3 ∣ 1/3 split — see any of the tabs.
+ * and the non-ok read states. This module composes no shell of its own; each TAB
+ * (GraphTab / NodesTab / LogTab / RecallTab) wraps its content in `StageShell`, which
+ * is the canonical `StatusDashboard` 2/3 ∣ 1/3 split.
  */
 
 export type NodeBodyState =

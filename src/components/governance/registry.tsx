@@ -149,7 +149,7 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     canonicalFilePath: 'src/components/patterns/status-dashboard.tsx',
     consumers: [
       { id: 'loops-page', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
-      { id: 'journal-page', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
+      { id: 'journal-page', label: 'Journal', filePath: 'app/(app)/journal/page.tsx' },
       { id: 'stage-pages', label: 'Project stages', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
     deviations: [],
@@ -268,8 +268,11 @@ export const GOVERNANCE_REGISTRY: Record<GovernanceSlotId, GovernanceRegistryEnt
     ],
     deviations: [
       { id: 'severity-badge', label: 'SeverityBadge', filePath: 'src/components/patterns/findings.tsx', line: null },
-      { id: 'journal-status-badge', label: 'Journal StatusBadge', filePath: 'src/components/forge/journal/StatusBadge.tsx', line: null },
-      { id: 'writelog-pills', label: 'WriteLog operation pills', filePath: 'src/components/forge/journal/WriteLogView.tsx', line: null },
+      // ONE entry, not two: the write-log's operation pills used to be their own markup
+      // in WriteLogView. They are `OpBadge` now, the same chip as the journal
+      // StatusBadge, sharing `CHIP` from journal/palette.ts — so there is a single
+      // journal chip implementation deviating from Badge, not a pair of them.
+      { id: 'journal-chip', label: 'Journal chip (StatusBadge · OpBadge)', filePath: 'src/components/forge/journal/StatusBadge.tsx', line: null },
     ],
     renderPreview: () => (
       <div className="flex flex-wrap items-center gap-2">

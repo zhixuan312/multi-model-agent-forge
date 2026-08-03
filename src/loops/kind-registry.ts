@@ -2,11 +2,13 @@ import { z } from 'zod';
 import type { LoopKind } from '@/db/enums';
 
 /**
- * Loop-kind registry — the single extensibility seam for Loops (see
- * docs/superpowers/specs/2026-06-15-loops-design.md §3.4). Each kind declares its
+ * Loop-kind registry — the single extensibility seam for Loops. Each kind declares its
  * label, a Zod schema for its `loop.config` blob, and how its config becomes the
  * MMA worker prompt. Adding a kind = one entry here + a `LOOP_KIND` enum value —
  * no schema change. Mirrors the unified-task TYPE_REGISTRY pattern.
+ *
+ * (The design doc this used to cite by path lived under a `docs/superpowers/` tree that
+ * no longer exists in any repo; a path is only worth writing down if it resolves.)
  */
 export interface LoopKindDef {
   /** Human label for the UI. */

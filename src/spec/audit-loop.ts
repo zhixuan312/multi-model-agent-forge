@@ -14,7 +14,8 @@ import { SEVERITY_ORDER, isBlockingSeverity, type Severity } from '@/lib/severit
  * Dispatch is async via `dispatchMma`.
  */
 
-/** The severity tiers MMA emits (no `info`; verified against core/src/reporting/severity.ts). */
+/** The severity tiers MMA emits (no `info`; verified against the engine's
+ *  `packages/core/src/unified/refiner-schemas.ts`, which enumerates the same four). */
 export type FindingSeverity = Severity;
 
 /**

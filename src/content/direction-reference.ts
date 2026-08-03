@@ -396,7 +396,8 @@ export const WRITE_STAGES: ExecStage[] = [
   { name: 'annotate', what: 'A standard-tier judge summarizes the result into the quotable headline and the findings list.' },
 ];
 
-// ── Research sources (from core/src/lifecycle/research-pre-loop.ts + config) ──
+// ── Research sources (from `packages/core/src/research/` + config) ──
+// The old citation named the engine's `lifecycle/` layer, which has since been deleted.
 
 export interface ResearchSource {
   name: string;

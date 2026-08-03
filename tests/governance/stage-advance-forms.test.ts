@@ -64,3 +64,32 @@ describe('stage advance forms', () => {
     }
   });
 });
+
+/**
+ * The automation panel claims to show "every presentation the bar has". `AutomationBarState`
+ * is the authority on how many that is, and the preview's own comment used to say "all
+ * five" when there were four states and six panels. A new state added to the union would
+ * otherwise go unillustrated, and the catalog would keep claiming completeness.
+ */
+describe('automation bar catalog', () => {
+  const preview = readFileSync(join(ROOT, 'src/components/governance/StageFlowPreview.tsx'), 'utf8');
+  const barSource = readFileSync(join(ROOT, 'src/components/forge/AutomationBar.tsx'), 'utf8');
+
+  const states = (barSource.match(/export type AutomationBarState\s*=\s*([^;]+);/)?.[1] ?? '')
+    .split('|')
+    .map((s) => s.trim().replace(/^'|'$/g, ''))
+    .filter(Boolean);
+
+  it('read the state union — a broken match must not pass vacuously', () => {
+    expect(states.length).toBeGreaterThanOrEqual(4);
+    expect(states).toContain('idle');
+  });
+
+  it('illustrates every state the bar can be in', () => {
+    const missing = states.filter(
+      // `idle` is the component default, so the preview shows it by passing no `state`.
+      (st) => st !== 'idle' && !preview.includes(`state="${st}"`),
+    );
+    expect(missing, 'add a panel to StageFlowPreview for each new AutomationBarState').toEqual([]);
+  });
+});

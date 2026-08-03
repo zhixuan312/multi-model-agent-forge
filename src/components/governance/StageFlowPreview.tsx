@@ -119,9 +119,12 @@ const RENDERS: Record<string, () => ReactNode> = {
     </div>
   ),
 
-  // Every state the bar can be in, all five declared here. The first two are rendered by
-  // the stage clients; the last three by AutomationOverlay, which used to hand-roll its own
-  // copy of this strip — it now passes `state` instead, so there is one implementation.
+  // Every presentation the bar has: four `state` values, plus the two forms `idle` takes
+  // when the stage cannot hand over (disabled) or is frozen (lockedReason). Six panels for
+  // four states — the comment here used to say "all five", which matched neither count.
+  // The first three come from the six stage clients (which pass no `state` at all, so
+  // `idle`); the last three from AutomationOverlay, which used to hand-roll its own copy
+  // of this strip and now passes `state` instead, so there is one implementation.
   automation: () => (
     <div className="flex flex-col gap-6">
       <Labeled label="Idle — you drive, or hand over to Forge (rendered by every stage)">

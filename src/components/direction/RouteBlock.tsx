@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eyebrow, Mono, TextSm } from '@/components/ui/typography';
 import { READ_ROUTES, type RouteSubtype } from '@/content/direction-reference';
-import { SEVERITY_ORDER } from '@/lib/severity';
+import { SEVERITY_ORDER, type Severity } from '@/lib/severity';
 
 /** Pure pass over the criteria: the group label to print ABOVE row `i`, or
  *  `undefined` when row `i` continues the previous cluster. Computed outside the
@@ -30,17 +30,19 @@ function groupHeaders(criteria: RouteSubtype['criteria']): (string | undefined)[
  * while the app distinguishes them — the reference describing severity disagreed with
  * the surface applying it.
  */
-const SEVERITY_VARIANT: Record<string, BadgeProps['variant']> = {
+const SEVERITY_VARIANT: Record<Severity, BadgeProps['variant']> = {
   critical: 'rose',
   high: 'amber',
   medium: 'steel',
   low: 'neutral',
 };
 
-function SeverityRow({ tier, text }: { tier: string; text: string }) {
+function SeverityRow({ tier, text }: { tier: Severity; text: string }) {
   return (
     <div className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-baseline sm:gap-3">
-      <Badge variant={SEVERITY_VARIANT[tier] ?? 'neutral'} size="sm" className="shrink-0 self-start uppercase sm:w-20">
+      {/* No `?? 'neutral'`: the only caller maps `SEVERITY_ORDER`, and the map is now total
+          over `Severity`, so there is no tier without a variant to fall back for. */}
+      <Badge variant={SEVERITY_VARIANT[tier]} size="sm" className="shrink-0 self-start uppercase sm:w-20">
         {tier}
       </Badge>
       <TextSm className="min-w-0 flex-1 !text-xs">{text}</TextSm>

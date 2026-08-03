@@ -55,6 +55,8 @@ export const PRINCIPLES: Principle[] = [
 
 // ── Read-only route criteria (exact, from core/src/skills/<route>/) ──
 
+import type { Severity } from '@/lib/severity';
+
 export interface Criterion {
   id: number;
   title: string;
@@ -63,12 +65,14 @@ export interface Criterion {
   group?: string;
 }
 
-export interface SeverityLadder {
-  critical: string;
-  high: string;
-  medium: string;
-  low: string;
-}
+/**
+ * What each severity MEANS for a given route — one line per tier.
+ *
+ * `Record<Severity, string>`, not a hand-written interface listing the four keys: this file
+ * holds eight of these ladders, and as a standalone interface a new tier would have had to be
+ * added here and then remembered in all eight. Now the compiler names every one.
+ */
+export type SeverityLadder = Record<Severity, string>;
 
 export interface RouteSubtype {
   key: string;

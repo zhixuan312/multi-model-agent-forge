@@ -2,8 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Activity, Check, MoreHorizontal, Plus, RotateCcw, Square, UserPlus } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import { Activity, Check, MoreHorizontal, Plus, RotateCcw, Square } from 'lucide-react';
 import {
   Avatar,
   Badge,
@@ -39,7 +38,8 @@ import { List } from '@/components/patterns/list';
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { FindingsApplyBar, appliedState } from '@/components/patterns/findings';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
-import type { DiscussionMsg, MemberRef } from '@/collab/types';
+import { ParticipantStrip } from '@/components/forge/collab/Participants';
+import type { DiscussionMsg, MemberRef, Participant } from '@/collab/types';
 import { LEFT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
 // ─── Demo content — kept separate from the reusable components it feeds ───────────────
@@ -220,30 +220,31 @@ function PromptRow() {
   );
 }
 
-/** Demo content: a mix of approved (sage check overlay) and pending (dimmed) approvers. */
+/**
+ * The approvers row — the REAL `ParticipantStrip`, which is what this affordance declares as
+ * its canonical component (`variant-meta.ts` → approvers → Participants.tsx).
+ *
+ * It used to hand-roll the whole thing: its own label, its own avatar loop with an inline
+ * check overlay and opacity dimming, and its own ghost "Invite" button. So the page whose job
+ * is to show the canonical component showed a copy of it — the same contradiction the
+ * row-actions affordance above carries a comment about ("this was a bare button, i.e. the
+ * picture contradicting the entry beside it"). The copy had already drifted: no tooltips, no
+ * "Just you" empty state, and an Invite button that is a real picker in the component.
+ */
+const DEMO_APPROVERS: Participant[] = [
+  { member: { id: 'xu', displayName: 'Xu Zheng', avatarTint: '#6A6F8C' }, approved: true },
+  { member: { id: 'oa', displayName: 'Oscar A', avatarTint: '#9a6b4f' }, approved: true },
+  { member: { id: 'bn', displayName: 'Ben N', avatarTint: '#5E7C6B' }, approved: false },
+];
+
 function ApproversRow() {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Approvers</span>
-        <div className="flex items-center gap-1.5">
-          {[
-            { name: 'Xu Zheng', approved: true },
-            { name: 'Oscar A', approved: true },
-            { name: 'Ben N', approved: false },
-          ].map((m) => (
-            <div key={m.name} className={cn('relative', !m.approved && 'opacity-50')}>
-              <Avatar name={m.name} size="sm" />
-              {m.approved ? (
-                <span className="absolute -bottom-0.5 -right-0.5 grid size-3 place-items-center rounded-full bg-[var(--sage)] ring-2 ring-surface">
-                  <Check className="size-2 text-white" strokeWidth={3.5} />
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
-      <Button size="sm" variant="ghost" leftIcon={<UserPlus />}>Invite</Button>
+    <div className="border-b border-line px-5 py-3">
+      <ParticipantStrip
+        participants={DEMO_APPROVERS}
+        pool={[{ id: 'new', displayName: 'Priya Nair', avatarTint: '#9A6A8C' }]}
+        onAdd={() => {}}
+      />
     </div>
   );
 }

@@ -226,7 +226,7 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
               <span className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">Bundle</span>
             </button>
           </div>
-          {error ? <TextSm className="block px-4 pb-3 !text-xs !text-rose">{error}</TextSm> : null}
+          {error ? <TextSm role="alert" className="block px-4 pb-3 !text-xs !text-rose">{error}</TextSm> : null}
         </div>
       ) : null}
 

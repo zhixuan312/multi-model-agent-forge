@@ -358,7 +358,7 @@ export function RecallTab({
           ) : null}
 
           {status === 'error' && error ? (
-            <p className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
+            <p role="alert" className="rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">
               {error}
             </p>
           ) : null}
@@ -613,7 +613,7 @@ function FaqBody({
         <p className="text-sm text-ink-faint">No stored answer yet — Refresh to run this question.</p>
       )}
       {error ? (
-        <p className="mt-2 rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">{error}</p>
+        <p role="alert" className="mt-2 rounded-[var(--r-md)] border border-rose bg-rose-tint/40 px-3 py-2 text-sm text-rose">{error}</p>
       ) : null}
       <div className="mt-3 flex items-center gap-2">
         <RowAction

@@ -301,7 +301,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
           }
         />
       ) : null}
-      {error ? <TextSm className="shrink-0 !text-[var(--rose)]">{error}</TextSm> : null}
+      {error ? <TextSm role="alert" className="shrink-0 !text-[var(--rose)]">{error}</TextSm> : null}
 
       <AutomationBar
         disabled={readOnly || phase !== 'finalize'}

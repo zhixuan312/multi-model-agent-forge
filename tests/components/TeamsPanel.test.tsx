@@ -107,7 +107,10 @@ describe('TeamsPanel', () => {
     expect(await screen.findByText('Ada')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /make admin/i }));
     // The error MUST be shown (not a silent revert), and no refresh on failure.
-    expect(await screen.findByText('Only an org admin can assign team admins.')).toBeInTheDocument();
+    // role=alert, not just present: an error the user cannot act on because it was never
+    // announced is the same as a silent failure.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Only an org admin can assign team admins.');
     expect(refresh).not.toHaveBeenCalled();
   });
 });

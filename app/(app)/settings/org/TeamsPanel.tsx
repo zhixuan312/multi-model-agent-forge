@@ -287,7 +287,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-rose">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-rose">{error}</p> : null}
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
           Cancel
@@ -318,7 +318,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       <Field label="Workspace root path" hint="Must be a direct child of the operator workspace base.">
         {(p) => <Input {...p} value={editWorkspace} onChange={(e) => setEditWorkspace(e.target.value)} />}
       </Field>
-      {editError ? <p className="text-sm text-rose">{editError}</p> : null}
+      {editError ? <p role="alert" className="text-sm text-rose">{editError}</p> : null}
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={editBusy}>
           Cancel
@@ -332,7 +332,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
 
   const rosterPanel = (t: TeamRow) => (
     <div className="p-5">
-      {assignError ? <p className="mb-3 text-sm text-rose">{assignError}</p> : null}
+      {assignError ? <p role="alert" className="mb-3 text-sm text-rose">{assignError}</p> : null}
       {rosterBusy ? (
         <p className="text-sm text-ink-soft">Loading roster…</p>
       ) : roster.length === 0 ? (

@@ -19,4 +19,19 @@ describe('auth forms shell wiring', () => {
     expect(screen.getByText('Forge')).toBeInTheDocument();
     expect(screen.getByText('Welcome to Forge')).toBeInTheDocument();
   });
+
+  /**
+   * Login and Setup are the entire auth surface, and each spelled out the same masthead
+   * — mark, product name, one line of purpose — differing only in the two strings.
+   */
+  it('both render the shared masthead, each with its own words', () => {
+    const { unmount } = render(<LoginForm />);
+    expect(screen.getByText('Forge')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to continue')).toBeInTheDocument();
+    unmount();
+
+    render(<SetupForm />);
+    expect(screen.getByText('Welcome to Forge')).toBeInTheDocument();
+    expect(screen.getByText('Create the admin account to get started')).toBeInTheDocument();
+  });
 });

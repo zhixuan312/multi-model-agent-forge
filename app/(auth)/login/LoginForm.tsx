@@ -1,9 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Card, CardContent, Display, Micro, Field, Input, Button, Banner } from '@/components/ui';
-import { ForgeMark } from '@/components/forge/ForgeMark';
-import { AuthPlainBackgroundShell } from '@/components/governance/AuthPlainBackgroundShell';
+import { Card, CardContent, Field, Input, Button, Banner } from '@/components/ui';
+import { AuthPlainBackgroundShell, AuthMasthead } from '@/components/governance/AuthPlainBackgroundShell';
 import { loginAction, type LoginActionState } from './actions';
 
 const initialState: LoginActionState = {};
@@ -13,11 +12,7 @@ export function LoginForm() {
 
   return (
     <AuthPlainBackgroundShell>
-      <div className="mb-8 flex flex-col items-center text-center">
-        <ForgeMark className="mb-3 scale-125" />
-        <Display className="!text-4xl">Forge</Display>
-        <Micro className="mt-1.5 block">Sign in to continue</Micro>
-      </div>
+      <AuthMasthead title="Forge" subtitle="Sign in to continue" />
 
       <Card elevation="floating">
         <CardContent className="py-6">

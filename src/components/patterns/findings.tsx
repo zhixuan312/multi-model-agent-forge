@@ -5,26 +5,32 @@ import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Badge, Button } from '@/components/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { SEVERITY_ORDER as SHARED_SEVERITY_ORDER, compareSeverity } from '@/lib/severity';
+import { SEVERITY_ORDER, compareSeverity, type Severity } from '@/lib/severity';
 
 export interface Finding {
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  /** `lib/severity`'s type, not a second spelling of its four values. */
+  severity: Severity;
   category: string;
   claim: string;
   evidence?: string;
   suggestion?: string;
 }
 
-export const SEVERITY_ORDER: Finding['severity'][] = [...SHARED_SEVERITY_ORDER];
-
-const SEVERITY_STYLE_MAP: Record<Finding['severity'], string> = {
+/**
+ * The findings chip's tint per severity. TOTAL over `Severity`, so a new tier fails the
+ * build here rather than rendering an unstyled chip.
+ *
+ * This module also re-exported `SEVERITY_ORDER` (a spread copy of `lib/severity`'s) and
+ * aliased this map to a second name in the same file. Every other consumer already imports
+ * the order from `lib/severity`; a second importable name for one list is how the two
+ * eventually disagree.
+ */
+export const SEVERITY_STYLE: Record<Severity, string> = {
   critical: 'bg-rose-tint text-[var(--rose)]',
   high: 'bg-amber-tint text-[var(--amber)]',
   medium: 'bg-[var(--frost)] text-[var(--steel)]',
   low: 'bg-surface-2 text-ink-soft',
 };
-
-export const SEVERITY_STYLE = SEVERITY_STYLE_MAP;
 
 /**
  * Tint for a severity, tolerating one outside the set.
@@ -35,10 +41,10 @@ export const SEVERITY_STYLE = SEVERITY_STYLE_MAP;
  * but no background — the same silent breakage the journal category chips had.
  */
 function severityStyle(severity: string): string {
-  return SEVERITY_STYLE_MAP[severity as Finding['severity']] ?? SEVERITY_STYLE_MAP.low;
+  return SEVERITY_STYLE[severity as Severity] ?? SEVERITY_STYLE.low;
 }
 
-export function SeverityBadge({ severity }: { severity: Finding['severity'] }) {
+export function SeverityBadge({ severity }: { severity: Severity }) {
   return (
     <span className={cn('inline-flex shrink-0 items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', severityStyle(severity))}>
       {severity}
@@ -228,11 +234,14 @@ export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((f, i) => {
+            {sorted.map((f) => {
               const origIdx = findings.indexOf(f);
               return (
                 <FindingTableRow
-                  key={i}
+                  // The finding's own index, NOT its position in the sorted copy. Each row
+                  // owns its expanded state, so keying by position moves that state to
+                  // whichever finding lands there when the list re-sorts.
+                  key={origIdx}
                   finding={f}
                   index={origIdx}
                   selected={selectable ? sel.has(origIdx) : undefined}
@@ -315,7 +324,9 @@ export function AuditRoundCard({ passNo, verdict, findings, applied, active, onC
           </div>
         ) : null}
       </div>
-      <span className="shrink-0 text-xs text-ink-faint">{findings.length} findings</span>
+      <span className="shrink-0 text-xs text-ink-faint">
+        {findings.length} finding{findings.length !== 1 ? 's' : ''}
+      </span>
     </button>
   );
 }

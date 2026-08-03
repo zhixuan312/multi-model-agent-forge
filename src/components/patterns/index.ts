@@ -1,7 +1,7 @@
 export { ProseBlock, type ProseVariant, type ProseBlockProps } from './prose-block';
 export { RailNote, type RailNoteProps } from './feature-rail';
 export { StatusDashboard, type StatusDashboardProps } from './status-dashboard';
-export { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, SEVERITY_ORDER, SEVERITY_STYLE, type Finding, type FindingsGridProps, type AuditRoundCardProps } from './findings';
+export { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, SEVERITY_STYLE, type Finding, type FindingsGridProps, type AuditRoundCardProps } from './findings';
 export { Message, MessageList, ConversationComposer, ConversationPane, type ConversationMessage, type ConversationComposerProps, type ConversationPaneProps } from './conversation';
 export { StageShell, type StageShellProps } from './stage-shell';
 export { StageNavigator, type NavItem, type NavGroup } from './stage-navigator';

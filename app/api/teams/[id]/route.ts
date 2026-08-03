@@ -16,9 +16,12 @@ export const runtime = 'nodejs';
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const csrf = rejectCrossOrigin(req);
   if (csrf) return csrf;
+  // `currentMember()` reads the session and the member row from the DATABASE, so it can
+  // throw for reasons that have nothing to do with permission. Inside the try it did, and
+  // an outage answered "Org admin required." — telling an org admin they are not one.
+  const member = await currentMember();
+  if (!member) return unauthorized();
   try {
-    const member = await currentMember();
-    if (!member) return unauthorized();
     assertOrgAdmin(member);
   } catch {
     return forbidden(ORG_ADMIN_REQUIRED);

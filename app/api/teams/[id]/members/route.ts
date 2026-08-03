@@ -14,9 +14,12 @@ export const runtime = 'nodejs';
  * avatar or credential detail.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  // `currentMember()` reads the session and the member row from the DATABASE, so it can
+  // throw for reasons that have nothing to do with permission. Inside the try it did, and
+  // an outage answered "Org admin required." — telling an org admin they are not one.
+  const me = await currentMember();
+  if (!me) return unauthorized();
   try {
-    const me = await currentMember();
-    if (!me) return unauthorized();
     assertOrgAdmin(me);
   } catch {
     return forbidden(ORG_ADMIN_REQUIRED);

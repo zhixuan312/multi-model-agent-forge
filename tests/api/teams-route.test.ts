@@ -4,6 +4,8 @@ import type { AuthedMember } from '@/auth/auth-provider';
 import { createMockDb } from '../test-utils/mock-db';
 
 let mockMember: AuthedMember | null = null;
+/** Set to make the session lookup FAIL (an outage) rather than return null (logged out). */
+let mockMemberError: Error | null = null;
 const seedDb = () =>
   createMockDb({
     'select:team': [{ id: 'team-1', name: 'Team', slug: 'team', workspaceRootPath: '/workspace', gitTokenRef: null }],
@@ -14,7 +16,10 @@ const seedDb = () =>
 let mockDb = seedDb();
 
 vi.mock('@/auth/current-member', () => ({
-  currentMember: async () => mockMember,
+  currentMember: async () => {
+    if (mockMemberError) throw mockMemberError;
+    return mockMember;
+  },
 }));
 
 vi.mock('@/db/client', () => ({
@@ -43,6 +48,7 @@ const member: AuthedMember = {
 
 beforeEach(() => {
   mockDb = seedDb();
+  mockMemberError = null;
 });
 
 describe('Teams API routes', () => {
@@ -56,6 +62,22 @@ describe('Teams API routes', () => {
     mockMember = member;
     const res = await getTeams();
     expect(res.status).toBe(403);
+  });
+
+  /**
+   * 403 means "you may not"; it must not also mean "the database is down". The gate used
+   * to wrap the whole handler — session lookup AND the team query — in one try whose catch
+   * returned `Org admin required.`, so an outage told an org admin they were not one.
+   */
+  it('does not answer 403 when the failure is the database, not the caller', async () => {
+    mockMember = orgAdmin;
+    mockDb = createMockDb({ 'select:team': new Error('connection terminated') });
+    await expect(getTeams()).rejects.toThrow(/connection terminated/);
+  });
+
+  it('propagates a session-lookup failure instead of calling it a permission problem', async () => {
+    mockMemberError = new Error('session store unreachable');
+    await expect(getTeams()).rejects.toThrow(/session store unreachable/);
   });
 
   it('POST /api/teams creates the team + its admin (201) for org-admin', async () => {

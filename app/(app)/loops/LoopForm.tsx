@@ -73,7 +73,11 @@ export function LoopForm({
         cron: recurring ? cron : null,
         targetBranch: targetBranch.trim() || null,
         repoIds,
-        enabled: recurring ? enabled : true,
+        // Manual loops only fire when an admin clicks Run now, so there is nothing to
+        // pause. Recurring AND event loops both fire on their own and must be pausable —
+        // this used to force `true` for every non-recurring mode, so an event loop could
+        // not be stopped at all.
+        enabled: loopMode === 'manual' ? true : enabled,
       };
       const res = loop
         ? await fetch(`/api/loops/${loop.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
@@ -153,7 +157,7 @@ export function LoopForm({
           <Label as="span">Mode</Label>
           <Segmented label="Mode" value={loopMode} onChange={(v) => setLoopMode(v as LoopMode)} options={[{ value: 'recurring', label: 'Recurring' }, { value: 'manual', label: 'Manual' }, { value: 'event', label: 'Event' }]} />
         </div>
-        {recurring ? (
+        {loopMode !== 'manual' ? (
           <div className="flex flex-col gap-1.5">
             <Label as="span">Status</Label>
             <Segmented label="Status" value={enabled ? 'enabled' : 'paused'} onChange={(v) => setEnabled(v === 'enabled')} options={[{ value: 'enabled', label: 'Enabled' }, { value: 'paused', label: 'Paused' }]} />

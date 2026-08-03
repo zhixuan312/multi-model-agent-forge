@@ -79,6 +79,34 @@ describe('acceptLoopEvent', () => {
     expect(db._wasCalled('loop_event_delivery', 'delete')).toBe(true);
   });
 
+  /**
+   * `enabled` is the pause switch and the SCHEDULER honours it
+   * (`where(eq(loop.enabled, true))`). This path did not, so an event loop fired on every
+   * delivery whatever the flag said — and the form only offered the Status control for
+   * `recurring`, so there was no way to set it either. A misbehaving event loop could only
+   * be stopped by deleting it or rotating its token.
+   */
+  it('refuses a paused loop, and starts nothing', async () => {
+    const starter = vi.fn(async () => ({ kind: 'started' as const, runId: 'r1' }));
+    const db = createMockDb({
+      'select:loop_def': [{ ...loopRow, enabled: false }],
+      'insert:loop_event_delivery': [{ runId: 'r1' }],
+    });
+
+    const res = await acceptLoopEvent({
+      loopId: 'loop-1',
+      authorization: `Bearer ${EVENT_TOKEN}`,
+      idempotencyKey: 'k1',
+      body: { goal: 'Investigate incident' },
+      deps: { db, starter },
+    });
+
+    expect(res.kind).toBe('disabled');
+    expect(starter, 'a paused loop must not run').not.toHaveBeenCalled();
+    // and it must not burn the idempotency key either — re-enabling and redelivering works
+    expect(db._wasCalled('loop_event_delivery', 'insert')).toBe(false);
+  });
+
   it('rejects wrong mode, bad token, bad body, and unknown loops', async () => {
     const badModeDb = createMockDb({ 'select:loop_def': [{ ...loopRow, mode: 'manual', eventTokenHash: null }] });
     expect((await acceptLoopEvent({

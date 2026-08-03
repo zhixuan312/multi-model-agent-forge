@@ -24,6 +24,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       return NextResponse.json({ error: 'unauthorized', message: 'You are not allowed to do that.' }, { status: 401 });
     case 'wrong_mode':
       return NextResponse.json({ error: 'wrong_mode', message: 'This loop is not in event mode.' }, { status: 403 });
+    case 'disabled':
+      return NextResponse.json({ error: 'disabled', message: 'This loop is paused.' }, { status: 403 });
     case 'not_found':
       return NextResponse.json({ error: 'not_found', message: 'That loop no longer exists.' }, { status: 404 });
     case 'internal_error':

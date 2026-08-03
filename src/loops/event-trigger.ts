@@ -17,6 +17,8 @@ export type AcceptLoopEventResult =
   | { kind: 'invalid_request' }
   | { kind: 'unauthorized' }
   | { kind: 'wrong_mode' }
+  /** The loop exists and the token is good, but the loop is paused. */
+  | { kind: 'disabled' }
   | { kind: 'not_found' }
   | { kind: 'internal_error' };
 
@@ -47,6 +49,12 @@ export async function acceptLoopEvent(args: {
   if (!loopRow) return { kind: 'not_found' };
   if (loopRow.mode !== 'event') return { kind: 'wrong_mode' };
   if (!verifyEventToken(candidate, loopRow.eventTokenHash)) return { kind: 'unauthorized' };
+  // `enabled` is the pause switch, and the SCHEDULER honours it
+  // (`where(eq(loop.enabled, true))`). This path did not, so an event loop kept firing on
+  // every delivery no matter what the flag said — there was no way to stop a misbehaving
+  // one short of deleting it or rotating its token. Checked AFTER the token so a paused
+  // loop is not distinguishable from a live one without the credential.
+  if (!loopRow.enabled) return { kind: 'disabled' };
 
   const runId = args.deps?.randomId?.() ?? randomUUID();
   const starter = args.deps?.starter ?? startLoopRun;

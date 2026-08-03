@@ -28,7 +28,12 @@ async function timedGet(url: string, headers: Record<string, string>, opts: Prob
   }
 }
 
-/** Validate a git service token against the host API (GitHub by default). */
+/**
+ * Validate a git token against the GitHub API.
+ *
+ * GitHub is the only host, not a default — the URL is a module constant and nothing
+ * selects another. "by default" implied a configurability that does not exist.
+ */
 export async function probeGit(token: string, opts: ProbeOpts = {}): Promise<ProbeResult> {
   if (!token.trim()) return { ok: false, detail: 'No git token to check.' };
   try {

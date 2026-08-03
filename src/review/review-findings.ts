@@ -40,16 +40,22 @@ export function extractReviewFindings(envelope: unknown): RawReviewFinding[] {
   }
   const summaryObj = (summary && typeof summary === 'object' ? summary : {}) as Record<string, unknown>;
   const findings = Array.isArray(summaryObj.findings) ? summaryObj.findings as Array<Record<string, unknown>> : [];
+  // Every field is TYPE-checked, not cast. `x as string ?? ''` only defends against
+  // null/undefined: a model that emitted `"weight": 3` or `"claim": {…}` produced a
+  // `RawReviewFinding` whose fields were not strings, and `isBlockingSeverity` calls
+  // `.toLowerCase()` on `weight` — so the review gate threw on the envelope instead of
+  // judging it. This is the parse for LLM output; it cannot assume the shape it wants.
+  const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
   return findings.map((f) => ({
     // `severity` is accepted as an alias so the one parse is at least as lenient as the
     // two it replaced; every observed envelope uses `weight`.
-    weight: (f.weight as string) ?? (f.severity as string) ?? 'medium',
-    category: (f.category as string) ?? '',
-    claim: (f.claim as string) ?? '',
-    evidence: (f.evidence as string) ?? '',
-    file: (f.file as string) ?? '',
+    weight: str(f.weight) || str(f.severity) || 'medium',
+    category: str(f.category),
+    claim: str(f.claim),
+    evidence: str(f.evidence),
+    file: str(f.file),
     line: typeof f.line === 'number' ? f.line : 0,
-    suggestion: (f.suggestion as string) ?? '',
+    suggestion: str(f.suggestion),
   }));
 }
 

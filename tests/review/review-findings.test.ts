@@ -68,6 +68,25 @@ describe('hasBlockingReviewFindings — the gate reads exactly what the UI reads
     expect(hasBlockingReviewFindings(envelope([{ severity: 'high' }]))).toBe(true);
     expect(extractReviewFindings(envelope([{ severity: 'high' }]))[0].weight).toBe('high');
   });
+
+  /**
+   * This is LLM output, so a field can be any JSON type. Every field used to be read as
+   * `x as string ?? ''`, which only defends against null/undefined — a numeric `weight`
+   * reached `isBlockingSeverity`, which calls `.toLowerCase()`, and the review GATE threw
+   * on the envelope rather than judging it.
+   */
+  it('survives fields that are not strings', () => {
+    const e = envelope([
+      { weight: 3, category: null, claim: { text: 'nested' }, evidence: [], file: 7, suggestion: true },
+    ]);
+    expect(() => hasBlockingReviewFindings(e)).not.toThrow();
+    const [f] = extractReviewFindings(e);
+    expect(f!.weight).toBe('medium'); // unusable weight → the advisory default, not a crash
+    expect(f!.claim).toBe('');
+    expect(f!.file).toBe('');
+    expect(hasBlockingReviewFindings(e)).toBe(false);
+    expect(() => buildReviewFixPrompt(extractReviewFindings(e))).not.toThrow();
+  });
 });
 
 describe('buildReviewFixPrompt', () => {

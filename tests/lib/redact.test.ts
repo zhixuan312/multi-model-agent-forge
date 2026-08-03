@@ -27,9 +27,55 @@ describe('redactMessage', () => {
     expect(out).not.toMatch(/a1b2c3d4e5f6/);
   });
 
-  it('strips the words token / secret / password / api_key / bearer (case-insensitive)', () => {
-    for (const bad of ['token=abc', 'my SECRET here', 'password: hunter2', 'api_key xyz', 'Bearer zzz']) {
-      expect(redactMessage(bad)).toContain('«redacted»');
+  /**
+   * The point is the VALUE, not the label. The previous version of this asserted only
+   * that `«redacted»` appeared somewhere — which the old implementation satisfied by
+   * replacing the word `password` and printing `hunter2` right after it.
+   */
+  it('redacts the value after a credential label, and keeps the label readable', () => {
+    for (const [input, secret] of [
+      ['token=abc123def456ghi', 'abc123def456ghi'],
+      ['my SECRET here', 'here'],
+      ['password: hunter2', 'hunter2'],
+      ['api_key xyz789', 'xyz789'],
+      ['Bearer zzz111', 'zzz111'],
+    ] as const) {
+      const out = redactMessage(input);
+      expect(out, `${input} must not print its value`).not.toContain(secret);
+      expect(out).toContain('«redacted»');
+    }
+    // the label survives so the message still says what failed
+    expect(redactMessage('password: hunter2')).toBe('password «redacted»');
+  });
+
+  /**
+   * Real credential formats. Every one of these passed through the previous
+   * hex-only rule completely intact.
+   */
+  it('strips provider credentials that are not hex', () => {
+    const cases: [string, string][] = [
+      ['Incorrect API key provided: sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz', 'sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz'],
+      ['bad credentials for ghp_16C7e42F292c6912E7710c838347Ae178B4a', 'ghp_16C7e42F292c6912E7710c838347Ae178B4a'],
+      ['webhook rejected xoxb-EXAMPLE-0000000000-NOT-A-REAL-SLACK-TOKEN-0000', 'xoxb-EXAMPLE-0000000000-NOT-A-REAL-SLACK-TOKEN-0000'],
+    ];
+    for (const [input, secret] of cases) {
+      expect(redactMessage(input), input).not.toContain(secret);
+    }
+  });
+
+  it('strips the password out of a connection string', () => {
+    const out = redactMessage('connect failed: postgres://forge:Hunter2Passw0rd@db.internal:5432/forge');
+    expect(out).not.toContain('Hunter2Passw0rd');
+    expect(out).toContain('postgres://«redacted»@db.internal');
+  });
+
+  it('leaves ordinary prose alone', () => {
+    for (const ok of [
+      'Couldn’t propose discovery tasks — try again.',
+      'MMA dispatch to /task (investigate) failed with HTTP 500',
+      'content-security-policy blocked the request',
+    ]) {
+      expect(redactMessage(ok)).toBe(ok);
     }
   });
 

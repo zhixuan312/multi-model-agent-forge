@@ -77,18 +77,24 @@ describe('updateConnections', () => {
     expect(db._calls).toHaveLength(0);
   });
 
-  it('when no teamId is provided, git token is ignored (no-op)', async () => {
+  /**
+   * This asserted `kind: 'saved'` with `gitTokenSet: false` — it pinned a silent no-op
+   * as correct: you asked to store a credential, were told it was saved, and nothing
+   * was. `gitTokenSet: false` is also the exact answer the view gives when you never
+   * asked, so there was no way to tell the two apart. The adjacent missing-team-ROW
+   * case already threw, so one precondition had two different failure modes.
+   */
+  it('refuses a git token with no team rather than reporting it saved', async () => {
     const db = createMockDb({
       'select:team_connection': seq([], [createBaseConnection()]),
     });
     const secrets = createMockSecretStore();
-    const res = await updateConnections({ gitToken: 'ghs_SECRET' }, { db, secrets });
 
-    expect(res.kind).toBe('saved');
-    if (res.kind !== 'saved') return;
-    expect(res.connections.gitTokenSet).toBe(false); // no teamId provided, so git token not set
-    expect(secrets.puts).toHaveLength(0); // no secrets stored
-    expect(db._wasCalled('team', 'update')).toBe(false); // team not updated
+    await expect(updateConnections({ gitToken: 'ghs_SECRET' }, { db, secrets }))
+      .rejects.toThrow(/Team required/);
+
+    expect(secrets.puts).toHaveLength(0); // nothing stored
+    expect(db._wasCalled('team', 'update')).toBe(false);
   });
 
   it('mma base URL alone (no git token, no team) UPDATEs the singleton — org admin', async () => {

@@ -17,8 +17,40 @@
 
 const GENERIC = 'Something went wrong.';
 
-/** Token-like substrings: long hex/base runs, or the obvious credential keywords. */
-const TOKEN_RE = /[a-f0-9]{20,}|secret|password|api[_-]?key|token|bearer/gi;
+/**
+ * The rules below replaced a single `/[a-f0-9]{20,}|secret|password|api[_-]?key|token|
+ * bearer/gi`, which had this backwards in two ways.
+ *
+ * It matched the credential's NAME and left its VALUE in place, so
+ * `password: hunter2` became `«redacted»: hunter2` — it hid the label and printed the
+ * secret. And its only value-shaped rule was hex-only, so anything in a wider alphabet
+ * survived whole. Measured against the real formats:
+ *
+ *   sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz          → passed through INTACT
+ *   xoxb-EXAMPLE…           → passed through INTACT
+ *   postgres://forge:Hunter2Passw0rd@db.internal   → passed through INTACT
+ *   ghp_16C7e42F292c6912E7710c838347Ae178B4a       → caught, but only because that
+ *                                                    particular tail happened to be hex
+ *
+ * Its test asked only that `«redacted»` appear SOMEWHERE in the output, which the old
+ * behaviour satisfied by redacting the word `password`.
+ */
+
+/** `label: value`, `label=value`, or `label value` — redact the VALUE, keep the label. */
+const LABELLED_SECRET_RE =
+  /\b(secrets?|passwords?|passwd|api[_-]?keys?|tokens?|bearer|credentials?)\b(\s*[:=]\s*|\s+)(\S+)/gi;
+
+/** URL userinfo — `scheme://user:pass@host`. The password is the whole point. */
+const URL_USERINFO_RE = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
+
+/**
+ * A long opaque run, in ANY alphabet — this is what catches a credential nobody labelled.
+ * At least one digit is required so ordinary hyphenated prose
+ * ("content-security-policy") is left alone; real tokens effectively always carry one.
+ * Lookarounds rather than `\b`, because `-` is not a word character and the boundary
+ * would land inside the run.
+ */
+const OPAQUE_RUN_RE = /(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])/g;
 
 /** ANSI escape sequences (e.g. color codes) — dropped whole. */
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -45,6 +77,13 @@ export function redactMessage(input: unknown): string {
     .trim();
   if (cleaned === '') return GENERIC;
 
-  const redacted = cleaned.replace(TOKEN_RE, '«redacted»').replace(/\s+/g, ' ').trim();
+  // Order matters: strip userinfo before the opaque-run rule can chew the host, and
+  // handle labelled values before the generic run rule sees them.
+  const redacted = cleaned
+    .replace(URL_USERINFO_RE, '$1«redacted»@')
+    .replace(LABELLED_SECRET_RE, '$1 «redacted»')
+    .replace(OPAQUE_RUN_RE, '«redacted»')
+    .replace(/\s+/g, ' ')
+    .trim();
   return redacted === '' ? GENERIC : redacted;
 }

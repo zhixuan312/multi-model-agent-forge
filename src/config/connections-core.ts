@@ -139,8 +139,14 @@ export async function updateConnections(
     }
   }
 
-  // Team-owned git token goes to team row (only if teamId is provided)
-  if (gitToken !== undefined && deps.teamId) {
+  // Team-owned git token goes to the team row. A missing teamId used to fall through
+  // this branch silently, so a caller that sent a token got `{ kind: 'saved' }` back
+  // while nothing was stored — and `gitTokenSet` stayed false, which is the same answer
+  // the view gives when you never asked. The adjacent missing-team-ROW case already
+  // threw, so the two halves of the same precondition disagreed about how to fail.
+  // (The route gates this to a team_admin with a team, so this is the inner guard.)
+  if (gitToken !== undefined) {
+    if (!deps.teamId) throw new Error('Team required for git token update.');
     if (!currentTeam) throw new Error('Team required for git token update.');
     const gitTokenRef = await rotate(gitToken, 'git-token', currentTeam.gitTokenRef);
     await db.update(team).set({ gitTokenRef, updatedAt: new Date() }).where(eq(team.id, currentTeam.id));

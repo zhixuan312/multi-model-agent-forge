@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Db } from '@/db/client';
@@ -65,7 +66,7 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
     const lastAttempt = t.attempts[t.attempts.length - 1];
     const batch = lastAttempt ? batchMap.get(lastAttempt.batchId) : undefined;
     return {
-      id: `task-${i}`,
+      id: discoverTaskId(t, i),
       kind: t.kind,
       status: t.status,
       prompt: t.prompt,
@@ -154,6 +155,35 @@ export async function readProjectRepoOptions(
   return [];
 }
 
+/**
+ * A task's stable id, falling back to its positional id for a row that predates the field.
+ * The fallback is what an existing rail already renders, so an in-flight client keeps working
+ * — and the first mutation on that project assigns real ids to everything.
+ */
+export function discoverTaskId(task: { id?: string }, index: number): string {
+  return task.id ?? `task-${index}`;
+}
+
+/** Give every task an id. Cheap, idempotent, and run inside every discover mutation. */
+export function ensureDiscoverTaskIds(tasks: Array<{ id?: string }>): void {
+  for (const t of tasks) if (!t.id) t.id = randomUUID();
+}
+
+/**
+ * Resolve a task id to its position. Accepts a real id, or the legacy `task-<n>` form for a
+ * client that loaded before the ids existed. Returns -1 when it names nothing.
+ */
+function indexOfTask(tasks: Array<{ id?: string }>, taskId: string): number {
+  const byId = tasks.findIndex((t) => t.id === taskId);
+  if (byId !== -1) return byId;
+  const m = /^task-(\d+)$/.exec(taskId);
+  if (!m) return -1;
+  const i = Number(m[1]);
+  // A positional id only means anything for a task that never got a real one; once a task
+  // HAS an id, position is not its name any more.
+  return tasks[i] && !tasks[i]!.id ? i : -1;
+}
+
 /** Per-route prompt floor (re-exported for the editor guard). */
 export const promptFloor = (kind: DiscoverTaskKind): number => PROMPT_FLOORS[kind];
 
@@ -200,31 +230,39 @@ export async function addTask(
   const prompt = input.prompt.trim();
   if (prompt.length < PROMPT_FLOORS[input.kind]) throw new PromptTooShortError(input.kind);
   const { updateDetails } = await import('@/details/write');
-  let idx = 0;
+  const id = randomUUID();
   await updateDetails(db, projectId, (d) => {
-    d.stages.exploration.phases.discover.tasks.push({
+    const tasks = d.stages.exploration.phases.discover.tasks;
+    ensureDiscoverTaskIds(tasks);
+    tasks.push({
+      id,
       kind: input.kind,
       prompt,
       status: 'draft',
       ...(input.kind === 'investigate' && input.targetRepoId ? { repoId: input.targetRepoId } : {}),
       attempts: [],
     });
-    idx = d.stages.exploration.phases.discover.tasks.length - 1;
     return d;
   });
-  return { id: `task-${idx}` };
+  return { id };
 }
 
 /** Edit a draft task's prompt and/or target repo via details. */
 export async function editTask(
   projectId: string,
-  taskIndex: number,
+  taskId: string,
   patch: { prompt?: string; targetRepoId?: string | null },
   db: Db = getDb(),
 ): Promise<void> {
   const { updateDetails } = await import('@/details/write');
   await updateDetails(db, projectId, (d) => {
-    const task = d.stages.exploration.phases.discover.tasks[taskIndex];
+    const tasks = d.stages.exploration.phases.discover.tasks;
+    // RESOLVE FIRST, heal second. `ensureDiscoverTaskIds` gives every task a real id, and
+    // the legacy `task-<n>` form only answers for a task that has none — so healing before
+    // the lookup makes the legacy path unresolvable, which is the very client this is for.
+    const idx = indexOfTask(tasks, taskId);
+    ensureDiscoverTaskIds(tasks);
+    const task = tasks[idx];
     if (!task) throw new TaskNotFoundError();
     if (task.status !== 'draft') throw new TaskLockedError();
     if (patch.prompt !== undefined) {
@@ -244,15 +282,19 @@ export async function editTask(
 /** Remove a draft task via details. */
 export async function removeTask(
   projectId: string,
-  taskIndex: number,
+  taskId: string,
   db: Db = getDb(),
 ): Promise<void> {
   const { updateDetails } = await import('@/details/write');
   await updateDetails(db, projectId, (d) => {
-    const task = d.stages.exploration.phases.discover.tasks[taskIndex];
+    const tasks = d.stages.exploration.phases.discover.tasks;
+    // Resolve before healing — see `editTask`.
+    const idx = indexOfTask(tasks, taskId);
+    ensureDiscoverTaskIds(tasks);
+    const task = tasks[idx];
     if (!task) throw new TaskNotFoundError();
     if (task.status !== 'draft') throw new TaskLockedError();
-    d.stages.exploration.phases.discover.tasks.splice(taskIndex, 1);
+    tasks.splice(idx, 1);
     return d;
   });
 }

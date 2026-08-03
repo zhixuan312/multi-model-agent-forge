@@ -13,7 +13,7 @@ import { member } from '@/db/schema/identity';
 import type { Period } from '@/usage/period';
 import type { UsageSource } from '@/usage/source';
 import { DISPLAY_TIMEZONE } from '@/lib/format-date';
-import { TERMINAL_MMA_STATUS } from '@/db/enums';
+import { TERMINAL_MMA_STATUS, type MmaRoute } from '@/db/enums';
 
 /**
  * The zone the reporting periods are cut in — "this week" means Monday 00:00 in the
@@ -630,7 +630,14 @@ export interface StandaloneRow {
   durationMs: number;
 }
 
-const ROUTE_LABELS: Record<string, string> = {
+/**
+ * Human label per route. TOTAL over `MmaRoute`, so a route added to the enum has to be
+ * named here rather than appearing in the table as its raw id.
+ *
+ * It was `Record<string, string>` and missing two of the eleven: `spec` and `plan` rendered
+ * as "spec" and "plan" beside "Code investigation" and "Journal recall".
+ */
+const ROUTE_LABELS = {
   journal_recall: 'Journal recall',
   delegate: 'Ad-hoc task',
   research: 'Research',
@@ -640,7 +647,9 @@ const ROUTE_LABELS: Record<string, string> = {
   review: 'Review',
   execute_plan: 'Plan execution',
   orchestrate: 'Orchestration',
-};
+  spec: 'Spec authoring',
+  plan: 'Plan authoring',
+} as const satisfies Record<MmaRoute, string>;
 
 export async function usageStandalone(
   period: Period,
@@ -677,7 +686,9 @@ export async function usageStandalone(
 
   return rows.map((r) => ({
     route: r.route,
-    label: ROUTE_LABELS[r.route] ?? r.route,
+    // The `??` survives a TOTAL map on purpose: `ops_mma_batch.route` is historical, so a
+    // row written under a route since retired from the enum must still render.
+    label: (ROUTE_LABELS as Record<string, string>)[r.route] ?? r.route,
     taskCount: r.taskCount,
     costUsd: r.costUsd,
     savedUsd: r.savedUsd,

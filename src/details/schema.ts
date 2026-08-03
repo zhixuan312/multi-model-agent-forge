@@ -64,6 +64,17 @@ const automationSchema = z.object({
 });
 
 const discoverTaskSchema = z.object({
+  /**
+   * Stable identity. OPTIONAL because rows written before it exist: every mutation path
+   * calls `ensureDiscoverTaskIds`, so a project heals on its first write.
+   *
+   * Discover tasks were addressed by ARRAY INDEX — the rail rendered `task-<i>` and
+   * `editTask`/`removeTask` took that integer. `removeTask` splices the array, so every
+   * index after the removed one shifts, and nothing tells another viewer: these routes
+   * publish no SSE event, so a second person's rail keeps the old indices until they
+   * happen to reload. Their next edit then silently rewrote a different task's prompt.
+   */
+  id: z.string().optional(),
   kind: z.enum(DISCOVER_TASK_KIND),
   title: z.string().optional(),
   prompt: z.string(),

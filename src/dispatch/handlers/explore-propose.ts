@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { ensureDiscoverTaskIds } from '@/exploration/explore-core';
 import type { Db } from '@/db/client';
 import { DISCOVER_TASK_KIND, type DiscoverTaskKind } from '@/db/enums';
 import { ProposalSchema, PROMPT_FLOORS, type ProposedTask } from '@/exploration/schemas';
@@ -39,12 +41,14 @@ async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown)
   if (conformant.length === 0) return;
 
   await updateDetails(db, ctx.projectId, (d) => {
+    ensureDiscoverTaskIds(d.stages.exploration.phases.discover.tasks);
     const kept = d.stages.exploration.phases.discover.tasks.filter((t) => t.status !== 'draft');
     // The enum's own order, so the stored order and the rail's grouping cannot disagree.
     const sortOrder: Record<string, number> = Object.fromEntries(DISCOVER_TASK_KIND.map((k, i) => [k, i]));
     const newTasks = conformant
       .sort((a, b) => (sortOrder[a.kind] ?? 9) - (sortOrder[b.kind] ?? 9))
       .map((t) => ({
+        id: randomUUID(),
         kind: t.kind as DiscoverTaskKind,
         prompt: t.prompt.trim(),
         status: 'draft' as const,

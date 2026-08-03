@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { MMA_ROUTE } from '@/db/enums';
 
 const usageByProject = vi.fn(async () => []);
 const routeAggForProject = vi.fn(async () => []);
@@ -52,5 +53,29 @@ describe('usage sub-pages are team-scoped (no cross-team leak) [QA HIGH]', () =>
     expect(usageByProject).not.toHaveBeenCalled();
     expect(usageByLoop).not.toHaveBeenCalled();
     expect(usageStandalone).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `ROUTE_LABELS` was `Record<string, string>` and covered nine of the eleven routes, so a
+ * `spec` or `plan` batch appeared in the usage table as the literal "spec"/"plan" beside
+ * "Code investigation" and "Journal recall". Total over `MmaRoute` now — a route added to
+ * the enum has to be given a label rather than falling through to its raw id.
+ */
+describe('every MMA route has a human label', () => {
+  it('names all of them', async () => {
+    const src = await import('node:fs').then((fs) => fs.readFileSync('src/usage/usage-core.ts', 'utf8'));
+    const block = src.slice(src.indexOf('const ROUTE_LABELS'), src.indexOf('satisfies Record<MmaRoute, string>'));
+    // Anchored to the start of a line. `toContain('plan:')` matches inside `execute_plan:`,
+    // so the loose version passed with `plan` deleted — it asserted nothing for two of the
+    // eleven routes, which is the exact gap this test exists to close.
+    for (const route of MMA_ROUTE) {
+      expect(block, `${route} has no label`).toMatch(new RegExp(`^\\s*${route}:`, 'm'));
+    }
+  });
+
+  it('is pinned with `satisfies`, so the compiler enforces it too', async () => {
+    const src = await import('node:fs').then((fs) => fs.readFileSync('src/usage/usage-core.ts', 'utf8'));
+    expect(src).toContain('satisfies Record<MmaRoute, string>');
   });
 });

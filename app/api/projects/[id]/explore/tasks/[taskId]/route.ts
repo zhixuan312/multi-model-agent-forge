@@ -42,7 +42,7 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: 'Invalid patch.' }, { status: 400 });
 
   try {
-    await editTask(id, parseInt(taskId.replace('task-', ''), 10), parsed.data);
+    await editTask(id, taskId, parsed.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const mapped = mapTaskError(err);
@@ -61,7 +61,7 @@ export async function DELETE(
   if (guard instanceof NextResponse) return guard;
 
   try {
-    await removeTask(id, parseInt(taskId.replace('task-', ''), 10));
+    await removeTask(id, taskId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const mapped = mapTaskError(err);

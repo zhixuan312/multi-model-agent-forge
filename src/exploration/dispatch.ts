@@ -13,8 +13,9 @@ import { updateDetails } from '@/details/write';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { logEvent } from '@/observability/log-event';
-import type { DiscoverTaskKind, MmaRoute } from '@/db/enums';
+import { DISCOVER_TASK_KIND, type DiscoverTaskKind, type MmaRoute } from '@/db/enums';
 import { errName } from '@/lib/err';
+import { discoverTaskId, ensureDiscoverTaskIds } from '@/exploration/explore-core';
 
 /**
  * Dispatch selected `draft` exploration tasks — one `ops_mma_batch` per task,
@@ -47,13 +48,28 @@ function discoverTaskSetHash(tasks: Array<{ kind: string; prompt: string; repoId
     .slice(0, 16);
 }
 
+/**
+ * The word for each kind in the roll-up line — `journal` reads as "recall" there. Total over
+ * `DiscoverTaskKind` so a kind added to the enum has to be given a word.
+ */
+const KIND_ROLLUP_WORD = {
+  investigate: 'investigate',
+  research: 'research',
+  journal: 'recall',
+} as const satisfies Record<DiscoverTaskKind, string>;
+
+/**
+ * "Analysed 6 tasks — 3 investigate · 1 research · 2 recall".
+ *
+ * Derived from the enum rather than counting three hand-named kinds: the old version summed
+ * `investigate`/`research`/`journal` explicitly, so a fourth kind would have been dispatched,
+ * counted in the total, and left out of the breakdown — a line that does not add up.
+ */
 function rollupLabel(tasks: Array<{ kind: DiscoverTaskKind }>): string {
-  const counts = {
-    investigate: tasks.filter((t) => t.kind === 'investigate').length,
-    research: tasks.filter((t) => t.kind === 'research').length,
-    journal: tasks.filter((t) => t.kind === 'journal').length,
-  };
-  return `Analysed ${tasks.length} tasks — ${counts.investigate} investigate · ${counts.research} research · ${counts.journal} recall`;
+  const parts = DISCOVER_TASK_KIND.map(
+    (k) => `${tasks.filter((t) => t.kind === k).length} ${KIND_ROLLUP_WORD[k]}`,
+  );
+  return `Analysed ${tasks.length} tasks — ${parts.join(' · ')}`;
 }
 
 export type TaskDispatchOutcome =
@@ -151,7 +167,7 @@ export async function dispatchTasks(
   const projectTeamId = pRow.teamId;
   const allTasks = d.stages.exploration.phases.discover.tasks;
   const drafts = allTasks
-    .map((t, i) => ({ id: `task-${i}`, kind: t.kind as DiscoverTaskKind, title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
+    .map((t, i) => ({ id: discoverTaskId(t, i), kind: t.kind as DiscoverTaskKind, title: t.title ?? null, prompt: t.prompt, targetRepoId: t.repoId ?? null, index: i }))
     .filter((t) => allTasks[t.index].status === 'draft');
 
   const outcomes: TaskDispatchOutcome[] = [];
@@ -238,7 +254,14 @@ export async function dispatchTasks(
     // No transaction: `updateDetails` is one optimistic read-modify-write with its own
     // retry loop, so wrapping it bought nothing and cost a `tx as unknown as Db` cast.
     await updateDetails(db, projectId, (det) => {
-      const t = det.stages.exploration.phases.discover.tasks[task.index];
+      // By ID, not by the position captured before the dispatch. `updateDetails` re-reads
+      // on every CAS attempt, so a concurrent add or remove between attempts would have
+      // pointed this at a different task — and it writes the attempt and flips the status.
+      const tasks = det.stages.exploration.phases.discover.tasks;
+      // Resolve against the ids as they stand, THEN heal — the id captured before the
+      // dispatch may be the legacy positional form, which a healed task no longer answers to.
+      const t = tasks.find((x, i) => discoverTaskId(x, i) === task.id) ?? tasks[task.index];
+      ensureDiscoverTaskIds(tasks);
       if (t) {
         t.status = 'running';
         t.attempts.push({ batchId: batchRowId, status: 'running', at: new Date().toISOString() });

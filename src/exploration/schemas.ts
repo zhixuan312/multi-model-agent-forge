@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DISCOVER_TASK_KIND } from '@/db/enums';
+import { DISCOVER_TASK_KIND, type DiscoverTaskKind } from '@/db/enums';
 
 /**
  * Structured-output schemas for exploration MMA calls. `ProposalSchema`
@@ -13,7 +13,11 @@ import { DISCOVER_TASK_KIND } from '@/db/enums';
  * the propose prompt rather than restating them; it used to say "investigate ≥20",
  * which was never the floor here or in the engine.
  */
-export const PROMPT_FLOORS = { investigate: 1, research: 20, journal: 10 } as const;
+export const PROMPT_FLOORS = {
+  investigate: 1,
+  research: 20,
+  journal: 10,
+} as const satisfies Record<DiscoverTaskKind, number>;
 
 /**
  * One proposed task. The orchestrator is asked to emit prompts already above the

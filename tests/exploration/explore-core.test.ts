@@ -112,7 +112,9 @@ describe('task editing via details', () => {
     });
 
     const { id } = await addTask(projectId, { kind: 'research', prompt: 'what external options exist for this?' }, mockDb);
-    expect(id).toBe('task-0');
+    // A real id, not a position. Positions shift the moment another task is removed, and
+    // that shift is invisible to a second viewer — see the schema comment on `id`.
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect(mockDb._wasCalled('project', 'update')).toBe(true);
   });
 
@@ -136,17 +138,113 @@ describe('task editing via details', () => {
       'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: 'proj-6' }],
     });
-    await expect(editTask('proj-6', 0, { prompt: 'a different question entirely' }, mockDb))
+    // Addressed by the legacy positional id, which is what a task written before the id
+    // field answers to until its project's first write.
+    await expect(editTask('proj-6', 'task-0', { prompt: 'a different question entirely' }, mockDb))
       .rejects.toBeInstanceOf(TaskLockedError);
   });
 
-  it('removing a task index that does not exist fails instead of quietly succeeding', async () => {
+  it('removing a task id that does not exist fails instead of quietly succeeding', async () => {
     const d = buildInitialDetails();
     const mockDb = createMockDb({
       'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: 'proj-7' }],
     });
-    await expect(removeTask('proj-7', 4, mockDb)).rejects.toBeInstanceOf(TaskNotFoundError);
+    await expect(removeTask('proj-7', 'task-4', mockDb)).rejects.toBeInstanceOf(TaskNotFoundError);
     expect(mockDb._wasCalled('project', 'update')).toBe(false);
+  });
+});
+
+/**
+ * Discover tasks were addressed by ARRAY INDEX: the rail rendered `task-<i>` and the routes
+ * took that integer straight into `tasks[i]`. `removeTask` splices, so every index after the
+ * removed one shifts — and these routes publish no SSE event, so a second person's rail keeps
+ * the stale indices until they happen to reload. Their next edit rewrote a different task's
+ * prompt, and nothing anywhere could tell.
+ */
+describe('a task is addressed by identity, not by position', () => {
+  const withTasks = () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.discover.tasks = [
+      { id: 'id-a', kind: 'journal', prompt: 'first task prompt', status: 'draft', attempts: [] },
+      { id: 'id-b', kind: 'journal', prompt: 'second task prompt', status: 'draft', attempts: [] },
+      { id: 'id-c', kind: 'journal', prompt: 'third task prompt', status: 'draft', attempts: [] },
+    ];
+    return d;
+  };
+  /**
+   * A STATEFUL stub, because these cases are sequences: remove, then edit what is left.
+   * `createMockDb` hands back the same canned row each select and drops what `set()` wrote,
+   * so a second call would read the pre-remove document and every assertion would describe
+   * a state the code never saw.
+   */
+  function statefulDb(initial: ReturnType<typeof buildInitialDetails>) {
+    const state = { details: initial as unknown, version: 0 };
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ details: state.details, detailsVersion: state.version }],
+          }),
+        }),
+      }),
+      update: () => ({
+        set: (patch: { details?: unknown }) => ({
+          where: () => ({
+            returning: async () => {
+              if (patch.details !== undefined) {
+                state.details = patch.details;
+                state.version += 1;
+              }
+              return [{ id: 'p1' }];
+            },
+          }),
+        }),
+      }),
+      current: () => state.details as ReturnType<typeof buildInitialDetails>,
+    };
+    return db;
+  }
+
+  it('edits the task it names, after an earlier one was removed', async () => {
+    const db = statefulDb(withTasks());
+    await removeTask('p1', 'id-a', db as never);
+    // `id-c` is now at index 1. The positional world would have edited `id-b` here.
+    await editTask('p1', 'id-c', { prompt: 'the edited third prompt' }, db as never);
+
+    const tasks = db.current().stages.exploration.phases.discover.tasks;
+    expect(tasks.map((t) => t.id)).toEqual(['id-b', 'id-c']);
+    expect(tasks.find((t) => t.id === 'id-c')!.prompt).toBe('the edited third prompt');
+    expect(tasks.find((t) => t.id === 'id-b')!.prompt).toBe('second task prompt');
+  });
+
+  it('removes the task it names, after an earlier one was removed', async () => {
+    const db = statefulDb(withTasks());
+    await removeTask('p1', 'id-a', db as never);
+    await removeTask('p1', 'id-c', db as never);
+    expect(db.current().stages.exploration.phases.discover.tasks.map((t) => t.id)).toEqual(['id-b']);
+  });
+
+  /** A rail loaded before the ids existed still works — and heals as it goes. */
+  it('accepts the legacy positional id for a task that has no id yet', async () => {
+    const d = buildInitialDetails();
+    d.stages.exploration.phases.discover.tasks = [
+      { kind: 'journal', prompt: 'legacy one prompt', status: 'draft', attempts: [] },
+      { kind: 'journal', prompt: 'legacy two prompt', status: 'draft', attempts: [] },
+    ];
+    const db = statefulDb(d);
+    await editTask('p1', 'task-1', { prompt: 'edited the second legacy task' }, db as never);
+
+    const tasks = db.current().stages.exploration.phases.discover.tasks;
+    expect(tasks[1]!.prompt).toBe('edited the second legacy task');
+    expect(tasks[0]!.prompt).toBe('legacy one prompt');
+    // …and every task now carries a real id, so the next call is position-independent.
+    expect(tasks.every((t) => t.id && !/^task-\d+$/.test(t.id))).toBe(true);
+  });
+
+  it('will not let a positional id address a task that already has one', async () => {
+    const d = withTasks();
+    await expect(editTask('p1', 'task-0', { prompt: 'should not land anywhere' }, statefulDb(d) as never))
+      .rejects.toBeInstanceOf(TaskNotFoundError);
   });
 });

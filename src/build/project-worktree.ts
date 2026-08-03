@@ -1,6 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { nodeGitRunner, type GitRunner } from '@/build/branch';
+// GIT_LOCK_RE is imported, not restated: it encodes which git failures are transient
+// (lock contention) versus permanent (a missing ref), and a second copy would silently
+// stop matching whenever a new git release changes the wording of one of them.
+import { GIT_LOCK_RE, nodeGitRunner, type GitRunner } from '@/build/branch';
 
 /**
  * Per-project git worktrees — the project-side counterpart of the loop worktrees in
@@ -36,10 +39,6 @@ const PROJECT_WORKTREE_DIR = '.forge-project-worktrees';
 export function projectWorktreePath(repoPathOnDisk: string, projectId: string): string {
   return join(dirname(repoPathOnDisk), PROJECT_WORKTREE_DIR, `${projectId}-${basename(repoPathOnDisk)}`);
 }
-
-/** Lock contention on the shared `.git` is transient; a missing ref is not. Retry only locks. */
-const GIT_LOCK_RE =
-  /could not lock config file|File exists|Unable to create|index\.lock|cannot lock ref|another git process|\.lock'/i;
 
 async function addWorktree(run: GitRunner, repoPath: string, argv: string[]): Promise<void> {
   let res = await run(repoPath, argv);

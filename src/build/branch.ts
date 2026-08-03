@@ -47,7 +47,7 @@ const runGitOnce = (repoPath: string, argv: string[]): Promise<GitRunResult> =>
  * A non-lock non-zero exit (e.g. `rev-parse --verify` of a missing ref) does NOT
  * match and is returned immediately.
  */
-const GIT_LOCK_RE =
+export const GIT_LOCK_RE =
   /could not lock config file|File exists|Unable to create|index\.lock|cannot lock ref|another git process|\.lock'/i;
 
 /** Default runner — `git -C <repoPath> <argv>` (no shell), with retry-on-lock.

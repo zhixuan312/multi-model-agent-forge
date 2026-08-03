@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { LoopForm } from '../../app/(app)/loops/LoopForm';
 
 const refresh = vi.fn();
@@ -68,5 +69,25 @@ describe('LoopForm', () => {
       method: 'PATCH',
       body: JSON.stringify({ rotateEventToken: true }),
     }));
+  });
+
+  /**
+   * The repo picker was the last raw `<input type="checkbox">` in the app — a native box
+   * with an `accent-accent` class, next to forms built from the governed `Checkbox`
+   * (Radix, `focus-ring`, `onCheckedChange`). It is the governed one now.
+   */
+  it('selects repos through the governed Checkbox, not a native input', async () => {
+    const { container } = render(
+      <LoopForm mode="add" repoOptions={[{ id: 'r1', name: 'forge' }, { id: 'r2', name: 'engine' }]} onDone={() => {}} />,
+    );
+    expect(container.querySelector('input[type="checkbox"]:not([aria-hidden])')).toBeNull();
+
+    const boxes = screen.getAllByRole('checkbox');
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]).toHaveAttribute('data-state', 'unchecked');
+
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    await user.click(boxes[0]!);
+    expect(screen.getAllByRole('checkbox')[0]).toHaveAttribute('data-state', 'checked');
   });
 });

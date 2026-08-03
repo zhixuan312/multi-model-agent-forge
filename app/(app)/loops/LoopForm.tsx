@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, KeyRound } from 'lucide-react';
-import { Button, Input, Field, Textarea, Label, Micro, Segmented } from '@/components/ui';
+import { Button, Checkbox, Input, Field, Textarea, Label, Micro, Segmented } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
@@ -15,8 +15,19 @@ export interface RepoOption {
   name: string;
 }
 
-/** Small segmented control (radiogroup) — mirrors the Models tab toggles. */
+/** How a loop is triggered. Recurring runs on `cron`; manual is Run-now only; event is
+ *  driven by an external POST to the loop's event endpoint. */
 type LoopMode = 'recurring' | 'manual' | 'event';
+
+/** The inline notice strip this form uses for the token affordances — written out twice,
+ *  once for the rotate prompt and once for the revealed token. */
+function NoticeBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+      {children}
+    </div>
+  );
+}
 
 export function LoopForm({
   mode,
@@ -155,7 +166,10 @@ export function LoopForm({
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {repoOptions.map((r) => (
             <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
-              <input type="checkbox" className="accent-accent" checked={repoIds.includes(r.id)} onChange={(e) => setRepoIds((ids) => (e.target.checked ? [...ids, r.id] : ids.filter((x) => x !== r.id)))} />
+              <Checkbox
+                checked={repoIds.includes(r.id)}
+                onCheckedChange={(v) => setRepoIds((ids) => (v === true ? [...ids, r.id] : ids.filter((x) => x !== r.id)))}
+              />
               {r.name}
             </label>
           ))}
@@ -179,7 +193,7 @@ export function LoopForm({
       </Field>
 
       {eventMode && loop ? (
-        <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+        <NoticeBar>
           <Micro className="flex-1 text-ink-soft">Rotate the event token to invalidate the previous machine credential immediately.</Micro>
           {confirmRotate ? (
             <div className="flex items-center gap-2">
@@ -190,14 +204,14 @@ export function LoopForm({
           ) : (
             <Button type="button" variant="secondary" leftIcon={<KeyRound />} onClick={() => setConfirmRotate(true)} disabled={busy}>Rotate token</Button>
           )}
-        </div>
+        </NoticeBar>
       ) : null}
 
       {revealedToken ? (
-        <div className="flex items-center gap-3 rounded-[var(--r-md)] border border-line bg-surface px-3 py-2">
+        <NoticeBar>
           <Micro className="flex-1 text-sage">Event token (shown once — copy it now): <span className="font-mono">{revealedToken}</span></Micro>
           <Button type="button" variant="secondary" onClick={onDone}>Done</Button>
-        </div>
+        </NoticeBar>
       ) : null}
       {error ? <Micro role="alert" className="block text-rose">{error}</Micro> : null}
 

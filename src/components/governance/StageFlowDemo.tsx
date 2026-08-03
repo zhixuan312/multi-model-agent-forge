@@ -8,6 +8,7 @@ import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { STAGE_SUBSTEPS } from '@/components/forge/stage-substeps';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
+import { stagePermissionsFrom, permKeyFor } from '@/projects/stage-freeze';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 
 /**
@@ -98,27 +99,21 @@ export function StageFlowDemo() {
     return { kind: stage.kind, status };
   });
 
-  // Locking is a CONSEQUENCE of progress, exactly as src/projects/stage-gate.ts computes it
-  // on a real project — there is no manual lock switch anywhere in the product:
-  //   design stages (Explore · Spec · Plan) freeze once execution starts,
-  //   Execute / Review / Journal each freeze once they are themselves done.
+  // Locking is a CONSEQUENCE of progress — there is no manual lock switch anywhere in the
+  // product. The demo maps its step counter to the same progress flags a real project has,
+  // then applies THE rule from `stage-freeze.ts`. It used to restate that rule here, six
+  // lock-reason strings and all, under a comment claiming it matched.
   const execFirst = posFor(3, 0);
   const execLast = posFor(3, FLOW[3].phases.length - 1);
   const reviewLast = posFor(4, FLOW[4].phases.length - 1);
-  const executeStarted = furthest >= execFirst;
-  const executeDone = furthest > execLast;
-  const reviewDone = furthest > reviewLast;
-  const journalDone = furthest >= STEPS.length;
+  const perms = stagePermissionsFrom({
+    executeStarted: furthest >= execFirst,
+    executeDone: furthest > execLast,
+    reviewDone: furthest > reviewLast,
+    journalDone: furthest >= STEPS.length,
+  });
 
-  const lockFor = (kind: StageKind): string | undefined => {
-    if (kind === 'exploration' || kind === 'spec' || kind === 'plan') {
-      if (!executeStarted) return undefined;
-      return executeDone ? 'Locked — execution has completed.' : 'Locked — execution is in progress.';
-    }
-    if (kind === 'execute') return executeDone ? 'Locked — execution is complete.' : undefined;
-    if (kind === 'review') return reviewDone ? 'Locked — review is complete.' : undefined;
-    return journalDone ? 'Locked — journal is complete.' : undefined;
-  };
+  const lockFor = (kind: StageKind): string | undefined => perms[permKeyFor(kind)].reason;
   const lockedStages: StageKind[] = FLOW.filter((st) => lockFor(st.kind)).map((st) => st.kind);
   const lockedReason = lockFor(viewedStage.kind);
   const locked = Boolean(lockedReason);

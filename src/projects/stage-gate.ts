@@ -2,22 +2,18 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
+import {
+  allStagesLocked,
+  allStagesOpen,
+  stagePermissionsFrom,
+  type StagePermissions,
+} from '@/projects/stage-freeze';
 
-export interface StagePerm {
-  canMutate: boolean;
-  /** Why the stage is read-only. Surfaced by AutomationBar; set iff !canMutate. */
-  reason?: string;
-}
-
-export interface StagePermissions {
-  explore: StagePerm;
-  spec: StagePerm;
-  plan: StagePerm;
-  execute: StagePerm;
-  review: StagePerm;
-  journal: StagePerm;
-}
-
+/**
+ * Reads a project's progress and applies the freeze rule. The RULE itself lives in
+ * `stage-freeze.ts`, DB-free, so the governance demo can apply the same one instead of
+ * restating it.
+ */
 export async function getStagePermissions(db: Db, projectId: string): Promise<StagePermissions> {
   const [proj] = await db
     .select({ completedAt: project.completedAt, details: project.details })
@@ -25,32 +21,15 @@ export async function getStagePermissions(db: Db, projectId: string): Promise<St
     .where(eq(project.id, projectId))
     .limit(1);
 
-  if (proj?.completedAt) {
-    const locked = { canMutate: false, reason: 'Project is complete.' };
-    return { explore: locked, spec: locked, plan: locked, execute: locked, review: locked, journal: locked };
-  }
-
-  if (!proj?.details) {
-    const open = { canMutate: true };
-    return { explore: open, spec: open, plan: open, execute: open, review: open, journal: open };
-  }
+  if (proj?.completedAt) return allStagesLocked('Project is complete.');
+  if (!proj?.details) return allStagesOpen();
 
   const d = validateDetails(proj.details);
   const executeStatus = d.stages.execute.status;
-  const executeStarted = executeStatus === 'active' || executeStatus === 'done';
-  const executeDone = executeStatus === 'done';
-  const reviewDone = d.stages.review.status === 'done';
-  const journalDone = d.stages.journal.status === 'done';
-
-  const designLocked = executeStarted;
-  const designReason = executeDone ? 'Locked — execution has completed.' : 'Locked — execution is in progress.';
-
-  return {
-    explore: { canMutate: !designLocked, ...(designLocked && { reason: designReason }) },
-    spec: { canMutate: !designLocked, ...(designLocked && { reason: designReason }) },
-    plan: { canMutate: !designLocked, ...(designLocked && { reason: designReason }) },
-    execute: { canMutate: !executeDone, ...(executeDone && { reason: 'Locked — execution is complete.' }) },
-    review: { canMutate: !reviewDone, ...(reviewDone && { reason: 'Locked — review is complete.' }) },
-    journal: { canMutate: !journalDone, ...(journalDone && { reason: 'Locked — journal is complete.' }) },
-  };
+  return stagePermissionsFrom({
+    executeStarted: executeStatus === 'active' || executeStatus === 'done',
+    executeDone: executeStatus === 'done',
+    reviewDone: d.stages.review.status === 'done',
+    journalDone: d.stages.journal.status === 'done',
+  });
 }

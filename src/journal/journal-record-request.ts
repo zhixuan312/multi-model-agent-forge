@@ -15,11 +15,15 @@ export interface JournalRowForRecord {
  * the returned `learning` to the row `body` (FR-11), so the chunk carries only the
  * request body — no separate row list is threaded back.
  */
+/** MMA 5.13's per-request record ceiling (FR-10). Named so the loop step and the slice
+ *  width cannot drift from each other or from the doc above. */
+export const RECORDS_PER_CHUNK = 20;
+
 export function buildJournalRecordChunks(rows: JournalRowForRecord[]) {
   const ordered = [...rows].sort((a, b) => a.seq - b.seq);
   const chunks: Array<{ body: { type: 'journal_record'; records: Array<{ prompt: string; topic: string }> } }> = [];
-  for (let index = 0; index < ordered.length; index += 20) {
-    const slice = ordered.slice(index, index + 20);
+  for (let index = 0; index < ordered.length; index += RECORDS_PER_CHUNK) {
+    const slice = ordered.slice(index, index + RECORDS_PER_CHUNK);
     chunks.push({
       body: {
         type: 'journal_record',

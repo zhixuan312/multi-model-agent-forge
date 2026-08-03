@@ -31,11 +31,13 @@ const PROFILE_NOTE = `### Your account
 - **Sessions** — each browser/device gets its own; they expire after idle time`;
 
 /**
- * Profile client surface (Spec 1 §Profile). The Team-Settings shell: a 2/3 stack
- * of isolated cards — **Account** (avatar tint + display name; username read-only)
- * and **Password** — each saving independently, then a 1/3 rail with the
- * equal-rights note and a **Sign out** card. Account/password submit to route
- * handlers; sign-out POSTs to logout.
+ * Profile client surface (Spec 1 §Profile). The Team-Settings shell: a 2/3 stack of
+ * isolated cards — **Account** (avatar tint + display name; username read-only) and
+ * **Password** — each saving independently, with the account note in the 1/3 rail. Both
+ * submit to route handlers.
+ *
+ * Signing out is NOT here: it lives in `AccountMenu` in the top bar. This comment
+ * described a "Sign out card" in the rail long after that move.
  */
 export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics?: MetricCardProps[] }) {
   const router = useRouter();
@@ -152,25 +154,25 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
         >
           <AvatarPicker initials={deriveInitials(displayName || member.displayName)} value={tint} onChange={setTint} />
 
-              <FieldGrid cols={2}>
-                <Field label="Display name">
-                  {(p) => (
-                    <Input {...p} name="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-                  )}
-                </Field>
-                <Field label="Username" hint="your login">
-                  {(p) => (
-                    <Input
-                      {...p}
-                      name="username"
-                      value={member.username}
-                      readOnly
-                      aria-readonly="true"
-                      className="cursor-not-allowed bg-surface-2 font-mono text-ink-faint"
-                    />
-                  )}
-                </Field>
-              </FieldGrid>
+          <FieldGrid cols={2}>
+            <Field label="Display name">
+              {(p) => (
+                <Input {...p} name="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Username" hint="your login">
+              {(p) => (
+                <Input
+                  {...p}
+                  name="username"
+                  value={member.username}
+                  readOnly
+                  aria-readonly="true"
+                  className="cursor-not-allowed bg-surface-2 font-mono text-ink-faint"
+                />
+              )}
+            </Field>
+          </FieldGrid>
 
         </FormPanel>
 
@@ -201,57 +203,57 @@ export function ProfileForm({ member, metrics }: { member: AuthedMember; metrics
           }}
           onSubmit={savePassword}
         >
-              {/* Hidden username so password managers associate the change-password
-                  credential with this account (the visible username lives in the
-                  separate Account form above). */}
-              <input
-                type="text"
-                name="username"
-                autoComplete="username"
-                value={member.username}
-                readOnly
-                aria-hidden
-                tabIndex={-1}
-                className="sr-only"
+          {/* Hidden username so password managers associate the change-password
+              credential with this account (the visible username lives in the
+              separate Account form above). */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value={member.username}
+            readOnly
+            aria-hidden
+            tabIndex={-1}
+            className="sr-only"
+          />
+          <Field label="Current password">
+            {(p) => (
+              <Input
+                {...p}
+                name="currentPassword"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
               />
-              <Field label="Current password">
-                {(p) => (
-                  <Input
-                    {...p}
-                    name="currentPassword"
-                    type="password"
-                    autoComplete="current-password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                )}
-              </Field>
-              <FieldGrid cols={2}>
-                <Field label="New password">
-                  {(p) => (
-                    <Input
-                      {...p}
-                      name="newPassword"
-                      type="password"
-                      autoComplete="new-password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="Confirm new password">
-                  {(p) => (
-                    <Input
-                      {...p}
-                      name="confirmPassword"
-                      type="password"
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                    />
-                  )}
-                </Field>
-              </FieldGrid>
+            )}
+          </Field>
+          <FieldGrid cols={2}>
+            <Field label="New password">
+              {(p) => (
+                <Input
+                  {...p}
+                  name="newPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Confirm new password">
+              {(p) => (
+                <Input
+                  {...p}
+                  name="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              )}
+            </Field>
+          </FieldGrid>
 
         </FormPanel>
       </div>

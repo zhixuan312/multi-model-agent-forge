@@ -26,6 +26,10 @@ import { responseError } from '@/lib/err';
  * the pending entry, so the first promise never settles; and a frame missed while the
  * stream was down leaves the caller waiting. The busy state is re-seeded from
  * `/pending-handlers` on mount, so a reload recovers either case.
+ *
+ * A third one is now handled rather than tolerated: the waiter is registered BEFORE the
+ * POST, because the SSE frame races the POST's own response over the network and used to
+ * be able to arrive first — dropping the settle entirely.
  */
 
 export interface UseMmaDispatchOpts {
@@ -57,7 +61,14 @@ export interface MmaDispatchState {
 
 interface PendingDispatch {
   resolve: () => void;
-  reject: (err: string) => void;
+  /**
+   * An `Error`, not a string. The HTTP path already rejects with one, so the two halves of
+   * the same function used to hand callers two different types — and every consumer is
+   * written `e instanceof Error ? e.message : '<generic>'`, so the SSE half's message (the
+   * server's actual reason for the failure) was thrown away in favour of the fallback at
+   * every single call site.
+   */
+  reject: (err: Error) => void;
 }
 
 export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): MmaDispatchState {
@@ -136,7 +147,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
           const pending = pendingRef.current.get(handler);
           if (pending) {
             pendingRef.current.delete(handler);
-            pending.reject(errorMsg);
+            pending.reject(new Error(errorMsg));
           }
         }
 
@@ -148,7 +159,7 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
           const pending = pendingRef.current.get(handler);
           if (pending) {
             pendingRef.current.delete(handler);
-            pending.reject((data.error as string) ?? 'Cancelled.');
+            pending.reject(new Error((data.error as string) ?? 'Cancelled.'));
           }
         }
 
@@ -162,9 +173,31 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
     return () => es.close();
   }, [projectId, clearBusy]);
 
+  /**
+   * Register the waiter for `handler` and hand back its promise.
+   *
+   * Registration must happen BEFORE the POST, not after it. The SSE stream is already open,
+   * so the server's `dispatch.*` frame and the POST's own HTTP response race each other over
+   * the network — and when the frame wins, the old code had nothing registered yet. The
+   * `resolve` was dropped on the floor, `pendingRef.set` then stored a waiter nothing would
+   * ever settle, and the caller's `await mma.transition(...)` hung forever. Busy state
+   * cleared, so the UI looked idle while everything chained after the await never ran.
+   */
+  const awaitHandler = useCallback((handler: string): Promise<void> => {
+    const settled = new Promise<void>((resolve, reject) => {
+      pendingRef.current.set(handler, { resolve, reject });
+    });
+    // The caller attaches its handler after the fetch resolves, which can be hundreds of
+    // milliseconds later. Without this, a rejection arriving in that window is an unhandled
+    // rejection in the console. The returned promise still rejects for the caller.
+    settled.catch(() => {});
+    return settled;
+  }, []);
+
   const dispatch = useCallback(async (url: string, handler: string, body?: unknown) => {
     setError(null);
     markBusy(handler);
+    const settled = awaitHandler(handler);
 
     try {
       const res = await fetch(url, {
@@ -176,20 +209,22 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         throw new Error(await responseError(res, `Request failed (${res.status}).`));
       }
     } catch (e) {
+      // Drop the waiter, or a later unrelated frame for this handler settles a caller that
+      // has already been rejected.
+      pendingRef.current.delete(handler);
       clearBusy(handler);
       const msg = e instanceof Error ? e.message : 'Dispatch failed.';
       setError(msg);
       throw e;
     }
 
-    return new Promise<void>((resolve, reject) => {
-      pendingRef.current.set(handler, { resolve, reject });
-    });
-  }, [markBusy, clearBusy]);
+    return settled;
+  }, [markBusy, clearBusy, awaitHandler]);
 
   const transition = useCallback(async (action: string, data?: unknown, handler?: string): Promise<void> => {
     setError(null);
     if (handler) markBusy(handler);
+    const settled = handler ? awaitHandler(handler) : null;
     try {
       const res = await fetch(`/api/projects/${projectId}/transition`, {
         method: 'POST',
@@ -200,24 +235,22 @@ export function useMmaDispatch(projectId: string, opts?: UseMmaDispatchOpts): Mm
         throw new Error(await responseError(res, `Request failed (${res.status}).`));
       }
     } catch (e) {
-      if (handler) clearBusy(handler);
+      if (handler) {
+        pendingRef.current.delete(handler);
+        clearBusy(handler);
+      }
       const msg = e instanceof Error ? e.message : 'Transition failed.';
       setError(msg);
       throw e;
     }
     // Instant actions (advance/approve/select) have no MMA batch to await.
-    if (!handler) return;
-    return new Promise<void>((resolve, reject) => {
-      pendingRef.current.set(handler, { resolve, reject });
-    });
-  }, [projectId, markBusy, clearBusy]);
+    return settled ?? undefined;
+  }, [projectId, markBusy, clearBusy, awaitHandler]);
 
   const waitFor = useCallback((handler: string): Promise<void> => {
     markBusy(handler);
-    return new Promise<void>((resolve, reject) => {
-      pendingRef.current.set(handler, { resolve, reject });
-    });
-  }, [markBusy]);
+    return awaitHandler(handler);
+  }, [markBusy, awaitHandler]);
 
   const clearError = useCallback(() => setError(null), []);
 

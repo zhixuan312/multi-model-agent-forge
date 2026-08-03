@@ -33,4 +33,3 @@ export const teamSpecTemplate = forge.table(
 );
 
 export type TeamRow = typeof team.$inferSelect;
-export type TeamSpecTemplateRow = typeof teamSpecTemplate.$inferSelect;

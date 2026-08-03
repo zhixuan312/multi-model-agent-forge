@@ -73,5 +73,4 @@ export const loopEventDelivery = forge.table(
 
 export type LoopRow = typeof loop.$inferSelect;
 export type LoopRunRow = typeof loopRun.$inferSelect;
-export type LoopEventDeliveryRow = typeof loopEventDelivery.$inferSelect;
 export interface RunVerification { command: string | null; passed: boolean | null; detail: string; }

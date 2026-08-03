@@ -38,7 +38,6 @@ export const mmaBatch = forge.table(
     index('mma_batch_dispatcher_route_created_idx').on(t.dispatchedBy, t.route, t.createdAt.desc())],
 );
 
-export type MmaBatchRow = typeof mmaBatch.$inferSelect;
 
 /**
  * `ops_notification` — user-facing alerts. Currently two kinds:

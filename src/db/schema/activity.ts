@@ -40,4 +40,3 @@ export const projectActivity = forge.table(
 );
 
 export type ProjectActivityRow = typeof projectActivity.$inferSelect;
-export type NewProjectActivityRow = typeof projectActivity.$inferInsert;

@@ -50,6 +50,3 @@ export const buildPr = forge.table(
   (t) => [index('build_pr_project_idx').on(t.projectId), unique('build_pr_project_repo_uniq').on(t.projectId, t.repoId)],
 );
 
-export type BuildPrRow = typeof buildPr.$inferSelect;
-
-export type ProjectRow = typeof project.$inferSelect;

@@ -158,3 +158,25 @@ describe('the PR body keeps its paragraph structure', () => {
     expect(body).not.toMatch(/\n{3}/);
   });
 });
+
+/**
+ * The plan and journal turns are OPTIONAL and both log when they fail. A hard run failure
+ * — worktree, dispatch, commit, push, PR — was recorded only as the text of a `missed`
+ * journal entry on the run row, so the most important failure was the least diagnosable.
+ */
+describe('a failed run is logged, not only journalled', () => {
+  it('emits loop.run_failed naming the repo and run row', async () => {
+    const { setLogSink } = await import('@/observability/log-event');
+    const records: Array<Record<string, unknown>> = [];
+    const restore = setLogSink((r) => { records.push(r as unknown as Record<string, unknown>); });
+    try {
+      const d = makeDeps({ dispatch: vi.fn(async () => { throw new Error('worker exploded'); }) });
+      await runLoopForRepo(loop, repo, ctx, d);
+      const failure = records.find((r) => r.event === 'loop.run_failed');
+      expect(failure, 'no loop.run_failed record was emitted').toBeDefined();
+      expect(failure).toMatchObject({ level: 'error', repo: 'mma-forge', detail: 'worker exploded' });
+    } finally {
+      restore();
+    }
+  });
+});

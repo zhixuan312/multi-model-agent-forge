@@ -329,7 +329,11 @@ export async function runLoopForRepo(
       journalEntries,
     });
   } catch (e) {
-    return failed((e as Error)?.message ?? 'loop_run_failed');
+    // Logged, like the optional plan/journal turns above — more so, since this is the run
+    // itself failing. Without it the ONLY record was the text of a `missed` journal entry
+    // on the run row: the most important failure was the least diagnosable one.
+    logEvent({ event: 'loop.run_failed', level: 'error', repo: repo.name, loopRunId: runRowId, detail: errMessage(e) });
+    return failed(errMessage(e) || 'loop_run_failed');
   } finally {
     if (worktree) await deps.removeWorktree(worktree);
   }

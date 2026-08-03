@@ -33,7 +33,8 @@ export type LogEventName =
   | 'startup.automation_resume_failed'
   | 'startup.automation_deferred'
   | 'loop.plan_turn_failed'
-  | 'loop.journal_turn_failed';
+  | 'loop.journal_turn_failed'
+  | 'loop.run_failed';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -53,6 +54,8 @@ export interface LogRecord {
   count?: number;
   /** The repo a loop turn was working in. */
   repo?: string;
+  /** The `loop_run` row a loop event belongs to — the join key back to the run's record. */
+  loopRunId?: string;
 }
 
 export type LogSink = (record: LogRecord) => void;

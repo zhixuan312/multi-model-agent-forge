@@ -48,7 +48,7 @@ export default async function ModelsPage() {
       scroll="outer"
         align="start"
         metrics={[
-          { label: 'Tiers configured', value: configured, muted: configured === 0, sublabel: 'of 3 tiers', icon: <Layers />, iconTint: 'accent' },
+          { label: 'Tiers configured', value: configured, muted: configured === 0, sublabel: `of ${values.length} tiers`, icon: <Layers />, iconTint: 'accent' },
           { label: 'Anthropic-style', value: claude, muted: claude === 0, sublabel: 'tiers · claude', icon: <Bot />, iconTint: 'sage' },
           { label: 'OpenAI-style', value: codex, muted: codex === 0, sublabel: 'tiers · codex', icon: <SquareTerminal />, iconTint: 'steel' },
           { label: 'API keys', value: apiKeys, muted: apiKeys === 0, sublabel: 'rest use OAuth', icon: <KeyRound />, iconTint: 'rose' },

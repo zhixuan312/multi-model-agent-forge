@@ -40,7 +40,7 @@ export default async function UsageStandalonePage({
   return (
     <PageFrame
       title="Usage"
-      subnav={<UsageTabsNav active="standalone" period={period} />}
+      subnav={<UsageTabsNav active="standalone" period={period} role={member.role} />}
       width="full"
       fill
       actions={

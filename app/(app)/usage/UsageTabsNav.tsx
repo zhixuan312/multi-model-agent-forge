@@ -12,7 +12,17 @@ const TABS: ReadonlyArray<{ key: UsageView; label: string; href: string; glyph: 
   { key: 'standalone', label: 'Standalone', href: '/usage/standalone', glyph: <Zap className="size-4" /> },
 ];
 
-export function UsageTabsNav({ active, period, role }: { active: UsageView; period?: string; role?: ForgeRole }) {
+/**
+ * `role` is REQUIRED, not optional.
+ *
+ * It was optional and only one of the four call sites passed it, so "org admin sees no
+ * tabs" held on `/usage` and nowhere else — `undefined !== 'org_admin'`, so the sub-pages
+ * would have rendered the tab strip for an org admin. Nothing breaks today because
+ * `requireTeamPage` redirects an org admin to `/usage` before those pages render, but the
+ * component's own rule was being enforced by a redirect three files away rather than by
+ * the component. Required means every caller has to decide, and the compiler says so.
+ */
+export function UsageTabsNav({ active, period, role }: { active: UsageView; period?: string; role: ForgeRole }) {
   if (role === 'org_admin') {
     return null; // Org admin sees no tabs
   }

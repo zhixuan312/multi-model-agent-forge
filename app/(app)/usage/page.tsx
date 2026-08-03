@@ -103,7 +103,9 @@ export default async function UsagePage({
           {
             label: 'Spent',
             value: formatCost(data.metrics.totalCost),
-            sublabel: `${data.metrics.taskCount} tasks`,
+            // Agrees with the count — the sibling metric on OrgUsageDashboard already does
+            // (`dispatch${n === 1 ? '' : 'es'}`); this one read "1 tasks".
+            sublabel: `${data.metrics.taskCount} task${data.metrics.taskCount === 1 ? '' : 's'}`,
             icon: <DollarSign />,
             iconTint: 'accent',
             muted: data.metrics.taskCount === 0,

@@ -12,7 +12,7 @@ import { validateDetails } from '@/details/schema';
 
 export default async function JournalStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ learning?: string; phase?: string }> }) {
   const { id } = await params;
-  const { learning: activeLearningId } = await searchParams;
+  const { learning: activeLearningId, phase: phaseFromUrl } = await searchParams;
   await requireProjectAccess(id);
 
   const proj = await getProject(id);
@@ -42,7 +42,9 @@ export default async function JournalStagePage({ params, searchParams }: { param
 
   const { getActivePhase } = await import('@/projects/phase-tracker');
   const lastPhase = await getActivePhase(db, id, 'journal') as 'journal' | 'summary' | null;
-  const phaseParam = (await searchParams).learning ? undefined : (await searchParams).phase as 'journal' | 'summary' | undefined;
+  // Read once at the top. This awaited `searchParams` twice more here and re-read
+  // `.learning` even though it was already destructured above.
+  const phaseParam = activeLearningId ? undefined : (phaseFromUrl as 'journal' | 'summary' | undefined);
   const initialPhase = phaseParam ?? lastPhase ?? undefined;
 
   return (

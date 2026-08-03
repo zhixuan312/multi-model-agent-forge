@@ -47,7 +47,7 @@ export default async function UsageLoopsPage({
   return (
     <PageFrame
       title="Usage"
-      subnav={<UsageTabsNav active="loops" period={period} />}
+      subnav={<UsageTabsNav active="loops" period={period} role={member.role} />}
       width="full"
       fill
       actions={

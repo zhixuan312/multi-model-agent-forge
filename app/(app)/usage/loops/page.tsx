@@ -5,7 +5,8 @@ import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { usageByLoop, routeAggForLoop, type Period, type RouteAggRow } from '@/usage/usage-core';
+import { usageByLoop, routeAggForLoop, type RouteAggRow } from '@/usage/usage-core';
+import { parsePeriod } from '@/usage/period';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
 import { LoopUsageTable } from '../LoopUsageTable';
@@ -32,7 +33,7 @@ export default async function UsageLoopsPage({
   if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
   const deps = { teamId: member.teamId };
   const sp = await searchParams;
-  const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
+  const period = parsePeriod(sp.period);
   const rows = await usageByLoop(period, deps);
 
   const detailByLoop: Record<string, RouteAggRow[]> = {};

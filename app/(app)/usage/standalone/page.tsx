@@ -5,7 +5,8 @@ import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { usageStandalone, type Period } from '@/usage/usage-core';
+import { usageStandalone } from '@/usage/usage-core';
+import { parsePeriod } from '@/usage/period';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
 import { StandaloneUsageTable } from '../StandaloneUsageTable';
@@ -33,7 +34,7 @@ export default async function UsageStandalonePage({
   // Team-scoped: an unscoped query leaks every team's standalone activity. Org admin → /usage.
   if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
   const sp = await searchParams;
-  const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
+  const period = parsePeriod(sp.period);
   const rows = await usageStandalone(period, { teamId: member.teamId });
 
   return (

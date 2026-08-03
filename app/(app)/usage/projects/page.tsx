@@ -5,7 +5,8 @@ import { requireAdminPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { usageByProject, routeAggForProject, type Period, type RouteAggRow } from '@/usage/usage-core';
+import { usageByProject, routeAggForProject, type RouteAggRow } from '@/usage/usage-core';
+import { parsePeriod } from '@/usage/period';
 import { UsageTabsNav } from '../UsageTabsNav';
 import { PeriodSelect } from '../PeriodSelect';
 import { ProjectUsageTable } from '../ProjectUsageTable';
@@ -35,7 +36,7 @@ export default async function UsageProjectsPage({
   if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
   const deps = { teamId: member.teamId };
   const sp = await searchParams;
-  const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
+  const period = parsePeriod(sp.period);
   const rows = await usageByProject(period, deps);
 
   const detailByProject: Record<string, RouteAggRow[]> = {};

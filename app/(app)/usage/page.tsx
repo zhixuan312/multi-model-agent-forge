@@ -5,7 +5,8 @@ import { currentMember } from '@/auth/current-member';
 import { PageFrame, Card, CardContent, Title } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
-import { usageOverview, routeAggForSource, type Period, type RouteAggRow } from '@/usage/usage-core';
+import { usageOverview, routeAggForSource, type RouteAggRow } from '@/usage/usage-core';
+import { parsePeriod } from '@/usage/period';
 import { formatCost, formatTokens, formatDuration, formatRoi } from '@/usage/format';
 import { UsageTabsNav } from './UsageTabsNav';
 import { PeriodSelect } from './PeriodSelect';
@@ -36,7 +37,7 @@ export default async function UsagePage({
   const member = await currentMember();
   if (!member) redirect('/login');
   const sp = await searchParams;
-  const period = (['week', 'month', '30d', '90d', 'all'].includes(sp.period ?? '') ? sp.period : 'month') as Period;
+  const period = parsePeriod(sp.period);
 
   if (member.role === 'org_admin') {
     const orgData = await usageOverview(period, { scope: 'org' });

@@ -2,14 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
-
-const PERIODS = [
-  { value: 'week', label: 'This week' },
-  { value: 'month', label: 'This month' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: '90d', label: 'Last 90 days' },
-  { value: 'all', label: 'All time' },
-] as const;
+import { PERIODS, PERIOD_LABEL, parsePeriod } from '@/usage/period';
 
 /**
  * Usage period filter. State lives in the URL (shareable, RSC-friendly), like the Loops
@@ -23,7 +16,9 @@ export function PeriodSelect() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const current = searchParams.get('period') ?? 'month';
+  // Through the same parser the pages use, so the picker can never show a value the
+  // page would reject (or default differently from it).
+  const current = parsePeriod(searchParams.get('period'));
 
   return (
     <Select
@@ -39,8 +34,8 @@ export function PeriodSelect() {
       </SelectTrigger>
       <SelectContent>
         {PERIODS.map((p) => (
-          <SelectItem key={p.value} value={p.value}>
-            {p.label}
+          <SelectItem key={p} value={p}>
+            {PERIOD_LABEL[p]}
           </SelectItem>
         ))}
       </SelectContent>

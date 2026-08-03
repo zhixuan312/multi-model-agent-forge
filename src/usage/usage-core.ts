@@ -10,7 +10,7 @@ import { loop, loopRun } from '@/db/schema/loop';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
 
-export type Period = 'week' | 'month' | '30d' | '90d' | 'all';
+import type { Period } from '@/usage/period';
 
 const TIMEZONE = 'Asia/Singapore';
 

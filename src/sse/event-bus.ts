@@ -70,6 +70,11 @@ export type ProjectEvent =
   | { type: 'dispatch.cancelled'; batchId: string; handler: string; error: string; repoId?: string }
   // ── Stage-level sync events (multi-user real-time) ────────────────────
   | { type: 'spec.updated' }
+  /** The Plan STAGE changed server-side (an audit pass recorded, findings applied) — the
+   *  stage-level counterpart of `spec.updated`. Distinct from `plan.updated`, which is a
+   *  per-TASK chat reply. Auto-driven work is dispatched server-side, so the client's
+   *  onDone tracking never fires and this is the only signal the Validate rail gets. */
+  | { type: 'plan.stage_updated' }
   | { type: 'plan.updated'; taskId: string; chatReply: string; updated: boolean }
   | {
       type: 'chat.message';

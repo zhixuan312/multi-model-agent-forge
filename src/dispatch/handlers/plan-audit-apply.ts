@@ -4,6 +4,7 @@ import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
 import { updateDetails } from '@/details/write';
+import { projectEventBus } from '@/sse/event-bus';
 
 async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): Promise<void> {
   const planFile = await readPlanFile(ctx.projectId);
@@ -31,6 +32,11 @@ async function handlePlanAuditApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown
     }
     return d;
   });
+
+  // Same reason spec-audit publishes `spec.updated`: an auto-driven audit is dispatched
+  // server-side, so the client's onDone tracking never fires and the Validate rail would
+  // show nothing until a manual reload. The spec side had this; the plan side did not.
+  projectEventBus.publish(ctx.projectId, { type: 'plan.stage_updated' });
 }
 
 registerHandler('plan-audit-apply', handlePlanAuditApply);

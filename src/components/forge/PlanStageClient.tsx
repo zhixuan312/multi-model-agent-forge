@@ -225,6 +225,9 @@ export function PlanStageClient(props: PlanStageClientProps) {
     onDone: {
       'plan-refine': refresh },
     events: {
+      // The stage-level signal (audit pass recorded / findings applied). Auto-driven
+      // work never reaches `onDone`, so without this the Validate rail sat stale.
+      'plan.stage_updated': refresh,
       'plan.updated': (data) => {
         window.dispatchEvent(new CustomEvent('plan:updated', { detail: data }));
         refresh();

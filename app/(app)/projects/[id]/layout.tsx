@@ -1,18 +1,12 @@
+import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { notFound, redirect } from 'next/navigation';
 import { eq, asc } from 'drizzle-orm';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
 import { ProjectTopbar } from '@/components/forge/ProjectTopbar';
 import { LiveStageStepper } from '@/components/forge/LiveStageStepper';
 import { AutomationGate } from '@/components/forge/AutomationGate';
 import { ShellHeader, ShellSubNav, ShellBody } from '@/components/ui/shell';
-import {
-  getProject,
-  getProjectStages,
-  assertProjectReadable,
-  ProjectAccessError,
-} from '@/projects/projects-core';
+import { getProject, getProjectStages } from '@/projects/projects-core';
+import { requireProjectAccess } from '@/projects/require-project-access';
 import { getStagePermissions } from '@/projects/stage-gate';
 import { getDb } from '@/db/client';
 import { projectActivity } from '@/db/schema/activity';
@@ -29,17 +23,7 @@ export default async function ProjectLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  const actor = projectActorFromMember(me);
-  if (!actor) redirect('/');
-
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) notFound();
-    throw e;
-  }
+  const { actor } = await requireProjectAccess(id);
 
   const db = getDb();
 

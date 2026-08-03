@@ -1,10 +1,8 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
-import { currentMember } from '@/auth/current-member';
-import { projectActorFromMember } from '@/auth/team-scope';
 import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
-import { assertProjectReadable, ProjectAccessError } from '@/projects/projects-core';
+import { requireProjectAccess } from '@/projects/require-project-access';
 import { readMmaBearer } from '@/mma/client-config';
 import { loadPlanView } from '@/plan/plan-core';
 import { findInflight } from '@/dispatch/dispatch-helpers';
@@ -14,17 +12,7 @@ import { PlanStageClient } from '@/components/forge/PlanStageClient';
 export default async function PlanStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
   const { phase: phaseParam } = await searchParams;
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  const actor = projectActorFromMember(me);
-  if (!actor) redirect('/');
-
-  try {
-    await assertProjectReadable(id, actor);
-  } catch (e) {
-    if (e instanceof ProjectAccessError) notFound();
-    throw e;
-  }
+  const { me } = await requireProjectAccess(id);
 
   const db = getDb();
 

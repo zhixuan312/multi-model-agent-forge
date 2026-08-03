@@ -39,4 +39,21 @@ describe('DataTableHeader', () => {
     const { container } = render(<DataTableHeader title="Repositories" action={null} />);
     expect(container.querySelector('.justify-between')).toBeNull();
   });
+
+  /**
+   * The governance catalog declares `header` a toggleable affordance, and its Table
+   * preview switches the title off — which is why the preview forked its own copy of this
+   * shell rather than using the component it exists to demonstrate.
+   */
+  it('renders an action with no title, keeping it right-aligned', () => {
+    const { container } = render(<DataTableHeader action={<button type="button">New item</button>} />);
+    expect(screen.getByRole('button', { name: 'New item' })).toBeInTheDocument();
+    expect(container.querySelector('.justify-between')).not.toBeNull();
+  });
+
+  it('renders nothing but the toolbar when neither title nor action is given', () => {
+    render(<DataTableHeader><div>toolbar only</div></DataTableHeader>);
+    expect(screen.getByText('toolbar only')).toBeInTheDocument();
+    expect(screen.queryByRole('heading')).toBeNull();
+  });
 });

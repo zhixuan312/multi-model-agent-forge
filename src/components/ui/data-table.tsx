@@ -44,21 +44,24 @@ export function DataTableHeader({
   action,
   children,
 }: {
-  title: ReactNode;
+  /** Optional because the governance catalog declares `header` a toggleable affordance —
+   *  every shipped table passes one, but the Table preview can switch it off. */
+  title?: ReactNode;
   /** Primary action, right-aligned on the title row. */
   action?: ReactNode;
   /** The `Toolbar` of search + filter controls. */
   children?: ReactNode;
 }) {
+  const heading = title ? <Title className="!text-lg">{title}</Title> : null;
   return (
     <div className="flex shrink-0 flex-col gap-4 border-b border-line p-5">
       {action ? (
         <div className="flex items-center justify-between gap-3">
-          <Title className="!text-lg">{title}</Title>
+          {heading ?? <span />}
           {action}
         </div>
       ) : (
-        <Title className="!text-lg">{title}</Title>
+        heading
       )}
       {children}
     </div>

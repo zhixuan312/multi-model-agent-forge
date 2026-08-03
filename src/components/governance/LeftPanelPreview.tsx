@@ -11,6 +11,7 @@ import {
   Card,
   CardContent,
   DataTable,
+  DataTableHeader,
   Field,
   FieldGrid,
   Input,
@@ -26,7 +27,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   toolbarControlWidth,
-  Title,
   AvatarPicker,
   AVATAR_TINTS,
 } from '@/components/ui';
@@ -316,17 +316,16 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
             shared `Toolbar` (ui/toolbar.tsx) with a `SearchInput` AND a filter `Select` — a
             search-only strip is a deviation. One table density, footer always shown. */}
         {on.has('header') || on.has('primaryAction') || on.has('toolbar') ? (
-          <div className="flex flex-col gap-4 border-b border-line p-5">
-            {on.has('header') || on.has('primaryAction') ? (
-              <div className="flex items-center justify-between gap-3">
-                {on.has('header') ? <Title className="!text-lg">Section title</Title> : <span />}
-                {on.has('primaryAction') ? (
-                  <Button size="sm" leftIcon={<Plus />}>
-                    New item
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
+          <DataTableHeader
+            title={on.has('header') ? 'Section title' : undefined}
+            action={
+              on.has('primaryAction') ? (
+                <Button size="sm" leftIcon={<Plus />}>
+                  New item
+                </Button>
+              ) : null
+            }
+          >
             {on.has('toolbar') ? (
               <Toolbar>
                 <PreviewSearch label="rows" />
@@ -339,7 +338,7 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
                 </Select>
               </Toolbar>
             ) : null}
-          </div>
+          </DataTableHeader>
         ) : null}
         <DataTable columns={tableColumns(on)} data={TABLE_ROWS} />
       </CardContent>

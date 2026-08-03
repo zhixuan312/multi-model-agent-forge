@@ -189,7 +189,6 @@ export function StageFlowDemo() {
             projectId="preview"
             stages={stages}
             currentStage={viewedStage.kind}
-            phase={viewDone ? 'completed' : viewedStage.phase}
             lockedStages={lockedStages}
             subSteps={subSteps}
             subStepStatuses={subStepStatuses}

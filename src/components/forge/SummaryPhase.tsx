@@ -47,7 +47,6 @@ const SUMMARY_NOTE = `### Summary — your project at a glance
 
 export interface SummaryPhaseProps {
   summary: ProjectSummary;
-  projectId: string;
   readOnly?: boolean;
   onMarkComplete?: () => void;
   completing?: boolean;

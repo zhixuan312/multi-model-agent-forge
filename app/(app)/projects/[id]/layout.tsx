@@ -105,7 +105,6 @@ export default async function ProjectLayout({
           projectId={project.id}
           stages={stages}
           currentStage={activeStage}
-          phase={project.phase}
           lockedStages={lockedStages}
           autoMode={project.autoMode}
           activePhase={activePhase}

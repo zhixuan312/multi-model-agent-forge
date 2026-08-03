@@ -52,7 +52,6 @@ function DashboardShell({ showMetrics, showRail, showStageFlow }: { showMetrics:
             { kind: 'journal', status: 'pending' },
           ]}
           currentStage="plan"
-          phase="build"
         />
       </div>
       {dashboard}

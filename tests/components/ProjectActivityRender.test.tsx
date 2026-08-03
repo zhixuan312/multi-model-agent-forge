@@ -45,7 +45,6 @@ describe('project activity rendering', () => {
   it('shows actor name, label, and duration from the mapped event shape', () => {
     wrap(
       <SummaryPhase
-        projectId="proj-1"
         summary={{
           projectName: 'Demo',
           createdAt: new Date('2026-06-01'),

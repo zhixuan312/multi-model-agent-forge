@@ -13,7 +13,7 @@ const freshStages: { kind: StageKind; status: StageStatus }[] = [
 
 function renderFresh() {
   return render(
-    <StageStepper projectId="p1" stages={freshStages} currentStage="exploration" phase="design" />,
+    <StageStepper projectId="p1" stages={freshStages} currentStage="exploration" />,
   );
 }
 
@@ -52,7 +52,7 @@ describe('StageStepper (4-state track)', () => {
       { kind: 'journal', status: 'pending' },
     ];
     const { container } = render(
-      <StageStepper projectId="p1" stages={stages} currentStage="spec" phase="design" />,
+      <StageStepper projectId="p1" stages={stages} currentStage="spec" />,
     );
     const done = container.querySelector('[data-stage="exploration"]')!;
     expect(done).toHaveAttribute('data-state', 'done');
@@ -68,7 +68,7 @@ describe('StageStepper (4-state track)', () => {
       { kind: 'journal', status: 'pending' },
     ];
     const { container } = render(
-      <StageStepper projectId="p1" stages={stages} currentStage="spec" phase="design" lockedStages={['exploration']} />,
+      <StageStepper projectId="p1" stages={stages} currentStage="spec" lockedStages={['exploration']} />,
     );
     const locked = container.querySelector('[data-stage="exploration"]')!;
     expect(locked).toHaveAttribute('data-state', 'locked');
@@ -120,7 +120,6 @@ describe('StageStepper (4-state track)', () => {
         projectId="p1"
         stages={stages}
         currentStage="exploration"
-        phase="design"
         subSteps={[
           { key: 'brief', label: 'Brief' },
           { key: 'discover', label: 'Discover' },
@@ -152,7 +151,7 @@ describe('StageStepper (4-state track)', () => {
     ];
     const { container } = render(
       <StageStepper
-        projectId="p1" stages={stages} currentStage="exploration" phase="design"
+        projectId="p1" stages={stages} currentStage="exploration"
         subSteps={[{ key: 'brief', label: 'Brief' }, { key: 'discover', label: 'Discover' }, { key: 'synthesize', label: 'Synthesize' }]}
         subStepStatuses={{ brief: 'done', discover: 'done', synthesize: 'active' }}
         activeSubPhase="synthesize"
@@ -178,7 +177,7 @@ describe('StageStepper (4-state track)', () => {
     ];
     const { container } = render(
       <StageStepper
-        projectId="p1" stages={stages} currentStage="exploration" phase="design"
+        projectId="p1" stages={stages} currentStage="exploration"
         subSteps={[{ key: 'brief', label: 'Brief' }, { key: 'discover', label: 'Discover' }, { key: 'synthesize', label: 'Synthesize' }]}
         subStepStatuses={{ brief: 'done', discover: 'active', synthesize: 'pending' }}
         activeSubPhase="brief"

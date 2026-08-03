@@ -357,7 +357,6 @@ export function JournalStageClient(props: JournalStageClientProps) {
         {automationBar}
         <SummaryPhase
           summary={props.summary}
-          projectId={props.projectId}
           readOnly={readOnly}
           completing={completing}
           onMarkComplete={() => {

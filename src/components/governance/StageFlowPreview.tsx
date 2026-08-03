@@ -68,17 +68,17 @@ const RENDERS: Record<string, () => ReactNode> = {
     <div className="flex flex-col gap-6">
       <Labeled label="Active run — done (sage) · ongoing (accent) · pending (line)">
         <StepperFrame>
-          <StageStepper projectId="preview" stages={STAGES_ACTIVE} currentStage="plan" phase="design" />
+          <StageStepper projectId="preview" stages={STAGES_ACTIVE} currentStage="plan" />
         </StepperFrame>
       </Labeled>
       <Labeled label="Locked — prior stages read-only after advancing (sage + lock)">
         <StepperFrame>
-          <StageStepper projectId="preview" stages={STAGES_ACTIVE} currentStage="plan" phase="design" lockedStages={['exploration', 'spec']} />
+          <StageStepper projectId="preview" stages={STAGES_ACTIVE} currentStage="plan" lockedStages={['exploration', 'spec']} />
         </StepperFrame>
       </Labeled>
       <Labeled label="Subset run — skipped stages (BYO artifact)">
         <StepperFrame>
-          <StageStepper projectId="preview" stages={STAGES_SKIPPED} currentStage="plan" phase="design" />
+          <StageStepper projectId="preview" stages={STAGES_SKIPPED} currentStage="plan" />
         </StepperFrame>
       </Labeled>
     </div>

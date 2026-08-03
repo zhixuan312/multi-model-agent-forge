@@ -3,14 +3,13 @@
 import { useSelectedLayoutSegment } from 'next/navigation';
 import { StageStepper } from '@/components/forge/StageStepper';
 import { STAGE_SUBSTEPS, stagePhaseStore, useStageSubPhase } from '@/components/forge/stage-substeps';
-import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
+import type { StageKind, StageStatus } from '@/db/enums';
 import { SEGMENT_TO_STAGE } from '@/projects/stage-route';
 
 export function LiveStageStepper({
   projectId,
   stages,
   currentStage,
-  phase,
   lockedStages,
   autoMode,
   activePhase,
@@ -19,7 +18,6 @@ export function LiveStageStepper({
   projectId: string;
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   currentStage: StageKind | null;
-  phase: ProjectPhase;
   lockedStages?: StageKind[];
   autoMode?: boolean;
   activePhase?: string;
@@ -41,7 +39,6 @@ export function LiveStageStepper({
       projectId={projectId}
       stages={stages}
       currentStage={viewingStage}
-      phase={phase}
       lockedStages={lockedStages}
       subSteps={STAGE_SUBSTEPS[viewingStage]}
       subStepStatuses={phaseStatusByStage?.[viewingStage]}

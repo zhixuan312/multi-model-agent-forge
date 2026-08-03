@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
+import type { StageKind, StageStatus } from '@/db/enums';
 import { STAGE_ORDER } from '@/db/enums';
 import { stageRoute } from '@/projects/stage-route';
 import { computeAllStages, type ComputedStageView } from '@/projects/stage-lifecycle';
@@ -17,7 +17,6 @@ export interface StageStepperProps {
   projectId: string;
   stages: { kind: StageKind; status: StageStatus; lastPhase?: string | null }[];
   currentStage: StageKind | null;
-  phase: ProjectPhase;
   lockedStages?: StageKind[];
   condensed?: boolean;
   subSteps?: { key: string; label: string }[];

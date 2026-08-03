@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Lightbulb,
   Pencil,
-  Plus,
   BookOpen,
   Target,
   Flag,
@@ -484,9 +483,18 @@ function OutlineStage({
   onError: (m: string | null) => void;
 }) {
   const active = matchTemplate(picked, templates);
-  // The outline is locked once confirmed (server marks outline done + craft active).
-  // In that state select_components is rejected, so Continue just navigates forward.
+  /**
+   * The outline is locked once confirmed: the server marks outline done + craft active, and
+   * `allowed-actions` only offers `select_components` while `outline.status === 'active'`, so
+   * the transition is rejected from then on and Continue just navigates forward.
+   *
+   * The PICKER has to say so. It stayed fully interactive after confirmation — tiles toggled,
+   * templates switched, the selection visibly changed — and then Continue silently navigated
+   * to Craft with none of it applied. Craft's rail even offers "Add component", which lands
+   * here. Editing that cannot be saved must not look like editing.
+   */
   const alreadyConfirmed = existing.length > 0;
+  const pickerLocked = readOnly || alreadyConfirmed;
 
   const confirm = useMutation({
     mutationFn: () => mma.transition('select_components', { kinds: [...picked], intentMd: intent }),
@@ -497,7 +505,7 @@ function OutlineStage({
     onError: (e: Error) => onError(e.message) });
 
   function toggle(kind: ComponentKind): void {
-    if (readOnly) return;
+    if (pickerLocked) return;
     const next = new Set(picked);
     if (next.has(kind)) next.delete(kind);
     else next.add(kind);
@@ -570,7 +578,7 @@ function OutlineStage({
                   description={t.description}
                   count={t.kinds.length}
                   selected={active === t.id}
-                  disabled={readOnly}
+                  disabled={pickerLocked}
                   onClick={() => onPick(new Set(t.kinds))}
                 />
               ))}
@@ -605,7 +613,12 @@ function OutlineStage({
             </div>
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">
-            {blockedReason && !alreadyConfirmed ? (
+            {alreadyConfirmed ? (
+              <TextSm role="status" className="!text-xs !text-ink-soft">
+                This outline is confirmed — the components below are the spec&apos;s skeleton and
+                can no longer be changed.
+              </TextSm>
+            ) : blockedReason ? (
               <TextSm role="status" className="!text-xs !text-ink-soft">{blockedReason}</TextSm>
             ) : null}
             {/* Outline→Craft is a PHASE advance inside Spec, so it's the accent Button its
@@ -675,7 +688,7 @@ function OutlineStage({
                 <SelectableTile
                   key={c.kind}
                   selected={picked.has(c.kind)}
-                  disabled={readOnly}
+                  disabled={pickerLocked}
                   onClick={() => toggle(c.kind)}
                   icon={<Icon className="size-4" />}
                   title={c.label}
@@ -1264,12 +1277,16 @@ function CraftStage({
                 }}
               />
             ))}
+            {/* "Add component" — which it could not do. The outline is locked the moment it
+                is confirmed, so this navigated to a picker whose changes are rejected, and the
+                user came back with nothing added and nothing said. It shows the confirmed
+                skeleton; that is what it is called now. */}
             <button
               type="button"
               onClick={onEditOutline}
               className="flex w-full items-center justify-center gap-1.5 rounded-[var(--r-md)] border border-dashed border-line-strong px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent"
             >
-              <Plus className="size-4" /> Add component
+              <ListTodo className="size-4" /> View outline
             </button>
           </CardContent>
           <CardFooter className="flex-col !items-stretch gap-2">

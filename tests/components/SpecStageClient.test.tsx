@@ -260,3 +260,28 @@ describe('Spec · Craft — Revoke returns you to editing', () => {
     await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull());
   });
 });
+
+describe('Spec · Outline — a confirmed outline is locked', () => {
+  /**
+   * `allowed-actions` offers `select_components` only while `outline.status === 'active'`, so
+   * once the outline is confirmed the transition is rejected. The picker stayed fully
+   * interactive anyway — tiles toggled, templates switched, the selection visibly changed —
+   * and Continue then navigated to Craft with none of it applied. Craft's rail even offered
+   * "Add component", which lands here. Editing that cannot be saved must not look like
+   * editing.
+   */
+  it('disables the component tiles once components exist', () => {
+    renderSpec({ initialPhase: 'outline', initialComponents: draftedComponents });
+
+    for (const tile of screen.getAllByRole('button', { name: /Context/ })) {
+      expect(tile).toBeDisabled();
+    }
+    expect(screen.getByRole('status')).toHaveTextContent(/confirmed/i);
+  });
+
+  it('leaves them editable before the outline is confirmed', () => {
+    renderSpec({ initialPhase: 'outline', initialComponents: [] });
+    const tiles = screen.getAllByRole('button', { name: /Context/ });
+    expect(tiles.some((t) => !(t as HTMLButtonElement).disabled)).toBe(true);
+  });
+});

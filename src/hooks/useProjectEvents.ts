@@ -6,14 +6,24 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ProjectEvent } from '@/sse/event-bus';
 
 /**
- * `useProjectEvents(projectId)` (Spec 5 §SSE) — a client island that opens one
- * `EventSource` to `/api/projects/[id]/events` and patches the TanStack Query
- * cache on each message, so the agent rail + summary update live with NO
- * browser→MMA polling. The DB is the source of truth; SSE is a fast-path:
- * on reconnect we invalidate the task list to reconcile anything missed.
+ * `useProjectEvents(projectId)` (Spec 5 §SSE) — opens an `EventSource` to
+ * `/api/projects/[id]/events` and patches the TanStack Query cache on each message, so
+ * the agent rail + summary update live with NO browser→MMA polling. The DB is the source
+ * of truth; SSE is a fast-path: on reconnect we invalidate the task list to reconcile
+ * anything missed.
  *
- * Opened by `projects/[id]/layout` and shared by every island in the shell
- * (Spec 7's build monitor reuses the same hook/stream).
+ * NOT one connection per page. This header used to claim the layout opened a single
+ * stream "shared by every island in the shell"; neither half was true. It is called by
+ * `AutomationOverlay` and `ExploreStageClient`, never by the layout, and `useMmaDispatch`
+ * opens its OWN EventSource to the same URL — so the Explore page holds three. That is
+ * deliberate for now: each connection costs one in-memory bus subscriber and a 15s
+ * heartbeat on the server (see the events route), the two hooks consume disjoint event
+ * families, and collapsing them means a shared provider around the whole shell. Written
+ * down rather than implied, so the cost is a choice instead of a surprise.
+ *
+ * The switch below is deliberately PARTIAL: `dispatch.*` belongs to `useMmaDispatch`, and
+ * `spec.updated`/`plan.*`/`chat.message` reach components through that hook's `events`
+ * option. Missing a case here is not necessarily a gap.
  */
 
 /** Query-key conventions for the project-scoped live data. */

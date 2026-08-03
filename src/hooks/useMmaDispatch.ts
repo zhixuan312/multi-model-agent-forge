@@ -18,6 +18,14 @@ import { responseError } from '@/lib/err';
  *
  * The hook handles: SSE connection, busy state, pending-handler recovery,
  * notification bell refresh on failure, and per-handler data refresh on success.
+ *
+ * Its EventSource is its own, separate from `useProjectEvents`' — see the note there.
+ *
+ * A `dispatch`/`transition`/`waitFor` promise settles only when the matching SSE frame
+ * arrives. Two consequences worth knowing: a second call for the SAME handler replaces
+ * the pending entry, so the first promise never settles; and a frame missed while the
+ * stream was down leaves the caller waiting. The busy state is re-seeded from
+ * `/pending-handlers` on mount, so a reload recovers either case.
  */
 
 export interface UseMmaDispatchOpts {

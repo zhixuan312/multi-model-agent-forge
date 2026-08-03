@@ -15,10 +15,11 @@ import { useCallback, useState } from 'react';
 export function useExpandedRow(): {
   expandedId: string | null;
   toggle: (id: string) => void;
-  close: () => void;
 } {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // `toggle(expandedId)` already collapses the open row, so a separate `close()` was a
+  // second way to do one thing. All three tables destructure `{ expandedId, toggle }`;
+  // nothing outside its own test ever called it.
   const toggle = useCallback((id: string) => setExpandedId((prev) => (prev === id ? null : id)), []);
-  const close = useCallback(() => setExpandedId(null), []);
-  return { expandedId, toggle, close };
+  return { expandedId, toggle };
 }

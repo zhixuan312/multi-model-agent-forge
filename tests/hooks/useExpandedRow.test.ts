@@ -28,22 +28,12 @@ describe('useExpandedRow', () => {
     expect(result.current.expandedId).toBe('b');
   });
 
-  it('close() collapses whatever is open, and is safe when nothing is', () => {
-    const { result } = renderHook(() => useExpandedRow());
-    act(() => result.current.toggle('a'));
-    act(() => result.current.close());
-    expect(result.current.expandedId).toBeNull();
-    act(() => result.current.close());
-    expect(result.current.expandedId).toBeNull();
-  });
-
   it('keeps stable callback identities across renders', () => {
     // The tables list `toggle` in the dependency array of the useMemo that builds their
     // columns; an unstable identity would rebuild every column on every render.
     const { result, rerender } = renderHook(() => useExpandedRow());
-    const first = { toggle: result.current.toggle, close: result.current.close };
+    const first = result.current.toggle;
     rerender();
-    expect(result.current.toggle).toBe(first.toggle);
-    expect(result.current.close).toBe(first.close);
+    expect(result.current.toggle).toBe(first);
   });
 });

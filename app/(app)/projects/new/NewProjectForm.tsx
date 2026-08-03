@@ -86,7 +86,6 @@ function StageFlowPreview({ preset }: { preset: Preset }) {
             <Fragment key={stage.kind}>
               {i > 0 ? <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-faint" /> : null}
               <span
-                aria-label={`${stage.label}: ${s === 'skip' ? 'skipped' : s === 'entry' ? 'start' : 'runs'}`}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
                   s === 'skip' && 'text-ink-faint line-through decoration-ink-faint/50',
@@ -104,6 +103,14 @@ function StageFlowPreview({ preset }: { preset: Preset }) {
                   )}
                 />
                 {stage.label}
+                {/* Whether a stage runs is otherwise carried only by colour and a
+                    line-through, so it does not survive to a screen reader. This was an
+                    `aria-label` on the span, which ARIA discards on a generic element —
+                    every stage announced identically, which is the one thing this preview
+                    exists to distinguish. */}
+                <span className="sr-only">
+                  {s === 'skip' ? ' — skipped' : s === 'entry' ? ' — starts here' : ' — runs'}
+                </span>
               </span>
             </Fragment>
           );

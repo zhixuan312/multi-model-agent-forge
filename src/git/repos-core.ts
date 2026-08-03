@@ -17,6 +17,7 @@ import { WorkspaceService, PathEscapeError } from '@/git/workspace';
 import { resolveWorkspaceRoot, resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { isUniqueViolation } from '@/db/errors';
 import { resolveSecrets } from '@/secrets/resolve-secrets';
+import { safeChildEnv } from '@/build/command-runner';
 
 export interface ReposDeps {
   db?: Db;
@@ -314,8 +315,9 @@ export async function syncWorkspaceRepos(deps: ReposDeps = {}): Promise<{ added:
       let defaultBranch = 'main';
       let headSha: string | null = null;
       try {
-        defaultBranch = execFileSync('git', ['-C', dirPath, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', timeout: 5000 }).trim() || 'main';
-        headSha = execFileSync('git', ['-C', dirPath, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5000 }).trim() || null;
+        const gitEnv = { encoding: 'utf8' as const, timeout: 5000, env: safeChildEnv() as NodeJS.ProcessEnv };
+        defaultBranch = execFileSync('git', ['-C', dirPath, 'rev-parse', '--abbrev-ref', 'HEAD'], gitEnv).trim() || 'main';
+        headSha = execFileSync('git', ['-C', dirPath, 'rev-parse', 'HEAD'], gitEnv).trim() || null;
       } catch { /* use defaults */ }
 
       try {

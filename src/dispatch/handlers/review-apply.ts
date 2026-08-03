@@ -8,6 +8,12 @@ import { recordReviewFix } from '@/automation/details-mutations';
 import { registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { buildForgeBranch } from '@/build/execute-core';
 import { projectWorktreePath } from '@/build/project-worktree';
+// Git children run in checkouts MMA WORKERS write to, and several of these commands fire
+// repo hooks (`push` → pre-push, worktree add/checkout → post-checkout). Inheriting the
+// parent environment would hand a planted hook FORGE_SECRET_KEY, DATABASE_URL and every
+// provider key. `safeChildEnv` keeps PATH and HOME, so git stays findable and any
+// credential helper in ~/.gitconfig keeps working; only credential-shaped variables go.
+import { safeChildEnv } from '@/build/command-runner';
 
 /**
  * After review findings are applied: record the fix on the latest review pass in
@@ -40,7 +46,7 @@ async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): 
   if (!repoPath) return;
   const cwd = projectWorktreePath(repoPath, ctx.projectId);
   try {
-    const branch = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
+    const branch = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], { encoding: 'utf8', env: safeChildEnv() as NodeJS.ProcessEnv }).trim();
     // Match THIS project's branch exactly, not just the `mma/` prefix. Several projects can
     // share one clone, so a prefix test would happily FORCE-push whichever project's branch
     // happened to be checked out — overwriting a sibling project's remote with our commits.
@@ -49,7 +55,7 @@ async function handleReviewApply(db: Db, ctx: MmaBatchCtx, _envelope: unknown): 
     // diagnosable rather than invisible.
     const expected = buildForgeBranch(row.name ?? ctx.projectId, row.createdAt);
     if (branch === expected) {
-      execFileSync('git', ['-C', cwd, 'push', 'origin', branch, '--force'], { timeout: 60_000 });
+      execFileSync('git', ['-C', cwd, 'push', 'origin', branch, '--force'], { timeout: 60_000, env: safeChildEnv() as NodeJS.ProcessEnv });
     } else {
       console.error(`[forge] review-apply: ${cwd} is on "${branch}", expected "${expected}" — skipping push`);
     }

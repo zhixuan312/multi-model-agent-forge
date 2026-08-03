@@ -9,6 +9,12 @@ import { validateDetails } from '@/details/schema';
 import { updateDetails } from '@/details/write';
 import { recordImplementAttempt } from '@/automation/details-mutations';
 import { projectWorktreePath } from '@/build/project-worktree';
+// Git children run in checkouts MMA WORKERS write to, and several of these commands fire
+// repo hooks (`push` → pre-push, worktree add/checkout → post-checkout). Inheriting the
+// parent environment would hand a planted hook FORGE_SECRET_KEY, DATABASE_URL and every
+// provider key. `safeChildEnv` keeps PATH and HOME, so git stays findable and any
+// credential helper in ~/.gitconfig keeps working; only credential-shaped variables go.
+import { safeChildEnv } from '@/build/command-runner';
 
 async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   const request = ctx.request as {
@@ -41,7 +47,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
   if (forgeBranch && targetBranch) {
     let commitCount = 0;
     try {
-      const out = execFileSync('git', ['-C', worktree, 'rev-list', '--count', `origin/${targetBranch}..HEAD`], { encoding: 'utf8', timeout: 30_000 }).trim();
+      const out = execFileSync('git', ['-C', worktree, 'rev-list', '--count', `origin/${targetBranch}..HEAD`], { encoding: 'utf8', timeout: 30_000, env: safeChildEnv() as NodeJS.ProcessEnv }).trim();
       commitCount = Number(out) || 0;
     } catch (revErr) {
       throw new Error(`execute: unable to verify committed code on ${forgeBranch}: ${String(revErr)}`);
@@ -61,7 +67,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
 
   // Push forge branch to origin
   try {
-    execFileSync('git', ['-C', worktree, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000 });
+    execFileSync('git', ['-C', worktree, 'push', 'origin', forgeBranch, '--force'], { timeout: 60_000, env: safeChildEnv() as NodeJS.ProcessEnv });
   } catch (pushErr) {
     console.error(`[forge] git push failed for ${repoMeta.name}:`, pushErr);
   }
@@ -84,7 +90,7 @@ async function handleExecutePipeline(db: Db, ctx: MmaBatchCtx): Promise<void> {
         },
         parseRemote: (path) => {
           try {
-            const url = execFileSync('git', ['-C', path, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+            const url = execFileSync('git', ['-C', path, 'remote', 'get-url', 'origin'], { encoding: 'utf8', env: safeChildEnv() as NodeJS.ProcessEnv }).trim();
             const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
             return m ? { owner: m[1], repo: m[2] } : null;
           } catch { return null; }

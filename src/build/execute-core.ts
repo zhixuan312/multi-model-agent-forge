@@ -9,6 +9,12 @@ export { groupTasksByRepo, buildForgeBranch, listRemoteBranches };
 // re-export was a second path to one definition, which the project rules forbid. Import
 // them from `@/build/execute-types` directly.
 import type { TaskForGrouping, RepoGroup } from '@/build/execute-types';
+// Git children run in checkouts MMA WORKERS write to, and several of these commands fire
+// repo hooks (`push` → pre-push, worktree add/checkout → post-checkout). Inheriting the
+// parent environment would hand a planted hook FORGE_SECRET_KEY, DATABASE_URL and every
+// provider key. `safeChildEnv` keeps PATH and HOME, so git stays findable and any
+// credential helper in ~/.gitconfig keeps working; only credential-shaped variables go.
+import { safeChildEnv } from '@/build/command-runner';
 
 function groupTasksByRepo(tasks: TaskForGrouping[], projectName: string, projectCreatedAt: Date): RepoGroup[] {
   const map = new Map<string, RepoGroup>();
@@ -58,7 +64,7 @@ function buildForgeBranch(projectName: string, createdAt: Date): string {
 
 async function listRemoteBranches(repoPath: string): Promise<string[]> {
   return new Promise((resolve) => {
-    execFile('git', ['-C', repoPath, 'branch', '-r', '--list', 'origin/*', '--format=%(refname:short)'], { timeout: 10_000 }, (err, stdout) => {
+    execFile('git', ['-C', repoPath, 'branch', '-r', '--list', 'origin/*', '--format=%(refname:short)'], { timeout: 10_000, env: safeChildEnv() as NodeJS.ProcessEnv }, (err, stdout) => {
       if (err || !stdout.trim()) { resolve([]); return; }
       resolve(stdout.trim().split('\n').map((b) => b.replace(/^origin\//, '').trim()).filter((b) => b && b !== 'HEAD'));
     });

@@ -1,4 +1,10 @@
 import { execFile } from 'node:child_process';
+// Git children run in checkouts MMA WORKERS write to, and several of these commands fire
+// repo hooks (`push` → pre-push, worktree add/checkout → post-checkout). Inheriting the
+// parent environment would hand a planted hook FORGE_SECRET_KEY, DATABASE_URL and every
+// provider key. `safeChildEnv` keeps PATH and HOME, so git stays findable and any
+// credential helper in ~/.gitconfig keeps working; only credential-shaped variables go.
+import { safeChildEnv } from '@/build/command-runner';
 
 /**
  * Injectable git runner + worktree-add-with-retry (Forge-owned). `nodeGitRunner`
@@ -28,7 +34,7 @@ const runGitOnce = (repoPath: string, argv: string[]): Promise<GitRunResult> =>
     execFile(
       'git',
       ['-C', repoPath, ...argv],
-      { timeout: DEFAULT_GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      { timeout: DEFAULT_GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, env: safeChildEnv() as NodeJS.ProcessEnv },
       (err, stdout, stderr) => {
         const code = err && typeof (err as { code?: unknown }).code === 'number'
           ? (err as { code: number }).code

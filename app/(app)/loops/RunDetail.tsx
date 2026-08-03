@@ -1,6 +1,7 @@
 import { ArrowUpRight, GitBranch, FileText, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react';
 import { Section, SectionTitle, Badge, Mono, Micro, Text, TextStrong, Separator } from '@/components/ui';
 import type { LoopRunRow, RunVerification } from '@/db/schema/loop';
+import type { LoopJournalTag } from '@/loops/main-orchestration';
 import { statusLabel, statusVariant, cap, fmtRunTime, fmtDuration, cleanChange, shortId } from './run-format';
 import { RunLivePoll } from './RunLivePoll';
 
@@ -47,6 +48,17 @@ function VerificationRow({ verification }: { verification: RunVerification | nul
  * chrome of its own. Legacy metadata change lines are filtered out — verification
  * and files render from their own structured slots.
  */
+/**
+ * Badge tint per journal tag — TOTAL over `LoopJournalTag`, so a new tag fails the build
+ * here. This was an inline `tag === 'missed' ? … : tag === 'avoided' ? … : 'steel'`, whose
+ * else branch would have absorbed a fourth tag without a word.
+ */
+const JOURNAL_TAG_VARIANT: Record<LoopJournalTag, 'rose' | 'amber' | 'steel'> = {
+  missed: 'rose',
+  avoided: 'amber',
+  learned: 'steel',
+};
+
 export function RunDetail({ run, repoName }: { run: LoopRunRow; repoName?: string }) {
   const cleaned = ((run.keyChanges as string[] | null) ?? [])
     .map(cleanChange)
@@ -54,7 +66,10 @@ export function RunDetail({ run, repoName }: { run: LoopRunRow; repoName?: strin
   const summary = cleaned[0] ?? null;
   const changes = cleaned.slice(1);
   const files = (run.filesChanged as string[] | null) ?? [];
-  const journal = (run.journalEntries as { tag: string; text: string }[] | null) ?? [];
+  // Typed as `LoopJournalTag`, not `string`: this is a `jsonb` column, so the cast is
+  // the only place the shape is asserted — casting it to `string` threw away the one
+  // guarantee `journalSchema` establishes when the entries are parsed.
+  const journal = (run.journalEntries as { tag: LoopJournalTag; text: string }[] | null) ?? [];
   const verification = (run.verification as RunVerification | null) ?? null;
 
   return (
@@ -136,7 +151,7 @@ export function RunDetail({ run, repoName }: { run: LoopRunRow; repoName?: strin
           <ul className="flex flex-col gap-2">
             {journal.map((j, i) => (
               <li key={i} className="flex items-start gap-2">
-                <Badge size="sm" variant={j.tag === 'missed' ? 'rose' : j.tag === 'avoided' ? 'amber' : 'steel'}>{j.tag}</Badge>
+                <Badge size="sm" variant={JOURNAL_TAG_VARIANT[j.tag]}>{j.tag}</Badge>
                 <TextStrong className="!text-sm !font-normal text-ink-soft">{j.text}</TextStrong>
               </li>
             ))}

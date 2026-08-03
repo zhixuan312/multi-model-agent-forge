@@ -12,6 +12,7 @@ import {
   planPrompt, parsePlan, PLAN_OUTPUT_FORMAT,
   journalPrompt, parseJournal, JOURNAL_OUTPUT_FORMAT,
   type LoopPlan,
+  type LoopJournalTag,
 } from '@/loops/main-orchestration';
 
 /**
@@ -34,7 +35,7 @@ export interface LoopRepoTarget {
 }
 
 export interface JournalEntry {
-  tag: 'learned' | 'missed' | 'avoided';
+  tag: LoopJournalTag;
   text: string;
 }
 

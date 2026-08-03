@@ -66,9 +66,24 @@ Respond with ONLY a single JSON object — no prose, no markdown, no commentary:
 
 // ── JOURNAL ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The tags a loop-run journal entry can carry.
+ *
+ * Written out three times before this: here as a `z.enum`, in `run-engine.ts` as the
+ * `JournalEntry['tag']` union, and in `RunDetail.tsx` as an inline ternary picking a badge
+ * tint. A fourth tag meant editing all three, and the one that would NOT have failed
+ * loudly is the tint — its `else` branch silently absorbs anything.
+ *
+ * It lives here, not in `db/enums.ts`: that file states it is "the canonical value source
+ * for fixed-value-set COLUMNS", and this is a payload field inside a `jsonb` column.
+ * Putting it there would make that header false.
+ */
+export const LOOP_JOURNAL_TAG = ['learned', 'missed', 'avoided'] as const;
+export type LoopJournalTag = (typeof LOOP_JOURNAL_TAG)[number];
+
 export const journalSchema = z.object({
   entries: z
-    .array(z.object({ tag: z.enum(['learned', 'missed', 'avoided']), text: z.string().trim().min(1) }))
+    .array(z.object({ tag: z.enum(LOOP_JOURNAL_TAG), text: z.string().trim().min(1) }))
     .default([]),
 });
 export type JournalResult = z.infer<typeof journalSchema>;

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { sessionStore } from '@/auth/session-store';
 import { clearedCookieOptions, SESSION_COOKIE_NAME } from '@/auth/cookie';
 import { logEvent } from '@/observability/log-event';
@@ -8,7 +9,9 @@ import { logEvent } from '@/observability/log-event';
  * Logout (Spec 1, F9): revoke the session row AND clear the session cookie. A
  * follow-up request with the old cookie is then unauthenticated.
  */
-export async function POST(): Promise<NextResponse> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE_NAME)?.value;
 

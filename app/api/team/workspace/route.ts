@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { assertTeamAdmin } from '@/auth/team-scope';
 import { updateTeamWorkspacePath } from '@/auth/teams-core';
@@ -12,6 +13,8 @@ export const runtime = 'nodejs';
  * is a direct sibling child of the operator workspace base (no symlink escape).
  */
 export async function PUT(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const member = await currentMember();
   if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!member.teamId) {

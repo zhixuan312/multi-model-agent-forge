@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { requireTeamScope, assertTeamAdmin } from '@/auth/team-scope';
 import { createMember } from '@/auth/members-core';
@@ -15,6 +16,8 @@ import { logEvent } from '@/observability/log-event';
  * Team-admin-gated. The password is never echoed.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const actor = await currentMember();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

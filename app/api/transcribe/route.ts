@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import {
   transcribe,
@@ -16,7 +17,9 @@ import {
  */
 export const runtime = 'nodejs';
 
-export async function POST(req: Request): Promise<NextResponse> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
@@ -23,6 +24,8 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
 

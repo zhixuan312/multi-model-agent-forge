@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { getLoop, updateLoop, rotateLoopEventToken, deleteLoop, toPublicLoop } from '@/loops/loops-core';
 
@@ -17,6 +18,8 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
@@ -53,7 +56,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;

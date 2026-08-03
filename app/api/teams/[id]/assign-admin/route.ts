@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
 import { assignTeamAdmin } from '@/auth/teams-core';
@@ -6,6 +7,8 @@ import { isForgeSystemMember } from '@/automation/forge-member';
 import { getDb } from '@/db/client';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   try {
     const member = await currentMember();
     if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

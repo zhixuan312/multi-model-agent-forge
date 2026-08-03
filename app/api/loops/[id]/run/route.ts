@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { startLoopRun } from '@/loops/run-now';
 
@@ -10,7 +11,9 @@ import { startLoopRun } from '@/loops/run-now';
  */
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function POST(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;

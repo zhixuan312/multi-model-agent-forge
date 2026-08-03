@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { z } from 'zod';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { buildMmaClient } from '@/mma/server-client';
@@ -27,6 +28,8 @@ const requestSchema = z.object({
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   // The mma engine is a SINGLE shared daemon — configuring a provider/model/api-key

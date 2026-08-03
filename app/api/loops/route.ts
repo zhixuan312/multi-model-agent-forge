@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { resolveAdminTeam } from '@/auth/admin-gate-handler';
 import { listLoops, createLoop, toPublicLoop } from '@/loops/loops-core';
 
@@ -15,6 +16,8 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminTeam();
   if (!gate.ok) return gate.response;
 

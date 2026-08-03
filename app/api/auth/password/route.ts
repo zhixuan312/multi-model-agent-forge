@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { z } from 'zod';
 import { currentSession } from '@/auth/current-member';
 import { changeOwnPassword } from '@/auth/change-password-core';
@@ -17,6 +18,8 @@ const bodySchema = z.object({
  * caller's session and replace its cookie (stays logged in here).
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const resolved = await currentSession();
   if (!resolved) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

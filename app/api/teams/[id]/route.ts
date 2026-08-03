@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { assertOrgAdmin } from '@/auth/team-scope';
 import { updateTeam } from '@/auth/teams-core';
@@ -12,6 +13,8 @@ export const runtime = 'nodejs';
  * base (FR-8) before it is stored.
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   try {
     const member = await currentMember();
     if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

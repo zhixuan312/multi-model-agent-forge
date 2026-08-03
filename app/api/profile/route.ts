@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { currentMember } from '@/auth/current-member';
 import { updateOwnProfile } from '@/auth/profile-core';
 
@@ -8,6 +9,8 @@ import { updateOwnProfile } from '@/auth/profile-core';
  *   → 200 { displayName, avatarTint } / 400 invalid / 401 unauthenticated.
  */
 export async function PATCH(req: NextRequest): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const me = await currentMember();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

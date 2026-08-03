@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { setMemberAdmin, deleteMember } from '@/auth/members-core';
 import { logEvent } from '@/observability/log-event';
@@ -14,6 +15,8 @@ type Ctx = { params: Promise<{ id: string }> };
  *   → 404 unknown member / 400 invalid body / 403|401 gate
  */
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
@@ -44,7 +47,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
  *   → 409 if it would delete the LAST admin (self or other)
  *   → 404 unknown member / 403|401 gate
  */
-export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;

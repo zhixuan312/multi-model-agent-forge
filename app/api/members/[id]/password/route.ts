@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { rejectCrossOrigin } from '@/auth/same-origin';
 import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { resetMemberPassword } from '@/auth/members-core';
 import { logEvent } from '@/observability/log-event';
@@ -14,6 +15,8 @@ type Ctx = { params: Promise<{ id: string }> };
  *   → 400 weak/empty password / 404 unknown member / 403|401 gate
  */
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const csrf = rejectCrossOrigin(req);
+  if (csrf) return csrf;
   const gate = await resolveAdminActor();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;

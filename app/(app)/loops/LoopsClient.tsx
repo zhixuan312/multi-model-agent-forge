@@ -244,7 +244,15 @@ export function LoopsClient({
         expandedId={editingId}
         leadingRow={adding ? <LoopForm mode="add" repoOptions={repoOptions} onDone={close} /> : null}
         renderExpanded={(l) => <LoopForm key={l.id} mode="edit" loop={l} repoOptions={repoOptions} onDone={close} />}
-        emptyState={<EmptyState icon={<Repeat />} title="No loops yet" description="Create a loop to run a goal against your repos on a schedule or on demand." />}
+        emptyState={
+          /* `shown` is filtered, so this fires for BOTH an empty list and an over-narrow
+             filter. "No loops yet — create one" is wrong advice for the second. */
+          initialLoops.length === 0 ? (
+            <EmptyState icon={<Repeat />} title="No loops yet" description="Create a loop to run a goal against your repos on a schedule or on demand." />
+          ) : (
+            <EmptyState icon={<Repeat />} title="No loops match" description="Adjust the search or trigger filter above." />
+          )
+        }
       />
     </Card>
   );

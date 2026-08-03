@@ -108,7 +108,14 @@ export function StandaloneUsageTable({ data }: { data: StandaloneRow[] }) {
         fill
         getRowId={(r) => r.route}
         emptyState={
-          <EmptyState icon={<Zap />} title="No standalone activity" description="No ad-hoc tasks in this period." />
+          /* `filtered` is what the table renders, so this fires for BOTH an empty period
+             and an over-narrow filter — and the period message is wrong advice for the
+             second. */
+          data.length === 0 ? (
+            <EmptyState icon={<Zap />} title="No standalone activity" description="No ad-hoc tasks in this period." />
+          ) : (
+            <EmptyState icon={<Zap />} title="No activity matches" description="Adjust the search or filter above." />
+          )
         }
       />
     </Card>

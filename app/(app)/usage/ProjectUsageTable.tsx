@@ -126,7 +126,15 @@ export function ProjectUsageTable({
         getRowId={(r) => r.projectId}
         expandedId={expandedId}
         renderExpanded={(row) => <RouteBreakdown routes={detailByProject[row.projectId] ?? []} />}
-        emptyState={<EmptyState icon={<FolderKanban />} title="No project activity" description="No projects have usage data in this period." />}
+        emptyState={
+          /* `filtered` is what the table renders, so this fires for BOTH an empty period
+             and an over-narrow filter — the period message is wrong advice for the second. */
+          data.length === 0 ? (
+            <EmptyState icon={<FolderKanban />} title="No project activity" description="No projects have usage data in this period." />
+          ) : (
+            <EmptyState icon={<FolderKanban />} title="No projects match" description="Adjust the search or filter above." />
+          )
+        }
       />
     </Card>
   );

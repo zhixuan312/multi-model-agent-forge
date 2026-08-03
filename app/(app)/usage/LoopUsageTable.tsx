@@ -140,7 +140,15 @@ export function LoopUsageTable({
         getRowId={(r) => r.loopId}
         expandedId={expandedId}
         renderExpanded={(row) => <RouteBreakdown routes={detailByLoop[row.loopId] ?? []} />}
-        emptyState={<EmptyState icon={<Repeat />} title="No loop activity" description="No loops have run in this period." />}
+        emptyState={
+          /* `filtered` is what the table renders, so this fires for BOTH an empty period
+             and an over-narrow filter — the period message is wrong advice for the second. */
+          data.length === 0 ? (
+            <EmptyState icon={<Repeat />} title="No loop activity" description="No loops have run in this period." />
+          ) : (
+            <EmptyState icon={<Repeat />} title="No loops match" description="Adjust the search or filter above." />
+          )
+        }
       />
     </Card>
   );

@@ -53,6 +53,24 @@ describe('journal graph core', () => {
   });
 
   describe('computeDegrees', () => {
+    /**
+     * A self-edge is not a relationship anywhere else in this module — `relationBreakdown`
+     * skips it and `layoutNodes` filters it out of the springs — but this counted it once
+     * per endpoint, i.e. twice. Degree drives star magnitude and label reveal order.
+     */
+    it('scores a self-edge as no connection, matching relationBreakdown', () => {
+      const d = computeDegrees(nodes, [{ source: '0001', target: '0001', type: 'relates' }]);
+      expect(d.get('0001')).toBe(0);
+    });
+
+    it('does not let a self-edge outrank a genuinely connected node for a label', () => {
+      const d = computeDegrees(nodes, [
+        { source: '0001', target: '0001', type: 'relates' },
+        { source: '0002', target: '0003', type: 'relates' },
+      ]);
+      expect(d.get('0002')).toBeGreaterThan(d.get('0001')!);
+    });
+
     it('counts every incident edge', () => {
       const d = computeDegrees(nodes, edges);
       expect(d.get('0001')).toBe(3);
@@ -152,6 +170,15 @@ describe('journal graph core', () => {
   });
 
   describe('scaleBirths (5-second entrance)', () => {
+    it('handles a journal far larger than an argument list', () => {
+      // `Math.max(0, ...map.values())` is a RangeError past ~65k entries. This module
+      // reasons explicitly about large graphs, so the guard belongs here.
+      const many = new Map(Array.from({ length: 200_000 }, (_, i) => [`n${i}`, i * 0.01]));
+      expect(() => scaleBirths(many)).not.toThrow();
+      expect(Math.round(Math.max(...[...scaleBirths(many).values()].slice(-1)) * 100) / 100)
+        .toBeCloseTo(ENTRANCE.seconds - ENTRANCE.ignite, 1);
+    });
+
     const raw = () => birthOrder(nodes, edges, computeDegrees(nodes, edges));
 
     it('lands the last star fully lit exactly at the end of the window', () => {

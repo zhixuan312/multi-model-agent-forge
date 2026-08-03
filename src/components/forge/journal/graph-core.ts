@@ -39,11 +39,19 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** How many edges touch each node. Edges to unknown ids are ignored. */
+/**
+ * How many edges touch each node. Edges to unknown ids are ignored, and so are
+ * self-edges — the rest of this module already treats one as no relationship at all
+ * (`relationBreakdown` skips it, `layoutNodes` filters it out of the springs), but this
+ * counted it TWICE, once per endpoint. Degree drives both star magnitude and the label
+ * reveal order, so a node linked to itself rendered brighter and got named earlier than
+ * its real connectedness earns.
+ */
 export function computeDegrees(nodes: GraphNode[], edges: GraphEdge[]): Map<string, number> {
   const deg = new Map<string, number>(nodes.map((n) => [n.id, 0]));
   for (const e of edges) {
     if (!deg.has(e.source) || !deg.has(e.target)) continue;
+    if (e.source === e.target) continue;
     deg.set(e.source, (deg.get(e.source) ?? 0) + 1);
     deg.set(e.target, (deg.get(e.target) ?? 0) + 1);
   }
@@ -262,7 +270,11 @@ export function scaleBirths(
   span: number = ENTRANCE.seconds,
   dur: number = ENTRANCE.ignite,
 ): Map<string, number> {
-  const max = Math.max(0, ...births.values());
+  // A loop, not `Math.max(0, ...births.values())`: spreading a Map of every node in the
+  // journal into an argument list is a RangeError past ~65k entries, and this is the
+  // module that reasons explicitly about large graphs.
+  let max = 0;
+  for (const b of births.values()) if (b > max) max = b;
   const last = Math.max(0, span - dur);
   const k = max > 0 ? last / max : 0;
   return new Map([...births].map(([id, b]) => [id, b * k]));

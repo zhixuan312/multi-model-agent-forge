@@ -14,6 +14,12 @@ describe('formatTokens', () => {
   it('formats thousands', () => expect(formatTokens(420_000)).toBe('420K'));
   it('formats thousands', () => expect(formatTokens(1200)).toBe('1K'));
   it('formats small numbers with commas', () => expect(formatTokens(999)).toBe('999'));
+
+  it('promotes a value that rounds up to 1000K into megas', () => {
+    // 999_999 / 1000 rounds to 1000, which printed as "1000K" instead of "1.0M".
+    expect(formatTokens(999_999)).toBe('1.0M');
+    expect(formatTokens(999_499)).toBe('999K');
+  });
 });
 
 describe('formatDuration', () => {

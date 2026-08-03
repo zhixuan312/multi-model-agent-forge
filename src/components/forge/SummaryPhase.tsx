@@ -27,16 +27,7 @@ import { formatActivityDuration, formatDurationHm } from '@/lib/format-duration'
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import type { StageKind } from '@/db/enums';
 import type { ProjectSummary } from '@/projects/project-summary';
-
-function formatTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
-}
-
-function formatUsd(n: number): string {
-  return `$${n.toFixed(2)}`;
-}
+import { formatCost, formatTokens } from '@/usage/format';
 
 function stageDuration(startedAt: string | Date | null, completedAt: string | Date | null): string {
   if (!startedAt || !completedAt) return '—';
@@ -161,12 +152,12 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
               icon={<DollarSign />}
               title="Cost"
               rows={[
-                { label: 'MMA spend', value: formatUsd(spend) },
-                { label: 'Main tier only (est.)', value: formatUsd(mainOnly) },
+                { label: 'MMA spend', value: formatCost(spend) },
+                { label: 'Main tier only (est.)', value: formatCost(mainOnly) },
               ]}
               footer={{
                 label: 'Saved',
-                value: pct > 0 ? `${formatUsd(summary.cost.savedUsd)} (${pct}%)` : formatUsd(summary.cost.savedUsd),
+                value: pct > 0 ? `${formatCost(summary.cost.savedUsd)} (${pct}%)` : formatCost(summary.cost.savedUsd),
               }}
             />
           );

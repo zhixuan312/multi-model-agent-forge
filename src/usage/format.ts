@@ -8,7 +8,11 @@ export function formatCost(usd: number | null): string {
 export function formatTokens(n: number | null): string {
   if (n === null) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  if (n >= 1_000) {
+    // Rounding to whole thousands can reach 1000K (999_999 does); that reads as 1.0M.
+    const thousands = Math.round(n / 1_000);
+    return thousands >= 1_000 ? `${(n / 1_000_000).toFixed(1)}M` : `${thousands}K`;
+  }
   return n.toLocaleString();
 }
 

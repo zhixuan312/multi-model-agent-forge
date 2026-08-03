@@ -77,21 +77,22 @@ function asFinding(v: unknown): ParsedFinding | null {
   };
 }
 
+/** Distinct cited node ids across findings, in first-seen order. */
+function citedIds(findings: ParsedFinding[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const f of findings) {
+    if (f.nodeId && !seen.has(f.nodeId)) { seen.add(f.nodeId); out.push(f.nodeId); }
+  }
+  return out;
+}
+
 /** Parse one worker's raw answer text (a ```json {results, summary}``` block). */
 function parseAnswerText(raw: string): ParsedRecall {
   const answer = extractAnswerObject(raw);
   const rawResults = answer && Array.isArray(answer.results) ? answer.results : [];
   const findings = rawResults.map(asFinding).filter((f): f is ParsedFinding => f !== null);
-
-  const citationIds: string[] = [];
-  const seen = new Set<string>();
-  for (const f of findings) {
-    if (f.nodeId && !seen.has(f.nodeId)) {
-      seen.add(f.nodeId);
-      citationIds.push(f.nodeId);
-    }
-  }
-  return { summary: answer ? str(answer.summary) : '', findings, citationIds };
+  return { summary: answer ? str(answer.summary) : '', findings, citationIds: citedIds(findings) };
 }
 
 /** The implementer's raw output from the `raw` block. */
@@ -119,12 +120,7 @@ export function parseRecallEnvelope(envelope: unknown): ParsedRecall {
     const obj = outputSummary as Record<string, unknown>;
     const rawFindings = Array.isArray(obj.findings) ? obj.findings : [];
     const findings = rawFindings.map(asFinding).filter((f): f is ParsedFinding => f !== null);
-    const citationIds: string[] = [];
-    const seen = new Set<string>();
-    for (const f of findings) {
-      if (f.nodeId && !seen.has(f.nodeId)) { seen.add(f.nodeId); citationIds.push(f.nodeId); }
-    }
-    refiner = { summary: str(obj.answer), findings, citationIds };
+    refiner = { summary: str(obj.answer), findings, citationIds: citedIds(findings) };
   } else {
     refiner = { summary: '', findings: [], citationIds: [] };
   }

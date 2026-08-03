@@ -1,6 +1,9 @@
 /**
- * Spec section refine prompt builder — constructs the system + user prompt for
- * the MMA main orchestration route when a user @Forge's in a discussion.
+ * Spec section refine prompt builder — constructs the prompt for the MMA main
+ * orchestration route when a user @Forge's in a discussion.
+ *
+ * Follows Forge's standard six-section prompt format (Role · Task · Context · Input ·
+ * Constraints · Output format), the same one `loops/main-orchestration.ts` names.
  *
  * Session lifecycle:
  * - First call: full spec context + section draft + all conversation
@@ -42,7 +45,7 @@ export function getMessagesSinceLastForge(
 }
 
 /**
- * Build the refine call's system + user prompt.
+ * Build the refine call's prompt: the six sections split across `system` and `user`.
  */
 export function buildRefinePrompt(input: RefinePromptInput): { system: string; user: string } {
   const headingList = input.sectionHeadings.map((h) => `  - ### ${h}`).join('\n');

@@ -4,7 +4,8 @@ import { extractJsonText } from '@/lib/llm-json';
 /**
  * Main-agent (orchestrator) prompts + response parsers for the loop. Two calls
  * share one MMA `main` session: PLAN (before any work) and JOURNAL (after). Each
- * prompt uses the standardized 6-section format and demands a strict JSON object.
+ * prompt uses Forge's standard six-section format (Role · Task · Context · Input ·
+ * Constraints · Output format) and demands a strict JSON object.
  */
 
 // ── PLAN ──────────────────────────────────────────────────────────────────────

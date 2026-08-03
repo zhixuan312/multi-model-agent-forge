@@ -19,9 +19,12 @@ import { showToast } from '@/components/ui/toast';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
 import { STAGE_KIND, type StageKind } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
+import type { DesignStageSelection } from '@/projects/create-project-subset';
 import { createProjectAction, type NewProjectState } from './actions';
 
-type DesignStage = 'exploration' | 'spec' | 'plan';
+// The server's union, not a second spelling of it — `validateSubsetSelection` is what
+// ultimately accepts or rejects what these presets submit.
+type DesignStage = DesignStageSelection;
 type UploadKind = 'exploration' | 'spec';
 
 /**

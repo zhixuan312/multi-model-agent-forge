@@ -97,7 +97,7 @@ export default async function ProjectLayout({
         <AutomationGate
           projectId={project.id}
           autoMode={project.autoMode}
-          currentStage={activeStage ?? 'spec'}
+          currentStage={activeStage ?? null}
           // `details` is already-parsed JSON, so reading through it cannot throw — the
           // try/catch that used to wrap this optional chain caught nothing.
           automationStartedAt={(project.details as { automation?: { startedAt?: string } } | null)?.automation?.startedAt}

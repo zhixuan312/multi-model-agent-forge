@@ -34,7 +34,7 @@ import {
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
-import type { ProjectPhase } from '@/db/enums';
+import type { MmaStatus, ProjectPhase } from '@/db/enums';
 import { inferExecutePhase, type RepoGroup, type ExecutePhase } from '@/build/execute-types';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -60,7 +60,16 @@ const EXECUTING_NOTE = `- Tasks run sequentially on the project branch
 /* ── Props ───────────────────────────────────────────────────────────── */
 
 export interface RepoTerminalResult {
-  status: 'done' | 'failed';
+  /**
+   * The repo's most recent `execute_plan` batch — NOT necessarily a terminal one. The page
+   * takes the newest batch per repo without filtering by status, so this is `running` or
+   * `dispatched` mid-flight and `cancelled` after a stop; it was typed `'done' | 'failed'`
+   * via a cast, which is a claim the query does not make. `computeJobs` reads it by
+   * equality and falls through to the task-derived state for the other three, so the type
+   * is what was wrong, not the behaviour — but the next reader to write `!== 'done'` and
+   * mean "failed" would have inherited a bug from the type.
+   */
+  status: MmaStatus;
   durationMs: number | null;
   costUsd: number | null;
   filesChanged: string[];

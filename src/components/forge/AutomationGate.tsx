@@ -5,6 +5,7 @@ import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { ProjectActivityEvent } from '@/activity/project-activity';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
 import { STAGE_ROUTE } from '@/projects/stage-route';
+import type { StageKind } from '@/db/enums';
 
 /**
  * Whether automation is running is SERVER state (`project.autoMode`). `autoOverride`
@@ -63,7 +64,14 @@ export function useAutomationRunning(serverAuto: boolean): boolean {
 interface Props {
   projectId: string;
   autoMode: boolean;
-  currentStage: string;
+  /**
+   * The stage automation is on, or `null` when the project has neither an active stage nor
+   * a recorded `current_stage`. The layout used to substitute `'spec'` there — an invented
+   * answer that this component then pushed the browser to, and the project index page
+   * answers the same question with `'exploration'`. `null` means "nowhere to land", which
+   * is what the redirect below now does with it.
+   */
+  currentStage: StageKind | null;
   automationStartedAt?: string;
   events?: ProjectActivityEvent[];
   children: ReactNode;
@@ -83,7 +91,7 @@ export function AutomationGate({ projectId, autoMode, currentStage, automationSt
   const prevRunning = useRef(running);
   useEffect(() => {
     if (prevRunning.current && !running) {
-      const targetSeg = STAGE_ROUTE[currentStage as keyof typeof STAGE_ROUTE];
+      const targetSeg = currentStage ? STAGE_ROUTE[currentStage] : null;
       if (targetSeg && targetSeg !== seg) router.push(`/projects/${projectId}/${targetSeg}`);
     }
     prevRunning.current = running;

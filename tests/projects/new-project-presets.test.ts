@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { PRESETS } from '../../app/(app)/projects/new/NewProjectForm';
-import { VALID_SUBSET_RUNS } from '@/projects/create-project-subset';
+import { VALID_SUBSET_RUNS, validateSubsetSelection } from '@/projects/create-project-subset';
 import { STAGE_KIND } from '@/db/enums';
 
 /**
@@ -25,6 +25,19 @@ describe('new-project presets mirror the server subset runs', () => {
 
   it('offers every valid server run, and only valid runs', () => {
     expect(subsets.map((p) => sig(p.stages)).sort()).toEqual(VALID_SUBSET_RUNS.map(sig).sort());
+  });
+
+  /**
+   * Through the VALIDATOR, not just its table. The check above pins the picker against
+   * `VALID_SUBSET_RUNS`; this pins it against the function the submit actually hits, so a
+   * guard added to `validateSubsetSelection` (a length cap, a required stage) that its own
+   * table does not express still surfaces here rather than as a rejection the user cannot
+   * act on — they never composed the combination by hand.
+   */
+  it('every preset submits something the server actually accepts', () => {
+    for (const p of PRESETS) {
+      expect(validateSubsetSelection(p.stages).ok, `preset "${p.key}"`).toBe(true);
+    }
   });
 
   it('gives every preset a distinct key and a non-empty description', () => {

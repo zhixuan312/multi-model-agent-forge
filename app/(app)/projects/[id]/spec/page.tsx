@@ -4,6 +4,7 @@ import { getDb } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { requireProjectAccess } from '@/projects/require-project-access';
 import { readMmaBearer } from '@/mma/client-config';
+import { readMmaTiers } from '@/mma/mma-config-reader';
 import { ensureSpecStage, loadOutline, loadAllMessages } from '@/spec/spec-core';
 import { getLatestSpec } from '@/spec/assemble';
 import { auditPassHistory } from '@/spec/audit-loop';
@@ -49,10 +50,14 @@ export default async function SpecStagePage({
   const components = await loadOutline(db, id);
   const latestSpec = await getLatestSpec(id);
   const initialMessages = await loadAllMessages(db, id);
-  // Entry precondition (F27/F30): the main tier must be a configured claude
-  // provider with a key (non-null api_key_ref) for the Q&A loop to run.
-  const mainTierReady = hasMmaToken();
-  const mmaReady = hasMmaToken();
+  // Two independent preconditions with two different remediations, and they were both
+  // `readMmaBearer() !== null`: the banner said "the main tier is not configured" and
+  // linked to /settings/models while testing whether the MMA TOKEN existed, which is set
+  // on /settings/connections. A project with a token and no main tier saw nothing; one
+  // with a tier and no token was sent to the wrong page to fix the wrong thing. (Plan,
+  // with the identical condition, worded it correctly — that mismatch is what surfaced it.)
+  const mmaReady = readMmaBearer() !== null;
+  const mainTierReady = readMmaTiers().main !== null;
   const auditHistory = await auditPassHistory(db, id);
   const voiceEnabled = await isVoiceEnabled({ db });
   const { getStagePermissions } = await import('@/projects/stage-gate');
@@ -96,8 +101,4 @@ export default async function SpecStagePage({
       lockedReason={perms.spec.reason}
     />
   );
-}
-
-function hasMmaToken(): boolean {
-  return readMmaBearer() !== null;
 }

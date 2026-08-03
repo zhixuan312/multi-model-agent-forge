@@ -49,7 +49,6 @@ export interface ReviewFindingView {
 
 export interface ReviewPassView {
   passNo: number;
-  status: 'done' | 'failed';
   findings: ReviewFindingView[];
   appliedIndices: number[];
 }

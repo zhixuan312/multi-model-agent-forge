@@ -63,7 +63,6 @@ export default async function ReviewStagePage({ params }: { params: Promise<{ id
 
     return {
       passNo,
-      status: (b.status === 'done' ? 'done' : 'failed') as 'done' | 'failed',
       findings,
       appliedIndices: [...new Set(appliedForPass)],
     };

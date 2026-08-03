@@ -46,7 +46,7 @@ export default async function NewProjectPage() {
       <StageShell
         note={<RailNote icon={<FolderPlus />}>{NOTE}</RailNote>}
       >
-<NewProjectForm repos={pickerRepos} />
+        <NewProjectForm repos={pickerRepos} />
       </StageShell>
     </PageFrame>
   );

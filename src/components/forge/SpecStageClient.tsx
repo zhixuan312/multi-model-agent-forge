@@ -112,7 +112,7 @@ interface SpecStageClientProps {
   /** In-flight audit-apply batch ID (from DB on page load). */
   pendingApply?: string | null;
   specApprovers?: string[];
-  /** URL-persisted initial phase (outline/craft/document). */
+  /** URL-persisted initial phase (outline/craft/finalize). */
   initialPhase?: 'outline' | 'craft' | 'finalize';
   readOnly?: boolean;
   /** Why the stage is read-only — shown by AutomationBar. */
@@ -285,6 +285,20 @@ export function SpecStageClient(props: SpecStageClientProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4" data-testid="spec-stage">
+      {!props.mmaReady ? (
+        <Banner
+          variant="warning"
+          title="The MMA token is not configured."
+          description={
+            <>
+              <a href="/settings/connections" className="font-medium underline">
+                Configure the MMA token
+              </a>{' '}
+              to start the Q&amp;A.
+            </>
+          }
+        />
+      ) : null}
       {!props.mainTierReady ? (
         <Banner
           variant="warning"
@@ -306,7 +320,7 @@ export function SpecStageClient(props: SpecStageClientProps) {
         idleHint={
           phase === 'finalize'
             ? 'Spec is ready — let Forge finalize it and run Plan → Build → Journal to the end.'
-            : 'Automation unlocks at the Document phase — Outline & Craft are hand-authored.'
+            : 'Automation unlocks at the Finalize phase — Outline & Craft are hand-authored.'
         }
         projectId={props.projectId}
         lockedReason={lockedReason}

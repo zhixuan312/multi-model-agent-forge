@@ -81,7 +81,7 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
     const filesChanged = Array.isArray(output.filesChanged) ? output.filesChanged as string[] : [];
 
     terminalResults[rid] = {
-      status: b.status as 'done' | 'failed',
+      status: b.status,
       durationMs: typeof metrics.totalDurationMs === 'number' ? metrics.totalDurationMs : (b.durationMs ?? null),
       costUsd: typeof metrics.totalCostUsd === 'number' ? metrics.totalCostUsd : (b.costUsd ? Number(b.costUsd) : null),
       filesChanged,

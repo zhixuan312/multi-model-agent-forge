@@ -33,7 +33,7 @@ import { Stat } from '@/components/patterns/stat-row';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
-import { STAGE_ORDER, type StageKind } from '@/db/enums';
+import { STAGE_KIND, STAGE_ORDER, type StageKind } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { responseError } from '@/lib/err';
@@ -54,7 +54,16 @@ const AUTOMATION_NOTE = `### What is this?
  * `monitor`, where the details schema, the resolver, the event labels, the `ExecutePhase`
  * type and the route guard all say `implement`. Nothing caught it because nothing read it.
  */
-type StageKey = StageKind;
+/**
+ * A stage name off the SSE wire, or `undefined` if it is not one. The handlers took
+ * `detail.stage` on trust and dropped it into `liveStage`, which the summary rendered as
+ * `STAGE_LABEL[stage] ?? stage` — so an unrecognised value was shown to the user as its
+ * raw key. That fallback is the same class `STAGE_LABEL` exists to prevent: `journal`
+ * reads as "Reflect" everywhere a person can see it.
+ */
+function asStageKind(v: string | undefined): StageKind | undefined {
+  return v && (STAGE_KIND as readonly string[]).includes(v) ? (v as StageKind) : undefined;
+}
 
 /**
  * `projectName`, `autoNote`, `phase` and `stagePhase` used to be here too. None reached
@@ -65,7 +74,8 @@ type StageKey = StageKind;
 interface Props {
   projectId: string;
   autoMode: boolean;
-  currentStage: string;
+  /** The stage automation is on, or `null` when the project has none recorded. */
+  currentStage: StageKind | null;
   automationStartedAt?: string;
   events?: ProjectActivityEvent[];
 }
@@ -109,7 +119,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
   const countdownRef = useRef(countdown);
   // eslint-disable-next-line react-hooks/refs -- intentional: mirror latest countdown into a ref so long-lived SSE handlers read it without re-subscribing
   countdownRef.current = countdown;
-  const [liveStage, setLiveStage] = useState(currentStage);
+  const [liveStage, setLiveStage] = useState<StageKind | null>(currentStage);
   // The project-level event log IS the feed — seeding from it makes a refresh
   // lossless (elapsed is seeded from automationStartedAt below, so the timer
   // doesn't reset either). Live SSE lines carry the same records and stream on top.
@@ -202,7 +212,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
     function onProgress(e: Event) {
       const d = (e as CustomEvent).detail as { note?: string; stage?: string; phase?: string; kind?: LineKind; durationMs?: number };
       if (d?.note) { addLog(d.note, d.kind ?? 'action', d.durationMs); }
-      if (d?.stage) setLiveStage(d.stage);
+      setLiveStage((cur) => asStageKind(d?.stage) ?? cur);
     }
     function onStepDone(e: Event) {
       // A server-side action completed — sync stage/phase and re-pull server state
@@ -210,7 +220,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
       // Hold the server refresh until the intro countdown ends so the top stepper
       // doesn't jump while Forge is already advancing behind "Getting ready".
       const d = (e as CustomEvent).detail as { step?: string; stage?: string; phase?: string };
-      if (d?.stage) setLiveStage(d.stage);
+      setLiveStage((cur) => asStageKind(d?.stage) ?? cur);
       if (countdownRef.current <= 0) router.refresh();
     }
     function onError(_e: Event) {
@@ -234,7 +244,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
   // is accurate in manual mode too. Derived from the log so it survives a refresh.
   const stepsCompleted = logs.filter((l) => l.kind === 'done').length;
 
-  const currentIdx = STAGE_ORDER.indexOf(liveStage as StageKey);
+  const currentIdx = liveStage ? STAGE_ORDER.indexOf(liveStage) : -1;
 
   // Richer live metrics, all derived from the event log (so they update as lines
   // stream AND survive a refresh — no server round-trip). Each counts the settled
@@ -289,7 +299,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
             </CardHeader>
             <CardContent className="space-y-2.5 !py-4">
               {/* Progress */}
-              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={STAGE_LABEL[liveStage as StageKind] ?? liveStage} icon={<Bot className="size-3" />} />
+              <Stat label={viewOnly ? 'Final stage' : 'Current stage'} value={liveStage ? STAGE_LABEL[liveStage] : '—'} icon={<Bot className="size-3" />} />
               <Stat label="Stage" value={stats.stageOfTotal} icon={<Rocket className="size-3" />} />
               {/* Elapsed is a live run clock — meaningless for a historical view. */}
               {!viewOnly && <Stat label="Time elapsed" value={formatElapsed(elapsed)} icon={<Clock className="size-3" />} />}

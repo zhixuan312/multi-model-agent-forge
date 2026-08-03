@@ -29,7 +29,7 @@ const STAGES_SKIPPED = [
 ];
 
 function StepperFrame({ children }: { children: ReactNode }) {
-  return <div className="overflow-x-auto rounded-md border border-line bg-surface-1 p-4">{children}</div>;
+  return <div className="overflow-x-auto rounded-md border border-line bg-surface p-4">{children}</div>;
 }
 
 function Labeled({ label, children }: { label: string; children: ReactNode }) {

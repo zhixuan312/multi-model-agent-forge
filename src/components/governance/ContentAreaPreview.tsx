@@ -40,7 +40,7 @@ function DashboardShell({ showMetrics, showRail, showStageFlow }: { showMetrics:
   if (!showStageFlow) return dashboard;
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-md border border-line bg-surface-1 p-4">
+      <div className="rounded-md border border-line bg-surface p-4">
         <StageStepper
           projectId="preview"
           stages={[

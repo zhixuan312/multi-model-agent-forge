@@ -168,7 +168,7 @@ export function StageFlowDemo() {
       {/* The REAL StageStepper. Reached stages render as links; we intercept those clicks
           (via its data-stage / data-reachable attributes) to move the VIEW back locally.
           Future/untouched stages are non-reachable → not clickable. */}
-      <div className="overflow-x-auto rounded-md border border-line bg-surface-1 py-4">
+      <div className="overflow-x-auto rounded-md border border-line bg-surface py-4">
         <div
           className="min-w-[760px] px-16"
           onClickCapture={(e) => {

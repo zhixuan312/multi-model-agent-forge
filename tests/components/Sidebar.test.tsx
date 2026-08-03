@@ -34,10 +34,21 @@ describe('Sidebar role nav', () => {
     expect(screen.getByText('Usage')).toBeInTheDocument();
   });
 
+  /**
+   * The "only" half was never asserted: this rendered an org_admin, checked the link was
+   * there, and unmounted — the `unmount()` a leftover from a second render that was never
+   * written. A regression exposing Org settings to every role would have passed.
+   */
   it('shows Org settings only to org_admin', () => {
     const { unmount } = render(<Sidebar member={orgAdmin} />);
     expect(screen.getByText('Org settings')).toBeInTheDocument();
     unmount();
+
+    for (const who of [teamAdmin, member]) {
+      const { unmount: u } = render(<Sidebar member={who} />);
+      expect(screen.queryByText('Org settings'), who.role).not.toBeInTheDocument();
+      u();
+    }
   });
 
   it('shows org_admin only Usage and Org settings — no team-scoped nav', () => {

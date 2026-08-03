@@ -20,7 +20,8 @@ const LOOPS_NOTE = `### Setting up a loop
 
 - **Repos** — pick one or more from the workspace
 - **Goal** — what the loop should keep true
-- **Trigger** — Recurring (a cron schedule, Singapore time) or One-time (Run now only)
+- **Trigger** — Recurring (a cron schedule, Singapore time), Manual (Run now only), or Event (an external caller posts to the loop's endpoint with its token)
+- **Status** — pause a Recurring or Event loop without deleting it; Manual only ever runs when you click Run now
 - **Target branch** — base to fork from and open the PR into; blank uses the repo's current branch
 - **Worker** — complex (smart) or standard (cheap)
 

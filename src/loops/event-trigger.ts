@@ -95,9 +95,9 @@ export async function acceptLoopEvent(args: {
     if (started.kind !== 'started') throw new Error('loop_not_started');
     return { kind: 'accepted', runId };
   } catch {
-    await db
-      .delete(loopEventDelivery)
-      .where(and(eq(loopEventDelivery.loopId, loopRow.id), eq(loopEventDelivery.idempotencyKey, idempotencyKey)));
+    // The SAME predicate the insert deduplicates on — restating it is how a rollback ends
+    // up deleting a different row than the one it meant to.
+    await db.delete(loopEventDelivery).where(dupWhere);
     return { kind: 'internal_error' };
   }
 }

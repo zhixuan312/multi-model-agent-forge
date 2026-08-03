@@ -25,6 +25,30 @@ export const AVATAR_TINTS = [
   '#9a6b4f',
 ] as const;
 
+/**
+ * A name a person can hear. The swatches were named by their hex — a screen reader announced
+ * "Avatar colour number six A six F eight C" seven times, which is a name in the technical
+ * sense and useless as a choice: the options were indistinguishable by ear.
+ *
+ * TOTAL over the palette, so adding a tint means naming it. A caller may pass its own `tints`
+ * (the governance preview does), so the lookup still falls back to the hex for anything
+ * outside the set.
+ */
+const TINT_NAME: Record<(typeof AVATAR_TINTS)[number], string> = {
+  '#6A6F8C': 'Slate',
+  '#5E7C6B': 'Sage',
+  '#9A6A8C': 'Plum',
+  '#C4521E': 'Ember',
+  '#355A74': 'Steel',
+  '#8A7A5E': 'Sand',
+  '#9a6b4f': 'Clay',
+};
+
+/** The display name for a tint, or the hex itself when a caller supplies one of its own. */
+export function tintName(tint: string): string {
+  return TINT_NAME[tint as (typeof AVATAR_TINTS)[number]] ?? tint;
+}
+
 export function AvatarPicker({
   initials,
   value,
@@ -52,7 +76,7 @@ export function AvatarPicker({
               key={t}
               role="radio"
               aria-checked={t === value}
-              aria-label={`${label} ${t}`}
+              aria-label={`${label}: ${tintName(t)}`}
               onClick={() => onChange(t)}
               className={cn(
                 // inline-flex + p-0 so the button box hugs the 24px chip exactly (no UA

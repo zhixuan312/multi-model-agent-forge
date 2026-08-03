@@ -38,8 +38,11 @@ describe('the lease staleness threshold has one source', () => {
   }
 
   it('carries the constant into the query rather than a second hardcoded interval', async () => {
-    const sql = await acquireSql();
-    expect(sql).toContain(String(DRIVER_LEASE_STALE_MS / 1000));
+    // A STANDALONE token, i.e. a bound value. A substring check would also match the
+    // digits inside a hardcoded `interval '60 seconds'` and pass on the very code this
+    // guards against.
+    const tokens = (await acquireSql()).split(/\s+/);
+    expect(tokens).toContain(String(DRIVER_LEASE_STALE_MS / 1000));
   });
 
   it('hardcodes no seconds-interval literal of its own', async () => {

@@ -27,13 +27,29 @@ export interface CommandRunner {
   run(argv: string[], opts: { cwd: string }): Promise<CommandOutcome>;
 }
 
-/** Build a minimal child env that OMITS every Forge secret (F9). */
+/**
+ * Variables whose NAME says they hold a credential. Denying the shape rather than
+ * individual names is the point: this env is handed to an UNTRUSTED subprocess (the build
+ * and test commands a plan names), and the previous exact-name list had already fallen
+ * behind — `ANTHROPIC_API_KEY` was denied while `OPENAI_API_KEY`, which the container
+ * bootstrap documents just as prominently, was passed straight through, along with any
+ * `*_TOKEN`, `*_SECRET` or `*_PASSWORD` a deployment happened to set.
+ *
+ * This is still a denylist, so it is a mitigation and not a guarantee: a credential in a
+ * variable named nothing like one (`CR_PAT`, say) still needs adding to
+ * `SECRET_ENV_KEYS`. An allowlist would be stronger but would break real builds that
+ * legitimately need arbitrary vars (`JAVA_HOME`, proxy settings, toolchain paths).
+ */
+const CREDENTIAL_SHAPED = /(^|_)(API_?KEY|KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?|PAT|AUTH|DSN)$|^DATABASE_URL$/i;
+
+/** Build a minimal child env that omits Forge's secrets and anything credential-shaped (F9). */
 export function safeChildEnv(base: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   const banned = new Set<string>(SECRET_ENV_KEYS);
   for (const [k, v] of Object.entries(base)) {
     if (banned.has(k)) continue;
-    if (k.startsWith('FORGE_') || k.startsWith('MMA_') || k === 'DATABASE_URL' || k === 'ANTHROPIC_API_KEY') continue;
+    if (k.startsWith('FORGE_') || k.startsWith('MMA_')) continue;
+    if (CREDENTIAL_SHAPED.test(k)) continue;
     if (typeof v === 'string') out[k] = v;
   }
   return out;

@@ -1,10 +1,22 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { WorkspaceClient, type RepoCardData } from '../../app/(app)/workspace/WorkspaceClient';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
+
+/** Failures reach the user through the toast channel — capture them. */
+const toasts: Array<{ type: string; message: string }> = [];
+vi.mock('@/components/ui/toast', () => ({
+  showToast: (t: { type: string; message: string }) => { toasts.push(t); },
+  Toaster: () => null,
+}));
+
+beforeEach(() => {
+  toasts.length = 0;
+  vi.restoreAllMocks();
+});
 
 const REPOS: RepoCardData[] = [
   { id: 'a', name: 'core-api', tags: ['core', 'backend'], defaultBranch: 'main', status: 'cloned', headSha: 'abcdef1234' },
@@ -96,5 +108,46 @@ describe('WorkspaceClient filter island (Flow E)', () => {
     expect(screen.getByText('Remove this repo?')).toBeInTheDocument();
     expect(screen.getByText('Confirm')).toBeInTheDocument();
     expect(screen.getByText('Keep')).toBeInTheDocument();
+  });
+
+  /**
+   * An empty WORKSPACE and an empty FILTER are different situations. The one message
+   * covered both, so a team with no repos was told to "adjust the filters above" —
+   * controls that cannot help — and a non-admin was told to clone one, which they cannot.
+   */
+  it('tells an admin with no repos to clone one, not to adjust filters', () => {
+    render(<WorkspaceClient initialRepos={[]} isAdmin />);
+    expect(screen.getByText('No repositories yet')).toBeInTheDocument();
+    expect(screen.getByText(/Clone a repo/)).toBeInTheDocument();
+    expect(screen.queryByText(/Adjust the search/)).not.toBeInTheDocument();
+  });
+
+  it('does not suggest cloning to someone who cannot clone', () => {
+    render(<WorkspaceClient initialRepos={[]} isAdmin={false} />);
+    expect(screen.getByText('No repositories yet')).toBeInTheDocument();
+    expect(screen.getByText(/A team admin clones/)).toBeInTheDocument();
+  });
+
+  it('says "no match" only when repos exist but the filter excludes them', () => {
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
+    fireEvent.change(screen.getByLabelText('Search repos'), { target: { value: 'zzzz-no-such-repo' } });
+    expect(screen.getByText('No repositories match')).toBeInTheDocument();
+    expect(screen.getByText(/Adjust the search/)).toBeInTheDocument();
+  });
+
+  /**
+   * The pull route answers a failure with the git reason (`{ error }` on its 502) — an
+   * expired token, a missing remote. That was discarded for a flat "try again", the one
+   * instruction that cannot work for those causes.
+   */
+  it('surfaces why a pull failed instead of saying "try again"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'remote: authentication failed' }), { status: 502 }),
+    );
+    render(<WorkspaceClient initialRepos={REPOS} isAdmin />);
+    fireEvent.click(within(row('core-api')).getByRole('button', { name: 'Pull' }));
+    await waitFor(() =>
+      expect(toasts.at(-1)?.message).toBe('remote: authentication failed'),
+    );
   });
 });

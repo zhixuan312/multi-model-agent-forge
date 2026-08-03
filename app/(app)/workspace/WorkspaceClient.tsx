@@ -93,10 +93,16 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
       setBusyId(id);
       try {
         const res = await fetch(`/api/repos/${id}`, { method: 'PUT' });
-        if (!res.ok) throw new Error(`Request failed (${res.status}).`);
+        if (!res.ok) {
+          // The route answers a failed pull with the git reason (`{ error: result.message }`
+          // on its 502) — an expired token, a missing remote. That was discarded for a flat
+          // "try again", which is the one instruction that cannot work for those causes.
+          showToast({ type: 'error', message: await responseError(res, 'Couldn’t pull the repo — try again.') });
+          return;
+        }
         router.refresh();
       } catch {
-        showToast({ type: 'error', message: 'Couldn’t pull the repo — try again.' });
+        showToast({ type: 'error', message: 'Network error — couldn’t pull the repo.' });
       } finally {
         setBusyId(null);
       }
@@ -222,11 +228,26 @@ export function WorkspaceClient({ initialRepos, isAdmin }: { initialRepos: RepoC
         renderExpanded={(r) => <RepoEditForm repo={r} onDone={closeEdit} />}
         leadingRow={adding && isAdmin ? <CloneForm onDone={closeEdit} onCloned={() => { closeEdit(); router.refresh(); }} /> : null}
         emptyState={
-          <EmptyState
-            icon={<GitBranch />}
-            title="No repositories match"
-            description="Adjust the filters above, or clone a repo to add one."
-          />
+          /* An empty WORKSPACE and an empty FILTER are different situations: telling
+             someone with no repos to "adjust the filters above" points them at controls
+             that cannot help, and only an admin can act on the clone suggestion. */
+          initialRepos.length === 0 ? (
+            <EmptyState
+              icon={<GitBranch />}
+              title="No repositories yet"
+              description={
+                isAdmin
+                  ? 'Clone a repo to give this team something to build in.'
+                  : 'A team admin clones the repos this team builds in.'
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<GitBranch />}
+              title="No repositories match"
+              description="Adjust the search or tag filter above."
+            />
+          )
         }
       />
     </Card>

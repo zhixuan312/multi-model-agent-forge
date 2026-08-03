@@ -53,7 +53,10 @@ export type StageStatus = (typeof STAGE_STATUS)[number];
 
 /**
  * component.kind (schema.md §5). The fixed set of spec components, driven by
- * `COMPONENT_TEMPLATES`. `nfr`/`assumptions` are the two ☐-by-default components.
+ * `COMPONENT_TEMPLATES` — where all eight are `default: true`, so the Outline picker
+ * starts with every box ticked. (It used to name two unticked-by-default components,
+ * "nfr" and "assumptions", that exist nowhere in the codebase. In this file a backticked
+ * lowercase word means a real value — see tests/db/enum-doc-accuracy.)
  */
 export const COMPONENT_KIND = [
   'context',
@@ -68,10 +71,13 @@ export const COMPONENT_KIND = [
 export type ComponentKind = (typeof COMPONENT_KIND)[number];
 
 /**
- * component / component_section status (schema.md §5). A 4-state machine reused
- * at BOTH levels. Section: gathering→satisfied→drafted→approved. Component status
- * is the roll-up (all approved ⇒ approved; else the lowest). The ordinal order of
- * this tuple is the `<` ordering used by the roll-up (`gathering < … < approved`).
+ * component status. THREE states, in ascending order: a component is `approved` once it
+ * has an approval, `drafted` once spec.md holds real content for it, else `gathering`
+ * (see `loadOutline`). The tuple's order is that ranking.
+ *
+ * The doc here described a four-state machine — gathering, "satisfied", drafted,
+ * approved — applied at both component and SECTION level with a lowest-wins roll-up.
+ * No "satisfied" state exists, there is no per-section status, and nothing rolls up.
  */
 export const COMPONENT_STATUS = ['gathering', 'drafted', 'approved'] as const;
 export type ComponentStatus = (typeof COMPONENT_STATUS)[number];
@@ -89,10 +95,9 @@ export const AUDIT_VERDICT = ['revised', 'clean'] as const;
 export type AuditVerdict = (typeof AUDIT_VERDICT)[number];
 
 /**
- * mma_route (schema.md §7). The route an `mma_batch` was dispatched on. This
- * spec emits only the first three; the full set is declared now so Spec 7 adds
- * rows, not a migration. Note the underscore: `journal_recall` (the HTTP segment
- * is `journal-recall`, the task kind is `journal`).
+ * mma_route (schema.md §7). The route an `mma_batch` was dispatched on. Note the
+ * underscore: `journal_recall` (the HTTP segment is `journal-recall`, the task kind is
+ * `journal`). Adding a route is a code change here, never a migration.
  */
 export const MMA_ROUTE = [
   'investigate',
@@ -124,9 +129,9 @@ export type MmaStatus = (typeof MMA_STATUS)[number];
 /* ── Spec 7: Build pipeline ─────────────────────────────────────────────── */
 
 /**
- * export.format (schema.md §6 / Spec 7) — `md` is the only path exercised in
- * Spec 7 (the per-stage raw-markdown download). `pdf`/`bundle` are reserved for
- * Spec 8's export subsystem (inert here).
+ * export.format — the artifact an export produces. All three are live: `md` is the
+ * per-stage raw download, `pdf` renders through `export/pdf` (Chromium in a subprocess),
+ * and `bundle` zips a set. `export/record.ts` maps each to its file extension.
  */
 export const EXPORT_FORMAT = ['md', 'pdf', 'bundle'] as const;
 export type ExportFormat = (typeof EXPORT_FORMAT)[number];

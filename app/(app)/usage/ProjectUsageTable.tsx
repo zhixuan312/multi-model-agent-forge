@@ -23,8 +23,28 @@ import {
 import { formatCost, formatDuration } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
 import type { ProjectUsageRow, RouteAggRow } from '@/usage/usage-core';
+import { PROJECT_PHASE, type ProjectPhase } from '@/db/enums';
 
-type PhaseFilter = 'all' | 'design' | 'build' | 'learn';
+/**
+ * `PROJECT_PHASE` has FOUR members; this union listed three, omitting `completed`.
+ *
+ * `usageByProject` applies no phase filter, so completed projects DO appear in the table —
+ * their row renders a `completed` badge. But the dropdown offered design · build · learn,
+ * so selecting any phase hid them and there was no option that showed them. A phase you
+ * can see in a column and cannot filter by.
+ *
+ * Third time `completed` has been the forgotten member (the Active metric on the projects
+ * dashboard was the first). Derived now, with a total label map so a fifth phase fails the
+ * build rather than quietly going unfilterable.
+ */
+type PhaseFilter = 'all' | ProjectPhase;
+
+const PHASE_LABEL: Record<ProjectPhase, string> = {
+  design: 'Design',
+  build: 'Build',
+  learn: 'Learn',
+  completed: 'Completed',
+};
 
 export function ProjectUsageTable({
   data,
@@ -122,9 +142,9 @@ export function ProjectUsageTable({
             <SelectTrigger aria-label="Filter by phase" className={toolbarControlWidth}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All phases</SelectItem>
-              <SelectItem value="design">Design</SelectItem>
-              <SelectItem value="build">Build</SelectItem>
-              <SelectItem value="learn">Learn</SelectItem>
+              {PROJECT_PHASE.map((ph) => (
+                <SelectItem key={ph} value={ph}>{PHASE_LABEL[ph]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Toolbar>

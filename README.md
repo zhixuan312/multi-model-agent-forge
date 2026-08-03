@@ -153,6 +153,20 @@ the Forge server. `pnpm loop-worker` runs that same scheduler standalone if you 
 keep it out of the web process — set `FORGE_DISABLE_LOOP_SCHEDULER=true` so only one of them
 ticks.
 
+## Operating a deployment
+
+Two maintenance commands are the operator's, not the app's — nothing schedules them:
+
+```bash
+pnpm db:reap             # delete expired sessions; run on a cron/systemd timer
+pnpm db:migrate-artifacts # one-shot: move project artifacts under each team's own
+                          # workspace root (--dry to preview). A no-op while all
+                          # teams share one root; idempotent, and never overwrites.
+```
+
+Session validation rejects stale sessions regardless, so skipping the reaper is a
+storage problem rather than a security one — but nothing else bounds the table.
+
 ## Container bootstrap notes
 
 - The image is **all-in-one**: `scripts/container-supervisor.mjs` (under `tini`) starts the bundled MMA engine on loopback, health-gates it, runs the DB bootstrap, then starts Forge. Both processes share one lifecycle — if either dies the container exits for a clean restart.

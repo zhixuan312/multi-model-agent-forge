@@ -30,6 +30,28 @@ describe('distribution docs contract', () => {
     expect(readme).not.toMatch(/pnpm db:seed(\s|$)/);
   });
 
+  /**
+   * A command NOTHING schedules must be written down, or it never runs. The session
+   * reaper is the case in point: `session-reaper.ts` says outright "run on a schedule
+   * (cron/systemd timer)… no in-app scheduler", and the README did not mention it, so a
+   * deployed instance accumulated expired sessions forever with nobody told to act.
+   *
+   * Keyed on the scripts themselves, so adding another operator-run command and leaving
+   * it undocumented fails here.
+   */
+  it('documents the maintenance commands no scheduler runs', () => {
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    const scripts = (
+      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as { scripts: Record<string, string> }
+    ).scripts;
+    const OPERATOR_RUN = ['db:reap', 'db:migrate-artifacts'];
+    for (const script of OPERATOR_RUN) {
+      expect(scripts, `${script} is claimed here but not in package.json`).toHaveProperty(script);
+      expect(readme, `${script} runs only when an operator runs it — say so in the README`)
+        .toContain(`pnpm ${script}`);
+    }
+  });
+
   it('declares a Node floor the Dockerfile and CI actually run on', () => {
     // The drift this catches: `engines` said >=20.9.0 while every `FROM node:` line was 22,
     // CI used 22, and the bundled MMA engine requires >=22 — so a Node 20 install passed

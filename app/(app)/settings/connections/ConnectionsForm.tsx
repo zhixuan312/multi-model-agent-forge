@@ -10,7 +10,7 @@ import { KeyRound } from 'lucide-react';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import type { MetricCardProps } from '@/components/ui/metric-card';
-import { FormPanel, SetIndicator } from '@/components/patterns';
+import { FormPanel, SetIndicator } from '@/components/patterns/form-panel';
 import { responseError } from '@/lib/err';
 
 const DEFAULT_MMA_BASE_URL = 'http://127.0.0.1:7337';

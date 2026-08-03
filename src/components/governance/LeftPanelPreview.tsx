@@ -30,18 +30,13 @@ import {
   AvatarPicker,
   AVATAR_TINTS,
 } from '@/components/ui';
-import {
-  ConversationComposer,
-  DocumentShell,
-  FindingsGrid,
-  List,
-  ProseBlock,
-  SelectableTile,
-  StatCard,
-  StatCardGrid,
-  type Finding,
-  FormPanel,
-} from '@/components/patterns';
+import { SelectableTile, StatCard, StatCardGrid } from '@/components/patterns/cards';
+import { ConversationComposer } from '@/components/patterns/conversation';
+import { DocumentShell } from '@/components/patterns/document-shell';
+import { FindingsGrid, type Finding } from '@/components/patterns/findings';
+import { FormPanel } from '@/components/patterns/form-panel';
+import { List } from '@/components/patterns/list';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { FindingsApplyBar } from '@/components/patterns/findings';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';

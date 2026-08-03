@@ -20,7 +20,7 @@ import { useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
 import { SEVERITY_ORDER } from '@/lib/severity';
-import { DocumentShell } from '@/components/patterns';
+import { DocumentShell } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
 
 const REVIEW_NOTE = `### Review — check the code changes

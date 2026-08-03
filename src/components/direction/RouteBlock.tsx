@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { ProseBlock } from '@/components/patterns';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

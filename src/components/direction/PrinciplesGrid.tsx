@@ -1,4 +1,4 @@
-import { ProseBlock } from '@/components/patterns';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Card, CardContent } from '@/components/ui/card';
 import { Eyebrow, Heading } from '@/components/ui/typography';
 import { PRINCIPLES } from '@/content/direction-reference';

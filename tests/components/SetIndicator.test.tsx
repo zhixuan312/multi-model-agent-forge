@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { SetIndicator } from '@/components/patterns';
+import { SetIndicator } from '@/components/patterns/form-panel';
 
 /**
  * A stored credential's value is never sent to the browser, so set / not-set is all a

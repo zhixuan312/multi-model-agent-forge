@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
 import { responseError } from '@/lib/err';
-import { SetIndicator } from '@/components/patterns';
+import { SetIndicator } from '@/components/patterns/form-panel';
 import {
   Card,
   Field,

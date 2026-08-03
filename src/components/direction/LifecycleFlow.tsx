@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react';
-import { ProseBlock, RailNote } from '@/components/patterns';
+import { RailNote } from '@/components/patterns/feature-rail';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Card } from '@/components/ui/card';
 import { Eyebrow, Heading } from '@/components/ui/typography';
 import { LIFECYCLE_STAGES } from '@/content/direction-reference';

@@ -1,4 +1,4 @@
-import { ProseBlock } from '@/components/patterns';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Heading } from '@/components/ui/typography';

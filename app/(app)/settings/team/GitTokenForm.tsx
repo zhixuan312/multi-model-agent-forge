@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Field, Input } from '@/components/ui';
-import { FormPanel, SetIndicator } from '@/components/patterns';
+import { FormPanel, SetIndicator } from '@/components/patterns/form-panel';
 import { responseError } from '@/lib/err';
 
 /**

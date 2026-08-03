@@ -10,7 +10,7 @@ import { deriveInitials,
   AvatarPicker,
   Avatar,
 } from '@/components/ui';
-import { FormPanel } from '@/components/patterns';
+import { FormPanel } from '@/components/patterns/form-panel';
 import { showToast } from '@/components/ui/toast';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';

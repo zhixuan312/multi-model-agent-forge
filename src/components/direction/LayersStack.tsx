@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { ProseBlock } from '@/components/patterns';
+import { ProseBlock } from '@/components/patterns/prose-block';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eyebrow, Mono } from '@/components/ui/typography';
 import { AGENT_LAYERS, type AgentLayer } from '@/content/direction-reference';

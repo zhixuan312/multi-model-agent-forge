@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import { DirectionSection } from '@/components/direction/DirectionSection';
 
-vi.mock('@/components/patterns', () => ({
+// The module itself, not the deleted `patterns` barrel — every consumer imports ProseBlock
+// from its own file now, so mocking the barrel intercepted nothing.
+vi.mock('@/components/patterns/prose-block', () => ({
   ProseBlock: ({ children }: { children: string }) => <div data-testid="prose">{children}</div>,
 }));
 vi.mock('@/components/direction/PrinciplesGrid', () => ({ PrinciplesGrid: () => <div data-testid="principles" /> }));

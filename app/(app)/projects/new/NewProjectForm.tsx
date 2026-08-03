@@ -17,6 +17,8 @@ import {
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
 import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
+import { STAGE_KIND, type StageKind } from '@/db/enums';
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { createProjectAction, type NewProjectState } from './actions';
 
 type DesignStage = 'exploration' | 'spec' | 'plan';
@@ -31,7 +33,7 @@ type UploadKind = 'exploration' | 'spec';
  * contiguity error can never fire from the UI. `requires` names the upstream
  * artifact the user must upload for a run that starts past exploration.
  */
-interface Preset {
+export interface Preset {
   key: string;
   title: string;
   stages: DesignStage[];
@@ -39,7 +41,7 @@ interface Preset {
   produces: string;
 }
 
-const PRESETS: Preset[] = [
+export const PRESETS: Preset[] = [
   { key: 'full', title: 'Full SDLC', stages: [], produces: 'Every stage — from idea to merged code.' },
   { key: 'exploration', title: 'Exploration', stages: ['exploration'], produces: 'An exploration doc, then reflect.' },
   { key: 'exploration-spec', title: 'Exploration → Spec', stages: ['exploration', 'spec'], produces: 'Exploration and spec, then reflect.' },
@@ -49,15 +51,15 @@ const PRESETS: Preset[] = [
   { key: 'plan', title: 'Plan', stages: ['plan'], requires: 'spec', produces: 'A plan built from your spec, then reflect.' },
 ];
 
-/** The full six-stage pipeline, labelled to match the live project stage rail. */
-const PIPELINE: { kind: DesignStage | 'execute' | 'review' | 'journal'; label: string }[] = [
-  { kind: 'exploration', label: 'Explore' },
-  { kind: 'spec', label: 'Spec' },
-  { kind: 'plan', label: 'Plan' },
-  { kind: 'execute', label: 'Execute' },
-  { kind: 'review', label: 'Review' },
-  { kind: 'journal', label: 'Reflect' },
-];
+/**
+ * The full six-stage pipeline. DERIVED from the canonical order and labels rather than
+ * restated — it used to be a hand-written copy under a comment saying it was "labelled to
+ * match the live project stage rail", which is a claim, not a mechanism.
+ */
+const PIPELINE: { kind: StageKind; label: string }[] = STAGE_KIND.map((kind) => ({
+  kind,
+  label: STAGE_LABEL[kind],
+}));
 
 type StepState = 'entry' | 'run' | 'skip';
 

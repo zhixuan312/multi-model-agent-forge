@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { inArray, eq } from 'drizzle-orm';
+import { inArray, eq, and } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
-import { loop as loopTable, loopRun } from '@/db/schema/loop';
+import { loopRun } from '@/db/schema/loop';
 import { team } from '@/db/schema/team';
 import type { LoopTrigger } from '@/db/enums';
 import { runLoop, type LoopRepoTarget, type LoopRunDeps } from '@/loops/run-engine';
@@ -35,12 +35,20 @@ export type StartRunResult =
   | { kind: 'not_found' }
   | { kind: 'wrong_mode' };
 
-async function loadRepos(db: Db, repoIds: string[]): Promise<LoopRepoTarget[]> {
+/**
+ * The loop's target repos, constrained to the loop's OWN team.
+ *
+ * `createLoop`/`updateLoop` now reject a foreign repo id, but rows written before that
+ * check could already carry one — and this is the read that turns an id into the on-disk
+ * path a worker edits and commits to. Filtering here means such a row simply loses that
+ * target instead of running against another team's checkout.
+ */
+async function loadRepos(db: Db, repoIds: string[], teamId: string): Promise<LoopRepoTarget[]> {
   if (repoIds.length === 0) return [];
   const rows = await db
     .select({ id: repo.id, name: repo.name, pathOnDisk: repo.pathOnDisk })
     .from(repo)
-    .where(inArray(repo.id, repoIds));
+    .where(and(inArray(repo.id, repoIds), eq(repo.teamId, teamId)));
   return rows;
 }
 
@@ -63,7 +71,7 @@ export async function startLoopRun(
   const [currentTeam] = await db.select().from(team).where(eq(team.id, loop.teamId)).limit(1);
   if (!currentTeam) return { kind: 'not_found' };
 
-  const repos = await loadRepos(db, loop.repoIds);
+  const repos = await loadRepos(db, loop.repoIds, loop.teamId);
   const runId = deps.runId ?? randomUUID();
 
   // Pre-create the `running` rows synchronously so the run shows up in the UI +
@@ -109,4 +117,3 @@ export async function startLoopRun(
   return { kind: 'started', runId };
 }
 
-export { loopTable };

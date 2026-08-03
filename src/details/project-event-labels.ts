@@ -14,7 +14,10 @@ import { projectEventBus } from '@/sse/event-bus';
  * timeline across every stage (explore→journal) — regardless of whether the
  * batch was fired by the manual UI or the auto driver.
  *
- * Handlers absent from this map (none today) simply produce no timeline line.
+ * Coverage is ENFORCED, not asserted: an unmapped handler both loses its timeline line
+ * and — because `phaseKeyForHandler` returns null, and a null key is never guarded —
+ * loses its duplicate-dispatch protection. tests/dispatch/handler-event-coverage.test.ts
+ * fails if a registered handler has no entry here.
  */
 export const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: string }> = {
   'explore-propose':    { stage: 'exploration', phase: 'discover',   label: 'Proposed exploration tasks' },

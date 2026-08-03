@@ -279,14 +279,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
               <p className="text-xs text-ink-faint">Learnings appear here once harvesting completes.</p>
             </CardContent>
             <CardFooter className="flex-col !items-stretch gap-2">
-              <button
-                type="button"
-                disabled
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--r)] px-4 py-2 text-sm font-medium pointer-events-none cursor-not-allowed bg-ink/30 text-white/50"
-              >
-                <Lock className="size-4" />
+              {/* The governed Button, not a hand-rolled copy of its solid+disabled look. The
+                  copy had already drifted from it — gap-1.5 for gap-2, py-2 for h-9, and no
+                  focus ring — which is what happens to markup that restates a component. */}
+              <Button variant="solid" fullWidth disabled leftIcon={<Lock />}>
                 Record 0 learnings
-              </button>
+              </Button>
             </CardFooter>
           </Card>
           </>}

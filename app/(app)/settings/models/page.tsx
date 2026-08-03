@@ -1,6 +1,4 @@
 import { Layers, Bot, SquareTerminal, KeyRound, Cpu } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { currentMember } from '@/auth/current-member';
 import { readMmaTiers } from '@/mma/mma-config-reader';
 import { readModelProfiles } from '@/mma/model-profiles';
 import { PageFrame } from '@/components/ui';
@@ -8,6 +6,7 @@ import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { ModelsPanel } from './ModelsPanel';
+import { requireOrgAdminPage } from '@/auth/require-admin';
 
 const MODELS_NOTE = `### Agent tiers
 
@@ -33,9 +32,7 @@ const MODELS_NOTE = `### Agent tiers
  * validated/applied against the live mma via `POST /configure-provider`.
  */
 export default async function ModelsPage() {
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  if (me.role !== 'org_admin') redirect('/');
+  await requireOrgAdminPage();
   const tiers = readMmaTiers();
   const suggestions = readModelProfiles().profiles;
 

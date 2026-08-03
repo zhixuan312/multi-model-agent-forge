@@ -1,7 +1,5 @@
-import { redirect } from 'next/navigation';
 import { sql, eq } from 'drizzle-orm';
 import { Users } from 'lucide-react';
-import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
@@ -10,6 +8,7 @@ import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { TeamsPanel, type TeamRow } from './TeamsPanel';
+import { requireOrgAdminPage } from '@/auth/require-admin';
 
 const TEAMS_NOTE = `### Teams
 
@@ -36,8 +35,7 @@ export const dynamic = 'force-dynamic';
  * deployment. MMA/voice connection and provider models are the sibling tabs.
  */
 export default async function OrgSettingsPage() {
-  const me = await currentMember();
-  if (!me || me.role !== 'org_admin') redirect('/');
+  await requireOrgAdminPage();
 
   const db = getDb();
   const [teamRows, countRows, adminRows] = await Promise.all([

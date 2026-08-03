@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { Zap } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { requireAdminPage } from '@/auth/require-admin';
+import { requireTeamPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -30,9 +29,10 @@ export default async function UsageStandalonePage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  const member = await requireAdminPage();
-  // Team-scoped: an unscoped query leaks every team's standalone activity. Org admin → /usage.
-  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+  // `requireTeamPage`, not `requireAdminPage`: this page is TEAM-scoped, not
+  // admin-only. The admin gate bounced a plain member to `/` — while `UsageTabsNav`
+  // offered them the tab — and the org admin still lands on `/usage`.
+  const member = await requireTeamPage();
   const sp = await searchParams;
   const period = parsePeriod(sp.period);
   const rows = await usageStandalone(period, { teamId: member.teamId });

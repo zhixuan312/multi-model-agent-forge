@@ -1,9 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
-import { currentMember } from '@/auth/current-member';
 import { PageFrame } from '@/components/ui';
 import { GOVERNANCE_SLOT_IDS, GOVERNANCE_SLOT_NAV, getComponentGovernanceView, type GovernanceSlotId } from '@/components/governance/registry';
 import { summarizeForSlot } from '@/governance/conformance-scan';
 import { SlotEditor } from '../SlotEditor';
+import { requireOrgAdminPage } from '@/auth/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ComponentSlotPage({ params }: { params: Promise<{ slotId: string }> }) {
   const { slotId } = await params;
-  const me = await currentMember();
-  if (!me || me.role !== 'org_admin') redirect('/');
+  await requireOrgAdminPage();
   if (!GOVERNANCE_SLOT_IDS.has(slotId)) notFound();
 
   const nav = GOVERNANCE_SLOT_NAV.find((s) => s.slotId === slotId);

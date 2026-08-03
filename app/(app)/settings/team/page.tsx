@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { eq, sql } from 'drizzle-orm';
 import { GitBranch, FolderTree, Boxes, Users } from 'lucide-react';
-import { currentMember } from '@/auth/current-member';
 import { getDb } from '@/db/client';
 import { team } from '@/db/schema/team';
 import { member } from '@/db/schema/identity';
@@ -12,6 +11,7 @@ import { StageShell } from '@/components/patterns/stage-shell';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { GitTokenForm } from './GitTokenForm';
 import { WorkspaceForm } from './WorkspaceForm';
+import { requireTeamAdminPage } from '@/auth/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,9 +38,7 @@ const TEAM_NOTE = `### This team
  * (MMA connection, provider models, teams) lives under Org settings.
  */
 export default async function TeamSettingsPage() {
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  if (me.role !== 'team_admin' || !me.teamId) redirect('/');
+  const me = await requireTeamAdminPage();
 
   const db = getDb();
   const [teamRow] = await db.select().from(team).where(eq(team.id, me.teamId)).limit(1);

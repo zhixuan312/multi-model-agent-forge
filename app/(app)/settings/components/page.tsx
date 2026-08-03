@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { currentMember } from '@/auth/current-member';
 import { GOVERNANCE_SLOT_NAV } from '@/components/governance/registry';
+import { requireOrgAdminPage } from '@/auth/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
  * first governed slot. Org-admin only.
  */
 export default async function ComponentsIndexPage() {
-  const me = await currentMember();
-  if (!me || me.role !== 'org_admin') redirect('/');
+  await requireOrgAdminPage();
   redirect(`/settings/components/${GOVERNANCE_SLOT_NAV[0].slotId}`);
 }

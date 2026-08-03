@@ -9,7 +9,15 @@ const usageStandalone = vi.fn(async () => []);
 let member: { role: string; teamId: string | null };
 const redirect = vi.fn((url: string) => { throw new Error(`REDIRECT:${url}`); });
 
-vi.mock('@/auth/require-admin', () => ({ requireAdminPage: async () => member }));
+// The team gate now owns the org-admin redirect these pages used to perform themselves,
+// so the mock reproduces it. `requireTeamPage`'s own behaviour is covered in
+// tests/auth/page-gates.test.ts; this file is about the PAGES staying team-scoped.
+vi.mock('@/auth/require-admin', () => ({
+  requireTeamPage: async () => {
+    if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+    return member;
+  },
+}));
 vi.mock('next/navigation', () => ({ redirect }));
 vi.mock('@/usage/usage-core', () => ({
   usageByProject, routeAggForProject, usageByLoop, routeAggForLoop, usageStandalone,

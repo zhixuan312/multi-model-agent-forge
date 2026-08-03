@@ -63,3 +63,30 @@ export async function requireTeamPage(): Promise<AuthedMember & { teamId: string
   if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
   return member as AuthedMember & { teamId: string };
 }
+
+/**
+ * For ORG-admin-only RSC pages (org settings, models, connections, the component
+ * catalog): redirect to `/login` if unauthenticated, `/` if authenticated but not the
+ * org admin.
+ *
+ * `requireAdminPage` above accepts EITHER admin role, so these pages could not use it
+ * and six of them wrote the check out instead.
+ */
+export async function requireOrgAdminPage(): Promise<AuthedMember> {
+  const member = await currentMember();
+  if (!member) redirect('/login');
+  if (member.role !== 'org_admin') redirect('/');
+  return member;
+}
+
+/**
+ * For TEAM-admin-only RSC pages (team settings, members). Redirects as above, and
+ * guarantees a non-null `teamId` — a team admin without a team is a corrupt session, not
+ * a state any page should try to render.
+ */
+export async function requireTeamAdminPage(): Promise<AuthedMember & { teamId: string }> {
+  const member = await currentMember();
+  if (!member) redirect('/login');
+  if (member.role !== 'team_admin' || !member.teamId) redirect('/');
+  return member as AuthedMember & { teamId: string };
+}

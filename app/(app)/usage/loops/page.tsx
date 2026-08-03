@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { Repeat } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { requireAdminPage } from '@/auth/require-admin';
+import { requireTeamPage } from '@/auth/require-admin';
 import { PageFrame } from '@/components/ui';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -28,9 +27,11 @@ export default async function UsageLoopsPage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  const member = await requireAdminPage();
-  // Team-scoped: an unscoped query leaks every team's loops. Org admin (no team) → /usage.
-  if (member.role === 'org_admin' || !member.teamId) redirect('/usage');
+  // `requireTeamPage`, not `requireAdminPage`: this page is TEAM-scoped, not admin-only.
+  // The admin gate bounced a plain member to `/` while `UsageTabsNav` offered them the
+  // tab. `requireTeamPage` keeps the same team scoping and still sends the org admin to
+  // /usage, which renders the org-wide numbers-only dashboard for their role.
+  const member = await requireTeamPage();
   const deps = { teamId: member.teamId };
   const sp = await searchParams;
   const period = parsePeriod(sp.period);

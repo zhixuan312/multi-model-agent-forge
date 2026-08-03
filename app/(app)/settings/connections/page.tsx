@@ -1,6 +1,4 @@
 import { Lock, Plug, Mic, GitCompare } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { currentMember } from '@/auth/current-member';
 import { getConnections } from '@/config/connections-core';
 import { readMmaBearer } from '@/mma/client-config';
 import { buildMmaClient } from '@/mma/server-client';
@@ -9,6 +7,7 @@ import { PageFrame } from '@/components/ui';
 import type { MetricCardProps } from '@/components/ui/metric-card';
 import { OrgSettingsTabs } from '@/components/forge/OrgSettingsTabs';
 import { ConnectionsForm } from './ConnectionsForm';
+import { requireOrgAdminPage } from '@/auth/require-admin';
 
 /**
  * Live-engine version vs the version THIS Forge build is matched with. Reads the
@@ -56,9 +55,7 @@ export const dynamic = 'force-dynamic';
  * Team settings. STATUS row of metric boxes, then the ConnectionsForm.
  */
 export default async function ConnectionsPage() {
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  if (me.role !== 'org_admin') redirect('/');
+  await requireOrgAdminPage();
 
   const view = await getConnections();
   // The MMA bearer is auto-managed by the local mma (read-only here).

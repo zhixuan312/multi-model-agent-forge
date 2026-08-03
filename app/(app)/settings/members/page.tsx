@@ -1,12 +1,11 @@
 import { Users, ShieldCheck, UserPlus, Monitor } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { currentMember } from '@/auth/current-member';
 import { listMembers, countActiveSessions } from '@/auth/members-core';
 import { PageFrame } from '@/components/ui';
 import { TeamSettingsTabs } from '@/components/forge/TeamSettingsTabs';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { MemberTable, type MemberRowData } from './MemberTable';
+import { requireTeamAdminPage } from '@/auth/require-admin';
 
 const MEMBERS_NOTE = `### Roles & access
 
@@ -20,9 +19,7 @@ const MEMBERS_NOTE = `### Roles & access
 export default async function MembersPage() {
   // Members management is team-admin, team-scoped (FR-9): a team admin sees and
   // manages only their own team's roster.
-  const me = await currentMember();
-  if (!me) redirect('/login');
-  if (me.role !== 'team_admin' || !me.teamId) redirect('/');
+  const me = await requireTeamAdminPage();
   const members = await listMembers({ teamId: me.teamId });
   const activeSessions = await countActiveSessions({ teamId: me.teamId });
 

@@ -104,7 +104,18 @@ export function validateTeamWorkspacePath(
   // A bare/relative segment resolves under the base; an absolute path stays put.
   const abs = isAbsolute(trimmed) ? resolve(trimmed) : resolve(base, trimmed);
 
-  const realBase = realpath(base);
+  // Canonicalise where possible, fall back to the lexical path where not: the base may
+  // legitimately not exist yet (a fresh deployment, or a test naming a path off-disk), and
+  // that must yield a validation RESULT rather than throwing out of the validator.
+  const canonical = (p: string): string => {
+    try {
+      return realpath(p);
+    } catch {
+      return p;
+    }
+  };
+
+  const realBase = canonical(base);
   // Canonicalise the leaf when it exists (catches a leaf symlink that escapes);
   // otherwise canonicalise the parent and re-append the leaf so a new team root
   // still validates. The leaf's own future contents are out of scope.
@@ -112,18 +123,10 @@ export function validateTeamWorkspacePath(
   try {
     realAbs = realpath(abs);
   } catch {
-    // The leaf does not exist yet — canonicalise its PARENT and re-append, so a new team
-    // root still validates. If the parent is missing too, nothing above it can be
-    // canonicalised and the lexical path is the best available answer; the direct-child
-    // check below then rejects it, which is the right outcome for a path whose parent is
-    // not the base.
-    let realParent: string;
-    try {
-      realParent = realpath(dirname(abs));
-    } catch {
-      realParent = dirname(abs);
-    }
-    realAbs = join(realParent, basename(abs));
+    // The leaf does not exist yet — canonicalise its PARENT and re-append, so a NEW team
+    // root still validates through a symlinked base. If the parent is missing too, the
+    // lexical path is the best answer available and the direct-child check below decides.
+    realAbs = join(canonical(dirname(abs)), basename(abs));
   }
 
   if (realAbs === realBase) {

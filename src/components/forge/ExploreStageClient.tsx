@@ -387,10 +387,13 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                 ) : null}
               </CardHeader>
               <CardContent className="min-h-0 flex-1 !py-4">
+                {/* One row per kind, from the same `GROUPS` the rail and the editor use —
+                    these were three hardcoded rows, so a fourth kind's tasks would have been
+                    counted by nothing while still appearing in the total badge above. */}
                 <div className="space-y-0">
-                  <Stat label="Investigations" value={String(tasks.filter((t) => t.kind === 'investigate').length)} />
-                  <Stat label="Research" value={String(tasks.filter((t) => t.kind === 'research').length)} />
-                  <Stat label="Journal recalls" value={String(tasks.filter((t) => t.kind === 'journal').length)} />
+                  {GROUPS.map(({ kind, label }) => (
+                    <Stat key={kind} label={label} value={String(tasks.filter((t) => t.kind === kind).length)} />
+                  ))}
                 </div>
               </CardContent>
               <CardFooter className="flex-col !items-stretch gap-2">

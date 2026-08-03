@@ -113,7 +113,7 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
                 doesn't declare. */}
             <StageAdvance
               label={summary.completedAt ? 'Completed' : completing ? 'Completing…' : 'Mark complete'}
-              gate
+              irreversible
               busy={completing}
               disabled={readOnly || Boolean(summary.completedAt)}
               onClick={onMarkComplete}

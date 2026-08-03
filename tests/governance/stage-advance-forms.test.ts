@@ -6,16 +6,21 @@ import { describe, expect, it } from 'vitest';
 /**
  * `StageFlowPreview` declares the advance control's whole vocabulary and states the rule
  * outright: "a form that isn't in this list must not exist in a stage client", with the
- * padlock (`gate`) on exactly four advances — Plan→Execute, Execute→Review,
+ * padlock (`irreversible`) on exactly four advances — Plan→Execute, Execute→Review,
  * Review→Reflect, and "Mark complete".
  *
- * That was prose. This makes it a rule: the set of PRODUCTION components that gate a
- * stage advance must be exactly those four. A fifth gated advance, or one of these four
- * losing its padlock, now fails here instead of quietly changing what the catalog claims.
+ * That was prose. This makes it a rule: the set of PRODUCTION components that mark a stage
+ * advance irreversible must be exactly those four. A fifth padlocked advance, or one of
+ * these four losing its padlock, now fails here instead of quietly changing what the catalog
+ * claims.
+ *
+ * The prop was called `gate` until it was renamed: the padlock means "this commits something
+ * irreversible", while the actual gating is the transition POST every advance makes. Two
+ * different things under one name.
  */
 const ROOT = process.cwd();
 
-/** Production files (not previews/demos) that render `<StageAdvance …>`, and whether they gate it. */
+/** Production files (not previews/demos) that render `<StageAdvance …>`, and whether it's marked irreversible. */
 function stageAdvanceUsage(): Map<string, boolean> {
   const out = new Map<string, boolean>();
   const walk = (dir: string) => {
@@ -28,8 +33,8 @@ function stageAdvanceUsage(): Map<string, boolean> {
       const text = readFileSync(join(ROOT, rel), 'utf8');
       for (const m of text.matchAll(/<StageAdvance\b([\s\S]*?)\/>/g)) {
         const props = m[1]!;
-        const gated = /(^|\s)gate(\s|=|$)/.test(props);
-        out.set(rel, (out.get(rel) ?? false) || gated);
+        const marked = /(^|\s)irreversible(\s|=|$)/.test(props);
+        out.set(rel, (out.get(rel) ?? false) || marked);
       }
     }
   };
@@ -38,7 +43,7 @@ function stageAdvanceUsage(): Map<string, boolean> {
   return out;
 }
 
-const GATED = [
+const IRREVERSIBLE = [
   'src/components/forge/PlanStageClient.tsx',    // Plan → Execute
   'src/components/forge/ExecuteStageClient.tsx', // Execute → Review
   'src/components/forge/ReviewStageClient.tsx',  // Review → Reflect
@@ -53,12 +58,12 @@ describe('stage advance forms', () => {
     expect([...usage.keys()]).toContain('src/components/forge/SpecStageClient.tsx');
   });
 
-  it('gates exactly the four advances the catalog names, and no others', () => {
-    const gated = [...usage].filter(([, g]) => g).map(([f]) => f).sort();
-    expect(gated).toEqual([...GATED].sort());
+  it('padlocks exactly the four advances the catalog names, and no others', () => {
+    const marked = [...usage].filter(([, m]) => m).map(([f]) => f).sort();
+    expect(marked).toEqual([...IRREVERSIBLE].sort());
   });
 
-  it('leaves the design-stage advances ungated — nothing irreversible is committed there', () => {
+  it('leaves the design-stage advances unmarked — nothing irreversible is committed there', () => {
     for (const f of ['src/components/forge/ExploreStageClient.tsx', 'src/components/forge/SpecStageClient.tsx']) {
       expect(usage.get(f), f).toBe(false);
     }

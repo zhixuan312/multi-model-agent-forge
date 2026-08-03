@@ -936,7 +936,7 @@ function ValidateStage({
               onClick={onLock}
               label="Continue to Execute"
               disabled={readOnly || locked}
-              gate
+              irreversible
               testId="plan-lock-button"
             />
           </CardFooter>

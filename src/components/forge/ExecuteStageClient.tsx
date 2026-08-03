@@ -469,7 +469,7 @@ function MonitorPhase({
               href={`/projects/${projectId}/review`}
               label="Continue to Review"
               disabled={!allTerminal || readOnly}
-              gate
+              irreversible
               projectId={projectId}
               from="execute"
               testId="execute-continue-link"

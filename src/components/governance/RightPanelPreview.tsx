@@ -183,7 +183,7 @@ function CardListDemo({ on }: { on: ReadonlySet<string> }) {
         </CardContent>
         {on.has('advance') ? (
           <CardFooter className="flex-col !items-stretch gap-2">
-            <StageAdvance onClick={() => {}} label="Continue to Execute" disabled={!canAdvance} gate={!canAdvance} />
+            <StageAdvance onClick={() => {}} label="Continue to Execute" disabled={!canAdvance} irreversible={!canAdvance} />
           </CardFooter>
         ) : null}
       </Card>

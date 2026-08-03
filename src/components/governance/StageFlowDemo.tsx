@@ -145,7 +145,7 @@ export function StageFlowDemo() {
 
   // Which advances carry the padlock, mirroring the real clients exactly: Plan→Execute,
   // Execute→Review, Review→Reflect and the final Finish (SummaryPhase's "Mark complete")
-  // pass `gate`; Explore→Spec and Spec→Plan do not.
+  // are `irreversible`; Explore→Spec and Spec→Plan are not.
   const GATED_FROM: StageKind[] = ['plan', 'execute', 'review', 'journal'];
   const gated = !isPhaseAdvance && GATED_FROM.includes(viewedStage.kind);
 
@@ -221,7 +221,7 @@ export function StageFlowDemo() {
             <StageAdvance
               label={viewDone ? 'Completed' : continueLabel}
               onClick={advance}
-              gate={gated}
+              irreversible={gated}
               disabled={viewDone || driving || locked}
             />
           )}

@@ -24,7 +24,7 @@ export function StageAdvance({
   onClick,
   label,
   disabled = false,
-  gate = false,
+  irreversible = false,
   busy: busyProp = false,
   projectId,
   from,
@@ -34,7 +34,14 @@ export function StageAdvance({
   onClick?: () => void;
   label: string;
   disabled?: boolean;
-  gate?: boolean;
+  /**
+   * Marks an advance that COMMITS something irreversible — the padlock the governance
+   * catalogue documents ("black + lock"). It was called `gate`, which reads as "this
+   * advance is enforced"; the enforcement is the `projectId && from` transition POST
+   * below, which every caller passes and which has nothing to do with this flag. Two
+   * different things under one name, and the name belonged to the other one.
+   */
+  irreversible?: boolean;
   /** Caller-driven pending state, for an advance that runs work of its own first. */
   busy?: boolean;
   projectId?: string;
@@ -87,7 +94,7 @@ export function StageAdvance({
         fullWidth
         onClick={handleClick}
         disabled={disabled || busy}
-        leftIcon={gate ? <Lock /> : undefined}
+        leftIcon={irreversible ? <Lock /> : undefined}
         rightIcon={<ArrowRight />}
         data-testid={testId}
       >

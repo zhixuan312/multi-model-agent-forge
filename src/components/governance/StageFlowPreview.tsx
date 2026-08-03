@@ -87,7 +87,7 @@ const RENDERS: Record<string, () => ReactNode> = {
   // The advance button has exactly two forms and one modifier, and every one of them is
   // declared here — a form that isn't in this list must not exist in a stage client.
   //   form:     phase advance (terracotta Button) · stage advance (black StageAdvance)
-  //   modifier: `gate` — the padlock, on a stage advance that commits something
+  //   modifier: `irreversible` — the padlock, on a stage advance that commits something
   //             irreversible. Production uses it on exactly four: Plan→Execute,
   //             Execute→Review, Review→Reflect, and "Mark complete" (project done).
   advance: () => (
@@ -105,16 +105,16 @@ const RENDERS: Record<string, () => ReactNode> = {
         <StageAdvance onClick={() => {}} label="Continue to Plan" disabled />
       </Labeled>
       <Labeled label="Gated stage advance — commits something irreversible (black + lock)">
-        <StageAdvance onClick={() => {}} label="Continue to Execute" gate />
+        <StageAdvance onClick={() => {}} label="Continue to Execute" irreversible />
       </Labeled>
       <Labeled label="Gated stage advance, disabled — the gate has not cleared yet">
-        <StageAdvance onClick={() => {}} label="Continue to Review" gate disabled />
+        <StageAdvance onClick={() => {}} label="Continue to Review" irreversible disabled />
       </Labeled>
       <Labeled label="Gated stage advance, spent — the project is complete; the control stays, disabled">
-        <StageAdvance onClick={() => {}} label="Completed" gate disabled />
+        <StageAdvance onClick={() => {}} label="Completed" irreversible disabled />
       </Labeled>
       <Labeled label="Advance failed — an error toast (click to trigger, bottom-right)">
-        <StageAdvance onClick={() => showToast({ type: 'error', message: 'Cannot advance yet.' })} label="Continue to Reflect" gate />
+        <StageAdvance onClick={() => showToast({ type: 'error', message: 'Cannot advance yet.' })} label="Continue to Reflect" irreversible />
       </Labeled>
     </div>
   ),

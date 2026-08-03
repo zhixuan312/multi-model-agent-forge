@@ -259,7 +259,7 @@ export function ReviewStageClient(props: ReviewStageClientProps) {
               href={`/projects/${props.projectId}/reflect`}
               label="Continue to Reflect"
               disabled={readOnly}
-              gate
+              irreversible
               projectId={props.projectId}
               from="review"
               testId="review-continue-link"

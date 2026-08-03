@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Badge, Button } from '@/components/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { SEVERITY_ORDER as SHARED_SEVERITY_ORDER } from '@/lib/severity';
+import { SEVERITY_ORDER as SHARED_SEVERITY_ORDER, compareSeverity } from '@/lib/severity';
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -26,9 +26,21 @@ const SEVERITY_STYLE_MAP: Record<Finding['severity'], string> = {
 
 export const SEVERITY_STYLE = SEVERITY_STYLE_MAP;
 
+/**
+ * Tint for a severity, tolerating one outside the set.
+ *
+ * `severity` is typed, but it originates as a free-text `weight` on the engine envelope and
+ * reaches here through an unchecked cast, so an unexpected word is a real input. Indexing
+ * the map directly returned `undefined` for it and rendered a chip with padding and text
+ * but no background — the same silent breakage the journal category chips had.
+ */
+function severityStyle(severity: string): string {
+  return SEVERITY_STYLE_MAP[severity as Finding['severity']] ?? SEVERITY_STYLE_MAP.low;
+}
+
 export function SeverityBadge({ severity }: { severity: Finding['severity'] }) {
   return (
-    <span className={cn('inline-flex shrink-0 items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', SEVERITY_STYLE_MAP[severity])}>
+    <span className={cn('inline-flex shrink-0 items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', severityStyle(severity))}>
       {severity}
     </span>
   );
@@ -161,7 +173,10 @@ export interface FindingsGridProps {
 export function FindingsGrid({ findings, selectable, selectedIndices, onToggle, applying, applied, appliedIndices, readOnly }: FindingsGridProps) {
   const sel = new Set(selectedIndices ?? []);
   const appliedSet = appliedIndices ? new Set(appliedIndices) : null;
-  const sorted = [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
+  // `compareSeverity`, not a raw indexOf: an unrecognised severity gives -1 there, which
+  // sorts it ABOVE critical. `lib/severity` documents precisely this — an unknown severity
+  // is not evidence of urgency — and this, its only sorting consumer, was not using it.
+  const sorted = [...findings].sort((a, b) => compareSeverity(a.severity, b.severity));
   const disabled = readOnly || !!applying || !!applied;
 
   return (
@@ -254,7 +269,7 @@ export function AuditRoundCard({ passNo, verdict, findings, applied, active, onC
         {counts.length > 0 ? (
           <div className="mt-1.5 flex gap-1.5">
             {counts.map((c) => (
-              <span key={c.severity} className={cn('inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold', SEVERITY_STYLE_MAP[c.severity])}>
+              <span key={c.severity} className={cn('inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold', severityStyle(c.severity))}>
                 {c.count} {c.severity}
               </span>
             ))}

@@ -19,6 +19,7 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import { useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { SEVERITY_ORDER } from '@/lib/severity';
 import { DocumentShell } from '@/components/patterns';
 import { StageShell } from '@/components/patterns/stage-shell';
 
@@ -86,8 +87,16 @@ export interface ReviewStageClientProps {
   lockedReason?: string;
 }
 
+/**
+ * `weight` is free text on the engine envelope, not a typed column, so it is normalised
+ * rather than cast: lower-cased, and anything outside the set treated as `low`. The cast it
+ * replaces let an unexpected word through as if it were a severity, where it sorted above
+ * critical and rendered an unstyled chip.
+ */
 function toFinding(f: ReviewFindingView): Finding {
-  return { severity: f.weight as Finding['severity'], category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion };
+  const w = f.weight?.toLowerCase();
+  const severity = (SEVERITY_ORDER as readonly string[]).includes(w) ? (w as Finding['severity']) : 'low';
+  return { severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion };
 }
 
 /* ── Main Component ──────────────────────────────────────────────── */

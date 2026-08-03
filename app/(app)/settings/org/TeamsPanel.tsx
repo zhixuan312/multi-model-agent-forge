@@ -93,15 +93,25 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [roster, setRoster] = useState<TeamMemberRow[]>([]);
   const [rosterBusy, setRosterBusy] = useState(false);
+  // A failed load is NOT an empty team: without this, a 500 rendered "No members on this
+  // team yet." beside a row showing a member count.
+  const [rosterError, setRosterError] = useState<string | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
   const loadRoster = async (teamId: string) => {
     setRosterBusy(true);
+    setRosterError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/members`);
-      setRoster(res.ok ? ((await res.json()) as TeamMemberRow[]) : []);
+      if (!res.ok) {
+        setRoster([]);
+        setRosterError(await responseError(res, 'Could not load this team’s roster.'));
+        return;
+      }
+      setRoster((await res.json()) as TeamMemberRow[]);
     } catch {
       setRoster([]);
+      setRosterError('Network error — could not load this team’s roster.');
     } finally {
       setRosterBusy(false);
     }
@@ -115,6 +125,7 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
     }
     setExpandedId(teamId);
     setRoster([]);
+    setRosterError(null);
     await loadRoster(teamId);
   };
 
@@ -333,6 +344,8 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
       {assignError ? <p role="alert" className="mb-3 text-sm text-rose">{assignError}</p> : null}
       {rosterBusy ? (
         <p className="text-sm text-ink-soft">Loading roster…</p>
+      ) : rosterError ? (
+        <p role="alert" className="text-sm text-rose">{rosterError}</p>
       ) : roster.length === 0 ? (
         <p className="text-sm text-ink-soft">No members on this team yet.</p>
       ) : (

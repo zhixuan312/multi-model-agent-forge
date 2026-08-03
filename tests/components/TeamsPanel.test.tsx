@@ -113,4 +113,36 @@ describe('TeamsPanel', () => {
     expect(alert).toHaveTextContent('Only an org admin can assign team admins.');
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  /**
+   * A failed roster load used to be swallowed into `roster: []`, which renders "No members
+   * on this team yet." — a factual claim the code has no basis for, printed beside a row
+   * that says the team has 2 members.
+   */
+  it('says the roster could not be loaded, rather than claiming the team is empty', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
+      String(url).endsWith('/members')
+        ? new Response(JSON.stringify({ error: 'Roster unavailable.' }), { status: 500 })
+        : new Response('{}', { status: 200 }),
+    );
+    render(<TeamsPanel initialTeams={teams} />);
+    const row = screen.getAllByTestId('data-row')[0];
+    fireEvent.click(within(row).getByRole('button', { name: /members/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Roster unavailable.');
+    expect(screen.queryByText(/No members on this team yet/)).not.toBeInTheDocument();
+  });
+
+  it('still says a genuinely empty team is empty', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify([]), { status: 200 }),
+    );
+    render(<TeamsPanel initialTeams={teams} />);
+    const row = screen.getAllByTestId('data-row')[0];
+    fireEvent.click(within(row).getByRole('button', { name: /members/i }));
+
+    expect(await screen.findByText(/No members on this team yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

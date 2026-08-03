@@ -122,21 +122,36 @@ export function JournalStageClient(props: JournalStageClientProps) {
     },
   });
 
-  const [harvestingLocal, setHarvestingLocal] = useState(false);
+  /**
+   * Auto-harvest when the project has no learnings yet. There was also a
+   * `!props.hasJournalFile` clause, but the component's only call site passed a hardcoded
+   * `false`, so it was always true and the prop never gated anything. Removed rather than
+   * left as a permanently-inert condition; if the "a journal file already exists" guard is
+   * wanted, it needs a real value computed on the page.
+   *
+   * Seeded TRUE for the auto-harvest case rather than derived from it. `harvesting` used to
+   * include `learnings.length === 0 && !props.harvesting` as a third disjunct, which is a
+   * CONDITION, not a run: it stays true after a failed harvest, so the stage showed
+   * "Harvesting learnings from the project run..." with a spinner forever, for a dispatch
+   * that had already errored — and the mount-only effect never retries. The "No learnings
+   * yet / Harvest learnings" state below, the only way back, was unreachable because that
+   * disjunct made `harvesting` true whenever it would have applied. Seeding the state
+   * instead means the spinner tracks an actual in-flight dispatch and clears when it
+   * settles, without a first-frame flash of the empty state.
+   */
+  const [harvestingLocal, setHarvestingLocal] = useState(props.learnings.length === 0 && !props.harvesting);
   const [recordingLocal, setRecordingLocal] = useState(false);
-  // Auto-harvest when the project has no learnings yet. There was also a
-  // `!props.hasJournalFile` clause, but the component's only call site passed a hardcoded
-  // `false`, so it was always true and the prop never gated anything. Removed rather than
-  // left as a permanently-inert condition; if the "a journal file already exists" guard is
-  // wanted, it needs a real value computed on the page.
-  const shouldAutoHarvest = props.learnings.length === 0 && !props.harvesting;
-  const harvesting = props.harvesting || harvestingLocal || shouldAutoHarvest;
+  const harvesting = props.harvesting || harvestingLocal;
   const recording = props.recording || recordingLocal;
 
 
+  // The ref is the whole re-entrancy guard — it is set synchronously, so it also covers the
+  // double-click. `harvestingLocal` cannot be part of it any more: it starts true on the
+  // auto-harvest path, and testing it here would return before dispatching the very harvest
+  // that state was seeded for.
   const harvestFiredRef = useRef(false);
   function runHarvest() {
-    if (harvestingLocal || harvestFiredRef.current) return;
+    if (harvestFiredRef.current) return;
     harvestFiredRef.current = true;
     setHarvestingLocal(true);
     void mma.transition('dispatch_harvest')
@@ -147,12 +162,18 @@ export function JournalStageClient(props: JournalStageClientProps) {
 
   // Auto-trigger harvest when the project has no harvested rows yet (like plan auto-triggers author-plan)
   useEffect(() => {
-    if (!shouldAutoHarvest) return;
+    if (props.learnings.length > 0 || props.harvesting) return;
     runHarvest();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only auto-trigger; `runHarvest` is re-created each render and is already guarded by `harvestFiredRef`
   }, []);
 
-  const active = props.learnings.find((l) => l.id === activeId);
+  /**
+   * Falls back to the first learning. `activeId` seeds from `?learning=<id>`, and a link to a
+   * learning that has since been removed left `active` undefined WITH learnings present —
+   * which rendered the "No learnings yet" empty state and a Harvest button on a project full
+   * of them. The id is caller-supplied; it does not get to deny the list exists.
+   */
+  const active = props.learnings.find((l) => l.id === activeId) ?? props.learnings[0];
   const serverStatus = useMemo(
     () => Object.fromEntries(props.learnings.map((l) => [l.id, l.status])),
     [props.learnings],

@@ -97,3 +97,60 @@ describe('JournalStageClient — editing a learning', () => {
     expect(transition).toHaveBeenCalledWith('edit_learning', { rowId: 'l1', heading: 'New heading', body: 'New body' });
   });
 });
+
+describe('JournalStageClient — the auto-harvest', () => {
+  beforeEach(() => { transition.mockClear(); });
+
+  /**
+   * `harvesting` included `learnings.length === 0 && !props.harvesting` as a disjunct. That
+   * is a CONDITION, not a run: it stays true after the dispatch errors, so the stage showed
+   * "Harvesting learnings from the project run..." with a spinner forever for a harvest that
+   * had already failed — and the mount-only effect never retries. The one way back (the
+   * "Harvest learnings" button) was unreachable, because the same disjunct made `harvesting`
+   * true in exactly the situation that button exists for.
+   */
+  it('falls back to a retryable empty state when the harvest fails', async () => {
+    transition.mockRejectedValueOnce(new Error('mma down'));
+    render(
+      <JournalStageClient projectId="p1" learnings={[]} harvesting={false} recording={false} />,
+    );
+
+    expect(transition).toHaveBeenCalledWith('dispatch_harvest');
+    // The spinner is shown while it runs...
+    expect(screen.getByText(/Harvesting learnings from the project run/)).toBeInTheDocument();
+    // ...and gives way to something the user can act on when it does not.
+    expect(await screen.findByText('No learnings yet')).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /Harvest learnings/ });
+    expect(retry).toBeEnabled();
+
+    fireEvent.click(retry);
+    expect(transition).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not auto-harvest a project that already has learnings', () => {
+    renderStage([learning()]);
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `activeId` seeds from `?learning=<id>`. A link to a learning that has since been removed
+   * left `active` undefined WITH learnings present, which rendered "No learnings yet" and a
+   * Harvest button on a project full of them.
+   */
+  it('shows the list when the linked learning no longer exists', () => {
+    render(
+      <JournalStageClient
+        projectId="p1"
+        learnings={[learning()]}
+        harvesting={false}
+        recording={false}
+        activeLearningId="deleted-long-ago"
+      />,
+    );
+
+    expect(screen.queryByText('No learnings yet')).toBeNull();
+    // Named in both the rail list and the document header, hence getAllByText.
+    expect(screen.getAllByText('Ship behind a flag').length).toBeGreaterThan(0);
+    expect(transition).not.toHaveBeenCalled();
+  });
+});

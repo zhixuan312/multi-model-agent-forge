@@ -84,6 +84,33 @@ describe('updateConnections', () => {
    * asked, so there was no way to tell the two apart. The adjacent missing-team-ROW
    * case already threw, so one precondition had two different failure modes.
    */
+  /**
+   * NOTHING validated this URL — not the schema, not `resolveMmaClientConfig`, not
+   * `MmaClient`. A typo was persisted and became the fetch base for EVERY dispatch across
+   * EVERY team, each failing with a URL-parse TypeError recorded as `dispatch_failed`,
+   * which names neither the cause nor the setting.
+   */
+  it('refuses an MMA base URL that is not a valid http(s) URL', async () => {
+    for (const bad of ['htp://localhost:7337', 'localhost:7337', 'not a url', 'ftp://host/x', '://x']) {
+      const db = createMockDb({ 'select:team_connection': [] });
+      const res = await updateConnections({ mmaBaseUrl: bad }, { db, isOrgAdmin: true });
+      expect(res.kind, `${bad} must be rejected`).toBe('invalid');
+      expect(db._wasCalled('team_connection', 'update')).toBe(false);
+      expect(db._wasCalled('team_connection', 'insert')).toBe(false);
+    }
+  });
+
+  it('accepts the real shapes an operator uses', async () => {
+    for (const ok of ['http://127.0.0.1:7337', 'https://mma.internal', 'http://localhost:7337/']) {
+      const db = createMockDb({
+        'select:team_connection': seq([], [createBaseConnection()]),
+        'insert:team_connection': [{ id: 'c1' }],
+      });
+      const res = await updateConnections({ mmaBaseUrl: ok }, { db, isOrgAdmin: true });
+      expect(res.kind, `${ok} must be accepted`).toBe('saved');
+    }
+  });
+
   it('refuses a git token with no team rather than reporting it saved', async () => {
     const db = createMockDb({
       'select:team_connection': seq([], [createBaseConnection()]),

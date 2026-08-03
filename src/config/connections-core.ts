@@ -46,10 +46,34 @@ const optionalText = z
   .transform((s) => (s === '' ? undefined : s))
   .optional();
 
+/**
+ * `mmaBaseUrl` must parse as an http(s) URL.
+ *
+ * NOTHING checked it before — not here, not `resolveMmaClientConfig`, not `MmaClient` —
+ * so a typo ("htp://…") was persisted and used as the fetch base for EVERY dispatch, for
+ * every team, until an org admin noticed. Each task then failed with a URL-parse
+ * TypeError recorded as `dispatch_failed`, which names neither the cause nor the setting.
+ * The blast radius is the whole org and the input is free text, so the check belongs on
+ * the one write path.
+ */
+const mmaBaseUrlText = optionalText.superRefine((v, ctx) => {
+  if (v === undefined) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'The MMA base URL is not a valid URL.' });
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    ctx.addIssue({ code: 'custom', message: 'The MMA base URL must be http or https.' });
+  }
+});
+
 // All fields optional → each section saves independently. A present token
 // rotates that secret; an absent token leaves the existing ref untouched.
 export const updateConnectionsSchema = z.object({
-  mmaBaseUrl: optionalText,
+  mmaBaseUrl: mmaBaseUrlText,
   gitToken: optionalText,
   openaiTranscriptionKey: optionalText,
 });

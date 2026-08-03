@@ -4,6 +4,15 @@
  * configured via `/configure-provider`, so it is the source of truth — Forge
  * never writes it. Auth is shown as `api-key` when the agent carries an
  * `apiKeyEnv`, else `oauth` (the subscription/default path).
+ *
+ * `next build` emits one warning against this module — "Encountered unexpected file in NFT
+ * list … the whole project was traced unintentionally" — because it reads a path built from
+ * `homedir()`, which the file tracer cannot resolve statically. It is a warning, not an
+ * error, and it is INHERENT: the MMA home is wherever the operator mounts it, so the path
+ * cannot be scoped to a project subfolder as the message suggests. `/* turbopackIgnore *\/`
+ * does not apply either — that annotation is for dynamic `import()`/`require()`, not `fs`
+ * calls; adding it here changes nothing (verified against a real build). Recorded so the next
+ * reader does not spend the same half hour on it.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';

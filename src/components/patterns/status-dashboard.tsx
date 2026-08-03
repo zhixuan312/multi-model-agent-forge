@@ -113,8 +113,11 @@ export function StatusDashboard({ metrics, primary, aside, align = 'stretch', sc
               // Independent of `align`: that governs the rail's cross-axis alignment, this
               // governs who scrolls. Coupling them left every `align="start"` page with no
               // scroller at all once PageFrame stopped scrolling the page.
-              // `scroll-pane` (globals.css) owns the overflow AND the clearance that keeps
-              // the cards' hover bloom from being clipped by this scroller.
+              // `SCROLL_PANE_LG` owns the overflow AND the clearance that keeps the cards'
+              // hover bloom from being clipped by this scroller. (This named
+              // `scroll-pane` in globals.css — the `@utility` that emitted no CSS and is
+              // the reason the literal classes above exist. A comment pointing at a
+              // deleted mechanism sends the next reader to look for it.)
               scroll === 'outer' && SCROLL_PANE_LG,
             )}
           >

@@ -3,11 +3,24 @@ import { STAGE_ORDER } from '@/db/enums';
 import type { StageKind } from '@/db/enums';
 import { auditLoopStep, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { isParked } from '@/automation/attempt-status';
+import { ACTION_KINDS } from '@/automation/action-schema';
+
+/**
+ * Every kind an action may carry: the wire-validated `ACTION_KINDS` plus the two
+ * driver-internal ones that never cross the HTTP boundary (`wait` = nothing to do
+ * now, `complete` = the driver's own stop signal).
+ *
+ * Deliberately NOT `string`. A kind the executor doesn't handle used to type-check
+ * and fail only at runtime — `driver.ts` carried a live `startsWith('navigate_')`
+ * branch for an action family that had already been deleted, and nothing caught it.
+ */
+export type ActionKind = (typeof ACTION_KINDS)[number] | 'wait' | 'complete';
 
 export interface AutoAction {
-  kind: string;
+  kind: ActionKind;
   note: string;
-  stage: string;
+  /** A real stage, or `''` for the stage-less actions (`wait`, `complete`, `take_over`). */
+  stage: StageKind | '';
   phase: string;
   data?: Record<string, unknown>;
 }

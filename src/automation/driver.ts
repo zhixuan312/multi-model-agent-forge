@@ -189,9 +189,7 @@ export async function driveProject(projectId: string): Promise<void> {
       }
 
       // Success — nudge the client to re-pull server state (stepper/summary).
-      if (!action.kind.startsWith('navigate_')) {
-        projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind, stage: action.stage, phase: action.phase });
-      }
+      projectEventBus.publish(projectId, { type: 'automation.step_done', step: action.kind, stage: action.stage, phase: action.phase });
 
       await sleep(1000);
     }

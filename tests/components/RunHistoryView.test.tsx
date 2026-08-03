@@ -40,4 +40,21 @@ describe('RunHistoryView', () => {
     render(<RunHistoryView runs={[]} loops={[]} loopNames={{}} repoNames={{}} selectedId={null} />);
     expect(screen.getByText('No runs yet')).toBeInTheDocument();
   });
+
+  /**
+   * The rail already said "No runs match these filters" while the detail pane beside it
+   * insisted there were none at all — and the pane has the filter props to know better.
+   */
+  it('says "no match" in the canvas too when a filter excluded everything', () => {
+    render(
+      <RunHistoryView runs={[]} loops={[{ id: 'l1', name: 'Hygiene' }]} loopNames={{}} repoNames={{}} selectedId={null} loopId="l1" />,
+    );
+    expect(screen.getByText('No runs match')).toBeInTheDocument();
+    expect(screen.queryByText('No runs yet')).not.toBeInTheDocument();
+  });
+
+  it('still says "no runs yet" when nothing is filtered', () => {
+    render(<RunHistoryView runs={[]} loops={[]} loopNames={{}} repoNames={{}} selectedId={null} />);
+    expect(screen.getByText('No runs yet')).toBeInTheDocument();
+  });
 });

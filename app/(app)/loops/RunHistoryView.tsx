@@ -44,6 +44,7 @@ export function RunHistoryView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selected = runs.find((r) => r.id === selectedId) ?? null;
+  const filtered = Boolean(loopId || status);
 
   function select(id: string) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -101,6 +102,10 @@ export function RunHistoryView({
           <CardContent className="min-h-0 flex-1 overflow-y-auto p-5">
             {selected ? (
               <RunDetail run={selected} repoName={repoNames[selected.repoId]} />
+            ) : filtered ? (
+              /* The rail already says "No runs match these filters"; this pane sat beside
+                 it insisting there were none at all. */
+              <EmptyState icon={<History />} title="No runs match" description="Clear the loop or status filter to see the rest." />
             ) : (
               <EmptyState icon={<History />} title="No runs yet" description="Runs appear here once a loop fires — manually or on schedule." />
             )}

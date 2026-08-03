@@ -23,6 +23,8 @@ function VerificationRow({ verification }: { verification: RunVerification | nul
       </div>
     );
   }
+  // Safe to treat non-true as failed: `passed: null` is only ever produced together with
+  // `command: null` ("no test command configured"), which the branch above already took.
   const passed = verification.passed === true;
   return (
     <div className="flex items-start gap-2">

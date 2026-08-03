@@ -95,21 +95,27 @@ async function resolveTeamRow(db: Db, teamId?: string): Promise<typeof team.$inf
   return row ?? null;
 }
 
-async function resolveWorkspace(db: Db, deps: ReposDeps): Promise<WorkspaceService> {
+/**
+ * The workspace service for a team, from an ALREADY-resolved team row.
+ *
+ * The row is passed in rather than looked up: `resolveWorkspace` and `gitToken` each ran
+ * the same `select … from team where id` query, so every clone and pull issued two
+ * identical lookups — and two places to keep the team-root rule in step.
+ */
+function resolveWorkspace(deps: ReposDeps, currentTeam: typeof team.$inferSelect | null): WorkspaceService {
   if (deps.workspace) return deps.workspace;
-  const currentTeam = await resolveTeamRow(db, deps.teamId);
   return new WorkspaceService({
     workspaceRoot: currentTeam ? resolveTeamWorkspaceRoot(currentTeam) : resolveWorkspaceRoot(),
   });
 }
 
-/** Resolve the git token from team.git_token_ref (null when unset). */
-async function gitToken(db: Db, secrets: SecretStore, teamId?: string): Promise<string | undefined> {
-  if (!teamId) return undefined;
-  const [row] = await db.select().from(team).where(eq(team.id, teamId)).limit(1);
-  if (!row?.gitTokenRef) return undefined;
-  const tok = await secrets.get(row.gitTokenRef);
-  return tok ?? undefined;
+/** Resolve the git token from team.git_token_ref (undefined when unset). */
+async function gitToken(
+  secrets: SecretStore,
+  currentTeam: typeof team.$inferSelect | null,
+): Promise<string | undefined> {
+  if (!currentTeam?.gitTokenRef) return undefined;
+  return (await secrets.get(currentTeam.gitTokenRef)) ?? undefined;
 }
 
 /** List repos for the team (unfiltered by name — the filter runs client-side, Flow E). */
@@ -138,8 +144,9 @@ export async function cloneAndRegister(input: unknown, deps: ReposDeps = {}): Pr
   if (existing) return { kind: 'duplicate_name' };
 
   const secrets = await resolveSecrets(deps);
-  const workspace = await resolveWorkspace(db, deps);
-  const token = await gitToken(db, secrets, deps.teamId);
+  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  const workspace = resolveWorkspace(deps, currentTeam);
+  const token = await gitToken(secrets, currentTeam);
 
   // Insert the row at 'pulling' so the lifecycle is visible; a placeholder
   // path/branch is replaced on success (the row never stays stuck — on failure
@@ -203,8 +210,9 @@ export async function pullExisting(id: string, deps: ReposDeps = {}): Promise<Pu
   if (!row) return { kind: 'not_found' };
 
   const secrets = await resolveSecrets(deps);
-  const workspace = await resolveWorkspace(db, deps);
-  const token = await gitToken(db, secrets, deps.teamId);
+  const currentTeam = await resolveTeamRow(db, deps.teamId);
+  const workspace = resolveWorkspace(deps, currentTeam);
+  const token = await gitToken(secrets, currentTeam);
 
   await db.update(repo).set({ status: 'pulling' }).where(eq(repo.id, id));
   try {

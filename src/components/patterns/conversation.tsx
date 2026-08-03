@@ -148,7 +148,10 @@ export function ConversationComposer({
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const form = new FormData();
-        form.append('file', blob, 'audio');
+        // `audio.webm` / `audio.mp4`, not a bare `audio`. The route re-uploads the Blob under
+        // its own name, so this one never reaches OpenAI — but a file with no extension read
+        // as if the format were unknown here too, and it is not.
+        form.append('file', blob, `audio.${mimeType.split(';')[0]!.split('/')[1]}`);
         form.append('durationMs', String(Date.now() - recStartRef.current));
         try {
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
@@ -160,8 +163,16 @@ export function ConversationComposer({
           // stale closure value.
           const cur = valueRef.current;
           setVal(cur ? `${cur}\n${text}` : text);
-        } catch {
-          showToast({ type: 'error', message: 'Couldn’t transcribe the audio — try again, or type instead.' });
+        } catch (err) {
+          // …and then SHOW it. The line above went to the trouble of relaying the route's
+          // message — a rejected key, a rate limit — and a bare `catch` replaced every one of
+          // them with the same generic sentence, so the work was invisible. The fallback is
+          // still there for a network drop, where there is no message to show.
+          const relayed = err instanceof Error && err.message ? err.message : null;
+          showToast({
+            type: 'error',
+            message: relayed ?? 'Couldn’t transcribe the audio — try again, or type instead.',
+          });
         }
         finally { setTranscribing(false); }
       };

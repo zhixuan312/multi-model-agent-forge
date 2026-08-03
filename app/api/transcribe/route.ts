@@ -53,7 +53,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     if (err instanceof TranscriptionUpstreamError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+      // Its own status: a rejected key is a 400 (our config), a rate limit is a 429, and
+      // only a genuinely unreachable/erroring service is a 502.
+      return NextResponse.json({ error: err.message }, { status: err.status });
     }
     return NextResponse.json({ error: 'Transcription failed.' }, { status: 500 });
   }

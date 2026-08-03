@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { ExportMenu, type ExportMenuArtifact } from '@/components/forge/export/ExportMenu';
 
 const downloadGet = vi.fn(async (_url: string, _name: string) => {});
@@ -119,5 +119,45 @@ describe('ExportMenu (test 12, F10)', () => {
     fireEvent.click(bundle); // ignored while busy
     expect(downloadPost).toHaveBeenCalledTimes(1);
     resolve({ included: ['spec'] });
+  });
+});
+
+/**
+ * The panel is hand-rolled (there is no Radix Popover dependency), so the behaviours a
+ * library would supply have to be asserted here. Escape was missing entirely: the panel
+ * could be opened from the keyboard and then dismissed only with a mouse.
+ */
+describe('ExportMenu keyboard + semantics', () => {
+  it('closes on Escape and returns focus to the trigger', async () => {
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
+    const trigger = screen.getByRole('button', { name: /export/i });
+    fireEvent.click(trigger);
+    await waitFor(() => screen.getByTestId('export-menu'));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('export-menu')).toBeNull());
+    expect(trigger).toHaveFocus();
+  });
+
+  it('is a group, not a menu — each row holds two independent actions', async () => {
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => screen.getByTestId('export-menu'));
+
+    // A menuitem carries one action; these rows carry `.md` AND PDF, so `role="menu"`
+    // described something the markup cannot be.
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Export artifacts' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('export-row-spec')).getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('points the trigger at the panel it opens', async () => {
+    render(<ExportMenu projectId="p1" fetchArtifacts={async () => artifacts()} />);
+    const trigger = screen.getByRole('button', { name: /export/i });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(trigger);
+    await waitFor(() => screen.getByTestId('export-menu'));
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('export-menu')).toHaveAttribute('id', trigger.getAttribute('aria-controls'));
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Download, ChevronDown, Search, FileText, ClipboardList, Boxes, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Badge, TextSm, Micro } from '@/components/ui';
@@ -49,6 +49,8 @@ async function defaultFetchArtifacts(projectId: string): Promise<ExportMenuArtif
 
 export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, onToast }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   const [artifacts, setArtifacts] = useState<ExportMenuArtifact[]>([]);
   const [error, setError] = useState<string | null>(null);
   // A single in-flight export at a time — PDF/bundle are multi-second (server Puppeteer), so
@@ -56,7 +58,11 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   const [busy, setBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close on click outside
+  // Close on click outside, or on Escape.
+  //
+  // Escape was missing entirely: the panel could be opened from the keyboard and then only
+  // dismissed with a mouse. Closing also returns focus to the trigger, or focus would be
+  // left on a button that no longer exists and fall back to <body>.
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -64,8 +70,17 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
         setOpen(false);
       }
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -142,11 +157,15 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
   return (
     <div ref={menuRef} className="relative" data-testid="export-menu-root">
       <Button
+        ref={triggerRef}
         variant="secondary"
         size="sm"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        // Not `menu`: every artifact row carries TWO independent actions (.md and PDF),
+        // and a menuitem holds one. This is a disclosure panel of grouped controls.
+        aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         leftIcon={<Download />}
         rightIcon={<ChevronDown />}
       >
@@ -155,7 +174,8 @@ export function ExportMenu({ projectId, fetchArtifacts = defaultFetchArtifacts, 
 
       {open ? (
         <div
-          role="menu"
+          id={panelId}
+          role="group"
           aria-label="Export artifacts"
           data-testid="export-menu"
           className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-xl"

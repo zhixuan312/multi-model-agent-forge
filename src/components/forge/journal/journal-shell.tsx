@@ -24,33 +24,43 @@ export type NodeBodyState =
  * graph's detail panel both do.
  *
  * Pass `null` to load nothing.
+ *
+ * The loaded id is stored WITH the result and the state is returned only when it still
+ * matches the requested id. Resetting inside the effect is a render too late: the graph
+ * mounts its reading panel on `full && selected` and asks this hook for the same pair, so
+ * the frame where `full` flips to true rendered the PREVIOUS node's Context and
+ * Consequences under the new node's title, until the effect caught up.
  */
 export function useJournalNodeBody(id: string | null): NodeBodyState {
-  const [state, setState] = useState<NodeBodyState>({ phase: 'loading' });
+  const [loaded, setLoaded] = useState<{ id: string | null; state: NodeBodyState }>({
+    id: null,
+    state: { phase: 'loading' },
+  });
 
   useEffect(() => {
     if (id === null) return;
     let alive = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading before fetching the node for the new id
-    setState({ phase: 'loading' });
     fetch(`/api/journal/nodes/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('load failed'))))
       .then((json) => {
         if (!alive) return;
-        setState({
-          phase: 'ready',
-          node: json.node ?? null,
-          parseError: json.parseError ?? null,
-          inbound: json.inbound ?? [],
+        setLoaded({
+          id,
+          state: {
+            phase: 'ready',
+            node: json.node ?? null,
+            parseError: json.parseError ?? null,
+            inbound: json.inbound ?? [],
+          },
         });
       })
-      .catch(() => alive && setState({ phase: 'error' }));
+      .catch(() => alive && setLoaded({ id, state: { phase: 'error' } }));
     return () => {
       alive = false;
     };
   }, [id]);
 
-  return state;
+  return loaded.id === id ? loaded.state : { phase: 'loading' };
 }
 
 /** Lazy-loads one node's BODY + inbound edges on selection, rendered as the full detail doc. */

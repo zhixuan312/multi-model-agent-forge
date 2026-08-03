@@ -3,9 +3,8 @@
 import { History } from 'lucide-react';
 import { EmptyState, Eyebrow, Mono } from '@/components/ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { opStyle } from '@/components/forge/journal/palette';
+import { OpBadge } from '@/components/forge/journal/StatusBadge';
 import type { LogEntry } from '@/journal/types';
-import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format-date';
 
 /**
@@ -61,41 +60,31 @@ export function WriteLogView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map(({ e, i }) => {
-            const s = opStyle(e.op);
-            return (
-              <TableRow
-                key={`${e.id}-${i}`}
-                data-testid={`log-row-${i}`}
-                data-title={e.title}
-                className="border-b-0 [&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
-              >
-                <TableCell className="px-0 pr-3 whitespace-nowrap">
-                  <Mono className="!text-xs text-ink-soft">{formatDateTime(e.timestamp)}</Mono>
-                </TableCell>
-                <TableCell className="px-0 pr-3">
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px] font-medium',
-                      s.cls,
-                    )}
-                  >
-                    {e.op}
-                  </span>
-                </TableCell>
-                <TableCell className="px-0 pr-3">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate(e.id)}
-                    className="font-mono text-xs text-accent hover:underline"
-                  >
-                    {e.id}
-                  </button>
-                </TableCell>
-                <TableCell className="px-0 text-ink">{e.title}</TableCell>
-              </TableRow>
-            );
-          })}
+          {rows.map(({ e, i }) => (
+            <TableRow
+              key={`${e.id}-${i}`}
+              data-testid={`log-row-${i}`}
+              data-title={e.title}
+              className="border-b-0 [&>td]:border-b [&>td]:border-line/60 [&>td]:py-2"
+            >
+              <TableCell className="px-0 pr-3 whitespace-nowrap">
+                <Mono className="!text-xs text-ink-soft">{formatDateTime(e.timestamp)}</Mono>
+              </TableCell>
+              <TableCell className="px-0 pr-3">
+                <OpBadge op={e.op} />
+              </TableCell>
+              <TableCell className="px-0 pr-3">
+                <button
+                  type="button"
+                  onClick={() => onNavigate(e.id)}
+                  className="focus-ring rounded-[var(--r-sm)] font-mono text-xs text-accent hover:underline"
+                >
+                  {e.id}
+                </button>
+              </TableCell>
+              <TableCell className="px-0 text-ink">{e.title}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </div>

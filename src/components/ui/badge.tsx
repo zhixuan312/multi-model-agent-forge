@@ -7,8 +7,8 @@ import { cn } from '@/lib/cn';
  * background with its strong foreground. `dot` prefixes a small status dot;
  * `icon` slots a leading lucide icon. Keep these terse — one or two words.
  *
- * NB: the `steel` variant uses the cool-world raw vars directly because the
- * foundation exposes no `--color-steel*` theme utilities (see token gaps).
+ * The `steel` variant used the raw cool-world vars directly, with a note explaining
+ * that `--color-steel*` theme utilities did not exist. They do now.
  */
 const badgeVariants = cva(
   'inline-flex select-none items-center gap-1.5 whitespace-nowrap rounded-full font-medium leading-none',
@@ -20,7 +20,7 @@ const badgeVariants = cva(
         sage: 'bg-sage-tint text-[var(--sage-deep)]',
         amber: 'bg-amber-tint text-[var(--amber)]',
         rose: 'bg-rose-tint text-[var(--rose)]',
-        steel: 'bg-[var(--frost)] text-[var(--steel-deep)]',
+        steel: 'bg-[var(--frost)] text-steel-deep',
       },
       size: {
         sm: 'h-5 px-2 text-[0.6875rem] [&_svg]:size-3',
@@ -37,7 +37,7 @@ const dotColor: Record<NonNullable<VariantProps<typeof badgeVariants>['variant']
   sage: 'bg-[var(--sage)]',
   amber: 'bg-[var(--amber)]',
   rose: 'bg-[var(--rose)]',
-  steel: 'bg-[var(--steel)]',
+  steel: 'bg-steel',
 };
 
 export interface BadgeProps

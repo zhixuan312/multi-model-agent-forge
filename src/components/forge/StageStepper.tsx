@@ -19,7 +19,7 @@ export interface StageStepperProps {
   currentStage: StageKind | null;
   lockedStages?: StageKind[];
   condensed?: boolean;
-  subSteps?: { key: string; label: string }[];
+  subSteps?: readonly { key: string; label: string }[];
   /** Per-phase status for the viewed stage (drives skipped/done sub-phase rendering). */
   subStepStatuses?: Record<string, string>;
   activeSubPhase?: string;
@@ -176,7 +176,7 @@ function SubPhaseTrack({
   statuses,
   onClick,
 }: {
-  steps: { key: string; label: string }[];
+  steps: readonly { key: string; label: string }[];
   active?: string;
   furthest?: string | null;
   /** Per-phase status from the project details. When present it is authoritative —

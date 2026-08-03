@@ -8,6 +8,7 @@ import { requireProjectAccess } from '@/projects/require-project-access';
 import { groupTasksByRepo, listRemoteBranches } from '@/build/execute-core';
 import { ExecuteStageClient, type RepoTerminalResult } from '@/components/forge/ExecuteStageClient';
 import { validateDetails } from '@/details/schema';
+import { parseStagePhase } from '@/projects/stage-phases';
 
 export default async function ExecuteStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -88,13 +89,8 @@ export default async function ExecuteStagePage({ params, searchParams }: { param
   }
 
   // Resolve initial phase from URL > derived
-  const validPhases = ['configure', 'implement'] as const;
-  type ExecPhase = typeof validPhases[number];
   const { inferExecutePhase } = await import('@/build/execute-types');
-  const derivedPhase = inferExecutePhase(groups);
-  const initialPhase: ExecPhase | undefined = urlPhase != null && (validPhases as readonly string[]).includes(urlPhase)
-    ? (urlPhase as ExecPhase)
-    : derivedPhase;
+  const initialPhase = parseStagePhase('execute', urlPhase) ?? inferExecutePhase(groups);
 
   return (
     <ExecuteStageClient

@@ -8,6 +8,7 @@ import { loadPlanView } from '@/plan/plan-core';
 import { findInflight } from '@/dispatch/dispatch-helpers';
 import { isVoiceEnabled } from '@/config/connections-core';
 import { PlanStageClient } from '@/components/forge/PlanStageClient';
+import { parseStagePhase } from '@/projects/stage-phases';
 
 export default async function PlanStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ phase?: string }> }) {
   const { id } = await params;
@@ -16,13 +17,10 @@ export default async function PlanStagePage({ params, searchParams }: { params: 
 
   const db = getDb();
 
-  const validPlanPhases = ['refine', 'validate'] as const;
-  type PlanPhase = typeof validPlanPhases[number];
   const { getActivePhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getActivePhase(db, id, 'plan') as PlanPhase | null;
-  const initialPhase: PlanPhase | undefined = phaseParam != null && (validPlanPhases as readonly string[]).includes(phaseParam)
-    ? (phaseParam as PlanPhase)
-    : lastPhase ?? undefined;
+  const initialPhase =
+    parseStagePhase('plan', phaseParam)
+    ?? parseStagePhase('plan', await getActivePhase(db, id, 'plan'));
   const [proj] = await db
     .select({ name: project.name, phase: project.phase })
     .from(project)

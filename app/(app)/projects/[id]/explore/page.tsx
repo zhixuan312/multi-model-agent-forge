@@ -11,6 +11,7 @@ import {
   readProjectRepoOptions,
 } from '@/exploration/explore-core';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
+import { parseStagePhase, stagePhaseKeys } from '@/projects/stage-phases';
 
 /**
  * Exploration stage — brain-dump → editable fan-out → live agent rail →
@@ -51,14 +52,15 @@ export default async function ExploreStagePage({
   const perms = await getStagePermissions(db, id);
 
   const { getActivePhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getActivePhase(db, id, 'exploration') as 'brief' | 'discover' | 'synthesize' | null;
-  const validPhases = ['brief', 'discover', 'synthesize'] as const;
-  const dbFurthestIdx = lastPhase ? validPhases.indexOf(lastPhase) : 0;
-  const urlPhaseIdx = phaseParam && (validPhases as readonly string[]).includes(phaseParam)
-    ? validPhases.indexOf(phaseParam as typeof validPhases[number])
-    : -1;
-  const initialPhase = urlPhaseIdx >= 0 && urlPhaseIdx <= dbFurthestIdx
-    ? (phaseParam as typeof validPhases[number])
+  const phases = stagePhaseKeys('exploration');
+  const lastPhase = parseStagePhase('exploration', await getActivePhase(db, id, 'exploration'));
+  // Unlike its sibling stages, Explore also CLAMPS: a phase further along than the stage
+  // has actually reached is not linkable, so `?phase=synthesize` on a project still in
+  // Brief lands on Brief rather than an empty synthesis panel.
+  const urlPhase = parseStagePhase('exploration', phaseParam);
+  const dbFurthestIdx = lastPhase ? phases.indexOf(lastPhase) : 0;
+  const initialPhase = urlPhase && phases.indexOf(urlPhase) <= dbFurthestIdx
+    ? urlPhase
     : lastPhase ?? undefined;
 
   return (

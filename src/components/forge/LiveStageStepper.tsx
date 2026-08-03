@@ -2,7 +2,8 @@
 
 import { useSelectedLayoutSegment } from 'next/navigation';
 import { StageStepper } from '@/components/forge/StageStepper';
-import { STAGE_SUBSTEPS, stagePhaseStore, useStageSubPhase } from '@/components/forge/stage-substeps';
+import { stagePhaseStore, useStageSubPhase } from '@/components/forge/stage-substeps';
+import { STAGE_PHASES } from '@/projects/stage-phases';
 import type { StageKind, StageStatus } from '@/db/enums';
 import { SEGMENT_TO_STAGE } from '@/projects/stage-route';
 
@@ -40,7 +41,7 @@ export function LiveStageStepper({
       stages={stages}
       currentStage={viewingStage}
       lockedStages={lockedStages}
-      subSteps={STAGE_SUBSTEPS[viewingStage]}
+      subSteps={STAGE_PHASES[viewingStage]}
       subStepStatuses={phaseStatusByStage?.[viewingStage]}
       activeSubPhase={subPhase}
       onSubStepClick={stagePhaseStore.navigate}

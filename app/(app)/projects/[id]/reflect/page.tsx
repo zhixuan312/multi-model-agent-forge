@@ -9,6 +9,7 @@ import { backfillProjectJournalIfNeeded } from '@/journal/project-journal-backfi
 import { JournalStageClient } from '@/components/forge/JournalStageClient';
 import { findInflight } from '@/dispatch/dispatch-helpers';
 import { validateDetails } from '@/details/schema';
+import { parseStagePhase } from '@/projects/stage-phases';
 
 export default async function JournalStagePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ learning?: string; phase?: string }> }) {
   const { id } = await params;
@@ -41,11 +42,18 @@ export default async function JournalStagePage({ params, searchParams }: { param
   const summary = allRecorded ? await loadProjectSummary(db, id) : undefined;
 
   const { getActivePhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getActivePhase(db, id, 'journal') as 'journal' | 'summary' | null;
   // Read once at the top. This awaited `searchParams` twice more here and re-read
   // `.learning` even though it was already destructured above.
-  const phaseParam = activeLearningId ? undefined : (phaseFromUrl as 'journal' | 'summary' | undefined);
-  const initialPhase = phaseParam ?? lastPhase ?? undefined;
+  //
+  // Opening a specific learning PINS the journal view: `activeLearningId` is only read
+  // there (the summary branch returns before it), so any other phase swallows the learning
+  // the link was for. Suppressing just the URL phase — what this did — was not enough,
+  // because both remaining fallbacks (the stage's active phase, and the client's derived
+  // phase) land on `summary` for exactly the finished project whose learnings get linked.
+  const initialPhase = activeLearningId
+    ? 'journal'
+    : parseStagePhase('journal', phaseFromUrl)
+      ?? parseStagePhase('journal', await getActivePhase(db, id, 'journal'));
 
   return (
     <JournalStageClient

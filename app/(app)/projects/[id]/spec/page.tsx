@@ -11,6 +11,7 @@ import { defaultComponentKinds } from '@/spec/components';
 import { SpecStageClient } from '@/components/forge/SpecStageClient';
 import { isVoiceEnabled } from '@/config/connections-core';
 import { findInflight } from '@/dispatch/dispatch-helpers';
+import { parseStagePhase } from '@/projects/stage-phases';
 
 /**
  * Spec stage (Spec 4 Part A) — the per-section dynamic Q&A authoring slice. RSC
@@ -31,13 +32,10 @@ export default async function SpecStagePage({
 
   const db = getDb();
 
-  const validSpecPhases = ['outline', 'craft', 'finalize'] as const;
-  type SpecPhase = typeof validSpecPhases[number];
   const { getActivePhase } = await import('@/projects/phase-tracker');
-  const lastPhase = await getActivePhase(db, id, 'spec') as SpecPhase | null;
-  const initialPhase: SpecPhase | undefined = phaseParam != null && (validSpecPhases as readonly string[]).includes(phaseParam)
-    ? (phaseParam as SpecPhase)
-    : lastPhase ?? undefined;
+  const initialPhase =
+    parseStagePhase('spec', phaseParam)
+    ?? parseStagePhase('spec', await getActivePhase(db, id, 'spec'));
   const [proj] = await db
     .select({ name: project.name, intentMd: project.intentMd, phase: project.phase })
     .from(project)

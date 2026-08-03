@@ -2,44 +2,15 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { StageKind } from '@/db/enums';
 
 /**
- * The sub-phases each stage advances through, surfaced inline in the (expandable)
- * StageStepper so "you are here" reads at both levels — stage and sub-phase. The
- * active stage comes from the route; the active *sub-phase* is live page state, so
- * the page publishes it to this tiny external store and the stepper subscribes.
+ * The stepper's live sub-phase channel. The sub-phase LIST lives in
+ * `@/projects/stage-phases` (`STAGE_PHASES`) — it is also what each stage page validates
+ * its `?phase=` against, and it was spelled out here as well until the two roles were
+ * single-sourced. This module owns only the *live* half: the active stage comes from the
+ * route, but the active sub-phase is page state, so the page publishes it to this tiny
+ * external store and the stepper subscribes.
  */
-// Every stage marches the same three-beat rhythm — Frame → Work → Seal — and
-// every phase is a single imperative verb, harmonised across all six stages.
-export const STAGE_SUBSTEPS: Partial<Record<StageKind, { key: string; label: string }[]>> = {
-  exploration: [
-    { key: 'brief', label: 'Brief' },
-    { key: 'discover', label: 'Discover' },
-    { key: 'synthesize', label: 'Synthesize' },
-  ],
-  spec: [
-    { key: 'outline', label: 'Outline' },
-    { key: 'craft', label: 'Craft' },
-    { key: 'finalize', label: 'Finalize' },
-  ],
-  plan: [
-    { key: 'refine', label: 'Refine' },
-    { key: 'validate', label: 'Validate' },
-  ],
-  execute: [
-    { key: 'configure', label: 'Configure' },
-    { key: 'implement', label: 'Implement' },
-  ],
-  review: [
-    { key: 'review', label: 'Review' },
-  ],
-  journal: [
-    { key: 'journal', label: 'Journal' },
-    { key: 'summary', label: 'Summary' },
-  ],
-};
-
 let current = '';
 let navHandler: ((key: string) => void) | null = null;
 const listeners = new Set<() => void>();

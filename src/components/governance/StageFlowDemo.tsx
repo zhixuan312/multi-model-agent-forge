@@ -6,7 +6,7 @@ import { Button } from '@/components/ui';
 import { StageStepper } from '@/components/forge/StageStepper';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { AutomationBar } from '@/components/forge/AutomationBar';
-import { STAGE_SUBSTEPS } from '@/components/forge/stage-substeps';
+import { STAGE_PHASES } from '@/projects/stage-phases';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { stagePermissionsFrom, permKeyFor } from '@/projects/stage-freeze';
 import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
@@ -27,7 +27,7 @@ import type { StageKind, StageStatus, ProjectPhase } from '@/db/enums';
 // Stage order + project phase are the only things the demo states itself; the display
 // labels and the sub-phases come from the SAME constants the real stepper reads, so a
 // change to either shows up here automatically instead of silently drifting.
-const FLOW: { kind: StageKind; label: string; phase: ProjectPhase; phases: { key: string; label: string }[] }[] =
+const FLOW: { kind: StageKind; label: string; phase: ProjectPhase; phases: readonly { key: string; label: string }[] }[] =
   ([
     ['exploration', 'design'],
     ['spec', 'design'],
@@ -39,7 +39,7 @@ const FLOW: { kind: StageKind; label: string; phase: ProjectPhase; phases: { key
     kind,
     label: STAGE_LABEL[kind],
     phase,
-    phases: STAGE_SUBSTEPS[kind] ?? [],
+    phases: STAGE_PHASES[kind],
   }));
 
 const STEPS: { s: number; p: number }[] = FLOW.flatMap((stage, s) => stage.phases.map((_, p) => ({ s, p })));

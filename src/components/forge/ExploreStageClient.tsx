@@ -395,8 +395,12 @@ export function ExploreStageClient(props: ExploreStageClientProps) {
                   variant="primary"
                   className="w-full"
                   onClick={async () => {
-                    if (!hasAnalyzed) { analyze(); }
-                    else if (drafts.length > 0) { run(); }
+                    // AWAIT the work before advancing. Both of these are async and were
+                    // called fire-and-forget, so `advance_phase` raced them — and the
+                    // resolver picks the next phase "from state", which `analyze` (set_brief
+                    // → propose_discover_tasks) and `run` are in the middle of writing.
+                    if (!hasAnalyzed) { await analyze(); }
+                    else if (drafts.length > 0) { await run(); }
                     // Only move the view if the server actually advanced the phase —
                     // a rejected transition must NOT navigate.
                     if (await advancePhase()) setViewOverride('discover');

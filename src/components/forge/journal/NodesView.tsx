@@ -6,17 +6,9 @@ import { StatusBadge } from '@/components/forge/journal/StatusBadge';
 import { STATUS_VALUES } from '@/journal/types';
 import type { NodeSummary } from '@/journal/types';
 import { cn } from '@/lib/cn';
+import { categoryStyle } from '@/components/forge/journal/category-style';
+import { LEARNING_CATEGORIES } from '@/journal/types';
 
-/** Learning categories + their tints (mirrors the journal-stage chips). */
-const CATEGORIES = ['decision', 'design', 'behavior', 'process', 'knowledge', 'style'] as const;
-const CAT_STYLE: Record<string, string> = {
-  decision: 'bg-accent-tint text-accent',
-  design: 'bg-[var(--frost)] text-[var(--steel)]',
-  behavior: 'bg-sage-tint text-[var(--sage-deep)]',
-  process: 'bg-amber-tint text-[var(--amber)]',
-  knowledge: 'bg-rose-tint text-[var(--rose)]',
-  style: 'bg-surface-2 text-ink-soft',
-};
 
 /**
  * The Nodes index column (Spec 6). A searchable/filterable/sortable list of node
@@ -73,7 +65,7 @@ export function NodesView({
         />
         {/* Category — the primary filter axis, always visible. */}
         <div className="flex flex-wrap items-center gap-1">
-          {(['All', ...CATEGORIES] as const).map((c) => (
+          {(['All', ...LEARNING_CATEGORIES] as const).map((c) => (
             <button
               key={c}
               type="button"
@@ -84,7 +76,7 @@ export function NodesView({
                 categoryFilter === c
                   ? c === 'All'
                     ? 'border-accent bg-accent-tint text-accent-deep'
-                    : cn('border-transparent', CAT_STYLE[c])
+                    : cn('border-transparent', categoryStyle(c))
                   : 'border-line text-ink-soft hover:border-line-strong',
               )}
             >
@@ -160,7 +152,7 @@ export function NodesView({
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-[11px] text-ink-faint">{n.id}</span>
                 {n.type ? (
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', CAT_STYLE[n.type])}>
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', categoryStyle(n.type))}>
                     {n.type}
                   </span>
                 ) : null}

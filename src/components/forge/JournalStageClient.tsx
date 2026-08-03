@@ -34,6 +34,7 @@ import { ProseBlock } from '@/components/patterns/prose-block';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { stagePhaseStore, useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import type { LearningCategory, LearningSource } from '@/journal/types';
+import { categoryStyle } from '@/components/forge/journal/category-style';
 
 const JOURNAL_NOTE = `### Journal — capture team knowledge
 
@@ -70,14 +71,6 @@ export interface JournalStageClientProps {
 
 type LearningStatus = 'proposed' | 'kept' | 'recorded';
 
-const CATEGORY_STYLE: Record<LearningCategory, string> = {
-  decision: 'bg-accent-tint text-accent',
-  design: 'bg-[var(--frost)] text-[var(--steel)]',
-  behavior: 'bg-sage-tint text-[var(--sage-deep)]',
-  process: 'bg-amber-tint text-[var(--amber)]',
-  knowledge: 'bg-rose-tint text-[var(--rose)]',
-  style: 'bg-surface-2 text-ink-soft',
-};
 
 /* ── Main Component ────────────────────────────────────────────── */
 
@@ -420,7 +413,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
               title: l.title,
               meta: (
                 <span className="flex items-center gap-2">
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', CATEGORY_STYLE[l.category])}>{l.category}</span>
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', categoryStyle(l.category))}>{l.category}</span>
                   <span>{l.source}</span>
                 </span>
               ),
@@ -462,7 +455,7 @@ export function JournalStageClient(props: JournalStageClientProps) {
         meta={
           <>
             <Badge variant="neutral" size="sm">Learning {active.num}</Badge>
-            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CATEGORY_STYLE[active.category])}>{active.category}</span>
+            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', categoryStyle(active.category))}>{active.category}</span>
           </>
         }
         title={

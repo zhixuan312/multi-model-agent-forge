@@ -37,8 +37,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const section = await readTaskSection(id, task.title);
   const taskBody = section?.body ?? '';
 
-  const body = (await req.json().catch(() => ({}))) as { message?: string };
-  const userMessage = body.message ?? '';
+  // `as { message?: string }` was a claim, not a check: a numeric `message` reached
+  // `.trim()` and threw, so a malformed body answered 500 instead of 400.
+  const body = (await req.json().catch(() => ({}))) as { message?: unknown };
+  const userMessage = typeof body.message === 'string' ? body.message : '';
   if (!userMessage.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
 
   const spec = await getLatestSpec(id);

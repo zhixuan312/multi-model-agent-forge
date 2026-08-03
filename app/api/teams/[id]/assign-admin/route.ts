@@ -19,8 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id: teamId } = await params;
-  const json = await req.json().catch(() => null);
-  const memberId = json?.memberId as string;
+  // `json?.memberId as string` let a number or object through the truthiness check and
+  // into a uuid comparison, which Postgres answers with an error — a 500 for a bad body.
+  const json = (await req.json().catch(() => null)) as { memberId?: unknown } | null;
+  const memberId = typeof json?.memberId === 'string' ? json.memberId.trim() : '';
 
   if (!memberId) {
     return NextResponse.json({ error: 'memberId required.' }, { status: 400 });

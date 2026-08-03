@@ -15,10 +15,18 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   if (guard instanceof NextResponse) return guard;
   const me = guard.member;
 
-  const body = (await req.json().catch(() => ({}))) as { action?: string };
+  // Validate rather than cast. This read `body.action === 'revoke'` off an
+  // `as { action?: string }` and treated EVERYTHING else as approve — so `{}`, a typo
+  // (`"revokee"`), or a non-string all recorded an approval on the spec finalize gate.
+  // A gate must not approve because a caller misspelled the word for the opposite.
+  const raw = (await req.json().catch(() => ({}))) as { action?: unknown };
+  const action = raw.action === undefined ? 'approve' : raw.action;
+  if (action !== 'approve' && action !== 'revoke') {
+    return NextResponse.json({ error: 'Expected { action: "approve" | "revoke" }.' }, { status: 400 });
+  }
   const db = getDb();
 
-  if (body.action === 'revoke') {
+  if (action === 'revoke') {
     await updateDetails(db, id, (d) => {
       d.stages.spec.phases.finalize.approvals = d.stages.spec.phases.finalize.approvals.filter((p) => p !== me.id);
       return d;

@@ -477,27 +477,49 @@ const RENDERS: Record<string, (on: ReadonlySet<string>, activeTab?: string) => R
           </Select>
         </Toolbar>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {[{ t: 'First option', sel: true }, { t: 'Second option', sel: false }, { t: 'Third option', sel: false }].map((o) => (
-          <SelectableTile
-            key={o.t}
-            selected={o.sel}
-            icon={on.has('icon') ? <Square className="size-4" /> : undefined}
-            title={o.t}
-            meta={
-              on.has('meta') ? (
-                <div className="flex gap-1">
-                  <Badge variant="neutral" size="sm">tag</Badge>
-                  <Badge variant="neutral" size="sm">tag</Badge>
-                </div>
-              ) : undefined
-            }
-          />
-        ))}
-      </div>
+      <SelectableTileGrid on={on} />
     </div>
   ),
 };
+
+/**
+ * The tile grid, wired to throwaway state. It was static — `selected` hardcoded per tile and
+ * no `onClick` — so `SelectableTile`'s `aria-pressed` button announced a toggle that did
+ * nothing when clicked, and the affordance the pattern exists for (picking a subset) could
+ * not be seen. Every other interactive preview in this file holds local state for exactly
+ * this reason; this one was the exception.
+ */
+function SelectableTileGrid({ on }: { on: ReadonlySet<string> }) {
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set(['First option']));
+  const toggle = (t: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      return next;
+    });
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {['First option', 'Second option', 'Third option'].map((t) => (
+        <SelectableTile
+          key={t}
+          selected={picked.has(t)}
+          onClick={() => toggle(t)}
+          icon={on.has('icon') ? <Square className="size-4" /> : undefined}
+          title={t}
+          meta={
+            on.has('meta') ? (
+              <div className="flex gap-1">
+                <Badge variant="neutral" size="sm">tag</Badge>
+                <Badge variant="neutral" size="sm">tag</Badge>
+              </div>
+            ) : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+}
 
 /** Renders one Left-panel pattern, by id — reusing the shared component with demo content. */
 export function LeftPanelVariant({ id, enabled, activeTab }: { id: string; enabled?: ReadonlySet<string>; activeTab?: string }) {

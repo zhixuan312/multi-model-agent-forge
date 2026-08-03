@@ -87,13 +87,16 @@ export function ProjectFilterBar({
       <Toolbar
         actions={
           <div
-            role="group"
+            // Two mutually exclusive options, not two independent toggles: `aria-pressed`
+            // announced each as its own on/off button and never "1 of 2".
+            role="radiogroup"
             aria-label="Filter by ownership"
             className="flex overflow-hidden rounded-[var(--r)] border border-line-strong text-xs"
           >
             <button
               type="button"
-              aria-pressed={mine}
+              role="radio"
+              aria-checked={mine}
               onClick={() => setMine(true)}
               className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
             >
@@ -101,7 +104,8 @@ export function ProjectFilterBar({
             </button>
             <button
               type="button"
-              aria-pressed={!mine}
+              role="radio"
+              aria-checked={!mine}
               onClick={() => setMine(false)}
               className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', !mine ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
             >
@@ -113,13 +117,14 @@ export function ProjectFilterBar({
         <SearchInput label="projects" value={search} onChange={setSearch} className="flex-none" />
         <Separator orientation="vertical" className="h-5" />
         <div
-          role="group"
+          role="radiogroup"
           aria-label="Filter by archive state"
           className="flex overflow-hidden rounded-[var(--r)] border border-line-strong text-xs"
         >
           <button
             type="button"
-            aria-pressed={view === 'active'}
+            role="radio"
+            aria-checked={view === 'active'}
             onClick={() => setView('active')}
             className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', view === 'active' ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
           >
@@ -127,7 +132,8 @@ export function ProjectFilterBar({
           </button>
           <button
             type="button"
-            aria-pressed={view === 'archived'}
+            role="radio"
+            aria-checked={view === 'archived'}
             onClick={() => setView('archived')}
             className={cn('focus-ring px-3 py-1.5 font-medium transition-colors', view === 'archived' ? 'bg-ink text-bg' : 'bg-surface text-ink-soft hover:text-ink')}
           >

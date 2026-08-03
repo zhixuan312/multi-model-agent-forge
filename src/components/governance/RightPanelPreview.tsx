@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Check, GitBranch, Loader2, RotateCcw, Search, Shield } from 'lucide-react';
+import { ArrowRight, Check, GitBranch, Loader2, RotateCcw, Shield } from 'lucide-react';
 import {
   Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Label, Micro, Mono,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -11,6 +11,9 @@ import { RecordList, RecordCard } from '@/components/patterns/record-list';
 import { AuditRoundCard, type Finding } from '@/components/patterns/findings';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { StatusBadge } from '@/components/forge/journal/StatusBadge';
+import { CategoryChip, categoryStyle } from '@/components/forge/journal/category-style';
+import { SearchInput } from '@/components/ui/search-input';
+import { LEARNING_CATEGORIES, type LearningCategory } from '@/journal/types';
 import { cn } from '@/lib/cn';
 import { RIGHT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
 
@@ -256,23 +259,21 @@ function RunListDemo({ on }: { on: ReadonlySet<string> }) {
 
 /* ── Node list (Journal › Nodes) ─────────────────────────────────────────── */
 
-const NODE_CATEGORIES = ['Decision', 'Design', 'Behavior', 'Process', 'Knowledge', 'Style'] as const;
-const NODE_CAT_STYLE: Record<string, string> = {
-  Decision: 'bg-amber-tint text-[var(--amber)]',
-  Design: 'bg-[var(--frost)] text-[var(--steel)]',
-  Behavior: 'bg-accent-tint text-accent-deep',
-  Process: 'bg-sage-tint text-[var(--sage-deep)]',
-  Knowledge: 'bg-surface-2 text-ink-soft',
-  Style: 'bg-surface-2 text-ink-soft',
-};
-interface NodeRow { id: string; type: (typeof NODE_CATEGORIES)[number]; title: string; tags: string[] }
+/**
+ * The taxonomy and tints come from the journal itself. This preview used to carry its own
+ * capitalised copy of both, and the copy had DRIFTED: four of the six categories showed
+ * the wrong colour (decision wore process's amber, behavior wore decision's accent,
+ * process wore behavior's sage, knowledge lost its rose entirely). A design-system
+ * preview that misrepresents the design system is worse than no preview.
+ */
+interface NodeRow { id: string; type: LearningCategory; title: string; tags: string[] }
 const NODE_ROWS: NodeRow[] = [
-  { id: '0001', type: 'Decision', title: 'Guard provider identity at the data layer, not the routes', tags: ['cost-accounting', 'dispatch', 'parser-drops', 'ui', 'config'] },
-  { id: '0002', type: 'Decision', title: 'Guard enum narrowing at the data layer, not the routes', tags: ['cross-tier', 'dx', 'worktrees', 'config', 'recall'] },
-  { id: '0003', type: 'Design', title: 'Treat a derived signal in the journal graph store as part of the control path', tags: ['completion-gating', 'sandbox', 'architecture'] },
-  { id: '0004', type: 'Design', title: 'Make the install writers the single canonical read path', tags: ['schema-version', 'design-system', 'layout'] },
-  { id: '0005', type: 'Decision', title: 'Prefer a one-owner serialization lock over hand-rolled telemetry attribution', tags: ['cross-tier', 'hydration', 'quality', 'graph'] },
-  { id: '0006', type: 'Design', title: 'Strip legacy paths out of the journal viewer', tags: ['refactor', 'journal'] },
+  { id: '0001', type: 'decision', title: 'Guard provider identity at the data layer, not the routes', tags: ['cost-accounting', 'dispatch', 'parser-drops', 'ui', 'config'] },
+  { id: '0002', type: 'decision', title: 'Guard enum narrowing at the data layer, not the routes', tags: ['cross-tier', 'dx', 'worktrees', 'config', 'recall'] },
+  { id: '0003', type: 'design', title: 'Treat a derived signal in the journal graph store as part of the control path', tags: ['completion-gating', 'sandbox', 'architecture'] },
+  { id: '0004', type: 'design', title: 'Make the install writers the single canonical read path', tags: ['schema-version', 'design-system', 'layout'] },
+  { id: '0005', type: 'decision', title: 'Prefer a one-owner serialization lock over hand-rolled telemetry attribution', tags: ['cross-tier', 'hydration', 'quality', 'graph'] },
+  { id: '0006', type: 'design', title: 'Strip legacy paths out of the journal viewer', tags: ['refactor', 'journal'] },
 ];
 
 /** Interactive Node-list panel (journal Nodes index): record action · search · category
@@ -305,29 +306,21 @@ function NodeListDemo({ on }: { on: ReadonlySet<string> }) {
         toolbar={
           <div className="flex flex-col gap-2">
             {on.has('search') ? (
-              <div className="relative">
-                <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search title or tags…"
-                  aria-label="Search nodes"
-                  className="w-full rounded-[var(--r-sm)] border border-line bg-surface-2 py-1.5 pl-8 pr-2 text-sm text-ink outline-none focus:border-accent"
-                />
-              </div>
+              <SearchInput label="title or tags" value={q} onChange={setQ} className="min-w-0 flex-none" />
             ) : null}
             {on.has('categoryChips') ? (
-              <div className="flex flex-wrap items-center gap-1">
-                {(['All', ...NODE_CATEGORIES] as const).map((c) => (
+              <div role="radiogroup" aria-label="Filter by category" className="flex flex-wrap items-center gap-1">
+                {(['All', ...LEARNING_CATEGORIES] as const).map((c) => (
                   <button
                     key={c}
                     type="button"
+                    role="radio"
                     onClick={() => setCat(c)}
-                    aria-pressed={cat === c}
+                    aria-checked={cat === c}
                     className={cn(
-                      'rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px]',
+                      'rounded-[var(--r-sm)] border px-1.5 py-0.5 text-[11px] capitalize',
                       cat === c
-                        ? c === 'All' ? 'border-accent bg-accent-tint text-accent-deep' : cn('border-transparent', NODE_CAT_STYLE[c])
+                        ? c === 'All' ? 'border-accent bg-accent-tint text-accent-deep' : cn('border-transparent', categoryStyle(c))
                         : 'border-line text-ink-soft hover:border-line-strong',
                     )}
                   >
@@ -359,7 +352,7 @@ function NodeListDemo({ on }: { on: ReadonlySet<string> }) {
             chips={
               <>
                 <span className="font-mono text-[11px] text-ink-faint">{n.id}</span>
-                <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', NODE_CAT_STYLE[n.type])}>{n.type}</span>
+                <CategoryChip category={n.type} size="sm" />
                 <StatusBadge status="adopted" />
               </>
             }

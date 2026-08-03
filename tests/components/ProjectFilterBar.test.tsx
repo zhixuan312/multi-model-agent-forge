@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ProjectFilterBar, filterProjects } from '@/components/forge/ProjectFilterBar';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 
@@ -75,10 +75,11 @@ describe('ProjectFilterBar (component)', () => {
   it('renders keyboard-operable, labelled controls exposing pressed state', () => {
     render(<ProjectFilterBar activeProjects={projects} archivedProjects={archived} />);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Active 4' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Archived 1' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Mine' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'All team' })).toHaveAttribute('aria-pressed', 'true');
+    // Radios, not toggles: each pair is single-select, so exactly one is checked.
+    expect(screen.getByRole('radio', { name: 'Active 4' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Archived 1' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('radio', { name: 'Mine' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('radio', { name: 'All team' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('has no phase chips (phase filtering was removed)', () => {
@@ -96,14 +97,32 @@ describe('ProjectFilterBar (component)', () => {
     expect(screen.getByText('Foo Bar')).toBeInTheDocument();
   });
 
-  it('Active|Archived toggle swaps the rendered set and pressed state', () => {
+  it('Active|Archived swaps the rendered set and moves the checked radio', () => {
     render(<ProjectFilterBar activeProjects={projects} archivedProjects={archived} />);
     // default: active set
     expect(screen.getAllByTestId(/project-card-/)).toHaveLength(4);
-    fireEvent.click(screen.getByRole('button', { name: 'Archived 1' }));
-    expect(screen.getByRole('button', { name: 'Archived 1' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Active 4' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(screen.getByRole('radio', { name: 'Archived 1' }));
+    expect(screen.getByRole('radio', { name: 'Archived 1' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Active 4' })).toHaveAttribute('aria-checked', 'false');
     expect(screen.getAllByTestId(/project-card-/)).toHaveLength(1);
     expect(screen.getByText('Retired thing')).toBeInTheDocument();
+  });
+
+  /**
+   * Each pair replaces the selection; only the "Needs you" pill is a real independent
+   * toggle. They were all `aria-pressed`, so a screen reader heard four unrelated on/off
+   * buttons instead of two either/or choices.
+   */
+  it('models the exclusive pairs as radiogroups and keeps the one real toggle a toggle', () => {
+    render(<ProjectFilterBar activeProjects={projects} archivedProjects={archived} />);
+    for (const name of ['Filter by ownership', 'Filter by archive state']) {
+      const group = within(screen.getByRole('radiogroup', { name }));
+      expect(group.getAllByRole('radio')).toHaveLength(2);
+      expect(group.getAllByRole('radio').filter((r) => r.getAttribute('aria-checked') === 'true')).toHaveLength(1);
+    }
+    // The ownership/archive controls must no longer claim toggle semantics.
+    for (const name of ['Mine', 'All team', 'Active 4', 'Archived 1']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
   });
 });

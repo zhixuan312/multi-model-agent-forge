@@ -90,25 +90,42 @@ export function DataTable<TData, TValue>({
                   const sortable = h.column.getCanSort();
                   const sorted = h.column.getIsSorted();
                   const w = h.column.columnDef.size;
+                  const label = (
+                    <span className="inline-flex items-center gap-1">
+                      {flexRender(h.column.columnDef.header, h.getContext())}
+                      {sortable ? (
+                        sorted === 'asc' ? (
+                          <ChevronUp className="size-3" aria-hidden />
+                        ) : sorted === 'desc' ? (
+                          <ChevronDown className="size-3" aria-hidden />
+                        ) : (
+                          <ChevronsUpDown className="size-3 opacity-40" aria-hidden />
+                        )
+                      ) : null}
+                    </span>
+                  );
                   return (
                     <TableHead
                       key={h.id}
                       style={w ? { width: w } : undefined}
-                      className={cn(sortable && 'cursor-pointer select-none')}
-                      onClick={sortable ? h.column.getToggleSortingHandler() : undefined}
+                      // Announce the sort state. Without it the chevron is the only signal,
+                      // and a chevron is not exposed to a screen reader.
+                      aria-sort={sortable ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined}
                     >
-                      <span className="inline-flex items-center gap-1">
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                        {sortable ? (
-                          sorted === 'asc' ? (
-                            <ChevronUp className="size-3" aria-hidden />
-                          ) : sorted === 'desc' ? (
-                            <ChevronDown className="size-3" aria-hidden />
-                          ) : (
-                            <ChevronsUpDown className="size-3 opacity-40" aria-hidden />
-                          )
-                        ) : null}
-                      </span>
+                      {sortable ? (
+                        // A real button, not an onClick on the <th>. The header used to be
+                        // click-only, which made sorting unreachable by keyboard in every
+                        // table in the app — no focus stop, no Enter/Space, no name.
+                        <button
+                          type="button"
+                          onClick={h.column.getToggleSortingHandler()}
+                          className="focus-ring -mx-1 inline-flex cursor-pointer select-none items-center gap-1 rounded-[var(--r-sm)] px-1 text-left font-[inherit] text-[inherit] uppercase tracking-[inherit] text-ink-faint transition-colors hover:text-ink"
+                        >
+                          {label}
+                        </button>
+                      ) : (
+                        label
+                      )}
                     </TableHead>
                   );
                 })}

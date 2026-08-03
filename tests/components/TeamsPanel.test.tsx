@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { TeamsPanel } from '../../app/(app)/settings/org/TeamsPanel';
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
@@ -76,7 +76,10 @@ describe('TeamsPanel', () => {
       return new Response('{}', { status: 200 });
     });
     render(<TeamsPanel initialTeams={teams} />);
-    fireEvent.click(screen.getByRole('button', { name: /members/i }));
+    // Scope to the row: the sortable "Members" COLUMN HEADER is also a button (headers
+    // are keyboard-operable sort controls), so an unscoped query matches both.
+    const row = screen.getAllByTestId('data-row')[0];
+    fireEvent.click(within(row).getByRole('button', { name: /members/i }));
     expect(await screen.findByText('Ada')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /make admin/i }));
     await waitFor(() =>
@@ -97,7 +100,10 @@ describe('TeamsPanel', () => {
       return new Response(JSON.stringify({ error: 'Only an org admin can assign team admins.' }), { status: 403 });
     });
     render(<TeamsPanel initialTeams={teams} />);
-    fireEvent.click(screen.getByRole('button', { name: /members/i }));
+    // Scope to the row: the sortable "Members" COLUMN HEADER is also a button (headers
+    // are keyboard-operable sort controls), so an unscoped query matches both.
+    const row = screen.getAllByTestId('data-row')[0];
+    fireEvent.click(within(row).getByRole('button', { name: /members/i }));
     expect(await screen.findByText('Ada')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /make admin/i }));
     // The error MUST be shown (not a silent revert), and no refresh on failure.

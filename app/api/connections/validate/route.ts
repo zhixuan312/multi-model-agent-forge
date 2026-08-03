@@ -69,7 +69,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       : [null];
     const ref = type === 'git' ? (currentTeam?.gitTokenRef ?? null) : (org?.openaiTranscriptionKeyRef ?? null);
     if (ref) {
-      const secrets = await PostgresSecretStore.create({});
+      // Reuse the handle this block already opened rather than letting the store build
+      // its own — every other call site passes `{ db }`.
+      const secrets = await PostgresSecretStore.create({ db });
       value = (await secrets.get(ref)) ?? '';
     }
   }

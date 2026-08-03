@@ -57,8 +57,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'mma_unavailable', message: 'Could not reach mma.' }, { status: 502 });
   }
 
+  // Assigned, not cast. The zod schema above and `ConfigureProviderRequest` are two
+  // hand-maintained descriptions of one wire shape; `as` was what let them drift — zod
+  // strips unknown keys, so a field added to the interface would be silently dropped here
+  // while TypeScript kept quiet. An assignment makes the compiler check that the parse
+  // output still satisfies the contract.
+  const body: ConfigureProviderRequest = parsed.data;
+
   try {
-    const result = await client.configureProvider(parsed.data as ConfigureProviderRequest);
+    const result = await client.configureProvider(body);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

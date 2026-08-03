@@ -4,6 +4,7 @@ import { getDb } from '@/db/client';
 import { qaMessage } from '@/db/schema/spec';
 import { guardProjectWrite } from '@/auth/guard-project-write';
 import { projectEventBus } from '@/sse/event-bus';
+import { parseQaMessageBody, QA_MESSAGE_MAX_CHARS } from '@/spec/qa-message-body';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
 
@@ -16,8 +17,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const me = guard.member;
 
   const body = (await req.json().catch(() => ({}))) as { bodyMd?: unknown };
-  const bodyMd = typeof body.bodyMd === 'string' ? body.bodyMd : '';
-  if (!bodyMd.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
+  // Length-bounded, not just non-empty: this went into a `text` column and out over SSE
+  // to every connected client with no ceiling at all.
+  const bodyMd = parseQaMessageBody(body.bodyMd);
+  if (bodyMd === null) {
+    return NextResponse.json(
+      { error: `A message must be between 1 and ${QA_MESSAGE_MAX_CHARS} characters.` },
+      { status: 400 },
+    );
+  }
 
   const db = getDb();
 
@@ -30,7 +38,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       projectId: id,
       targetKind: 'spec_component',
       seq: sql<number>`(select coalesce(max(${qaMessage.seq}), 0) + 1 from ${qaMessage} where ${qaMessage.targetId} = ${componentId})`,
-      bodyMd: bodyMd.trim(),
+      bodyMd,
       authorId: me.id,
     })
     .returning({ id: qaMessage.id });
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       sender: 'member',
       authorId: me.id,
       authorName: me.displayName,
-      bodyMd: bodyMd.trim(),
+      bodyMd,
     },
   });
 

@@ -13,10 +13,9 @@
 import { vi } from 'vitest';
 import type { DashboardProject } from '@/dashboard/dashboard-core';
 
+type Artifact = { kind: 'plan' | 'spec' | 'exploration'; version: number };
 const files = vi.hoisted(() => ({
-  readPlanFile: vi.fn(async (_id: string) => null as { version: number; bodyMd: string } | null),
-  readSpecFile: vi.fn(async (_id: string) => null as { version: number; bodyMd: string } | null),
-  readExplorationFile: vi.fn(async (_id: string) => null as { version: number; bodyMd: string } | null),
+  readLatestArtifacts: vi.fn(async (_ids: string[]) => new Map<string, Artifact>()),
 }));
 vi.mock('@/projects/project-files', () => files);
 
@@ -45,15 +44,13 @@ function listItem(over: Partial<{ id: string; phase: string; currentStage: strin
 
 beforeEach(() => {
   for (const f of Object.values(files)) f.mockReset();
-  files.readPlanFile.mockResolvedValue(null);
-  files.readSpecFile.mockResolvedValue(null);
-  files.readExplorationFile.mockResolvedValue(null);
+  files.readLatestArtifacts.mockResolvedValue(new Map());
 });
 
 describe('dashboardProjects — latestArtifact', () => {
   it('reports the artifact’s REAL version, not a literal 1', async () => {
     projects.visibleProjects.mockResolvedValue([listItem()]);
-    files.readSpecFile.mockResolvedValue({ version: 14, bodyMd: '## 01. Context' });
+    files.readLatestArtifacts.mockResolvedValue(new Map([['p1', { kind: 'spec', version: 14 }]]));
     const db = createMockDb({
       'select:project': [{ id: 'p1', details: buildInitialDetails(), ownerId: 'm1' }],
       'select:ops_mma_batch': [],
@@ -64,10 +61,9 @@ describe('dashboardProjects — latestArtifact', () => {
     expect(row!.latestArtifact).toEqual({ kind: 'spec', version: 14 });
   });
 
-  it('prefers the furthest-along artifact and carries ITS version', async () => {
+  it('carries the artifact the file layer picked, in one call for the whole list', async () => {
     projects.visibleProjects.mockResolvedValue([listItem()]);
-    files.readPlanFile.mockResolvedValue({ version: 3, bodyMd: '## Phase one' });
-    files.readSpecFile.mockResolvedValue({ version: 14, bodyMd: 'x' });
+    files.readLatestArtifacts.mockResolvedValue(new Map([['p1', { kind: 'plan', version: 3 }]]));
     const db = createMockDb({
       'select:project': [{ id: 'p1', details: buildInitialDetails(), ownerId: 'm1' }],
       'select:ops_mma_batch': [],
@@ -76,8 +72,9 @@ describe('dashboardProjects — latestArtifact', () => {
 
     const [row] = await dashboardProjects(ACTOR, { db });
     expect(row!.latestArtifact).toEqual({ kind: 'plan', version: 3 });
-    // and it stops looking once it has one — the spec read never happens
-    expect(files.readSpecFile).not.toHaveBeenCalled();
+    // Precedence and the stop-at-the-first-hit rule now live with the files, next to the
+    // one query that resolves every directory — see tests/projects/latest-artifacts.test.ts.
+    expect(files.readLatestArtifacts).toHaveBeenCalledTimes(1);
   });
 });
 

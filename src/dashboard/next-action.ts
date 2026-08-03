@@ -1,4 +1,5 @@
 import type { ProjectPhase, StageKind } from '@/db/enums';
+import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 
 /**
  * The derived "what should I do next?" for a project. A pure function of the
@@ -23,6 +24,22 @@ export interface NextActionInput {
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
+/**
+ * What "continue" means at each stage — the stage's own name, from `STAGE_LABEL`.
+ *
+ * The design branch used to be `currentStage === 'spec' ? 'Continue spec' : 'Continue
+ * exploration'`, and design spans THREE stages — exploration, spec and plan
+ * (`STAGE_PHASE` in `details/write.ts`). A project sitting on the plan stage was told to
+ * continue its exploration: the control tower's one job is to say what to do next, and for
+ * a third of the design phase it pointed two stages backwards.
+ *
+ * Derived rather than listed, so it is total by construction AND says what the stepper
+ * says. Writing the six out here produced a second set of stage nouns — "Continue
+ * exploration" beside a stepper chip reading "Explore" — which is what `STAGE_LABEL` exists
+ * to prevent, and what `single-source-maps` caught the moment the map was written.
+ */
+const continueLabel = (stage: StageKind): string => `Continue ${STAGE_LABEL[stage]}`;
+
 export function deriveNextAction(i: NextActionInput): NextAction {
   // Blockers first — a decision the human owes the flow.
   if (i.awaitingHuman > 0) {
@@ -46,8 +63,8 @@ export function deriveNextAction(i: NextActionInput): NextAction {
     case 'build':
       return { label: 'Build running', tone: 'info' };
     case 'design':
-      return i.currentStage === 'spec'
-        ? { label: 'Continue spec', tone: 'normal' }
-        : { label: 'Continue exploration', tone: 'normal' };
+      // `?? 'exploration'` for a project with no stage yet — the state a freshly created
+      // project is in before its first dispatch.
+      return { label: continueLabel(i.currentStage ?? 'exploration'), tone: 'normal' };
   }
 }

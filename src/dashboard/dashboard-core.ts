@@ -21,7 +21,7 @@ import {
   type ProjectsDeps,
 } from '@/projects/projects-core';
 import { deriveNextAction, type NextAction } from '@/dashboard/next-action';
-import { readExplorationFile, readSpecFile, readPlanFile } from '@/projects/project-files';
+import { readLatestArtifacts } from '@/projects/project-files';
 import { validateDetails } from '@/details/schema';
 
 export interface DashboardCollaborator {
@@ -124,18 +124,16 @@ export async function dashboardProjects(
     } catch { /* skip */ }
   }
 
-  // Latest artifact: furthest-along kind, with its REAL version. Each of these readers
-  // returns `{ version, bodyMd }` and the version used to be discarded for a literal `1`,
-  // so `ProjectCard` printed "Spec v1" for a spec on its fourteenth revision.
-  const artByP = new Map<string, { kind: ArtifactKind; version: number }>();
-  for (const pid of ids) {
-    const plan = await readPlanFile(pid);
-    if (plan) { artByP.set(pid, { kind: 'plan', version: plan.version }); continue; }
-    const spec = await readSpecFile(pid);
-    if (spec) { artByP.set(pid, { kind: 'spec', version: spec.version }); continue; }
-    const exploration = await readExplorationFile(pid);
-    if (exploration) artByP.set(pid, { kind: 'exploration', version: exploration.version });
-  }
+  // Latest artifact: furthest-along kind, with its REAL version. (The version used to be
+  // discarded for a literal `1`, so `ProjectCard` printed "Spec v1" for a spec on its
+  // fourteenth revision.)
+  //
+  // This was a loop of up to three sequential `read*File` calls per project, and EACH of
+  // those resolves the artifact directory with its own `project`⋈`team` query — so the
+  // list cost up to 3N queries plus 3N file reads, in series, directly under a docstring
+  // promising "one query per signal over the scoped id set … never N+1". One query for
+  // every directory, then concurrent reads.
+  const artByP = await readLatestArtifacts(ids, db);
 
   // Collaborators: the members who ACTUALLY participated — details tracks participant
   // member-ids per stage. Union them across stages, drop the owner (shown separately),
@@ -180,10 +178,13 @@ export async function dashboardProjects(
     );
   }
 
-  const DESIGN_STAGES = new Set(['exploration', 'spec', 'plan']);
-
   return base.map((p) => {
-    const inDesign = DESIGN_STAGES.has(p.currentStage ?? '');
+    // `p.phase` IS this: `deriveStageAndPhase` writes stage and phase together from one
+    // `STAGE_PHASE` map, so `phase === 'design'` and "currentStage is one of exploration ·
+    // spec · plan" are the same statement. A local `new Set([...])` here was a fourth
+    // hand-written copy of that mapping, and an untyped one (`Set<string>`, indexed with
+    // `?? ''`), so a renamed stage would have silently stopped matching.
+    const inDesign = p.phase === 'design';
     const awaitingHuman = inDesign ? (awaitingByP.get(p.id) ?? 0) : 0;
     const auditsNeedingFix = inDesign ? (auditByP.get(p.id) ?? 0) : 0;
     return {

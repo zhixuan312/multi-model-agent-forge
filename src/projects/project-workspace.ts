@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 import { team } from '@/db/schema/team';
@@ -29,6 +29,47 @@ export async function resolveProjectWorkspaceRoot(projectId: string, db?: Db): P
   } catch {
     return resolveWorkspaceRoot();
   }
+}
+
+/**
+ * The artifact directories for MANY projects, in ONE query.
+ *
+ * `resolveProjectArtifactDir` resolves a single project by joining `project` to `team`, so
+ * a caller holding N project ids issues N joined queries. The dashboard did exactly that,
+ * up to three times per project (plan, then spec, then exploration) and strictly in series,
+ * under a module docstring promising it "stays O(round-trips), never N+1".
+ *
+ * Same fallback semantics as the singular resolver: a project with no resolvable team root
+ * gets the global workspace root, and an unavailable DB puts EVERY id there rather than
+ * throwing.
+ */
+export async function resolveProjectArtifactDirs(
+  projectIds: string[],
+  db?: Db,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = projectIds.filter((id) => /^[a-z0-9-]+$/i.test(id));
+  if (ids.length === 0) return out;
+
+  const global = resolveWorkspaceRoot();
+  const rootById = new Map<string, string>();
+  try {
+    const database = db ?? getDb();
+    const rows = await database
+      .select({ id: project.id, workspaceRootPath: team.workspaceRootPath })
+      .from(project)
+      .innerJoin(team, eq(project.teamId, team.id))
+      .where(inArray(project.id, ids));
+    for (const row of rows) {
+      if (row.workspaceRootPath) {
+        rootById.set(row.id, resolveTeamWorkspaceRoot({ workspaceRootPath: row.workspaceRootPath }));
+      }
+    }
+  } catch {
+    /* DB unavailable — every id degrades to the global root, as the singular resolver does */
+  }
+  for (const id of ids) out.set(id, join(rootById.get(id) ?? global, '.mma', 'projects', id));
+  return out;
 }
 
 /**

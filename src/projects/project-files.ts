@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { formatTimestamp } from '@/lib/format-date';
 import type { Db } from '@/db/client';
-import { resolveProjectArtifactDir } from '@/projects/project-workspace';
+import { resolveProjectArtifactDir, resolveProjectArtifactDirs } from '@/projects/project-workspace';
 
 /**
  * File-based project artifact storage. Each project's artifacts live under its
@@ -78,6 +78,39 @@ async function writeArtifact(
   const nextVersion = prevVersion + 1;
   await writeFile(filePath, stampFrontmatter(bodyMd, nextVersion), 'utf-8');
   return { filePath, version: nextVersion };
+}
+
+/**
+ * The furthest-along artifact of each project, with its real version — plan, else spec, else
+ * exploration, else absent.
+ *
+ * Lives here rather than at the call site because the whole point is to do it WITHOUT one
+ * dir-resolution query per project: the directories come back in a single query and the file
+ * reads then run concurrently. The dashboard's version of this was three sequential
+ * `read*File` calls per project, each of which resolved the directory with its own joined
+ * query.
+ */
+export async function readLatestArtifacts(
+  projectIds: string[],
+  db?: Db,
+): Promise<Map<string, { kind: 'plan' | 'spec' | 'exploration'; version: number }>> {
+  const dirs = await resolveProjectArtifactDirs(projectIds, db);
+  const ORDER = [
+    ['plan', PLAN_FILE],
+    ['spec', SPEC_FILE],
+    ['exploration', EXPLORATION_FILE],
+  ] as const;
+
+  const entries = await Promise.all(
+    [...dirs].map(async ([projectId, dir]) => {
+      for (const [kind, filename] of ORDER) {
+        const raw = await readFile(join(dir, filename), 'utf-8').catch(() => null);
+        if (raw !== null) return [projectId, { kind, version: parseFrontmatter(raw).version }] as const;
+      }
+      return null;
+    }),
+  );
+  return new Map(entries.filter((e): e is NonNullable<typeof e> => e !== null));
 }
 
 async function artifactFilePath(projectId: string, filename: string, db?: Db): Promise<string> {

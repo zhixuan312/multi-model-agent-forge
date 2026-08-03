@@ -130,8 +130,6 @@ export interface OrgTeamUsageRow {
   costUsd: number;
   savedUsd: number;
   costShareRatio: number;
-  trendRatio: number;
-  sparkline: number[];
 }
 
 export interface OrgInfraBreakdownRow {
@@ -151,12 +149,6 @@ export interface UsagePoint {
   count: number;
 }
 
-export interface TeamSparkline {
-  teamId: string;
-  teamName: string;
-  sparkline: UsagePoint[];
-}
-
 export interface TeamUsageDrilldown {
   teamId: string;
   teamName: string;
@@ -170,7 +162,7 @@ export interface OrgOverviewResult {
   headline: OrgUsageHeadline;
   costByTeam: OrgTeamUsageRow[];
   infraBreakdown: OrgInfraBreakdownRow[];
-  trend: { orgTotal: UsagePoint[]; perTeam: TeamSparkline[] };
+  trend: { orgTotal: UsagePoint[] };
   teamDrilldown: TeamUsageDrilldown;
 }
 
@@ -387,8 +379,6 @@ async function usageOverviewOrg(
       costUsd: row.costUsd,
       savedUsd: row.savedUsd,
       costShareRatio: headline.totalCostUsd > 0 ? row.costUsd / headline.totalCostUsd : 0,
-      trendRatio: 1.0, // Simplified — would require prior period comparison
-      sparkline: [], // Simplified — would require daily bucketing
     });
   }
 
@@ -444,7 +434,7 @@ async function usageOverviewOrg(
     .orderBy(dayBucket);
 
   const orgTotal: UsagePoint[] = trendRows.map((r) => ({ date: r.date, costUsd: r.costUsd, savedUsd: r.savedUsd, count: r.count }));
-  const trend = { orgTotal, perTeam: [] as TeamSparkline[] };
+  const trend = { orgTotal };
 
   headline.trendRatio = trendRatio(orgTotal.map((p) => p.costUsd));
 

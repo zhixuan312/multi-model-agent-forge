@@ -6,6 +6,7 @@ import { member, memberIdentity } from '@/db/schema/identity';
 import { createMemberSchema } from '@/auth/members-core';
 import { hashPassword } from '@/auth/password';
 import { toStoredWorkspacePath, validateTeamWorkspacePath } from '@/git/workspace-root';
+import { isUniqueViolation } from '@/db/errors';
 
 export interface TeamsDeps {
   db?: Db;
@@ -79,9 +80,12 @@ export async function createTeamWithAdmin(
       return { team: t, admin: m };
     });
     return { kind: 'created', team: result.team, admin: result.admin };
-  } catch {
-    // Unique-violation race on the username index → duplicate.
-    return { kind: 'duplicate_username' };
+  } catch (err) {
+    // ONLY a unique violation is a duplicate. Catching everything reported any
+    // transaction failure — a dead connection, a constraint elsewhere — to the org admin
+    // as "that username is taken", sending them to change a username that was fine.
+    if (isUniqueViolation(err)) return { kind: 'duplicate_username' };
+    throw err;
   }
 }
 

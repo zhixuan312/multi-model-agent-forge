@@ -29,16 +29,25 @@ const NAV_IDS = NAV_ITEMS.map((i) => i.id);
  * Fully-interactive Navigator demo (a mini state machine, like StageFlowDemo). Two
  * independent mechanics — matching the real Plan rail:
  *  - click an item → SELECTS it (accent border, one at a time; item 1 selected by default)
- *  - Approve all / Revoke all → bulk APPROVAL (✓ tiles); selection is untouched, so a
- *    selected + approved item shows both the accent border and the green tile
+ *  - Approve all → bulk APPROVAL (✓ tiles); selection is untouched, so a selected + approved
+ *    item shows both the accent border and the green tile
  *  - the advance footer stays disabled until every item is approved
+ *
+ * The header action was "Approve all / Revoke all", toggling back once everything was
+ * approved. The real rail has no Revoke all, deliberately: approvals are MONOTONIC
+ * (`approve_task` is one-way), and `PlanStageClient` records removing exactly that button
+ * because it "did nothing: it re-sent already-approved tasks through a one-way transition".
+ * A catalogue that demonstrates an affordance the product refuses to ship is worse than one
+ * that omits it — somebody builds the next rail from this page. It disables like the real one
+ * once every item is approved; "Reset demo" below the panel is clearly the demo's own control,
+ * outside the pattern, so it cannot be mistaken for part of it.
  */
 function NavigatorDemo({ on }: { on: ReadonlySet<string> }) {
   const [approved, setApproved] = useState<ReadonlySet<string>>(new Set());
   const [activeId, setActiveId] = useState('1');
   const allApproved = approved.size === NAV_IDS.length;
 
-  const toggleAll = () => setApproved(allApproved ? new Set() : new Set(NAV_IDS));
+  const approveAll = () => setApproved(new Set(NAV_IDS));
 
   const meta = (repo: string, files: number) => (
     <>
@@ -71,13 +80,8 @@ function NavigatorDemo({ on }: { on: ReadonlySet<string> }) {
         title="Tasks"
         action={on.has('headerAction')
           ? (
-            <Button
-              size="sm"
-              variant={allApproved ? 'secondary' : 'primary'}
-              leftIcon={allApproved ? <RotateCcw /> : <Check />}
-              onClick={toggleAll}
-            >
-              {allApproved ? 'Revoke all' : 'Approve all'}
+            <Button size="sm" leftIcon={<Check />} onClick={approveAll} disabled={allApproved}>
+              Approve all
             </Button>
           )
           : undefined}
@@ -88,6 +92,19 @@ function NavigatorDemo({ on }: { on: ReadonlySet<string> }) {
           ? <Button className="w-full" rightIcon={<ArrowRight />} disabled={!allApproved}>Continue to Validate</Button>
           : undefined}
       />
+      {/* The demo's own control, deliberately OUTSIDE the panel: the product has no way to
+          un-approve, and this page must not imply one. */}
+      {allApproved ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<RotateCcw />}
+          onClick={() => setApproved(new Set())}
+          className="mt-2"
+        >
+          Reset demo
+        </Button>
+      ) : null}
     </div>
   );
 }

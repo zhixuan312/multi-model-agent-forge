@@ -17,7 +17,7 @@
  * dir (EACCES) → `unreadable`.
  */
 import { realpathSync, promises as fsp } from 'node:fs';
-import { isNodeId } from '@/journal/node-id';
+import { isNodeId, NODE_ID_PATTERN } from '@/journal/node-id';
 import { join, resolve, sep } from 'node:path';
 import type {
   IndexRow,
@@ -86,7 +86,7 @@ function unquote(s: string): string {
 
 /** Best-effort id from a `000X-title.md` filename. */
 function idFromFilename(filename: string): string | null {
-  const m = filename.match(/^(\d{4})-/);
+  const m = filename.match(new RegExp(`^(${NODE_ID_PATTERN})-`));
   return m ? m[1]! : null;
 }
 
@@ -280,7 +280,7 @@ export function parseLogLine(line: string): LogEntry | null {
   if (!t) return null;
   // Fields are whitespace-delimited (2+ spaces in the store); split on runs of
   // whitespace, keeping the title (which may contain single spaces) intact.
-  const m = t.match(/^(\S+)\s+(\S+)\s+(\d{4})\s+(.+)$/);
+  const m = t.match(new RegExp(`^(\\S+)\\s+(\\S+)\\s+(${NODE_ID_PATTERN})\\s+(.+)$`));
   if (!m) return null;
   return { timestamp: m[1]!, op: m[2]!, id: m[3]!, title: m[4]!.trim() };
 }
@@ -382,7 +382,8 @@ async function listNodeFiles(dir: string): Promise<string[]> {
   const nodesDir = join(dir, 'nodes');
   assertInsideJournalDir(dir, nodesDir);
   const entries = await fsp.readdir(nodesDir);
-  return entries.filter((f) => /^\d{4}-.*\.md$/.test(f)).sort();
+  const nodeFile = new RegExp(`^${NODE_ID_PATTERN}-.*\\.md$`);
+  return entries.filter((f) => nodeFile.test(f)).sort();
 }
 
 /** Read every node's full frontmatter (links included) — server-side, for the

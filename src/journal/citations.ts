@@ -16,7 +16,7 @@
  * returns null for anything else so a prose year like `2026` can never phantom-cite.
  * Resolution happens CLIENT-SIDE in RecallView against the in-page index rows.
  */
-import { isNodeId } from '@/journal/node-id';
+import { isNodeId, NODE_ID_PATTERN } from '@/journal/node-id';
 
 /** A row of the in-page node index used to resolve a citation id to a title. */
 export interface IndexLookupRow {
@@ -47,9 +47,9 @@ export interface SourceRow {
 export function extractNodeIdFromCitationFile(file: string): string | null {
   const f = file.trim();
   // nodes/000X-….md (allow an optional leading ./ or backtick wrap already stripped upstream)
-  const pathMatch = f.match(/(?:^|\/)nodes\/(\d{4})-/);
+  const pathMatch = f.match(new RegExp(`(?:^|/)nodes/(${NODE_ID_PATTERN})-`));
   if (pathMatch) return pathMatch[1]!;
-  const bareMatch = f.match(/^nodes\/(\d{4})\.md$/);
+  const bareMatch = f.match(new RegExp(`^nodes/(${NODE_ID_PATTERN})\\.md$`));
   if (bareMatch) return bareMatch[1]!;
   // A bare, EXACT 4-digit id token (the whole field is the id).
   if (isNodeId(f)) return f;

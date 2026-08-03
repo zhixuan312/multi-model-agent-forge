@@ -312,7 +312,7 @@ export async function listMembers(deps: MembersDeps = {}): Promise<MemberListRow
     username: row.username,
     displayName: row.displayName,
     avatarTint: row.avatarTint,
-    isAdmin: row.role === 'team_admin' || row.role === 'org_admin',
+    isAdmin: isAdminRole(row.role),
     createdAt: row.createdAt,
   }));
 }

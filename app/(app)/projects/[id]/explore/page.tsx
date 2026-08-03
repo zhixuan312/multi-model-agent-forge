@@ -12,7 +12,6 @@ import {
   latestExplorationArtifact,
   readProjectRepoOptions,
 } from '@/exploration/explore-core';
-import { findPendingHandlers } from '@/dispatch/dispatch-helpers';
 import { ExploreStageClient } from '@/components/forge/ExploreStageClient';
 
 /**
@@ -51,12 +50,11 @@ export default async function ExploreStagePage({
     .limit(1);
   if (!proj) notFound();
 
-  const [brief, tasks, artifact, repos, pendingHandlers] = await Promise.all([
+  const [brief, tasks, artifact, repos] = await Promise.all([
     latestBrief(id, db),
     readRailTasks(id, db),
     latestExplorationArtifact(id),
     readProjectRepoOptions(id, db),
-    findPendingHandlers(db, id),
   ]);
 
   const voiceEnabled = await isVoiceEnabled({ db });
@@ -86,7 +84,6 @@ export default async function ExploreStagePage({
       voiceEnabled={voiceEnabled}
       readOnly={!perms.explore.canMutate}
       lockedReason={perms.explore.reason}
-      pendingHandlers={pendingHandlers}
       initialPhase={initialPhase}
     />
   );

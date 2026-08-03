@@ -190,22 +190,6 @@ export async function findInflight(
   return row.id;
 }
 
-export async function findPendingHandlers(
-  db: Db,
-  projectId: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ handler: mmaBatch.handler })
-    .from(mmaBatch)
-    .where(
-      and(
-        eq(mmaBatch.projectId, projectId),
-        inArray(mmaBatch.status, ['dispatched', 'running']),
-      ),
-    );
-  return rows.map((r) => r.handler).filter((h): h is string => !!h);
-}
-
 /**
  * Unified MMA dispatch — the ONE function for every MMA call.
  *

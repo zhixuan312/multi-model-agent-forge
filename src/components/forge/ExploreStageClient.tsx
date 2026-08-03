@@ -18,12 +18,6 @@ import {
 } from 'lucide-react';
 import { DocumentShell } from '@/components/patterns/document-shell';
 
-/** Brain-dump ⋅ Tasks. These panels are NOT documents — they are plain Content-Shell panels;
- *  they share the governed TabBar only so the toggle looks identical everywhere. */
-const BRIEF_TABS: readonly TabBarTab[] = [
-  { id: 'input', label: 'Brain-dump' },
-  { id: 'tasks', label: 'Tasks' },
-];
 import { ProseBlock } from '@/components/patterns/prose-block';
 import { ConversationComposer } from '@/components/patterns/conversation';
 import { RailNote } from '@/components/patterns/feature-rail';
@@ -63,6 +57,13 @@ import { cn } from '@/lib/cn';
 import { useMmaDispatch } from '@/hooks/useMmaDispatch';
 import { showToast } from '@/components/ui/toast';
 
+/** Brain-dump ⋅ Tasks. These panels are NOT documents — they are plain Content-Shell panels;
+ *  they share the governed TabBar only so the toggle looks identical everywhere. */
+const BRIEF_TABS: readonly TabBarTab[] = [
+  { id: 'input', label: 'Brain-dump' },
+  { id: 'tasks', label: 'Tasks' },
+];
+
 /**
  * Per-route prompt floor — pulled from the client-safe schema constants.
  *
@@ -93,7 +94,6 @@ interface ExploreStageClientProps {
   readOnly?: boolean;
   /** Why the stage is read-only — shown by AutomationBar. */
   lockedReason?: string;
-  pendingHandlers?: string[];
   initialPhase?: 'brief' | 'discover' | 'synthesize';
 }
 

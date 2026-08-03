@@ -37,7 +37,8 @@ export type LogEventName =
   | 'loop.run_failed'
   | 'loop.recall_failed'
   | 'loop.journal_record_failed'
-  | 'loop.worktree_remove_failed';
+  | 'loop.worktree_remove_failed'
+  | 'explore.proposals_rejected';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 

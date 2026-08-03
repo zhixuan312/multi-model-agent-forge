@@ -2,6 +2,7 @@ import type { Db } from '@/db/client';
 import { ProposalSchema, PROMPT_FLOORS, type ProposedTask } from '@/exploration/schemas';
 import { extractJsonFromEnvelope, registerHandler, type MmaBatchCtx } from '@/dispatch/handler-registry';
 import { updateDetails } from '@/details/write';
+import { logEvent } from '@/observability/log-event';
 
 async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown): Promise<void> {
   const raw = extractJsonFromEnvelope(envelope);
@@ -10,13 +11,28 @@ async function handleExplorePropose(db: Db, ctx: MmaBatchCtx, envelope: unknown)
   const repoIds = new Set(request.repoIds ?? []);
 
   const conformant: ProposedTask[] = [];
+  const rejected: string[] = [];
   for (const t of proposal.tasks) {
-    if (t.kind !== 'investigate' && t.kind !== 'research' && t.kind !== 'journal') continue;
-    if (t.kind === 'investigate' && (!t.targetRepoId || !repoIds.has(t.targetRepoId))) continue;
-    if (t.kind !== 'investigate' && t.targetRepoId != null) continue;
+    const reject = (why: string): void => { rejected.push(`${t.kind ?? 'unknown'}: ${why}`); };
+    if (t.kind !== 'investigate' && t.kind !== 'research' && t.kind !== 'journal') { reject('unknown kind'); continue; }
+    if (t.kind === 'investigate' && (!t.targetRepoId || !repoIds.has(t.targetRepoId))) { reject('investigate without a linked repo'); continue; }
+    if (t.kind !== 'investigate' && t.targetRepoId != null) { reject('non-investigate task named a repo'); continue; }
     const floor = PROMPT_FLOORS[t.kind];
-    if (t.prompt.trim().length < floor) continue;
+    if (t.prompt.trim().length < floor) { reject(`prompt under the ${floor}-char floor`); continue; }
     conformant.push(t);
+  }
+
+  // Dropping a non-conformant proposal is right; dropping it SILENTLY is not. With no
+  // record, "the model proposed nothing" and "everything it proposed was rejected" look
+  // identical — an empty Discover list either way, and no way to tell which.
+  if (rejected.length > 0) {
+    logEvent({
+      event: 'explore.proposals_rejected',
+      level: conformant.length === 0 ? 'warn' : 'info',
+      projectId: ctx.projectId,
+      count: rejected.length,
+      detail: `${conformant.length} kept of ${proposal.tasks.length}; rejected — ${rejected.join('; ')}`,
+    });
   }
 
   if (conformant.length === 0) return;

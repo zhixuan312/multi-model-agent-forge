@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import {
   APP_SHELL_VARIANTS, CONTENT_SHELL_VARIANTS, LEFT_PANEL_VARIANTS,
   RIGHT_PANEL_VARIANTS, STAGE_FLOW_VARIANTS, defaultEnabledAffordances,
@@ -45,4 +45,22 @@ describe('every declared variant actually renders', () => {
       });
     }
   }
+});
+/**
+ * An affordance names the component it is illustrating. The Table's `rowActions`
+ * declared `DropdownMenu` and drew a bare `<button>` — the picture contradicting the
+ * entry printed beside it, in the one surface whose job is to show what conformance
+ * looks like.
+ */
+describe('an affordance preview uses the component it names', () => {
+  it('Table row actions render a real menu trigger, not a bare button', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<LeftPanelVariant id="table" enabled={new Set(['rowActions'])} />);
+
+    const trigger = screen.getAllByRole('button', { name: 'Row actions' })[0]!;
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    await user.click(trigger);
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+  });
 });

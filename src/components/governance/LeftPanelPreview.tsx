@@ -21,6 +21,10 @@ import {
   SelectValue,
   Toolbar,
   SearchInput,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
   toolbarControlWidth,
   Title,
   AvatarPicker,
@@ -112,10 +116,27 @@ function tableColumns(on: ReadonlySet<string>): ColumnDef<TableRowShape>[] {
       id: 'actions',
       size: 56,
       header: '',
+      // The affordance declares `DropdownMenu` as its canonical component, so the preview
+      // must BE one — this was a bare button, i.e. the picture contradicting the entry
+      // beside it. Mirrors ProjectActionsMenu, the real row-actions trigger.
       cell: () => (
-        <button type="button" aria-label="Row actions" className="grid size-7 place-items-center rounded-[var(--r-sm)] text-ink-soft hover:bg-surface-2">
-          <MoreHorizontal className="size-4" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="secondary" size="sm" aria-label="Row actions" className="w-8 px-0">
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" aria-label="Row actions" className="w-44">
+            <DropdownMenuItem onSelect={() => {}}>
+              <Activity />
+              View
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => {}}>
+              <RotateCcw />
+              Reset
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     });
   }

@@ -74,7 +74,9 @@ export function ContentAreaVariant({ id, enabled }: { id: string; enabled?: Read
   return <>{render ? render(on) : null}</>;
 }
 
-/** Overview (the slot default page) — the dashboard shell with metrics + rail on. */
+/** Overview (the slot default page) — the dashboard shell with every affordance on:
+ *  metrics row, right panel, and the stage flow above them, so the page reads as the
+ *  full stack it is assembled from. */
 export function ContentAreaPreview() {
   return <DashboardShell showMetrics showRail showStageFlow />;
 }

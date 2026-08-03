@@ -37,7 +37,11 @@ export interface VariantMeta {
   /** Pages/components that use this pattern (filled for Left panel). */
   consumers?: readonly VariantConsumer[];
   /** The shared canonical component every consumer of this pattern extends from.
-   *  Prescriptive — names the file to converge on, which may not exist yet. */
+   *  Prescriptive — names the file to converge on. It MUST exist: the catalog's whole
+   *  claim is that it describes the codebase, and `tests/governance/registry-paths`
+   *  fails on any path that does not resolve. Write the component first, then point at
+   *  it. (This comment used to say the file "may not exist yet", which the suite has
+   *  never allowed.) */
   canonicalComponent?: string;
   canonicalFilePath?: string;
   /** The fixed set of optional pieces a consumer may toggle on (search, filters…). */
@@ -92,7 +96,7 @@ export const CONTENT_SHELL_VARIANTS: readonly VariantMeta[] = [
       // the governed left-panel component passed into `primary` already is one.
       { id: 'stage-shell', label: 'StageShell (master-detail preset)', filePath: 'src/components/patterns/stage-shell.tsx' },
       { id: 'loops-workspace', label: 'Loops / Workspace', filePath: 'app/(app)/loops/page.tsx' },
-      { id: 'journal', label: 'Journal', filePath: 'src/components/forge/journal/journal-shell.tsx' },
+      { id: 'journal', label: 'Journal', filePath: 'app/(app)/journal/page.tsx' },
       { id: 'stages', label: 'Project stages', filePath: 'src/components/forge/SpecStageClient.tsx' },
     ],
   },
@@ -246,8 +250,8 @@ export const RIGHT_PANEL_VARIANTS: readonly VariantMeta[] = [
     canonicalComponent: 'RecordList + RecordCard',
     canonicalFilePath: 'src/components/patterns/record-list.tsx',
     affordances: [
-      { id: 'search', label: 'Search box', canonicalComponent: 'input', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
-      { id: 'categoryChips', label: 'Category chips', canonicalComponent: 'chip row', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
+      { id: 'search', label: 'Search box', canonicalComponent: 'SearchInput', canonicalFilePath: 'src/components/ui/search-input.tsx', defaultOn: true },
+      { id: 'categoryChips', label: 'Category chips', canonicalComponent: 'CategoryChip', canonicalFilePath: 'src/components/forge/journal/category-style.tsx', defaultOn: true },
       { id: 'statusSort', label: 'Status filter + sort', canonicalComponent: 'toggle + sort', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
       { id: 'tags', label: 'Tag chips', canonicalComponent: 'tag chips', canonicalFilePath: 'src/components/forge/journal/NodesView.tsx', defaultOn: true },
     ],

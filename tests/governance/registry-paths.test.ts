@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GOVERNANCE_REGISTRY, type GovernanceSlotId } from '@/components/governance/registry';
 import {
@@ -106,5 +106,82 @@ describe('governance registry references real files', () => {
     // make both checks above pass while validating nothing.
     expect(registryPaths().length).toBeGreaterThan(20);
     expect(variantPaths().length).toBeGreaterThan(10);
+  });
+});
+/**
+ * A path that exists is not the same as a path that still holds what the catalog says.
+ * Three entries went stale in exactly that way — `search` → "input" in NodesView.tsx and
+ * `categoryChips` → "chip row" in NodesView.tsx (both moved to governed components), and
+ * the Badge slot's two journal deviations after they became one. The file kept existing,
+ * so the existence walk stayed green.
+ *
+ * Precise, unlike a consumer-side check: only entries whose `canonicalComponent` starts
+ * with a PascalCase identifier are examined, and only against a repo file. Prose
+ * canonicals ("chip row", "lucide icon") and external packages ("lucide-react") are
+ * skipped rather than guessed at.
+ */
+/**
+ * (canonicalComponent, canonicalFilePath) pairs worth checking: a leading PascalCase
+ * identifier and a path inside this repo. Prose canonicals and npm packages are skipped.
+ */
+function canonicalPairs(): Array<{ ident: string; path: string; where: string }> {
+  const out: Array<{ ident: string; path: string; where: string }> = [];
+  const add = (component: string | undefined, path: string | undefined, where: string) => {
+    if (!component || !path) return;
+    if (!path.startsWith('src/') && !path.startsWith('app/')) return; // e.g. 'lucide-react'
+    // Prose, not an identifier, when a lowercase WORD follows the first capitalised one:
+    // "Left panel — pattern family", "Application background — .app-bg". Composites keep
+    // working because what follows is punctuation: "Field + Input", "Avatar / AvatarGroup",
+    // "StatusDashboard (metrics row…)".
+    if (/^[A-Z][A-Za-z0-9_]*\s+[a-z]/.test(component)) return;
+    const ident = component.match(/^[A-Z][A-Za-z0-9_]*/)?.[0];
+    if (!ident) return; // prose: 'chip row', 'lucide icon', 'input'
+    out.push({ ident, path, where });
+  };
+  for (const slotId of Object.keys(GOVERNANCE_REGISTRY) as GovernanceSlotId[]) {
+    const e = GOVERNANCE_REGISTRY[slotId];
+    add(e.canonicalComponent, e.canonicalFilePath, `${slotId}.canonical`);
+  }
+  const groups = [
+    ['appShell', APP_SHELL_VARIANTS],
+    ['contentShell', CONTENT_SHELL_VARIANTS],
+    ['leftPanel', LEFT_PANEL_VARIANTS],
+    ['rightPanel', RIGHT_PANEL_VARIANTS],
+    ['stageFlow', STAGE_FLOW_VARIANTS],
+  ] as const;
+  for (const [label, variants] of groups) {
+    for (const v of variants) {
+      add(v.canonicalComponent, v.canonicalFilePath, `${label}/${v.id}.canonical`);
+      for (const a of v.affordances ?? []) {
+        add(a.canonicalComponent, a.canonicalFilePath, `${label}/${v.id}.affordances[${a.id}]`);
+      }
+      for (const t of v.tabs ?? []) {
+        for (const a of t.affordances ?? []) {
+          add(a.canonicalComponent, a.canonicalFilePath, `${label}/${v.id}/${t.id}.affordances[${a.id}]`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+describe('canonical components live where the catalog says', () => {
+  const pairs = canonicalPairs();
+
+  it('found a non-trivial number of checkable canonical pairs', () => {
+    expect(pairs.length).toBeGreaterThan(10);
+  });
+
+  it('every named canonical component is defined in the file it points at', () => {
+    const missing: string[] = [];
+    for (const { ident, path, where } of pairs) {
+      const text = readFileSync(at(path), 'utf8');
+      const defined =
+        new RegExp(`export\\s+(?:const|function|class|interface|type)\\s+${ident}\\b`).test(text) ||
+        new RegExp(`export\\s*\\{[^}]*\\b${ident}\\b`).test(text) ||
+        new RegExp(`export\\s+const\\s+${ident}\\s*[:=]`).test(text);
+      if (!defined) missing.push(`${where}: ${ident} not defined in ${path}`);
+    }
+    expect(missing, 'point the entry at the file that defines the component').toEqual([]);
   });
 });

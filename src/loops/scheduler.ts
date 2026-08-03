@@ -1,8 +1,7 @@
-import { Cron } from 'croner';
 import { eq, desc } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { loop, loopRun } from '@/db/schema/loop';
-import { isValidCron, LOOP_TIMEZONE } from '@/loops/cron';
+import { nextRuns } from '@/loops/cron';
 import { startLoopRun } from '@/loops/run-now';
 
 /**
@@ -20,11 +19,15 @@ export const DUE_WINDOW_MS = 90_000;
  * `windowMs`) AND newer than the last time we fired it.
  */
 export function isDue(cron: string, lastFiredAt: Date | null, now: Date, windowMs = DUE_WINDOW_MS): boolean {
-  if (!isValidCron(cron)) return false;
   // The first scheduled occurrence strictly after (now - window): if it lands at
   // or before `now`, there's a fresh occurrence in the recent window.
+  //
+  // Via `nextRuns`, not a third `new Cron(...)`: the timezone is part of what a cron
+  // expression MEANS here, and wiring it separately at each construction site is how one
+  // of them ends up interpreting the schedule in a different zone from the preview the
+  // user was shown.
   const windowStart = new Date(now.getTime() - windowMs);
-  const occ = new Cron(cron.trim(), { timezone: LOOP_TIMEZONE }).nextRun(windowStart);
+  const [occ] = nextRuns(cron, 1, windowStart);
   if (!occ) return false;
   if (occ.getTime() > now.getTime()) return false; // next occurrence is in the future → nothing due now (missed = skipped)
   if (lastFiredAt && occ.getTime() <= lastFiredAt.getTime()) return false; // already fired this occurrence
@@ -47,14 +50,16 @@ export async function tickScheduler(deps: TickDeps = {}): Promise<{ fired: strin
   const loops = await db.select().from(loop).where(eq(loop.enabled, true));
   const fired: string[] = [];
   for (const l of loops) {
+    // Cheap filters BEFORE the per-loop query: an event-triggered loop is never fired
+    // here, so reading its latest run every tick is a query for an answer we discard.
+    if (l.mode !== 'recurring') continue;
+    if (!l.cron) continue;
     const [latest] = await db
       .select({ startedAt: loopRun.startedAt, status: loopRun.status })
       .from(loopRun)
       .where(eq(loopRun.loopId, l.id))
       .orderBy(desc(loopRun.startedAt))
       .limit(1);
-    if (l.mode !== 'recurring') continue;
-    if (!l.cron) continue;
     if (latest?.status === 'running') continue;
     if (isDue(l.cron, latest?.startedAt ?? null, now, deps.windowMs)) {
       await starter(l.id, 'schedule', { db });

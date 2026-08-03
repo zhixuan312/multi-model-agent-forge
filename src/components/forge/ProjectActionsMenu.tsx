@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MoreHorizontal, ListTree, ArchiveX, ArchiveRestore } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 
@@ -16,8 +20,13 @@ import { useOptimisticAction } from '@/hooks/useOptimisticAction';
  *
  * Holds: **Activity** (opens the read-only activity overlay, when there is any
  * activity) and owner-only **Archive/Unarchive**. Renders nothing when the actor
- * can do neither. Hand-rolled (useState + click-outside + `role="menu"`) to match
- * the sibling `ExportMenu` and stay trivially testable.
+ * can do neither.
+ *
+ * Built on the governed `DropdownMenu`. It used to be hand-rolled — `useState` plus a
+ * `mousedown` listener plus a bare `role="menu"` div — which gave it click-outside and
+ * nothing else: Escape did not close it, arrow keys did not move between items, focus
+ * never returned to the trigger, and the panel could be clipped by an `overflow` ancestor
+ * because it was not portalled. Radix supplies all of that.
  */
 interface ProjectActionsMenuProps {
   projectId: string;
@@ -34,19 +43,8 @@ export function ProjectActionsMenu({
   archived = false,
   eventCount = 0,
 }: ProjectActionsMenuProps) {
-  const [open, setOpen] = useState(false);
   const router = useRouter();
   const optimistic = useOptimisticAction();
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
 
   const hasActivity = eventCount > 0;
   if (!hasActivity && !canArchive) return null;
@@ -74,63 +72,38 @@ export function ProjectActionsMenu({
     });
   }
 
-  const itemClass =
-    'flex w-full items-center gap-2.5 rounded-[var(--r-md)] px-3 py-2 text-left text-sm text-ink-soft transition-colors hover:bg-bg-sunk hover:text-ink disabled:opacity-50 [&_svg]:size-4 [&_svg]:text-ink-faint';
-
   return (
-    <div ref={ref} className="relative" data-testid="project-actions-root">
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Project actions"
-        className="w-8 px-0"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <MoreHorizontal />
-      </Button>
-
-      {open ? (
-        <div
-          role="menu"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
           aria-label="Project actions"
-          data-testid="project-actions-menu"
-          className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface p-1.5 shadow-xl"
+          className="w-8 px-0"
+          data-testid="project-actions-root"
         >
-          {hasActivity ? (
-            <button
-              type="button"
-              role="menuitem"
-              className={itemClass}
-              onClick={() => {
-                setOpen(false);
-                automationOverlayStore.view();
-              }}
-            >
-              <ListTree />
-              Activity
-            </button>
-          ) : null}
-          {canArchive ? (
-            <button
-              type="button"
-              role="menuitem"
-              aria-label={archiveLabel}
-              disabled={optimistic.pending}
-              className={cn(itemClass)}
-              onClick={() => {
-                setOpen(false);
-                toggleArchive();
-              }}
-            >
-              {archived ? <ArchiveRestore /> : <ArchiveX />}
-              {archived ? 'Unarchive' : 'Archive'}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" aria-label="Project actions" data-testid="project-actions-menu" className="w-48">
+        {hasActivity ? (
+          <DropdownMenuItem onSelect={() => automationOverlayStore.view()}>
+            <ListTree />
+            Activity
+          </DropdownMenuItem>
+        ) : null}
+        {canArchive ? (
+          <DropdownMenuItem
+            aria-label={archiveLabel}
+            disabled={optimistic.pending}
+            onSelect={toggleArchive}
+          >
+            {archived ? <ArchiveRestore /> : <ArchiveX />}
+            {archived ? 'Unarchive' : 'Archive'}
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

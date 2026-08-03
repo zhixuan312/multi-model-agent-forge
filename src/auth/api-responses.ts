@@ -19,6 +19,10 @@ export function forbidden(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
+/** A write to a project the caller may not touch. 403 (not 404) is deliberate: a WRITE
+ *  caller already knows the project exists, so there is nothing left to hide. */
+export const NOT_A_PROJECT_MEMBER = 'Forbidden';
+
 /** The org admin owns shared infra: connections, providers, teams. */
 export const ORG_ADMIN_REQUIRED = 'Org admin privileges required.';
 /** The team admin owns their own team's config: git token, workspace, roster. */

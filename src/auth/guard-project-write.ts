@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { unauthorized, notFound } from '@/auth/api-responses';
+import { unauthorized, notFound, forbidden, NOT_A_PROJECT_MEMBER } from '@/auth/api-responses';
 import { eq } from 'drizzle-orm';
 import { currentMember } from '@/auth/current-member';
 import type { AuthedMember } from '@/auth/auth-provider';
@@ -52,9 +52,7 @@ export async function guardProjectWrite(
   try {
     await assertProjectReadable(projectId, actor);
   } catch (e) {
-    if (e instanceof ProjectAccessError) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (e instanceof ProjectAccessError) return forbidden(NOT_A_PROJECT_MEMBER);
     throw e;
   }
 
@@ -64,7 +62,7 @@ export async function guardProjectWrite(
       .from(project)
       .where(eq(project.id, projectId))
       .limit(1);
-    if (!row) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+    if (!row) return notFound();
     if (row.phase !== 'design') {
       return NextResponse.json({ error: 'Spec is locked — read-only.' }, { status: 409 });
     }

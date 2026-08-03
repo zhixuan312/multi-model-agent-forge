@@ -7,7 +7,6 @@ import { Plus, Users, ShieldCheck, Pencil, Bot } from 'lucide-react';
 import { responseError } from '@/lib/err';
 import {
   Card,
-  Title,
   Field,
   Input,
   Button,
@@ -15,6 +14,7 @@ import {
   EmptyState,
   Mono,
   DataTable,
+  DataTableHeader,
 } from '@/components/ui';
 
 export interface TeamRow {
@@ -381,20 +381,24 @@ export function TeamsPanel({ initialTeams }: { initialTeams: TeamRow[] }) {
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line p-5">
-        <Title className="!text-lg">Teams</Title>
-        <Button
-          size="sm"
-          variant="secondary"
-          leftIcon={<Plus />}
-          onClick={() => {
-            reset();
-            setOpen((v) => !v);
-          }}
-        >
-          New team
-        </Button>
-      </div>
+      {/* The same header as the other seven tables — this one just has no toolbar, which
+          is why it used to spell its own one-row variant of the shell. */}
+      <DataTableHeader
+        title="Teams"
+        action={
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<Plus />}
+            onClick={() => {
+              reset();
+              setOpen((v) => !v);
+            }}
+          >
+            New team
+          </Button>
+        }
+      />
 
       <DataTable
         fill

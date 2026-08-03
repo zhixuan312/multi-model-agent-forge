@@ -26,6 +26,8 @@ import {
   CardContent,
   CardFooter,
   Badge,
+  Input,
+  Textarea,
 } from '@/components/ui';
 import { DocumentShell } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
@@ -466,10 +468,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
         }
         title={
           editing ? (
-            <input
+            // The governed Input, and a real name. It was a raw <input> restating the
+            // field styles by hand, named only by its placeholder — which vanishes the
+            // moment you type, leaving the control unnamed exactly while it is in use.
+            <Input
+              aria-label="Learning heading"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full rounded-[var(--r)] border border-line bg-surface px-3 py-1.5 text-sm font-semibold text-ink"
+              className="font-semibold"
               placeholder="Learning heading"
             />
           ) : (
@@ -478,11 +484,12 @@ export function JournalStageClient(props: JournalStageClientProps) {
         }
         body={
           editing ? (
-            <textarea
+            <Textarea
+              aria-label="Learning body"
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               rows={12}
-              className="w-full flex-1 resize-none rounded-[var(--r)] border border-line bg-surface px-3 py-2 font-mono text-sm text-ink"
+              className="flex-1 resize-none font-mono"
               placeholder="The learning, in the team's own words — this is what gets recorded to the journal."
             />
           ) : (

@@ -67,3 +67,34 @@ describe('JournalStageClient — removing a learning', () => {
     expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
   });
 });
+
+describe('JournalStageClient — editing a learning', () => {
+  beforeEach(() => transition.mockClear());
+
+  it('names both editors, so they are not identified by a placeholder that vanishes on input', () => {
+    renderStage([learning()]);
+    fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+
+    expect(screen.getByRole('textbox', { name: 'Learning heading' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Learning body' })).toBeInTheDocument();
+  });
+
+  it('cannot save an empty heading or body', () => {
+    renderStage([learning()]);
+    fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Learning heading' }), { target: { value: '  ' } });
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it('saves the trimmed heading and body', () => {
+    renderStage([learning()]);
+    fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Learning heading' }), { target: { value: '  New heading  ' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Learning body' }), { target: { value: '  New body  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(transition).toHaveBeenCalledWith('edit_learning', { rowId: 'l1', heading: 'New heading', body: 'New body' });
+  });
+});

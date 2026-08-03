@@ -44,6 +44,7 @@ vi.mock('@/db/client', async (orig) => ({
 }));
 
 const approve = await import('../../app/api/projects/[id]/spec/approve/route');
+const revoke = await import('../../app/api/projects/[id]/spec/components/[componentId]/revoke/route');
 
 const req = (body: unknown) =>
   new Request('http://x', { method: 'POST', body: JSON.stringify(body) }) as never;
@@ -96,5 +97,33 @@ describe('POST /spec/approve — the action is checked, not assumed', () => {
     guardResult = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     expect((await approve.POST(req({}), ctx)).status).toBe(401);
     expect(updateDetails).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('POST /spec/components/[id]/revoke — an unknown component is not a success', () => {
+  const revokeCtx = (componentId: string) => ({ params: Promise.resolve({ id: 'p1', componentId }) });
+
+  /**
+   * `updateDetails` is mocked to run the mutator against a details object holding ONE
+   * component, so the mutator's own not-found throw is what this exercises.
+   */
+  beforeEach(() => {
+    updateDetails.mockImplementation(async (_db: unknown, _id: string, fn: (d: unknown) => unknown) => {
+      fn({ stages: { spec: { phases: { craft: { components: [{ id: 'ctx', approvals: ['me'] }] } } } } });
+    });
+  });
+
+  it('withdraws the caller’s approval on a real component', async () => {
+    const res = await revoke.POST(req({}), revokeCtx('ctx'));
+    expect(res.status).toBe(200);
+  });
+
+  it('404s an unknown component instead of reporting ok', async () => {
+    // This returned `{ ok: true }`: the mutator's `if (comp)` skipped, details were
+    // rewritten unchanged, and the caller was told their approval had been withdrawn.
+    const res = await revoke.POST(req({}), revokeCtx('no-such-component'));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'That component is not part of this spec.' });
   });
 });

@@ -140,7 +140,13 @@ export function ProjectFilterBar({
             Archived {archivedProjects.length}
           </button>
         </div>
-        {needsCount > 0 ? (
+        {/* Rendered whenever the filter is ON, even at a count of zero — otherwise the
+            control that is hiding everything vanishes while still applying. One click does
+            it: turn the chip on, switch to Archived (where nothing is blocked), and the chip
+            unmounts with `needs` still true, leaving an empty grid whose empty state suggests
+            changing the owner, the archive state or the search term — none of which is the
+            cause, and no way to reach the filter that is. */}
+        {needsCount > 0 || needs ? (
           <button
             type="button"
             aria-pressed={needs}
@@ -163,7 +169,11 @@ export function ProjectFilterBar({
           <EmptyState
             icon={<Search />}
             title={view === 'archived' ? 'No archived projects match' : 'No projects match'}
-            description="Try a different owner, archive state, or search term."
+            description={
+              needs
+                ? 'The "Needs action" filter is on — turn it off to see the rest.'
+                : 'Try a different owner, archive state, or search term.'
+            }
           />
         ) : (
           <Grid min="320px" data-testid="project-grid">

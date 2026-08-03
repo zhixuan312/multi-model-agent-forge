@@ -126,3 +126,36 @@ describe('ProjectFilterBar (component)', () => {
     }
   });
 });
+
+/**
+ * The "Needs action" chip used to render only while `needsCount > 0`. Turn it on, switch to
+ * Archived (where nothing is blocked), and the chip unmounted with the filter STILL APPLYING:
+ * an empty grid, an empty state blaming the owner / archive state / search term, and no
+ * control anywhere to undo the thing actually hiding everything.
+ */
+describe('ProjectFilterBar — the Needs action filter can always be turned off', () => {
+  const blocked = item({ id: 'blk', name: 'Blocked one', awaitingHuman: 1, isMember: true });
+
+  it('keeps the chip while it is applying, even at a count of zero', () => {
+    render(<ProjectFilterBar activeProjects={[blocked]} archivedProjects={archived} />);
+    const chip = screen.getByRole('button', { name: /Needs action/ });
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+
+    // Archived has nothing needing action — the chip must survive to be switched off.
+    fireEvent.click(screen.getByRole('radio', { name: /Archived/ }));
+    const stillThere = screen.getByRole('button', { name: /Needs action/ });
+    expect(stillThere).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(stillThere);
+    expect(screen.getByTestId('project-grid')).toBeInTheDocument();
+  });
+
+  it('names the filter that emptied the grid', () => {
+    render(<ProjectFilterBar activeProjects={[blocked]} archivedProjects={archived} />);
+    fireEvent.click(screen.getByRole('button', { name: /Needs action/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Archived/ }));
+
+    expect(screen.getByText(/"Needs action" filter is on/)).toBeInTheDocument();
+  });
+});

@@ -1,7 +1,10 @@
 /**
- * Operational structured logging (Spec 1 NFR F5/F8/F20) — distinct from the
- * domain `action_log` (Spec 3). Emits one JSON record per security-relevant
- * auth/admin/startup event through a single `logEvent` helper.
+ * Operational structured logging (Spec 1 NFR F5/F8/F20). Emits one JSON record per
+ * security-relevant auth/admin/startup event through a single `logEvent` helper.
+ *
+ * This used to distinguish itself from "the domain `action_log` (Spec 3)". There is no
+ * `action_log` table in this schema and nothing has ever written one; the domain-event
+ * surface is `project_activity`.
  *
  * The password is NEVER part of this record shape and must never be logged.
  */
@@ -38,7 +41,8 @@ export type LogEventName =
   | 'loop.recall_failed'
   | 'loop.journal_record_failed'
   | 'loop.worktree_remove_failed'
-  | 'explore.proposals_rejected';
+  | 'explore.proposals_rejected'
+  | 'explore.synthesis_dispatch_failed';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 

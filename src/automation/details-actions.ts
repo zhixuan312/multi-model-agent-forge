@@ -693,9 +693,8 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const parsed = briefSchema.safeParse({ text: action.data.text });
       if (!parsed.success) throw new InvalidActionInput('Brief must be text of at most 100,000 characters.');
       const text = parsed.data.text;
-      const actorId = (action.data?.actorId as string) ?? FORGE_MEMBER_ID;
       const { deriveSummary } = await import('@/spec/summary');
-      await saveBrief(projectId, text, { id: actorId }, db);
+      await saveBrief(projectId, text, db);
       // The brief IS the intent — persist it verbatim and derive the one-line card
       // summary from it in the same write (deterministic truncation, no LLM). This is
       // the single home for summary generation: it lands the moment the brief is saved.

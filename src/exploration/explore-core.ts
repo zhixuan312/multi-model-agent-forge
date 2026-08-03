@@ -10,6 +10,7 @@ import { getBriefText, getRepos } from '@/details/read';
 import { validateDetails } from '@/details/schema';
 import type { RailTask } from '@/hooks/useProjectEvents';
 import { compareSeverity } from '@/lib/severity';
+import { interpretTerminal } from '@/sse/envelope';
 
 /**
  * Brief persistence + the explore rail/summary reads.
@@ -26,13 +27,14 @@ import { compareSeverity } from '@/lib/severity';
 
 export const briefSchema = z.object({ text: z.string().max(100_000) });
 
-/** Save the brain-dump to details. */
-export async function saveBrief(
-  projectId: string,
-  text: string,
-  actor: { id: string },
-  db: Db = getDb(),
-): Promise<void> {
+/**
+ * Save the brain-dump to details.
+ *
+ * Takes no actor: this and the three task mutators below each declared an
+ * `actor: { id: string }` none of them read, so every caller threaded a member id
+ * into a parameter that went nowhere. There is no audit log for them to write to.
+ */
+export async function saveBrief(projectId: string, text: string, db: Db = getDb()): Promise<void> {
   await setBriefText(db, projectId, text);
 }
 
@@ -75,7 +77,14 @@ export async function readRailTasks(projectId: string, db: Db = getDb()): Promis
 
   return rows.map((r) => {
     const env = (r.result ?? {}) as Record<string, unknown>;
-    const err = null;
+    // `const err = null` used to sit here, so every rail task reported no error even
+    // though the batch's terminal envelope carries one — dispatch_orphaned,
+    // task_not_found, dispatch_failed, handler_error, forge_poll_timeout. The Explore
+    // rail's failed-task pane reads `error?.message ?? 'Unknown error.'`, so that is
+    // what a user saw for all of them. `interpretTerminal` is the one reader of this
+    // shape; it also knows `{kind:'not_applicable'}` is the SUCCESS sentinel, not an
+    // error, which a hand-rolled `env.error` read here would have got wrong.
+    const err = interpretTerminal(r.result).error;
     const output = (env.output ?? {}) as Record<string, unknown>;
     const summary = output.summary;
     let outputMd: string | null = null;
@@ -147,7 +156,13 @@ export async function readProjectRepoOptions(
 /** Per-route prompt floor (re-exported for the editor guard). */
 export const promptFloor = (kind: 'investigate' | 'research' | 'journal'): number => PROMPT_FLOORS[kind];
 
-/** Thrown when a mutation targets a non-`draft` (running/recorded) task. */
+/**
+ * Thrown when a mutation targets a non-`draft` (running/recorded) task.
+ *
+ * `editTask`/`removeTask` used to just `return d` in that case, so the route replied
+ * `{ ok: true }` and the row stayed exactly as it was — the lock reported success
+ * while enforcing nothing, and their `TaskLockedError` import was unreachable.
+ */
 export class TaskLockedError extends Error {
   constructor() {
     super('Only draft tasks can be edited.');
@@ -155,15 +170,34 @@ export class TaskLockedError extends Error {
   }
 }
 
+/** Thrown when a task index names no task (a stale rail, or a hand-made request). */
+export class TaskNotFoundError extends Error {
+  constructor() {
+    super('That task no longer exists.');
+    this.name = 'TaskNotFoundError';
+  }
+}
+
+/**
+ * Thrown when a prompt is below its route's floor. This used to throw
+ * `TaskLockedError`, so a user whose research prompt was too short was told
+ * "Only draft tasks can be edited." — the route surfaces `err.message` verbatim.
+ */
+export class PromptTooShortError extends Error {
+  constructor(kind: keyof typeof PROMPT_FLOORS) {
+    super(`A ${kind} prompt needs at least ${PROMPT_FLOORS[kind]} characters.`);
+    this.name = 'PromptTooShortError';
+  }
+}
+
 /** Add a manual draft task via details. */
 export async function addTask(
   projectId: string,
   input: { kind: 'investigate' | 'research' | 'journal'; targetRepoId?: string | null; prompt: string },
-  actor: { id: string },
   db: Db = getDb(),
 ): Promise<{ id: string }> {
   const prompt = input.prompt.trim();
-  if (prompt.length < PROMPT_FLOORS[input.kind]) throw new TaskLockedError();
+  if (prompt.length < PROMPT_FLOORS[input.kind]) throw new PromptTooShortError(input.kind);
   const { updateDetails } = await import('@/details/write');
   let idx = 0;
   await updateDetails(db, projectId, (d) => {
@@ -185,14 +219,20 @@ export async function editTask(
   projectId: string,
   taskIndex: number,
   patch: { prompt?: string; targetRepoId?: string | null },
-  actor: { id: string },
   db: Db = getDb(),
 ): Promise<void> {
   const { updateDetails } = await import('@/details/write');
   await updateDetails(db, projectId, (d) => {
     const task = d.stages.exploration.phases.discover.tasks[taskIndex];
-    if (!task || task.status !== 'draft') return d;
-    if (patch.prompt !== undefined) task.prompt = patch.prompt.trim();
+    if (!task) throw new TaskNotFoundError();
+    if (task.status !== 'draft') throw new TaskLockedError();
+    if (patch.prompt !== undefined) {
+      const prompt = patch.prompt.trim();
+      // The same floor `addTask` applies. Skipping it here let an edit park a task
+      // below the length its own route will reject at dispatch time.
+      if (prompt.length < PROMPT_FLOORS[task.kind]) throw new PromptTooShortError(task.kind);
+      task.prompt = prompt;
+    }
     if (patch.targetRepoId !== undefined && task.kind === 'investigate') {
       task.repoId = patch.targetRepoId ?? undefined;
     }
@@ -204,13 +244,13 @@ export async function editTask(
 export async function removeTask(
   projectId: string,
   taskIndex: number,
-  actor: { id: string },
   db: Db = getDb(),
 ): Promise<void> {
   const { updateDetails } = await import('@/details/write');
   await updateDetails(db, projectId, (d) => {
     const task = d.stages.exploration.phases.discover.tasks[taskIndex];
-    if (!task || task.status !== 'draft') return d;
+    if (!task) throw new TaskNotFoundError();
+    if (task.status !== 'draft') throw new TaskLockedError();
     d.stages.exploration.phases.discover.tasks.splice(taskIndex, 1);
     return d;
   });

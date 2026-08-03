@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 const { dispatchMma, updateDetails, recordActivity } = vi.hoisted(() => ({
   dispatchMma: vi.fn(async (_opts: Record<string, unknown>) => ({ batchRowId: 'row-1', batchId: 'ext-1' })),
   updateDetails: vi.fn(async (_db: unknown, _pid: string, fn: (d: unknown) => unknown) => fn),
-  recordActivity: vi.fn(async () => {}),
+  recordActivity: vi.fn(async (_input: { kind: string; label: string; eventKey?: string | null }) => {}),
 }));
 
 vi.mock('@/dispatch/dispatch-helpers', () => ({ dispatchMma }));
@@ -37,7 +37,7 @@ function detailsWith(tasks: Array<{ kind: string; prompt: string; repoId?: strin
 const client = {} as never; // unused — dispatchMma is mocked
 const okStat = async () => {};
 
-beforeEach(() => { dispatchMma.mockClear(); updateDetails.mockClear(); dispatchMma.mockResolvedValue({ batchRowId: 'row-1', batchId: 'ext-1' }); });
+beforeEach(() => { dispatchMma.mockClear(); updateDetails.mockClear(); recordActivity.mockClear(); dispatchMma.mockResolvedValue({ batchRowId: 'row-1', batchId: 'ext-1' }); });
 
 describe('dispatchTasks — centralized fan-out (R4)', () => {
   it('writes a discover roll-up row at dispatch time', async () => {
@@ -126,5 +126,41 @@ describe('dispatchTasks — centralized fan-out (R4)', () => {
     expect(dispatchMma).toHaveBeenCalledTimes(1);
     expect(updateDetails).not.toHaveBeenCalled();
     expect(outcomes).toEqual([{ taskId: 'task-0', ok: false, reason: 'dispatch_failed', message: 'MMA dispatch failed.' }]);
+  });
+
+  /**
+   * The one production caller discards the return value, so these outcomes were read
+   * by this file and nothing else: a task that could not start stayed `draft` on the
+   * rail with no explanation anywhere the user can see. The failure has to reach the
+   * project timeline.
+   */
+  it('tells the user when a task could not start, instead of only returning it', async () => {
+    dispatchMma.mockRejectedValueOnce(new Error('HTTP 500'));
+    const d = detailsWith([
+      { kind: 'investigate', prompt: 'boom', repoId: 'repo-1' },
+      { kind: 'journal', prompt: 'prior work' },
+    ]);
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [{ pathOnDisk: '/repo/path' }] });
+
+    await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
+
+    const errorRows = recordActivity.mock.calls
+      .map((c) => c[0])
+      .filter((a) => a.kind === 'error');
+    expect(errorRows).toHaveLength(1);
+    expect(errorRows[0]!.label).toContain('1 of 2 discovery tasks could not start');
+    expect(errorRows[0]!.label).toContain('MMA dispatch failed.');
+    // No eventKey — the idempotency index would collapse a repeated failure into silence.
+    expect(errorRows[0]!.eventKey).toBeUndefined();
+  });
+
+  it('records no failure row when every task dispatches', async () => {
+    const d = detailsWith([{ kind: 'journal', prompt: 'prior work' }]);
+    const db = createMockDb({ 'select:project': [{ details: d, teamId: 'team-1' }], 'select:workspace_repo': [] });
+
+    await dispatchTasks('proj-1', { id: 'm1' }, { db, client, statPath: okStat });
+
+    const kinds = recordActivity.mock.calls.map((c) => c[0].kind);
+    expect(kinds).not.toContain('error');
   });
 });

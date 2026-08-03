@@ -8,6 +8,8 @@ import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { resolveProjectWorkspaceRoot } from '@/projects/project-workspace';
 import { readExplorationSummary } from '@/projects/project-files';
+import { logEvent } from '@/observability/log-event';
+import { errMessage } from '@/lib/err';
 import '@/dispatch/handler-registry';
 
 /**
@@ -58,10 +60,12 @@ export class SynthesisScheduler {
     this.timers.set(projectId, timer);
   }
 
+  /** Test seam: whether a debounce timer is pending (the private state is otherwise unobservable). */
   isArmed(projectId: string): boolean {
     return this.timers.has(projectId);
   }
 
+  /** Cancel the debounce and synthesize now. Used by tests to drive the timer without waiting it out. */
   async flush(projectId: string): Promise<void> {
     const existing = this.timers.get(projectId);
     if (existing) clearTimeout(existing);
@@ -113,11 +117,22 @@ export class SynthesisScheduler {
         },
         actorId: 'system',
       });
-    } catch {
-      // Synthesis dispatch failed — will retry on next bump or boot reconciliation
+    } catch (e) {
+      // Recovery is real but narrow: `bump` only fires on a NEW terminal task event, so
+      // once every task is terminal there is nothing left to re-arm the timer — the
+      // actual retry is `reconcileOnBoot` on the next restart. A user sees the
+      // exploration stage sit at "synthesizing" until then, so this at least has to be
+      // in the log. It was a bare `catch {}`.
+      logEvent({
+        event: 'explore.synthesis_dispatch_failed',
+        level: 'error',
+        projectId,
+        detail: errMessage(e),
+      });
     }
   }
 
+  /** Clear every pending debounce. The test seam that stops a timer leaking across cases. */
   shutdown(): void {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();

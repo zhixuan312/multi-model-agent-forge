@@ -57,7 +57,11 @@ function rollupLabel(tasks: Array<{ kind: 'investigate' | 'research' | 'journal'
 }
 
 export type TaskDispatchOutcome =
-  | { taskId: string; ok: true; batchId: string }
+  // `batchId` is MMA's id for the task, which `dispatchMma` types as optional because
+  // a dispatch can return without one (the `dispatch_orphaned` path). This was
+  // `batchId: string` with a `!` at the push site, so the type promised something the
+  // producer does not.
+  | { taskId: string; ok: true; batchId: string | null }
   | { taskId: string; ok: false; reason: 'cwd_missing' | 'dispatch_failed'; message: string };
 
 export interface DispatchDeps {
@@ -152,26 +156,34 @@ export async function dispatchTasks(
 
   const outcomes: TaskDispatchOutcome[] = [];
 
-  // before the loop — load the triggering member so the roll-up row is actor-aware, and
-  // derive source from the actor (auto driver → Forge/'mma', human → member/'user'), per FR-7.
-  if (drafts.length > 0) {
-    const [rollupActor] = await db
-      .select({ displayName: member.displayName, avatarTint: member.avatarTint })
-      .from(member)
-      .where(eq(member.id, actor.id))
-      .limit(1);
-    await recordActivity({
-      db,
-      projectId,
-      stage: 'exploration',
-      phase: 'discover',
-      label: rollupLabel(drafts),
-      kind: 'done',
-      actor: { id: actor.id, name: rollupActor?.displayName ?? 'Forge', tint: rollupActor?.avatarTint ?? '#9a6b4f' },
-      source: actor.id === FORGE_MEMBER_ID ? 'mma' : 'user',
-      eventKey: `discover-rollup:${projectId}:${discoverTaskSetHash(drafts)}`,
-    });
-  }
+  if (drafts.length === 0) return outcomes;
+
+  // Load the triggering member so both the roll-up and the failure notice below are
+  // actor-aware, and derive source from the actor (auto driver → Forge/'mma', human →
+  // member/'user'), per FR-7.
+  const [rollupActor] = await db
+    .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.id, actor.id))
+    .limit(1);
+  const activityActor = {
+    id: actor.id,
+    name: rollupActor?.displayName ?? 'Forge',
+    tint: rollupActor?.avatarTint ?? '#9a6b4f',
+  };
+  const activitySource = actor.id === FORGE_MEMBER_ID ? 'mma' as const : 'user' as const;
+
+  await recordActivity({
+    db,
+    projectId,
+    stage: 'exploration',
+    phase: 'discover',
+    label: rollupLabel(drafts),
+    kind: 'done',
+    actor: activityActor,
+    source: activitySource,
+    eventKey: `discover-rollup:${projectId}:${discoverTaskSetHash(drafts)}`,
+  });
 
   for (const task of drafts) {
     const route = ROUTE_BY_KIND[task.kind];
@@ -223,18 +235,40 @@ export async function dispatchTasks(
 
     // Link the task + flip to running. The attempt's `batchId` is the batch ROW id —
     // the key the PollManager terminal flip matches (`a.batchId === entry.batchId`).
-    await db.transaction(async (tx) => {
-      await updateDetails(tx as unknown as Db, projectId, (det) => {
-        const t = det.stages.exploration.phases.discover.tasks[task.index];
-        if (t) {
-          t.status = 'running';
-          t.attempts.push({ batchId: batchRowId, status: 'running', at: new Date().toISOString() });
-        }
-        return det;
-      });
+    // No transaction: `updateDetails` is one optimistic read-modify-write with its own
+    // retry loop, so wrapping it bought nothing and cost a `tx as unknown as Db` cast.
+    await updateDetails(db, projectId, (det) => {
+      const t = det.stages.exploration.phases.discover.tasks[task.index];
+      if (t) {
+        t.status = 'running';
+        t.attempts.push({ batchId: batchRowId, status: 'running', at: new Date().toISOString() });
+      }
+      return det;
     });
 
-    outcomes.push({ taskId: task.id, ok: true, batchId: batchId! });
+    outcomes.push({ taskId: task.id, ok: true, batchId: batchId ?? null });
+  }
+
+  // A task that could not be dispatched stays `draft` and its row never appears, so
+  // without this the rail just shows it sitting there. The outcomes below used to be
+  // the only record — and the one production caller discards the return value, so the
+  // whole `TaskDispatchOutcome` type was read by tests alone while a real user got no
+  // signal at all beyond a line in the server log.
+  const failures = outcomes.filter((o): o is Extract<TaskDispatchOutcome, { ok: false }> => !o.ok);
+  if (failures.length > 0) {
+    const detail = failures.map((f) => f.message).join(' · ');
+    await recordActivity({
+      db,
+      projectId,
+      stage: 'exploration',
+      phase: 'discover',
+      label: `${failures.length} of ${drafts.length} discovery tasks could not start — ${detail}`.slice(0, 400),
+      kind: 'error',
+      actor: activityActor,
+      source: activitySource,
+      // No eventKey: every attempt should be visible, and the idempotency index would
+      // collapse a repeat failure into silence.
+    });
   }
 
   return outcomes;

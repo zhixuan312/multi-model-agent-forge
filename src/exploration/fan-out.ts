@@ -3,11 +3,13 @@ import { getDb, type Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
 
 /**
- * Fan-out prompt builder + validation. Builds the propose prompt for async
- * MMA dispatch (`dispatchMma` → `explore-propose` handler). The handler
- * parses the response and inserts `exploration_task` rows.
+ * Fan-out prompt builder. Builds the propose prompt for async MMA dispatch
+ * (`dispatchMma` → `explore-propose` handler). The handler parses the response,
+ * drops any task that fails the per-route rules, and writes the survivors to
+ * `details.stages.exploration.phases.discover.tasks`. It used to say "inserts
+ * `exploration_task` rows" — a table that has never existed in this schema.
  */
-
+import { PROMPT_FLOORS } from '@/exploration/schemas';
 
 const PROPOSE_SYSTEM = `Role: You are a senior technical exploration planner.
 
@@ -20,7 +22,7 @@ Constraints:
 - investigate (2–5 tasks): one focused codebase question per task. Combine related questions. Each MUST name exactly one target_repo_id from the provided subset.
 - research (0–2 tasks): web search for external tech, libraries, or approaches. Skip for internal refactors.
 - journal (1–2 tasks): recall prior team decisions. Always propose at least 1.
-- Each prompt must meet its floor: investigate ≥20 chars, research ≥20 chars, journal ≥10 chars.
+- Each prompt must meet its floor: investigate ≥${PROMPT_FLOORS.investigate} chars, research ≥${PROMPT_FLOORS.research} chars, journal ≥${PROMPT_FLOORS.journal} chars.
 - Each task MUST include a "title": a distinct 3–6 word focus (e.g. "DB connection & config", "data-access seam"). Sibling tasks of the same kind must have clearly different titles — the title is how a reader tells them apart. Do not repeat a repo name in the title.
 - Do not propose tasks for information obvious from the brief itself.
 

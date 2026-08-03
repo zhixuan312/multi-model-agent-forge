@@ -48,8 +48,16 @@ export function TabBar({
             {t.label}
           </button>
         ) : (
+          // Still a `tab`, just not operable. A `role="tablist"` whose children are plain
+          // spans is a tablist with no tabs: a screen reader announces the group and finds
+          // nothing in it, and WHICH tab is current is left to the background colour alone —
+          // the same colour-only state fixed on the findings checkbox, the Visibility control
+          // and the stage-flow preview.
           <span
             key={t.id}
+            role="tab"
+            aria-selected={activeTab === t.id}
+            aria-disabled="true"
             className={cn(
               'rounded-[6px] px-3 py-1 text-xs font-medium',
               activeTab === t.id ? 'bg-surface text-ink shadow-sm' : 'text-ink-faint',

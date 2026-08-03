@@ -12,7 +12,7 @@ import { dispatchMma } from '@/dispatch/dispatch-helpers';
 import { updateDetails } from '@/details/write';
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
-import { logPoll } from '@/observability/poll-log';
+import { logEvent } from '@/observability/log-event';
 import type { DiscoverTaskKind, MmaRoute } from '@/db/enums';
 import { errName } from '@/lib/err';
 
@@ -195,7 +195,7 @@ export async function dispatchTasks(
     try {
       await statPath(cwd);
     } catch {
-      logPoll({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail: 'cwd_missing' });
+      logEvent({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail: 'cwd_missing' });
       outcomes.push({ taskId: task.id, ok: false, reason: 'cwd_missing', message: `cwd not found: ${cwd}` });
       continue;
     }
@@ -228,7 +228,7 @@ export async function dispatchTasks(
       }));
     } catch (err) {
       const detail = err instanceof Error ? err.message.slice(0, 300) : errName(err);
-      logPoll({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail });
+      logEvent({ level: 'error', event: 'dispatch.failure', projectId, taskId: task.id, detail });
       outcomes.push({ taskId: task.id, ok: false, reason: 'dispatch_failed', message: 'MMA dispatch failed.' });
       continue;
     }

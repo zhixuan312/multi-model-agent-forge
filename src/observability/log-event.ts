@@ -1,6 +1,14 @@
 /**
- * Operational structured logging (Spec 1 NFR F5/F8/F20). Emits one JSON record per
- * security-relevant auth/admin/startup event through a single `logEvent` helper.
+ * Operational structured logging (Spec 1 NFR F5/F8/F20). ONE JSON record shape and ONE
+ * `logEvent` helper for every operational event: auth/admin, startup and background workers,
+ * and the MMA dispatch/poll lifecycle.
+ *
+ * The dispatch/poll half used to be `observability/poll-log.ts` — a second module with the
+ * same record shape, the same swappable console sink, the same `set*Sink` restore contract
+ * and its own emit. It also still named each optional field at emit, which is the exact bug
+ * fixed here and written up below: a field added to its record type typechecked cleanly and
+ * was silently dropped. One of the twins got the fix; the other kept the bug. That is what
+ * two implementations of one thing costs.
  *
  * This used to distinguish itself from "the domain `action_log` (Spec 3)". There is no
  * `action_log` table in this schema and nothing has ever written one; the domain-event
@@ -42,7 +50,29 @@ export type LogEventName =
   | 'loop.journal_record_failed'
   | 'loop.worktree_remove_failed'
   | 'explore.proposals_rejected'
-  | 'explore.synthesis_dispatch_failed';
+  | 'explore.synthesis_dispatch_failed'
+  // MMA dispatch + poll lifecycle, and the orchestration calls around it. These lived in a
+  // SECOND module (`observability/poll-log.ts`) with its own identical machinery: the same
+  // record shape, the same swappable sink with the same console routing, the same
+  // `set*Sink` returning a restore fn, and its own emit. Two structured loggers is two
+  // formats an operator has to know and two places a field can go missing.
+  | 'dispatch.failure'
+  | 'poll.retry'
+  | 'poll.timeout'
+  | 'poll.not_found'
+  | 'poll.cancel_requested'
+  | 'task.done'
+  | 'task.failed'
+  | 'task.cancelled'
+  | 'rehydrate'
+  | 'mma.call_error'
+  | 'openai.call_error'
+  | 'propose.failure'
+  | 'synthesize.failure'
+  | 'auto_draft.failure'
+  | 'handler.failed'
+  | 'settle.failed'
+  | 'details.flip_conflict';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -64,6 +94,13 @@ export interface LogRecord {
   repo?: string;
   /** The `loop_run` row a loop event belongs to — the join key back to the run's record. */
   loopRunId?: string;
+  /** The MMA batch a dispatch/poll event belongs to. */
+  batchId?: string;
+  /** The discovery task a fan-out event belongs to. */
+  taskId?: string;
+  /** `poll.retry` carries the attempt index and the computed backoff. */
+  attempt?: number;
+  backoffMs?: number;
 }
 
 export type LogSink = (record: LogRecord) => void;

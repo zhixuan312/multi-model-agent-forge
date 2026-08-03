@@ -11,7 +11,7 @@ import { MmaClient, type MmaClientConfig } from '@/mma/client';
 import { PollManager, backoffMs } from '@/sse/poll-manager';
 import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
-import { setPollLogSink, type PollLogRecord } from '@/observability/poll-log';
+import { setLogSink, type LogRecord } from '@/observability/log-event';
 import { createMockDb, seq } from '../test-utils/mock-db';
 
 const cfg: MmaClientConfig = { baseUrl: 'http://127.0.0.1:7337', token: 't', mainModel: 'm' };
@@ -141,8 +141,8 @@ describe('PollManager', () => {
     const projectId = 'proj-4';
     const mmaBatchId = 'batch-4';
     const taskId = 'task-4';
-    const logs: PollLogRecord[] = [];
-    const restore = setPollLogSink((r) => logs.push(r));
+    const logs: LogRecord[] = [];
+    const restore = setLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
       'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],
@@ -169,8 +169,8 @@ describe('PollManager', () => {
     const mmaBatchId = 'batch-5';
     const taskId = 'task-5';
     const past = new Date(Date.now() - (POLL_HARD_TIMEOUT_MS + 60_000));
-    const logs: PollLogRecord[] = [];
-    const restore = setPollLogSink((r) => logs.push(r));
+    const logs: LogRecord[] = [];
+    const restore = setLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
       'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: past }],
@@ -344,8 +344,8 @@ describe('PollManager', () => {
     const projectId = 'proj-7';
     const mmaBatchId = 'batch-8';
     const taskId = 'task-8';
-    const logs: PollLogRecord[] = [];
-    const restore = setPollLogSink((r) => logs.push(r));
+    const logs: LogRecord[] = [];
+    const restore = setLogSink((r) => logs.push(r));
 
     const mockDb = createMockDb({
       'select:ops_mma_batch': [{ id: mmaBatchId, projectId, status: 'dispatched', createdAt: new Date() }],

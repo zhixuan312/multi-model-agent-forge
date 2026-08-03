@@ -10,7 +10,7 @@ vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningAc
 import type { MmaClient } from '@/mma/client';
 import { PollManager, CANCELLING_HEADLINE } from '@/sse/poll-manager';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
-import { setPollLogSink, type PollLogRecord } from '@/observability/poll-log';
+import { setLogSink, type LogRecord } from '@/observability/log-event';
 import { createMockDb } from '../test-utils/mock-db';
 
 /**
@@ -177,8 +177,8 @@ describe('PollManager — cancelled terminal', () => {
   });
 
   it('does not run the success handler and logs task.cancelled', async () => {
-    const logs: PollLogRecord[] = [];
-    const restore = setPollLogSink((r) => logs.push(r));
+    const logs: LogRecord[] = [];
+    const restore = setLogSink((r) => logs.push(r));
     const db = createMockDb({
       // A handler IS set on the row: the success-handler lookup must still be skipped,
       // because it only runs for a `done` terminal.

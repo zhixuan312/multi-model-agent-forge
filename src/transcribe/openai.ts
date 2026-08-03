@@ -1,7 +1,7 @@
 import { getDb, type Db } from '@/db/client';
 import { connectionSettings } from '@/db/schema/identity';
 import { PostgresSecretStore, type SecretStore } from '@/secrets/secret-store';
-import { logPoll } from '@/observability/poll-log';
+import { logEvent } from '@/observability/log-event';
 import { errName } from '@/lib/err';
 
 /**
@@ -137,14 +137,14 @@ export async function transcribe(
       signal: controller.signal,
     });
   } catch (err) {
-    logPoll({ level: 'error', event: 'openai.call_error', detail: errName(err) });
+    logEvent({ level: 'error', event: 'openai.call_error', detail: errName(err) });
     throw new TranscriptionUpstreamError();
   } finally {
     clearTimeout(timer);
   }
 
   if (!res.ok) {
-    logPoll({ level: 'error', event: 'openai.call_error', detail: `HTTP ${res.status}` });
+    logEvent({ level: 'error', event: 'openai.call_error', detail: `HTTP ${res.status}` });
     throw new TranscriptionUpstreamError();
   }
   const json = (await res.json().catch(() => null)) as { text?: string } | null;

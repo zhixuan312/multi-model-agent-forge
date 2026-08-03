@@ -11,7 +11,7 @@ import {
   type TerminalState,
 } from '@/sse/envelope';
 import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
-import { logPoll } from '@/observability/poll-log';
+import { logEvent } from '@/observability/log-event';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
 import { appendBatchTerminalEvent, buildDiscoverTerminalLabel } from '@/details/project-event-labels';
@@ -199,7 +199,7 @@ export class PollManager {
     }
 
     this.markCancellationRequested(entry);
-    logPoll({
+    logEvent({
       level: 'info',
       event: 'poll.cancel_requested',
       projectId: entry.projectId ?? undefined,
@@ -310,7 +310,7 @@ export class PollManager {
     const attempt = entry.attempt;
     const delay = backoffMs(attempt, this.rand);
     entry.attempt = attempt + 1;
-    logPoll({
+    logEvent({
       level: 'warn',
       event: 'poll.retry',
       projectId: entry.projectId ?? undefined,
@@ -319,7 +319,7 @@ export class PollManager {
       backoffMs: delay,
       detail: errName(err),
     });
-    logPoll({
+    logEvent({
       level: 'error',
       event: 'mma.call_error',
       projectId: entry.projectId ?? undefined,
@@ -394,7 +394,7 @@ export class PollManager {
               return d;
             }, 8);
           } catch (flipErr) {
-            logPoll({ level: 'error', event: 'details.flip_conflict', batchId: entry.mmaBatchId, projectId: entry.projectId, detail: String(flipErr) });
+            logEvent({ level: 'error', event: 'details.flip_conflict', batchId: entry.mmaBatchId, projectId: entry.projectId, detail: String(flipErr) });
           }
         }
 
@@ -424,7 +424,7 @@ export class PollManager {
         }
       });
     } catch (handlerErr) {
-      logPoll({
+      logEvent({
         level: 'error',
         event: 'handler.failed',
         batchId: entry.mmaBatchId,
@@ -528,7 +528,7 @@ export class PollManager {
         });
       }
     } catch (err) {
-      logPoll({
+      logEvent({
         level: 'error',
         event: 'settle.failed',
         projectId: entry.projectId ?? undefined,
@@ -555,7 +555,7 @@ export class PollManager {
       })
       .where(eq(mmaBatch.id, entry.batchId));
     await this.settleAbandonedTerminal(entry);
-    logPoll({
+    logEvent({
       level: 'error',
       event: 'poll.not_found',
       projectId: entry.projectId ?? undefined,
@@ -585,7 +585,7 @@ export class PollManager {
         .where(eq(mmaBatch.id, entry.batchId));
     });
     await this.settleAbandonedTerminal(entry);
-    logPoll({
+    logEvent({
       level: 'error',
       event: 'poll.timeout',
       projectId: entry.projectId ?? undefined,
@@ -597,7 +597,7 @@ export class PollManager {
   }
 
   private emitTerminal(entry: RegisteredBatch, state: TerminalState): void {
-    logPoll({
+    logEvent({
       level: state.status === 'done' ? 'info' : 'warn',
       event: state.status === 'done'
         ? 'task.done'
@@ -697,7 +697,7 @@ export class PollManager {
       });
       n += 1;
     }
-    logPoll({ level: 'info', event: 'rehydrate', detail: `${n} batch(es)` });
+    logEvent({ level: 'info', event: 'rehydrate', detail: `${n} batch(es)` });
     return n;
   }
 

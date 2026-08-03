@@ -3,15 +3,19 @@ import type { MemberRef } from './types';
 /**
  * @-mention resolution — the one implementation.
  *
- * Two surfaces need the same answer to "which member does this `@…` name?": the composer,
- * which turns a submitted message into co-approval participants, and the discussion thread,
- * which highlights the mention in the rendered bubble. They had a regex each, and the two
- * disagreed — the renderer was case-sensitive and had no trailing boundary, so `@bo chen`
- * highlighted nothing that the participant resolver happily resolved, and `@Bobby`
- * highlighted its `@Bo` prefix when a "Bo" was in the pool.
+ * Answers "which member does this `@…` name, and where is it?" for the discussion thread,
+ * which highlights the mention in the rendered bubble.
  *
- * `mentionSpans` is the shared core: it reports WHERE each mention is and WHO it resolves
- * to, which is enough to drive both jobs.
+ * It used to answer that for a second surface too: a `parseMentions` that turned a submitted
+ * message into co-approval participants. Nothing called it. Participation comes from the
+ * explicit Invite picker (`/api/projects/:id/spec/invite`), and @-mentioning a teammate
+ * neither adds them nor notifies them — only `@Forge` (`spec/forge-mention.ts`) carries
+ * behaviour. The docstring here described that wiring as if it existed, which is worse than
+ * silence: it says the feature is covered.
+ *
+ * The rules below still earn their keep — the renderer had its own regex once, and it was
+ * case-sensitive with no trailing boundary, so `@bo chen` highlighted nothing and `@Bobby`
+ * highlighted its `@Bo` prefix when a "Bo" was in the pool.
  *
  * Three rules, applied once here:
  *   - Longest display name wins, so `@Bo Chen` is Bo Chen and never also a shorter `Bo`.
@@ -65,17 +69,3 @@ export function mentionSpans(text: string, pool: MemberRef[]): MentionSpan[] {
   return spans.sort((a, b) => a.start - b.start);
 }
 
-/**
- * The distinct members mentioned in `text`, in the order they first appear. Drives
- * co-approval: mentioning someone adds them as a participant.
- */
-export function parseMentions(text: string, pool: MemberRef[]): MemberRef[] {
-  const seen = new Set<string>();
-  const out: MemberRef[] = [];
-  for (const s of mentionSpans(text, pool)) {
-    if (seen.has(s.member.id)) continue;
-    seen.add(s.member.id);
-    out.push(s.member);
-  }
-  return out;
-}

@@ -3,6 +3,7 @@ import type { Db } from '@/db/client';
 import { repo } from '@/db/schema/workspace';
 import { project } from '@/db/schema/projects';
 import { validateDetails, type Details } from '@/details/schema';
+import type { StageKind } from '@/db/enums';
 import { FORGE_ACTOR } from '@/automation/forge-member';
 import { recordActivity, resolveRunningActivity } from '@/activity/project-activity';
 import { projectEventBus } from '@/sse/event-bus';
@@ -19,7 +20,10 @@ import { projectEventBus } from '@/sse/event-bus';
  * loses its duplicate-dispatch protection. tests/dispatch/handler-event-coverage.test.ts
  * fails if a registered handler has no entry here.
  */
-export const HANDLER_EVENT: Record<string, { stage: string; phase: string; label: string }> = {
+// `stage` is a StageKind, not a string. It reaches `STAGE_LABEL` (via the notification
+// store) and `project_activity.stage`, and a typo used to be invisible at both: the lookup
+// returned undefined, the notification quietly lost its stage, and nothing failed.
+export const HANDLER_EVENT: Record<string, { stage: StageKind; phase: string; label: string }> = {
   'explore-propose':    { stage: 'exploration', phase: 'discover',   label: 'Proposed exploration tasks' },
   'explore-synthesize': { stage: 'exploration', phase: 'synthesize', label: 'Synthesized exploration brief' },
   'spec-auto-draft':    { stage: 'spec',        phase: 'craft',      label: 'Drafted spec' },

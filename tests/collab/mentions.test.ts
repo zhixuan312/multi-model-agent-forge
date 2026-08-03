@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mentionSpans, parseMentions } from '@/collab/mentions';
+import { mentionSpans } from '@/collab/mentions';
 import type { MemberRef } from '@/collab/types';
 
 const bo: MemberRef = { id: 'bo', displayName: 'Bo Chen', avatarTint: '#355a74' };
@@ -7,47 +7,39 @@ const priya: MemberRef = { id: 'priya', displayName: 'Priya Nair', avatarTint: '
 const shortBo: MemberRef = { id: 'bo2', displayName: 'Bo', avatarTint: '#000' };
 const pool = [bo, priya, shortBo];
 
-describe('parseMentions', () => {
+/**
+ * The thread renderer had its own regex once, applying neither rule, so a mention could be
+ * resolved-but-not-highlighted (case) or highlighted-but-not-resolved (prefix).
+ *
+ * These cases came in via a `parseMentions` wrapper that has since been deleted — it had no
+ * production caller, and these tests were the only thing keeping it compiled. They exercise
+ * the real entry point now.
+ */
+describe('mentionSpans — the rules the renderer used to get wrong', () => {
   it('resolves a single @-mention by display name', () => {
-    expect(parseMentions('hey @Priya Nair can you check this', pool).map((m) => m.id)).toEqual(['priya']);
+    expect(mentionSpans('hey @Priya Nair can you check this', pool).map((s) => s.member.id)).toEqual(['priya']);
   });
 
   it('matches the longest name first so "@Bo Chen" is not also read as "@Bo"', () => {
-    expect(parseMentions('ping @Bo Chen please', pool).map((m) => m.id)).toEqual(['bo']);
+    expect(mentionSpans('ping @Bo Chen please', pool).map((s) => s.member.id)).toEqual(['bo']);
   });
 
   it('still resolves a bare "@Bo" to the short-named member', () => {
-    expect(parseMentions('ping @Bo please', pool).map((m) => m.id)).toEqual(['bo2']);
-  });
-
-  it('resolves multiple distinct mentions', () => {
-    expect(parseMentions('@Bo Chen and @Priya Nair', pool).map((m) => m.id).sort()).toEqual(['bo', 'priya']);
+    expect(mentionSpans('ping @Bo please', pool).map((s) => s.member.id)).toEqual(['bo2']);
   });
 
   it('is case-insensitive and ignores unresolvable text', () => {
-    expect(parseMentions('@bo chen and @Nobody Here', pool).map((m) => m.id)).toEqual(['bo']);
+    expect(mentionSpans('@bo chen and @Nobody Here', pool).map((s) => s.member.id)).toEqual(['bo']);
   });
 
   it('returns nothing when there are no mentions', () => {
-    expect(parseMentions('just a plain comment', pool)).toEqual([]);
+    expect(mentionSpans('just a plain comment', pool)).toEqual([]);
   });
 
-  it('lists a member once even when mentioned twice', () => {
-    expect(parseMentions('@Bo Chen ping @Bo Chen again', pool).map((m) => m.id)).toEqual(['bo']);
+  it('reports one span per occurrence, twice for a member mentioned twice', () => {
+    expect(mentionSpans('@Bo Chen ping @Bo Chen again', pool).map((s) => s.member.id)).toEqual(['bo', 'bo']);
   });
 
-  it('returns members in the order they appear in the text', () => {
-    expect(parseMentions('@Priya Nair then @Bo Chen', pool).map((m) => m.id)).toEqual(['priya', 'bo']);
-  });
-});
-
-/**
- * `mentionSpans` is the shared core. Both these rules were previously enforced only on the
- * participant-resolution side; the thread renderer had its own regex that applied neither,
- * so a mention could be resolved-but-not-highlighted (case) or highlighted-but-not-resolved
- * (prefix). They are one implementation now, so these cases pin BOTH surfaces.
- */
-describe('mentionSpans — the rules the renderer used to get wrong', () => {
   it('does not match a name inside a longer @-token (@Bo must not match @Bobby)', () => {
     // Only "Bo" is in the pool; "@Bobby" is somebody else entirely.
     expect(mentionSpans('ping @Bobby now', [shortBo])).toEqual([]);

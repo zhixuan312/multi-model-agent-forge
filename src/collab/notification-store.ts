@@ -1,7 +1,13 @@
 /**
  * Notification store — centralised read/write for the ops_notification table.
- * All notification types (dispatch failures, mentions, approvals, system alerts)
- * go through this module. The NotificationBell consumes from here.
+ *
+ * The kinds are `NOTIFICATION_KIND`: a dispatch failure and a section invite. This said
+ * "dispatch failures, mentions, approvals, system alerts", three of which do not exist —
+ * @-mentioning a teammate notifies nobody (see `collab/mentions.ts`), and neither an
+ * approval nor a system alert has ever been written. A docstring listing features the
+ * module does not have is worse than none: it reads as coverage.
+ *
+ * The NotificationBell consumes from here.
  */
 
 import { eq, or, isNull, desc, and } from 'drizzle-orm';
@@ -10,7 +16,6 @@ import type { NotificationKind } from '@/db/enums';
 import { notification, type NotificationRow } from '@/db/schema/ops';
 import { HANDLER_EVENT } from '@/details/project-event-labels';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
-import type { StageKind } from '@/db/enums';
 
 // ── Handler metadata (dispatch failure context) ────────────────────
 
@@ -50,7 +55,7 @@ const HANDLER_PHASE: Record<string, { phase: string; activity: string }> = {
 };
 
 function handlerMeta(handler: string): HandlerMeta {
-  const kind = HANDLER_EVENT[handler]?.stage as StageKind | undefined;
+  const kind = HANDLER_EVENT[handler]?.stage;
   const local = HANDLER_PHASE[handler];
   return {
     stage: kind ? STAGE_LABEL[kind] : '?',

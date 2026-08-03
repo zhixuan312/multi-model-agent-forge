@@ -169,7 +169,8 @@ function ArtifactUpload({
   const [dragOver, setDragOver] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const noun = requires === 'exploration' ? 'exploration' : 'spec';
+  //  is exactly these two values, so the ternary this replaced was a no-op.
+  const noun = requires;
   const error = localError ?? serverError ?? null;
 
   // On (re)mount — which happens when the required artifact KIND changes — report an
@@ -181,14 +182,18 @@ function ArtifactUpload({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: the effect exists to report an empty slot on (re)mount, which is exactly when the artifact KIND changed (see the note above)
   }, []);
 
+  // Kept in step with the `accept` attribute and the rejection message below: all three
+  // are genuinely accepted end to end (the server checks size + strict UTF-8, not the
+  // extension), and the message used to name only `.md`.
+  const ACCEPTED = ['.md', '.markdown', '.txt'];
   function isMarkdown(name: string) {
-    return /\.(md|markdown|txt)$/i.test(name);
+    return ACCEPTED.some((ext) => name.toLowerCase().endsWith(ext));
   }
 
   async function chooseFile(next: File | null) {
     if (!next) return;
     if (!isMarkdown(next.name)) {
-      setLocalError('Upload a Markdown (.md) file.');
+      setLocalError(`Upload a text file (${ACCEPTED.join(', ')}).`);
       return;
     }
     let encoded: string;
@@ -238,7 +243,7 @@ function ArtifactUpload({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="rounded-md px-2 py-1 text-xs text-ink-soft hover:text-ink"
+            className="focus-ring rounded-md px-2 py-1 text-xs text-ink-soft hover:text-ink"
           >
             Replace
           </button>
@@ -246,7 +251,7 @@ function ArtifactUpload({
             type="button"
             aria-label="Remove file"
             onClick={clearFile}
-            className="rounded-md p-1 text-ink-soft hover:text-ink"
+            className="focus-ring rounded-md p-1 text-ink-soft hover:text-ink"
           >
             <X className="size-4" />
           </button>
@@ -274,7 +279,7 @@ function ArtifactUpload({
           <span className="text-sm font-medium text-ink">
             Drop your {noun} file here, or <span className="text-accent">browse</span>
           </span>
-          <Micro>Markdown (.md) in Forge&apos;s standard format — we&apos;ll ingest it as the project&apos;s real {noun}.</Micro>
+          <Micro>Markdown ({ACCEPTED.join(", ")}) in Forge&apos;s standard format — we&apos;ll ingest it as the project&apos;s real {noun}.</Micro>
         </button>
       )}
 
@@ -338,19 +343,24 @@ export function NewProjectForm({ repos }: { repos: RepoPickerRepo[] }) {
 
               <Field label="Visibility" className="shrink-0">
                 {() => (
-                  <div className="flex gap-2">
+                  // A radiogroup, like the Design run below it. These were two plain
+                  // buttons: nothing exposed WHICH was selected, so a screen reader heard
+                  // "public" and "private" with no state at all — the one thing a
+                  // visibility control has to convey.
+                  <div role="radiogroup" aria-label="Visibility" className="flex gap-2">
                     {(['public', 'private'] as const).map((v) => (
                       <button
                         key={v}
                         type="button"
-                        aria-label={v}
+                        role="radio"
+                        aria-checked={visibility === v}
                         onClick={() => setVisibility(v)}
                         className={cn(
-                          'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm',
+                          'focus-ring flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm',
                           visibility === v ? 'border-accent bg-accent/10' : 'border-line',
                         )}
                       >
-                        {v === 'public' ? <Globe className="size-4" /> : <Lock className="size-4" />}
+                        {v === 'public' ? <Globe className="size-4" aria-hidden /> : <Lock className="size-4" aria-hidden />}
                         {v}
                       </button>
                     ))}

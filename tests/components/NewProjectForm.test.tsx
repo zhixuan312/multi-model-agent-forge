@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { NewProjectForm } from '../../app/(app)/projects/new/NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
 
@@ -14,15 +14,32 @@ const repos: RepoPickerRepo[] = [
 ];
 
 describe('NewProjectForm a11y', () => {
-  it('every control carries an accessible label; visibility uses toggle buttons with icons', () => {
+  it('every control carries an accessible label', () => {
     render(<NewProjectForm repos={repos} />);
     expect(screen.getByLabelText('Name')).toBeInTheDocument();
-    expect(screen.getByLabelText('public')).toBeInTheDocument();
-    expect(screen.getByLabelText('private')).toBeInTheDocument();
     expect(screen.getByLabelText('Select repository eval-core')).toBeInTheDocument();
-    // public is the default selected
-    const publicButton = screen.getByLabelText('public') as HTMLButtonElement;
-    expect(publicButton).toBeInTheDocument();
+  });
+
+  /**
+   * Visibility was two plain buttons: nothing exposed WHICH was selected, so a screen
+   * reader heard "public" and "private" with no state — the one thing a visibility
+   * control has to convey. The Design-run group directly below it was already a proper
+   * radiogroup. This case previously said "public is the default selected" in a comment
+   * and then asserted only that the button existed, which is how the gap survived.
+   */
+  it('exposes visibility as a radiogroup with public selected by default', () => {
+    render(<NewProjectForm repos={repos} />);
+    const group = within(screen.getByRole('radiogroup', { name: 'Visibility' }));
+    expect(group.getByRole('radio', { name: 'public' })).toHaveAttribute('aria-checked', 'true');
+    expect(group.getByRole('radio', { name: 'private' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('moves the checked radio when visibility changes', () => {
+    render(<NewProjectForm repos={repos} />);
+    const group = within(screen.getByRole('radiogroup', { name: 'Visibility' }));
+    fireEvent.click(group.getByRole('radio', { name: 'private' }));
+    expect(group.getByRole('radio', { name: 'private' })).toHaveAttribute('aria-checked', 'true');
+    expect(group.getByRole('radio', { name: 'public' })).toHaveAttribute('aria-checked', 'false');
   });
 
   it('a failed submit associates the field error via aria-describedby and announces it in an aria-live region', async () => {

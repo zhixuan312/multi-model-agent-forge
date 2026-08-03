@@ -32,6 +32,8 @@ adopted 2026-07-30 (see "Adopted in 5.16" below).
 | Context blocks | `contextBlockIds` (max 2), soft-skipped if missing | echo-only: Forge reuses the engine-minted `output.contextBlockId` as `contextBlockIds:[prevId]` on the next audit/review pass. It never calls `POST /context-blocks` and never pairs two (see deferred list) |
 | Configure provider | response field `verified` (not `usable`); 400 carries `details.fieldErrors` | reads `verified`; does NOT read `details.fieldErrors` (surfaces `error.code` only — minor UX gap) |
 | Live dispatch path | `POST /task` with inline `{type, ...}` body | `dispatchMma()` builds the body inline per call site (`dispatch-helpers.ts`); `MmaClient` exposes only the primitives it actually uses — `dispatch`, `poll`, `dispatchAndWait`, `health`, `status`, `configureProvider` |
+| `orchestrate` task type + `main` tier | `type:'orchestrate'` runs on the `main` tier | 10 dispatch sites — spec/plan refine, audit-apply, journal harvest, explore propose/synthesize, and the loop's PLAN/JOURNAL turns |
+| `sessionIds` cross-call resume | `sessionIds:{implementer}` in, `execution.sessions.implementer` out | the loop's JOURNAL turn resumes its PLAN turn (`loops/run-deps.ts` `mainSession`), so it reasons about the plan it wrote. Project stages remain independent tasks and send none |
 | `X-MMA-Main-Model` | required on `POST /task` (400 without) | always set — `server-client.ts` falls back to `DEFAULT_MAIN_MODEL` |
 
 ## Adopted in 5.16 (2026-07-30)
@@ -60,8 +62,6 @@ Forge's design doesn't need them. Listed so the "matched" claim is honest and co
 
 | Capability | Since | Why Forge skips it |
 |---|---|---|
-| `orchestrate` task type + `main` tier | 5.2.0 | Forge is the orchestrator — it drives the SDLC itself via its own stage handlers, so it never delegates a session-persistent "brain" to the engine |
-| `sessionIds` cross-call resume | 5.4.3 | Forge dispatches each stage as an independent task; it has no multi-call worker session to resume |
 | `agentTier` override | 5.6.1 | Forge relies on each type's default tier (`TYPE_REGISTRY.defaultTier`); it exposes no per-dispatch tier control |
 | `output.reviewerNote` advisory | 5.12.0 | Forge surfaces terminal status + findings; it doesn't yet render the "reviewer unavailable" advisory note |
 | `debug` task type | — | Forge routes fixes through `orchestrate`/`delegate`; it never dispatches `debug` |

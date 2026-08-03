@@ -333,14 +333,17 @@ Forge owns the SDLC chain and its gates; the engine executes each stateless per-
     id: 'forge-spine',
     part: 'forge',
     title: 'The gated SDLC spine',
-    body: `Every project moves through a **gated spine** — Exploration → Spec → Plan → Execute → Review (and Journal) — each stage a gate the work must clear before advancing. Standardization is the point: the workflow is the same across people, so a team's delivery doesn't depend on which engineer drove it.
+    // Stage names as the STEPPER shows them. This said "Exploration" and "Journal" — the
+    // enum keys — while a reader looking at Forge sees "Explore" and "Reflect". A manual
+    // that names a stage something the product does not call it sends the reader hunting.
+    body: `Every project moves through a **gated spine** — Explore → Spec → Plan → Execute → Review → Reflect — each stage a gate the work must clear before advancing. Standardization is the point: the workflow is the same across people, so a team's delivery doesn't depend on which engineer drove it.
 
-- **Exploration** — an investigate / research fan-out, then synthesis.
+- **Explore** — an investigate / research fan-out, then synthesis.
 - **Spec** — per-component Q&A authoring, then audit.
 - **Plan** — a TDD plan, then audit against the codebase.
 - **Execute** — build on the engine, land a PR.
 - **Review** — apply cross-agent review findings.
-- **Journal** — harvest learnings into the team's knowledge graph.`,
+- **Reflect** — harvest learnings into the team's knowledge graph.`,
   },
   {
     id: 'forge-automation',

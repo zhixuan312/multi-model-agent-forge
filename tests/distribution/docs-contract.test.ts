@@ -248,6 +248,48 @@ describe('GUIDELINES <-> in-app guide', () => {
   });
 });
 
+/**
+ * Three surfaces were found naming the Reflect stage "Journal" — its ENUM KEY — during the
+ * codebase audit: the dispatch-failure notifications, the projects pipeline panel, and the
+ * in-app Guide's spine section. A reader who goes looking for a "Journal" stage in the
+ * stepper does not find one.
+ *
+ * Keyed on `STAGE_LABEL`, so this covers any stage whose key and label differ, not just
+ * this pair.
+ */
+describe('user-facing stage names <-> the stepper', () => {
+  it('no shipped prose names a stage by its enum key instead of its label', async () => {
+    const { STAGE_LABEL } = await import('@/projects/stage-lifecycle');
+    const { STAGE_KIND } = await import('@/db/enums');
+
+    // Only kinds whose key differs from what the user is shown can be got wrong this way.
+    const renamed = STAGE_KIND.filter((k) => k.toLowerCase() !== STAGE_LABEL[k].toLowerCase());
+    expect(renamed.length, 'expected at least one renamed stage to guard').toBeGreaterThan(0);
+
+    const surfaces = ['src/content/direction-sections.ts', 'app/(app)/projects/page.tsx'];
+    const offenders: string[] = [];
+    for (const file of surfaces) {
+      // Comments stripped first. This is the THIRD source-shape ratchet in this codebase to
+      // need it — the timezone one and the enum one both tripped on their own fix's
+      // explanation, which quotes the string it replaced. Prose describing a mistake is not
+      // the mistake; strip comments by default when matching source shapes.
+      const text = readFileSync(join(process.cwd(), file), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      for (const kind of renamed) {
+        // The key used as a BOLD list label or a bold arrow step — the shapes these three
+        // instances took. Plain prose using the word (a "journal recall", the team journal)
+        // is a different noun and must not trip this.
+        const asLabel = new RegExp(`\\*\\*${kind[0]!.toUpperCase()}${kind.slice(1)}\\*\\*`, 'i');
+        if (asLabel.test(text)) {
+          offenders.push(`${file} shows "${kind}" where the stepper says "${STAGE_LABEL[kind]}"`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('README <-> the real stage lifecycle', () => {
   /**
    * README printed a FOUR-stage arrow ("explore → plan → build → review") in two places

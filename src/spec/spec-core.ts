@@ -83,10 +83,7 @@ export interface ComponentView {
   status: ComponentStatus;
   aiSatisfied: boolean;
   humanSatisfied: boolean;
-  forced: boolean;
-  stale: boolean;
   approvedBy: string[];
-  mmaSessionId: string | null;
   participantIds: string[];
   orderIndex: number;
   sections: SectionView[];
@@ -197,14 +194,14 @@ export async function loadOutline(db: Db, projectId: string): Promise<ComponentV
       id: c.id,
       kind,
       label: tpl.label,
-      primaryRoles: [],
+      // The discipline chips the craft panel renders beside the title. Hardcoded `[]`
+      // before, so they never appeared — while the data sat in `templateForKind`, the same
+      // lookup `matchLabel` uses just above.
+      primaryRoles: templateForKind(kind).primaryRoles,
       status,
       aiSatisfied: hasDraft && !pendingQuestion.has(c.id),
       humanSatisfied: hasApproval,
-      forced: false,
-      stale: false,
       approvedBy: [...c.approvals],
-      mmaSessionId: null,
       // Invited reviewers are stored spec-level (the /spec/invite route pushes to
       // spec.participants). Surface them on every component so the invite persists
       // across refresh — previously hardcoded [], so invited members vanished on the

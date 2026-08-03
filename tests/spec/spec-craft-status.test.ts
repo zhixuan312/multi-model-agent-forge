@@ -43,3 +43,22 @@ describe('craft component status reflects real content, not bare skeleton headin
     expect(outline.find((c) => c.kind === 'problem')!.status).toBe('gathering'); // still empty
   });
 });
+
+/**
+ * `primaryRoles` are the discipline chips the craft panel renders beside a component's
+ * title (`active.primaryRoles.map(… <RoleChip/>)`). The server hardcoded `[]` for every
+ * component, so the chips never appeared — while the data sat in `templateForKind`, the
+ * lookup two lines above in the same loop, and was already used for the outline picker's
+ * role filter.
+ */
+describe('a component view carries the roles the panel renders', () => {
+  it('populates primaryRoles from the component template', async () => {
+    (readSpecFile as ReturnType<typeof vi.fn>).mockResolvedValue({ version: 1, updatedAt: '', bodyMd: '' });
+    const outline = await loadOutline(mockDbWith(), 'p1');
+    const { templateForKind } = await import('@/spec/components');
+    for (const view of outline) {
+      expect(view.primaryRoles, view.kind).toEqual(templateForKind(view.kind).primaryRoles);
+      expect(view.primaryRoles.length, `${view.kind} has no roles to render`).toBeGreaterThan(0);
+    }
+  });
+});

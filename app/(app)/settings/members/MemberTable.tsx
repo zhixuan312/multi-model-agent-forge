@@ -63,6 +63,9 @@ export function memberEditOutcome(args: {
 }
 
 /** A password field with a Generate affordance (shown as plain text before submit). */
+/** The inline text action inside a field row (Copy · Generate). */
+const INLINE_ACTION = 'focus-ring rounded-sm text-xs font-semibold text-accent hover:underline';
+
 function PasswordField({
   id,
   label,
@@ -95,7 +98,7 @@ function PasswordField({
             <button
               type="button"
               onClick={copy}
-              className="focus-ring rounded-sm text-xs font-semibold text-accent hover:underline"
+              className={INLINE_ACTION}
             >
               {copied ? 'Copied' : 'Copy'}
             </button>
@@ -103,7 +106,7 @@ function PasswordField({
           <button
             type="button"
             onClick={() => onChange(generatePassword())}
-            className="focus-ring rounded-sm text-xs font-semibold text-accent hover:underline"
+            className={INLINE_ACTION}
           >
             Generate
           </button>

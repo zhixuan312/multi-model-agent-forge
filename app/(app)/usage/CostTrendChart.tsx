@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useId } from 'react';
+import { useEffect, useRef, useState, useId, type ReactNode } from 'react';
 import { formatCost } from '@/usage/format';
 
 export interface CostTrendPoint {
@@ -27,6 +27,16 @@ function niceScale(rawMax: number, targetTicks = 4): { max: number; step: number
  * Hairline gridlines + a $ axis + date ticks; hover reveals a per-day tooltip.
  * Hand-drawn SVG (no chart lib) so it inherits the app's warm palette and theme.
  */
+/** One line of the hover tooltip — the three differed only in tint, label and value. */
+function TooltipRow({ tint, label, value }: { tint: string; label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-ink-soft">
+      <span style={{ color: tint }}>{label}</span>
+      <b className="tabular-nums text-ink">{value}</b>
+    </div>
+  );
+}
+
 export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoint[]; height?: number }) {
   const gradId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -179,18 +189,9 @@ export function CostTrendChart({ points, height = 200 }: { points: CostTrendPoin
           style={{ left: Math.min(w - 150, Math.max(0, x(hover) + 10)), top: padT }}
         >
           <div className="mb-0.5 font-medium tabular-nums text-ink">{hp.date}</div>
-          <div className="flex items-center justify-between gap-3 text-ink-soft">
-            <span style={{ color: 'var(--accent)' }}>Spent</span>
-            <b className="tabular-nums text-ink">{formatCost(hp.costUsd)}</b>
-          </div>
-          <div className="flex items-center justify-between gap-3 text-ink-soft">
-            <span style={{ color: 'var(--sage)' }}>Saved</span>
-            <b className="tabular-nums text-ink">{formatCost(hp.savedUsd || null)}</b>
-          </div>
-          <div className="flex items-center justify-between gap-3 text-ink-soft">
-            <span style={{ color: 'var(--steel)' }}>Dispatches</span>
-            <b className="tabular-nums text-ink">{hp.count}</b>
-          </div>
+          <TooltipRow tint="var(--accent)" label="Spent" value={formatCost(hp.costUsd)} />
+          <TooltipRow tint="var(--sage)" label="Saved" value={formatCost(hp.savedUsd || null)} />
+          <TooltipRow tint="var(--steel)" label="Dispatches" value={hp.count} />
         </div>
       )}
       </div>

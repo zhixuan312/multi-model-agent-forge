@@ -16,9 +16,9 @@ import {
   FANOUT_HANDLERS,
 } from '@/details/project-event-labels';
 import { recordActivity } from '@/activity/project-activity';
-import { FORGE_ACTOR } from '@/automation/forge-member';
+import { FORGE_ACTOR, FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { interpretTerminal } from '@/sse/envelope';
-import { INFLIGHT_MMA_STATUS } from '@/db/enums';
+import { INFLIGHT_MMA_STATUS, type ActivitySource } from '@/db/enums';
 
 /**
  * Thrown by the G2 guard when a project already has MMA in flight for a DIFFERENT
@@ -78,6 +78,37 @@ export interface DispatchOpts {
    * ignored on the sync path.
    */
   taskId?: string | null;
+}
+
+/**
+ * Who to credit on the activity line, and whether the line reads as human or agent work.
+ *
+ * FR-7, the rule `exploration/dispatch.ts` states in as many words: "derive source from the
+ * actor (auto driver → Forge/'mma', human → member/'user')". This function did not exist and
+ * `dispatchMma` hardcoded `FORGE_ACTOR` + `source: 'mma'` on every running line — so a person
+ * who clicked "Run spec audit" saw *Forge* credited for it on the project timeline, which
+ * renders the actor's name and tint dot (`SummaryPhase`). Two writers of one activity log,
+ * following the same numbered requirement differently.
+ *
+ * The member row costs nothing extra in the common case: `resolveBatchTeamId` already reads
+ * it whenever there is no project and no loop run, and a project dispatch reads the project
+ * instead — so this is at most one small lookup on the paths that name a human.
+ */
+async function resolveActivityActor(
+  db: Db,
+  actorId: string | null,
+): Promise<{ actor: { id: string; name: string; tint: string }; source: ActivitySource }> {
+  if (!actorId || actorId === FORGE_MEMBER_ID) return { actor: FORGE_ACTOR, source: 'mma' };
+  const [row] = await db
+    .select({ displayName: member.displayName, avatarTint: member.avatarTint })
+    .from(member)
+    .where(eq(member.id, actorId))
+    .limit(1);
+  if (!row) return { actor: FORGE_ACTOR, source: 'mma' };
+  return {
+    actor: { id: actorId, name: row.displayName, tint: row.avatarTint },
+    source: 'user',
+  };
 }
 
 async function resolveBatchTeamId(opts: Pick<DispatchOpts, 'db' | 'projectId' | 'loopRunId' | 'actorId'>): Promise<string> {
@@ -289,6 +320,7 @@ export async function dispatchMma(
 
   if (opts.projectId && opts.handler && HANDLER_EVENT[opts.handler]) {
     const meta = HANDLER_EVENT[opts.handler];
+    const { actor, source } = await resolveActivityActor(opts.db, opts.actorId);
     await recordActivity({
       db: opts.db,
       projectId: opts.projectId,
@@ -296,8 +328,8 @@ export async function dispatchMma(
       phase: meta.phase,
       label: meta.label,
       kind: 'running',
-      actor: FORGE_ACTOR,
-      source: 'mma',
+      actor,
+      source,
       eventKey: `${opts.handler}:${batchRowId}`,
       createdAt: row.createdAt,
     });

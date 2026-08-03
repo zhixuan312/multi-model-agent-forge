@@ -78,6 +78,34 @@ describe('parsePlanRefineResponse', () => {
     expect(result.updatedTaskBody).toBeNull();
   });
 
+  /**
+   * The revision is the expensive half of the response. Gating on `chatReply` alone threw
+   * the whole thing away when the model left the covering note empty — the task body lost,
+   * and the raw JSON shown to the user as if it were the chat reply.
+   */
+  it('keeps a revised task body that arrives without a covering note', () => {
+    const raw = JSON.stringify({ chatReply: '', updatedTaskBody: '### Task 1\n\nRevised.' });
+    const result = parsePlanRefineResponse(raw);
+    expect(result.updatedTaskBody).toBe('### Task 1\n\nRevised.');
+    // The handler supplies the note when there is none, so this stays empty rather than
+    // carrying a second copy of that default.
+    expect(result.chatReply).toBe('');
+  });
+
+  it('ignores a non-string task body instead of writing it to plan.md', () => {
+    // `replaceTaskSection` calls `newBody.trim()` and writes the result to the file, so a
+    // shape that is not a string must never get that far.
+    for (const body of [{ md: 'x' }, ['x'], 42, true]) {
+      const result = parsePlanRefineResponse(JSON.stringify({ chatReply: 'Done.', updatedTaskBody: body }));
+      expect(result.updatedTaskBody).toBeNull();
+    }
+  });
+
+  it('treats an all-whitespace body as no revision', () => {
+    const result = parsePlanRefineResponse(JSON.stringify({ chatReply: 'Done.', updatedTaskBody: '   ' }));
+    expect(result.updatedTaskBody).toBeNull();
+  });
+
   it('trims whitespace from raw text fallback', () => {
     const result = parsePlanRefineResponse('  whitespace response  ');
     expect(result.chatReply).toBe('whitespace response');

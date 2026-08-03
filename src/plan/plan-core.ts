@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { sectionTitle } from '@/lib/markdown-outline';
 import type { Db } from '@/db/client';
 import { project } from '@/db/schema/projects';
@@ -6,6 +6,9 @@ import { qaMessage } from '@/db/schema/spec';
 import { auditPassHistory, type AuditPassView } from '@/spec/audit-loop';
 import { readPlanFile } from '@/projects/project-files';
 import { parsePlanSections } from '@/plan/plan-file-ops';
+import { updateDetails } from '@/details/write';
+import { validateDetails } from '@/details/schema';
+import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 
 /**
  * Plan-core — loads plan data for the plan stage RSC. Task content comes
@@ -95,7 +98,6 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   // If plan.md was deleted but DB still has tasks, reset — same pattern as spec loadOutline
   if (!planMd) {
     // Clear stale tasks from details
-    const { updateDetails } = await import('@/details/write');
     try {
       await updateDetails(db, projectId, (d) => {
         d.stages.plan.phases.refine.tasks = [];
@@ -111,8 +113,6 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   if (planMd) {
     const sections = parsePlanSections(planMd);
     // Load DB metadata (approvals, status, participants) keyed by title
-    // Read task metadata from details
-    const { validateDetails } = await import('@/details/schema');
     const [proj] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
     const d = proj?.details ? validateDetails(proj.details) : null;
     const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
@@ -166,18 +166,16 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
   const taskIds = tasks.map((t) => t.id).filter((id) => !id.startsWith('file-task-'));
   const messages: PlanView['messages'] = {};
   if (taskIds.length > 0) {
-    const { inArray } = await import('drizzle-orm');
     const rows = await db
       .select({ id: qaMessage.id, targetId: qaMessage.targetId, bodyMd: qaMessage.bodyMd, authorId: qaMessage.authorId })
       .from(qaMessage)
       .where(inArray(qaMessage.targetId, taskIds))
       .orderBy(asc(qaMessage.seq));
-    const { FORGE_MEMBER_ID } = await import('@/automation/forge-member');
     for (const r of rows) {
       if (!r.targetId) continue;
       const list = messages[r.targetId] ?? [];
       const sender = r.authorId === FORGE_MEMBER_ID ? 'forge' : 'member';
-      list.push({ id: r.id, sender: sender as 'forge' | 'member', bodyMd: r.bodyMd, authorId: r.authorId });
+      list.push({ id: r.id, sender, bodyMd: r.bodyMd, authorId: r.authorId });
       messages[r.targetId] = list;
     }
   }

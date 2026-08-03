@@ -49,14 +49,26 @@ Return a JSON object with exactly two fields:
   return { system, user: parts.join('\n\n') };
 }
 
+/** The first of these that is a non-empty string, else null. Guards the `as string` casts
+ *  this used to make: a non-string `updatedTaskBody` reached `replaceTaskSection`, whose
+ *  `newBody.trim()` would throw on anything but a string — and it is written to plan.md. */
+function firstString(...values: unknown[]): string | null {
+  for (const v of values) if (typeof v === 'string' && v.trim() !== '') return v;
+  return null;
+}
+
 export function parsePlanRefineResponse(raw: string): PlanRefineResult {
-  // No JSON, or JSON without a chatReply, means Forge answered in prose — show it as-is.
+  // No JSON at all means Forge answered in prose — show it as-is.
   const parsed = parseLlmJson<Record<string, unknown>>(raw);
   if (parsed && typeof parsed === 'object') {
-    const chatReply = (parsed.chatReply ?? parsed.chat_reply ?? parsed.reply ?? '') as string;
-    const updatedTaskBody = (parsed.updatedTaskBody ?? parsed.updated_task_body ?? parsed.taskBody ?? null) as string | null;
-    if (chatReply) {
-      return { chatReply, updatedTaskBody };
+    const chatReply = firstString(parsed.chatReply, parsed.chat_reply, parsed.reply);
+    const updatedTaskBody = firstString(parsed.updatedTaskBody, parsed.updated_task_body, parsed.taskBody);
+    // Gated on `chatReply` alone before, so a response carrying a full revised task body
+    // with an empty covering note was thrown away ENTIRELY — the revision discarded, and
+    // the raw JSON shown to the user as the chat message. A revision with no note is still
+    // a revision; the handler already supplies the note when there isn't one.
+    if (chatReply || updatedTaskBody) {
+      return { chatReply: chatReply ?? '', updatedTaskBody };
     }
   }
 

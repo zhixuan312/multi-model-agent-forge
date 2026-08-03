@@ -5,7 +5,7 @@
  */
 
 import { backupArtifact, readPlanFile, writePlan } from '@/projects/project-files';
-import { parseMarkdownOutline } from '@/lib/markdown-outline';
+import { parseMarkdownOutline, sectionTitle } from '@/lib/markdown-outline';
 
 const writeLocks = new Map<string, Promise<unknown>>();
 async function withFileLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -45,6 +45,33 @@ export function parsePlanSections(planMd: string): PlanTaskSection[] {
   );
 }
 
+/**
+ * The one section a stored task title refers to, or `null` when that is not answerable.
+ *
+ * Both callers pass a `details` task title, and those are produced by `sectionTitle(heading)`
+ * in `plan-author.ts` — so the EXACT normalized heading is what a title means, and that is
+ * what is tried first.
+ *
+ * The old rule was `heading.includes(taskTitle)`, first match wins. On a plan that numbers
+ * its tasks the two agree, because `Task 5: …` prefixes are unique. But `TASK_HEADING_RE`
+ * deliberately accepts unnumbered headings too, and there "Setup" is a substring of "Setup
+ * and teardown" — so refining one task could locate the other, and `replaceTaskSection` then
+ * OVERWRITES the section it located. Being approximately right is fine for a lookup and not
+ * fine for a write.
+ *
+ * The substring fallback is kept, because a plan.md edited by hand can drift from the stored
+ * title and finding the task anyway is the friendlier behaviour. What it will not do is
+ * GUESS: if a substring matches more than one section, that is ambiguous and the answer is
+ * no match, not the first one.
+ */
+export function findTaskSection(sections: PlanTaskSection[], taskTitle: string): PlanTaskSection | null {
+  const exact = sections.filter((s) => sectionTitle(s.heading) === taskTitle);
+  if (exact.length === 1) return exact[0]!;
+  if (exact.length > 1) return null; // duplicate titles — the title identifies nothing
+  const loose = sections.filter((s) => s.heading.includes(taskTitle));
+  return loose.length === 1 ? loose[0]! : null;
+}
+
 /** Read a specific task section from plan.md by matching its title. */
 export async function readTaskSection(
   projectId: string,
@@ -52,8 +79,7 @@ export async function readTaskSection(
 ): Promise<{ heading: string; body: string } | null> {
   const file = await readPlanFile(projectId);
   if (!file) return null;
-  const sections = parsePlanSections(file.bodyMd);
-  const match = sections.find((s) => s.heading.includes(taskTitle));
+  const match = findTaskSection(parsePlanSections(file.bodyMd), taskTitle);
   return match ? { heading: match.heading, body: match.body } : null;
 }
 
@@ -68,8 +94,7 @@ export async function replaceTaskSection(
     if (!file) return false;
 
     const lines = file.bodyMd.split('\n');
-    const sections = parsePlanSections(file.bodyMd);
-    const match = sections.find((s) => s.heading.includes(taskTitle));
+    const match = findTaskSection(parsePlanSections(file.bodyMd), taskTitle);
     if (!match) return false;
 
     const before = lines.slice(0, match.startLine);

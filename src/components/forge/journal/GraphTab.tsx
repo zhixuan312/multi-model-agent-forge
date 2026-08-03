@@ -8,6 +8,7 @@ import { GraphNote } from '@/components/forge/journal/JournalNote';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { STATUS_HEX, EDGE_HEX } from '@/components/forge/journal/graph-palette';
 import type { GraphNode, GraphEdge } from '@/journal/graph';
+import type { JournalStatus } from '@/journal/types';
 
 /**
  * The Graph tab — the decision graph as an interactive night sky on the 2/3
@@ -40,8 +41,13 @@ export function GraphTab({ nodes, edges, metrics }: { nodes: GraphNode[]; edges:
   );
 }
 
-/** Node-status meanings, folded into the legend so it doubles as the rail note. */
-const STATUS_MEANING: Record<string, string> = {
+/**
+ * Node-status meanings, folded into the legend so it doubles as the rail note. TOTAL over
+ * `JournalStatus`, matching `STATUS_HEX` — the legend iterates that map, so a status added
+ * without an entry here would have listed its swatch and name with the explanation silently
+ * missing (the `STATUS_MEANING[status] ? … : null` below is the fallback that hid it).
+ */
+const STATUS_MEANING: Record<JournalStatus, string> = {
   adopted: 'a live learning',
   superseded: 'replaced by a newer node',
   inconclusive: 'unresolved',
@@ -73,7 +79,7 @@ function GraphLegend() {
                 />
                 <span className="min-w-0">
                   <span className="font-semibold capitalize text-ink">{status}</span>
-                  {STATUS_MEANING[status] ? ` — ${STATUS_MEANING[status]}` : null}
+                  {` — ${STATUS_MEANING[status as JournalStatus]}`}
                 </span>
               </li>
             ))}

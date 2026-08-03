@@ -181,6 +181,14 @@ export function JournalStageClient(props: JournalStageClientProps) {
   // Curate a project_journal row: edit (heading + body) / remove. Both target the
   // row by id and are only offered while the row is not yet `recorded` (immutable).
   const [editing, setEditing] = useState(false);
+  // Remove destroys a harvested learning outright, so it takes the same two-step confirm
+  // MemberTable's delete uses and FormPanel's `destructive` slot documents. It was a single
+  // click straight to deletion — the only irreversible action in the stage with no guard.
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  // Drop a pending confirmation when the selection moves, so a "Confirm remove" left open on
+  // one learning cannot be clicked against a different one.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient confirm state on selection change
+  useEffect(() => { setConfirmRemove(false); }, [activeId]);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
   function startEdit() {
@@ -496,8 +504,20 @@ export function JournalStageClient(props: JournalStageClientProps) {
               {/* Curate controls — hidden once the row is recorded (immutable) or read-only. */}
               {status[active.id] !== 'recorded' && !readOnly ? (
                 <>
-                  <Button size="sm" onClick={startEdit} variant="ghost" leftIcon={<Pencil />}>Edit</Button>
-                  <Button size="sm" onClick={removeLearning} variant="ghost" leftIcon={<Trash2 />}>Remove</Button>
+                  {confirmRemove ? (
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-rose">Remove permanently?</span>
+                      <Button size="sm" onClick={removeLearning} variant="ghost" className="text-rose hover:text-rose">
+                        Confirm remove
+                      </Button>
+                      <Button size="sm" onClick={() => setConfirmRemove(false)} variant="ghost">Keep</Button>
+                    </span>
+                  ) : (
+                    <>
+                      <Button size="sm" onClick={startEdit} variant="ghost" leftIcon={<Pencil />}>Edit</Button>
+                      <Button size="sm" onClick={() => setConfirmRemove(true)} variant="ghost" leftIcon={<Trash2 />}>Remove</Button>
+                    </>
+                  )}
                 </>
               ) : null}
               {isApproved ? (

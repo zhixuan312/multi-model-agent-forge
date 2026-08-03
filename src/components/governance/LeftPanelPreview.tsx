@@ -37,7 +37,7 @@ import { FindingsGrid, type Finding } from '@/components/patterns/findings';
 import { FormPanel } from '@/components/patterns/form-panel';
 import { List } from '@/components/patterns/list';
 import { ProseBlock } from '@/components/patterns/prose-block';
-import { FindingsApplyBar } from '@/components/patterns/findings';
+import { FindingsApplyBar, appliedState } from '@/components/patterns/findings';
 import { DiscussionThread } from '@/components/forge/collab/DiscussionThread';
 import type { DiscussionMsg, MemberRef } from '@/collab/types';
 import { LEFT_PANEL_VARIANTS, defaultEnabledAffordances } from '@/components/governance/variant-meta';
@@ -138,14 +138,29 @@ function tableColumns(on: ReadonlySet<string>): ColumnDef<TableRowShape>[] {
   return cols;
 }
 
-/** Demo-interactive: a FindingsGrid (optionally with the multi-select checkbox column) +
- *  FindingsApplyBar. Pressing Apply flips to the "applied" state (findings go sage + check);
- *  Reset returns to the selectable state. */
+/**
+ * Demo-interactive: a FindingsGrid (optionally with the multi-select checkbox column) +
+ * FindingsApplyBar.
+ *
+ * Applying a SUBSET is the behaviour this pattern exists for, and the demo could not show it:
+ * `applied` was a boolean, so the first Apply marked whatever was selected and locked the
+ * whole grid. All three stage clients do the opposite, each with a comment saying so —
+ * "applying a SUBSET must not lock the whole grid; only applied rows go green, the rest stay
+ * actionable" — and `appliedState` was extracted into `patterns/findings.tsx` so they could
+ * not disagree about it. The catalogue was the one surface still demonstrating the locking
+ * version, which is what somebody would have built the next audit panel from.
+ *
+ * It now tracks applied INDICES and drives the bar from the shared helper, exactly as Review
+ * and Plan do: select-all and Apply act on what remains, and the pass locks only when every
+ * finding has been applied.
+ */
 function AuditView({ showApplyBar, selectable }: { showApplyBar: boolean; selectable: boolean }) {
   const [selected, setSelected] = useState<number[]>([]);
-  const [applied, setApplied] = useState(false);
+  const [applied, setApplied] = useState<number[]>([]);
+  const state = appliedState(DOC_FINDINGS.length, applied);
   const toggle = (i: number) => setSelected((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
-  const toggleAll = () => setSelected((prev) => (prev.length === DOC_FINDINGS.length ? [] : DOC_FINDINGS.map((_, i) => i)));
+  const toggleAll = () =>
+    setSelected((prev) => (prev.length === state.remainingIndices.length ? [] : state.remainingIndices));
   return (
     <>
       {/* No wrapper inset: the grid is edge-to-edge and the shell is `flush` for this tab,
@@ -155,16 +170,19 @@ function AuditView({ showApplyBar, selectable }: { showApplyBar: boolean; select
         selectable={selectable}
         selectedIndices={selected}
         onToggle={toggle}
-        appliedIndices={applied ? selected : undefined}
-        readOnly={applied}
+        appliedIndices={applied}
+        readOnly={state.allApplied}
       />
       {showApplyBar ? (
         <FindingsApplyBar
           selectedCount={selected.length}
-          total={DOC_FINDINGS.length}
+          total={state.remainingIndices.length}
           onToggleAll={toggleAll}
-          onApply={() => setApplied(true)}
-          readOnly={applied}
+          onApply={() => {
+            setApplied((prev) => [...new Set([...prev, ...selected])]);
+            setSelected([]);
+          }}
+          readOnly={state.allApplied}
         />
       ) : null}
     </>

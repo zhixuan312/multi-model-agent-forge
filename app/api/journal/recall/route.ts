@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { guardJournal } from '@/journal/guard';
+import { checkRecallQuery } from '@/journal/recall-query';
 import { resolveTeamWorkspaceRoot } from '@/git/workspace-root';
 import { buildMmaClient } from '@/mma/server-client';
 import { dispatchMma, findInflight } from '@/dispatch/dispatch-helpers';
@@ -23,13 +24,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsed.success) {
     return NextResponse.json({ error: 'A query is required.' }, { status: 400 });
   }
-  const query = parsed.data.query.trim();
-  if (query.length < 10) {
-    return NextResponse.json({ error: 'Query must be at least 10 characters.' }, { status: 400 });
+  const checked = checkRecallQuery(parsed.data.query);
+  if (!checked.ok) {
+    return NextResponse.json({ error: checked.message }, { status: 400 });
   }
-  if (query.length > 4000) {
-    return NextResponse.json({ error: 'Query must be at most 4000 characters.' }, { status: 400 });
-  }
+  const query = checked.query;
 
   const db = getDb();
   // Per-member single-flight (the sanctioned project-less guard): reuse an in-flight

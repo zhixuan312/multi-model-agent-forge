@@ -23,6 +23,7 @@ import { parseRecallEnvelope, type ParsedRecall } from '@/journal/recall';
 import type { IndexLookupRow } from '@/journal/citations';
 import type { PinnedView, FaqView } from '@/journal/recall-content';
 import { responseError } from '@/lib/err';
+import { checkRecallQuery, RECALL_QUERY_MAX } from '@/journal/recall-query';
 
 /**
  * The Recall tab. The 2/3 canvas leads with the live answer (when asked), then
@@ -136,7 +137,9 @@ export function RecallTab({
   }, [serverSig]);
 
   const trimmed = query.trim();
-  const canSubmit = trimmed.length >= 10 && trimmed.length <= 4000 && status !== 'running';
+  // The SERVER's rule, not a second copy of it — the route rejects with the same message.
+  const queryCheck = checkRecallQuery(query);
+  const canSubmit = queryCheck.ok && status !== 'running';
 
   // Completed recent recalls (most recent first)
   const completedRecalls = recents.filter((r) => r.status === 'done' && r.answerMd);
@@ -242,8 +245,9 @@ export function RecallTab({
   const runQuestion = (q: string) => dispatchAndPoll(q).then((r) => r.parsed);
 
   async function run(qRaw?: string) {
-    const q = (qRaw ?? query).trim();
-    if (q.length < 10 || q.length > 4000) return;
+    const checked = checkRecallQuery(qRaw ?? query);
+    if (!checked.ok) return;
+    const q = checked.query;
     setStatus('running');
     setError(null);
     setAsked(q);
@@ -341,6 +345,10 @@ export function RecallTab({
           canSubmit={canSubmit}
           running={status === 'running'}
           length={trimmed.length}
+          // Say WHY the button is dead. The counter read `5/4000` and looked perfectly
+          // happy while the minimum went unmentioned. Suppressed on an empty box, where
+          // "at least 10 characters" is noise rather than a correction.
+          hint={trimmed.length > 0 && !queryCheck.ok ? queryCheck.message : null}
         />
       }
     >
@@ -455,6 +463,7 @@ function RecallComposer({
   canSubmit,
   running,
   length,
+  hint,
 }: {
   query: string;
   onChange: (v: string) => void;
@@ -462,6 +471,8 @@ function RecallComposer({
   canSubmit: boolean;
   running: boolean;
   length: number;
+  /** Why the query is not askable yet, when it is not. */
+  hint: string | null;
 }) {
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
@@ -487,7 +498,9 @@ function RecallComposer({
             className="min-h-[8rem] flex-1 resize-none"
           />
           <div className="flex shrink-0 items-center justify-between gap-2">
-            <span className="text-xs text-ink-faint">{length}/4000</span>
+            <span className={cn('text-xs', hint ? 'text-[var(--amber)]' : 'text-ink-faint')}>
+              {hint ?? `${length}/${RECALL_QUERY_MAX}`}
+            </span>
             <Button type="submit" size="sm" disabled={!canSubmit} loading={running} rightIcon={running ? undefined : <ArrowRight />}>
               {running ? 'Recalling…' : 'Recall'}
             </Button>

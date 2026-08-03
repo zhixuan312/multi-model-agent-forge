@@ -13,8 +13,7 @@ import {
   Sparkles,
   GitBranch,
   ListTree,
-  Loader2,
-  RotateCcw } from 'lucide-react';
+  Loader2 } from 'lucide-react';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { StageAdvance } from '@/components/forge/StageAdvance';
 import { DocumentShell, type DocumentShellTab } from '@/components/patterns/document-shell';
@@ -670,15 +669,14 @@ function DetailStage({
             <Button
               size="sm"
               onClick={() => {
-                const targets = allApproved
-                  ? allTasks.filter((t) => status[t.id] === 'approved')
-                  : allTasks.filter((t) => status[t.id] !== 'approved');
-                for (const t of targets) onToggleApprove(t.id);
+                for (const t of allTasks.filter((tk) => status[tk.id] !== 'approved')) onToggleApprove(t.id);
               }}
-              disabled={readOnly || allTasks.length === 0}
-              leftIcon={allApproved ? <RotateCcw /> : <Check />}
+              // "Revoke all" used to appear here once everything was approved, and did
+              // nothing: it re-sent already-approved tasks through a one-way transition.
+              disabled={readOnly || allTasks.length === 0 || allApproved}
+              leftIcon={<Check />}
             >
-              {allApproved ? 'Revoke all' : 'Approve all'}
+              Approve all
             </Button>
           }
           progress={{ value: approvedCount, total: allTasks.length }}
@@ -773,15 +771,25 @@ function DetailStage({
         }
         actions={
           taskView === 'plan' ? (
+            approved ? (
+              // Task approval is monotonic — `onToggleApprove` returns immediately for an
+              // already-approved task, so a Revoke button was an enabled control that did
+              // nothing when clicked. Show the state instead, exactly as the Journal stage
+              // does for its equally one-way learning approvals.
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft">
+                <Check className="size-4 text-accent" /> Approved
+              </span>
+            ) : (
               <Button
                 size="sm"
                 onClick={() => onToggleApprove(active.id)}
                 disabled={readOnly}
-                variant={approved ? 'secondary' : 'primary'}
-                leftIcon={approved ? <RotateCcw /> : <Check />}
+                variant="primary"
+                leftIcon={<Check />}
               >
-                {approved ? 'Revoke' : 'Approve'}
+                Approve
               </Button>
+            )
           ) : null
         }
         footer={

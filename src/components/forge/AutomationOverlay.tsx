@@ -367,7 +367,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
                     <div key={i} className="flex items-start gap-3 border-b border-line/40 py-2 last:border-0">
                       <span className="mt-px min-w-[36px] font-mono text-[10px] text-ink-faint">{l.time}</span>
                       {l.error ? (
-                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--danger,#c0492f)]" />
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--rose)]" />
                       ) : l.done ? (
                         <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--sage)]" />
                       ) : (
@@ -376,7 +376,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, phase, st
                       <span className="flex flex-1 items-start gap-1.5 text-sm">
                         <span className="mt-1 size-2 shrink-0 rounded-full" style={{ backgroundColor: l.actorTint }} />
                         <span className="shrink-0 font-medium text-ink">{l.actorName}</span>
-                        <span className={cn('min-w-0 break-words', l.error ? 'text-[var(--danger,#c0492f)]' : l.done ? 'text-ink' : 'font-medium text-accent')}>
+                        <span className={cn('min-w-0 break-words', l.error ? 'text-[var(--rose)]' : l.done ? 'text-ink' : 'font-medium text-accent')}>
                           {l.text}
                         </span>
                       </span>

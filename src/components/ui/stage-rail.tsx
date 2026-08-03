@@ -19,7 +19,7 @@ const SEG: Record<StageRailStatus, string> = {
   done: 'bg-[var(--rail-done,var(--sage))]',
   active: 'bg-[var(--rail-active,var(--accent))]',
   pending: 'bg-[var(--rail-pending,var(--line-strong))]',
-  skipped: 'bg-[repeating-linear-gradient(135deg,var(--line-strong),var(--line-strong)_4px,var(--surface-elevated)_4px,var(--surface-elevated)_8px)]',
+  skipped: 'bg-[repeating-linear-gradient(135deg,var(--line-strong),var(--line-strong)_4px,var(--surface-2)_4px,var(--surface-2)_8px)]',
 };
 
 export function StageRail({

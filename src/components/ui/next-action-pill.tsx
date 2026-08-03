@@ -16,7 +16,7 @@ const pillVariants = cva(
   {
     variants: {
       tone: {
-        attention: 'bg-amber-tint text-[var(--amber)] hover:bg-[var(--amber-tint-2,var(--amber-tint))]',
+        attention: 'bg-amber-tint text-[var(--amber)] hover:brightness-95',
         normal: 'border border-line bg-surface-2 text-ink-soft hover:text-ink',
         info: 'bg-[var(--frost)] text-[var(--steel-deep)]',
         done: 'text-ink-faint',

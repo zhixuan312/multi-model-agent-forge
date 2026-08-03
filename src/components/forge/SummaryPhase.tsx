@@ -94,12 +94,12 @@ export function SummaryPhase({ summary, readOnly, onMarkComplete, completing }: 
                   {/* col 2 — detail (with status icon); wraps within its own column */}
                   <span className="flex min-w-0 items-start gap-1.5">
                     {e.kind === 'error'
-                      ? <AlertTriangle className="mt-0.5 size-3 shrink-0 text-[var(--danger,#c0492f)]" />
+                      ? <AlertTriangle className="mt-0.5 size-3 shrink-0 text-[var(--rose)]" />
                       : <Check className="mt-0.5 size-3 shrink-0 text-[var(--sage)]" />}
                     <span className="flex min-w-0 items-start gap-1.5">
                       <span className="mt-1 size-2 shrink-0 rounded-full" style={{ backgroundColor: e.actorTint }} />
                       <span className="shrink-0 text-xs font-medium text-ink-soft">{e.actorName}</span>
-                      <span className={cn('min-w-0 break-words text-[13px] leading-snug', e.kind === 'error' ? 'text-[var(--danger,#c0492f)]' : 'text-ink')}>{e.label}</span>
+                      <span className={cn('min-w-0 break-words text-[13px] leading-snug', e.kind === 'error' ? 'text-[var(--rose)]' : 'text-ink')}>{e.label}</span>
                     </span>
                   </span>
                   {/* col 3 — duration (fixed, always reserved so col 2 can't eat it) */}

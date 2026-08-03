@@ -93,7 +93,7 @@ export function StageAdvance({
       >
         {busy ? 'Advancing…' : label}
       </Button>
-      {err ? <p role="alert" className="text-center text-xs text-[var(--rose-deep)]">{err}</p> : null}
+      {err ? <p role="alert" className="text-center text-xs text-[var(--rose)]">{err}</p> : null}
     </div>
   );
 }

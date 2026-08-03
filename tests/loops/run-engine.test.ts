@@ -109,3 +109,24 @@ describe('runLoopForRepo', () => {
     }));
   });
 });
+
+/**
+ * Branch components go through ONE slug rule (`build/slug.ts`), the same one that names
+ * project branches. The loop engine had a private `kebab` that stripped `.` and `_` where
+ * the shared rule keeps them, so two functions decided what a branch component may
+ * contain and a change to the git-ref rules would have reached only one of them.
+ */
+describe('the loop branch uses the shared git-ref slug rule', () => {
+  it('slugs a loop name exactly as slugRefComponent does', async () => {
+    const { slugRefComponent } = await import('@/build/slug');
+    const at = new Date('2026-06-15T03:04:05.678Z');
+    for (const name of ['Code Hygiene!', 'repo.cleanup', 'Nightly_Sweep', 'a//b', 'Ünïcode name']) {
+      const expected = slugRefComponent(name) || 'loop';
+      expect(buildBranch(name, at).endsWith(`-${expected}`), `${name} → ${buildBranch(name, at)}`).toBe(true);
+    }
+  });
+
+  it('still falls back for a name that slugs to nothing', () => {
+    expect(buildBranch('!!!', new Date('2026-06-15T03:04:05.678Z'))).toMatch(/-loop$/);
+  });
+});

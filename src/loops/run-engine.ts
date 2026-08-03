@@ -7,6 +7,7 @@ import { loopRun, type LoopRow, type LoopRunRow } from '@/db/schema/loop';
 import type { LoopTrigger } from '@/db/enums';
 import { getLoopKind } from '@/loops/kind-registry';
 import { formatIsoDate, formatBranchTime } from '@/lib/format-date';
+import { slugRefComponent } from '@/build/slug';
 import {
   planPrompt, parsePlan, PLAN_OUTPUT_FORMAT,
   journalPrompt, parseJournal, JOURNAL_OUTPUT_FORMAT,
@@ -108,10 +109,6 @@ export interface LoopRunDeps {
   now?: () => Date;
 }
 
-function kebab(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'loop';
-}
-
 /**
  * The loop-run branch: `mma/<YYYY-MM-DD-HHMMSSsss>-<loop-slug>`.
  *
@@ -129,7 +126,11 @@ function kebab(s: string): string {
  * run with the previous day's date.
  */
 export function buildBranch(loopName: string, date: Date): string {
-  return `mma/${formatIsoDate(date)}-${formatBranchTime(date)}-${kebab(loopName)}`;
+  // The ONE git-ref slug rule (`build/slug.ts`), not a second one. This had a private
+  // `kebab` that stripped `.` and `_` where the shared rule keeps them, so two functions
+  // decided what a branch component may contain and a change to the ref rules would have
+  // reached only one of them. `|| 'loop'` preserves the old empty-name fallback.
+  return `mma/${formatIsoDate(date)}-${formatBranchTime(date)}-${slugRefComponent(loopName) || 'loop'}`;
 }
 
 function resolveGoalMd(loop: LoopRow, ctx: RunContext): string {

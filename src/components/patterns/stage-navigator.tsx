@@ -88,6 +88,11 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
                   key={it.id}
                   type="button"
                   onClick={it.onClick}
+                  // Which item is selected was carried by a border colour, and `done` by a
+                  // check glyph that lucide renders aria-hidden — so neither state reached a
+                  // screen reader. `RecordCard`, the sibling list pattern, already marks its
+                  // selection this way.
+                  aria-current={isActive ? 'true' : undefined}
                   className={cn(
                     // Read the row as a two-column table: the tile is one cell, the title +
                     // meta stack is the other. `items-center` centres the tile against that
@@ -118,7 +123,10 @@ export function StageNavigator({ title, action, progress, groups, showChecks, fo
                     {/* Clamped so rows stay a uniform height whatever the title's length —
                         a navigator carrying real content (a prompt, a question) rather than a
                         short label would otherwise stretch its row arbitrarily. */}
-                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">{it.title}</p>
+                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">
+                      {it.title}
+                      {isDone ? <span className="sr-only">, done</span> : null}
+                    </p>
                     {it.meta ? (
                       <div className="mt-0.5 flex min-w-0 items-center gap-2 truncate text-[10px] text-ink-faint">
                         {it.meta}

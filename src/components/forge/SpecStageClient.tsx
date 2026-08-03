@@ -12,7 +12,6 @@ import {
   Lightbulb,
   Pencil,
   Plus,
-  Search,
   BookOpen,
   Target,
   Flag,
@@ -47,7 +46,7 @@ import {
   CardFooter,
   Badge,
   Banner,
-  Input,
+  SearchInput,
   Text,
   TextSm } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -432,28 +431,6 @@ function SpecNote({ phase }: { phase: string }) {
 
 /* ── Outline screen ─────────────────────────────────────────────────────── */
 
-function SearchField({
-  value,
-  onChange,
-  placeholder }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="relative">
-      <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        className="!pl-9"
-      />
-    </div>
-  );
-}
-
 function OutlineStage({
   intent,
   picked,
@@ -532,7 +509,7 @@ function OutlineStage({
             <CardTitle>Template</CardTitle>
           </CardHeader>
           <div className="shrink-0 border-b border-line px-5 py-3">
-            <SearchField value={tplQuery} onChange={setTplQuery} placeholder="Search templates…" />
+            <SearchInput label="templates" value={tplQuery} onChange={setTplQuery} className="min-w-0" />
           </div>
           <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto !py-4">
             {shownTemplates.map((t) => (
@@ -602,7 +579,7 @@ function OutlineStage({
           </div>
         </CardHeader>
         <div className="shrink-0 space-y-2.5 border-b border-line px-5 py-3">
-          <SearchField value={compQuery} onChange={setCompQuery} placeholder="Search components…" />
+          <SearchInput label="components" value={compQuery} onChange={setCompQuery} className="min-w-0" />
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Role</span>
             {ALL_ROLES.map((r) => {

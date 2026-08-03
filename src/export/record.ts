@@ -1,14 +1,20 @@
 /**
- * Persistence (Spec 8 §"Persistence", §In-scope #9, F7/F16/F17/F23). Writes the
- * generated file under `<FORGE_EXPORT_ROOT>/<project_id>/`, records ONE `export`
- * row + ONE `action_log` entry.
+ * Persistence (Spec 8 §"Persistence", §In-scope #9, F16/F17/F23). Writes the
+ * generated file under `<FORGE_EXPORT_ROOT>/<project_id>/` and records ONE
+ * `project_export` row.
  *
  *  - path sandbox (F16): the resolved `file_path` is asserted under the project
  *    export dir (`resolveProjectExportPath` throws on traversal);
  *  - at-rest perms (F17): the root + `<project_id>/` dirs are `0700`, files
- *    `0600` (defense-in-depth on the single-tenant box);
- *  - action_log (F7): `action='export.created'`, `target`=kind|`bundle`,
- *    `meta={ format, artifactKind, filePath }`.
+ *    `0600` (defense-in-depth on the single-tenant box).
+ *
+ * NOT recorded: an audit entry. This header used to specify one — an `action_log`
+ * row with `action='export.created'`, a `target`, and a `meta` payload — down to
+ * the field names, and the code has never written it. There is no `action_log`
+ * table in the schema, and nothing appends to `project_activity` here either, so
+ * an export leaves no trace on the project timeline. Adding one is a product
+ * decision (it needs a stage/phase to file under); until then this says so rather
+ * than describing a row that does not exist.
  */
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { getDb, type Db } from '@/db/client';
@@ -45,9 +51,9 @@ function stamp(): string {
 const EXT: Record<ExportFormat, string> = { md: 'md', pdf: 'pdf', bundle: 'zip' };
 
 /**
- * Write the export to disk (restrictive perms + path sandbox), insert the
- * `export` row, and append the `action_log` entry — atomically (row + log in one
- * transaction; the file is written first so a DB failure leaves no orphan row).
+ * Write the export to disk (restrictive perms + path sandbox), then insert the
+ * `project_export` row. The file is written first, so a DB failure leaves a
+ * stray file rather than a row pointing at nothing.
  */
 export async function recordExport(
   input: RecordExportInput,
@@ -72,21 +78,19 @@ export async function recordExport(
   await writeFile(filePath, input.content, { mode: 0o600 });
   await chmod(filePath, 0o600).catch(() => {});
 
-  const exportId = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(exportRecord)
-      .values({
-        projectId: input.projectId,
-        artifactKind: input.kind ?? 'bundle',
-        artifactVersion: input.artifactVersion ?? null,
-        format: input.format,
-        filePath,
-        createdBy: input.createdBy,
-      })
-      .returning({ id: exportRecord.id });
+  // One statement, so no transaction: the wrapper here existed to pair this insert
+  // with the audit-log insert described above, which was never written.
+  const [row] = await db
+    .insert(exportRecord)
+    .values({
+      projectId: input.projectId,
+      artifactKind: input.kind ?? 'bundle',
+      artifactVersion: input.artifactVersion ?? null,
+      format: input.format,
+      filePath,
+      createdBy: input.createdBy,
+    })
+    .returning({ id: exportRecord.id });
 
-    return row.id;
-  });
-
-  return { exportId, filePath };
+  return { exportId: row.id, filePath };
 }

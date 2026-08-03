@@ -12,7 +12,7 @@ function tmpRoot(): string {
   return mkdtempSync(join(tmpdir(), 'forge-exp-'));
 }
 
-describe('record.ts — persist + path sandbox + perms (F16/F17/F7)', () => {
+describe('record.ts — persist + path sandbox + perms (F16/F17)', () => {
   it('writes an export row; file lands under <root>/<project_id>/', async () => {
     const projectId = 'proj-1';
     const createdBy = 'member-1';

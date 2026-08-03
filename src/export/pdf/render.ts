@@ -85,17 +85,32 @@ export interface PuppeteerLike {
 
 export type PdfPageTexts = (buf: Buffer) => Promise<string[]>;
 
+/** The pdf-parse v2 entry point: a class whose `getText()` returns per-page text. */
+type PdfParseCtor = new (opts: { data: Buffer }) => {
+  getText(): Promise<{ pages: { text: string; num: number }[]; text: string }>;
+  destroy?: () => Promise<void> | void;
+};
+
 /** Default pdf-parse adapter: returns per-page text for the two-pass measure. */
 export async function defaultPdfPageTexts(buf: Buffer): Promise<string[]> {
-  // pdf-parse v2 exposes a `PDFParse` class whose `getText()` returns
-  // `{ pages: [{ text, num }], text, total }`.
+  // pdf-parse is CJS, so `await import()` exposes `PDFParse` on the namespace under
+  // Node and under `.default` when an interop wrapper is in play. This used to be an
+  // unchecked `as unknown as { PDFParse: … }` cast, which turns a missing export into
+  // `new undefined()` — a TypeError the caller's catch quietly renders as "no page
+  // ranges". Check it, and name it when it is wrong.
+  //
+  // pdf-parse loads pdfjs-dist, which resolves its worker RELATIVE to its own file at
+  // runtime. `serverExternalPackages` in next.config.ts keeps it out of the server
+  // bundle for that reason — see the note there.
   const mod = (await import('pdf-parse')) as unknown as {
-    PDFParse: new (opts: { data: Buffer }) => {
-      getText(): Promise<{ pages: { text: string; num: number }[]; text: string }>;
-      destroy?: () => Promise<void> | void;
-    };
+    PDFParse?: PdfParseCtor;
+    default?: { PDFParse?: PdfParseCtor };
   };
-  const parser = new mod.PDFParse({ data: buf });
+  const PDFParse = mod.PDFParse ?? mod.default?.PDFParse;
+  if (typeof PDFParse !== 'function') {
+    throw new Error('pdf-parse did not expose a PDFParse constructor');
+  }
+  const parser = new PDFParse({ data: buf });
   try {
     const result = await parser.getText();
     return (result.pages ?? []).map((p) => p.text ?? '');
@@ -325,8 +340,13 @@ export class PdfRenderer {
     let ranges: TocRanges | undefined;
     try {
       ranges = await this.measureRanges(buf1, job.sectionKeys);
-    } catch {
-      ranges = undefined; // measure failed → blank cells (graceful, F31)
+    } catch (e) {
+      // Degrading to blank cells is deliberate (F31) — a Contents page without page
+      // numbers still beats a failed export. Staying SILENT about it was not: the
+      // measure threw on every request in the app for as long as it shipped, and
+      // nothing anywhere said so.
+      this.logFn({ event: 'pdf_toc_measure_failed', error: String(e) });
+      ranges = undefined;
     }
 
     // Pass 2 (final): measured TOC ranges.

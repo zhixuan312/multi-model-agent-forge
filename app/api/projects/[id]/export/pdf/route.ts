@@ -10,7 +10,7 @@ import { parseExportKind, unknownKindResponse, mapExportError } from '@/export/r
 /**
  * `POST /api/projects/[id]/export/pdf` (Spec 8 Key flow C) — renders the
  * Forge-template PDF (two-pass TOC + in-page Mermaid) and streams it. Records
- * `export(format='pdf')` + action_log. Node runtime (Puppeteer).
+ * `project_export(format='pdf')`. Node runtime (Puppeteer).
  *
  * Body: { artifact, mermaidAsDiagram }
  */

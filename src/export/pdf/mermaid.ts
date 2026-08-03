@@ -17,6 +17,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { MERMAID_UMD_SPECIFIER } from '@/export/config';
 
 export interface RunMermaidOptions {
   mermaidAsDiagram: boolean;
@@ -30,11 +32,18 @@ export interface MermaidPage {
 
 let _bundle: string | null = null;
 
-/** Read + cache the local mermaid UMD bundle (no egress). */
+/**
+ * Read + cache the local mermaid UMD bundle (no egress).
+ *
+ * Resolution is anchored at the app root's `package.json`, not at `import.meta.url`:
+ * inside the server bundle the latter is a chunk under `.next/`, which is not where
+ * the dependency tree lives. The specifier comes from `@/export/config` — see the
+ * note on `MERMAID_UMD_SPECIFIER` for why it cannot be a literal here.
+ */
 export function mermaidBundle(): string {
   if (_bundle != null) return _bundle;
-  const require = createRequire(import.meta.url);
-  const path = require.resolve('mermaid/dist/mermaid.min.js');
+  const require = createRequire(join(process.cwd(), 'package.json'));
+  const path = require.resolve(MERMAID_UMD_SPECIFIER);
   _bundle = readFileSync(path, 'utf-8');
   return _bundle;
 }

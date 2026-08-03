@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
     "/api/projects/**": ["./node_modules/puppeteer/**"],
   },
 
+  // pdf-parse reads back the pass-1 PDF so the exported Contents page can carry real
+  // page numbers (src/export/pdf/render.ts). It wraps pdfjs-dist, which imports its
+  // worker as a path RELATIVE to its own module at runtime. Bundled into the server
+  // chunks, that path no longer exists, and every measure failed with
+  //   Setting up fake worker failed: "Cannot find module .next/…/pdf.worker.mjs"
+  // on every export — so the Contents page shipped with every page-number cell blank
+  // while the test suite, which loads pdf-parse straight from node_modules, measured
+  // it correctly and passed. Keeping it external lets it resolve its own files.
+  serverExternalPackages: ["pdf-parse"],
+
   async headers() {
     const csp = [
       "default-src 'self'",

@@ -8,7 +8,7 @@ import { parseExportKind, unknownKindResponse, mapExportError } from '@/export/r
 /**
  * `GET /api/projects/[id]/export/md?artifact=<kind>` (Spec 8 Key flow B) — streams
  * the artifact's faithful `body_md` (review: adapter-normalized) as a
- * `text/markdown` attachment. Records `export(format='md')` + action_log.
+ * `text/markdown` attachment. Records `project_export(format='md')`.
  * Chromium-independent — works even if the PDF engine is broken.
  */
 export const runtime = 'nodejs';

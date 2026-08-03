@@ -5,8 +5,6 @@
  */
 import { getPdfRenderer, artifactRenderJob, type PdfRenderer } from '@/export/pdf/render';
 import { parseArtifactSections } from '@/export/sections';
-import { renderArtifactHtml } from '@/export/pdf/template';
-import { spawnPdfRender } from '@/export/pdf/spawn-render';
 import { slug } from '@/export/slug';
 import {
   collectArtifact,
@@ -110,20 +108,19 @@ export async function exportPdf(
   const name = await projectName(projectId);
   const lede = await projectLede(projectId);
 
-  let buffer: Buffer;
-  if (deps.renderer) {
-    // Test injection — use in-process renderer
-    buffer = await deps.renderer.render(
-      artifactRenderJob(
-        { kind, projectName: name, lede, meta: collected.meta, sections, sectionHeaders: collected.sectionHeaders, mermaidAsDiagram: opts.mermaidAsDiagram },
-        Buffer.byteLength(collected.bodyMd),
-      ),
-    );
-  } else {
-    // Production: spawn subprocess to avoid Turbopack ESM issues with puppeteer
-    const html = renderArtifactHtml({ kind, projectName: name, lede, meta: collected.meta, sections, sectionHeaders: collected.sectionHeaders, mermaidAsDiagram: opts.mermaidAsDiagram });
-    buffer = await spawnPdfRender(html, { mermaidAsDiagram: opts.mermaidAsDiagram });
-  }
+  // The SAME renderer the bundle uses (`deps.renderer` is a test seam, not a second
+  // engine). A prior version rendered the single PDF by spawning a standalone worker
+  // script instead, which skipped every cap and every print option this one applies:
+  // the downloaded file had no footer, no page numbers, no project name, blank TOC
+  // page cells, and different margins — while the test suite asserted all of them,
+  // because the tests injected `deps.renderer` and so exercised this path instead.
+  const renderer = deps.renderer ?? getPdfRenderer();
+  const buffer = await renderer.render(
+    artifactRenderJob(
+      { kind, projectName: name, lede, meta: collected.meta, sections, sectionHeaders: collected.sectionHeaders, mermaidAsDiagram: opts.mermaidAsDiagram },
+      Buffer.byteLength(collected.bodyMd),
+    ),
+  );
 
   const { exportId } = await recordExport({
     projectId,

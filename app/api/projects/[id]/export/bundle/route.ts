@@ -10,8 +10,8 @@ import { mapExportError } from '@/export/route-helpers';
 /**
  * `POST /api/projects/[id]/export/bundle` (Spec 8 Key flow D) — collects every
  * ready artifact's `.md` + one combined PDF into a `.zip` and STREAMS it
- * (`application/zip`, no `Content-Length`). Records `export(format='bundle',
- * artifact_id=null)` + action_log. Pending artifacts are silently omitted; the
+ * (`application/zip`, no `Content-Length`). Records `project_export(format='bundle',
+ * artifact_id=null)`. Pending artifacts are silently omitted; the
  * `x-bundle-included` header names what was included (drives the toast).
  */
 export const runtime = 'nodejs';

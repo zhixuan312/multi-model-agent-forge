@@ -668,13 +668,12 @@ export class PollManager {
         route: mmaBatch.route,
         handler: mmaBatch.handler,
         createdAt: mmaBatch.createdAt,
+        request: mmaBatch.request,
       })
       .from(mmaBatch)
       .where(inArray(mmaBatch.status, ['dispatched', 'running']));
 
     if (rows.length === 0) return 0;
-
-    const taskByBatch = new Map<string, string>();
 
     let n = 0;
     for (const r of rows) {
@@ -685,7 +684,13 @@ export class PollManager {
         mmaBatchId: r.batchId,
         projectId: r.projectId,
         route: r.route,
-        taskId: taskByBatch.get(r.id) ?? null,
+        // Recovered from the persisted request. A `taskByBatch` map sat here, declared and
+        // NEVER populated, so every rehydrated batch came back with `taskId: null` — and a
+        // discover task in flight across a restart then never flipped to `recorded` and
+        // emitted no terminal event, leaving the exploration fan-out waiting on it forever.
+        taskId: typeof (r.request as { taskId?: unknown } | null)?.taskId === 'string'
+          ? (r.request as { taskId: string }).taskId
+          : null,
         handler: r.handler,
         createdAt: r.createdAt,
       });

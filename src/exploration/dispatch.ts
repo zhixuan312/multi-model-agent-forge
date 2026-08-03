@@ -208,7 +208,10 @@ export async function dispatchTasks(
         body,
         actorId: actor.id,
         taskId: task.id,
-        meta: { taskKind: task.kind, title: task.title, targetRepoId: task.kind === 'investigate' ? task.targetRepoId : null },
+        // `taskId` also rides in meta, not only in the opts: opts.taskId reaches the
+        // PollManager in memory, while meta persists to the batch row's `request` — which
+        // is the only place a rehydrate after a restart can recover it from.
+        meta: { taskId: task.id, taskKind: task.kind, title: task.title, targetRepoId: task.kind === 'investigate' ? task.targetRepoId : null },
         await: false,
       }));
     } catch (err) {

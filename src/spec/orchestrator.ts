@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import type { ComponentKind } from '@/db/enums';
-import { readExplorationSummary } from '@/projects/project-files';
 import { updateDetails } from '@/details/write';
 import { validateDetails } from '@/details/schema';
 import { project } from '@/db/schema/projects';
@@ -17,8 +16,13 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
  *
  * - `confirmComponents` — Outline phase: store selected component templates in details
  * - `onHumanSatisfied` — Craft phase: per-component approval (nod)
- * - `allComponentsApproved` — assemble gate
- * - `getLatestExploration` — grounding helper for prompts
+ *
+ * Two more were listed here and are gone. `getLatestExploration` wrapped
+ * `readExplorationSummary` and had no caller — five other modules call that function
+ * directly. `allComponentsApproved` was advertised as the "assemble gate" and was called
+ * only by its own test: the real gate is in `allowed-actions.ts`, which decides from a
+ * `Details` object already in hand, while this one re-read the project from the database —
+ * so it could not have served that path even if someone had reached for it.
  */
 
 export interface OrchestratorDeps {
@@ -33,16 +37,6 @@ async function loadActor(db: Db, actorId: string | undefined) {
     .where(eq(member.id, actorId))
     .limit(1);
   return actor ?? null;
-}
-
-/* ── Grounding ────────────────────────────────────────────────────────── */
-
-/** Read the exploration brief from file for grounding. */
-export async function getLatestExploration(
-  projectId: string,
-): Promise<{ bodyMd: string } | null> {
-  const bodyMd = await readExplorationSummary(projectId);
-  return bodyMd ? { bodyMd } : null;
 }
 
 /* ── Component lifecycle ──────────────────────────────────────────────── */
@@ -165,11 +159,3 @@ export async function confirmComponents(
   });
 }
 
-/** True iff every component has at least one approval (assemble gate). */
-export async function allComponentsApproved(db: Db, projectId: string): Promise<boolean> {
-  const [row] = await db.select({ details: project.details }).from(project).where(eq(project.id, projectId)).limit(1);
-  if (!row?.details) return false;
-  const d = validateDetails(row.details);
-  const comps = d.stages.spec.phases.craft.components;
-  return comps.length > 0 && comps.every((c) => c.approvals.length > 0);
-}

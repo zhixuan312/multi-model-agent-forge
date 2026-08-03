@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import {
   onHumanSatisfied,
   confirmComponents,
-  allComponentsApproved,
 } from '@/spec/orchestrator';
 import { buildInitialDetails, type Details } from '@/details/schema';
 import { createMockDb, seq, type MockResponses } from '../test-utils/mock-db';
@@ -60,39 +59,6 @@ describe('confirmComponents', () => {
   });
 });
 
-describe('allComponentsApproved', () => {
-  it('returns true when all components are approved', async () => {
-    const d = buildInitialDetails();
-    d.stages.spec.phases.craft.components = [
-      { id: 'c1', templateId: 'context', approvals: ['m1'] },
-      { id: 'c2', templateId: 'problem', approvals: ['m1'] },
-    ];
-    const mockDb = createOrchestratorDb({
-      'select:project': [{ details: d }],
-    });
-    expect(await allComponentsApproved(mockDb, projectId)).toBe(true);
-  });
-
-  it('returns false when any component is not approved', async () => {
-    const d = buildInitialDetails();
-    d.stages.spec.phases.craft.components = [
-      { id: 'c1', templateId: 'context', approvals: ['m1'] },
-      { id: 'c2', templateId: 'problem', approvals: [] },
-    ];
-    const mockDb = createOrchestratorDb({
-      'select:project': [{ details: d }],
-    });
-    expect(await allComponentsApproved(mockDb, projectId)).toBe(false);
-  });
-
-  it('returns false when there are no components', async () => {
-    const d = buildInitialDetails();
-    const mockDb = createOrchestratorDb({
-      'select:project': [{ details: d }],
-    });
-    expect(await allComponentsApproved(mockDb, projectId)).toBe(false);
-  });
-});
 
 describe('onHumanSatisfied', () => {
   it('adds the member to the component approvals via updateDetails', async () => {

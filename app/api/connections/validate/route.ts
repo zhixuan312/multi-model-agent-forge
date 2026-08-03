@@ -40,13 +40,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const client = await buildMmaClient();
       const health = await client.health();
       const status = await client.status();
-      const ok = health.status !== 'unreachable' && status.authValid;
+      // Three distinct outcomes, because they need three different actions from the user:
+      // unreachable (start mma / fix the URL), token rejected (regenerate it), engine
+      // error (neither — mma is up and accepted the token but is unwell). The middle
+      // message used to be shown for ALL of them.
+      const ok = health.status !== 'unreachable' && status.authValid && !status.error;
       const detail =
         health.status === 'unreachable'
           ? 'Cannot reach mma.'
           : !status.authValid
             ? 'mma rejected the bearer token.'
-            : 'Connected to mma.';
+            : status.error
+              ? `Reached mma, but it reported an error: ${status.error}`
+              : 'Connected to mma.';
       return NextResponse.json({ ok, detail });
     } catch {
       return NextResponse.json({ ok: false, detail: 'Cannot reach mma.' });

@@ -43,11 +43,19 @@ export type HealthResult =
 
 export interface StatusResult {
   reachable: boolean;
+  /**
+   * The bearer was NOT rejected. Only a 401/403 clears this — every other failure says
+   * nothing about the token. It used to be false for ANY non-OK response, and the
+   * Connections check renders that as "mma rejected the bearer token", so a 500 from an
+   * unwell engine sent the user off to regenerate a token that was fine.
+   */
   authValid: boolean;
   version: string | null;
   pid: number | null;
   uptimeMs: number | null;
   activeTasks: number | null;
+  /** Why the status call failed, when it failed for a reason other than auth. */
+  error?: string;
 }
 
 /** MMA poll result — pending returns structured JSON, terminal returns the result envelope. */
@@ -288,13 +296,20 @@ export class MmaClient {
         headers: this.authedHeaders(),
       });
     } catch {
-      return { reachable: false, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
+      return {
+        reachable: false, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null,
+        error: 'mma is unreachable',
+      };
     }
     if (res.status === 401 || res.status === 403) {
       return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
     }
     if (!res.ok) {
-      return { reachable: true, authValid: false, version: null, pid: null, uptimeMs: null, activeTasks: null };
+      // Reachable, and the bearer was not rejected — the engine is simply unwell.
+      return {
+        reachable: true, authValid: true, version: null, pid: null, uptimeMs: null, activeTasks: null,
+        error: `mma /status returned HTTP ${res.status}`,
+      };
     }
     const json = (await res.json().catch(() => null)) as
       | { version?: string; pid?: number; uptimeMs?: number; counters?: { activeTasks?: number } }

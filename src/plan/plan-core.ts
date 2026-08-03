@@ -110,12 +110,20 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
     const detailsTasks = d?.stages.plan.phases.refine.tasks ?? [];
     participantIds = d?.stages.plan.participants ?? [];
     const detailsRepos = d?.repos ?? [];
+    // A task records its OWN repo, dependencies and phase. These used to be thrown away —
+    // `dependsOn`/`phase` forced to null and the repo fixed to `repos[0]` — so on a
+    // multi-repo project every task row claimed the first repo whichever one it was
+    // actually for, and the "· deps N" hint could never appear.
+    const repoNameById = new Map(detailsRepos.map((r) => [r.id, r.name]));
     const firstRepoName = detailsRepos[0]?.name ?? '';
 
     const dbRows = detailsTasks.map((t) => ({
-      id: t.id, title: t.title, status: t.status, phase: null as string | null,
-      targetRepoId: detailsRepos[0]?.id ?? null, dependsOn: null as string[] | null,
-      repoName: firstRepoName,
+      id: t.id, title: t.title, status: t.status, phase: t.phase ?? null,
+      targetRepoId: t.targetRepoId ?? detailsRepos[0]?.id ?? null,
+      dependsOn: t.dependsOn ?? null,
+      // Fall back to the sole/first repo only when the task names none — a single-repo
+      // project's tasks carry no targetRepoId and must still show their repository.
+      repoName: (t.targetRepoId && repoNameById.get(t.targetRepoId)) || firstRepoName,
     }));
 
     const approversByTask = new Map<string, string[]>();
@@ -134,7 +142,7 @@ export async function loadPlanView(db: Db, projectId: string): Promise<PlanView>
         title,
         body: s.body,
         files: extractFiles(s.body),
-        dependsOn: [],
+        dependsOn: meta?.dependsOn ?? [],
         targetRepo: meta?.repoName ?? '',
         dbStatus: meta?.status,
         phase: s.phase ?? meta?.phase ?? undefined,

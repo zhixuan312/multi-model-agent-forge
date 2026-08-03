@@ -46,6 +46,7 @@ import { isForgeMention, stripForgeMention } from '@/spec/forge-mention';
 import { isBlockingSeverity } from '@/lib/severity';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { localId } from '@/lib/local-id';
+import { responseError } from '@/lib/err';
 
 /** Refine tabs — the task's plan text, then its discussion. */
 const REFINE_TABS: readonly DocumentShellTab[] = [
@@ -739,7 +740,7 @@ function DetailStage({
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ memberId: m.id }) });
-                    if (!r.ok) throw new Error('Invite failed.');
+                    if (!r.ok) throw new Error(await responseError(r, 'Invite failed.'));
                   },
                   rollback: () => setPlanParticipants((prev) => prev.filter((p) => p.member.id !== m.id)),
                   error: 'Couldn’t invite — reverted.',

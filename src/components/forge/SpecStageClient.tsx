@@ -1034,7 +1034,7 @@ function CraftStage({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ memberId: m.id, componentId: compId }) });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
       rollback: () => setCollab((prev) => ({ ...prev, [compId]: prevCollab ?? { participants: [], discussion: [] } })),
       error: 'Couldn’t invite — reverted.',
@@ -1064,7 +1064,7 @@ function CraftStage({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bodyMd: text }) });
-      if (!r.ok) throw new Error(`send failed (${r.status})`);
+      if (!r.ok) throw new Error(await responseError(r, `send failed (${r.status})`));
       const data = (await r.json()) as { id: string };
       seenMsgIds.current.add(data.id); // mark seen so the SSE echo is skipped
       patchCollab((u) => ({
@@ -1155,7 +1155,7 @@ function CraftStage({
         },
         commit: async () => {
           const r = await fetch(`/api/projects/${projectId}/spec/components/${compId}/revoke`, { method: 'POST' });
-          if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+          if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
         },
         rollback: () => {
           onPatch(compId, { status: prevStatus, approvedBy: prevApprovedBy });
@@ -1715,7 +1715,7 @@ function DocumentScreen({
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ action }) });
-                        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+                        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
                       },
                       rollback: () => setSpecApprovers(prev),
                       error: iApprovedSpec ? 'Couldn’t revoke — reverted.' : 'Couldn’t approve — reverted.',

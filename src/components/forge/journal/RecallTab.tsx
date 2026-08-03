@@ -189,7 +189,7 @@ export function RecallTab({
       if (signal.aborted) throw stop();
       delay = Math.min(Math.round(delay * 1.5), POLL_MAX_INTERVAL_MS);
       const pollRes = await fetch(`/api/journal/recall/${batchId}`, { signal });
-      if (!pollRes.ok) throw new Error('Journal recall poll failed — please retry.');
+      if (!pollRes.ok) throw new Error(await responseError(pollRes, 'Journal recall poll failed — please retry.'));
       const poll = (await pollRes.json()) as PollResult;
       if (poll.state === 'terminal') {
         const env = poll.envelope as { error?: { message?: string } } | null;

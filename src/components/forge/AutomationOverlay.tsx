@@ -36,6 +36,7 @@ import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
 import { STAGE_ORDER, type StageKind } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
+import { responseError } from '@/lib/err';
 
 const AUTOMATION_NOTE = `### What is this?
 
@@ -256,7 +257,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'take_over' }),
         });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
       rollback: () => automationOverlayStore.show(),
       onSettled: () => router.refresh(),

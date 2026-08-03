@@ -13,6 +13,7 @@ import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import type { NotificationRow } from '@/db/schema/ops';
 
 import { formatTime } from '@/lib/format-date';
+import { responseError } from '@/lib/err';
 
 const shortTime = formatTime;
 
@@ -59,7 +60,7 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
       apply: () => setReadIds((prev) => new Set(prev).add(id)),
       commit: async () => {
         const r = await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
       rollback: () =>
         setReadIds((prev) => {
@@ -79,7 +80,7 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
       apply: () => setReadIds(new Set(ids)),
       commit: async () => {
         const r = await fetch('/api/notifications/read-all', { method: 'POST' });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
       rollback: () => setReadIds(prev),
       error: 'Couldn’t mark all as read.',

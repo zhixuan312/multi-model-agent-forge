@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/cn';
 import { automationOverlayStore } from '@/components/forge/AutomationGate';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { responseError } from '@/lib/err';
 
 /**
  * The stage status strip — the one horizontal bar that says who is driving the project.
@@ -69,7 +70,7 @@ export function AutomationBar({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'start_auto' }),
         });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
       rollback: () => automationOverlayStore.hide(),
       error: 'Couldn’t start automation — try again.',

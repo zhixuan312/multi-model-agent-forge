@@ -45,3 +45,38 @@ describe('API error envelopes', () => {
     expect(offenders, 'give the code a `message`, or put the sentence in `error`').toEqual([]);
   });
 });
+/**
+ * The client half of the same rule. Three sweeps missed real instances because each was
+ * anchored on one incidental spelling: `catch(() => null)` (missed `catch(() => ({}))`),
+ * then `res.ok` (missed the ten sites whose variable is `r`). This checks the CONCEPT —
+ * any `!<something>.ok` guard that throws or toasts a literal, without consulting the
+ * body — so the next one cannot hide behind a variable name.
+ */
+describe('client error handling', () => {
+  const clientFiles: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(rel);
+      else if (rel.endsWith('.tsx') && !rel.includes('.test.')) clientFiles.push(rel);
+    }
+  };
+  walk('src');
+  walk('app/(app)');
+
+  it('scanned the client tree', () => {
+    expect(clientFiles.length).toBeGreaterThan(50);
+  });
+
+  it('never throws a hardcoded message for a failed response without reading the body', () => {
+    const offenders: string[] = [];
+    for (const rel of clientFiles) {
+      const text = readFileSync(join(ROOT, rel), 'utf8');
+      for (const m of text.matchAll(/if \(!(\w+)\.ok\)\s*throw new Error\(([^)]*)\)/g)) {
+        if (!m[2]!.includes('responseError')) offenders.push(`${rel}: ${m[0]!.slice(0, 70)}`);
+      }
+    }
+    expect(offenders, 'use responseError(res, fallback) so the server’s reason reaches the user').toEqual([]);
+  });
+});

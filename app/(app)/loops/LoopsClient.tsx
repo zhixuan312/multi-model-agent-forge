@@ -28,6 +28,7 @@ import type { LoopRow } from '@/db/schema/loop';
 import { describeCron } from '@/loops/cron';
 import { LoopForm, type RepoOption } from './LoopForm';
 import { RUN_STATUS_VARIANT, statusLabel, fmtRunTime } from './run-format';
+import { responseError } from '@/lib/err';
 
 export interface LastRun {
   status: string;
@@ -85,11 +86,16 @@ export function LoopsClient({
       setBusy(id);
       try {
         const r = await fetch(`/api/loops/${id}/run`, { method: 'POST' });
-        if (!r.ok) throw new Error(`Request failed (${r.status}).`);
+        if (!r.ok) {
+          // The route explains a refusal — an event-mode loop is started through its event
+          // endpoint, not here. "Try again" was advice that could never work for that.
+          showToast({ type: 'error', message: await responseError(r, 'Couldn’t start the loop run — try again.') });
+          return;
+        }
         setJustTriggered((prev) => new Set(prev).add(id)); // keep it "running" until the refresh confirms
         router.refresh();
       } catch {
-        showToast({ type: 'error', message: 'Couldn’t start the loop run — try again.' });
+        showToast({ type: 'error', message: 'Network error — couldn’t start the loop run.' });
       } finally {
         setBusy(null);
       }

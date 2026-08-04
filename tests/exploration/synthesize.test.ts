@@ -67,8 +67,35 @@ describe('buildSynthesizeRequest', () => {
     const result = await buildSynthesizeRequest('proj-1', { db });
     expect('error' in result).toBe(false);
     if (!('error' in result)) {
-      expect(result.user).toContain('failed');
+      // NOT `toContain('failed')`: the prompt always carries the line "N tasks completed,
+      // N failed.", so that substring is present whether or not a single failure marker was
+      // emitted. Deleting the entire failures section left this case green. Assert the
+      // heading and the marker itself — the two things that actually tell the synthesizer
+      // a gap exists.
+      expect(result.user).toContain('# Failed tasks');
+      expect(result.user).toContain(gapMarker('research', null));
+      expect(result.user).toContain('1 tasks completed, 1 failed.');
+      // The successful task's findings still make it through alongside the gap.
+      expect(result.user).toContain('found stuff');
     }
+  });
+
+  it('reports a task whose batch row is missing as a failure, not as a success', async () => {
+    // A recorded task whose batch was evicted has no row to read. It must not be counted
+    // among the successes and silently contribute nothing — the synthesizer would then
+    // describe a complete picture assembled from an incomplete one.
+    const d = makeDetails([
+      { kind: 'investigate', prompt: 'q1', status: 'recorded', repoId: 'r1', batchId: 'b1' },
+      { kind: 'research', prompt: 'q2', status: 'recorded', batchId: 'gone' },
+    ]);
+    const db = createMockDb({
+      'select:project': [{ details: d, detailsReady: true }],
+      'select:ops_mma_batch': [{ id: 'b1', route: 'investigate', status: 'done', result: { output: { summary: { answer: 'found stuff' } } } }],
+      'select:workspace_repo': [{ id: 'r1', name: 'api-service' }],
+    });
+    const result = await buildSynthesizeRequest('proj-1', { db });
+    if ('error' in result) throw new Error('expected a prompt');
+    expect(result.user).toContain('1 tasks completed, 1 failed.');
   });
 });
 

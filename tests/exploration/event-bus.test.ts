@@ -53,19 +53,34 @@ describe('ProjectEventBus', () => {
     expect(bus.hasChannel('p1')).toBe(false);
   });
 
-  it('raises the per-project listener cap to 100 — no MaxListenersExceededWarning at scale', () => {
+  /**
+   * MUST be async. `process.emitWarning` delivers on a later tick, so a synchronous
+   * `expect(warnings).toHaveLength(0)` right after the subscribes runs BEFORE the listener
+   * has been called — it holds no matter what the bus does. Verified by commenting out
+   * `emitter.setMaxListeners(...)`: Node printed the MaxListenersExceededWarning to the
+   * console and all five cases still passed. The warning was visible to a human reading the
+   * output and invisible to the test that existed to catch it.
+   *
+   * Awaiting a macrotask lets the queued warning arrive first.
+   */
+  it('raises the per-project listener cap to 100 — no MaxListenersExceededWarning at scale', async () => {
     const bus = new ProjectEventBus();
     const warnings: unknown[] = [];
     const onWarn = (w: unknown) => warnings.push(w);
     process.on('warning', onWarn);
     try {
+      // Node's default is 10; 50 is comfortably past it and well under the raised cap.
       const uns = Array.from({ length: 50 }, () => bus.subscribe('p1', () => {}));
       expect(bus.subscriberCount('p1')).toBe(50);
       expect(MAX_SUBSCRIBERS_PER_PROJECT).toBe(100);
+      await new Promise((resolve) => setImmediate(resolve));
       uns.forEach((u) => u());
     } finally {
       process.off('warning', onWarn);
     }
-    expect(warnings.filter((w) => String(w).includes('MaxListenersExceededWarning'))).toHaveLength(0);
+    expect(
+      warnings.filter((w) => String(w).includes('MaxListenersExceededWarning')),
+      'the per-project emitter is back on Node’s default cap of 10',
+    ).toHaveLength(0);
   });
 });

@@ -19,6 +19,23 @@ function fakeDb(rows: unknown[]): Db {
   return { select: () => chain } as unknown as Db;
 }
 
+/**
+ * Row fixtures mirror what `authenticate` actually SELECTS: `id`, `username`, `displayName`,
+ * `avatarTint`, `role`, `teamId`, `passwordHash`. They used to carry `isAdmin: false` — a
+ * column that no longer exists — and to omit `role` and `teamId` entirely, so the
+ * `AuthedMember` under test came back with `role: undefined` and nothing noticed, because
+ * the only assertion was on `id`. `schema-doc-accuracy.test.ts` names this exact hazard:
+ * fixtures supplying `{ isAdmin }` look correct while production selects the role.
+ */
+const ROW = {
+  id: 'm1',
+  username: 'alice',
+  displayName: 'Alice',
+  avatarTint: '#9a6b4f',
+  role: 'team_admin' as const,
+  teamId: 'team-1',
+};
+
 describe('LocalAuthProvider timing-equality (unit, no DB)', () => {
   it('runs a full argon2id verify against the DUMMY hash on the unknown-user path', async () => {
     const spy = vi.spyOn(passwordMod, 'verifyPassword');
@@ -34,19 +51,20 @@ describe('LocalAuthProvider timing-equality (unit, no DB)', () => {
     const spy = vi.spyOn(passwordMod, 'verifyPassword');
     const realHash = await passwordMod.hashPassword('the-real-password');
     const provider = new LocalAuthProvider(
-      fakeDb([
-        {
-          id: 'm1',
-          username: 'alice',
-          displayName: 'Alice',
-          avatarTint: '#9a6b4f',
-          isAdmin: false,
-          passwordHash: realHash,
-        },
-      ]),
+      fakeDb([{ ...ROW, passwordHash: realHash }]),
     );
     const res = await provider.authenticate('alice', 'the-real-password');
-    expect(res?.id).toBe('m1');
+    // The whole AuthedMember, not just the id. Every downstream gate reads `role` and
+    // `teamId` off this object; dropping either from the SELECT would leave them undefined
+    // and an id-only assertion would still pass.
+    expect(res).toEqual({
+      id: 'm1',
+      username: 'alice',
+      displayName: 'Alice',
+      avatarTint: '#9a6b4f',
+      role: 'team_admin',
+      teamId: 'team-1',
+    });
     expect(spy).toHaveBeenCalledWith('the-real-password', realHash);
     spy.mockRestore();
   });
@@ -54,9 +72,7 @@ describe('LocalAuthProvider timing-equality (unit, no DB)', () => {
   it('returns null for a known user when the password does not verify', async () => {
     const realHash = await passwordMod.hashPassword('the-real-password');
     const provider = new LocalAuthProvider(
-      fakeDb([
-        { id: 'm1', username: 'alice', displayName: 'Alice', avatarTint: '#9a6b4f', isAdmin: false, passwordHash: realHash },
-      ]),
+      fakeDb([{ ...ROW, passwordHash: realHash }]),
     );
     expect(await provider.authenticate('alice', 'WRONG-password')).toBeNull();
   });

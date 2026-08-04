@@ -105,6 +105,9 @@ it('marks a notification read from the keyboard', async () => {
 const GLYPH_FOR: Record<(typeof NOTIFICATION_KIND)[number], string> = {
   dispatch_failed: 'lucide-triangle-alert',
   section_invite: 'lucide-at-sign',
+  // Same glyph as an invite, deliberately: both mean "a person named you". Asserted rather
+  // than skipped so a future change that gives mentions their own icon has to say so here.
+  mention: 'lucide-at-sign',
 };
 
 it.each(NOTIFICATION_KIND)('renders the %s glyph for that kind', async (kind) => {

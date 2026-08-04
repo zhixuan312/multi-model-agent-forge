@@ -137,9 +137,9 @@ Providers go deep. We connect wide — and we keep widening.`,
     // "read / write / orchestration ROUTE taxonomy" was the phrasing, and the Orchestration
     // pages that follow are not routes — they are the context-block, retry and poll
     // MECHANISMS. A reader following that sentence for the third route family finds three
-    // endpoints instead. (The engine does have an `orchestrate` task type, with its own
-    // skill; the Guide has no page for it — a gap, not a mislabelling, and one for whoever
-    // owns the manual's scope to fill.)
+    // endpoints instead. (`orchestrate` was the other half of that confusion — a real task
+    // type with a real skill and ten Forge dispatch sites, and no page at all. It has one
+    // now, under Read-only, where its `writeRoute: false` puts it.)
     body: `The engine is the **shared labor layer both modes run on** — the individual calls it directly from whatever agent client they use; Forge calls the *same routes* over HTTP. The routing model, the three layers, the read / write route taxonomy, and the orchestration mechanisms on the following pages are global to the product: they don't change between the direct and the team path.
 
 The work runs across **three layers**. Your own agent (or Forge, on a team's behalf) stays on top and keeps the judgment; beneath it sit the **two labor slots you configure** — \`complex\` and \`standard\`. These are labor *categories*, not intelligence tiers: you decide what each one means for your workflow and budget, and a cheaper model can fill a slot as your fleet changes.`,
@@ -236,6 +236,33 @@ The work runs across **three layers**. Your own agent (or Forge, on a team's beh
     body: `\`journal_recall\` reads the project's durable **learnings store** — ask a vague, conceptual question and a read-only worker returns the relevant prior lessons ranked by relevance, shaped like \`investigate\`. Reach for it before designing or attempting something, so you don't re-tread ground the project already covered. It follows Karpathy's [LLM-Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — retrieval indexed over embeddings, not keyword tags. How a question is turned back into learnings:`,
     component: 'journal-recall',
     underTheHood: `Primary: \`core/src/skills/journal_recall/\`; skill \`mma-journal-recall\`. Task type \`journal_recall\` dispatched via \`POST /task\` (read-only). Reads the markdown store at \`.mma/journal/\`.`,
+  },
+  /**
+   * The twelfth task type. The Guide documented eleven and called it the route set, which
+   * left the one route Forge leans on hardest undescribed — a reader could not tell what was
+   * running between the stages they could see.
+   *
+   * Grouped under Read-only because `TYPE_REGISTRY` says `writeRoute: false`: it edits
+   * nothing and commits nothing. That is the fact worth stating, since "orchestrate" sounds
+   * like the most powerful route in the set and is in truth the most constrained.
+   */
+  {
+    id: 'tool-orchestrate',
+    part: 'engine',
+    subgroup: 'Read-only',
+    title: 'Orchestrate',
+    body: `\`orchestrate\` is the engine's **general-purpose reasoning turn** — the one route with no fixed job. Every other route knows what it is for (\`audit\` audits, \`plan\` plans); \`orchestrate\` runs whatever the calling prompt asks and returns the answer in whatever shape the prompt names. Its response **is** the deliverable: no preamble, no "here's what I found" — the caller parses it directly, often as JSON.
+
+It is the only route that runs on the **\`main\` tier** — the orchestrator brain, not a worker slot — because the calls that reach it are the judgment steps between stages, where the reasoning matters more than the throughput.
+
+Three things it deliberately is not:
+
+- **Not a write route.** It edits no files and commits nothing. Despite the name, it is the most constrained route in the set, not the most powerful.
+- **Not target-addressed.** It takes no \`target.paths\` and no inline artifact — everything it needs rides in the prompt. It still reads the working directory with its own tools.
+- **Not for you to call by hand.** There is no \`mma-orchestrate\` skill, because a person driving the chain has a better-fitting rod for every case. It exists for **programs** driving multi-step workflows.
+
+Forge is that program, and this route is how it thinks between the stages you can see: refining a spec or plan after an audit, applying audit findings, harvesting journal learnings, proposing and synthesizing exploration, and taking the loop's PLAN and JOURNAL turns.`,
+    underTheHood: `Primary: \`core/src/skills/orchestrate/\` (\`implement.md\`, \`review.md\`); registry entry in \`core/src/unified/type-registry.ts\` — \`defaultTier: 'main'\`, \`writeRoute: false\`, \`sandbox: 'cwd-only'\`, accepts no target. In Forge: 10 dispatch sites across \`automation/details-actions.ts\`, \`loops/run-deps.ts\` and \`exploration/synthesis-scheduler.ts\`.`,
   },
   // Journal record — the write side of the same store (grouped under Write in the TOC).
   {

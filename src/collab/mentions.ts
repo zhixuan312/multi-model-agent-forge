@@ -6,12 +6,16 @@ import type { MemberRef } from './types';
  * Answers "which member does this `@…` name, and where is it?" for the discussion thread,
  * which highlights the mention in the rendered bubble.
  *
- * It used to answer that for a second surface too: a `parseMentions` that turned a submitted
- * message into co-approval participants. Nothing called it. Participation comes from the
- * explicit Invite picker (`/api/projects/:id/spec/invite`), and @-mentioning a teammate
- * neither adds them nor notifies them — only `@Forge` (`spec/forge-mention.ts`) carries
- * behaviour. The docstring here described that wiring as if it existed, which is worse than
- * silence: it says the feature is covered.
+ * It also backs `collab/notify-mentions.ts`, which notifies each named teammate when a
+ * message is posted — the same spans, so the person highlighted in the bubble is exactly the
+ * person who gets the ping.
+ *
+ * Mentioning is NOT participation, and the difference is deliberate: being named tells
+ * someone to look, while the explicit Invite picker (`/api/projects/:id/spec/invite`) is
+ * what asks them to sign off. An earlier `parseMentions` conflated the two — it turned a
+ * message into co-approval participants, nothing ever called it, and this docstring
+ * described that wiring as though it ran. `@Forge` (`spec/forge-mention.ts`) is the one
+ * mention that carries other behaviour.
  *
  * The rules below still earn their keep — the renderer had its own regex once, and it was
  * case-sensitive with no trailing boundary, so `@bo chen` highlighted nothing and `@Bobby`

@@ -1,11 +1,11 @@
 /**
  * Notification store — centralised read/write for the ops_notification table.
  *
- * The kinds are `NOTIFICATION_KIND`: a dispatch failure and a section invite. This said
- * "dispatch failures, mentions, approvals, system alerts", three of which do not exist —
- * @-mentioning a teammate notifies nobody (see `collab/mentions.ts`), and neither an
- * approval nor a system alert has ever been written. A docstring listing features the
- * module does not have is worse than none: it reads as coverage.
+ * The kinds are `NOTIFICATION_KIND`: a dispatch failure, a section invite, and a mention.
+ * This once said "dispatch failures, mentions, approvals, system alerts" when only the
+ * first existed — a docstring listing features the module does not have is worse than none,
+ * because it reads as coverage. Mentions are real now (`collab/notify-mentions.ts`);
+ * approvals and system alerts are still not, and are not claimed here.
  *
  * The NotificationBell consumes from here.
  */

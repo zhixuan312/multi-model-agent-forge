@@ -40,8 +40,10 @@ export const mmaBatch = forge.table(
 
 
 /**
- * `ops_notification` — user-facing alerts. Currently two kinds:
- * `dispatch_failed` (MMA batch failed) and `section_invite` (invited to review).
+ * `ops_notification` — user-facing alerts. Three kinds: `dispatch_failed` (MMA batch
+ * failed), `section_invite` (asked to sign off on a section) and `mention` (named in a
+ * discussion message). Invite and mention are deliberately distinct: one asks for approval,
+ * the other just says look.
  */
 export const notification = forge.table(
   'ops_notification',

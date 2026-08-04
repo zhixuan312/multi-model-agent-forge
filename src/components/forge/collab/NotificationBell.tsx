@@ -142,6 +142,10 @@ export function NotificationBell({ items: serverItems }: { items: NotificationRo
 const KIND_GLYPH: Record<NotificationKind, { Icon: typeof AtSign; tone: 'fail' | 'normal' }> = {
   dispatch_failed: { Icon: AlertTriangle, tone: 'fail' },
   section_invite: { Icon: AtSign, tone: 'normal' },
+  // Same @-glyph as an invite: both mean "a person named you". The subtitle carries the
+  // difference (which stage/phase), and the titles say it outright — "invited you to
+  // review" vs "mentioned you".
+  mention: { Icon: AtSign, tone: 'normal' },
 };
 
 /** The column is plain `text` — a row written by an older build can carry a retired kind. */

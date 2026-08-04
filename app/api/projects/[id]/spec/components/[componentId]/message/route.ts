@@ -5,6 +5,7 @@ import { qaMessage } from '@/db/schema/spec';
 import { guardProjectWrite } from '@/auth/guard-project-write';
 import { projectEventBus } from '@/sse/event-bus';
 import { parseQaMessageBody, QA_MESSAGE_MAX_CHARS } from '@/spec/qa-message-body';
+import { notifyMentions } from '@/collab/notify-mentions';
 
 type Ctx = { params: Promise<{ id: string; componentId: string }> };
 
@@ -54,6 +55,19 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       authorName: me.displayName,
       bodyMd,
     },
+  });
+
+  // The @-mention autocomplete used to be decorative — it completed a teammate's name and
+  // then nothing happened. Notify each person actually named. After the publish, because a
+  // message that is already committed must not fail on the fan-out.
+  await notifyMentions(db, {
+    projectId: id,
+    messageId: row.id,
+    bodyMd,
+    authorId: me.id,
+    authorName: me.displayName,
+    teamId: me.teamId,
+    where: 'Spec · Craft',
   });
 
   return NextResponse.json({ id: row.id });

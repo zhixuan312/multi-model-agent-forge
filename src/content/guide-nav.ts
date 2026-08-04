@@ -47,6 +47,7 @@ export const GUIDE_NAV_SECTIONS: readonly GuideNavSection[] = [
   { id: 'tool-delegate', part: 'engine', title: 'Delegate' },
   { id: 'tool-execute-plan', part: 'engine', title: 'Execute plan' },
   { id: 'tool-journal-recall', part: 'engine', title: 'Journal recall' },
+  { id: 'tool-orchestrate', part: 'engine', title: 'Orchestrate' },
   { id: 'tool-journal-record', part: 'engine', title: 'Journal record' },
   { id: 'provider-runtimes', part: 'backend', title: 'Built on the providers’ own runtimes' },
   { id: 'cache-tokens', part: 'backend', title: 'Optimizing cache-token usage' },

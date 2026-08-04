@@ -236,7 +236,7 @@ export type DiscoverTaskKind = (typeof DISCOVER_TASK_KIND)[number];
  * used the same non-existent kind, so it was asserting against a value production cannot
  * produce.
  */
-export const NOTIFICATION_KIND = ['dispatch_failed', 'section_invite'] as const;
+export const NOTIFICATION_KIND = ['dispatch_failed', 'section_invite', 'mention'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KIND)[number];
 
 /**

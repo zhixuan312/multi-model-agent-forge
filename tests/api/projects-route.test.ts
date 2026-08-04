@@ -9,7 +9,10 @@ const changeVisibility = vi.fn();
 const changeRepos = vi.fn();
 const assertProjectReadable = vi.fn();
 const getProject = vi.fn();
-const getProjectRepos = vi.fn();
+// NOTE: `getProjectRepos` used to be mocked here too — declared, reset in `beforeEach`, and
+// given a resolved value. No such export exists in `projects-core`, or anywhere in `src`/
+// `app`, and nothing in this file ever asserted on it. A `vi.fn()` for a function that does
+// not exist reads like coverage of a call the route makes; the route makes no such call.
 
 vi.mock('@/auth/current-member', () => ({ currentMember: async () => mockCaller }));
 vi.mock('@/auth/same-origin', () => ({ rejectCrossOrigin: () => null }));
@@ -23,7 +26,6 @@ vi.mock('@/projects/projects-core', async (importOriginal) => {
     changeRepos,
     assertProjectReadable,
     getProject,
-    getProjectRepos,
   };
 });
 
@@ -59,7 +61,6 @@ describe('PATCH /api/projects/[id]', () => {
     changeRepos.mockReset();
     assertProjectReadable.mockReset();
     getProject.mockReset();
-    getProjectRepos.mockReset();
     assertProjectReadable.mockResolvedValue(undefined);
     getProject.mockResolvedValue({
       id: 'p1',
@@ -67,7 +68,6 @@ describe('PATCH /api/projects/[id]', () => {
       phase: 'build',
       archived: true,
     });
-    getProjectRepos.mockResolvedValue([]);
   });
 
   it('returns 400 when more than one PATCH branch is provided', async () => {

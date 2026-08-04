@@ -4,31 +4,25 @@ import { reconcileStuckAttempts } from '@/automation/details-actions';
 import { buildInitialDetails } from '@/details/schema';
 import { createMockDb } from '../test-utils/mock-db';
 
-const {
-  recordActivity,
-  appendProjectEvent,
-  resolveRunningEvent,
-} = vi.hoisted(() => ({
-  recordActivity: vi.fn(async () => {}),
-  appendProjectEvent: vi.fn(async () => {}),
-  resolveRunningEvent: vi.fn(async () => {}),
-}));
+/**
+ * The cutover is DONE, so this file no longer pretends to watch the old writers.
+ *
+ * It used to `vi.mock('@/details/write')` in `appendProjectEvent` and
+ * `resolveRunningEvent` and then assert `not.toHaveBeenCalled()`. Neither is exported any
+ * more — `details/write.ts` has no such functions, nothing in `src`/`app` references them,
+ * and the `Details` schema has no `events` field at all. So the mocks INVENTED the symbols
+ * they were watching, and three assertions could not fail: a function that does not exist
+ * is never called. `legacy-events-removal.test.ts` is what actually pins the removal.
+ *
+ * What is left is the real claim: these paths record through `project_activity`.
+ */
+const { recordActivity } = vi.hoisted(() => ({ recordActivity: vi.fn(async () => {}) }));
 
 vi.mock('@/activity/project-activity', () => ({ recordActivity }));
-vi.mock('@/details/write', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/details/write')>();
-  return {
-    ...actual,
-    appendProjectEvent,
-    resolveRunningEvent,
-  };
-});
 
 describe('project_activity cutover', () => {
   it('reconcileStuckAttempts records exactly one retry error row and does not push details.events', async () => {
     recordActivity.mockClear();
-    appendProjectEvent.mockClear();
-    resolveRunningEvent.mockClear();
     const d = buildInitialDetails();
     d.stages.execute.status = 'active';
     d.stages.execute.phases.implement.repos = [{ repoId: 'repo-1', attempts: [{ batchId: 'batch-1', status: 'running', at: '2026-07-10T00:00:00.000Z' }] }];
@@ -42,13 +36,10 @@ describe('project_activity cutover', () => {
     });
     await reconcileStuckAttempts(db, 'proj-1');
     expect(recordActivity).toHaveBeenCalledTimes(1);
-    expect(appendProjectEvent).not.toHaveBeenCalled();
   });
 
   it('records a driver-only terminal line through project_activity, not details.events', async () => {
     recordActivity.mockClear();
-    appendProjectEvent.mockClear();
-    resolveRunningEvent.mockClear();
     const db = createMockDb({ 'insert:project_activity': [{ id: 'a1' }] });
     await recordDriverOnlyLine(db, 'proj-1', '', '', 'All stages complete — project finished', 'done');
     expect(recordActivity).toHaveBeenCalledTimes(1);
@@ -58,7 +49,5 @@ describe('project_activity cutover', () => {
       kind: 'done',
       source: 'mma',
     }));
-    expect(appendProjectEvent).not.toHaveBeenCalled();
-    expect(resolveRunningEvent).not.toHaveBeenCalled();
   });
 });

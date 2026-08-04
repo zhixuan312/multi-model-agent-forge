@@ -78,13 +78,6 @@ describe('updateConnections', () => {
   });
 
   /**
-   * This asserted `kind: 'saved'` with `gitTokenSet: false` — it pinned a silent no-op
-   * as correct: you asked to store a credential, were told it was saved, and nothing
-   * was. `gitTokenSet: false` is also the exact answer the view gives when you never
-   * asked, so there was no way to tell the two apart. The adjacent missing-team-ROW
-   * case already threw, so one precondition had two different failure modes.
-   */
-  /**
    * NOTHING validated this URL — not the schema, not `resolveMmaClientConfig`, not
    * `MmaClient`. A typo was persisted and became the fetch base for EVERY dispatch across
    * EVERY team, each failing with a URL-parse TypeError recorded as `dispatch_failed`,
@@ -111,6 +104,16 @@ describe('updateConnections', () => {
     }
   });
 
+  /**
+   * This asserted `kind: 'saved'` with `gitTokenSet: false` — it pinned a silent no-op as
+   * correct: you asked to store a credential, were told it was saved, and nothing was.
+   * `gitTokenSet: false` is also the exact answer the view gives when you never asked, so
+   * there was no way to tell the two apart. The adjacent missing-team-ROW case already
+   * threw, so one precondition had two different failure modes.
+   *
+   * (This block sat two tests higher up, stacked above the URL-validation docstring and
+   * describing neither the case below it nor anything else nearby.)
+   */
   it('refuses a git token with no team rather than reporting it saved', async () => {
     const db = createMockDb({
       'select:team_connection': seq([], [createBaseConnection()]),
@@ -150,6 +153,20 @@ describe('updateConnections', () => {
     await updateConnections({ gitToken: 'ghs_secret' }, { db, teamId: 'team-1', secrets });
     expect(db._wasCalled('team', 'update')).toBe(true);
     expect(db._wasCalled('team_connection', 'update')).toBe(false);
+
+    // Which ROW was written was the whole assertion. That leaves the credential path
+    // itself unchecked: a version that updated the right row without ever storing the
+    // secret, or stored it and wrote a stale ref, passed. The plaintext must reach the
+    // secret store exactly once, and the ref the store returned must be what lands on the
+    // row — otherwise the operator is told the token is set and every git call still
+    // authenticates with the old one.
+    expect(secrets.puts).toHaveLength(1);
+    expect(secrets.puts[0]!.plaintext).toBe('ghs_secret');
+    const set = db._callsFor('team').find((c) => c.method === 'set');
+    // The ref the store handed back — not some other ref, and not a stale one.
+    expect(JSON.stringify(set?.args)).toContain(secrets.puts[0]!.ref);
+    // The plaintext itself must never be written to the row.
+    expect(JSON.stringify(set?.args)).not.toContain('ghs_secret');
   });
 });
 

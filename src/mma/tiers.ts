@@ -42,5 +42,14 @@ export type MmaTiers = Record<TierKey, TierConfig | null>;
  * The model used when the `main` tier carries no explicit model. MMA requires
  * `X-MMA-Main-Model` on every route (400 `main_model_required` otherwise), so a dispatch
  * made before anyone visits the Models tab still needs a value.
+ *
+ * `scripts/container-bootstrap.mjs` holds a similar-looking `MODEL_DEFAULTS.claude.main`.
+ * The two are NOT the same constant and are deliberately not asserted equal: this one
+ * applies when `~/.mma/config.json` is absent or unreadable, while the bootstrap's applies
+ * when the file IS written but the operator set no `MODEL_MAIN`. In a container the
+ * bootstrap always writes the file, so this value is unreachable there. They cannot share a
+ * definition either — the bootstrap runs at container start with no TypeScript toolchain,
+ * which is why the `src/mma/container-config.ts` shim was deleted rather than reinstated.
+ * Keeping them in step is a nicety, not an invariant; change one and consider the other.
  */
 export const DEFAULT_MAIN_MODEL = 'claude-opus-4-8';

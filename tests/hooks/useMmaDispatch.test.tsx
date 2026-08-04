@@ -146,27 +146,58 @@ describe('useMmaDispatch — what a failure rejects WITH', () => {
   });
 
   /**
-   * A failed POST drops the waiter. Leaving it registered means the NEXT frame for that
-   * handler — from an unrelated later dispatch — settles a caller that already rejected.
+   * A failed POST must leave the hook usable for the SAME handler — the user's next click
+   * on a button whose first attempt 500'd has to work.
+   *
+   * This case used to assert `expect(() => emit(…)).not.toThrow()` under the heading "drops
+   * the waiter". That holds whether or not the waiter was dropped, so it could not fail.
+   * Nor is the underlying risk what the comment claimed: `pendingRef` is a Map KEYED BY
+   * HANDLER, so a stale entry is overwritten by the next dispatch, re-resolving an
+   * already-rejected promise is a no-op, and the `dispatch.done` refresh callback is read
+   * from `onDoneRef` rather than from the waiter. The cleanup is real hygiene, but it is
+   * not externally observable — so the test now asserts the property that IS: recovery.
    */
-  it('drops the waiter when the POST itself fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
-      String(url).includes('pending-handlers')
-        ? okResponse()
-        : ({ ok: false, status: 500, json: async () => ({ error: 'boom' }), text: async () => 'boom' } as Response),
-    ));
+  type Hook = ReturnType<typeof useMmaDispatch>;
+  const invokers: Array<[string, (h: Hook, handler: string) => Promise<void>]> = [
+    ['transition', (h, handler) => h.transition('run_audit', {}, handler)],
+    ['dispatch', (h, handler) => h.dispatch('/api/x', handler)],
+  ];
+
+  // Both entry points carry their OWN try/catch with the same cleanup, so both are
+  // exercised: removing `clearBusy` from one of them left the other's case green.
+  it.each(invokers)('%s stays usable for the same handler after a POST fails', async (_name, invoke) => {
+    let failNext = true;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).includes('pending-handlers')) return okResponse();
+      if (failNext) {
+        failNext = false;
+        return { ok: false, status: 500, json: async () => ({ error: 'boom' }), text: async () => 'boom' } as Response;
+      }
+      return okResponse();
+    }));
 
     const { result } = renderHook(() => useMmaDispatch('p1'));
     await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
 
     await act(async () => {
-      await expect(result.current.transition('run_audit', {}, 'spec-audit')).rejects.toThrow();
+      await expect(invoke(result.current, 'spec-audit')).rejects.toThrow();
     });
-
-    // A late frame for the same handler must find nothing to settle.
-    expect(() =>
-      FakeEventSource.last!.emit({ type: 'dispatch.done', handler: 'spec-audit' }),
-    ).not.toThrow();
+    // The failed attempt must not leave the button spinning forever.
     await waitFor(() => expect(result.current.busyHandlers.has('spec-audit')).toBe(false));
+
+    // Retry the same handler: it must settle on its OWN frame, not be pre-settled by the
+    // wreckage of the first attempt, and not be left hanging by it either.
+    let settled = false;
+    let retry!: Promise<void>;
+    await act(async () => {
+      retry = invoke(result.current, 'spec-audit').then(() => { settled = true; });
+    });
+    expect(settled, 'the retry must not inherit the failed attempt’s settlement').toBe(false);
+
+    await act(async () => {
+      FakeEventSource.last!.emit({ type: 'dispatch.done', handler: 'spec-audit' });
+      await retry;
+    });
+    expect(settled).toBe(true);
   });
 });

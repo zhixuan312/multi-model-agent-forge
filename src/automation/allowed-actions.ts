@@ -2,6 +2,7 @@ import type { Details } from '@/details/schema';
 import { resolveNextActionFromDetails, type AutoAction, type ResolveContext } from '@/automation/details-resolver';
 import { auditInFlight, type AuditPassLike } from '@/automation/audit-loop-policy';
 import { canAutoStart } from '@/automation/policy';
+import { isMutableJournalStatus } from '@/db/enums';
 
 export type Mode = 'auto' | 'manual';
 export type Action = AutoAction; // { kind, note, stage, phase, data? }
@@ -39,7 +40,7 @@ function addManualExtras(details: Details, ctx: ResolveContext, set: Action[]): 
   //    permits what is in this set, so without these the Journal UI's own buttons came
   //    back "not allowed now".
   if (stages.journal.status === 'active' && ctx.journalRows.length > 0) {
-    const mutable = ctx.journalRows.filter((r) => r.status === 'proposed' || r.status === 'kept');
+    const mutable = ctx.journalRows.filter((r) => isMutableJournalStatus(r.status));
     if (mutable.length > 0) {
       set.push({ kind: 'edit_learning', note: 'Edit learning', stage: 'journal', phase: 'journal' });
       set.push({ kind: 'remove_learning', note: 'Remove learning', stage: 'journal', phase: 'journal' });

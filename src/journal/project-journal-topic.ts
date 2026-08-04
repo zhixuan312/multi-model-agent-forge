@@ -1,4 +1,5 @@
-import type { JournalLearningStatus } from '@/db/enums';
+import { isMutableJournalStatus } from '@/db/enums';
+import type { JournalLearningStatus, TerminalJournalStatus } from '@/db/enums';
 /**
  * Normalise a journal topic to the ENGINE's grammar: `^[a-z0-9]+(-[a-z0-9]+)*$`.
  *
@@ -22,7 +23,16 @@ export function deriveDefaultProjectJournalTopic(
   return normalizeProjectJournalTopic(primary);
 }
 
+/** Why each terminal status cannot be changed — total, so a new terminal one needs a reason. */
+const TERMINAL_REASON = {
+  recorded: 'recorded journal rows are immutable',
+  removed: 'removed journal rows are terminal',
+} as const satisfies Record<TerminalJournalStatus, string>;
+
 export function assertMutableJournalStatus(status: JournalLearningStatus): void {
-  if (status === 'recorded') throw new Error('recorded journal rows are immutable');
-  if (status === 'removed') throw new Error('removed journal rows are terminal');
+  // Asks the SAME question `allowed-actions` asks when it decides whether to offer the
+  // edit/remove buttons at all — see `MUTABLE_JOURNAL_STATUS`. These were two separate
+  // spellings of one rule, one positive and one negative.
+  if (isMutableJournalStatus(status)) return;
+  throw new Error(TERMINAL_REASON[status as TerminalJournalStatus]);
 }

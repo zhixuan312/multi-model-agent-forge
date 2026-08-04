@@ -276,6 +276,30 @@ export type JournalLearningStatus = (typeof JOURNAL_LEARNING_STATUS)[number];
  */
 export type CuratableLearningStatus = Exclude<JournalLearningStatus, 'removed'>;
 
+/**
+ * The two TERMINAL statuses — a learning in either can no longer be edited or removed.
+ *
+ * `allowed-actions.ts` expressed this as a positive filter (`proposed || kept`) and
+ * `assertMutableJournalStatus` as two negative throws. Equivalent over four values and
+ * divergent the moment a fifth arrives: the filter would exclude it (safe), the assert
+ * would wave it through (not). Declaring the terminal side and deriving the mutable one
+ * means a new status is immutable until somebody says otherwise.
+ */
+export const TERMINAL_JOURNAL_STATUS = ['removed', 'recorded'] as const satisfies readonly JournalLearningStatus[];
+export type TerminalJournalStatus = (typeof TERMINAL_JOURNAL_STATUS)[number];
+
+/** A learning that can still be edited or removed. */
+export type MutableJournalStatus = Exclude<JournalLearningStatus, TerminalJournalStatus>;
+
+export const MUTABLE_JOURNAL_STATUS: readonly MutableJournalStatus[] = JOURNAL_LEARNING_STATUS.filter(
+  (s): s is MutableJournalStatus => !(TERMINAL_JOURNAL_STATUS as readonly string[]).includes(s),
+);
+
+/** True when a learning in this status may still be changed. */
+export function isMutableJournalStatus(status: string): status is MutableJournalStatus {
+  return (MUTABLE_JOURNAL_STATUS as readonly string[]).includes(status);
+}
+
 // ---------------------------------------------------------------------------
 // `project.details` JSONB vocabularies. Not columns — but fixed value sets, and the
 // single-source ratchet reads only this file (see the header).

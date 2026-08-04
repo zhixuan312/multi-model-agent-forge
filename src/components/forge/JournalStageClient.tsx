@@ -51,7 +51,7 @@ export interface JournalLearningView {
   title: string;
   body: string;
   category: LearningCategory;
-  status: 'proposed' | 'kept' | 'recorded';
+  status: CuratableLearningStatus;
   recordedNodeId?: string | null;
 }
 

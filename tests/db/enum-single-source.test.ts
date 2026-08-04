@@ -42,6 +42,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { JOURNAL_LEARNING_STATUS, MUTABLE_JOURNAL_STATUS, TERMINAL_JOURNAL_STATUS, isMutableJournalStatus } from '@/db/enums';
 
 const ROOT = process.cwd();
 const ENUMS_FILE = 'src/db/enums.ts';
@@ -179,5 +180,48 @@ describe('db enums are single-source', () => {
       }
     }
     expect(copies).toEqual([]);
+  });
+});
+
+/**
+ * The mutable/terminal split of a harvested learning had two spellings: `allowed-actions.ts`
+ * filtered `proposed || kept` to decide whether to offer the edit/remove buttons, and
+ * `assertMutableJournalStatus` threw for `recorded` and `removed` to enforce it. Equivalent
+ * over four values, divergent the moment a fifth arrives — the filter would exclude it, the
+ * assert would wave it through, so the UI would hide the buttons while the API still
+ * accepted the write.
+ *
+ * The TERMINAL side is declared and the mutable side derived, so a new status is immutable
+ * until somebody decides otherwise.
+ */
+describe('journal learning: mutable vs terminal is one split', () => {
+  it('partitions every status exactly once', () => {
+    expect([...MUTABLE_JOURNAL_STATUS, ...TERMINAL_JOURNAL_STATUS].sort())
+      .toEqual([...JOURNAL_LEARNING_STATUS].sort());
+  });
+
+  it('agrees with the predicate both guards use', () => {
+    for (const s of MUTABLE_JOURNAL_STATUS) expect(isMutableJournalStatus(s)).toBe(true);
+    for (const s of TERMINAL_JOURNAL_STATUS) expect(isMutableJournalStatus(s)).toBe(false);
+  });
+
+  it('rejects a value that is not a status at all', () => {
+    expect(isMutableJournalStatus('nonsense')).toBe(false);
+  });
+
+  it('the offer and the enforcement ask the same question', async () => {
+    const fs = await import('node:fs');
+    // Strip the import lines first. `toContain('isMutableJournalStatus')` matches the
+    // IMPORT, so replacing the call with an inline `proposed || kept` left this green —
+    // the assertion proved the symbol was imported, not that anything used it.
+    const bodyOf = (path: string) =>
+      fs.readFileSync(path, 'utf8').split('\n').filter((l) => !l.startsWith('import ')).join('\n');
+
+    expect(bodyOf('src/automation/allowed-actions.ts'), 'the button offer must CALL the shared predicate')
+      .toMatch(/isMutableJournalStatus\(/);
+    expect(bodyOf('src/journal/project-journal-topic.ts'), 'the write guard must CALL the shared predicate')
+      .toMatch(/isMutableJournalStatus\(/);
+    // And neither may re-spell the split inline.
+    expect(bodyOf('src/automation/allowed-actions.ts')).not.toMatch(/'proposed'\s*\|\|\s*r\.status === 'kept'/);
   });
 });

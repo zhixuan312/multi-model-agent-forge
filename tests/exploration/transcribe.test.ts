@@ -36,32 +36,47 @@ function clip(bytes: number, mime: string): Blob {
   return new Blob([new Uint8Array(bytes)], { type: mime });
 }
 
+/**
+ * Return whatever `fn` threw, or `undefined` if it returned normally.
+ *
+ * Two cases below asserted their status code from inside a bare `catch` with no outer
+ * `toThrow`. When the gate does not fire, the catch never runs, the case executes ZERO
+ * assertions — and passes. Verified: replacing both the 25 MB and the 10-minute checks with
+ * `if (false)` left all 15 cases in this file green, with nothing standing between an
+ * arbitrarily large clip and a paid OpenAI call.
+ *
+ * Routing through this helper makes "it threw" an assertion in its own right, so the throw
+ * and its status are both load-bearing.
+ */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+    return undefined;
+  } catch (e) {
+    return e;
+  }
+}
+
 describe('transcribe gateClip (F2 — thresholds before any OpenAI call)', () => {
   it('rejects a MIME outside the allow-list with 415', () => {
-    expect(() => gateClip({ byteSize: 10, mime: 'audio/ogg', durationMs: 1000 })).toThrow(
-      TranscriptionRejectError,
-    );
-    try {
-      gateClip({ byteSize: 10, mime: 'audio/ogg', durationMs: 1000 });
-    } catch (e) {
-      expect((e as TranscriptionRejectError).status).toBe(415);
-    }
+    const err = thrownBy(() => gateClip({ byteSize: 10, mime: 'audio/ogg', durationMs: 1000 }));
+    expect(err).toBeInstanceOf(TranscriptionRejectError);
+    expect((err as TranscriptionRejectError).status).toBe(415);
   });
 
   it('rejects a clip >25 MB with 413', () => {
-    try {
-      gateClip({ byteSize: MAX_CLIP_BYTES + 1, mime: 'audio/webm', durationMs: 1000 });
-    } catch (e) {
-      expect((e as TranscriptionRejectError).status).toBe(413);
-    }
+    const err = thrownBy(() => gateClip({ byteSize: MAX_CLIP_BYTES + 1, mime: 'audio/webm', durationMs: 1000 }));
+    expect(err, 'an oversized clip must not reach OpenAI').toBeInstanceOf(TranscriptionRejectError);
+    expect((err as TranscriptionRejectError).status).toBe(413);
+    // The boundary itself is allowed through — the limit is inclusive.
+    expect(thrownBy(() => gateClip({ byteSize: MAX_CLIP_BYTES, mime: 'audio/webm', durationMs: 1000 }))).toBeUndefined();
   });
 
   it('rejects durationMs > 600000 with 413', () => {
-    try {
-      gateClip({ byteSize: 10, mime: 'audio/webm', durationMs: 600_001 });
-    } catch (e) {
-      expect((e as TranscriptionRejectError).status).toBe(413);
-    }
+    const err = thrownBy(() => gateClip({ byteSize: 10, mime: 'audio/webm', durationMs: 600_001 }));
+    expect(err, 'an over-long clip must not reach OpenAI').toBeInstanceOf(TranscriptionRejectError);
+    expect((err as TranscriptionRejectError).status).toBe(413);
+    expect(thrownBy(() => gateClip({ byteSize: 10, mime: 'audio/webm', durationMs: 600_000 }))).toBeUndefined();
   });
 
   it('accepts webm/opus (codec suffix stripped) within limits', () => {

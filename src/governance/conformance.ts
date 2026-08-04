@@ -1,4 +1,7 @@
 import type { GovernanceSlotId } from '@/components/governance/registry';
+// The governed layout signatures, shared with the ESLint rule that enforces the same one.
+// A second copy is how `DASHBOARD_GRID_RE` and the rule drifted apart in the first place.
+import SIGNATURES from '../../eslint-rules/governed-components/signatures.json';
 
 /**
  * Application-level conformance checker (pure, fs-free — the runner in `conformance-scan.ts`
@@ -62,7 +65,9 @@ const isExportBuilder = (p: string) => p.includes('src/export/');
  * flagged a page hand-rolling the CURRENT grid. Pinned to the utilities that make it
  * that grid, not to the whole list, so a cosmetic tweak cannot switch the rule off again.
  */
-export const DASHBOARD_GRID_RE = /grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3/;
+export const DASHBOARD_GRID_RE = new RegExp(
+  SIGNATURES.dashboardGrid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+);
 /**
  * RailNote's exact tinted-note signature (r-lg + /40 tint) — a tinted menu row won't match.
  *
@@ -72,7 +77,7 @@ export const DASHBOARD_GRID_RE = /grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-
  * reports permanently clean, and a real violation walks past. That is not hypothetical —
  * `DASHBOARD_GRID_RE` spent time pinned to a `lg:items-stretch` the component had dropped.
  */
-export const RAIL_NOTE_SIGNATURE = 'rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40';
+export const RAIL_NOTE_SIGNATURE = SIGNATURES.railNote;
 
 /**
  * Where each signature came from: rule constant → the canonical component that must still

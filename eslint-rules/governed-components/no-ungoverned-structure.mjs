@@ -3,12 +3,21 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const allowlistPath = join(__dirname, 'allowlist.json');
-const allowlist = JSON.parse(readFileSync(allowlistPath, 'utf8'));
+const allowlist = JSON.parse(readFileSync(join(__dirname, 'allowlist.json'), 'utf8'));
 
-const PATTERN = 'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3 lg:items-stretch';
-const CANONICAL = 'src/components/patterns/stage-shell.tsx';
-const ALLOWED = new Set([CANONICAL, ...allowlist]);
+/**
+ * The signature comes from `signatures.json`, shared with `src/governance/conformance.ts`.
+ *
+ * Both used to hold their own copy. `conformance.ts` was corrected when its copy turned out
+ * to include `lg:items-stretch`, a utility `status-dashboard.tsx` no longer emits — this
+ * rule was not, so it matched a string present in NO file in the repo, reported a
+ * permanently clean layer, and would have let a page hand-rolling the CURRENT grid through.
+ * The `CANONICAL` file it exempted was wrong too: it named `stage-shell.tsx`, which does not
+ * contain the grid at all.
+ */
+const signatures = JSON.parse(readFileSync(join(__dirname, 'signatures.json'), 'utf8'));
+const PATTERN = signatures.dashboardGrid;
+const ALLOWED = new Set([signatures.canonical, ...allowlist]);
 
 const rule = {
   meta: {

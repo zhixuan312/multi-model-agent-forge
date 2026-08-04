@@ -1,0 +1,6 @@
+{
+  "$comment": "Single source for the governed stage-layout signature. Consumed by the ESLint rule (no-ungoverned-structure.mjs) AND by src/governance/conformance.ts. They used to carry separate copies: conformance.ts was corrected off the full class list — which included an `lg:items-stretch` the component had stopped emitting — and the ESLint rule was not, so it guarded a string present in NO file, including the one it named canonical.",
+  "dashboardGrid": "grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3",
+  "canonical": "src/components/patterns/status-dashboard.tsx",
+  "railNote": "rounded-[var(--r-lg)] border border-accent-tint bg-accent-tint/40"
+}

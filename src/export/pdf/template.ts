@@ -22,7 +22,12 @@ import type {
 } from '@/export/types';
 import type { ParsedSection } from '@/export/sections';
 
-/** A4 page margins (F3), derived from the mockup `.page` padding. */
+/**
+ * A4 page margins (F3). Originally taken from the `.page` padding of a design mockup that
+ * lived at `mockup/forge.html` — a 43 KB bundler-dumped single-file HTML, tracked in a
+ * public repo and referenced by nothing but this comment. It was deleted; the provenance is
+ * in git history (`git log -- mockup/`), and these values are the spec now.
+ */
 export const PDF_MARGINS = { top: '14mm', bottom: '12mm', left: '13mm', right: '13mm' } as const;
 
 const KICKER: Record<ExportKind, string> = {

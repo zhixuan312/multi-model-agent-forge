@@ -14,10 +14,7 @@ const eslintConfig = defineConfig([
     ".mma/**",
     ".forge-workspace/**",
     ".forge-exports/**",
-    ".mock-db/**",
     ".e2e/**",
-    "mockup/**",
-    "scripts/pdf-worker.mjs",
   ]),
   {
     files: ["tests/**/*.ts", "tests/**/*.tsx"],

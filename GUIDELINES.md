@@ -2,7 +2,7 @@
 
 > Forge is MMA's team (collaboration) mode: a gated, standardized SDLC workflow
 > built on the engine, where a product team moves work through Exploration → Spec
-> → Plan → Execute → Review with review gates and shared knowledge.
+> → Plan → Execute → Review → Journal with review gates and shared knowledge.
 
 ## Role in the MMA product
 
@@ -18,8 +18,9 @@ Forge's product-specific direction.
 ## Product-specific principles
 
 1. **The lifecycle is a gated spine, not a free-for-all.** Every project moves
-   through Exploration → Spec → Plan → Execute → Review (and Journal), each stage a
-   gate the work must clear before advancing. Standardization is the point: the
+   through Exploration → Spec → Plan → Execute → Review → Journal, each stage a
+   gate the work must clear before advancing. (Those are the stage KEYS, which this
+   document uses throughout; the UI labels them Explore … Reflect.) Standardization is the point: the
    workflow is the same across people, so a team's delivery doesn't depend on which
    engineer drove it.
 2. **Automation gates at design; humans keep the merge.** Forge's automated mode

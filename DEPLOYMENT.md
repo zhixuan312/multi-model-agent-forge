@@ -105,7 +105,7 @@ teams are created, then teams work.
    another host (or into a container whose base differs) still resolves — see §6.
 4. Each **team admin** adds their team's **git connection** (a token to clone repos) and
    invites members. Git tokens are stored encrypted in the database, scoped to the team.
-5. Teams run the SDLC (Explore → Spec → Plan → Build → Review); MMA does the agent work
+5. Teams run the SDLC (Explore → Spec → Plan → Execute → Review → Reflect); MMA does the agent work
    inside that team's workspace.
 
 ---

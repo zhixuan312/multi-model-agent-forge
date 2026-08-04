@@ -364,3 +364,134 @@ describe('README <-> the routes Forge dispatches', () => {
     expect(readme).toContain(`${WORDS[MMA_ROUTE.length]} routes`);
   });
 });
+
+/**
+ * A stage chain written out in prose must be the real chain.
+ *
+ * DEPLOYMENT.md told operators the SDLC is "Explore → Spec → Plan → Build → Review" —
+ * naming a stage that does not exist and dropping one that does. `Build` is a PHASE
+ * (`design` · `build` · `learn`); the stage is `Execute`, and `Reflect` closes the chain.
+ * README warns about exactly that confusion two files away, which is how a reader ends up
+ * with two front-door documents disagreeing about what the product's own steps are called.
+ *
+ * Matched loosely on separator and case so a doc may write `explore → spec → …` in a code
+ * block or `Explore → Spec → …` in prose — the ORDER and the MEMBERSHIP are the claims.
+ *
+ * Complements, and does not replace, `README <-> the real stage lifecycle` above: that one
+ * asserts the README CONTAINS the full arrow and every label, which is a presence check on
+ * one file. This one checks that every chain any of the three docs prints is CORRECT. The
+ * README-only scope of the older test is precisely why DEPLOYMENT.md still said "Build".
+ */
+describe('docs <-> the SDLC stage chain', () => {
+  it('every written-out chain matches STAGE_LABEL, in order', async () => {
+    const { STAGE_ORDER } = await import('@/db/enums');
+    const { STAGE_LABEL } = await import('@/projects/stage-lifecycle');
+    const canonical = STAGE_ORDER.map((k) => STAGE_LABEL[k].toLowerCase());
+
+    // Two legitimate vocabularies: the UI LABELS (Explore … Reflect), which the
+    // operator-facing docs use, and the stage KEYS (`exploration` … `journal`), which
+    // GUIDELINES uses because it talks about the schema. Either is fine; a chain missing a
+    // member is not, and that is what this catches — GUIDELINES stopped at Review, and
+    // DEPLOYMENT wrote "Build", a PHASE, in the Execute slot.
+    const ALIASES: Record<string, string> = { exploration: 'explore', journal: 'reflect' };
+    const norm = (s: string) => {
+      const k = s.trim().toLowerCase();
+      return ALIASES[k] ?? k;
+    };
+
+    const wrong: string[] = [];
+    for (const file of ['README.md', 'DEPLOYMENT.md', 'GUIDELINES.md']) {
+      // Blockquote markers stripped and whitespace collapsed BEFORE matching. A chain
+      // wrapped across lines (`… → Spec\n> → Plan → …`) otherwise matches only its tail,
+      // and a partial chain reads as a wrong one — the check would fail honest prose and
+      // pass a genuinely short chain that happened to sit on one line.
+      const text = readFileSync(join(process.cwd(), file), 'utf8')
+        .replace(/^\s*>\s?/gm, '')
+        .replace(/\s+/g, ' ');
+      // A run of ≥4 arrow-separated words — long enough to be a stage chain, not a phrase.
+      for (const m of text.matchAll(/([A-Za-z]+(?:\s*→\s*[A-Za-z]+){3,})/g)) {
+        const parts = m[1].split('→').map(norm);
+        // Recognise a chain by MAJORITY, then validate all of it.
+        //
+        // This first required EVERY part to be canonical, and passed its own sabotage:
+        // restoring "Explore → Spec → Plan → Build → Review" — the original bug — made
+        // `Build` non-canonical, so the whole chain was skipped as "not a stage chain".
+        // The defect disqualified the check designed to find it. A majority test still
+        // ignores unrelated arrow lists (a boot order matches none of these words) while
+        // catching the one-wrong-name case that actually shipped.
+        const known = parts.filter((p) => canonical.includes(p)).length;
+        if (known < 3 || known <= parts.length / 2) continue;
+        if (parts.join(' → ') !== canonical.join(' → ')) {
+          wrong.push(`${file}: "${m[1].trim()}" — the chain is ${canonical.join(' → ')}`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('found chains to check — a broken matcher must not pass vacuously', () => {
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    expect(readme).toMatch(/explore → spec → plan → execute → review → reflect/);
+  });
+});
+
+/**
+ * `.env.example` must not ship a value that OVERRIDES a default.
+ *
+ * The file exists to be copied to `.env`, so every non-blank entry is a decision made on
+ * the operator's behalf. `FORGE_TRUST_PROXY=0` was one: blank derives from `NODE_ENV`, so a
+ * production image trusts its proxy — and the shipped `0` turned that off, in exactly the
+ * deployment DEPLOYMENT.md tells you to front with a reverse proxy. The result was no
+ * per-IP login throttle on a correctly-followed setup.
+ *
+ * Blank is the file's convention for "use the default". A preset must be justified here.
+ */
+describe('.env.example presets', () => {
+  /** Each non-blank entry, with why it is allowed to carry a value. */
+  const PRESET_REASONS: Record<string, string> = {
+    // Required, and useless blank — an operator needs a shape to edit, and this one
+    // matches the optional `postgres` compose profile so the quick start works as written.
+    DATABASE_URL: 'required; the value is a working example matching the compose profile',
+    // A seed default, not an override: the bootstrap falls back to `claude` anyway, so
+    // stating it documents the protocol vocabulary at the point of use.
+    PROVIDER: 'seed default identical to the container bootstrap fallback',
+    // Identical to the code default (`!== 'true'`), and the false case is the one worth
+    // showing because the true case needs a second process to be running.
+    FORGE_DISABLE_LOOP_SCHEDULER: 'matches the code default; documents the two-process case',
+  };
+
+  const lines = () =>
+    readFileSync(join(process.cwd(), '.env.example'), 'utf8')
+      .split('\n')
+      .filter((l) => /^[A-Z][A-Z0-9_]*=/.test(l));
+
+  it('found the variables', () => {
+    expect(lines().length).toBeGreaterThan(30);
+  });
+
+  it('every preset value is justified', () => {
+    const unjustified = lines()
+      .filter((l) => l.split('=').slice(1).join('=').trim() !== '')
+      .map((l) => l.split('=')[0]!)
+      .filter((k) => !(k in PRESET_REASONS));
+    expect(
+      unjustified,
+      'a non-blank .env.example entry decides for the operator — leave it blank, or add it to PRESET_REASONS with why',
+    ).toEqual([]);
+  });
+
+  it('has no stale justification for a variable that is now blank', () => {
+    const nonBlank = new Set(
+      lines().filter((l) => l.split('=').slice(1).join('=').trim() !== '').map((l) => l.split('=')[0]!),
+    );
+    expect(Object.keys(PRESET_REASONS).filter((k) => !nonBlank.has(k))).toEqual([]);
+  });
+
+  /** The specific regression: blank means "derive from NODE_ENV". */
+  it('leaves the proxy-trust decision to NODE_ENV', () => {
+    const line = lines().find((l) => l.startsWith('FORGE_TRUST_PROXY='));
+    expect(line, 'FORGE_TRUST_PROXY vanished from .env.example').toBeTruthy();
+    expect(line, 'a preset here silently disables the per-IP login throttle in production')
+      .toBe('FORGE_TRUST_PROXY=');
+  });
+});

@@ -19,7 +19,7 @@ import { AutomationBar } from '@/components/forge/AutomationBar';
 import { useStagePhaseUrl } from '@/components/forge/stage-substeps';
 import { RailNote } from '@/components/patterns/feature-rail';
 import { FindingsGrid, FindingsApplyBar, AuditRoundCard, appliedState, type Finding } from '@/components/patterns/findings';
-import { SEVERITY_ORDER } from '@/lib/severity';
+import { normalizeSeverity } from '@/lib/severity';
 import { DocumentShell } from '@/components/patterns/document-shell';
 import { StageShell } from '@/components/patterns/stage-shell';
 import type { AuditVerdict } from '@/db/enums';
@@ -90,8 +90,7 @@ export interface ReviewStageClientProps {
  * critical and rendered an unstyled chip.
  */
 function toFinding(f: ReviewFindingView): Finding {
-  const w = f.weight?.toLowerCase();
-  const severity = (SEVERITY_ORDER as readonly string[]).includes(w) ? (w as Finding['severity']) : 'low';
+  const severity = normalizeSeverity(f.weight ?? '') ?? 'low';
   return { severity, category: f.category, claim: f.claim, evidence: f.evidence, suggestion: f.suggestion };
 }
 

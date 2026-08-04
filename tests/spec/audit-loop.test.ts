@@ -47,11 +47,48 @@ describe('parseAuditEnvelope (pure)', () => {
     );
   });
 
-  it('drops findings with an out-of-set severity (e.g. info)', () => {
+  /**
+   * An unrecognised LABEL is not an unrecognised FINDING. This used to `.filter()` the
+   * finding out of the report entirely, so a claim the model actually wrote vanished from
+   * the pass — the rail showed "1 finding" for an envelope carrying two, and the text of
+   * the second was unrecoverable. `review-findings` had already answered this question the
+   * other way (coerce to medium, keep it); the audit path now agrees.
+   */
+  it('keeps a finding whose severity label is out of set, as medium', () => {
     const env = auditEnvelope([{ severity: 'info', claim: 'i' }, { severity: 'high', claim: 'h' }]);
     const r = parseAuditEnvelope(env);
     if (r.kind !== 'report') throw new Error('unreachable');
-    expect(r.findings.map((f) => f.severity)).toEqual(['high']);
+    expect(r.findings.map((f) => f.claim)).toEqual(['i', 'h']);
+    expect(r.findings.map((f) => f.severity)).toEqual(['medium', 'high']);
+    // Coerced, so it is visible — but never promoted into the gate.
+    expect(r.hasCriticalOrHigh).toBe(true);
+    expect(parseAuditEnvelope(auditEnvelope([{ severity: 'info', claim: 'i' }])).kind).toBe('report');
+    const only = parseAuditEnvelope(auditEnvelope([{ severity: 'info', claim: 'i' }]));
+    if (only.kind !== 'report') throw new Error('unreachable');
+    expect(only.hasCriticalOrHigh).toBe(false);
+  });
+
+  it('drops an entry carrying NO severity at all — that is a malformed object, not a label', () => {
+    // The distinction matters: coercing `{}` would render an empty row in the rail.
+    const r = parseAuditEnvelope(auditEnvelope([{ claim: 'no severity' } as never, { severity: 'low', claim: 'l' }]));
+    if (r.kind !== 'report') throw new Error('unreachable');
+    expect(r.findings.map((f) => f.claim)).toEqual(['l']);
+  });
+
+  /**
+   * The sharpest form of the same bug, and the reason it was worth chasing: membership was
+   * tested against the lowercase set with no normalisation, while `isBlockingSeverity`
+   * downstream lower-cases. So a model that wrote `"weight": "Critical"` — ordinary
+   * title-casing, and NOT rejected anywhere upstream because the string/fence path is not
+   * schema-validated — had its finding deleted before the gate ever saw it, and
+   * `hasCriticalOrHigh` came back false. **The audit reported CLEAN and the stage
+   * advanced.** Case alone decided whether a critical finding gated the spec.
+   */
+  it.each(['Critical', 'CRITICAL', 'High', ' high '])('blocks on a %s finding, whatever its casing', (label) => {
+    const r = parseAuditEnvelope(auditEnvelope([{ severity: label, claim: 'c' }]));
+    if (r.kind !== 'report') throw new Error('unreachable');
+    expect(r.findings).toHaveLength(1);
+    expect(r.hasCriticalOrHigh, `"${label}" must not read as clean`).toBe(true);
   });
 
   it('surfaces a reusable contextBlockId when present', () => {

@@ -6,7 +6,7 @@ import type { Finding } from '@/components/patterns/findings';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
-import { SEVERITY_ORDER, isBlockingSeverity, type Severity } from '@/lib/severity';
+import { isBlockingSeverity, normalizeSeverity, type Severity } from '@/lib/severity';
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
@@ -44,8 +44,6 @@ export type AuditParseResult =
       /** A dispatch that returned NO structured report — a failed/incomplete audit, NOT a clean pass. */
       kind: 'missing_report';
     };
-
-const VALID_SEVERITY = new Set<FindingSeverity>(SEVERITY_ORDER);
 
 /**
  * Parse the MMA `audit` terminal envelope. PURE — no DB, no network. Returns the
@@ -88,17 +86,30 @@ export function parseAuditEnvelope(envelope: unknown): AuditParseResult {
   const findings: ParsedFinding[] = rawFindings
     .map((f) => {
       const ff = (f ?? {}) as Record<string, unknown>;
-      const severity = (typeof ff.severity === 'string' ? ff.severity
-        : typeof ff.weight === 'string' ? ff.weight : '') as FindingSeverity;
+      const raw = (typeof ff.severity === 'string' ? ff.severity
+        : typeof ff.weight === 'string' ? ff.weight : '').trim();
+      // An unrecognised LABEL is not an unrecognised FINDING. This used to cast the raw
+      // string to `Severity` and filter out anything not in the lowercase set, which cost
+      // two different things: an out-of-set word like `info` deleted a claim the model
+      // actually wrote, and — because the membership test was case-SENSITIVE while the
+      // gate below lower-cases — an ordinary title-cased `"Critical"` was deleted too, so
+      // `hasCriticalOrHigh` came back false and the audit advanced the stage as clean.
+      //
+      // Recognition is now shared with every other reader (`normalizeSeverity`), and an
+      // unrecognised-but-present label is COERCED to `medium` rather than dropped: visible
+      // to the reader, never promoted into the gate. `review-findings` had already made
+      // this same call for the review path. An entry with NO severity at all is still
+      // dropped — that is a malformed object, and coercing it renders an empty rail row.
+      if (raw === '') return null;
       return {
-        severity,
+        severity: normalizeSeverity(raw) ?? 'medium',
         category: typeof ff.category === 'string' ? ff.category : '',
         claim: typeof ff.claim === 'string' ? ff.claim : '',
         evidence: typeof ff.evidence === 'string' ? ff.evidence : '',
         suggestion: typeof ff.suggestion === 'string' ? ff.suggestion : '',
       };
     })
-    .filter((f) => VALID_SEVERITY.has(f.severity));
+    .filter((f): f is ParsedFinding => f !== null);
 
   const hasCriticalOrHigh = findings.some((f) => isBlockingSeverity(f.severity));
   const ctxBlock = (output.contextBlockId ?? env.contextBlockId) as string | undefined;

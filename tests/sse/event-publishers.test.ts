@@ -53,14 +53,15 @@ describe('every declared SSE event can actually be emitted', () => {
  * `plan-author` ended up as the only plan handler NOT emitting the signal the Plan rail
  * listens for, leaving an auto-authored plan stale on screen.
  *
- * `dispatch.progress` is the one deliberate exception and it is named here rather than
- * quietly skipped: it carries the "cancelling…" acknowledgement for handler-backed batches,
- * the task-backed twin of which the exploration rail does render. Nothing renders this one —
- * pressing Stop closes the overlay while the engine keeps working. Wiring it needs a
- * decision about where that state belongs, so it stays until someone makes it.
+ * `dispatch.progress` WAS the one deliberate exception: it carries the "cancelling…"
+ * acknowledgement for handler-backed batches, the task-backed twin of which the exploration
+ * rail renders, and nothing consumed it — so pressing Stop closed the overlay while the
+ * engine kept working. `useProjectEvents` now bridges it (and the dispatch terminals) to the
+ * overlay's `stopping` state, and the exception is gone. `heartbeat` is the only one left,
+ * and it is a keep-alive frame with nothing to render by definition.
  */
 describe('every declared event is published and consumed', () => {
-  const UNCONSUMED_BY_DESIGN = new Set(['dispatch.progress', 'heartbeat']);
+  const UNCONSUMED_BY_DESIGN = new Set(['heartbeat']);
 
   const read = (p: string) => readFileSync(p, 'utf8');
   const walk = (dir: string, out: string[] = []): string[] => {

@@ -20,6 +20,7 @@ import { RepoPicker, type RepoPickerRepo } from '@/components/forge/RepoPicker';
 import { STAGE_KIND, type StageKind, PROJECT_VISIBILITY, type ProjectVisibility } from '@/db/enums';
 import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { DESIGN_STAGES, type DesignStage } from '@/projects/design-stages';
+import { MAX_UPLOAD_BYTES, CREATE_PROJECT_FILE_TOO_LARGE } from '@/projects/upload-limits';
 import { createProjectAction, type NewProjectState } from './actions';
 
 // The server's union, not a second spelling of it — `validateSubsetSelection` is what
@@ -198,6 +199,13 @@ function ArtifactUpload({
     if (!next) return;
     if (!isMarkdown(next.name)) {
       setLocalError(`Upload a text file (${ACCEPTED.join(', ')}).`);
+      return;
+    }
+    // BEFORE the read, not after: `arrayBuffer()` + base64 materialises the whole file twice
+    // in the tab, so a large one freezes the page for seconds and is then rejected by the
+    // server for a reason we already knew here. Same constant the server enforces.
+    if (next.size > MAX_UPLOAD_BYTES) {
+      setLocalError(`That file is ${humanSize(next.size)} — ${CREATE_PROJECT_FILE_TOO_LARGE}.`);
       return;
     }
     let encoded: string;

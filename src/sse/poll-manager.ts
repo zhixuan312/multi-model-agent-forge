@@ -11,6 +11,7 @@ import {
   type TerminalState,
 } from '@/sse/envelope';
 import { POLL_HARD_TIMEOUT_MS } from '@/sse/poll-timing';
+import { CANCELLING_HEADLINE } from '@/sse/cancel-phase';
 import { logEvent } from '@/observability/log-event';
 import { extractUsageFields } from '@/usage/extract-usage-fields';
 import { updateDetails } from '@/details/write';
@@ -39,7 +40,6 @@ import { INFLIGHT_MMA_STATUS } from '@/db/enums';
  */
 
 /** Headline/phase shown while a requested cancellation hasn't yet been confirmed. */
-export const CANCELLING_HEADLINE = 'cancelling';
 
 export const POLL_BASE_INTERVAL_MS = 2_000;
 export const POLL_BACKOFF_CAP_MS = 30_000;

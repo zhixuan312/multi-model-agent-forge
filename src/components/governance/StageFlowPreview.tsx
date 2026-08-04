@@ -119,9 +119,11 @@ const RENDERS: Record<string, () => ReactNode> = {
     </div>
   ),
 
-  // Every presentation the bar has: four `state` values, plus the two forms `idle` takes
-  // when the stage cannot hand over (disabled) or is frozen (lockedReason). Six panels for
-  // four states — the comment here used to say "all five", which matched neither count.
+  // Every presentation the bar has: one panel per `AutomationBarState`, plus the two extra
+  // forms `idle` takes when the stage cannot hand over (disabled) or is frozen
+  // (lockedReason). Stated as a RULE rather than a tally on purpose — this comment has twice
+  // carried a number that drifted from the union ("all five" when there were four states and
+  // six panels), and a count is exactly the kind of claim nothing can check.
   // The first three come from the six stage clients (which pass no `state` at all, so
   // `idle`); the last three from AutomationOverlay, which used to hand-roll its own copy
   // of this strip and now passes `state` instead, so there is one implementation.
@@ -144,6 +146,9 @@ const RENDERS: Record<string, () => ReactNode> = {
       </Labeled>
       <Labeled label="Driving — Forge is clearing gates (the stage itself is replaced by the overlay)">
         <AutomationBar state="driving" pulse disabled={false} onStop={() => {}} />
+      </Labeled>
+      <Labeled label="Stopping — the stop is requested, and the engine is winding the current step down">
+        <AutomationBar state="stopping" disabled={false} onStop={() => {}} />
       </Labeled>
       <Labeled label="Viewing — the read-only activity log on a finished project">
         <AutomationBar state="viewing" disabled={false} onClose={() => {}} />

@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { NewProjectForm } from '../../app/(app)/projects/new/NewProjectForm';
 import type { RepoPickerRepo } from '@/components/forge/RepoPicker';
+import { MAX_UPLOAD_BYTES, CREATE_PROJECT_FILE_TOO_LARGE } from '@/projects/upload-limits';
 
 // Mock the server action: by default returns a name error; can be overridden by tests
 let mockActionResult = { error: { field: 'name', message: 'Project name is required.' } };
@@ -94,5 +95,47 @@ describe('NewProjectForm subset creation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
     await waitFor(() => screen.getByText('file failed to load or parse — re-upload'));
     expect(screen.getByText('file failed to load or parse — re-upload')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The size limit belongs on BOTH sides of the wire.
+ *
+ * `decodeUploadedArtifact` has always rejected over-limit uploads, so nothing was ever
+ * accepted that shouldn't be — but the picker learned the answer only after the browser had
+ * read the file and base64-encoded it (two full copies in the tab, built synchronously), and
+ * after a round-trip that carried the whole payload. Pick a 40 MB file and the page freezes,
+ * then reports a limit it could have checked instantly.
+ *
+ * Both cases matter: the guard must fire before the read, and it must NOT fire for a normal
+ * file — a client cap that is stricter than the server's would reject valid uploads with no
+ * way to appeal.
+ */
+describe('NewProjectForm upload size guard', () => {
+  function chooseExploration(file: File) {
+    render(<NewProjectForm repos={repos} />);
+    fireEvent.click(screen.getByLabelText('Spec'));
+    const input = screen.getByLabelText('Your exploration file');
+    // A File's `size` derives from its parts; `arrayBuffer` is what the guard must skip.
+    const spy = vi.spyOn(file, 'arrayBuffer');
+    fireEvent.change(input, { target: { files: [file] } });
+    return spy;
+  }
+
+  it('rejects an oversized file before reading it, naming the limit', async () => {
+    const big = new File(['x'.repeat(MAX_UPLOAD_BYTES + 1)], 'huge.md', { type: 'text/markdown' });
+    const spy = chooseExploration(big);
+
+    await waitFor(() => screen.getByText(new RegExp(CREATE_PROJECT_FILE_TOO_LARGE)));
+    expect(spy, 'the file was read despite being over the limit').not.toHaveBeenCalled();
+    // The picker still shows nothing attached — an over-limit file must not arm submit.
+    expect(screen.getByText('Upload your exploration file to continue')).toBeInTheDocument();
+  });
+
+  it('reads a file at exactly the limit — the client cap is not stricter than the server', async () => {
+    const ok = new File(['# Exploration: x\n\n## Background\n\nhi'], 'e.md', { type: 'text/markdown' });
+    const spy = chooseExploration(ok);
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(screen.queryByText(new RegExp(CREATE_PROJECT_FILE_TOO_LARGE))).toBeNull();
   });
 });

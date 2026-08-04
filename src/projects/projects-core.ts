@@ -23,9 +23,8 @@ import { STAGE_ORDER, type StageKind, type StageStatus, type ProjectVisibility, 
 import { recordActivity } from '@/activity/project-activity';
 import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { slugRefComponent } from '@/build/slug';
+import { CREATE_PROJECT_FILE_ERROR, CREATE_PROJECT_FILE_TOO_LARGE } from '@/projects/upload-limits';
 import {
-  CREATE_PROJECT_FILE_ERROR,
-  CREATE_PROJECT_FILE_TOO_LARGE,
   decodeUploadedArtifact,
   parseExplorationUpload,
   parseSpecUpload,

@@ -38,6 +38,12 @@ import { STAGE_LABEL } from '@/projects/stage-lifecycle';
 import { FORGE_DISPLAY_NAME, FORGE_AVATAR_TINT } from '@/automation/forge-member';
 import { responseError } from '@/lib/err';
 
+/**
+ * How long Stop waits for the server to acknowledge that something is cancelling before
+ * concluding nothing was in flight. Only ever bounds the EMPTY case — see `handleStop`.
+ */
+const STOP_SETTLE_GRACE_MS = 4000;
+
 const AUTOMATION_NOTE = `### What is this?
 
 - Forge drives every stage step-by-step, as if a human is clicking
@@ -136,6 +142,14 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
   // `now` mirrors Date.now() but as STATE driven by the ticker — used for in-progress log-line
   // durations without reading a ref during render. 0 until mounted (SSR/hydration-safe).
   const [now, setNow] = useState(0);
+
+  // Stop-in-progress bookkeeping (see `handleStop`). `stopping` drives the bar; the set is
+  // the batches whose cancellation the server has acknowledged but not yet finished.
+  const [stopping, setStopping] = useState(false);
+  const [pendingStops, setPendingStops] = useState<ReadonlySet<string>>(() => new Set());
+  // Latched, not derived: `pendingStops` is empty both BEFORE the first acknowledgement and
+  // AFTER the last one settles, and those two mean opposite things.
+  const sawPending = useRef(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // Brief 3-2-1 intro. Ticks purely off `countdown` — NOT `autoMode` — so it can
@@ -240,6 +254,45 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
     };
   }, [router, addLog]);
 
+  useEffect(() => {
+    if (!stopping) return;
+    function onCancelling(e: Event) {
+      const id = ((e as CustomEvent).detail as { batchId?: string })?.batchId;
+      if (id) setPendingStops((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    }
+    function onSettled(e: Event) {
+      const id = ((e as CustomEvent).detail as { batchId?: string })?.batchId;
+      if (!id) return;
+      setPendingStops((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+    window.addEventListener('automation:cancelling', onCancelling);
+    window.addEventListener('automation:dispatch_settled', onSettled);
+    // A project with nothing in flight never gets an acknowledgement, so waiting for one
+    // would strand the overlay open forever. Close it out — but ONLY if nothing was ever
+    // acknowledged: once a batch is known to be winding down, the terminal is what closes
+    // this, however long it takes.
+    const bail = setTimeout(() => {
+      if (!sawPending.current) automationOverlayStore.hide();
+    }, STOP_SETTLE_GRACE_MS);
+    return () => {
+      window.removeEventListener('automation:cancelling', onCancelling);
+      window.removeEventListener('automation:dispatch_settled', onSettled);
+      clearTimeout(bail);
+    };
+  }, [stopping]);
+
+  // Every acknowledged cancellation has settled — the engine really has stopped.
+  useEffect(() => {
+    if (!stopping) return;
+    if (pendingStops.size > 0) { sawPending.current = true; return; }
+    if (sawPending.current) automationOverlayStore.hide();
+  }, [stopping, pendingStops]);
+
   // Steps completed = completed milestones (one `done` line per finished MMA batch,
   // plus the final "all stages complete"). Counting `done` lines avoids double-
   // counting the driver's live `action` line against its terminal milestone, and
@@ -261,9 +314,24 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
     issues: logs.filter((l) => l.error).length,
   };
 
+  /**
+   * Stop is honest about cooperative cancellation.
+   *
+   * `take_over` clears auto-mode and asks MMA to cancel every in-flight batch — but the
+   * engine finishes the step it already has, still committing to the project branch. This
+   * used to hide the overlay the instant the button was pressed, which reads as "stopped":
+   * a user could close the tab believing nothing further would land.
+   *
+   * So the overlay STAYS, in `stopping`, until the work it asked to cancel actually
+   * settles. `pendingStops` tracks the batches the server told us are cancelling (via
+   * `dispatch.progress`'s `cancelling` phase) and drops each on its terminal. Empty after
+   * having been non-empty → everything wound down → hide. If nothing was in flight the
+   * set never fills, so `STOP_SETTLE_GRACE_MS` closes it out rather than stranding the
+   * overlay on a project with nothing to cancel.
+   */
   function handleStop() {
     void optimistic.run({
-      apply: () => automationOverlayStore.hide(),
+      apply: () => setStopping(true),
       commit: async () => {
         const r = await fetch(`/api/projects/${projectId}/transition`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -271,7 +339,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
         });
         if (!r.ok) throw new Error(await responseError(r, `Request failed (${r.status}).`));
       },
-      rollback: () => automationOverlayStore.show(),
+      rollback: () => setStopping(false),
       onSettled: () => router.refresh(),
       error: 'Couldn’t stop automation — try again.',
       retryable: true,
@@ -283,7 +351,7 @@ export function AutomationOverlay({ projectId, autoMode, currentStage, automatio
       {/* The governed status strip, in its overlay states — same component the stage
           clients render idle, so the two surfaces can't drift. */}
       <AutomationBar
-        state={viewOnly ? 'viewing' : countdown > 0 ? 'starting' : 'driving'}
+        state={viewOnly ? 'viewing' : stopping ? 'stopping' : countdown > 0 ? 'starting' : 'driving'}
         countdown={countdown}
         pulse={autoMode}
         onStop={handleStop}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Hand, ListTree, Lock, Square } from 'lucide-react';
+import { Bot, Hand, ListTree, Loader2, Lock, Square } from 'lucide-react';
 import {
   Card,
   Button,
@@ -19,12 +19,19 @@ import { responseError } from '@/lib/err';
  *   locked   → "Stage locked" + why   + no action       (read-only stage)
  *   starting → "Getting ready…" 3-2-1 + Stop & take over
  *   driving  → "Forge is driving"     + Stop & take over  (rendered by AutomationOverlay)
+ *   stopping → "Stopping..."          + Stop, disabled     (cancel requested, work winding down)
  *   viewing  → "Project activity"     + Close             (read-only activity log)
  *
  * `AutomationOverlay` used to hand-roll the last three as a copy of this markup; it now
  * passes `state` instead, so the strip can never drift between the two surfaces.
  */
-export type AutomationBarState = 'idle' | 'starting' | 'driving' | 'viewing';
+/**
+ * `stopping` exists because cancellation is COOPERATIVE. Pressing Stop asks the engine to
+ * stop; the task it already has keeps running until its runner confirms. The bar used to go
+ * straight from `driving` to gone, which reads as "stopped" — so a user could close the tab
+ * believing nothing more would be committed, while a task was still finishing.
+ */
+export type AutomationBarState = 'idle' | 'starting' | 'driving' | 'stopping' | 'viewing';
 
 export function AutomationBar({
   projectId,
@@ -79,13 +86,14 @@ export function AutomationBar({
   }
 
   const locked = state === 'idle' && Boolean(lockedReason);
-  const auto = state === 'starting' || state === 'driving';
+  const auto = state === 'starting' || state === 'driving' || state === 'stopping';
 
-  const title = { idle: locked ? 'Stage locked' : 'You have the wheel', starting: 'Getting ready...', driving: 'Forge is driving', viewing: 'Project activity' }[state];
+  const title = { idle: locked ? 'Stage locked' : 'You have the wheel', starting: 'Getting ready...', driving: 'Forge is driving', stopping: 'Stopping...', viewing: 'Project activity' }[state];
   const subtitle = {
     idle: locked ? lockedReason : (idleHint ?? 'Drive it yourself, or let Forge run Plan → Build → Journal and step in whenever.'),
     starting: `Starting in ${countdown}...`,
     driving: 'Running every step automatically — watch progress below',
+    stopping: 'You have the wheel. Forge is finishing the step it already started — nothing new will begin.',
     viewing: 'The full record of everything Forge did on this project',
   }[state];
 
@@ -98,6 +106,7 @@ export function AutomationBar({
         )}
       >
         {state === 'starting' && countdown > 0 ? <span className="text-lg font-bold tabular-nums">{countdown}</span>
+          : state === 'stopping' ? <Loader2 className="size-5 animate-spin" />
           : state === 'driving' ? <Bot className="size-5" />
           : state === 'viewing' ? <ListTree className="size-5" />
           : locked ? <Lock className="size-5" />
@@ -111,8 +120,11 @@ export function AutomationBar({
         <p className="truncate text-xs text-ink-soft">{subtitle}</p>
       </div>
       {auto ? (
-        <Button size="sm" variant="secondary" onClick={onStop} leftIcon={<Square />}>
-          Stop &amp; take over
+        // Disabled while stopping: the request has landed and pressing it again cannot make
+        // the engine stop sooner, so an enabled button would only promise something it
+        // cannot deliver.
+        <Button size="sm" variant="secondary" onClick={onStop} leftIcon={<Square />} disabled={state === 'stopping'}>
+          {state === 'stopping' ? 'Stopping...' : 'Stop & take over'}
         </Button>
       ) : state === 'viewing' ? (
         <Button size="sm" variant="secondary" onClick={onClose}>

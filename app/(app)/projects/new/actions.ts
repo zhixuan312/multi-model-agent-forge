@@ -5,7 +5,8 @@ import { currentMember } from '@/auth/current-member';
 import { projectActorFromMember } from '@/auth/team-scope';
 import { createProject } from '@/projects/projects-core';
 import { stageRoute } from '@/projects/stage-route';
-import { CREATE_PROJECT_FILE_ERROR, decodeUploadedArtifact } from '@/projects/create-project-subset';
+import { decodeUploadedArtifact } from '@/projects/create-project-subset';
+import { CREATE_PROJECT_FILE_ERROR } from '@/projects/upload-limits';
 
 export interface NewProjectState {
   error?: {

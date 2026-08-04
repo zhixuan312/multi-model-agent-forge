@@ -5,6 +5,8 @@ import {
   CREATE_PROJECT_FILE_ERROR,
   CREATE_PROJECT_FILE_TOO_LARGE,
   MAX_UPLOAD_BYTES,
+} from '@/projects/upload-limits';
+import {
   VALID_SUBSET_RUNS,
   decodeUploadedArtifact,
   validateSubsetSelection,

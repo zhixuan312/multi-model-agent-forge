@@ -8,7 +8,8 @@ const { recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
 vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningActivity }));
 
 import type { MmaClient } from '@/mma/client';
-import { PollManager, CANCELLING_HEADLINE } from '@/sse/poll-manager';
+import { PollManager } from '@/sse/poll-manager';
+import { CANCELLING_HEADLINE } from '@/sse/cancel-phase';
 import { ProjectEventBus, type ProjectEvent } from '@/sse/event-bus';
 import { setLogSink, type LogRecord } from '@/observability/log-event';
 import { createMockDb } from '../test-utils/mock-db';

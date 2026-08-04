@@ -30,8 +30,15 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' https: data: blob:",
-      // Same-origin API + SSE; the server proxies MMA, the client never reaches it directly.
-      "connect-src 'self' https:",
+      // Same-origin API + SSE; the server proxies MMA, and the only outbound calls
+      // (api.github.com, the MMA engine) are made from Node, never the browser.
+      //
+      // This read `'self' https:`, which permits an XHR to ANY https origin — the one
+      // directive that decides whether injected script can post a team's spec somewhere.
+      // Its own comment said "same-origin", so the value contradicted the intent beside it.
+      // Verified before narrowing: no client component opens a fetch, EventSource or
+      // WebSocket to an absolute URL.
+      "connect-src 'self'",
       // 3d-force-graph / three.js spin up blob workers.
       "worker-src 'self' blob:",
       "frame-ancestors 'self'",

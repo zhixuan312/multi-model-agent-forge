@@ -27,8 +27,17 @@ export function validateSubsetSelection(selected: readonly DesignStage[]) {
     : { ok: false, message: 'Choose a contiguous design run.' } as const;
 }
 
+/**
+ * Too big and not-text are different problems with different fixes, and they used to share
+ * one message: "file failed to load or parse — re-upload". Re-uploading a 4 MB file produces
+ * the identical failure, so that instruction cannot work for the one case where the user
+ * could act — they need to know the limit.
+ */
+export const CREATE_PROJECT_FILE_TOO_LARGE =
+  `that file is larger than ${Math.round(MAX_UPLOAD_BYTES / 1000)} KB — upload a smaller one`;
+
 export function decodeUploadedArtifact(bytes: Uint8Array): string {
-  if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new Error(CREATE_PROJECT_FILE_ERROR);
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new Error(CREATE_PROJECT_FILE_TOO_LARGE);
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {

@@ -3,6 +3,8 @@ import { createMockDb } from '../test-utils/mock-db';
 import { SPEC_TEMPLATE_SEEDS } from '@/db/seed/team-spec-template';
 import {
   CREATE_PROJECT_FILE_ERROR,
+  CREATE_PROJECT_FILE_TOO_LARGE,
+  MAX_UPLOAD_BYTES,
   VALID_SUBSET_RUNS,
   decodeUploadedArtifact,
   validateSubsetSelection,
@@ -27,12 +29,23 @@ describe('validateSubsetSelection', () => {
 });
 
 describe('decodeUploadedArtifact', () => {
-  it('rejects oversized uploads', () => {
-    const bytes = new Uint8Array(300_001);
-    expect(() => decodeUploadedArtifact(bytes)).toThrow(CREATE_PROJECT_FILE_ERROR);
+  /**
+   * Too big and not-text are different problems with different fixes, and they shared one
+   * message: "file failed to load or parse — re-upload". Re-uploading a 4 MB file fails
+   * identically, so that instruction cannot work for the one case the user can act on.
+   */
+  it('rejects an oversized upload by naming the limit', () => {
+    const bytes = new Uint8Array(MAX_UPLOAD_BYTES + 1);
+    expect(() => decodeUploadedArtifact(bytes)).toThrow(CREATE_PROJECT_FILE_TOO_LARGE);
+    expect(CREATE_PROJECT_FILE_TOO_LARGE).toMatch(/300 KB/);
+    expect(CREATE_PROJECT_FILE_TOO_LARGE).not.toBe(CREATE_PROJECT_FILE_ERROR);
   });
 
-  it('rejects invalid utf8', () => {
+  it('accepts a file right at the limit', () => {
+    expect(() => decodeUploadedArtifact(new Uint8Array(MAX_UPLOAD_BYTES))).not.toThrow();
+  });
+
+  it('rejects invalid utf8 as a parse failure, where re-uploading MIGHT help', () => {
     const bytes = new Uint8Array([0xff, 0xfe, 0xfd]);
     expect(() => decodeUploadedArtifact(bytes)).toThrow(CREATE_PROJECT_FILE_ERROR);
   });

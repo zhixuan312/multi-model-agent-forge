@@ -25,6 +25,7 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 import { slugRefComponent } from '@/build/slug';
 import {
   CREATE_PROJECT_FILE_ERROR,
+  CREATE_PROJECT_FILE_TOO_LARGE,
   decodeUploadedArtifact,
   parseExplorationUpload,
   parseSpecUpload,
@@ -202,8 +203,14 @@ export async function createProject(
         if (!spec.ok) return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
         parsedSpec = spec.value;
       }
-    } catch {
-      return { ok: false, error: { field: 'artifact', message: CREATE_PROJECT_FILE_ERROR } };
+    } catch (e) {
+      // `decodeUploadedArtifact` distinguishes too-large from not-text; keep that distinction
+      // instead of collapsing both to "re-upload", which is an instruction the oversize case
+      // cannot follow.
+      const message = e instanceof Error && e.message === CREATE_PROJECT_FILE_TOO_LARGE
+        ? CREATE_PROJECT_FILE_TOO_LARGE
+        : CREATE_PROJECT_FILE_ERROR;
+      return { ok: false, error: { field: 'artifact', message } };
     }
   }
 

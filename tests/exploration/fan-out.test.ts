@@ -20,9 +20,13 @@ describe('buildProposeRequest', () => {
     });
 
     const request = await buildProposeRequest(projectId, { db: mockDb });
-    expect(request.system).toContain('Role:');
-    expect(request.system).toContain('Task:');
-    expect(request.system).toContain('Constraints:');
+    // All SIX parts, per the name — this asserted three, and `Output format:` is the one
+    // that actually decides whether the response can be parsed at all. The sibling
+    // `refine-prompt.test.ts` covers the same six for its own builder.
+    for (const part of ['Role:', 'Task:', 'Context:', 'Constraints:', 'Output format:']) {
+      expect(request.system, `missing prompt part: ${part}`).toContain(part);
+    }
+    expect(request.user).toContain('# Input:');
     expect(request.user).toContain('caching');
     expect(request.user).toContain('api-service');
   });

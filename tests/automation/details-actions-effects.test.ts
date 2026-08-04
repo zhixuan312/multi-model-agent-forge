@@ -6,7 +6,7 @@ const { recordActivity, resolveRunningActivity } = vi.hoisted(() => ({
 }));
 vi.mock('@/activity/project-activity', () => ({ recordActivity, resolveRunningActivity }));
 
-import { executeDetailsAction } from '@/automation/details-actions';
+import { dispatchActorId, executeDetailsAction } from '@/automation/details-actions';
 import type { AutoAction } from '@/automation/details-resolver';
 import { createMockDb } from '../test-utils/mock-db';
 import { buildInitialDetails, type Details } from '@/details/schema';
@@ -230,5 +230,45 @@ describe('executeDetailsAction activity attribution', () => {
       source: 'user',
     }));
     expect(recordActivity).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * FR-7: a dispatch is attributed to the person who triggered it, or to Forge when the auto
+ * driver did. `performTransition` threads the member id into `action.data.actorId` for
+ * MANUAL touches and leaves it absent for the driver (whose own `actorId` is a driver UUID,
+ * not a member).
+ *
+ * Three actions already read it — `approve_task`, `advance_phase`, `advance_stage` — while
+ * the seven that DISPATCH hardcoded `FORGE_MEMBER_ID`. So the timeline credited Forge for an
+ * audit, a plan refine or a review a person had just asked for, and fixing the dispatcher to
+ * derive the actor changed nothing on those paths, because the caller had already discarded
+ * the human.
+ */
+describe('who a dispatched action is attributed to', () => {
+  it('is the human when the transition carried one', () => {
+    expect(dispatchActorId({ data: { actorId: 'member-9' } } as unknown as AutoAction)).toBe('member-9');
+  });
+
+  it('is Forge when the auto driver ran it (no member on the action)', () => {
+    expect(dispatchActorId({ data: {} } as unknown as AutoAction)).toBe(FORGE_MEMBER_ID);
+    expect(dispatchActorId({} as unknown as AutoAction)).toBe(FORGE_MEMBER_ID);
+  });
+
+  it('is Forge for a non-string actorId rather than passing it to a uuid column', () => {
+    // `mma_batch.dispatched_by` is a uuid FK; a number or object would fail the insert.
+    expect(dispatchActorId({ data: { actorId: 42 } } as unknown as AutoAction)).toBe(FORGE_MEMBER_ID);
+    expect(dispatchActorId({ data: { actorId: null } } as unknown as AutoAction)).toBe(FORGE_MEMBER_ID);
+  });
+
+  /**
+   * Source-level, because the seven call sites sit inside one large switch and mocking the
+   * dispatcher for each would mostly test the mock. What matters is that none of them
+   * hardcodes the Forge id any more.
+   */
+  it('no dispatch site hardcodes the Forge member id', async () => {
+    const src = await import('node:fs').then((fs) => fs.readFileSync('src/automation/details-actions.ts', 'utf8'));
+    expect(src).not.toMatch(/actorId:\s*FORGE_MEMBER_ID/);
+    expect((src.match(/actorId: dispatchActorId\(action\)/g) ?? []).length).toBeGreaterThanOrEqual(7);
   });
 });

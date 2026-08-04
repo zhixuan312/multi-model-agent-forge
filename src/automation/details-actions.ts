@@ -141,6 +141,20 @@ export async function reconcileStuckAttempts(db: Db, projectId: string): Promise
   }
 }
 
+/**
+ * Who to attribute a dispatch to: the human who triggered it when there is one, else Forge.
+ *
+ * `performTransition` threads the member id into `action.data.actorId` for MANUAL touches
+ * and leaves it absent for the auto driver (whose `actorId` is a driver UUID, not a member).
+ * Three actions already read it this way — `approve_task`, `advance_phase`, `advance_stage`
+ * — while the seven that DISPATCH hardcoded `FORGE_MEMBER_ID`, so the timeline credited
+ * Forge for an audit, a plan refine or a review a person had just asked for. FR-7 asks for
+ * the opposite, and `exploration/dispatch.ts` implements it.
+ */
+export function dispatchActorId(action: AutoAction): string {
+  return typeof action.data?.actorId === 'string' ? action.data.actorId : FORGE_MEMBER_ID;
+}
+
 async function loadActivityActor(db: Db, actorId: string) {
   const [actor] = await db
     .select({ displayName: member.displayName, avatarTint: member.avatarTint })
@@ -243,7 +257,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       await dispatchMma({
         db, mma, projectId, route: 'audit', handler: `${scope}-audit`, cwd,
         body: { subtype: scope, target: { paths: [filePath] }, ...(prevBlockId ? { contextBlockIds: [prevBlockId] } : {}) },
-        actorId: FORGE_MEMBER_ID, await: true,
+        actorId: dispatchActorId(action), await: true,
       });
       break;
     }
@@ -302,7 +316,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         // has always done this; the audit path recorded NOTHING, so its UI could only fall
         // back to a whole-round boolean that marks un-applied findings as applied and locks
         // the round before a partial apply can be finished.
-        actorId: FORGE_MEMBER_ID, meta: { passNo: targetPass.passNo, findingIndices: indices }, await: true,
+        actorId: dispatchActorId(action), meta: { passNo: targetPass.passNo, findingIndices: indices }, await: true,
       });
       break;
     }
@@ -378,7 +392,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         handler: 'plan-author',
         cwd,
         body: request,
-        actorId: FORGE_MEMBER_ID,
+        actorId: dispatchActorId(action),
       });
       // Record the running attempt so the resolver returns WAIT (not re-dispatch)
       // until the plan-author handler closes it out and sets refine.file.
@@ -402,7 +416,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const { batchRowId } = await dispatchMma({
         db, mma, projectId, route: 'orchestrate', handler: 'plan-refine', cwd,
         body: { prompt: `Review the plan task "${taskTitle}" for completeness, accuracy, and test coverage. Flag any gaps.`, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, meta: { taskId }, await: true,
+        actorId: dispatchActorId(action), meta: { taskId }, await: true,
       });
       // The VERDICT is posted by the `plan-refine` terminal handler, which reads the
       // reviewer's actual reply off the envelope. Nothing is written here: this action
@@ -465,7 +479,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
           db, mma, projectId, route: 'review', handler: 'code-review',
           cwd: projectWorktreePath(r.pathOnDisk, projectId),
           body: { target: { paths: ['.'] }, prompt: 'Review all changed files.', ...(prevBlockId ? { contextBlockIds: [prevBlockId] } : {}) },
-          actorId: FORGE_MEMBER_ID, meta: { repoId: r.id }, await: true,
+          actorId: dispatchActorId(action), meta: { repoId: r.id }, await: true,
         });
       }
       break;
@@ -522,7 +536,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         db, mma, projectId, route: 'delegate', handler: 'review-apply',
         cwd: projectWorktreePath(repoMeta.pathOnDisk, projectId),
         body: { prompt, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, meta: { repoId: entry.repoId, passNo, findingIndices: indices }, await: true,
+        actorId: dispatchActorId(action), meta: { repoId: entry.repoId, passNo, findingIndices: indices }, await: true,
       });
       break;
     }
@@ -533,7 +547,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       const { batchRowId } = await dispatchMma({
         db, mma, projectId, route: 'orchestrate', handler: 'journal-harvest', cwd,
         body: { prompt, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, await: true,
+        actorId: dispatchActorId(action), await: true,
       });
       // Record the harvest attempt so the resolver moves on to approving learnings
       // instead of re-harvesting (the handler already pushed the learnings).
@@ -601,7 +615,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
         await dispatchMma({
           db, mma, projectId, route: 'journal_record', handler: 'journal-record', cwd,
           body: chunk.body,
-          actorId: FORGE_MEMBER_ID, await: true,
+          actorId: dispatchActorId(action), await: true,
         });
       }
       break;
@@ -642,7 +656,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       await dispatchMma({
         db, mma, projectId, route: 'orchestrate', handler: 'explore-propose', cwd,
         body: { prompt: `${request.system}\n\n${request.user}`, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, meta: { actorId: FORGE_MEMBER_ID, repoIds },
+        actorId: dispatchActorId(action), meta: { actorId: dispatchActorId(action), repoIds },
       });
       break;
     }
@@ -664,7 +678,7 @@ export async function executeDetailsAction(projectId: string, action: AutoAction
       await dispatchMma({
         db, mma, projectId, route: 'orchestrate', handler: 'explore-synthesize', cwd,
         body: { prompt: `${request.system}\n\n${request.user}`, reviewPolicy: 'none' },
-        actorId: FORGE_MEMBER_ID, meta: { actorId: FORGE_MEMBER_ID },
+        actorId: dispatchActorId(action), meta: { actorId: dispatchActorId(action) },
       });
       break;
     }

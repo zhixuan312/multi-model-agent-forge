@@ -84,7 +84,6 @@ export interface MockDb {
   _calls: MockQueryCall[];
   _callsFor(table: string): MockQueryCall[];
   _wasCalled(table: string, method: string): boolean;
-  _reset(): void;
 }
 
 /** Sequence distinct result sets for repeated reads of the SAME table in one test. */
@@ -175,10 +174,10 @@ export function createMockDb(responses: MockResponses = {}): Db & MockDb {
     _callsFor: (table: string) => calls.filter((c) => c.table === table),
     _wasCalled: (table: string, method: string) =>
       calls.some((c) => c.table === table && c.method === method),
-    _reset: () => {
-      calls.length = 0;
-      for (const k of Object.keys(seqCounters)) delete seqCounters[k];
-    },
+    // No `_reset()`: it was declared on `MockDb` and implemented here, and across 409 test
+    // files nothing ever called it. Every test builds a fresh `createMockDb(...)`, which is
+    // why — a per-test mock has no state to carry into the next one. Kept, it advertises a
+    // sharing pattern this suite deliberately does not use.
   };
 
   const out = api as unknown as Db & MockDb;

@@ -170,3 +170,56 @@ describe('design tokens', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * The converse of the check above: a `@theme` token or raw variable with NO consumer.
+ *
+ * That test asks "does every utility class have a backing token?" — it cannot see a token
+ * nothing uses. Three were dead: `--ember-tint-2` (a raw colour referenced nowhere at all),
+ * and `--radius-xl` with the `--r-xl: 20px` it aliased, which existed only to make Tailwind's
+ * `rounded-xl` match the design scale and was never written in any component.
+ *
+ * One nuance worth knowing before adding a token back: removing a `--radius-*` override does
+ * NOT break `rounded-xl` — Tailwind falls back to its own default, silently a different size
+ * than the design system intends. So an unused radius override is not harmless scaffolding,
+ * but neither is a half-overridden scale. Add the token when a component needs it, in the
+ * same change as the component.
+ *
+ * `--tw-prose-*` is excluded: those are read by `@tailwindcss/typography`, not by this repo.
+ */
+describe('no design token is defined without a consumer', () => {
+  /** Tailwind v4 `@theme` prefixes → the utility prefixes that consume them. */
+  const UTILITY_PREFIX: Record<string, string[]> = {
+    color: ['bg', 'text', 'border', 'ring', 'fill', 'stroke', 'from', 'to', 'via', 'decoration', 'outline', 'shadow', 'divide', 'accent', 'caret', 'placeholder'],
+    radius: ['rounded'],
+    shadow: ['shadow'],
+    font: ['font'],
+    spacing: ['p', 'm', 'gap', 'w', 'h'],
+    text: ['text'],
+  };
+
+  it('every custom property is referenced by var(), a utility class, or the prose plugin', () => {
+    const cssText = readFileSync(join(ROOT, 'app/globals.css'), 'utf8');
+    const scanned = [...sourceFiles('src'), ...sourceFiles('app')];
+    const code = scanned.map((rel) => readFileSync(join(ROOT, rel), 'utf8')).join('\n');
+    const defined = [...new Set([...cssText.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]!))];
+
+    expect(defined.length, 'no custom properties parsed — the sweep is checking nothing').toBeGreaterThan(80);
+    expect(scanned.length, 'no components scanned — every token would look orphaned').toBeGreaterThan(100);
+
+    const orphans = defined.filter((token) => {
+      if (/^--tw-prose-/.test(token)) return false;
+      const byVar = new RegExp(`var\\(\\s*${token}\\b`);
+      if (byVar.test(code) || byVar.test(cssText)) return false;
+      const m = token.match(/^--(color|radius|shadow|font|spacing|text)-?(.*)$/);
+      if (!m) return true;
+      const [, kind, name] = m;
+      if (!name) return false; // the bare DEFAULT token (`--radius`, `--shadow`)
+      return !(UTILITY_PREFIX[kind] ?? []).some((p) =>
+        new RegExp(`[\\s"\'\`:{(\\[]${p}-${name}\\b`).test(code),
+      );
+    });
+
+    expect(orphans, 'delete the token, or add it in the same change as the component that uses it').toEqual([]);
+  });
+});

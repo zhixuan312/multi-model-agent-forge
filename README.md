@@ -202,10 +202,11 @@ app/
   api/             Backend API routes
 src/
   build/           Build-phase orchestration
-  collab/          Real-time collaboration (SSE)
+  collab/          Co-approval: @-mentions, notifications, section approval
   components/      Shared UI components (shadcn/ui)
   db/              Drizzle schema + queries (5 table groups: team/workspace/project/loop/ops)
   dispatch/        MMA task dispatch layer
+  sse/             Live updates: event bus + the server-owned MMA poll loop
   journal/         Team knowledge graph (recall, record, pins)
   loops/           Loop kind-registry, run-engine, scheduler
   mma/             MMA client + config
@@ -227,7 +228,7 @@ The project timeline lives in `project_activity`. Team-level FAQ suggestions com
 
 ## Relationship to MMA
 
-Forge is the team layer. MMA is the engine. Forge calls MMA to dispatch work — audit, investigate, delegate, execute_plan, review, debug, research, orchestrate. MMA routes each task to the right model, runs the two-phase pipeline (implementer + refiner), and returns structured results. Forge manages the human workflow, the team knowledge, and the operational loops around those results.
+Forge is the team layer. MMA is the engine. Forge calls MMA to dispatch work on eleven routes — `investigate`, `research`, `journal_recall`, `audit`, `execute_plan`, `review`, `journal_record`, `delegate`, `orchestrate`, `spec`, `plan` (the set is `MMA_ROUTE` in `src/db/enums.ts`). MMA routes each task to the right model, runs the two-phase pipeline (implementer + refiner), and returns structured results. Forge manages the human workflow, the team knowledge, and the operational loops around those results.
 
 ## License
 

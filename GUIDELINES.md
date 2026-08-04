@@ -80,8 +80,10 @@ Forge's product-specific direction.
 
 The in-app **Guide** (`/settings/guide`) covers the same ground as this document under
 its `forge` group — four sections, listed in `src/content/guide-nav.ts`: `forge-role`,
-`forge-spine`, `forge-automation`, `forge-collaboration`. The prose lives under
-`app/(app)/settings/guide/`.
+`forge-spine`, `forge-automation`, `forge-collaboration`. The prose lives in
+`src/content/direction-sections.ts` (the `part: 'forge'` entries); `app/(app)/settings/guide/`
+is only the route that renders it, and holds two page files and no prose — this line used to
+send an editor there.
 
 They are NOT a section-for-section mirror (this document has six `##` headings, the
 group has four), so treat it as a coverage obligation rather than a diff: a change here

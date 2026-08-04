@@ -22,8 +22,8 @@ export default defineConfig({
     // Before turning this off again, check for genuinely SHARED mutable state (a
     // fixed on-disk path, a real service) — not for a database, which is unreachable.
 
-    // Generous per-test ceiling. Not because anything here is slow on its own (1761
-    // tests take ~30s in total), but because under full file parallelism a worker can
+    // Generous per-test ceiling. Not because anything here is slow on its own — the whole
+    // suite runs in well under a minute — but because under full file parallelism a worker can
     // be starved long enough for the 5s default to fire spuriously. It exists to stop
     // contention from being reported as a test failure; a test that genuinely needs
     // seconds of wall-clock is a bug to fix, not a budget to spend.

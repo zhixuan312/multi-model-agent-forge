@@ -251,6 +251,17 @@ describe('GUIDELINES <-> in-app guide', () => {
     const guidelines = readFileSync(join(process.cwd(), 'GUIDELINES.md'), 'utf8');
     expect(guidelines).not.toMatch(/Keep them in sync via/);
   });
+
+  /**
+   * The mirror note tells an editor where the guide prose lives, and pointed at
+   * `app/(app)/settings/guide/` — two page files and no prose. The prose is in
+   * `direction-sections.ts`. A wrong pointer in a coverage obligation is the obligation
+   * failing quietly: the editor looks, finds nothing to change, and moves on.
+   */
+  it('points at the module the guide prose actually lives in', () => {
+    const guidelines = readFileSync(join(process.cwd(), 'GUIDELINES.md'), 'utf8');
+    expect(guidelines).toContain('src/content/direction-sections.ts');
+  });
 });
 
 /**
@@ -325,3 +336,31 @@ describe('README <-> the real stage lifecycle', () => {
   });
 });
 
+/**
+ * The README's route list drifted from the code in both directions at once: it advertised
+ * `debug`, which Forge has never dispatched, and omitted `journal_recall`, `journal_record`,
+ * `spec` and `plan`, which it dispatches constantly. A reader sizing up the integration got
+ * a set that was wrong on both sides.
+ *
+ * Derived from `MMA_ROUTE`, so the prose cannot say more or less than the code does.
+ */
+describe('README <-> the routes Forge dispatches', () => {
+  it('names every route, and no route that does not exist', async () => {
+    const { MMA_ROUTE } = await import('@/db/enums');
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    const line = readme.split('\n').find((l) => l.includes('Forge calls MMA to dispatch work'));
+    expect(line, 'the "Relationship to MMA" paragraph moved — repoint this test').toBeTruthy();
+
+    const named = [...line!.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]!).filter((n) => n !== 'MMA_ROUTE');
+    expect([...named].sort()).toEqual([...MMA_ROUTE].sort());
+  });
+
+  /** A written-out count is the half that rots silently once the list is right. */
+  it('states a count that matches the list', async () => {
+    const { MMA_ROUTE } = await import('@/db/enums');
+    const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+      'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen'];
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    expect(readme).toContain(`${WORDS[MMA_ROUTE.length]} routes`);
+  });
+});

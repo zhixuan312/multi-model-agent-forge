@@ -1,5 +1,7 @@
 'use client';
 
+import { NumCell, CostCell, SavedCell, DurationCell } from './usage-cells';
+
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Zap } from 'lucide-react';
@@ -17,7 +19,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui';
-import { formatCost, formatDuration, formatTokens } from '@/usage/format';
+import { formatTokens } from '@/usage/format';
 import type { StandaloneRow } from '@/usage/usage-core';
 
 const columns: ColumnDef<StandaloneRow>[] = [
@@ -30,27 +32,25 @@ const columns: ColumnDef<StandaloneRow>[] = [
     accessorKey: 'taskCount',
     header: 'Count',
     size: 80,
-    cell: ({ row }) => <span className="tabular-nums">{row.original.taskCount}</span>,
+    cell: ({ row }) => <NumCell value={row.original.taskCount} />,
   },
   {
     accessorKey: 'costUsd',
     header: 'Cost',
     size: 90,
-    cell: ({ row }) => <span className="tabular-nums">{formatCost(row.original.costUsd)}</span>,
+    cell: ({ row }) => <CostCell value={row.original.costUsd} />,
   },
   {
     accessorKey: 'savedUsd',
     header: 'Saved',
     size: 90,
-    cell: ({ row }) => (
-      <span className="tabular-nums text-[var(--sage)]">{formatCost(row.original.savedUsd || null)}</span>
-    ),
+    cell: ({ row }) => <SavedCell value={row.original.savedUsd} />,
   },
   {
     accessorKey: 'avgCostUsd',
     header: 'Avg/question',
     size: 100,
-    cell: ({ row }) => <span className="tabular-nums">{formatCost(row.original.avgCostUsd)}</span>,
+    cell: ({ row }) => <CostCell value={row.original.avgCostUsd} />,
   },
   {
     accessorKey: 'tokens',
@@ -62,7 +62,7 @@ const columns: ColumnDef<StandaloneRow>[] = [
     accessorKey: 'durationMs',
     header: 'Agent time',
     size: 100,
-    cell: ({ row }) => <span className="tabular-nums">{formatDuration(row.original.durationMs)}</span>,
+    cell: ({ row }) => <DurationCell value={row.original.durationMs} />,
   },
 ];
 

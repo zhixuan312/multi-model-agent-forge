@@ -1,5 +1,7 @@
 'use client';
 
+import { NumCell, CostCell, SavedCell, DurationCell } from './usage-cells';
+
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { useExpandedRow } from '@/hooks/useExpandedRow';
@@ -19,7 +21,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui';
-import { formatCost, formatDuration } from '@/usage/format';
+import { formatCost } from '@/usage/format';
 import { RouteBreakdown } from './RouteBreakdown';
 import type { LoopUsageRow, RouteAggRow } from '@/usage/usage-core';
 
@@ -45,21 +47,19 @@ export function LoopUsageTable({
         accessorKey: 'runCount',
         header: 'Runs',
         size: 70,
-        cell: ({ row }) => <span className="tabular-nums">{row.original.runCount}</span>,
+        cell: ({ row }) => <NumCell value={row.original.runCount} />,
       },
       {
         accessorKey: 'costUsd',
         header: 'Cost',
         size: 90,
-        cell: ({ row }) => <span className="tabular-nums">{formatCost(row.original.costUsd)}</span>,
+        cell: ({ row }) => <CostCell value={row.original.costUsd} />,
       },
       {
         accessorKey: 'savedUsd',
         header: 'Saved',
         size: 90,
-        cell: ({ row }) => (
-          <span className="tabular-nums text-[var(--sage)]">{formatCost(row.original.savedUsd || null)}</span>
-        ),
+        cell: ({ row }) => <SavedCell value={row.original.savedUsd} />,
       },
       {
         id: 'avgCost',
@@ -86,7 +86,7 @@ export function LoopUsageTable({
         accessorKey: 'durationMs',
         header: 'Agent hours',
         size: 100,
-        cell: ({ row }) => <span className="tabular-nums">{formatDuration(row.original.durationMs)}</span>,
+        cell: ({ row }) => <DurationCell value={row.original.durationMs} />,
       },
       {
         id: 'expand',

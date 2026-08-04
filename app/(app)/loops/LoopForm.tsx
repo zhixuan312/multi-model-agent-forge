@@ -7,7 +7,7 @@ import { Button, Checkbox, Input, Field, Textarea, Label, Micro, Segmented } fro
 import { showToast } from '@/components/ui/toast';
 import { nextRuns } from '@/loops/cron';
 import { formatDateTime } from '@/lib/format-date';
-import { type LoopMode, type LoopWorkerTier } from '@/db/enums';
+import { LOOP_MODE, LOOP_WORKER_TIER, type LoopMode, type LoopWorkerTier } from '@/db/enums';
 import type { LoopRow } from '@/db/schema/loop';
 import { responseError } from '@/lib/err';
 
@@ -16,10 +16,33 @@ export interface RepoOption {
   name: string;
 }
 
-// How a loop is triggered. Recurring runs on `cron`; manual is Run-now only; event is
-// driven by an external POST to the loop's event endpoint. The TYPE comes from the enum —
-// this used to re-spell it as a local union, so a new mode would have compiled here while
-// the form silently offered three.
+/**
+ * The two enum-backed choosers, derived from the enums rather than hand-listed.
+ *
+ * The TYPE already came from the enum — a comment here recorded that a local union had been
+ * removed "so a new mode would have compiled here while the form silently offered three".
+ * The OPTIONS were still written out, which is the half that produces that exact outcome: a
+ * value added to `LOOP_MODE` type-checks everywhere and simply never appears in the form.
+ *
+ * The label maps are total, so a new value fails the build here — where someone has to
+ * decide what to call it — instead of going missing from the UI.
+ *
+ * (The Status control below is genuinely a boolean — `enabled` — not an enum, so it stays
+ * a literal pair.)
+ */
+const MODE_LABEL = {
+  recurring: 'Recurring',
+  manual: 'Manual',
+  event: 'Event',
+} as const satisfies Record<LoopMode, string>;
+
+const TIER_LABEL = {
+  standard: 'standard',
+  complex: 'complex',
+} as const satisfies Record<LoopWorkerTier, string>;
+
+const MODE_OPTIONS = LOOP_MODE.map((m) => ({ value: m, label: MODE_LABEL[m] }));
+const TIER_OPTIONS = LOOP_WORKER_TIER.map((t) => ({ value: t, label: TIER_LABEL[t] }));
 
 /** The inline notice strip this form uses for the token affordances — written out twice,
  *  once for the rotate prompt and once for the revealed token. */
@@ -153,11 +176,11 @@ export function LoopForm({
       <div className="flex flex-wrap gap-6">
         <div className="flex flex-col gap-1.5">
           <Label as="span">Worker tier</Label>
-          <Segmented label="Worker tier" value={workerTier} onChange={(v) => setWorkerTier(v as LoopWorkerTier)} options={[{ value: 'standard', label: 'standard' }, { value: 'complex', label: 'complex' }]} />
+          <Segmented label="Worker tier" value={workerTier} onChange={(v) => setWorkerTier(v as LoopWorkerTier)} options={TIER_OPTIONS} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label as="span">Mode</Label>
-          <Segmented label="Mode" value={loopMode} onChange={(v) => setLoopMode(v as LoopMode)} options={[{ value: 'recurring', label: 'Recurring' }, { value: 'manual', label: 'Manual' }, { value: 'event', label: 'Event' }]} />
+          <Segmented label="Mode" value={loopMode} onChange={(v) => setLoopMode(v as LoopMode)} options={MODE_OPTIONS} />
         </div>
         {loopMode !== 'manual' ? (
           <div className="flex flex-col gap-1.5">

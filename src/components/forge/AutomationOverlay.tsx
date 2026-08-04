@@ -30,7 +30,7 @@ import {
 import { RailNote } from '@/components/patterns/feature-rail';
 import { StageShell } from '@/components/patterns/stage-shell';
 import { Stat } from '@/components/patterns/stat-row';
-import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { automationOverlayStore } from '@/components/forge/automation-overlay-store';
 import { AutomationBar } from '@/components/forge/AutomationBar';
 import { formatActivityDuration, formatElapsed } from '@/lib/format-duration';
 import { STAGE_KIND, STAGE_ORDER, type StageKind, type ActivityKind } from '@/db/enums';

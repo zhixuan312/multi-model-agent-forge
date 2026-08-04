@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui';
-import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { automationOverlayStore } from '@/components/forge/automation-overlay-store';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { responseError } from '@/lib/err';
 

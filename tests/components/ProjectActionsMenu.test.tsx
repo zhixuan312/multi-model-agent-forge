@@ -6,7 +6,14 @@ import { ProjectActionsMenu } from '@/components/forge/ProjectActionsMenu';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 
 const { view } = vi.hoisted(() => ({ view: vi.fn() }));
-vi.mock('@/components/forge/AutomationGate', () => ({ automationOverlayStore: { view } }));
+// Mock the LEAF that owns the store, not the component that used to declare it. When the
+// store moved out of `AutomationGate.tsx` (to break an import cycle), this mock kept
+// resolving — `AutomationGate` still exists — but no longer intercepted anything, so the
+// real store ran and `view` was never called. That is the F489 failure mode from the other
+// side: a stale mock target does not error, it just stops applying. It went red here only
+// because this case asserts the spy WAS called; a case asserting "did not crash" would have
+// passed silently with the mock disabled.
+vi.mock('@/components/forge/automation-overlay-store', () => ({ automationOverlayStore: { view } }));
 
 const open = async () => {
   const user = userEvent.setup({ pointerEventsCheck: 0 });

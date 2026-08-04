@@ -6,7 +6,7 @@ import {
   Button,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { automationOverlayStore } from '@/components/forge/automation-overlay-store';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { responseError } from '@/lib/err';
 

@@ -14,7 +14,7 @@
 import { vi } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { AutomationOverlay } from '@/components/forge/AutomationOverlay';
-import { automationOverlayStore } from '@/components/forge/AutomationGate';
+import { automationOverlayStore } from '@/components/forge/automation-overlay-store';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock('@/hooks/useProjectEvents', () => ({ useProjectEvents: () => {} }));

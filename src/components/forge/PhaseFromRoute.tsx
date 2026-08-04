@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import { useAutomationRunning } from '@/components/forge/AutomationGate';
+import { useAutomationRunning } from '@/components/forge/automation-overlay-store';
 import { appPhaseStore } from '@/components/forge/app-phase';
 
 /**

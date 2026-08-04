@@ -3,7 +3,26 @@
 import { Fragment, type ReactNode } from 'react';
 import { Bell } from 'lucide-react';
 import { Button, Breadcrumb } from '@/components/ui';
-import { Sidebar } from '@/components/forge/Sidebar';
+import dynamic from 'next/dynamic';
+
+/**
+ * Loaded dynamically, which breaks a real import cycle:
+ *   Sidebar → governance/registry → AppShellPreview → Sidebar
+ *
+ * `Sidebar` imports `GOVERNANCE_SLOT_NAV` (plain data) from `registry.tsx`, and that module
+ * statically imports all five preview component trees in order to attach `renderPreview`
+ * closures. So the product's left rail transitively pulled the entire dev-only governance
+ * preview surface into its module graph — and back into itself.
+ *
+ * The cycle was benign at runtime (every reference is read at RENDER time, never during
+ * module init), but it is latent: the day someone reads one of these at module scope, the
+ * value is `undefined` with no obvious cause. Deferring here is also the correct direction
+ * on the merits — the preview is dev-only settings UI reaching back into the product, not
+ * the other way round — and it keeps five preview trees out of the main bundle.
+ */
+const Sidebar = dynamic(() => import('@/components/forge/Sidebar').then((m) => m.Sidebar), {
+  ssr: false,
+});
 import type { AuthedMember } from '@/auth/auth-provider';
 import { APP_SHELL_VARIANTS } from '@/components/governance/variant-meta';
 

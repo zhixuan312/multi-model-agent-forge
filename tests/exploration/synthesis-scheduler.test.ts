@@ -39,37 +39,87 @@ function makeDetailsWithRecordedTasks() {
 }
 
 describe('SynthesisScheduler', () => {
+  // Calls accumulate across cases on a module-level mock, so every case starts from zero —
+  // otherwise `toHaveBeenCalled()` can be satisfied by the PREVIOUS test's dispatch.
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The debounce case installs a fake clock; every other case needs the real one back.
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('debounces: a burst of terminal events coalesces into ONE dispatch after the quiet window', async () => {
-    const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
-
+  function armedScheduler(bus: ProjectEventBus, debounceMs: number) {
     const d = makeDetailsWithRecordedTasks();
     const mockDb = createMockDb({
       'select:project': [{ details: d, detailsReady: true }],
       'select:ops_mma_batch': [{ id: 'b1', route: 'research', status: 'done', result: { output: { summary: { answer: 'found stuff' } } } }],
     });
+    const sched = new SynthesisScheduler({ db: mockDb, bus, debounceMs });
+    sched.watch(projectId);
+    return sched;
+  }
+
+  const terminal = (taskId: string) =>
+    ({ type: 'task.done', taskId, mmaBatchId: 'b', route: 'research', status: 'recorded' }) as const;
+
+  /**
+   * Drives the REAL timer, on a fake clock, rather than calling `flush()`.
+   *
+   * That distinction is the whole test. An earlier version published its events and then
+   * called `flush()` — which cancels the pending timer and synthesizes immediately — so the
+   * debounce never ran. Deleting the `clearTimeout` from `bump`, i.e. deleting coalescing
+   * itself, left every case green: each event's orphaned timer was simply never reached.
+   * The case named the property it did not exercise.
+   *
+   * Advancing the clock past the window is what makes the second event's timer SUPERSEDE
+   * the first's observable, so "two events, one synthesis" is now a claim about the
+   * scheduler rather than about `flush()`.
+   */
+  it('debounces: a burst of terminal events coalesces into ONE dispatch after the quiet window', async () => {
+    vi.useFakeTimers();
+    const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
 
     const bus = new ProjectEventBus();
-    const sched = new SynthesisScheduler({ db: mockDb, bus, debounceMs: 60_000 });
-    sched.watch(projectId);
+    const sched = armedScheduler(bus, 5_000);
 
-    bus.publish(projectId, { type: 'task.done', taskId: 't1', mmaBatchId: 'b', route: 'research', status: 'recorded' });
+    bus.publish(projectId, terminal('t1'));
     expect(sched.isArmed(projectId)).toBe(true);
-    bus.publish(projectId, { type: 'task.done', taskId: 't2', mmaBatchId: 'b', route: 'research', status: 'recorded' });
+
+    // A second event 1s in RESTARTS the window — the first event's timer must not survive it.
+    await vi.advanceTimersByTimeAsync(1_000);
+    bus.publish(projectId, terminal('t2'));
     expect(sched.isArmed(projectId)).toBe(true);
+
+    // t=5.5s: past the FIRST event's original deadline, short of the second's. A scheduler
+    // that let each event keep its own timer has already dispatched here.
+    await vi.advanceTimersByTimeAsync(4_500);
+    expect(dispatchMma, 'the superseded timer must not fire').not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(dispatchMma).toHaveBeenCalledTimes(1);
+    expect(sched.isArmed(projectId)).toBe(false);
+    sched.shutdown();
+  });
+
+  it('flush() is the cancel-and-run-now seam, and it runs synthesis exactly once', async () => {
+    const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
+    const bus = new ProjectEventBus();
+    const sched = armedScheduler(bus, 60_000);
+
+    bus.publish(projectId, terminal('t1'));
+    bus.publish(projectId, terminal('t2'));
+    expect(dispatchMma).not.toHaveBeenCalled();
 
     await sched.flush(projectId);
     expect(sched.isArmed(projectId)).toBe(false);
-    expect(dispatchMma).toHaveBeenCalled();
+    expect(dispatchMma).toHaveBeenCalledTimes(1);
     sched.shutdown();
   });
 
   it('boot reconciliation dispatches synthesis for a project with no exploration.md', async () => {
     const { dispatchMma } = await import('@/dispatch/dispatch-helpers');
-    (dispatchMma as any).mockClear();
 
     const { readExplorationSummary } = await import('@/projects/project-files');
     // MUST be a resolved Promise, not a raw value — the reconcile path awaits it. With the earlier

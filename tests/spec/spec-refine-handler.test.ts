@@ -6,18 +6,20 @@ import { FORGE_MEMBER_ID } from '@/automation/forge-member';
 /**
  * Real coverage for the `spec-refine` terminal handler.
  *
- * This replaces two files that LOOKED like coverage of it and were not:
+ * This takes over from two files that LOOKED like coverage of it and were not. One was
+ * deleted outright; the other kept the single claim it could actually back:
  *
- * - `refine-handler.test.ts` never imported the handler at all — it re-tested
+ * - `refine-handler.test.ts` (DELETED) never imported the handler at all — it re-tested
  *   `refine-prompt`'s three pure functions (already covered, more thoroughly, in
  *   `refine-prompt.test.ts`) and opened with two cases that asserted `null === null`
  *   and `'session-abc' === null`. Those test JavaScript's `===` operator; they cannot
  *   fail for any state of this codebase.
- * - `chat-integration.test.ts` claimed "DB persistence, SSE event publishing … through
- *   the dispatch handlers", but its handler cases only asserted `getHandler(...)` was
- *   defined. Its "publishes correct event shape" cases BUILT an event literal inside the
- *   test, asserted the literal had the fields just written into it, then pushed to the
- *   captured array by hand and asserted the push. No production code ran.
+ * - `chat-integration.test.ts` (REDUCED, still present) claimed "DB persistence, SSE event
+ *   publishing … through the dispatch handlers", but its handler cases only asserted
+ *   `getHandler(...)` was defined. Its "publishes correct event shape" cases BUILT an event
+ *   literal inside the test, asserted the literal had the fields just written into it, then
+ *   pushed to the captured array by hand and asserted the push. No production code ran. It
+ *   now holds only its one real claim: that the handlers self-register at import time.
  *
  * So the handler's actual behaviour — splice spec.md, insert the Forge chat row, publish
  * the SSE event carrying that row's id — was untested behind ~375 lines of tests.

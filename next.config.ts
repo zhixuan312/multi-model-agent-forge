@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Standalone server output → a slim Docker runtime (server.js + NFT-traced deps),
-  // matching the CapRover deploy pattern (see captain-definition).
+  // Standalone server output → a slim Docker runtime (server.js + NFT-traced deps).
+  // Consumed by the one build definition, `Dockerfile`, whose runner stage copies
+  // `.next/standalone`. (This pointed at a `captain-definition` CapRover build that was
+  // deleted: it was a second, divergent Dockerfile that copied `src/mock/data`, a
+  // directory removed with the mock backend, so it could no longer build — and it ran
+  // `node server.js` directly, with no DB migration and no MMA engine.)
   output: "standalone",
 
 

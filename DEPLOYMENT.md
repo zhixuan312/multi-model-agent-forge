@@ -259,6 +259,18 @@ server configuration.
 
 ## 8. Building the image (maintainers)
 
+**Releases are cut by GitHub Actions, not from a laptop.** Dispatch
+`.github/workflows/release.yml` with the version (which must already equal
+`package.json#version` on `master`); `dry_run: true` runs the gates, both native builds and
+both boot tests without publishing anything. The workflow builds **amd64 and arm64 on their
+own native runners**, boot-tests each against a real Postgres, pushes by digest, assembles
+the multi-arch index, and creates the git tag **last** — so the "tagged but never published"
+state that killed 0.1.3 cannot recur. It also writes the digest into the GitHub Release.
+
+Building from a workstation is the **break-glass path only**. It is what produced 0.1.3: the
+multi-arch upload takes ~12 minutes over a home link and outlived the GHCR token four times.
+If you must:
+
 **The image must be pushed multi-arch.** Most servers operators deploy to are x86_64, and a
 plain `docker build && docker push` publishes only the **build host's** architecture — on an
 Apple-Silicon Mac that is arm64-only, and `docker pull` then fails on every amd64 host with
@@ -293,9 +305,11 @@ docker manifest inspect ghcr.io/zhixuan312/forge:<tag> \
 docker buildx imagetools inspect ghcr.io/zhixuan312/forge:<tag> --format '{{.Manifest.Digest}}'
 ```
 
-Put that digest in the CHANGELOG entry for the release — it is the immutable release
-identity operators pin with `ghcr.io/zhixuan312/forge@sha256:…`. **The digest changes with
-every push, so update the CHANGELOG after the multi-arch push, not before.**
+Record that digest — it is the immutable release identity operators pin with
+`ghcr.io/zhixuan312/forge@sha256:…`. The workflow puts it in the **GitHub Release** for the
+version; a break-glass build must add it there by hand. (Entries at 0.1.4 and earlier carry
+it inline in the CHANGELOG instead; that is history, not the current convention.) **The
+digest changes with every push, so record it after the multi-arch push, not before.**
 
 Cross-building the non-native arch runs under emulation and is slow (expect a long
 `pnpm install`); that cost is the build host's, not the operator's. Nothing in the

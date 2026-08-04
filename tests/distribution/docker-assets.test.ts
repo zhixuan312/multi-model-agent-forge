@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -85,6 +85,55 @@ describe('Docker assets', () => {
     expect(dockerfile).toContain('USER node');
     expect(dockerfile).toContain('HEALTHCHECK');
     expect(dockerfile).toContain('/api/version');
+  });
+
+  /**
+   * The compose file's OAuth example is copy-paste guidance, so it has to be the guidance
+   * the other two files give. It showed `${HOME}/.claude:/home/node/.claude:ro` — a
+   * DIRECTORY, read-only — which DEPLOYMENT.md §5a and the Dockerfile's own comment both
+   * warn against, for two reasons that each fail silently:
+   *   - a directory mount shadows the image's pre-synced `~/.codex/skills`, so the
+   *     `skill manifest drift detected` warning the build-time sync exists to remove
+   *     comes back on every boot;
+   *   - `:ro` cannot persist a token refresh, so an always-on server eventually sits on an
+   *     expired token and the tier goes "not verified" with nothing logged as an error.
+   *
+   * Two files said don't; the one an operator actually uncomments showed how.
+   */
+  it('the compose OAuth example mounts credential files, writable', () => {
+    const compose = readFileSync(join(process.cwd(), 'docker-compose.yml'), 'utf8');
+    const oauthLines = compose
+      .split('\n')
+      .filter((l) => /\.claude|\.codex/.test(l) && l.includes(':/home/node/'));
+    expect(oauthLines.length, 'the OAuth example vanished from docker-compose.yml').toBeGreaterThan(0);
+
+    for (const line of oauthLines) {
+      expect(line, `directory mount shadows the pre-synced skills dir: ${line.trim()}`)
+        .toMatch(/\.(json)\s*:/);
+      expect(line, `a read-only mount cannot persist an OAuth refresh: ${line.trim()}`)
+        .not.toMatch(/:ro\s*$/);
+    }
+  });
+
+  /**
+   * Exactly ONE container build definition.
+   *
+   * A `captain-definition` (CapRover) sat beside the Dockerfile carrying a second,
+   * divergent build: alpine rather than bookworm, `CMD ["node","server.js"]` with no
+   * supervisor and no tini, no MMA engine bundled, and no `db:migrate`/`db:seed-templates`
+   * at all — a container that boots Forge against an unmigrated database. It had already
+   * stopped being buildable (it copied `src/mock/data`, removed with the mock backend) and
+   * named env vars that no longer exist (`MMAGENT_AUTH_TOKEN`, `FORGE_ADMIN_*`, the
+   * env-var admin bootstrap `.env.example` says outright does not exist).
+   *
+   * Nothing referenced it but a comment in next.config.ts. Two build definitions means one
+   * of them is not the product, and there is no signal saying which.
+   */
+  it('has one container build definition, not two', () => {
+    const rivals = readdirSync(process.cwd())
+      .filter((f) => f === 'captain-definition' || (/^Dockerfile/.test(f) && f !== 'Dockerfile'));
+    expect(rivals, 'a second build definition drifts from the one that ships').toEqual([]);
+    expect(existsSync(join(process.cwd(), 'Dockerfile'))).toBe(true);
   });
 
   it('ships an entrypoint shell that delegates to the supervisor', () => {

@@ -1,6 +1,12 @@
-# Node 22 (current LTS) — satisfies engines.node >=20.9.0 and avoids shipping the
-# now-EOL Node 20. The Forge container runs only the Next app; the MMA engine is a
-# separate process reached over HTTP, so its own Node floor does not bind this image.
+# Node 22 (current LTS) — matches `engines.node` (>=22.0.0), which `docs-contract.test.ts`
+# checks every stage against.
+#
+# The floor is NOT Forge's alone. This is an all-in-one image: the MMA engine is installed
+# below and run as a loopback co-process by the supervisor, so ITS Node requirement binds
+# here too. This header used to say the opposite — "the container runs only the Next app;
+# the MMA engine is a separate process reached over HTTP, so its own Node floor does not
+# bind this image" — written before the engine moved inside, and left claiming the one
+# constraint that would let a base-image downgrade through.
 #
 # MULTI-ARCH: nothing below pins a CPU architecture — `node:22-bookworm-slim` is a
 # multi-arch manifest, apt resolves Chromium and the Chrome shared libs per target,

@@ -66,9 +66,17 @@ services:
       # Models across container recreation (upgrades). Without this, UI-configured
       # providers are lost when the container is replaced.
       - forge-mma-config:/home/node/.mma
-      # OAuth (optional): mount your host creds read-only for keyless tiers.
-      # - ${HOME}/.claude:/home/node/.claude:ro
-      # - ${HOME}/.codex:/home/node/.codex:ro
+      # OAuth (optional, and API keys are the recommended path for a server —
+      # DEPLOYMENT.md §5a). Mount the credential FILES, WRITABLE. This example used to
+      # mount the whole directory read-only, which both other files warn against and
+      # which fails in two silent ways:
+      #   - a directory mount shadows the image's pre-synced /home/node/.codex/skills,
+      #     bringing back a `skill manifest drift detected` warning on every boot;
+      #   - `:ro` cannot persist a token refresh, so an always-on server eventually sits
+      #     on an expired token and every affected tier goes "not verified".
+      # The host files are written `600 root`; stage a copy owned by uid 1000 first.
+      # - ${HOME}/forge-oauth/claude-credentials.json:/home/node/.claude/.credentials.json
+      # - ${HOME}/forge-oauth/codex-auth.json:/home/node/.codex/auth.json
     restart: unless-stopped
 
   # Optional local database for a one-command demo — enable with:

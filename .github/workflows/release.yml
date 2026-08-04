@@ -91,6 +91,28 @@ jobs:
             exit 1
           fi
 
+      # The GitHub Release notes are LIFTED from this section (see the publish job's awk).
+      # Without this gate a release with no CHANGELOG entry still publishes — the awk simply
+      # yields nothing and the Release ships with only the image block, which reads as a
+      # release nobody described rather than as a mistake. Skipped on a dry run, where the
+      # entry may legitimately not be written yet.
+      - name: CHANGELOG must describe this version
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          if ! grep -qF "## [${{ inputs.version }}]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${{ inputs.version }}]' section — the GitHub Release would have no notes."
+            exit 1
+          fi
+          SECTION="$(awk -v v="${{ inputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" {f=1; next}
+            f && /^## \[/ {exit}
+            f {print}
+          ' CHANGELOG.md | tr -d '[:space:]')"
+          if [ -z "$SECTION" ]; then
+            echo "::error::the '## [${{ inputs.version }}]' section is empty."
+            exit 1
+          fi
+
       # One timestamp for the whole release so every arch carries identical provenance.
       - id: stamp
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"

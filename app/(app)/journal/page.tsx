@@ -39,6 +39,7 @@ import type { PinnedView, FaqView } from '@/journal/recall-content';
 // The metric shape belongs to the card that renders it: this file used to declare a
 // local copy whose tint union had already drifted narrower than `ICON_TINT`.
 import type { MetricCardProps } from '@/components/ui/metric-card';
+import { recallQuestionOf } from '@/journal/recall-question';
 
 /**
  * `/journal` — the team decision-graph viewer (Spec 6), on the Team-Settings
@@ -121,11 +122,9 @@ export default async function JournalPage({
     }));
     faqs = topQ;
     recentRecalls = recentBatches.map((b) => {
-      // The recall query lives in the batch `request`. The centralized dispatchMma path
-      // stores it as `prompt`; older rows (pre-harmonization) used `query` — read both
-      // so every recent answer shows its question, not a blank row.
-      const req = (b.request as Record<string, unknown>) ?? {};
-      const question = (req.prompt as string) ?? (req.query as string) ?? '';
+      // One accessor, shared with `topFaqs` — the two used to read this field differently,
+      // so a legacy `query` row showed here and vanished from the FAQ counts.
+      const question = recallQuestionOf(b.request);
       const base = { id: b.id, question, status: b.status, batchId: b.batchId };
       if (b.status === 'done' && b.result) {
         try {

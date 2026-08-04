@@ -15,6 +15,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { mmaBatch } from '@/db/schema/ops';
 import { parseRecallEnvelope } from '@/journal/recall';
+import { recallQuestionOf } from '@/journal/recall-question';
 
 export interface FaqsDeps {
   db?: Db;
@@ -46,7 +47,7 @@ export async function topFaqs(limit = 5, deps: FaqsDeps = {}): Promise<Faq[]> {
 
   const groups = new Map<string, { question: string; count: number; recent: number; latestDoneAt: number; latestDoneId: string | null }>();
   for (const r of rows) {
-    const question = String((r.request as { prompt?: string } | null)?.prompt ?? '').trim();
+    const question = recallQuestionOf(r.request);
     if (!question) continue;
     const key = question.toLowerCase();
     const at = r.createdAt instanceof Date ? r.createdAt.getTime() : new Date(r.createdAt as unknown as string).getTime();

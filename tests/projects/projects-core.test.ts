@@ -283,6 +283,35 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
       .toContain('eq(project.archived, wantArchived)');
   });
 
+  /**
+   * And the actor's team id is really BOUND into that clause, not merely named in source.
+   * Source proves the shape; this proves the value flows through — the two together are
+   * what `runs-query.test.ts` established for the loops queries.
+   */
+  it('binds the caller’s team id into the list query', async () => {
+    const db = createMockDb({ 'select:project': [] });
+    await visibleProjects({ id: 'owner-a', teamId: 'team-a' }, { db });
+
+    const seen = new Set<unknown>();
+    const params: unknown[] = [];
+    const visit = (v: unknown, depth = 0): void => {
+      if (v === null || v === undefined || depth > 8) return;
+      if (typeof v !== 'object') { params.push(v); return; }
+      if (seen.has(v)) return;
+      seen.add(v);
+      for (const child of Array.isArray(v) ? v : Object.values(v as Record<string, unknown>)) {
+        visit(child, depth + 1);
+      }
+    };
+    for (const c of db._callsFor('project').filter((c) => c.method === 'where')) visit(c.args[0]);
+
+    expect(params, 'the actor team never reached the query').toContain('team-a');
+    // Only the team id is asserted here. The visibility literal sits deeper in the clause
+    // than this walker reaches, and an assertion that cannot find what it looks for is the
+    // failure mode this whole audit keeps closing — the SOURCE check above is what covers
+    // that conjunct.
+  });
+
   /** Both public lists must go through that one predicate, or one of them can lose it. */
   it('visibleProjects and archivedProjects share the scoped query', () => {
     const src = readFileSync(join(process.cwd(), 'src/projects/projects-core.ts'), 'utf8');

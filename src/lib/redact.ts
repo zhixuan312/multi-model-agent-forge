@@ -27,7 +27,7 @@ const GENERIC = 'Something went wrong.';
  * survived whole. Measured against the real formats:
  *
  *   sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz          → passed through INTACT
- *   xoxb-EXAMPLE…           → passed through INTACT
+ *   xoxb-… (a Slack bot token)                     → passed through INTACT
  *   postgres://forge:Hunter2Passw0rd@db.internal   → passed through INTACT
  *   ghp_16C7e42F292c6912E7710c838347Ae178B4a       → caught, but only because that
  *                                                    particular tail happened to be hex

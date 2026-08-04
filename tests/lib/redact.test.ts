@@ -56,6 +56,11 @@ describe('redactMessage', () => {
     const cases: [string, string][] = [
       ['Incorrect API key provided: sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz', 'sk-proj-9aBcD3fGh1JkLmN0pQrS2tUvW4xYz'],
       ['bad credentials for ghp_16C7e42F292c6912E7710c838347Ae178B4a', 'ghp_16C7e42F292c6912E7710c838347Ae178B4a'],
+      // A PLACEHOLDER, not a realistic Slack token. The rule under test is generic —
+      // "a long opaque run in any alphabet carrying at least one digit" — so the fixture
+      // only has to be token-SHAPED. Spelling out a live-format credential made GitHub's
+      // push protection reject the whole branch, which is the correct behaviour on its
+      // part: a scanner cannot tell a synthetic token from a leaked one.
       ['webhook rejected xoxb-EXAMPLE-0000000000-NOT-A-REAL-SLACK-TOKEN-0000', 'xoxb-EXAMPLE-0000000000-NOT-A-REAL-SLACK-TOKEN-0000'],
     ];
     for (const [input, secret] of cases) {

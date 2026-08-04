@@ -10,24 +10,47 @@ import {
   TaskLockedError,
   TaskNotFoundError,
 } from '@/exploration/explore-core';
-import { createMockDb, seq } from '../test-utils/mock-db';
+import { createMockDb } from '../test-utils/mock-db';
 import { buildInitialDetails } from '@/details/schema';
 
 describe('brief persistence', () => {
-  it('saves and reads the brief via details', async () => {
+  it('writes the brief text into details, not merely SOME update', async () => {
     const projectId = 'proj-1';
     const d = buildInitialDetails();
     const mockDb = createMockDb({
-      'select:project': seq(
-        [{ details: d, detailsVersion: 0 }],
-        [{ id: projectId }],
-        [{ details: { ...d, stages: { ...d.stages, exploration: { ...d.stages.exploration, phases: { ...d.stages.exploration.phases, brief: { status: 'done', text: 'first dump' } } } } } }],
-      ),
+      'select:project': [{ details: d, detailsVersion: 0 }],
       'update:project': [{ id: projectId }],
     });
 
     await saveBrief(projectId, 'first dump', mockDb);
-    expect(mockDb._wasCalled('project', 'update')).toBe(true);
+
+    // `_wasCalled('project', 'update')` alone was the whole assertion here. That is true
+    // of a `saveBrief` that writes an empty string, or the wrong field, or clears the
+    // brief entirely — the same weakness `orchestrator.test.ts` records for
+    // `confirmComponents`, where asserting only that an update happened left the suite
+    // green over a silently truncated component list. Assert the document that was
+    // written.
+    const set = mockDb._callsFor('project').find((c) => c.method === 'set');
+    const written = (set!.args[0] as { details: typeof d }).details;
+    expect(written.stages.exploration.phases.brief.text).toBe('first dump');
+  });
+
+  /**
+   * Stored VERBATIM, deliberately. The brief is a brain dump the user keeps editing, and
+   * the textarea autosaves, so trimming on write would fight a cursor that is mid-newline.
+   * Whitespace is instead handled where it can actually mislead: `exploration/dispatch.ts`
+   * reads `briefText?.trim() || '<fallback>'`, so a whitespace-only brief becomes the
+   * fallback prompt rather than an empty instruction to a worker.
+   */
+  it('stores the brief verbatim, leaving trimming to the consumers that need it', async () => {
+    const d = buildInitialDetails();
+    const padded = createMockDb({
+      'select:project': [{ details: d, detailsVersion: 0 }],
+      'update:project': [{ id: 'p' }],
+    });
+    await saveBrief('p', '  spaced dump\n', padded);
+    const written = (padded._callsFor('project').find((c) => c.method === 'set')!.args[0] as { details: typeof d }).details;
+    expect(written.stages.exploration.phases.brief.text).toBe('  spaced dump\n');
   });
 });
 

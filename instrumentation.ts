@@ -78,21 +78,14 @@ export async function register(): Promise<void> {
     }
   }
 
-  // Resume server-side automation for projects with auto_mode = true (legacy)
-  // OR details.automation.status = 'running' (details-ready path)
+  // Resume server-side automation, for projects that are running by BOTH signals —
+  // see `listResumableProjects` for why an OR resumed work a human had stopped.
   try {
     const { getDb } = await import('@/db/client');
-    const { project } = await import('@/db/schema/projects');
-    const { eq, or, sql } = await import('drizzle-orm');
+    const { listResumableProjects } = await import('@/automation/resumable-projects');
     const { driveProject } = await import('@/automation/driver');
     const db = getDb();
-    const autoProjects = await db
-      .select({ id: project.id, name: project.name })
-      .from(project)
-      .where(or(
-        eq(project.autoMode, true),
-        sql`${project.details}->'automation'->>'status' = 'running'`,
-      ));
+    const autoProjects = await listResumableProjects(db);
     for (const p of autoProjects) {
       logEvent({ event: 'startup.automation_resumed', projectId: p.id, detail: p.name });
       driveProject(p.id).catch((err) => {

@@ -4,7 +4,7 @@
  * NEUTRAL grey chip (never throws). Status/edge chips always pair colour with a
  * text label (never colour-only — a11y F17).
  */
-import { isStatus } from '@/journal/types';
+import { isStatus, LOG_OPS, type LogOp } from '@/journal/types';
 
 /**
  * The journal chip shape — status chip, write-log op chip and the recall marker all
@@ -38,20 +38,28 @@ export function statusStyle(status: string): StatusStyle {
   return { label: status || 'unknown', cls: NEUTRAL.cls, dot: NEUTRAL.dot };
 }
 
-/** Write-log op → colour class (create=sage, refine=ember, supersede=amber,
- *  merge=steel; unknown=neutral grey). Always paired with the op text.
+/**
+ * op → colour class. TOTAL over `LOG_OPS`, so the vocabulary has one definition.
+ *
+ * This was a `switch` spelling the four ops out as string literals — a second copy of
+ * `LOG_OPS`, which left the constant with no production consumer at all and its cross-repo
+ * drift guard (`journal/contract.test.ts`, comparing it to a checked-in fixture of MMA's
+ * enums) unable to affect anything Forge does. Keyed on the type instead, an op MMA adds
+ * fails the build here rather than silently rendering grey forever.
+ */
+const OP_TOKEN: Record<LogOp, string> = {
+  create: 'bg-sage-tint text-sage-deep border-sage',
+  refine: 'bg-ember-tint text-ember-deep border-ember',
+  supersede: 'bg-amber-tint text-amber border-amber',
+  merge: 'bg-surface-2 text-steel-deep border-steel',
+};
+
+const isLogOp = (v: string): v is LogOp => (LOG_OPS as readonly string[]).includes(v);
+
+/** Resolve a write-log op to its chip colour (neutral grey for unknown, never throws).
+ *  Always paired with the op text — never colour-only (a11y F17).
  *  Both resolvers used to also return a `known: boolean` that no caller ever read. */
 export function opStyle(op: string): { cls: string } {
-  switch (op) {
-    case 'create':
-      return { cls: 'bg-sage-tint text-sage-deep border-sage' };
-    case 'refine':
-      return { cls: 'bg-ember-tint text-ember-deep border-ember' };
-    case 'supersede':
-      return { cls: 'bg-amber-tint text-amber border-amber' };
-    case 'merge':
-      return { cls: 'bg-surface-2 text-steel-deep border-steel' };
-    default:
-      return { cls: NEUTRAL.cls };
-  }
+  return { cls: isLogOp(op) ? OP_TOKEN[op] : NEUTRAL.cls };
 }
+

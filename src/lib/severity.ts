@@ -8,6 +8,13 @@
  * instead. This module has no imports, so both sides can use it.
  *
  * The order is most-severe-first, which is also the display order.
+ *
+ * These are exactly the tiers MMA emits — no `info`. Verified against the engine's
+ * `packages/core/src/unified/refiner-schemas.ts`, where every finding schema declares
+ * `weight: z.enum(['critical', 'high', 'medium', 'low'])`. (That note used to hang on a
+ * `FindingSeverity` alias in `spec/audit-loop.ts` that re-exported this type and had no
+ * consumer at all; the note was the only load-bearing part of it, so it moved here, beside
+ * the list it describes.)
  */
 export const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
 

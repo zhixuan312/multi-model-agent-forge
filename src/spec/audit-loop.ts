@@ -6,17 +6,13 @@ import type { Finding } from '@/components/patterns/findings';
 import { mmaBatch } from '@/db/schema/ops';
 import { project } from '@/db/schema/projects';
 import { validateDetails } from '@/details/schema';
-import { isBlockingSeverity, normalizeSeverity, type Severity } from '@/lib/severity';
+import { isBlockingSeverity, normalizeSeverity } from '@/lib/severity';
 
 /**
  * Audit parsing + queries shared by spec and plan audits. `parseAuditEnvelope`
  * + `nextPassNo` are used by both handlers; `auditPassHistory` serves the UI.
  * Dispatch is async via `dispatchMma`.
  */
-
-/** The severity tiers MMA emits (no `info`; verified against the engine's
- *  `packages/core/src/unified/refiner-schemas.ts`, which enumerates the same four). */
-export type FindingSeverity = Severity;
 
 /**
  * A finding parsed out of an audit envelope: the canonical render contract with

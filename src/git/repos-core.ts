@@ -83,7 +83,6 @@ export const cloneRepoSchema = z.object({
   url: z.string().trim().min(1),
   tags: tagsSchema,
 });
-export type CloneRepoInput = z.infer<typeof cloneRepoSchema>;
 
 export type CloneRepoResult =
   | { kind: 'cloned'; repo: RepoView }

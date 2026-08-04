@@ -98,7 +98,6 @@ const createProjectSchema = z.object({
     content: z.string(),
   }).optional(),
 });
-export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
 export type CreateProjectResult =
   | { ok: true; id: string; entryStage: DesignStage }

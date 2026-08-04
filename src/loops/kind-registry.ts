@@ -23,7 +23,6 @@ export interface LoopKindDef {
 export const maintenanceConfigSchema = z.object({
   goalMd: z.string().trim().min(1),
 });
-export type MaintenanceConfig = z.infer<typeof maintenanceConfigSchema>;
 
 const maintenance: LoopKindDef = {
   label: 'Maintenance',

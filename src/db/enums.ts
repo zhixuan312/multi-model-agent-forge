@@ -330,13 +330,11 @@ export type TerminalAttemptStatus = Exclude<AttemptStatus, 'running'>;
 
 /** `details.stages.exploration.phases.discover.tasks[].status`. */
 export const DISCOVER_TASK_STATUS = ['draft', 'running', 'recorded', 'failed'] as const;
-export type DiscoverTaskStatus = (typeof DISCOVER_TASK_STATUS)[number];
 
 /** `details.stages.plan.phases.refine.tasks[].status` — plan-approval through execution. */
 export const PLAN_TASK_STATUS = [
   'pending', 'approved', 'queued', 'executing', 'verifying', 'fixing', 'committed', 'skipped', 'failed',
 ] as const;
-export type PlanTaskStatus = (typeof PLAN_TASK_STATUS)[number];
 
 /** `details.automation.status` — whether the auto driver is running for this project. */
 export const AUTOMATION_STATUS = ['off', 'running'] as const;

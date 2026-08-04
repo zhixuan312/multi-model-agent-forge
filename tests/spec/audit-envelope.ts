@@ -7,17 +7,35 @@
 // client stub, its `RecordedDispatch` type, and a `journalEnvelope()` factory were
 // removed rather than kept as scaffolding for a test nobody wrote.
 
-/** A v5.4 audit terminal envelope. */
+/**
+ * A v5.4 audit terminal envelope.
+ *
+ * Emits the severity under **`weight`**, which is what the engine actually sends: every
+ * schema in the engine's `packages/core/src/unified/refiner-schemas.ts` declares
+ * `weight: severityEnum`, and `review-findings.test.ts` records the same thing measured
+ * from the other side — across 37 real envelopes in the batch store, a `severity` key
+ * occurred **zero** times.
+ *
+ * This fixture used to emit `severity`, so nearly every audit case exercised the PARSER'S
+ * TOLERANCE rather than its contract, and the wire key the engine really uses appeared in
+ * one describe block at the bottom of the file. A fixture that disagrees with production
+ * quietly redirects a whole file's coverage onto a path production never takes. The
+ * `severity` alias is still tolerated and still tested — as an alias, explicitly.
+ *
+ * The argument is named `severity` because that is the concept; the wire key is the
+ * translation this fixture exists to perform.
+ */
 export function auditEnvelope(
   findings: Array<{ severity: string; category?: string; claim?: string }>,
-  extra?: { contextBlockId?: string },
+  extra?: { contextBlockId?: string; key?: 'weight' | 'severity' },
 ): unknown {
+  const key = extra?.key ?? 'weight';
   return {
     task: { type: 'audit', status: 'done', taskId: 'mock-audit' },
     output: {
       summary: {
         findings: findings.map((f) => ({
-          severity: f.severity,
+          [key]: f.severity,
           category: f.category ?? 'coherence',
           claim: f.claim ?? 'a finding',
         })),

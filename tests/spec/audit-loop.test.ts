@@ -96,6 +96,21 @@ describe('parseAuditEnvelope (pure)', () => {
     if (r.kind !== 'report') throw new Error('unreachable');
     expect(r.contextBlockId).toBe('cb-42');
   });
+
+  /**
+   * The fixture emits `weight`, the key the engine actually sends. `severity` is accepted
+   * as an alias and is asserted HERE, once and explicitly, rather than being the shape every
+   * other case in the file happened to use — which is what left the real wire key covered
+   * by a single describe block at the bottom.
+   */
+  it('reads the severity from either the `weight` wire key or a `severity` alias', () => {
+    for (const key of ['weight', 'severity'] as const) {
+      const r = parseAuditEnvelope(auditEnvelope([{ severity: 'high', claim: 'h' }], { key }));
+      if (r.kind !== 'report') throw new Error(`${key} produced ${r.kind}`);
+      expect(r.findings[0]!.severity, key).toBe('high');
+      expect(r.hasCriticalOrHigh, key).toBe(true);
+    }
+  });
 });
 
 describe('nextPassNo', () => {

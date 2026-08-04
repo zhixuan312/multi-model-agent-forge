@@ -33,6 +33,19 @@ export function isAdminRole(role: string | null | undefined): boolean {
   return role === 'org_admin' || role === 'team_admin';
 }
 
+/**
+ * `project_qa_message.target_kind` — which row a discussion thread hangs off.
+ *
+ * The column was plain `text()` with no vocabulary anywhere, and the two literals were
+ * spelled out in nine files. The SSE `chat.message` scope union additionally carried a
+ * THIRD value, `spec_project`, which no code path ever wrote and no client ever branched
+ * on — a scope the type system permitted and the product never produced. Declared here with
+ * the other column vocabularies so the column, the wire scope and the writers share one
+ * definition.
+ */
+export const QA_TARGET_KIND = ['spec_component', 'plan_task'] as const;
+export type QaTargetKind = (typeof QA_TARGET_KIND)[number];
+
 /* ── Spec 3: Projects ───────────────────────────────────────────────────── */
 
 /** project.visibility (schema.md §3). private = artifact-gated; public = all members. */

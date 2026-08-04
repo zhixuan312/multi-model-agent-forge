@@ -1,5 +1,7 @@
 'use client';
 
+import type { QaTargetKind } from '@/db/enums';
+
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useMmaDispatch, type MmaDispatchState } from '@/hooks/useMmaDispatch';
 import { useServerState } from '@/hooks/useServerState';
@@ -946,7 +948,7 @@ function CraftStage({
     }
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
-        scope?: 'spec_component' | 'spec_project' | 'plan_task';
+        scope?: QaTargetKind;
         targetId?: string;
         message?: { id: string; sender: string; authorId: string; authorName: string; bodyMd: string };
       } | undefined;

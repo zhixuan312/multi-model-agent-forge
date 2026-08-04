@@ -1,3 +1,4 @@
+import { QA_TARGET_KIND } from '@/db/enums';
 import { uuid, text, integer, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 import { forge } from '@/db/schema/_schema';
 import { member } from '@/db/schema/identity';
@@ -14,7 +15,7 @@ export const qaMessage = forge.table(
     id: uuid('id').primaryKey().defaultRandom(),
     targetId: uuid('target_id'),
     projectId: uuid('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
-    targetKind: text('target_kind'),
+    targetKind: text('target_kind', { enum: QA_TARGET_KIND }),
     seq: integer('seq').notNull(),
     bodyMd: text('body_md').notNull(),
     meta: jsonb('meta'),

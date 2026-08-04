@@ -1,3 +1,4 @@
+import type { QaTargetKind } from '@/db/enums';
 import { EventEmitter } from 'node:events';
 import type { JournalLearningStatus } from '@/db/enums';
 
@@ -68,7 +69,8 @@ export type ProjectEvent =
   | { type: 'plan.updated'; taskId: string; chatReply: string; updated: boolean }
   | {
       type: 'chat.message';
-      scope: 'spec_component' | 'spec_project' | 'plan_task';
+      /** Derived from the column vocabulary — the wire scope and `target_kind` are one set. */
+      scope: QaTargetKind;
       targetId: string;
       message: { id: string; sender?: 'forge' | 'member'; authorId: string; authorName: string; bodyMd: string };
     }

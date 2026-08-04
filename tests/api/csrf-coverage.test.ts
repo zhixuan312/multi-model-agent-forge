@@ -16,8 +16,24 @@ import { describe, expect, it } from 'vitest';
  */
 const ROOT = process.cwd();
 
-/** Guards that call `rejectCrossOrigin` internally. */
-const INDIRECT = ['guardJournal', 'guardProjectWrite'];
+/**
+ * Helpers that reach `rejectCrossOrigin` internally, so a route calling one is covered.
+ *
+ * Each maps to the module that must still contain the call. The list used to be bare
+ * names, trusted on sight — an UNVERIFIED allowlist inside a CSRF test. If
+ * `guardProjectWrite` ever stopped calling `rejectCrossOrigin`, every route relying on it
+ * would silently accept cross-origin mutations and this file would stay green, because it
+ * only ever grepped the ROUTE for the helper's name. The claim is now checked below.
+ *
+ * `postQaMessage` is a shared route handler rather than a guard: the two message routes
+ * were byte-identical copies of one chain and now delegate to it, which moved their
+ * `guardProjectWrite` call one module out of reach of the scan.
+ */
+const INDIRECT: Record<string, string> = {
+  guardJournal: 'src/journal/guard.ts',
+  guardProjectWrite: 'src/auth/guard-project-write.ts',
+  postQaMessage: 'src/collab/post-qa-message.ts',
+};
 
 /**
  * The loop EVENT endpoint is machine-authenticated by a bearer token in the
@@ -52,9 +68,26 @@ describe('CSRF coverage', () => {
       .filter((rel) => !MACHINE_ENDPOINTS.includes(rel))
       .filter((rel) => {
         const text = readFileSync(join(ROOT, rel), 'utf8');
-        return !['rejectCrossOrigin', ...INDIRECT].some((g) => text.includes(g));
+        return !['rejectCrossOrigin', ...Object.keys(INDIRECT)].some((g) => text.includes(g));
       });
     expect(unguarded, 'call rejectCrossOrigin (or a guard that does) first').toEqual([]);
+  });
+
+  /** The allowlist is a claim about other modules; verify it rather than trusting it. */
+  it('every indirect guard really does reach rejectCrossOrigin', () => {
+    for (const [name, module] of Object.entries(INDIRECT)) {
+      const src = readFileSync(join(ROOT, module), 'utf8');
+      // `rejectCrossOrigin(` — the CALL, not the NAME. A substring check is satisfied by a
+      // mention in a comment or a `typeof` annotation, and this file's own docstring
+      // mentions it. Verified: stubbing out the real call while leaving those references
+      // in place kept a substring version green.
+      const reaches =
+        src.includes('rejectCrossOrigin(') ||
+        // One more hop is allowed: a shared handler that delegates to a guard already
+        // proven to reject cross-origin requests.
+        Object.keys(INDIRECT).some((g) => g !== name && src.includes(`${g}(`));
+      expect(reaches, `${name} (${module}) no longer reaches rejectCrossOrigin — every route trusting it is open`).toBe(true);
+    }
   });
 
   it('leaves the machine endpoint alone — it is cross-origin by design', () => {

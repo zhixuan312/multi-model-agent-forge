@@ -31,6 +31,32 @@ const GUARDED_BY_SERVICE: Record<string, { calls: string; collector: string }> =
   '[id]/export/bundle/route.ts': { calls: 'exportBundle', collector: 'collectReadyArtifacts' },
 };
 
+/**
+ * Route → a SHARED HANDLER that performs the route-level guard itself.
+ *
+ * A different shape from `GUARDED_BY_SERVICE` above: one hop, not two, and the handler
+ * calls `guardProjectWrite` directly rather than reaching a data-access chokepoint. The
+ * Spec-component and Plan-task message routes were byte-identical copies of one chain
+ * (guard → bound → insert → publish → notify); they are now thin adapters over
+ * `postQaMessage`, so the guard moved one module out and a source scan of the route no
+ * longer sees it.
+ *
+ * Verified as strictly as the inline case: the route must call the handler, and the
+ * handler's own body must still contain the guard.
+ */
+const GUARDED_BY_HANDLER: Record<string, { calls: string; module: string; guard: string }> = {
+  '[id]/spec/components/[componentId]/message/route.ts': {
+    calls: 'postQaMessage',
+    module: 'src/collab/post-qa-message.ts',
+    guard: 'guardProjectWrite',
+  },
+  '[id]/plan/tasks/[taskId]/message/route.ts': {
+    calls: 'postQaMessage',
+    module: 'src/collab/post-qa-message.ts',
+    guard: 'guardProjectWrite',
+  },
+};
+
 const ROUTE_GUARDS = ['guardProjectWrite', 'guardProjectRead'];
 
 function routes(dir: string, prefix = ''): string[] {
@@ -57,7 +83,9 @@ describe('every project route establishes project membership', () => {
       const src = read(rel);
       if (ROUTE_GUARDS.some((g) => src.includes(g))) return false;
       const via = GUARDED_BY_SERVICE[rel];
-      return !(via && src.includes(via.calls));
+      if (via && src.includes(via.calls)) return false;
+      const handler = GUARDED_BY_HANDLER[rel];
+      return !(handler && src.includes(handler.calls));
     });
     expect(
       unguarded,
@@ -102,9 +130,19 @@ function bodyOf(source: string, fn: string): string | null {
     }
   });
 
+  /** The handler allowlist makes the same kind of claim, so it gets the same second hop. */
+  it('the shared handler each route delegates to still performs the guard', () => {
+    for (const [rel, { calls, module, guard }] of Object.entries(GUARDED_BY_HANDLER)) {
+      const body = bodyOf(readFileSync(module, 'utf8'), calls);
+      expect(body, `${calls} is not an exported function in ${module}`).not.toBeNull();
+      expect(body!, `${calls} no longer calls ${guard} — ${rel} is unguarded`).toContain(`${guard}(`);
+    }
+  });
+
   /** A stale allowlist entry is a route that could quietly lose its guard later. */
   it('has no allowlist entry for a route that does not exist', () => {
-    expect(Object.keys(GUARDED_BY_SERVICE).filter((rel) => !all.includes(rel))).toEqual([]);
+    const declared = [...Object.keys(GUARDED_BY_SERVICE), ...Object.keys(GUARDED_BY_HANDLER)];
+    expect(declared.filter((rel) => !all.includes(rel))).toEqual([]);
   });
 
   /**
@@ -116,7 +154,10 @@ function bodyOf(source: string, fn: string): string | null {
       const src = read(rel);
       const mutates = /export async function (POST|PUT|PATCH|DELETE)/.test(src);
       if (!mutates) return false;
-      return !src.includes('guardProjectWrite') && !src.includes('rejectCrossOrigin');
+      if (src.includes('guardProjectWrite') || src.includes('rejectCrossOrigin')) return false;
+      // A delegating route inherits the CSRF check from its handler — proven above.
+      const handler = GUARDED_BY_HANDLER[rel];
+      return !(handler && src.includes(handler.calls));
     });
     expect(missing, 'a mutating route must reject cross-origin requests').toEqual([]);
   });

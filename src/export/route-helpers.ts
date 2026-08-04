@@ -14,13 +14,13 @@ import {
 } from '@/export/pdf/render';
 import { ExportPathError } from '@/export/export-root';
 import { NothingToExportError } from '@/export/service';
+import { EXPORT_KINDS } from '@/export/types';
 import type { ExportKind } from '@/export/types';
 
-const KINDS: ExportKind[] = ['exploration', 'spec', 'plan'];
 
 /** Validate a caller-supplied artifact kind (F27). `exploration_brief` is rejected. */
 export function parseExportKind(raw: unknown): ExportKind | null {
-  return typeof raw === 'string' && (KINDS as string[]).includes(raw) ? (raw as ExportKind) : null;
+  return typeof raw === 'string' && (EXPORT_KINDS as readonly string[]).includes(raw) ? (raw as ExportKind) : null;
 }
 
 /** A 400 for an unknown / out-of-scope artifact kind. */

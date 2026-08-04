@@ -20,12 +20,12 @@ import { project } from '@/db/schema/projects';
 import { member } from '@/db/schema/identity';
 import { assertProjectReadable, type ProjectActor } from '@/projects/projects-core';
 import { validateDetails } from '@/details/schema';
+import { EXPORT_KINDS } from '@/export/types';
 import type { CoverMeta, ExportKind, SectionHeaderMap } from '@/export/types';
 import { pad2 } from '@/export/sections';
 
 export type { ExportKind };
 
-const DELIVERABLE_KINDS: ExportKind[] = ['exploration', 'spec', 'plan'];
 
 const KIND_LABEL: Record<ExportKind, string> = {
   exploration: 'Exploration',
@@ -145,7 +145,7 @@ export async function collectMenu(
   const cleanSpecAudits = d ? countCleanSpecAudits(d) : 0;
 
   const items: ArtifactMenuItem[] = [];
-  for (const kind of DELIVERABLE_KINDS) {
+  for (const kind of EXPORT_KINDS) {
     const art = await latestArtifact(projectId, kind, db);
     const lockedAudited = kind === 'spec' && lockedPhase && cleanSpecAudits >= 1;
     items.push({
@@ -211,7 +211,7 @@ export async function collectReadyArtifacts(
   await assertProjectReadable(projectId, actor, { db });
 
   const out: CollectedArtifact[] = [];
-  for (const kind of DELIVERABLE_KINDS) {
+  for (const kind of EXPORT_KINDS) {
     try {
       out.push(await collectArtifact(projectId, kind, actor, { db }));
     } catch (e) {

@@ -5,7 +5,23 @@
  */
 import type { ParsedSection } from '@/export/sections';
 
-export type ExportKind = 'exploration' | 'spec' | 'plan';
+/**
+ * The three deliverable artifacts, in the fixed authoring order exploration→spec→plan (F20).
+ *
+ * The array is the source and the type derives from it, so the ORDER lives here too — it is
+ * load-bearing for the combined export, and it was written out three more times to carry it:
+ * `DELIVERABLE_KINDS` (collect-artifacts), `ORDER` (combined-html) and `KINDS`
+ * (route-helpers), each an identical `ExportKind[]` beside a union that already listed the
+ * same three values. Four spellings for one set, and the validator that decides which kinds
+ * a caller may request was one of them.
+ *
+ * Deliberately NOT `db/enums.ts`, and deliberately not shared with `DESIGN_STAGES`: those are
+ * the three design STAGES, the same three strings for a different relationship, and
+ * `tests/distribution/single-source-maps.test.ts` protects that distinction on purpose.
+ */
+export const EXPORT_KINDS = ['exploration', 'spec', 'plan'] as const;
+
+export type ExportKind = (typeof EXPORT_KINDS)[number];
 
 /** Cover meta-row (§1a). Computed by collect-artifacts, rendered by template. */
 export interface CoverMeta {

@@ -23,9 +23,9 @@ import {
 } from '@/export/pdf/template';
 import type { CollectedArtifact } from '@/export/collect-artifacts';
 import type { RenderJob, PageLike, BrowserLike } from '@/export/pdf/render';
-import type { TocRanges, ExportKind } from '@/export/types';
+import { EXPORT_KINDS } from '@/export/types';
+import type { TocRanges } from '@/export/types';
 
-const ORDER: ExportKind[] = ['exploration', 'spec', 'plan'];
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -56,7 +56,7 @@ export function renderCombinedHtml(
   // the per-artifact <html>/<head> wrapper so the result is one document. To
   // keep it simple + robust, render each artifact's INNER body via a small
   // extraction, prefixed by a divider page.
-  const ordered = [...artifacts].sort((x, y) => ORDER.indexOf(x.kind) - ORDER.indexOf(y.kind));
+  const ordered = [...artifacts].sort((x, y) => EXPORT_KINDS.indexOf(x.kind) - EXPORT_KINDS.indexOf(y.kind));
 
   const parts: string[] = [];
   for (const a of ordered) {
@@ -110,7 +110,7 @@ function extractTemplateCss(): string {
 /** All section `NN` keys across the combined artifacts (for the measure). */
 function combinedSectionKeys(artifacts: CollectedArtifact[]): string[] {
   const keys: string[] = [];
-  for (const a of [...artifacts].sort((x, y) => ORDER.indexOf(x.kind) - ORDER.indexOf(y.kind))) {
+  for (const a of [...artifacts].sort((x, y) => EXPORT_KINDS.indexOf(x.kind) - EXPORT_KINDS.indexOf(y.kind))) {
     for (const s of sectionsFor(a)) keys.push(s.nn);
   }
   return keys;

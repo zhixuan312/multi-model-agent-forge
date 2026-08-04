@@ -39,7 +39,7 @@ describe('ensureSpecStage — reads from details', () => {
 });
 
 describe('captureIntent', () => {
-  it('writes intent to details via setBriefText', async () => {
+  it('writes the intent text into the brief, not merely SOME update', async () => {
     const projectId = 'proj-3';
     const ownerId = 'owner-3';
     const d = buildInitialDetails();
@@ -48,8 +48,20 @@ describe('captureIntent', () => {
       'update:project': [{ id: projectId }],
     });
 
-    await captureIntent(mockDb, projectId, '  We need a faster checkout flow.  ', ownerId);
-    expect(mockDb._wasCalled('project', 'update')).toBe(true);
+    // `captureIntent` and `saveBrief` are two doors onto the SAME field
+    // (`setBriefText`) — spec capture and the exploration brain dump are one text. That
+    // makes it worth pinning here too, rather than assuming the sibling test covers it.
+    const intent = '  We need a faster checkout flow.  ';
+    await captureIntent(mockDb, projectId, intent, ownerId);
+
+    // `_wasCalled('project', 'update')` was the entire assertion. It is equally true of a
+    // captureIntent that writes an empty string or the wrong field — see the matching note
+    // in `explore-core.test.ts`. Passing a PADDED string and asserting nothing about it
+    // also implied a trim that does not happen and is not wanted: the brief is stored
+    // verbatim and trimmed by the consumers that need it.
+    const set = mockDb._callsFor('project').find((c) => c.method === 'set');
+    const written = (set!.args[0] as { details: typeof d }).details;
+    expect(written.stages.exploration.phases.brief.text).toBe(intent);
   });
 });
 

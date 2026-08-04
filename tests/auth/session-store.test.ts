@@ -36,14 +36,66 @@ describe('PostgresSessionStore (mock DB)', () => {
     expect(await new PostgresSessionStore(createMockDb({ 'select:team_session': [] })).get('t')).toBeNull();
   });
 
-  it('touch updates the row; revoke deletes it', async () => {
-    const touchDb = createMockDb();
-    await new PostgresSessionStore(touchDb).touch('s1');
-    expect(touchDb._wasCalled('team_session', 'update')).toBe(true);
+  /**
+   * The bound values of the statement's WHERE, flattened. Drizzle chunks reference their
+   * table (and so themselves), hence the seen-set — same walk as
+   * `automation/lease-stale-threshold.test.ts`.
+   */
+  function whereValues(db: ReturnType<typeof createMockDb>): string[] {
+    const seen = new WeakSet<object>();
+    const out: string[] = [];
+    const walk = (v: unknown): void => {
+      if (v === null || v === undefined) return;
+      if (typeof v !== 'object') { out.push(String(v)); return; }
+      if (seen.has(v)) return;
+      seen.add(v);
+      if (v.constructor?.name?.startsWith('Pg')) return;
+      for (const child of Array.isArray(v) ? v : Object.values(v)) walk(child);
+    };
+    for (const c of db._calls.filter((c) => c.method === 'where')) walk(c.args);
+    return out;
+  }
 
-    const revokeDb = createMockDb();
-    await new PostgresSessionStore(revokeDb).revoke('s1');
-    expect(revokeDb._wasCalled('team_session', 'delete')).toBe(true);
+  /**
+   * These asserted only that an update / a delete RAN. `revoke` deletes from a table of
+   * every session in the product, so "a delete ran" is also true of a `revoke` with no
+   * predicate at all — which signs out every member of every team. The scoping is the
+   * entire behaviour; the verb is not.
+   */
+  it('touch updates only the named session', async () => {
+    const db = createMockDb();
+    await new PostgresSessionStore(db).touch('s1');
+    expect(db._wasCalled('team_session', 'update')).toBe(true);
+    expect(whereValues(db), 'touch is not scoped to one session').toContain('s1');
+  });
+
+  it('revoke deletes only the named session', async () => {
+    const db = createMockDb();
+    await new PostgresSessionStore(db).revoke('s1');
+    expect(db._wasCalled('team_session', 'delete')).toBe(true);
+    expect(whereValues(db), 'an unscoped revoke signs out every member').toContain('s1');
+  });
+
+  /**
+   * The Postgres WHERE clauses of these two were untested: `members-core.test.ts` and
+   * `change-password-core.test.ts` assert that the CALLER invokes them with the right
+   * arguments, against a stubbed store. Nothing checked that the real implementation
+   * turns those arguments into predicates.
+   */
+  it('revokeAllForMember scopes to that member, not to every session', async () => {
+    const db = createMockDb();
+    await new PostgresSessionStore(db).revokeAllForMember('m1');
+    expect(whereValues(db)).toContain('m1');
+  });
+
+  it('revokeAllForMemberExcept keeps the caller’s own session', async () => {
+    // Password change signs out the other devices. Losing the `except` predicate signs
+    // out the person who just changed it, on the request that changed it.
+    const db = createMockDb();
+    await new PostgresSessionStore(db).revokeAllForMemberExcept('m1', 's-current');
+    const values = whereValues(db);
+    expect(values).toContain('m1');
+    expect(values, 'the surviving session is not named — the caller would be signed out too').toContain('s-current');
   });
 
   it('deleteExpiredSessions (reaper) returns the count of removed rows', async () => {

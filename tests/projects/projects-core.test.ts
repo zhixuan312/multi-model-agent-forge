@@ -335,7 +335,13 @@ describe('mutation authorization', () => {
     });
 
     await changeVisibility(projectId, 'private', { id: ownerId, teamId: 'team-1' }, { db: mockDb });
-    expect(mockDb._wasCalled('project', 'update')).toBe(true);
+
+    // Asserting only that an update RAN says nothing about which visibility was written —
+    // and this is the switch that decides whether a project is readable outside its
+    // participant list. A `changeVisibility` that ignored its argument, or inverted it,
+    // passed. Assert the value.
+    const set = mockDb._callsFor('project').find((c) => c.method === 'set');
+    expect(set!.args[0]).toMatchObject({ visibility: 'private' });
   });
 
   it('changeRepos updates details repos', async () => {
@@ -350,7 +356,15 @@ describe('mutation authorization', () => {
     });
 
     await changeRepos(projectId, ['repo-2'], { id: ownerId, teamId: 'team-1' }, { db: mockDb });
-    expect(mockDb._wasCalled('project', 'update')).toBe(true);
+
+    // The old repo must be GONE, not merely joined by the new one — the fixture seeds
+    // `repo-1` precisely so that a `changeRepos` which appends rather than replaces is
+    // distinguishable. `_wasCalled` could not tell those apart, and an appending version
+    // leaves a worker pointed at a repository the project no longer includes.
+    const set = mockDb._callsFor('project').find((c) => c.method === 'set');
+    const written = (set!.args[0] as { details: typeof d }).details;
+    expect(written.repos.map((r) => r.id)).toEqual(['repo-2']);
+    expect(written.repos[0]!.pathOnDisk).toBe('/tmp/2');
   });
 
   it('changeRepos rejects a repo id not owned by the actor team (fewer rows returned)', async () => {

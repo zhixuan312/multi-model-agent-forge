@@ -32,10 +32,37 @@ describe('driver lease (G1)', () => {
     expect(await heartbeatDriverLease(db, 'p1', 'driver-A')).toBe(false);
   });
 
-  it('releaseDriverLease issues an UPDATE scoped to this driver', async () => {
+  /**
+   * "Scoped to this driver" was the whole claim, and the case asserted only that SOME
+   * update ran. A `releaseDriverLease` that dropped the driver predicate — clearing the
+   * lease whoever holds it — passed, and so did one that dropped the project predicate and
+   * cleared every project in the table. The scoping IS the safety property: the lease
+   * exists so two drivers cannot run one project, and a release that ignores who holds it
+   * hands the lease to a thief on the next tick.
+   *
+   * Walks the bound values the way `lease-stale-threshold.test.ts` does — Drizzle chunks
+   * reference their table and so themselves, hence the seen-set.
+   */
+  it('releaseDriverLease scopes the UPDATE to BOTH this project and this driver', async () => {
     const db = createMockDb({ 'update:project': [] });
     await releaseDriverLease(db, 'p1', 'driver-A');
     expect(db._wasCalled('project', 'update')).toBe(true);
+
+    const where = db._calls.find((c) => c.method === 'where');
+    const seen = new WeakSet<object>();
+    const bound: string[] = [];
+    const walk = (v: unknown): void => {
+      if (v === null || v === undefined) return;
+      if (typeof v !== 'object') { bound.push(String(v)); return; }
+      if (seen.has(v)) return;
+      seen.add(v);
+      if (v.constructor?.name?.startsWith('Pg')) return; // a table drags in the whole schema
+      for (const child of Array.isArray(v) ? v : Object.values(v)) walk(child);
+    };
+    walk(where?.args ?? []);
+
+    expect(bound, 'the release is not scoped to the project').toContain('p1');
+    expect(bound, 'the release would clear a lease another driver holds').toContain('driver-A');
   });
 });
 

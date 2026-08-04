@@ -1,75 +1,26 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, type FormEvent, type ReactNode, useId } from 'react';
+import { useState, useMemo, useRef, type FormEvent, type ReactNode, useId } from 'react';
 import { Send, Mic, MicOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button, Textarea, Avatar } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
-import { ProseBlock } from '@/components/patterns/prose-block';
 import type { MemberRef } from '@/collab/types';
 import { responseError } from '@/lib/err';
 
-export interface ConversationMessage {
-  id: string;
-  sender: 'forge' | 'member';
-  senderName?: string;
-  bodyMd: string;
-  timestamp?: Date;
-  meta?: Record<string, unknown>;
-}
-
-export interface MessageProps {
-  msg: ConversationMessage;
-  renderMeta?: (msg: ConversationMessage) => ReactNode;
-}
-
-export function Message({ msg, renderMeta }: MessageProps) {
-  return (
-    <div
-      data-sender={msg.sender}
-      className={cn(
-        'rounded-[var(--r-md)] px-3 py-2',
-        msg.sender === 'forge' ? 'bg-surface-2 text-ink' : 'bg-accent-tint text-accent-deep',
-      )}
-    >
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-        {msg.senderName ?? (msg.sender === 'forge' ? 'Forge' : 'You')}
-      </span>
-      <ProseBlock variant="chat">{msg.bodyMd}</ProseBlock>
-      {renderMeta ? renderMeta(msg) : null}
-    </div>
-  );
-}
-
-export interface MessageListProps {
-  messages: ConversationMessage[];
-  renderMeta?: (msg: ConversationMessage) => ReactNode;
-  emptyText?: string;
-  className?: string;
-}
-
-export function MessageList({ messages, renderMeta, emptyText, className }: MessageListProps) {
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
-
-  return (
-    <div
-      role="log"
-      aria-live="polite"
-      aria-label="Conversation"
-      className={cn('flex flex-col gap-2 overflow-y-auto rounded-[var(--r-md)] border border-line bg-surface p-3', className)}
-    >
-      {messages.length === 0 ? (
-        <p className="text-xs italic text-ink-faint">{emptyText ?? 'No messages yet.'}</p>
-      ) : (
-        messages.map((m) => <Message key={m.id} msg={m} renderMeta={renderMeta} />)
-      )}
-      <div ref={endRef} />
-    </div>
-  );
-}
+/**
+ * The COMPOSER is what this module is for.
+ *
+ * It also carried `Message`, `MessageList` and a `ConversationPane` that stacked the two —
+ * a complete message-rendering half with no production caller. Every stage client
+ * (Spec, Plan, Explore) imports `ConversationComposer` and renders its own transcript,
+ * because each shows different per-message metadata. The pane was the generic version
+ * nobody could use, `MessageList` existed only for the pane, and `Message` only for
+ * `MessageList` — three layers deep, all reachable only from their tests.
+ *
+ * Recoverable from git history if a surface ever wants a generic transcript
+ * (`git log -- src/components/patterns/conversation.tsx`).
+ */
 
 export interface ConversationComposerProps {
   onSend: (text: string) => void;
@@ -345,20 +296,3 @@ export function ConversationComposer({
   );
 }
 
-export interface ConversationPaneProps {
-  messages: ConversationMessage[];
-  onSend: (text: string) => void;
-  renderMeta?: (msg: ConversationMessage) => ReactNode;
-  emptyText?: string;
-  composerProps?: Partial<Omit<ConversationComposerProps, 'onSend'>>;
-  className?: string;
-}
-
-export function ConversationPane({ messages, onSend, renderMeta, emptyText, composerProps, className }: ConversationPaneProps) {
-  return (
-    <div className={cn('flex h-full flex-col', className)}>
-      <MessageList messages={messages} renderMeta={renderMeta} emptyText={emptyText} className="min-h-0 flex-1" />
-      <ConversationComposer onSend={onSend} {...composerProps} />
-    </div>
-  );
-}

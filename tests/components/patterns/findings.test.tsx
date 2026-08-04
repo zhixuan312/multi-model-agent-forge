@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { SeverityBadge, FindingCard, FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
+import { render, screen } from '@testing-library/react';
+import { SeverityBadge, FindingsGrid, AuditRoundCard, type Finding } from '@/components/patterns/findings';
 
 const finding: Finding = {
   severity: 'high',
@@ -23,50 +23,6 @@ describe('SeverityBadge', () => {
   it('applies high styling', () => {
     const { container } = render(<SeverityBadge severity="high" />);
     expect(container.firstElementChild!.className).toContain('amber');
-  });
-});
-
-describe('FindingCard', () => {
-  it('renders claim and severity badge', () => {
-    render(<FindingCard finding={finding} />);
-    expect(screen.getByText('SQL injection in user input')).toBeInTheDocument();
-    expect(screen.getByText('high')).toBeInTheDocument();
-  });
-
-  it('renders category label', () => {
-    render(<FindingCard finding={finding} />);
-    expect(screen.getByText('security')).toBeInTheDocument();
-  });
-
-  it('hides evidence and suggestion until the row is expanded', () => {
-    render(<FindingCard finding={finding} />);
-    expect(screen.queryByText(/interpolated directly/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/parameterized queries/)).not.toBeInTheDocument();
-  });
-
-  it('shows BOTH evidence and suggestion after expanding', () => {
-    // Was named "shows evidence" but only asserted the SUGGESTION, so the evidence line
-    // was never actually covered.
-    render(<FindingCard finding={finding} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Show finding details' }));
-    expect(screen.getByText(/interpolated directly/)).toBeInTheDocument();
-    expect(screen.getByText(/parameterized queries/)).toBeInTheDocument();
-  });
-
-  it('the icon-only expand toggle carries an accessible name and state', () => {
-    // It renders a bare chevron. Selecting it used to require `{ name: '' }` — which is
-    // the test admitting a screen reader would announce an unlabelled "button".
-    render(<FindingCard finding={finding} />);
-    const toggle = screen.getByRole('button', { name: 'Show finding details' });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(toggle);
-    const open = screen.getByRole('button', { name: 'Hide finding details' });
-    expect(open).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  it('shows index number when provided and not selected', () => {
-    render(<FindingCard finding={finding} index={0} onSelect={() => {}} />);
-    expect(screen.getByText('1')).toBeInTheDocument();
   });
 });
 

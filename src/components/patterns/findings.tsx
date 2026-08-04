@@ -151,23 +151,6 @@ function FindingTableRow({ finding, index, selected, applied, disabled, onSelect
 
 /* ── Exports ────────────────────────────────────────────────────── */
 
-export interface FindingCardProps {
-  finding: Finding;
-  index?: number;
-  selected?: boolean;
-  applied?: boolean;
-  disabled?: boolean;
-  onSelect?: () => void;
-}
-
-export function FindingCard({ finding, index, selected, applied, disabled, onSelect }: FindingCardProps) {
-  return (
-    <Table><TableBody>
-      <FindingTableRow finding={finding} index={index ?? 0} selected={selected} applied={applied} disabled={disabled} onSelect={onSelect} />
-    </TableBody></Table>
-  );
-}
-
 /**
  * How much of a pass has been applied.
  *

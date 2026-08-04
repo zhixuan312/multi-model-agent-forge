@@ -42,6 +42,15 @@ export interface BoundaryViolation {
   specifier: string;
 }
 
+/**
+ * Every `.ts`/`.tsx` under the scan dirs, repo-relative.
+ *
+ * A MISSING scan dir throws. It used to `continue` under a comment reading "never a silent
+ * pass" — which is precisely what it did: with `app/` gone (renamed, moved, mis-rooted),
+ * `src/` alone still returns ~380 files, so the `files.length === 0` guard below never
+ * fires and the check reports success having scanned none of the routes. `app/` is where a
+ * route-level leak lives, so that is the exact half whose absence must not pass quietly.
+ */
 function collect(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
@@ -54,11 +63,16 @@ function collect(root: string): string[] {
   };
   for (const d of SCAN_DIRS) {
     const dir = join(root, d);
+    let isDir = false;
     try {
-      if (!statSync(dir).isDirectory()) continue;
+      isDir = statSync(dir).isDirectory();
     } catch {
-      // A missing app/ or src/ means the scan cannot prove anything — never a silent pass.
-      continue;
+      isDir = false;
+    }
+    if (!isDir) {
+      throw new Error(
+        `check-direction-import-boundary: '${d}/' is missing under ${root} — the scan cannot prove the boundary holds for it`,
+      );
     }
     walk(dir);
   }
@@ -66,8 +80,12 @@ function collect(root: string): string[] {
 }
 
 /** Every out-of-boundary importer of the direction modules, in scan order. */
-export function findDirectionBoundaryViolations(root: string = process.cwd()): BoundaryViolation[] {
-  const files = collect(root);
+export function findDirectionBoundaryViolations(
+  root: string = process.cwd(),
+  /** Pre-collected file list, so a caller that already walked the tree does not walk it twice. */
+  preCollected?: string[],
+): BoundaryViolation[] {
+  const files = preCollected ?? collect(root);
   if (files.length === 0) {
     throw new Error(`check-direction-import-boundary: no source files found under ${root} — the scan could not run`);
   }
@@ -90,7 +108,10 @@ export function findDirectionBoundaryViolations(root: string = process.cwd()): B
  * `/settings/guide` route tree; returns the number of scanned files when clean.
  */
 export function checkDirectionImportBoundary(root: string = process.cwd()): number {
-  const violations = findDirectionBoundaryViolations(root);
+  // One walk, not two: this used to call `collect` again purely to count the files it had
+  // just scanned, doubling a ~480-file traversal on every CI run.
+  const files = collect(root);
+  const violations = findDirectionBoundaryViolations(root, files);
   if (violations.length > 0) {
     const lines = violations.map((v) => `  → ${v.file} imports '${v.specifier}'`).join('\n');
     throw new Error(
@@ -98,7 +119,7 @@ export function checkDirectionImportBoundary(root: string = process.cwd()): numb
         `Only ${ALLOWED_TREES.join(' and ')} may import the direction content/renderers.`,
     );
   }
-  return collect(root).length;
+  return files.length;
 }
 
 // Direct CLI invocation (`tsx scripts/check-direction-import-boundary.ts`).

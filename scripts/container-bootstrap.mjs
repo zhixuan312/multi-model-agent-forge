@@ -1,7 +1,18 @@
+/**
+ * Config + schema helpers for the container boot, imported by `container-supervisor.mjs`.
+ *
+ * It used to ALSO export an `ensureBootOrder` that ran config → schema → migrate → seed →
+ * `node server.js`. Nothing called it: `docker/entrypoint.sh` execs the supervisor, which
+ * imports the two helpers below and runs the boot itself. Two boot sequences, one of them
+ * dead — and the dead one was the one with a test named "runs the container boot sequence",
+ * asserting an order that omitted the MMA engine, its health gate and the skill reconcile
+ * entirely. A test certifying a sequence the product never runs is worse than no test: the
+ * real order was the untested one. Deleted; `tests/distribution/container-boot-order.test.ts`
+ * now pins the supervisor's actual sequence.
+ */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { spawn } from 'node:child_process';
 import postgres from 'postgres';
 
 const DEFAULT_MODELS = {
@@ -105,55 +116,4 @@ export async function createForgeSchema(databaseUrl) {
   } finally {
     await sql.end();
   }
-}
-
-async function runCommand(label, command, args, env) {
-  await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: 'inherit',
-      env: { ...process.env, ...env },
-    });
-    child.on('exit', (code) => {
-      if (code === 0) resolve(undefined);
-      else reject(new Error(`${label} failed with exit code ${code ?? 'unknown'}`));
-    });
-    child.on('error', reject);
-  });
-}
-
-export async function ensureBootOrder({
-  databaseUrl,
-  provider,
-  env,
-  ensureConfig = resolveOrWriteConfig,
-  createSchema = createForgeSchema,
-  spawnStep = async (label) => {
-    if (label === 'db:migrate') await runCommand(label, 'pnpm', ['db:migrate'], env);
-    if (label === 'db:seed-templates') await runCommand(label, 'pnpm', ['db:seed-templates'], env);
-  },
-  startServer = async () => {
-    await runCommand('server', 'node', ['server.js'], env);
-  },
-}) {
-  await ensureConfig({ provider, env });
-  await createSchema(databaseUrl);
-  await spawnStep('db:migrate');
-  await spawnStep('db:seed-templates');
-  await startServer();
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  // PROVIDER is the default for tiers that have no PROVIDER_<TIER> override, and is
-  // itself optional — an operator may set only per-tier providers. Validation of each
-  // resolved tier happens in providerForTier(), which throws on an unknown name.
-  const provider = process.env.PROVIDER?.trim() || 'anthropic';
-
-  if (!databaseUrl) throw new Error('DATABASE_URL is required.');
-
-  await ensureBootOrder({
-    databaseUrl,
-    provider,
-    env: process.env,
-  });
 }

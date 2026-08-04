@@ -3,8 +3,19 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { checkDirectionImportBoundary } from '../../scripts/check-direction-import-boundary';
 
+/**
+ * Both scan dirs always exist, even when a case only populates one.
+ *
+ * The checker now THROWS on a missing `app/` or `src/` rather than skipping it: with `app/`
+ * gone, `src/` alone still yields hundreds of files, so the "found nothing" guard never
+ * fired and the boundary reported clean having scanned none of the routes. A fixture
+ * without both dirs is not a Forge tree, so creating them here is the fixture being honest,
+ * not the test working around the rule.
+ */
 function tree(files: Record<string, string>) {
   const root = mkdtempSync(join(tmpdir(), 'forge-direction-scope-'));
+  mkdirSync(join(root, 'app'), { recursive: true });
+  mkdirSync(join(root, 'src'), { recursive: true });
   for (const [rel, content] of Object.entries(files)) {
     const abs = join(root, rel);
     mkdirSync(dirname(abs), { recursive: true });
@@ -63,5 +74,22 @@ describe('checkDirectionImportBoundary', () => {
 
   it('holds for the real repository', () => {
     expect(() => checkDirectionImportBoundary(process.cwd())).not.toThrow();
+  });
+
+  /**
+   * The half-scan is the dangerous failure, because it looks exactly like success. `app/`
+   * holds the routes whose bundles this check exists to protect; if it goes missing the
+   * remaining `src/` tree still supplies plenty of files, so nothing else in the checker
+   * notices. It must refuse to report a result it cannot support.
+   */
+  it('refuses to pass when a scan dir is missing entirely', () => {
+    const root = mkdtempSync(join(tmpdir(), 'forge-direction-scope-'));
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'x.ts'), "import { foo } from '@/lib/foo';");
+    try {
+      expect(() => checkDirectionImportBoundary(root)).toThrow(/'app\/' is missing/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

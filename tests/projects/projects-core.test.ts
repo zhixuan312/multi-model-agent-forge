@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   createProject,
   visibleProjects,
@@ -254,24 +256,42 @@ describe('visibility — visibleProjects + assertProjectReadable', () => {
     );
   });
 
-  it('filters visibleProjects by actor.teamId', async () => {
-    const db = createMockDb({
-      'select:project': [{
-        id: 'proj-1',
-        teamId: 'team-a',
-        visibility: 'public',
-        ownerId: 'owner-a',
-        name: 'A',
-        summary: null,
-        phase: 'design',
-        currentStage: 'exploration',
-        updatedAt: new Date(),
-        details: null,
-      }],
-    });
+  /**
+   * The tenancy boundary for the entire project list.
+   *
+   * This case asserted `db._wasCalled('project', 'where')` — that SOME where clause ran.
+   * Any clause satisfies that, including one with the team conjunct deleted, so the check
+   * could not fail on the thing its title names. And a mock DB returns whatever rows it is
+   * handed regardless of the predicate, so no behavioural assertion can cover it either.
+   *
+   * The predicate is therefore read from source, bounded to `listProjects` so a match
+   * elsewhere in the file cannot stand in for it. All three conjuncts matter: team scoping
+   * (never another team's projects), the public-or-owner rule (never a stranger's private
+   * project), and the archived split (the two lists must not merge).
+   */
+  it('scopes the list query by team, visibility and archive state', () => {
+    const src = readFileSync(join(process.cwd(), 'src/projects/projects-core.ts'), 'utf8');
+    const start = src.indexOf('async function listProjects');
+    expect(start, 'listProjects moved — repoint this test').toBeGreaterThan(-1);
+    const body = src.slice(start, src.indexOf('\nexport ', start + 1));
 
-    await visibleProjects({ id: 'owner-a', teamId: 'team-b' }, { db });
-    expect(db._wasCalled('project', 'where')).toBe(true);
+    expect(body, 'the team conjunct is what keeps one team out of another’s projects')
+      .toContain('eq(project.teamId, actor.teamId)');
+    expect(body, 'without this a private project is listed to every teammate')
+      .toMatch(/or\(\s*eq\(project\.visibility, 'public'\),\s*eq\(project\.ownerId, actor\.id\)\s*\)/);
+    expect(body, 'the active and archived lists must not merge')
+      .toContain('eq(project.archived, wantArchived)');
+  });
+
+  /** Both public lists must go through that one predicate, or one of them can lose it. */
+  it('visibleProjects and archivedProjects share the scoped query', () => {
+    const src = readFileSync(join(process.cwd(), 'src/projects/projects-core.ts'), 'utf8');
+    for (const fn of ['visibleProjects', 'archivedProjects']) {
+      const at = src.indexOf(`export async function ${fn}`);
+      const body = src.slice(at, src.indexOf('\n}', at));
+      expect(body, `${fn} must delegate to listProjects, not run its own query`).toContain('listProjects(actor,');
+      expect(body, `${fn} builds its own where clause`).not.toContain('.where(');
+    }
   });
 });
 

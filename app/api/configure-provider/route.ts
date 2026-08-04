@@ -5,6 +5,7 @@ import { resolveAdminActor } from '@/auth/admin-gate-handler';
 import { buildMmaClient } from '@/mma/server-client';
 import type { ConfigureProviderRequest } from '@/mma/configure-provider';
 import { TIERS } from '@/mma/tiers';
+import { DIALECTS } from '@/mma/configure-provider';
 
 /**
  * Admin proxy for mma's `POST /configure-provider` (Spec: combined Models
@@ -22,7 +23,7 @@ const authSchema = z.discriminatedUnion('mode', [
 
 const requestSchema = z.object({
   tier: z.enum(TIERS),
-  provider: z.enum(['claude', 'codex']),
+  provider: z.enum(DIALECTS),
   model: z.string().trim().min(1),
   auth: authSchema,
   dryRun: z.boolean().optional(),

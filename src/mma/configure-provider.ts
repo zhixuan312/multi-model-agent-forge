@@ -6,7 +6,21 @@
  */
 import type { TierKey } from '@/mma/tiers';
 
-export type Dialect = 'claude' | 'codex';
+/**
+ * The two WIRE PROTOCOLS a tier can speak. Not vendors: `claude` is the Anthropic-compatible
+ * protocol and `codex` the OpenAI-compatible one, and real deployments run DeepSeek, GLM,
+ * Kimi or MiniMax over either.
+ *
+ * The array is the source and the type derives from it, so a third protocol has to be added
+ * in exactly one place. It was written out three times — this union, `z.enum(['claude',
+ * 'codex'])` in the configure-provider route, and the Dialect chooser's options in
+ * `ModelsPanel` — and none of the three could see the others. `db/enums.ts`'s ratchet reads
+ * only that file, and an enum re-spelled as `{ value, label }` objects is invisible to it
+ * anyway (the extracted array is twice the length, so it fails the superset test).
+ */
+export const DIALECTS = ['claude', 'codex'] as const;
+
+export type Dialect = (typeof DIALECTS)[number];
 
 export type ConfigureAuth =
   | { mode: 'oauth' }

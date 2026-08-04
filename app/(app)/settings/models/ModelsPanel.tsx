@@ -9,6 +9,7 @@ import { VerifyResultBox } from '@/components/patterns/verify-result-box';
 // From `@/mma/tiers`, NOT the config reader: that module opens `~/.mma/config.json` and
 // imports `node:fs`, and pulling it into this client component broke `next build`.
 import { TIERS, type MmaTiers, type TierKey, type TierConfig } from '@/mma/tiers';
+import { DIALECTS } from '@/mma/configure-provider';
 import type { ConfigureProviderResponse, Dialect as ProviderDialect } from '@/mma/configure-provider';
 import type { FlatProfile } from '@/mma/model-profiles';
 
@@ -109,6 +110,18 @@ function TierCard({
   );
 }
 
+/**
+ * The protocol chooser, derived from `DIALECTS` rather than listed. A third protocol now
+ * fails the build at this label map — where someone has to name it — instead of quietly
+ * never appearing in the form.
+ */
+const DIALECT_LABEL = {
+  claude: 'claude',
+  codex: 'codex',
+} as const satisfies Record<Dialect, string>;
+
+const DIALECT_OPTIONS = DIALECTS.map((d) => ({ value: d, label: DIALECT_LABEL[d] }));
+
 function ConfigureForm({
   tier,
   current,
@@ -174,10 +187,7 @@ function ConfigureForm({
             setDialect(v as Dialect);
             setResult(null);
           }}
-          options={[
-            { value: 'claude', label: 'claude' },
-            { value: 'codex', label: 'codex' },
-          ]}
+          options={DIALECT_OPTIONS}
         />
       </div>
 

@@ -240,6 +240,11 @@ describe('readers against the fixture journal', () => {
 
   it('readAllNodes does NOT ship link data on the client summaries', async () => {
     const res = await readAllNodes(FIXTURE_ROOT);
+    // Asserted, not just narrowed. This was a bare `if (res.kind !== 'ok') return;`, so a
+    // read that stopped succeeding — a moved fixture, a changed result shape — would end the
+    // test here with nothing checked, and the only guard against link payloads reaching the
+    // client would report green while testing nothing.
+    expect(res.kind).toBe('ok');
     if (res.kind !== 'ok') return;
     const n = res.nodes.find((x) => x.id === '0002')!;
     expect(n).not.toHaveProperty('links');

@@ -41,8 +41,14 @@ describe('GET /api/projects/[id]/pending-handlers — auth gate', () => {
   });
 
   /**
-   * This route alone answered an unreadable project with 403, telling an authenticated
-   * cross-team probe that the id exists — exactly what its sibling GETs' 404 hides.
+   * CSRF, before any work. This GET mutates — it fails stale batches, pushes notifications
+   * and publishes to the project bus — so it takes the same-origin step its read-only
+   * siblings do not.
+   *
+   * (The comment here used to describe something else entirely: that this route alone
+   * answered an unreadable project with 403 while its siblings 404. True, and fixed — it
+   * now uses `guardProjectRead` — but it was never what the case below asserts. The 404
+   * decision is pinned where it lives, in `guard-project-write.test.ts`.)
    */
   it('rejects a cross-origin request before doing any work', async () => {
     mockCaller = { id: 'm1', username: 'm', displayName: 'M', avatarTint: '#000', role: 'member', teamId: 't1' };

@@ -27,7 +27,7 @@ vi.mock('@/auth/current-member', () => ({ currentMember }));
 vi.mock('@/projects/projects-core', () => ({ assertProjectReadable, ProjectAccessError }));
 vi.mock('@/db/client', () => ({ getDb }));
 
-const { guardProjectWrite } = await import('@/auth/guard-project-write');
+const { guardProjectWrite, guardProjectRead } = await import('@/auth/guard-project-write');
 
 const MEMBER = { id: 'm-1', teamId: 't-1', displayName: 'Ada', avatarTint: '#9a6b4f' };
 
@@ -153,5 +153,65 @@ describe('guardProjectWrite — requireUnfrozen phase check', () => {
     getDb.mockReturnValue(db);
     await guardProjectWrite(sameOrigin(), 'p1', { requireUnfrozen: true });
     expect(db._wasCalled('project', 'select')).toBe(false);
+  });
+});
+
+/**
+ * `guardProjectRead` had NO behavioural test — every reference to it in the suite was a
+ * name in a structural list or a `vi.mock`. That is the wrong half to leave unproven,
+ * because its whole job is a security decision the write guard makes the OTHER way:
+ *
+ *   READ  → 404. An unreadable project must be indistinguishable from a missing one, so a
+ *           caller probing ids learns nothing.
+ *   WRITE → 403. The caller already knows the project exists — they are changing it.
+ *
+ * `project-route-gates.test.ts` is written entirely about that distinction, and
+ * `pending-handlers` shipped a 403 against it. Yet nothing asserted the 404: swap
+ * `notFound()` for `forbidden()` here and the enumeration hole reopens on EVERY read route
+ * at once, with the whole suite green.
+ */
+describe('guardProjectRead — the anti-enumeration half', () => {
+  it('returns the actor when the project is readable', async () => {
+    await expect(guardProjectRead('p1')).resolves.toEqual({ memberId: 'm-1', member: MEMBER });
+  });
+
+  it('404s — NOT 403 — when the actor cannot read the project', async () => {
+    assertProjectReadable.mockRejectedValue(new ProjectAccessError('nope'));
+    const r = (await guardProjectRead('p1')) as NextResponse;
+    expect(
+      r.status,
+      'a 403 tells an authenticated cross-team probe the id exists — which is what the 404 hides',
+    ).toBe(404);
+  });
+
+  it('gives the same answer for a project that does not exist', async () => {
+    // Indistinguishable by construction: both arrive as ProjectAccessError, and that is the
+    // point — a probe cannot tell "not yours" from "not there".
+    assertProjectReadable.mockRejectedValue(new ProjectAccessError('missing'));
+    expect(((await guardProjectRead('ghost')) as NextResponse).status).toBe(404);
+  });
+
+  it('401s when there is no session, before any membership work', async () => {
+    currentMember.mockResolvedValue(null);
+    expect(((await guardProjectRead('p1')) as NextResponse).status).toBe(401);
+    expect(assertProjectReadable).not.toHaveBeenCalled();
+  });
+
+  it('401s when the member has no team, rather than treating them as scopeless', async () => {
+    currentMember.mockResolvedValue({ ...MEMBER, teamId: null });
+    expect(((await guardProjectRead('p1')) as NextResponse).status).toBe(401);
+    expect(assertProjectReadable).not.toHaveBeenCalled();
+  });
+
+  /** A DB fault is not an access decision. Masking it as 404 would hide an outage as a
+   *  permission error and send the reader looking in the wrong place. */
+  it('RETHROWS an unexpected error instead of masking it as Not Found', async () => {
+    assertProjectReadable.mockRejectedValue(new Error('connection terminated'));
+    await expect(guardProjectRead('p1')).rejects.toThrow(/connection terminated/);
+  });
+
+  it('scopes the check to the actor’s team', async () => {
+    await guardProjectRead('p1');
+    expect(assertProjectReadable).toHaveBeenCalledWith('p1', expect.objectContaining({ teamId: 't-1' }));
   });
 });

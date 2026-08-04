@@ -21,6 +21,14 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <p style={{ fontSize: 14, color: '#6b6560', maxWidth: 360, margin: 0 }}>
             Forge hit an unexpected error and couldn’t render. Reloading usually clears it.
           </p>
+          {/* The digest is the only handle on this error — Next strips the message before it
+              reaches the browser and logs the digest server-side. Rendering it is what makes a
+              user's report correlatable. */}
+          {error.digest ? (
+            <p style={{ fontSize: 12, color: '#8a837c', fontFamily: 'ui-monospace, monospace', margin: 0 }}>
+              Reference: {error.digest}
+            </p>
+          ) : null}
           <button
             onClick={reset}
             style={{ cursor: 'pointer', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 14, fontWeight: 500, background: '#a33a2f', color: '#fff' }}

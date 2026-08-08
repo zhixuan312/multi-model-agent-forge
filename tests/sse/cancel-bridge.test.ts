@@ -70,3 +70,52 @@ describe('dispatch cancellation bridge', () => {
     expect(only.batchId).toBe('b1');
   });
 });
+
+/**
+ * Task-backed work must announce its stop too.
+ *
+ * A Stop calls `cancelInFlightBatches`, which cancels EVERY in-flight batch for the
+ * project. `PollManager` then announces the request on two different events, chosen by
+ * what the batch is: `dispatch.progress` for handler-backed work, and `task.progress` for
+ * task-backed work such as exploration discover tasks.
+ *
+ * Only the handler half was bridged. So a project whose in-flight work was task-backed
+ * produced no acknowledgement at all: the overlay's `sawPending` stayed false, its bail
+ * timer fired after the grace period, and the overlay closed and reported the stop
+ * complete while the engine was still winding those tasks down.
+ *
+ * Both halves are asserted together on purpose. Announcing the `cancelling` without
+ * announcing the terminal would exchange an overlay that closes too early for one that
+ * never closes, because the overlay clears only when its pending set empties.
+ */
+const taskProgress = (headline: string): ProjectEvent =>
+  ({ type: 'task.progress', taskId: 't1', mmaBatchId: 'b9', headline, route: 'research', status: 'running' }) as ProjectEvent;
+
+describe('task-backed cancellation reaches the overlay', () => {
+  it('announces a task batch that is cancelling, keyed by its mma batch id', () => {
+    // The overlay matches a settle to a stop by batch id, so the id must be the same one
+    // the terminal will carry — `mmaBatchId`, not `taskId`.
+    expect(captured([taskProgress(CANCELLING_HEADLINE)])).toEqual([
+      { type: 'automation:cancelling', batchId: 'b9' },
+    ]);
+  });
+
+  it('stays silent for ordinary task progress', () => {
+    expect(captured([taskProgress('reading files…')])).toEqual([]);
+  });
+
+  it('settles on every task terminal, so an acknowledged stop can complete', () => {
+    const terminals: ProjectEvent[] = [
+      { type: 'task.done', taskId: 't1', mmaBatchId: 'b9', route: 'research', status: 'recorded' } as ProjectEvent,
+      { type: 'task.failed', taskId: 't2', mmaBatchId: 'b8', route: 'research', error: { code: 'x', message: 'm' } } as ProjectEvent,
+      { type: 'task.cancelled', taskId: 't3', mmaBatchId: 'b7', route: 'research', error: { code: 'c', message: 'm' } } as ProjectEvent,
+    ];
+    // `task.done` counts: a batch that finished normally just after the Stop request is
+    // settled too, and the engine reports that as done rather than cancelled.
+    expect(captured(terminals)).toEqual([
+      { type: 'automation:dispatch_settled', batchId: 'b9' },
+      { type: 'automation:dispatch_settled', batchId: 'b8' },
+      { type: 'automation:dispatch_settled', batchId: 'b7' },
+    ]);
+  });
+});

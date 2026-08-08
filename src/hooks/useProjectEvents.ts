@@ -70,9 +70,19 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
         batchStatus: 'running',
         headline: e.headline,
       }));
+      // A Stop cancels EVERY in-flight batch for the project, and `PollManager` announces
+      // the request on two different events: `dispatch.progress` for handler-backed work,
+      // and this one for task-backed work (exploration discover tasks). Only the handler
+      // half was bridged, so a project whose in-flight work was task-backed produced no
+      // acknowledgement at all. The overlay's `sawPending` stayed false, its bail timer
+      // fired, and the overlay closed while the engine was still winding those tasks down.
+      if (e.headline === CANCELLING_HEADLINE) {
+        window.dispatchEvent(new CustomEvent('automation:cancelling', { detail: { batchId: e.mmaBatchId } }));
+      }
       break;
     }
     case 'task.done': {
+      settleStop(e.mmaBatchId);
       patchTask(qc, projectId, e.taskId, (t) => ({
         ...t,
         status: 'recorded',
@@ -86,6 +96,7 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
       break;
     }
     case 'task.failed': {
+      settleStop(e.mmaBatchId);
       patchTask(qc, projectId, e.taskId, (t) => ({
         ...t,
         status: 'recorded',
@@ -99,6 +110,7 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
     // tell a deliberate stop from a fault. Without this the task would sit at `running`
     // forever — the cancelled terminal never emits task.failed.
     case 'task.cancelled': {
+      settleStop(e.mmaBatchId);
       patchTask(qc, projectId, e.taskId, (t) => ({
         ...t,
         status: 'recorded',
@@ -155,6 +167,22 @@ export function applyProjectEvent(qc: QueryClient, projectId: string, e: Project
     case 'heartbeat':
       break;
   }
+}
+
+/**
+ * Tell the overlay that a batch it is waiting on has finished winding down.
+ *
+ * Required as the second half of the task-backed cancel bridge. The overlay keeps a set of
+ * acknowledged stops and closes only when the set empties. Announcing a task-backed
+ * `cancelling` without announcing its terminal would replace an overlay that closes too
+ * early with one that never closes at all.
+ *
+ * Emitted on every task terminal, not only `task.cancelled`: a batch that finished normally
+ * a moment after the Stop request is just as settled, and the engine reports that as
+ * `task.done`.
+ */
+function settleStop(mmaBatchId: string): void {
+  window.dispatchEvent(new CustomEvent('automation:dispatch_settled', { detail: { batchId: mmaBatchId } }));
 }
 
 function patchTask(

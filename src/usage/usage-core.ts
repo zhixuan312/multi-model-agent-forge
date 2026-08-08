@@ -84,9 +84,24 @@ function terminalFilter(cutoff: Date | null) {
   return and(base, gte(mmaBatch.createdAt, cutoff))!;
 }
 
-function teamScopeFilter(teamId: string | null | undefined) {
-  if (!teamId) return undefined;
-  return eq(mmaBatch.teamId, teamId);
+/**
+ * The team a usage read is restricted to, or `null` for a deliberate organisation-wide read.
+ *
+ * Throws when neither is stated. The compile-time union above already rejects that case for
+ * TypeScript callers; this guard covers the rest — a JavaScript caller, a test that builds
+ * `deps` dynamically, or a cast. The read fails loudly instead of returning every team's rows.
+ */
+function usageTeamId(deps: UsageDeps): string | null {
+  if (deps.scope === 'org') return null;
+  if (!deps.teamId) {
+    throw new Error('usage read needs a teamId, or an explicit scope: "org"');
+  }
+  return deps.teamId;
+}
+
+function teamScopeFilter(deps: UsageDeps) {
+  const teamId = usageTeamId(deps);
+  return teamId ? eq(mmaBatch.teamId, teamId) : undefined;
 }
 
 // Subquery: all mma_batch ids that belong to loop runs (via loop_run_id FK or the legacy mma_batch_id FK)
@@ -171,17 +186,35 @@ export interface OrgOverviewResult {
   trend: { orgTotal: UsagePoint[] };
 }
 
-export interface UsageDeps {
-  db?: Db;
-  teamId?: string | null;
-  scope?: 'team' | 'org';
-}
+/**
+ * Who a usage read is for.
+ *
+ * A DISCRIMINATED UNION, not three optional fields. `teamId` used to be optional, and
+ * `teamScopeFilter` returned no filter when the field was absent, so a caller that simply
+ * forgot `teamId` read every team's rows and nothing reported the mistake. The journal FAQ
+ * list failed exactly that way in `journal/faqs-core.ts`: one missing predicate, and a new
+ * team saw another team's questions and stored answers.
+ *
+ * The organisation dashboard genuinely needs an unscoped read, so the unscoped read cannot
+ * simply be removed. The unscoped read now needs an explicit `scope: 'org'`. The two
+ * variants below make an omission a COMPILE error instead of a silent org-wide query:
+ *
+ *   { teamId: member.teamId }   team-scoped, the default
+ *   { scope: 'org' }            deliberately every team
+ *   { }                         type error — the case that used to leak
+ */
+export type UsageDeps = { db?: Db } & (
+  | { scope: 'org'; teamId?: null }
+  | { scope?: 'team'; teamId: string }
+);
 
+// `deps` is REQUIRED on both overloads. The second one used to read `deps?: UsageDeps`,
+// so `usageOverview(period)` compiled and returned every team's totals.
 export function usageOverview(period: Period, deps: UsageDeps & { scope: 'org' }): Promise<OrgOverviewResult>;
-export function usageOverview(period: Period, deps?: UsageDeps): Promise<OverviewResult>;
+export function usageOverview(period: Period, deps: UsageDeps): Promise<OverviewResult>;
 export async function usageOverview(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<OverviewResult | OrgOverviewResult> {
   if (deps.scope === 'org') {
     return usageOverviewOrg(period, deps);
@@ -191,11 +224,11 @@ export async function usageOverview(
 
 async function usageOverviewTeam(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<OverviewResult> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
-  const where = and(terminalFilter(cutoff), teamScopeFilter(deps.teamId));
+  const where = and(terminalFilter(cutoff), teamScopeFilter(deps));
 
   const [metricsRow] = await db
     .select({
@@ -231,7 +264,7 @@ async function usageOverviewTeam(
 
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   const [loopsRow] = await sourceAgg(
     and(termCond, cutoffCond, teamCond, sql`${mmaBatch.id} IN ${loopBatchIds}`),
@@ -305,7 +338,7 @@ async function usageOverviewTeam(
 
 async function usageOverviewOrg(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<OrgOverviewResult> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
@@ -481,13 +514,13 @@ export interface ProjectUsageRow {
 
 export async function usageByProject(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<ProjectUsageRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   const rows = await db
     .select({
@@ -542,17 +575,21 @@ export interface LoopUsageRow {
 
 export async function usageByLoop(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<LoopUsageRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
 
   // Two-pass: first get per-loop run stats, then sum batch costs per loop.
-  const runWhere = deps.teamId
+  // Through `usageTeamId`, not `deps.teamId` directly: the helper is what turns a missing
+  // scope into a thrown error instead of an organisation-wide read. Reading the field here
+  // would skip that guard, and `loop_run` is tenant data like every other table below.
+  const scopedTeamId = usageTeamId(deps);
+  const runWhere = scopedTeamId
     ? and(
         cutoffCond ? gte(loopRun.startedAt, cutoff!) : undefined,
-        eq(loopRun.teamId, deps.teamId),
+        eq(loopRun.teamId, scopedTeamId),
       )
     : cutoffCond ? gte(loopRun.startedAt, cutoff!) : undefined;
 
@@ -576,10 +613,10 @@ export async function usageByLoop(
   // created_at: filtering costs by created_at while runs filter by startedAt dropped a loop's cost
   // entirely at period edges (runs before the cutoff but batch after → not in runRows, so the cost
   // map entry was never read) or reported cost 0 (run inside the period, batch just after).
-  const costWhere = deps.teamId
+  const costWhere = scopedTeamId
     ? cutoff
-      ? sql`lr.started_at >= ${cutoff.toISOString()} AND lr.team_id = ${deps.teamId}`
-      : sql`lr.team_id = ${deps.teamId}`
+      ? sql`lr.started_at >= ${cutoff.toISOString()} AND lr.team_id = ${scopedTeamId}`
+      : sql`lr.team_id = ${scopedTeamId}`
     : cutoff ? sql`lr.started_at >= ${cutoff.toISOString()}` : undefined;
 
   const costRows = await db
@@ -653,13 +690,13 @@ const ROUTE_LABELS = {
 
 export async function usageStandalone(
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<StandaloneRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   const rows = await db
     .select({
@@ -743,13 +780,13 @@ async function routeAggQuery(
 export async function routeAggForSource(
   source: UsageSource,
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<RouteAggRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   let sourceCond;
   if (source === 'loops') {
@@ -766,13 +803,13 @@ export async function routeAggForSource(
 export async function routeAggForProject(
   projectId: string,
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<RouteAggRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   return routeAggQuery(
     and(termCond, cutoffCond, teamCond, eq(mmaBatch.projectId, projectId), sql`${mmaBatch.id} NOT IN ${loopBatchIds}`),
@@ -783,13 +820,13 @@ export async function routeAggForProject(
 export async function routeAggForLoop(
   loopId: string,
   period: Period,
-  deps: UsageDeps = {},
+  deps: UsageDeps,
 ): Promise<RouteAggRow[]> {
   const db = deps.db ?? getDb();
   const cutoff = periodCutoff(period);
   const cutoffCond = cutoff ? gte(mmaBatch.createdAt, cutoff) : undefined;
   const termCond = inArray(mmaBatch.status, TERMINAL_MMA_STATUS);
-  const teamCond = teamScopeFilter(deps.teamId);
+  const teamCond = teamScopeFilter(deps);
 
   // All batches linked to this loop's runs via loop_run_id or legacy mma_batch_id
   const loopBatchCond = sql`(${mmaBatch.loopRunId} IN (SELECT id FROM forge.loop_run WHERE loop_id = ${loopId})

@@ -95,7 +95,7 @@ export default async function JournalPage({
     const db = getDb();
     const [rawPins, topQ, recentBatches] = await Promise.all([
       me ? listPins(me.id) : Promise.resolve([]),
-      topFaqs(),
+      topFaqs(member.teamId),
       me
         ? db
             .select({

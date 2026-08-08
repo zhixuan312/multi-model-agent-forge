@@ -2,9 +2,21 @@
  * FAQ core (Spec: journal recall pins). The Recall tab's "Top-5 frequently asked"
  * is auto-derived from recall history — no curation, no table of its own.
  *
- * Source: `ops_mma_batch` rows where `route = 'journal_recall'` AND
- * `project_id IS NULL` (team-level recalls; project-scoped recalls would bias the
- * shared list). The recall route writes the original query to `request.prompt`.
+ * Source: `ops_mma_batch` rows where `team_id = <the caller's team>` AND
+ * `route = 'journal_recall'` AND `project_id IS NULL` (team-level recalls;
+ * project-scoped recalls would bias the shared list). The recall route writes the
+ * original query to `request.prompt`.
+ *
+ * The `team_id` predicate was MISSING, and `ops_mma_batch` holds every team's rows. So
+ * the "Top-5 frequently asked" aggregated recall queries across the whole deployment: a
+ * brand-new team opened the Recall tab and saw another team's questions. Not only the
+ * questions — a `Faq` carries `answerMd`, `findings` and `citationIds`, so the stored
+ * ANSWERS leaked with them.
+ *
+ * `teamId` is a REQUIRED first parameter rather than an optional filter. The sibling
+ * reads on that page are scoped by construction (`listPins(me.id)`, recent recalls by
+ * `dispatched_by`), and this one was scoped by nothing; an optional argument would let
+ * the next caller reintroduce exactly that, silently.
  *
  * The most-recent N recall rows are fetched via the index
  * (`ops_mma_batch (created_at desc)`) — a bounded scan — then grouped by normalized
@@ -34,14 +46,14 @@ export interface Faq {
 /** Upper bound on rows aggregated — the most-recent recall queries. */
 const SCAN_CAP = 1000;
 
-export async function topFaqs(limit = 5, deps: FaqsDeps = {}): Promise<Faq[]> {
+export async function topFaqs(teamId: string, limit = 5, deps: FaqsDeps = {}): Promise<Faq[]> {
   const db = deps.db ?? getDb();
   // Light scan (no `result` payload) — group by question, and remember each group's most-recent
   // COMPLETED batch id so we can fetch just those answers below.
   const rows = await db
     .select({ id: mmaBatch.id, request: mmaBatch.request, createdAt: mmaBatch.createdAt, status: mmaBatch.status })
     .from(mmaBatch)
-    .where(and(eq(mmaBatch.route, 'journal_recall'), isNull(mmaBatch.projectId)))
+    .where(and(eq(mmaBatch.teamId, teamId), eq(mmaBatch.route, 'journal_recall'), isNull(mmaBatch.projectId)))
     .orderBy(desc(mmaBatch.createdAt))
     .limit(SCAN_CAP);
 

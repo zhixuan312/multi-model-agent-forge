@@ -39,6 +39,8 @@ export type LogEventName =
   | 'startup.synthesis_reconciled'
   | 'startup.synthesis_deferred'
   | 'startup.loop_scheduler_started'
+  // The recurring scheduler tick, which runs every 60s for the life of the process.
+  | 'loops.tick_failed'
   | 'startup.loop_scheduler_deferred'
   | 'startup.automation_resumed'
   | 'startup.automation_resume_failed'

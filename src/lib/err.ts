@@ -48,11 +48,42 @@ export async function responseError(res: Response, fallback: string): Promise<st
 }
 
 /**
- * The message of a caught value, or its `String()` form when it is not an Error.
+ * The message of a caught value, or its `String()` form when it is not an Error —
+ * followed by its `cause` chain, which is where the reason usually actually is.
  *
  * `e instanceof Error ? e.message : String(e)` was written out seven times — five of them
  * in the same boot file, once per deferred-startup catch.
+ *
+ * The `cause` half was the missing part, and it cost real diagnostic time. The two most
+ * common failures in this app both wrap the reason one level down:
+ *
+ *   Drizzle  → message: "Failed query: select … from forge.loop_def"   cause: ECONNREFUSED
+ *   fetch    → message: "fetch failed"                                 cause: ENOTFOUND / certificate expired
+ *
+ * Reading `.message` alone prints the SQL that failed, or the word "failed", and silently
+ * drops the one token that says why. The loops scheduler logged
+ * `[loops] scheduler tick failed: Failed query: select …` once a minute, which named the
+ * statement, the columns and the parameter — everything except the reason.
+ *
+ * The chain is walked (a cause can itself have a cause) with a depth cap and a seen-set,
+ * because `cause` is caller-supplied and can be self-referential.
  */
 export function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  const head = err instanceof Error ? err.message : String(err);
+  const parts = [head];
+  const seen = new Set<unknown>([err]);
+  let cur: unknown = (err as { cause?: unknown })?.cause;
+  for (let depth = 0; cur != null && depth < 4 && !seen.has(cur); depth++) {
+    seen.add(cur);
+    const c = cur as { code?: unknown; message?: unknown };
+    const code = typeof c.code === 'string' ? c.code : null;
+    const msg = cur instanceof Error ? cur.message : typeof c.message === 'string' ? c.message : String(cur);
+    // The code is the useful half for a network or Postgres failure, and it is frequently
+    // absent from the message text — `ECONNREFUSED` vs "connect ECONNREFUSED 127.0.0.1:5432"
+    // overlap, but `42P01` does not appear in "relation ... does not exist" at all.
+    const rendered = code && !msg.includes(code) ? `${code}: ${msg}` : msg;
+    if (rendered && !parts.includes(rendered)) parts.push(rendered);
+    cur = (cur as { cause?: unknown })?.cause;
+  }
+  return parts.join(' ← ');
 }

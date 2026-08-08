@@ -3,6 +3,8 @@ import { getDb, type Db } from '@/db/client';
 import { loop, loopRun } from '@/db/schema/loop';
 import { nextRuns } from '@/loops/cron';
 import { startLoopRun } from '@/loops/run-now';
+import { logEvent } from '@/observability/log-event';
+import { errMessage } from '@/lib/err';
 
 /**
  * Loops scheduler (spec §5). The `loop-worker` ticks ~once/minute and fires due,
@@ -112,7 +114,15 @@ export function startLoopWorker(intervalMs = 60_000): () => void {
     try {
       await tickScheduler();
     } catch (e) {
-      console.error('[loops] scheduler tick failed:', (e as Error)?.message);
+      // `(e as Error).message` on a Drizzle failure is "Failed query: <the whole SELECT>" —
+      // it named the statement, the columns and the parameter, and omitted the reason,
+      // once a minute forever. `errMessage` walks the `cause` chain, which is where the
+      // ECONNREFUSED / 42P01 / password-auth actually lives.
+      //
+      // Through `logEvent`, not `console.error`: raw console logging is the second,
+      // sink-less log shape that `instrumentation.ts` records retiring — no `ts`, no
+      // `level`, and unobservable from a test. This call site was left behind.
+      logEvent({ event: 'loops.tick_failed', level: 'error', detail: errMessage(e) });
     } finally {
       running = false;
     }
